@@ -143,6 +143,9 @@ CMake Options for Third-party Library Paths
    * - ``ZLIB_DIR``
      - Path to a Zlib install (optional). (Needed for HDF5 support)
 
+   * - ``CGNS_DIR``
+     - Path to a CGNS install (optional). Controls if CGNS I/O support is built into *conduit_relay*.
+
    * - ``SILO_DIR``
      - Path to a Silo install (optional). Controls if Silo I/O support is built into *conduit_relay*. Requires HDF5.
 

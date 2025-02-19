@@ -87,6 +87,10 @@ identify_protocol(const std::string &path,
     {
         io_type = "hdf5";
     }
+    else if (file_name_ext == "cgns")
+    {
+        io_type = "cgns";
+    }
     else if(file_name_ext == "silo")
     {
         io_type = "conduit_silo";

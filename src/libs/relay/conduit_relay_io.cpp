@@ -98,6 +98,12 @@ about(Node &n)
     io_protos["sidre_hdf5"] = "enabled";
 #endif
 
+#ifdef CONDUIT_RELAY_IO_CGNS_ENABLED
+    io_protos["cgns"] = "enabled";
+#else
+    io_protos["cgns"] = "disabled";
+#endif
+
 #ifdef CONDUIT_RELAY_IO_H5ZZFP_ENABLED
     io_protos["h5z-zfp"] = "enabled";
 #else

@@ -178,6 +178,66 @@ TEST(conduit_blueprint_mesh_relay, save_read_mesh)
 }
 
 //-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_relay, save_read_mesh_cgns)
+{
+    Node io_protos;
+    relay::io::about(io_protos["io"]);
+    bool cgns_enabled = io_protos["io/protocols/cgns"].as_string() == "enabled";
+    if(!cgns_enabled)
+    {
+        CONDUIT_INFO("CGNS disabled, skipping save_read_mesh_truncate test");
+        return;
+    }
+    std::cout << "cgns_enabled: " << cgns_enabled << "\n";
+
+
+    {
+        Node data;
+        blueprint::mesh::examples::braid("tets",
+                                         4,
+                                         4,
+                                         4,
+                                         data.append());
+
+
+        relay::io::blueprint::write_mesh(data, "all_tet", "cgns");
+        // todo needs read_mesh test
+        // Node read_data;
+        // relay::io::blueprint::read_mesh("temp.cgns", read_data);
+        // Node diff_info;
+        // // diff == false, no diff == diff clean
+        // EXPECT_FALSE(data.diff(read_data.child(0),diff_info));
+    }
+
+    {
+        Node data;
+        blueprint::mesh::examples::braid("hexs",
+                                         4,
+                                         4,
+                                         4,
+                                         data.append());
+
+
+        relay::io::blueprint::save_mesh(data, "all_hex", "cgns");
+        // todo needs read_mesh test
+    }
+    // {
+    //     Node data;
+    //     blueprint::mesh::examples::braid("mixed",
+    //                                      4,
+    //                                      4,
+    //                                      4,
+    //                                      data.append());
+
+
+    //     relay::io::blueprint::save_mesh(data, "mixed_element", "cgns");
+    //     // todo needs read_mesh test
+    // }
+
+    ASSERT_TRUE(false);
+}
+
+//-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_relay, save_read_mesh_truncate)
 {
     Node io_protos;
