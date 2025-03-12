@@ -91,7 +91,16 @@ public:
 
     T              element(index_t idx) const;
 
-    void           set(index_t idx, T value);
+    // Without the SFINAE features, the compiler doesn't know which of the two
+    // set methods to call. We need to restrict them based on if the type is a 
+    // pointer or not so that it is unambiguous which method should be called.
+    template <typename U = T>
+    typename std::enable_if<!std::is_pointer<U>::value, void>::type
+                    set(index_t idx, T value);
+
+    template <typename U = T>
+    typename std::enable_if<std::is_pointer<U>::value, void>::type
+                    set(const T* values, index_t num_elements);
 
     void            fill(T value);
 

@@ -214,7 +214,8 @@ DataAccessor<T>::element(index_t idx) const
 
 //---------------------------------------------------------------------------//
 template <typename T>
-void
+template <typename U>
+typename std::enable_if<!std::is_pointer<U>::value, void>::type
 DataAccessor<T>::set(index_t idx, T value)
 {
     switch(m_dtype.id())
@@ -270,6 +271,104 @@ DataAccessor<T>::set(index_t idx, T value)
         case DataType::FLOAT64_ID:
         {
             (*(float64*)(element_ptr(idx))) = static_cast<float64>(value);
+            break;
+        }
+        default:
+            // error
+            CONDUIT_ERROR("DataAccessor does not support dtype: "
+                          << m_dtype.name());
+    }
+}
+
+//---------------------------------------------------------------------------//
+template <typename T>
+template <typename U>
+typename std::enable_if<std::is_pointer<U>::value, void>::type
+DataAccessor<T>::set(const T* values, index_t num_elements)
+{
+    switch(m_dtype.id())
+    {
+        // ints
+        case DataType::INT8_ID:
+        {
+            for(index_t idx=0;idx<num_elements;idx++)
+            {
+                (*(int8*)(element_ptr(idx))) = static_cast<int8>(values[idx]);
+            }
+            break;
+        }
+        case DataType::INT16_ID:
+        {
+            for(index_t idx=0;idx<num_elements;idx++)
+            {
+                (*(int16*)(element_ptr(idx))) = static_cast<int16>(values[idx]);
+            }
+            break;
+        }
+        case DataType::INT32_ID:
+        {
+            for(index_t idx=0;idx<num_elements;idx++)
+            {
+                (*(int32*)(element_ptr(idx))) = static_cast<int32>(values[idx]);
+            }
+            break;
+        }
+        case DataType::INT64_ID:
+        {
+            for(index_t idx=0;idx<num_elements;idx++)
+            {
+                (*(int64*)(element_ptr(idx))) = static_cast<int64>(values[idx]);
+            }
+            break;
+        }
+        // uints
+        case DataType::UINT8_ID:
+        {
+            for(index_t idx=0;idx<num_elements;idx++)
+            {
+                (*(uint8*)(element_ptr(idx))) = static_cast<uint8>(values[idx]);
+            }
+            break;
+        }
+        case DataType::UINT16_ID:
+        {
+            for(index_t idx=0;idx<num_elements;idx++)
+            {
+                (*(uint16*)(element_ptr(idx))) = static_cast<uint16>(values[idx]);
+            }
+            break;
+        }
+        case DataType::UINT32_ID:
+        {
+            for(index_t idx=0;idx<num_elements;idx++)
+            {
+                (*(uint32*)(element_ptr(idx))) = static_cast<uint32>(values[idx]);
+            }
+            break;
+        }
+        case DataType::UINT64_ID:
+        {
+            for(index_t idx=0;idx<num_elements;idx++)
+            {
+                (*(uint64*)(element_ptr(idx))) = static_cast<uint64>(values[idx]);
+            }
+            break;
+        }
+        // floats
+        case DataType::FLOAT32_ID:
+        {
+            for(index_t idx=0;idx<num_elements;idx++)
+            {
+                (*(float32*)(element_ptr(idx))) = static_cast<float32>(values[idx]);
+            }
+            break;
+        }
+        case DataType::FLOAT64_ID:
+        {
+            for(index_t idx=0;idx<num_elements;idx++)
+            {
+                (*(float64*)(element_ptr(idx))) = static_cast<float64>(values[idx]);
+            }
             break;
         }
         default:
