@@ -102,6 +102,10 @@ public:
     typename std::enable_if<std::is_pointer<U>::value, void>::type
                     set(const T* values, index_t num_elements);
 
+    // void            set(const std::vector<typename std::remove_pointer<T>::type> &values)
+    //                     { set(values.data(), values.size()); }
+
+
     void            fill(T value);
 
     const void     *element_ptr(index_t idx) const
