@@ -981,7 +981,7 @@ void write_mesh(const Node &mesh,
 #endif
 
     // -----------------------------------------------------------
-    // make sure some MPI taks has data
+    // make sure some MPI task has data
     // -----------------------------------------------------------
     Node multi_dom;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
