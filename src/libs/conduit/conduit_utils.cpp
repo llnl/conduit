@@ -108,11 +108,11 @@ default_memcpy_handler(void * destination, const void * source, size_t num)
 
 //-----------------------------------------------------------------------------
 // Private namespace member that holds our memcpy callback.
-Handle_Memcpy conduit_handle_memcpy = default_memcpy_handler;
+Handle_Memcpy conduit_handle_memcpy;
 
 //-----------------------------------------------------------------------------
 // Private namespace member that holds our memset callback.
-Handle_Memset conduit_handle_memset = default_memset_handler;
+Handle_Memset conduit_handle_memset;
 
 //-----------------------------------------------------------------------------
 void
@@ -260,6 +260,12 @@ conduit_memcpy(void *destination,
                const void *source,
                size_t num)
 {
+    static bool init_callback = true;
+    if (init_callback)
+    {
+        conduit_handle_memcpy = Handle_Memcpy(default_memcpy_handler);
+        init_callback = false;
+    }
     conduit_handle_memcpy(destination,source,num);
 }
 
@@ -269,6 +275,12 @@ void conduit_memset(void *ptr,
                     int value,
                     size_t num)
 {
+    static bool init_callback = true;
+    if (init_callback)
+    {
+        conduit_handle_memset = Handle_Memset(default_memset_handler);
+        init_callback = false;
+    }
     conduit_handle_memset(ptr,value,num);
 }
 //-----------------------------------------------------------------------------
