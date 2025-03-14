@@ -115,6 +115,19 @@ else()
     message(STATUS "ADIOS disabled: Skipping related tests")
 endif()
 
+if(ADIOS2_FOUND)
+    set(serial_adios2_deps adios2_nompi)
+    if(UNIX AND NOT APPLE)
+        list(APPEND serial_adios2_deps dl rt ${CMAKE_THREAD_LIBS_INIT})
+    endif()
+    message(STATUS "ADIOS2 enabled: Adding related unit tests")
+        add_cpp_test(TEST t_adios2_smoke
+                     DEPENDS_ON ${serial_adios2_deps}
+                     FOLDER tests/thirdparty)
+else()
+    message(STATUS "ADIOS2 disabled: Skipping related tests")
+endif()
+
 if(FORTRAN_FOUND)
     message(STATUS "Fortran enabled: Adding related unit tests")
     add_fortran_test(TEST t_fortran_smoke
