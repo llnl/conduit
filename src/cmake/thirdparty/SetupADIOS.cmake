@@ -25,7 +25,7 @@ FUNCTION(FIND_ADIOS COMPS FOUNDVAR INCVAR LIBVAR)
     # all the info about the ADIOS install
     include(${ADIOS_DIR}/etc/FindADIOS.cmake)
 
-    # FindADIOS sets ADIOS_DIR to it's installed CMake info if it exists
+    # FindADIOS sets ADIOS_DIR to its installed CMake info if it exists
     # we want to keep ADIOS_DIR as the root dir of the install to be 
     # consistent with other packages
 
