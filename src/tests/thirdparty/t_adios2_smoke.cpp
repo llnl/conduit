@@ -12,6 +12,7 @@
 #define _NOMPI
 
 #include <adios2.h>
+#include <cassert>
 #include <iostream>
 #include "gtest/gtest.h"
 
@@ -20,36 +21,38 @@
 //-----------------------------------------------------------------------------
 TEST(adios2_smoke, basic_use)
 {
-    int rank = 0;
-    int comm = 0;
-    int NX = 5;
-    const char *filename = "adios2_smoke.bp";
-    int64_t m_adios2_group;
-    int64_t m_adios2_file;
-
-    int status = adios2_init_noxml(comm);
-    EXPECT_TRUE(status >= 0 );
-
-    adios2_set_max_buffer_size (10);
-
-    status = adios2_declare_group(&m_adios2_group, "restart", "iter", adios2_stat_default);
-    EXPECT_TRUE(status >= 0 );
-
-    status = adios2_select_method(m_adios2_group, "POSIX", "", "");
-    EXPECT_TRUE(status >= 0 );
-
-    adios2_define_var(m_adios2_group, "NX",
-                     "", adios2_integer,
-                     0, 0, 0);
-
-    status = adios2_open(&m_adios2_file, "restart", filename, "w", comm);
-
-    status = adios2_write(m_adios2_file, "NX", (void *) &NX);
-    EXPECT_TRUE(status >= 0 );
-
-    status = adios2_close(m_adios2_file);
-    EXPECT_TRUE(status >= 0 );
-
-    status = adios2_finalize(rank);
-    EXPECT_TRUE(status >= 0 );
+    #warning "TODO"
+    assert(false);
+    //TODO int rank = 0;
+    //TODO int comm = 0;
+    //TODO int NX = 5;
+    //TODO const char *filename = "adios2_smoke.bp";
+    //TODO int64_t m_adios2_group;
+    //TODO int64_t m_adios2_file;
+    //TODO 
+    //TODO int status = adios2_init_noxml(comm);
+    //TODO EXPECT_TRUE(status >= 0 );
+    //TODO 
+    //TODO adios2_set_max_buffer_size (10);
+    //TODO 
+    //TODO status = adios2_declare_group(&m_adios2_group, "restart", "iter", adios2_stat_default);
+    //TODO EXPECT_TRUE(status >= 0 );
+    //TODO 
+    //TODO status = adios2_select_method(m_adios2_group, "POSIX", "", "");
+    //TODO EXPECT_TRUE(status >= 0 );
+    //TODO 
+    //TODO adios2_define_var(m_adios2_group, "NX",
+    //TODO                  "", adios2_integer,
+    //TODO                  0, 0, 0);
+    //TODO 
+    //TODO status = adios2_open(&m_adios2_file, "restart", filename, "w", comm);
+    //TODO 
+    //TODO status = adios2_write(m_adios2_file, "NX", (void *) &NX);
+    //TODO EXPECT_TRUE(status >= 0 );
+    //TODO 
+    //TODO status = adios2_close(m_adios2_file);
+    //TODO EXPECT_TRUE(status >= 0 );
+    //TODO 
+    //TODO status = adios2_finalize(rank);
+    //TODO EXPECT_TRUE(status >= 0 );
 }

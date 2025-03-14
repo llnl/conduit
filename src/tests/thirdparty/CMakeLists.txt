@@ -116,7 +116,7 @@ else()
 endif()
 
 if(ADIOS2_FOUND)
-    set(serial_adios2_deps adios2_nompi)
+    set(serial_adios2_deps adios2::cxx11)
     if(UNIX AND NOT APPLE)
         list(APPEND serial_adios2_deps dl rt ${CMAKE_THREAD_LIBS_INIT})
     endif()
