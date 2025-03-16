@@ -260,12 +260,18 @@ conduit_memcpy(void *destination,
                const void *source,
                size_t num)
 {
-    static bool init_callback = true;
-    if (init_callback)
+    struct Cb_init
     {
-        conduit_handle_memcpy = Handle_Memcpy(default_memcpy_handler);
-        init_callback = false;
-    }
+        Cb_init()
+        {
+            conduit_handle_memcpy = Handle_Memcpy(default_memcpy_handler);
+        }
+    };
+
+    // See comment on Construct On First Use Idiom above detail::AllocManager
+    // and at https://isocpp.org/wiki/faq/ctors#static-init-order .
+    static Cb_init* initor = new Cb_init();
+
     conduit_handle_memcpy(destination,source,num);
 }
 
@@ -275,12 +281,18 @@ void conduit_memset(void *ptr,
                     int value,
                     size_t num)
 {
-    static bool init_callback = true;
-    if (init_callback)
+    struct Cb_init
     {
-        conduit_handle_memset = Handle_Memset(default_memset_handler);
-        init_callback = false;
-    }
+        Cb_init()
+        {
+            conduit_handle_memset = Handle_Memset(default_memset_handler);
+        }
+    };
+
+    // See comment on Construct On First Use Idiom above detail::AllocManager
+    // and at https://isocpp.org/wiki/faq/ctors#static-init-order .
+    static Cb_init* initor = new Cb_init();
+
     conduit_handle_memset(ptr,value,num);
 }
 //-----------------------------------------------------------------------------
