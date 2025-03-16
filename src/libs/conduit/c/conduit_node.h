@@ -169,10 +169,6 @@ CONDUIT_API int conduit_node_diff_compatible(const conduit_node *cnode,
                                              conduit_node *cinfo,
                                              conduit_float64 epsilon);
 
-//-----------------------------------------------------------------------------
-CONDUIT_API int conduit_node_compatible(const conduit_node *cnode,
-                                        const conduit_node *cother);
-
 CONDUIT_API void conduit_node_info(const conduit_node *cnode,
                                    conduit_node *cnres);
 //-----------------------------------------------------------------------------

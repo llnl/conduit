@@ -254,7 +254,7 @@ public:
 ///
 //-----------------------------------------------------------------------------
     void    set_allocator(index_t allocator_id);
-    index_t allocator();
+    index_t allocator() const;
     void    reset_allocator();
 //-----------------------------------------------------------------------------
 ///@}
