@@ -7239,7 +7239,6 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     int         opts_num_files     = -1;
     bool        opts_truncate      = false;
     int         silo_type          = DB_HDF5;
-    std::set<std::string> filelist;
 
     // check for + validate file_style option
     if(opts.has_child("file_style") && opts["file_style"].dtype().is_string())
@@ -7549,11 +7548,11 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
 
     if(global_num_domains == 0)
     {
-      if(par_rank == 0)
-      {
-          CONDUIT_WARN("There no data to save. Doing nothing.");
-      }
-      return;
+        if(par_rank == 0)
+        {
+            CONDUIT_WARN("There is no data to save. Doing nothing.");
+        }
+        return;
     }
 
     std::string output_dir = "";
