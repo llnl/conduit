@@ -146,8 +146,9 @@ TEST(conduit_relay_io_silo, round_trip_basic)
         Node save_mesh, load_mesh, info;
         blueprint::mesh::examples::basic(mesh_type, nx, ny, nz, save_mesh);
 
+
         const std::string basename = "silo_basic_" + mesh_type + "_" + dim + "D";
-        const std::string filename = basename + ".root";
+        const std::string filename = io::blueprint::get_root_filename(save_mesh, basename, "silo");
 
         remove_path_if_exists(filename);
         io::silo::save_mesh(save_mesh, basename);

@@ -1828,6 +1828,52 @@ void write_mesh(const Node &mesh,
 //-----------------------------------------------------------------------------
 // Generate root file name given parameters
 //-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+std::string get_root_filename(const conduit::Node &mesh,
+                              const std::string &path
+                              CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
+{
+    // empty opts
+    Node opts;
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    return get_root_filename(mesh,
+                             path,
+                             detail::identify_protocol(path),
+                             opts,
+                             mpi_comm);
+#else
+    return get_root_filename(mesh,
+                             path,
+                             detail::identify_protocol(path),
+                             opts);
+#endif
+}
+
+//-----------------------------------------------------------------------------
+std::string get_root_filename(const conduit::Node &mesh,
+                              const std::string &path,
+                              const std::string &file_protocol
+                              CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
+{
+    // empty opts
+    Node opts;
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    return get_root_filename(mesh,
+                             path,
+                             file_protocol,
+                             opts,
+                             mpi_comm);
+#else
+    return get_root_filename(mesh,
+                             path,
+                             file_protocol,
+                             opts);
+#endif
+}
+
+
+//-----------------------------------------------------------------------------
 /// The following options can be passed via the opts Node:
 //-----------------------------------------------------------------------------
 /// opts:

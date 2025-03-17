@@ -146,6 +146,17 @@ void CONDUIT_RELAY_API write_mesh(const conduit::Node &mesh,
 //-----------------------------------------------------------------------------
 // Generate root file name given parameters
 //-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+std::string CONDUIT_RELAY_API get_root_filename(const conduit::Node &mesh,
+                                                const std::string &path);
+
+//-----------------------------------------------------------------------------
+std::string CONDUIT_RELAY_API get_root_filename(const conduit::Node &mesh,
+                                                const std::string &path,
+                                                const std::string &protocol);
+
+//-----------------------------------------------------------------------------
 /// The following options can be passed via the opts Node:
 //-----------------------------------------------------------------------------
 /// opts:
