@@ -7442,8 +7442,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
 
     if(global_boolean == 0)
     {
-      CONDUIT_INFO("Silo save: no valid data exists. Skipping save");
-      return;
+        CONDUIT_INFO("Silo save: no valid data exists. Skipping save");
+        return;
     }
 
     // -----------------------------------------------------------
@@ -7503,9 +7503,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
 
     index_t_accessor counts = n_reduced.value();
     index_t idx = -1;
-    index_t i =0;
     NodeConstIterator counts_itr = n_reduced.children();
-    while(counts_itr.has_next() && idx < 0)
+    for(index_t i = 0; counts_itr.has_next() && idx < 0; i++)
     {
         const Node &curr = counts_itr.next();
         index_t count = curr.to_index_t();
@@ -7513,7 +7512,6 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         {
             idx = i;
         }
-        i++;
     }
 
     // now broadcast from idx
