@@ -1826,6 +1826,60 @@ void write_mesh(const Node &mesh,
 }
 
 //-----------------------------------------------------------------------------
+// make sure some MPI task has data
+//-----------------------------------------------------------------------------
+bool check_mesh_valid_for_save(int &cycle,
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+                               Node &n_local,
+                               Node &n_reduced,
+#endif
+                               Node &multi_dom,
+                               const Node &mesh,
+                               bool &is_valid,
+                               int &par_rank,
+                               int &par_size
+                               CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
+{
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    is_valid = conduit::relay::mpi::io::blueprint::clean_mesh(mesh, multi_dom, mpi_comm);
+#else
+    is_valid = conduit::relay::io::blueprint::clean_mesh(mesh, multi_dom);
+#endif
+
+    par_rank = 0;
+    par_size = 1;
+    // we may not have any domains so init to max
+    cycle = std::numeric_limits<int>::max();
+
+    int local_boolean = is_valid ? 1 : 0;
+    int global_boolean = local_boolean;
+
+
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    par_rank = relay::mpi::rank(mpi_comm);
+    par_size = relay::mpi::size(mpi_comm);
+
+    // reduce to check to see if any valid data exists
+
+    n_local = (int)cycle;
+    relay::mpi::sum_all_reduce(n_local,
+                               n_reduced,
+                               mpi_comm);
+
+    global_boolean = n_reduced.as_int();
+
+#endif
+
+    if (global_boolean == 0)
+    {
+        CONDUIT_INFO("check_mesh_valid_for_save: no valid data exists.");
+        return false;
+    }
+
+    return true;
+}
+
+//-----------------------------------------------------------------------------
 // Generate root file name given parameters
 //-----------------------------------------------------------------------------
 
@@ -1903,6 +1957,14 @@ std::string get_root_filename(const conduit::Node &mesh,
     std::string opts_root_file_ext = "default";
     bool write_overlink            = false;
 
+    // We will use opts_root_file_ext so that we can share logic between
+    // Silo and Blueprint in this function. We hardcode Blueprint to use 
+    // "root".
+    if (file_protocol != "silo")
+    {
+        opts_root_file_ext = "root";
+    }
+
     // check for + validate suffix option
     if (opts.has_child("suffix") && opts["suffix"].dtype().is_string())
     {
@@ -1918,48 +1980,31 @@ std::string get_root_filename(const conduit::Node &mesh,
         }
     }
 
-#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    // nodes used for MPI comm (share them for many operations)
-    Node n_local, n_reduced;
-#endif
-
-    // -----------------------------------------------------------
-    // make sure some MPI task has data
-    // -----------------------------------------------------------
+    int cycle;
     Node multi_dom;
+    bool is_valid;
+    int par_rank;
+    int par_size;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    bool is_valid = conduit::relay::mpi::io::blueprint::clean_mesh(mesh, multi_dom, mpi_comm);
+    Node n_local, n_reduced; // nodes used for MPI comm (share them for many operations)
+    if (!check_mesh_valid_for_save(cycle,
+                                   n_local,
+                                   n_reduced,
+                                   multi_dom,
+                                   mesh,
+                                   is_valid,
+                                   par_rank,
+                                   par_size,
+                                   mpi_comm))
 #else
-    bool is_valid = conduit::relay::io::blueprint::clean_mesh(mesh, multi_dom);
+    if (!check_mesh_valid_for_save(cycle,
+                                   multi_dom,
+                                   mesh,
+                                   is_valid,
+                                   par_rank,
+                                   par_size))
 #endif
-
-    int par_rank = 0;
-    int par_size = 1;
-    // we may not have any domains so init to max
-    int cycle = std::numeric_limits<int>::max();
-
-    int local_boolean = is_valid ? 1 : 0;
-    int global_boolean = local_boolean;
-
-
-#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    par_rank = relay::mpi::rank(mpi_comm);
-    par_size = relay::mpi::size(mpi_comm);
-
-    // reduce to check to see if any valid data exists
-
-    n_local = (int)cycle;
-    relay::mpi::sum_all_reduce(n_local,
-                               n_reduced,
-                               mpi_comm);
-
-    global_boolean = n_reduced.as_int();
-
-#endif
-
-    if(global_boolean == 0)
     {
-        CONDUIT_INFO("Silo save: no valid data exists. Skipping save");
         return "";
     }
 
@@ -2103,53 +2148,35 @@ std::string get_root_filename(const conduit::Node &mesh,
     // ----------------------------------------------------
     // setup root file name
     // ----------------------------------------------------
-    if (file_protocol == "silo")
+    std::string root_filename;
+    if (file_protocol == "silo" && write_overlink)
     {
-        std::string root_filename;
-        if (write_overlink)
+        std::string output_dir = path;
+
+        // at this point for suffix, we should only see
+        // cycle or none -- default has been resolved
+        if (opts_suffix == "cycle")
         {
-            std::string output_dir = path;
-
-            // at this point for suffix, we should only see
-            // cycle or none -- default has been resolved
-            if (opts_suffix == "cycle")
-            {
-                output_dir += conduit_fmt::format(".cycle_{:06d}", cycle);
-            }
-
-            root_filename = utils::join_file_path(output_dir, "OvlTop." + opts_root_file_ext);
-        }
-        else
-        {
-            root_filename = path;
-
-            // at this point for suffix, we should only see 
-            // cycle or none -- default has been resolved
-            if (opts_suffix == "cycle")
-            {
-                root_filename += conduit_fmt::format(".cycle_{:06d}", cycle);
-            }
-
-            root_filename += "." + opts_root_file_ext;
+            output_dir += conduit_fmt::format(".cycle_{:06d}", cycle);
         }
 
-        return root_filename;
+        root_filename = utils::join_file_path(output_dir, "OvlTop." + opts_root_file_ext);
     }
     else
     {
-        std::string root_filename = path;
+        root_filename = path;
 
         // at this point for suffix, we should only see 
         // cycle or none -- default has been resolved
-        if(opts_suffix == "cycle")
+        if (opts_suffix == "cycle")
         {
             root_filename += conduit_fmt::format(".cycle_{:06d}", cycle);
         }
 
-        root_filename += ".root";
-
-        return root_filename;
+        root_filename += "." + opts_root_file_ext;
     }
+
+    return root_filename;
 }
 
 //-----------------------------------------------------------------------------

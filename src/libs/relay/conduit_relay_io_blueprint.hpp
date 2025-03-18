@@ -144,6 +144,16 @@ void CONDUIT_RELAY_API write_mesh(const conduit::Node &mesh,
                                   const conduit::Node &opts);
 
 //-----------------------------------------------------------------------------
+// make sure some MPI task has data
+//-----------------------------------------------------------------------------
+bool CONDUIT_RELAY_API check_mesh_valid_for_save(int &cycle,
+                                                 Node &multi_dom,
+                                                 const Node &mesh,
+                                                 bool &is_valid,
+                                                 int &par_rank,
+                                                 int &par_size);
+
+//-----------------------------------------------------------------------------
 // Generate root file name given parameters
 //-----------------------------------------------------------------------------
 
