@@ -1007,84 +1007,27 @@ void write_mesh(const Node &mesh,
     // -----------------------------------------------------------
     // get the number of local domains and the cycle info
     // -----------------------------------------------------------
-
-    int local_num_domains = (int)multi_dom.number_of_children();
-    // figure out what cycle we are
-    if(local_num_domains > 0 && is_valid)
-    {
-        Node dom = multi_dom.child(0);
-        if(!dom.has_path("state/cycle"))
-        {
-            if(opts_suffix == "cycle")
-            {
-                static std::map<std::string,int> counters;
-                CONDUIT_INFO("Blueprint save: no 'state/cycle' present."
-                             " Defaulting to counter");
-                cycle = counters[path];
-                counters[path]++;
-            }
-            else
-            {
-                opts_suffix = "none";
-            }
-        }
-        else if(opts_suffix == "cycle")
-        {
-            cycle = dom["state/cycle"].to_int();
-        }
-        else if(opts_suffix == "default")
-        {
-            cycle = dom["state/cycle"].to_int();
-            opts_suffix = "cycle";
-        }
-    }
-
+    int local_num_domains;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    // reduce to get the cycle (some tasks might not have domains)
-    n_local = (int)cycle;
-
-    relay::mpi::min_all_reduce(n_local,
-                               n_reduced,
-                               mpi_comm);
-
-    cycle = n_reduced.as_int();
-
-    // we also need to have all mpi tasks agree on the `opts_suffix`
-    // checking the first mpi task with domains should be sufficient.
-    // find first
-    n_local   = local_num_domains;
-    n_reduced.reset();
-    
-    relay::mpi::all_gather(n_local,
-                           n_reduced,
-                           mpi_comm);
-
-
-    index_t idx = -1;
-    NodeConstIterator counts_itr = n_reduced.children();
-    for(index_t i = 0; counts_itr.has_next() && idx < 0; i++)
-    {
-        const Node &curr = counts_itr.next();
-        index_t count = curr.to_index_t();
-        if(count > 0)
-        {
-            idx = i;
-        }
-    }
-
-    // now broadcast from idx
-    Node n_opts_suffix;
-    if(par_rank == idx)
-    {
-        n_opts_suffix = opts_suffix;
-    }
-
-    conduit::relay::mpi::broadcast_using_schema(n_opts_suffix,
-                                                idx,
-                                                mpi_comm);
-
-    opts_suffix = n_opts_suffix.as_string();
-
+    get_num_local_doms_and_cycle(local_num_domains,
+                                 n_local,
+                                 n_reduced,
+                                 par_rank,
+                                 multi_dom,
+                                 is_valid,
+                                 opts_suffix,
+                                 cycle,
+                                 false, // we are not just generating the root file name
+                                 path,
+                                 mpi_comm);
+#else
+    get_num_local_doms_and_cycle(local_num_domains,
+                                 multi_dom,
+                                 is_valid,
+                                 opts_suffix,
+                                 cycle,
+                                 false, // we are not just generating the root file name
+                                 path);
 #endif
     
     // -----------------------------------------------------------
@@ -1821,6 +1764,7 @@ void get_num_local_doms_and_cycle(int &local_num_domains,
                                   const bool &is_valid,
                                   std::string &opts_suffix,
                                   int &cycle,
+                                  bool gen_name,
                                   const std::string &path
                                   CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
 {
@@ -1829,15 +1773,21 @@ void get_num_local_doms_and_cycle(int &local_num_domains,
     if (local_num_domains > 0 && is_valid)
     {
         const Node &dom = multi_dom.child(0);
-        if(!dom.has_path("state/cycle"))
+        if (! dom.has_path("state/cycle"))
         {
             if (opts_suffix == "cycle")
             {
                 static std::map<std::string,int> counters;
-                CONDUIT_INFO("Silo save: no 'state/cycle' present."
+                CONDUIT_INFO("get_num_local_doms_and_cycle: no 'state/cycle' present."
                              " Defaulting to counter");
                 cycle = counters[path];
-                counters[path]++;
+
+                // if we're just using this function to generate the name of the root
+                // file, then we don't want to mess with the static counter.
+                if (! gen_name)
+                {
+                    counters[path]++;
+                }
             }
             else
             {
@@ -2150,6 +2100,7 @@ std::string get_root_filename(const conduit::Node &mesh,
                                  is_valid,
                                  opts_suffix,
                                  cycle,
+                                 true, // we are just generating the root file name
                                  path,
                                  mpi_comm);
 #else
@@ -2158,6 +2109,7 @@ std::string get_root_filename(const conduit::Node &mesh,
                                  is_valid,
                                  opts_suffix,
                                  cycle,
+                                 true, // we are just generating the root file name
                                  path);
 #endif
 

@@ -151,6 +151,7 @@ void CONDUIT_RELAY_API get_num_local_doms_and_cycle(int &local_num_domains,
                                                     const bool &is_valid,
                                                     std::string &opts_suffix,
                                                     int &cycle,
+                                                    bool gen_name,
                                                     const std::string &path);
 
 //-----------------------------------------------------------------------------
