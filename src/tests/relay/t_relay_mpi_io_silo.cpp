@@ -63,6 +63,7 @@ TEST(conduit_relay_mpi_io_silo, round_trip_braid)
 
     const std::string basename = "silo_mpi_braid_" + mesh_type + "_3D";
     const std::string filename = basename + ".cycle_000000.root";
+    EXPECT_EQ(filename, relay::mpi::io::blueprint::get_root_filename(save_mesh, basename, "silo", comm));
 
     remove_path_if_exists(filename);
     relay::mpi::io::silo::write_mesh(save_mesh, basename, comm);
@@ -109,7 +110,8 @@ TEST(conduit_relay_mpi_io_silo, mpi_mesh_examples_braid)
                                              comm);
 
     // read this back using read_mesh, should diff clean
-    std::string output_root = output_base + ".cycle_000000.root";
+    const std::string output_root = output_base + ".cycle_000000.root";
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::get_root_filename(save_mesh, output_base, "silo", comm));
     Node load_mesh, info;
     conduit::relay::mpi::io::silo::load_mesh(output_root,
                                              load_mesh,
@@ -185,7 +187,8 @@ TEST(conduit_relay_mpi_io_silo, mpi_mesh_examples_spiral_5doms)
     // note the domain ids will change, so we don't expect
     // this to diff clean
     
-    std::string output_root = output_base + ".cycle_000000.root";
+    const std::string output_root = output_base + ".cycle_000000.root";
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::get_root_filename(save_mesh, output_base, "silo", comm));
     Node load_mesh;
     conduit::relay::mpi::io::silo::load_mesh(output_root,
                                              load_mesh,
@@ -275,6 +278,7 @@ TEST(conduit_relay_mpi_io_silo, mpi_mesh_examples_spiral_1dom)
 
     // read this back using read_mesh, should diff clean
     std::string output_root = output_base + ".cycle_000000.root";
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::get_root_filename(save_mesh, output_base, "silo", opts, comm));
     Node load_mesh, n_diff_info;
     conduit::relay::mpi::io::silo::load_mesh(output_root,
                                              load_mesh,
@@ -435,6 +439,8 @@ TEST(conduit_relay_mpi_io_silo, spiral_multi_file)
                                                  opts,
                                                  comm);
 
+        EXPECT_EQ(output_root, relay::mpi::io::blueprint::get_root_filename(save_mesh, output_base, "silo", opts, comm));
+
         MPI_Barrier(comm);
 
         // count the files
@@ -578,6 +584,9 @@ TEST(conduit_relay_mpi_io_silo, spiral_root_only)
                                              comm);
     EXPECT_TRUE(conduit::utils::is_file(tout_base + ".root"));
 
+    const std::string filename = tout_base + ".root";
+    EXPECT_EQ(filename, relay::mpi::io::blueprint::get_root_filename(save_mesh, tout_base, "silo", opts, comm));
+
     // read the mesh back in diff to make sure we have the same data
     Node n_read, info;
     relay::mpi::io::silo::read_mesh(tout_base + ".root",
@@ -689,7 +698,9 @@ TEST(conduit_relay_mpi_io_silo, test_sparse_domains_case_1)
                                              tout_base,
                                              opts,
                                              comm);
-    EXPECT_TRUE(conduit::utils::is_file(tout_base + ".cycle_000000.root"));
+    const std::string filename = tout_base + ".cycle_000000.root";
+    EXPECT_TRUE(conduit::utils::is_file(filename));
+    EXPECT_EQ(filename, relay::mpi::io::blueprint::get_root_filename(data, tout_base, "silo", opts, comm));
 }
 
 //-----------------------------------------------------------------------------
@@ -772,7 +783,9 @@ TEST(conduit_relay_mpi_io_silo, test_sparse_domains_case_2)
                                              tout_base,
                                              opts,
                                              comm);
-    EXPECT_TRUE(conduit::utils::is_file(tout_base + ".cycle_000000.root"));
+    const std::string filename = tout_base + ".cycle_000000.root";
+    EXPECT_TRUE(conduit::utils::is_file(filename));
+    EXPECT_EQ(filename, relay::mpi::io::blueprint::get_root_filename(data, tout_base, "silo", opts, comm));
 }
 
 //-----------------------------------------------------------------------------
@@ -856,7 +869,9 @@ TEST(conduit_relay_mpi_io_silo, test_sparse_domains_case_3)
                                              tout_base,
                                              opts,
                                              comm);
-    EXPECT_TRUE(conduit::utils::is_file(tout_base + ".cycle_000000.root"));
+    const std::string filename = tout_base + ".cycle_000000.root";
+    EXPECT_TRUE(conduit::utils::is_file(filename));
+    EXPECT_EQ(filename, relay::mpi::io::blueprint::get_root_filename(data, tout_base, "silo", opts, comm));
 }
 
 //-----------------------------------------------------------------------------
@@ -933,6 +948,8 @@ TEST(conduit_relay_mpi_io_silo, missing_domain_var)
 
     EXPECT_TRUE(conduit::utils::is_directory(output_dir));
     EXPECT_TRUE(conduit::utils::is_file(output_root));
+
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::get_root_filename(save_mesh, output_base, "silo", comm));
 
     // read the mesh back in diff to make sure we have the same save_mesh
     Node load_mesh, info;
@@ -1042,6 +1059,8 @@ TEST(conduit_relay_mpi_io_silo, missing_domain_matset)
 
     EXPECT_TRUE(conduit::utils::is_directory(output_dir));
     EXPECT_TRUE(conduit::utils::is_file(output_root));
+
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::get_root_filename(save_mesh, output_base, "silo", comm));
 
     // read the mesh back in diff to make sure we have the same save_mesh
     Node load_mesh, info;
@@ -1170,6 +1189,8 @@ TEST(conduit_relay_mpi_io_silo, missing_domain_mesh_trivial)
 
     EXPECT_TRUE(conduit::utils::is_directory(output_dir));
     EXPECT_TRUE(conduit::utils::is_file(output_root));
+
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::get_root_filename(save_mesh, output_base, "silo", comm));
 
     // read the mesh back in diff to make sure we have the same save_mesh
     Node load_mesh, info;
@@ -1314,6 +1335,8 @@ TEST(conduit_relay_mpi_io_silo, missing_domain_mesh)
 
     EXPECT_TRUE(conduit::utils::is_directory(output_dir));
     EXPECT_TRUE(conduit::utils::is_file(output_root));
+
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::get_root_filename(save_mesh, output_base, "silo", comm));
 
     // read the mesh back in diff to make sure we have the same save_mesh
     Node load_mesh, load_mesh2, info, opts;
