@@ -102,31 +102,10 @@ default_memset_handler(void * ptr, int value, size_t num )
 void
 default_memcpy_handler(void * destination, const void * source, size_t num)
 {
+    
   memcpy(destination,source,num);
 }
 
-
-//-----------------------------------------------------------------------------
-// Private namespace member that holds our memcpy callback.
-Handle_Memcpy conduit_handle_memcpy;
-
-//-----------------------------------------------------------------------------
-// Private namespace member that holds our memset callback.
-Handle_Memset conduit_handle_memset;
-
-//-----------------------------------------------------------------------------
-void
-set_memcpy_handler(Handle_Memcpy conduit_hnd_copy)
-{
-    conduit_handle_memcpy = conduit_hnd_copy;
-}
-
-//-----------------------------------------------------------------------------
-void
-set_memset_handler(Handle_Memset conduit_hnd_memset)
-{
-    conduit_handle_memset = conduit_hnd_memset;
-}
 
 namespace detail
 {
@@ -134,7 +113,7 @@ namespace detail
     // AllocManager: A singleton that holds our alloc and free function maps
     //
     //
-    // NOTE: THE SINGLETON INSTNACE IS INTENTIONALLY LEAKED!
+    // NOTE: THE SINGLETON INSTANCE IS INTENTIONALLY LEAKED!
     // 
     // These maps are used by Node instances to alloc and free
     // memory, they need to exist as long as any Node object exists!
@@ -197,11 +176,38 @@ namespace detail
               m_free_map[allocator_id](ptr);
           }
 
+          // set memcpy and memset handlers
+          void set_memcpy_handler(Handle_Memcpy conduit_hnd_memcpy)
+          {
+              m_handle_memcpy = conduit_hnd_memcpy;
+          }
+
+          void set_memset_handler(Handle_Memset conduit_hnd_memset)
+          {
+              m_handle_memset = conduit_hnd_memset;
+          }
+
+          void memset(void *ptr,
+                      int value,
+                      size_t num)
+          {
+              m_handle_memset(ptr, value, num);
+          }
+
+          void memcpy(void *destination,
+                      const void *source,
+                      size_t num)
+          {
+              m_handle_memcpy(destination, source, num);
+          }
+
      private:
           // constructor
           AllocManager()
           : m_allocator_map(),
-            m_free_map()
+            m_free_map(),
+            m_handle_memcpy(default_memcpy_handler),
+            m_handle_memset(default_memset_handler)
           {
               // register default handlers
               m_allocator_map[0] = &default_alloc_handler;
@@ -222,7 +228,23 @@ namespace detail
           std::map<index_t,Handle_Alloc>    m_allocator_map;
           std::map<index_t,Handle_Free>     m_free_map;
 
+          Handle_Memcpy                     m_handle_memcpy;
+          Handle_Memset                     m_handle_memset;
     };
+}
+
+//-----------------------------------------------------------------------------
+void
+set_memcpy_handler(Handle_Memcpy conduit_hnd_memcpy)
+{
+    detail::AllocManager::instance().set_memcpy_handler(conduit_hnd_memcpy);
+}
+
+//-----------------------------------------------------------------------------
+void
+set_memset_handler(Handle_Memset conduit_hnd_memset)
+{
+    detail::AllocManager::instance().set_memset_handler(conduit_hnd_memset);
 }
 
 //-----------------------------------------------------------------------------
@@ -260,19 +282,7 @@ conduit_memcpy(void *destination,
                const void *source,
                size_t num)
 {
-    struct Cb_init
-    {
-        Cb_init()
-        {
-            conduit_handle_memcpy = Handle_Memcpy(default_memcpy_handler);
-        }
-    };
-
-    // See comment on Construct On First Use Idiom above detail::AllocManager
-    // and at https://isocpp.org/wiki/faq/ctors#static-init-order .
-    static Cb_init* initor = new Cb_init();
-
-    conduit_handle_memcpy(destination,source,num);
+    detail::AllocManager::instance().memcpy(destination,source,num);
 }
 
 
@@ -281,19 +291,7 @@ void conduit_memset(void *ptr,
                     int value,
                     size_t num)
 {
-    struct Cb_init
-    {
-        Cb_init()
-        {
-            conduit_handle_memset = Handle_Memset(default_memset_handler);
-        }
-    };
-
-    // See comment on Construct On First Use Idiom above detail::AllocManager
-    // and at https://isocpp.org/wiki/faq/ctors#static-init-order .
-    static Cb_init* initor = new Cb_init();
-
-    conduit_handle_memset(ptr,value,num);
+    detail::AllocManager::instance().memset(ptr,value,num);
 }
 //-----------------------------------------------------------------------------
 void
@@ -307,9 +305,9 @@ conduit_memcpy_strided_elements(void *dest,
     // source and dest are compact
     if( dest_stride == ele_bytes && src_stride == ele_bytes)
     {
-        utils::conduit_memcpy(dest,
-                              src,
-                              ele_bytes * num_elements);
+        detail::AllocManager::instance().memcpy(dest,
+                                                src,
+                                                ele_bytes * num_elements);
     }
     else // the source or dest are strided in a non compact way
     {
@@ -318,9 +316,9 @@ conduit_memcpy_strided_elements(void *dest,
         for(size_t i=0; i< num_elements; i++)
         {
             // copy next strided element
-            utils::conduit_memcpy(dest_data_ptr,
-                                  src_data_ptr,
-                                  ele_bytes);
+            detail::AllocManager::instance().memcpy(dest_data_ptr,
+                                                    src_data_ptr,
+                                                    ele_bytes);
             // move by src stride
             src_data_ptr  += src_stride;
             // move by dest stride
