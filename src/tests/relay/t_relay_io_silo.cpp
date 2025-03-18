@@ -870,6 +870,7 @@ TEST(conduit_relay_io_silo, read_and_write_semantics)
 
         remove_path_if_exists(filename);
         io::silo::write_mesh(save_mesh, basename);
+        EXPECT_EQ(filename, io::blueprint::get_root_filename(save_mesh, basename, "silo"));
         io::silo::read_mesh(filename, load_mesh);
         EXPECT_TRUE(blueprint::mesh::verify(load_mesh,info));
 
@@ -2377,5 +2378,5 @@ TEST(conduit_relay_io_silo, read_overlink_directly)
 
 // TODO somewhere I need to error on overlink when there are different var or mesh types across domains
 
-// TODO exception tests?
+// TODO exception tests? (EXPECT_THROW)
 
