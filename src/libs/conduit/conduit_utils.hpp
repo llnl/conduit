@@ -273,7 +273,7 @@ namespace utils
     //-----------------------------------------------------------------------------
     /// Function types for memory handlers
     //-----------------------------------------------------------------------------
-    typedef std::function5<void(void*, const void*, size_t)> handle_memcpy_type;
+    typedef std::function<void(void*, const void*, size_t)> handle_memcpy_type;
     typedef std::function<void(void*, int, size_t)> handle_memset_type;
     typedef std::function<void*(size_t, size_t)> handle_alloc_type;
     typedef std::function<void(void*)> handle_free_type;
