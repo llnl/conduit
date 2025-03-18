@@ -153,8 +153,8 @@ namespace detail
           }
 
           // reg interface
-          index_t register_allocator(Handle_Alloc conduit_hnd_allocate,
-                                     Handle_Free conduit_hnd_free)
+          index_t register_allocator(handle_alloc_type conduit_hnd_allocate,
+                                     handle_free_type conduit_hnd_free)
           {
               m_allocator_map[m_allocator_id] = conduit_hnd_allocate;
               m_free_map[m_allocator_id]      = conduit_hnd_free;
@@ -177,12 +177,12 @@ namespace detail
           }
 
           // set memcpy and memset handlers
-          void set_memcpy_handler(Handle_Memcpy conduit_hnd_memcpy)
+          void set_memcpy_handler(handle_memcpy_type conduit_hnd_memcpy)
           {
               m_handle_memcpy = conduit_hnd_memcpy;
           }
 
-          void set_memset_handler(Handle_Memset conduit_hnd_memset)
+          void set_memset_handler(handle_memset_type conduit_hnd_memset)
           {
               m_handle_memset = conduit_hnd_memset;
           }
@@ -224,33 +224,33 @@ namespace detail
           }
 
           // vars
-          index_t                           m_allocator_id;
-          std::map<index_t,Handle_Alloc>    m_allocator_map;
-          std::map<index_t,Handle_Free>     m_free_map;
+          index_t                                m_allocator_id;
+          std::map<index_t,handle_alloc_type>    m_allocator_map;
+          std::map<index_t,handle_free_type>     m_free_map;
 
-          Handle_Memcpy                     m_handle_memcpy;
-          Handle_Memset                     m_handle_memset;
+          handle_memcpy_type                     m_handle_memcpy;
+          handle_memset_type                     m_handle_memset;
     };
 }
 
 //-----------------------------------------------------------------------------
 void
-set_memcpy_handler(Handle_Memcpy conduit_hnd_memcpy)
+set_memcpy_handler(handle_memcpy_type conduit_hnd_memcpy)
 {
     detail::AllocManager::instance().set_memcpy_handler(conduit_hnd_memcpy);
 }
 
 //-----------------------------------------------------------------------------
 void
-set_memset_handler(Handle_Memset conduit_hnd_memset)
+set_memset_handler(handle_memset_type conduit_hnd_memset)
 {
     detail::AllocManager::instance().set_memset_handler(conduit_hnd_memset);
 }
 
 //-----------------------------------------------------------------------------
 index_t
-register_allocator(Handle_Alloc conduit_hnd_allocate,
-                   Handle_Free conduit_hnd_free)
+register_allocator(handle_alloc_type conduit_hnd_allocate,
+                   handle_free_type conduit_hnd_free)
 {
     return detail::AllocManager::instance().register_allocator(conduit_hnd_allocate,
                                                                conduit_hnd_free);
