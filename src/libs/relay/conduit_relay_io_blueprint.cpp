@@ -975,49 +975,33 @@ void write_mesh(const Node &mesh,
 
     int num_files = opts_num_files;
 
-#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    // nodes used for MPI comm (share them for many operations)
-    Node n_local, n_reduced;
-#endif
-
-    // -----------------------------------------------------------
-    // make sure some MPI task has data
-    // -----------------------------------------------------------
+    int cycle;
     Node multi_dom;
+    bool is_valid;
+    int par_rank;
+    int par_size;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    bool is_valid = conduit::relay::mpi::io::blueprint::clean_mesh(mesh, multi_dom, mpi_comm);
+    Node n_local, n_reduced; // nodes used for MPI comm (share them for many operations)
+    if (!check_mesh_valid_for_save(cycle,
+                                   n_local,
+                                   n_reduced,
+                                   multi_dom,
+                                   mesh,
+                                   is_valid,
+                                   par_rank,
+                                   par_size,
+                                   mpi_comm))
 #else
-    bool is_valid = conduit::relay::io::blueprint::clean_mesh(mesh, multi_dom);
+    if (!check_mesh_valid_for_save(cycle,
+                                   multi_dom,
+                                   mesh,
+                                   is_valid,
+                                   par_rank,
+                                   par_size))
 #endif
-
-    int par_rank = 0;
-    int par_size = 1;
-    // we may not have any domains so init to max
-    int cycle = std::numeric_limits<int>::max();
-
-    int local_boolean = is_valid ? 1 : 0;
-    int global_boolean = local_boolean;
-
-
-#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    par_rank = relay::mpi::rank(mpi_comm);
-    par_size = relay::mpi::size(mpi_comm);
-
-    // reduce to check to see if any valid data exists
-
-    n_local = (int)cycle;
-    relay::mpi::sum_all_reduce(n_local,
-                               n_reduced,
-                               mpi_comm);
-
-    global_boolean = n_reduced.as_int();
-
-#endif
-
-    if(global_boolean == 0)
     {
-      CONDUIT_INFO("Blueprint save: no valid data exists. Skipping save");
-      return;
+        CONDUIT_INFO("Blueprint save: no valid data exists. Skipping save");
+        return;
     }
 
     // -----------------------------------------------------------
@@ -1870,13 +1854,7 @@ bool check_mesh_valid_for_save(int &cycle,
 
 #endif
 
-    if (global_boolean == 0)
-    {
-        CONDUIT_INFO("check_mesh_valid_for_save: no valid data exists.");
-        return false;
-    }
-
-    return true;
+    return global_boolean != 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -2005,6 +1983,7 @@ std::string get_root_filename(const conduit::Node &mesh,
                                    par_size))
 #endif
     {
+        CONDUIT_INFO("get_root_filename: no valid data exists. Unable to generate root filename.");
         return "";
     }
 
