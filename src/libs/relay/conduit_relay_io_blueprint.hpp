@@ -143,6 +143,16 @@ void CONDUIT_RELAY_API write_mesh(const conduit::Node &mesh,
                                   const std::string &protocol,
                                   const conduit::Node &opts);
 
+// -----------------------------------------------------------
+// get the number of local domains and the cycle info
+// -----------------------------------------------------------
+void CONDUIT_RELAY_API get_num_local_doms_and_cycle(int &local_num_domains,
+                                                    const Node &multi_dom,
+                                                    const bool &is_valid,
+                                                    std::string &opts_suffix,
+                                                    int &cycle,
+                                                    const std::string &path);
+
 //-----------------------------------------------------------------------------
 // make sure some MPI task has data
 //-----------------------------------------------------------------------------
