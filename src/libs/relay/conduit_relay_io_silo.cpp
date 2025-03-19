@@ -7401,29 +7401,14 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
 
     int num_files = opts_num_files;
 
-    int cycle;
+    //-----------------------------------------------------------------------------
+    // make sure some MPI task has data
+    //-----------------------------------------------------------------------------
     Node multi_dom;
-    bool is_valid;
-    int par_rank;
-    int par_size;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    Node n_local, n_reduced; // nodes used for MPI comm (share them for many operations)
-    if (! conduit::relay::mpi::io::blueprint::check_for_non_empty_mesh(mesh,
-                                                                       cycle,
-                                                                       n_local,
-                                                                       n_reduced,
-                                                                       multi_dom,
-                                                                       is_valid,
-                                                                       par_rank,
-                                                                       par_size,
-                                                                       mpi_comm))
+    if (! conduit::relay::mpi::io::blueprint::clean_mesh(mesh, multi_dom, mpi_comm))
 #else
-    if (! conduit::relay::io::blueprint::check_for_non_empty_mesh(mesh,
-                                                                  cycle,
-                                                                  multi_dom,
-                                                                  is_valid,
-                                                                  par_rank,
-                                                                  par_size))
+    if (! conduit::relay::io::blueprint::clean_mesh(mesh, multi_dom))
 #endif
     {
         CONDUIT_INFO("Silo save: no valid data exists. Skipping save");

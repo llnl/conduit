@@ -237,6 +237,64 @@ number_of_domains(const conduit::Node &n,
     return global_num_domains;
 }
 
+//-----------------------------------------------------------------------------
+void
+state(const conduit::Node &mesh,
+      conduit::Node &state,
+      MPI_Comm comm)
+{
+    Node local_state;
+    ::conduit::blueprint::mesh::state(mesh, local_state);
+
+
+    Node global_state_nodes;
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    relay::mpi::all_gather_using_schema(local_state,
+                                        global_state_nodes,
+                                        comm);
+#else
+    global_state_nodes.append().set_external(local_state);
+#endif
+
+
+    auto state_itr = global_state_nodes.children();
+    while (state_itr.has_next())
+    {
+        Node &state_i = state_itr.next();
+        if (state_i.number_of_children() > 0)
+        {
+            state.set(state_i);
+            break;
+        }
+    }
+}
+
+//-------------------------------------------------------------------------
+index_t
+mesh::cycle(const conduit::Node &mesh, MPI_Comm comm)
+{
+    Node state;
+    ::conduit::blueprint::mpi::mesh::state(mesh, state, comm);
+    if (state.has_child("cycle"))
+    {
+        return state["cycle"].to_index_t();
+    }
+    return std::numeric_limits<int>::max();
+}
+
+//-------------------------------------------------------------------------
+float64
+mesh::time(const conduit::Node &mesh, MPI_Comm comm)
+{
+    Node state;
+    ::conduit::blueprint::mpi::mesh::state(mesh, state, comm);
+    if (state.has_child("time"))
+    {
+        return state["time"].to_float64();
+    }
+    return std::numeric_limits<int>::max();
+}
+
 //-------------------------------------------------------------------------
 void to_polytopal(const Node &n,
                   Node &dest,

@@ -462,6 +462,33 @@ bool global_someone_agrees(bool vote
   return agreement;
 }
 
+
+bool global_all_agree(const bool vote
+                      CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
+{
+    bool agreement = vote;
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    int local_boolean = vote ? 1 : 0;
+    int global_boolean;
+    MPI_Allreduce((void *)(&local_boolean),
+                  (void *)(&global_boolean),
+                  1,
+                  MPI_INT,
+                  MPI_MIN,
+                  mpi_comm);
+
+    if(global_boolean > 0)
+    {
+        agreement = true;
+    }
+    else
+    {
+        agreement = false;
+    }
+#endif
+    return agreement;
+}
+
 bool quick_mesh_check(const conduit::Node &n)
 {
     return n.has_child("topologies") &&
@@ -658,56 +685,56 @@ bool clean_mesh(const conduit::Node &data,
                 conduit::Node &output
                 CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
 {
-  output.reset();
-  const index_t potential_doms = data.number_of_children();
-  bool maybe_multi_dom = true;
+    output.reset();
+    const index_t potential_doms = data.number_of_children();
+    bool maybe_multi_dom = true;
 
-  if(!data.dtype().is_object() && !data.dtype().is_list())
-  {
-    maybe_multi_dom = false;
-  }
-
-  if(maybe_multi_dom)
-  {
-    // check all the children for valid domains
-    for(int i = 0; i < potential_doms; ++i)
+    if(!data.dtype().is_object() && !data.dtype().is_list())
     {
-      // we expect folks to use their best behaivor
-      // (mesh bp verify is true before passing data)
-      // so we can assume we have valid mesh bp.
-      // if a child looks like a mesh, we have one
-      conduit::Node info;
-      const conduit::Node &child = data.child(i);
+        maybe_multi_dom = false;
+    }
 
-      bool is_valid = detail::quick_mesh_check(child);
-      if(is_valid)
-      {
-        conduit::Node &dest_dom = output.append();
-        dest_dom.set_external(child);
-        // note: this algo may re-write domain ids
-        // so make sure this isn't set as external
-        if(dest_dom.has_path("state/domain_id"))
+    if(maybe_multi_dom)
+    {
+        // check all the children for valid domains
+        for(int i = 0; i < potential_doms; ++i)
         {
-            index_t dom_id = dest_dom["state/domain_id"].to_index_t();
-            dest_dom["state/domain_id"].reset();
-            dest_dom["state/domain_id"] = dom_id;
+            // we expect folks to use their best behaivor
+            // (mesh bp verify is true before passing data)
+            // so we can assume we have valid mesh bp.
+            // if a child looks like a mesh, we have one
+            conduit::Node info;
+            const conduit::Node &child = data.child(i);
+
+            bool is_valid = detail::quick_mesh_check(child);
+            if(is_valid)
+            {
+                conduit::Node &dest_dom = output.append();
+                dest_dom.set_external(child);
+                // note: this algo may re-write domain ids
+                // so make sure this isn't set as external
+                if(dest_dom.has_path("state/domain_id"))
+                {
+                    index_t dom_id = dest_dom["state/domain_id"].to_index_t();
+                    dest_dom["state/domain_id"].reset();
+                    dest_dom["state/domain_id"] = dom_id;
+                }
+            }
         }
-      }
     }
-  }
-  // if there is nothing in the output, lets see if it is a
-  // valid single domain
-  if(output.number_of_children() == 0)
-  {
-    // check to see if this is a single valid domain
-    conduit::Node info;
-    bool is_valid = detail::quick_mesh_check(data);
-    if(is_valid)
+    // if there is nothing in the output, lets see if it is a
+    // valid single domain
+    if(output.number_of_children() == 0)
     {
-      conduit::Node &dest_dom = output.append();
-      dest_dom.set_external(data);
+        // check to see if this is a single valid domain
+        conduit::Node info;
+        bool is_valid = detail::quick_mesh_check(data);
+        if(is_valid)
+        {
+            conduit::Node &dest_dom = output.append();
+            dest_dom.set_external(data);
+        }
     }
-  }
 
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
     conduit::blueprint::mpi::mesh::generate_domain_ids(output, mpi_comm);
@@ -715,8 +742,12 @@ bool clean_mesh(const conduit::Node &data,
     conduit::blueprint::mesh::generate_domain_ids(output);
 #endif
 
-
-  return output.number_of_children() > 0;
+    const bool local_is_valid = output.number_of_children() > 0;
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    return detail::global_all_agree(global_is_valid, mpi_comm);
+#else
+    return local_is_valid;
+#endif
 }
 
 
@@ -975,29 +1006,14 @@ void write_mesh(const Node &mesh,
 
     int num_files = opts_num_files;
 
-    int cycle;
+    //-----------------------------------------------------------------------------
+    // make sure some MPI task has data
+    //-----------------------------------------------------------------------------
     Node multi_dom;
-    bool is_valid;
-    int par_rank;
-    int par_size;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    Node n_local, n_reduced; // nodes used for MPI comm (share them for many operations)
-    if (! check_for_non_empty_mesh(mesh,
-                                   cycle,
-                                   n_local,
-                                   n_reduced,
-                                   multi_dom,
-                                   is_valid,
-                                   par_rank,
-                                   par_size,
-                                   mpi_comm))
+    if (! conduit::relay::mpi::io::blueprint::clean_mesh(mesh, multi_dom, mpi_comm))
 #else
-    if (! check_for_non_empty_mesh(mesh,
-                                   cycle,
-                                   multi_dom,
-                                   is_valid,
-                                   par_rank,
-                                   par_size))
+    if (! conduit::relay::io::blueprint::clean_mesh(mesh, multi_dom))
 #endif
     {
         CONDUIT_INFO("Blueprint save: no valid data exists. Skipping save");
@@ -1034,6 +1050,11 @@ void write_mesh(const Node &mesh,
     // find the # of global domains
     // -----------------------------------------------------------
     int global_num_domains = (int)local_num_domains;
+
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    // nodes used for MPI comm (share them for many operations)
+    Node n_local, n_reduced;
+#endif
 
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
     n_local = local_num_domains;
@@ -1755,22 +1776,25 @@ void write_mesh(const Node &mesh,
 // get the number of local domains and the cycle info
 // -----------------------------------------------------------
 void get_num_local_doms_and_cycle(int &local_num_domains,
-#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-                                  Node &n_local,
-                                  Node &n_reduced,
                                   const int &par_rank,
-#endif
                                   const Node &multi_dom,
-                                  const bool &is_valid,
                                   std::string &opts_suffix,
                                   int &cycle,
                                   bool gen_name,
                                   const std::string &path
                                   CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
 {
-    local_num_domains = (int)multi_dom.number_of_children();
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    local_num_domains = conduit::blueprint::mesh::number_of_domains(multi_dom, mpi_comm);
+#else
+    local_num_domains = conduit::blueprint::mesh::number_of_domains(multi_dom);
+#endif
+
+    // TODO make a helper for cycle and for time
+    // then use the cycle one here
+
     // figure out what cycle we are
-    if (local_num_domains > 0 && is_valid)
+    if (local_num_domains > 0)
     {
         const Node &dom = multi_dom.child(0);
         if (! dom.has_path("state/cycle"))
@@ -1806,6 +1830,7 @@ void get_num_local_doms_and_cycle(int &local_num_domains,
     }
 
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    Node n_local, n_reduced;
     // reduce to get the cycle (some tasks might not have domains)
     n_local = (int)cycle;
 
@@ -1851,54 +1876,6 @@ void get_num_local_doms_and_cycle(int &local_num_domains,
     opts_suffix = n_opts_suffix.as_string();
 
 #endif
-}
-
-//-----------------------------------------------------------------------------
-// make sure some MPI task has data
-//-----------------------------------------------------------------------------
-bool check_for_non_empty_mesh(const Node &mesh,
-                              int &cycle,
-#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-                              Node &n_local,
-                              Node &n_reduced,
-#endif
-                              Node &multi_dom,
-                              bool &is_valid,
-                              int &par_rank,
-                              int &par_size
-                              CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
-{
-#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    is_valid = conduit::relay::mpi::io::blueprint::clean_mesh(mesh, multi_dom, mpi_comm);
-#else
-    is_valid = conduit::relay::io::blueprint::clean_mesh(mesh, multi_dom);
-#endif
-
-    par_rank = 0;
-    par_size = 1;
-    // we may not have any domains so init to max
-    cycle = std::numeric_limits<int>::max();
-
-    int local_boolean = is_valid ? 1 : 0;
-    int global_boolean = local_boolean;
-
-
-#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    par_rank = relay::mpi::rank(mpi_comm);
-    par_size = relay::mpi::size(mpi_comm);
-
-    // reduce to check to see if any valid data exists
-
-    n_local = (int)cycle;
-    relay::mpi::sum_all_reduce(n_local,
-                               n_reduced,
-                               mpi_comm);
-
-    global_boolean = n_reduced.as_int();
-
-#endif
-
-    return global_boolean != 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -2012,7 +1989,7 @@ std::string generate_root_filename(const conduit::Node &mesh,
     int par_size;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
     Node n_local, n_reduced; // nodes used for MPI comm (share them for many operations)
-    if (! check_for_non_empty_mesh(mesh,
+    if (! clean_and_check_for_non_empty_mesh(mesh,
                                    cycle,
                                    n_local,
                                    n_reduced,
@@ -2022,7 +1999,7 @@ std::string generate_root_filename(const conduit::Node &mesh,
                                    par_size,
                                    mpi_comm))
 #else
-    if (! check_for_non_empty_mesh(mesh,
+    if (! clean_and_check_for_non_empty_mesh(mesh,
                                    cycle,
                                    multi_dom,
                                    is_valid,

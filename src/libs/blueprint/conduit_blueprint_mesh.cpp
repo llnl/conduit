@@ -1986,6 +1986,59 @@ mesh::number_of_domains(const conduit::Node &mesh)
 }
 
 //-------------------------------------------------------------------------
+void
+mesh::state(const conduit::Node &mesh, conduit::Node &state)
+{
+    state.reset();
+    if (! is_multi_domain(mesh))
+    {
+        if (mesh.has_child("state"))
+        {
+            state.set(mesh["state"]);
+        }
+    }
+    else
+    {
+        NodeIterator doms_itr = mesh.children();
+        while (doms_itr.has_next())
+        {
+            const Node &dom = doms_itr.next();
+            if (dom.has_child("state"))
+            {
+                state.set(dom["state"]);
+                break;
+            }
+        }
+    }
+}
+
+//-------------------------------------------------------------------------
+index_t
+mesh::cycle(const conduit::Node &mesh)
+{
+    Node state;
+    ::conduit::blueprint::mesh::state(mesh, state);
+    if (state.has_child("cycle"))
+    {
+        return state["cycle"].to_index_t();
+    }
+    return std::numeric_limits<int>::max();
+}
+
+//-------------------------------------------------------------------------
+float64
+mesh::time(const conduit::Node &mesh)
+{
+    Node state;
+    ::conduit::blueprint::mesh::state(mesh, state);
+    if (state.has_child("time"))
+    {
+        return state["time"].to_float64();
+    }
+    return std::numeric_limits<int>::max();
+}
+
+//-------------------------------------------------------------------------
 std::vector<conduit::Node *>
 mesh::domains(conduit::Node &n)
 {
