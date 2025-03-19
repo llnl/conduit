@@ -157,9 +157,9 @@ void CONDUIT_RELAY_API get_num_local_doms_and_cycle(int &local_num_domains,
 //-----------------------------------------------------------------------------
 // make sure some MPI task has data
 //-----------------------------------------------------------------------------
-bool CONDUIT_RELAY_API check_for_non_empty_mesh(int &cycle,
+bool CONDUIT_RELAY_API check_for_non_empty_mesh(const Node &mesh,
+                                                int &cycle,
                                                 Node &multi_dom,
-                                                const Node &mesh,
                                                 bool &is_valid,
                                                 int &par_rank,
                                                 int &par_size);

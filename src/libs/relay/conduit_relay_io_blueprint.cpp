@@ -982,19 +982,19 @@ void write_mesh(const Node &mesh,
     int par_size;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
     Node n_local, n_reduced; // nodes used for MPI comm (share them for many operations)
-    if (! check_for_non_empty_mesh(cycle,
+    if (! check_for_non_empty_mesh(mesh,
+                                   cycle,
                                    n_local,
                                    n_reduced,
                                    multi_dom,
-                                   mesh,
                                    is_valid,
                                    par_rank,
                                    par_size,
                                    mpi_comm))
 #else
-    if (! check_for_non_empty_mesh(cycle,
+    if (! check_for_non_empty_mesh(mesh,
+                                   cycle,
                                    multi_dom,
-                                   mesh,
                                    is_valid,
                                    par_rank,
                                    par_size))
@@ -1856,13 +1856,13 @@ void get_num_local_doms_and_cycle(int &local_num_domains,
 //-----------------------------------------------------------------------------
 // make sure some MPI task has data
 //-----------------------------------------------------------------------------
-bool check_for_non_empty_mesh(int &cycle,
+bool check_for_non_empty_mesh(const Node &mesh,
+                              int &cycle,
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
                               Node &n_local,
                               Node &n_reduced,
 #endif
                               Node &multi_dom,
-                              const Node &mesh,
                               bool &is_valid,
                               int &par_rank,
                               int &par_size
@@ -2012,19 +2012,19 @@ std::string generate_root_filename(const conduit::Node &mesh,
     int par_size;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
     Node n_local, n_reduced; // nodes used for MPI comm (share them for many operations)
-    if (! check_for_non_empty_mesh(cycle,
+    if (! check_for_non_empty_mesh(mesh,
+                                   cycle,
                                    n_local,
                                    n_reduced,
                                    multi_dom,
-                                   mesh,
                                    is_valid,
                                    par_rank,
                                    par_size,
                                    mpi_comm))
 #else
-    if (! check_for_non_empty_mesh(cycle,
+    if (! check_for_non_empty_mesh(mesh,
+                                   cycle,
                                    multi_dom,
-                                   mesh,
                                    is_valid,
                                    par_rank,
                                    par_size))
