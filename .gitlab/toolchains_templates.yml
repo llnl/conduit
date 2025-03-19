@@ -15,14 +15,14 @@
 .with_gcc_static:
   variables:
     TOOLCHAIN: "gcc_static"
-    PKG_SPEC: "%gcc~shared"
+    PKG_SPEC: "~shared %gcc"
 
 .with_clang:
   variables:
     TOOLCHAIN: "clang"
-    PKG_SPEC: "%clang@coral~python~fortran"
+    PKG_SPEC: "~python~fortran %clang@coral"
 
 .with_xl:
   variables:
     TOOLCHAIN: "xl"
-    PKG_SPEC: "%xl@coral~shared~python~fortran"
+    PKG_SPEC: "~shared~python~fortran %xl@coral"
