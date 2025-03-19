@@ -93,17 +93,16 @@ default_free_handler(void *data_ptr)
 
 //-----------------------------------------------------------------------------
 void
-default_memset_handler(void * ptr, int value, size_t num )
+default_memcpy_handler(void * destination, const void * source, size_t num)
 {
-  memset(ptr,value,num);
+  memcpy(destination,source,num);
 }
 
 //-----------------------------------------------------------------------------
 void
-default_memcpy_handler(void * destination, const void * source, size_t num)
+default_memset_handler(void * ptr, int value, size_t num )
 {
-    
-  memcpy(destination,source,num);
+  memset(ptr,value,num);
 }
 
 
@@ -187,18 +186,18 @@ namespace detail
               m_handle_memset = conduit_hnd_memset;
           }
 
-          void memset(void *ptr,
-                      int value,
-                      size_t num)
-          {
-              m_handle_memset(ptr, value, num);
-          }
-
           void memcpy(void *destination,
                       const void *source,
                       size_t num)
           {
               m_handle_memcpy(destination, source, num);
+          }
+
+          void memset(void *ptr,
+                      int value,
+                      size_t num)
+          {
+              m_handle_memset(ptr, value, num);
           }
 
      private:
