@@ -190,15 +190,15 @@ bool CONDUIT_RELAY_API check_mesh_valid_for_save(int &cycle,
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-std::string CONDUIT_RELAY_API get_root_filename(const conduit::Node &mesh,
-                                                const std::string &path,
-                                                MPI_Comm comm);
+std::string CONDUIT_RELAY_API generate_root_filename(const conduit::Node &mesh,
+                                                     const std::string &path,
+                                                     MPI_Comm comm);
 
 //-----------------------------------------------------------------------------
-std::string CONDUIT_RELAY_API get_root_filename(const conduit::Node &mesh,
-                                                const std::string &path,
-                                                const std::string &protocol,
-                                                MPI_Comm comm);
+std::string CONDUIT_RELAY_API generate_root_filename(const conduit::Node &mesh,
+                                                     const std::string &path,
+                                                     const std::string &protocol,
+                                                     MPI_Comm comm);
 
 //-----------------------------------------------------------------------------
 /// The following options can be passed via the opts Node:
@@ -217,11 +217,11 @@ std::string CONDUIT_RELAY_API get_root_filename(const conduit::Node &mesh,
 ///            if overlink, this parameter is unused.
 ///
 //-----------------------------------------------------------------------------
-std::string CONDUIT_RELAY_API get_root_filename(const conduit::Node &mesh,
-                                                const std::string &path,
-                                                const std::string &protocol,
-                                                const conduit::Node &opts,
-                                                MPI_Comm comm);
+std::string CONDUIT_RELAY_API generate_root_filename(const conduit::Node &mesh,
+                                                     const std::string &path,
+                                                     const std::string &protocol,
+                                                     const conduit::Node &opts,
+                                                     MPI_Comm comm);
 
 //-----------------------------------------------------------------------------
 // Load a blueprint mesh from root + file set

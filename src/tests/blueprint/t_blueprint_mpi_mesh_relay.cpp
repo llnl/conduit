@@ -102,7 +102,7 @@ TEST(blueprint_mpi_relay, basic_use)
                                                   "hdf5",
                                                   comm);
 
-    EXPECT_EQ(output_root, relay::mpi::io::blueprint::get_root_filename(dset, output_base, "hdf5", comm));
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(dset, output_base, "hdf5", comm));
 
     // read this back using read_mesh, should diff clean
     Node n_read, n_diff_info;
@@ -172,7 +172,7 @@ TEST(blueprint_mpi_relay, mpi_mesh_examples_braid)
                                                   "hdf5",
                                                   comm);
 
-    EXPECT_EQ(output_root, relay::mpi::io::blueprint::get_root_filename(dset, output_base, "hdf5", comm));
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(dset, output_base, "hdf5", comm));
 
     // read this back using read_mesh, should diff clean
     Node n_read, n_diff_info;
@@ -258,7 +258,7 @@ TEST(blueprint_mpi_relay, mpi_mesh_examples_spiral_5doms)
     // this to diff clean
 
     const string output_root = output_base + ".cycle_000000.root";
-    EXPECT_EQ(output_root, relay::mpi::io::blueprint::get_root_filename(dset, output_base, "hdf5", comm));
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(dset, output_base, "hdf5", comm));
     Node n_read, n_diff_info;
     conduit::relay::mpi::io::blueprint::read_mesh(output_root,
                                                   n_read,
@@ -359,7 +359,7 @@ TEST(blueprint_mpi_relay, mpi_mesh_examples_spiral_1dom)
 
     // read this back using read_mesh, should diff clean
     const string output_root = output_base + ".cycle_000000.root";
-    EXPECT_EQ(output_root, relay::mpi::io::blueprint::get_root_filename(dset, output_base, "hdf5", opts, comm));
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(dset, output_base, "hdf5", opts, comm));
     Node n_read, n_diff_info;
     conduit::relay::mpi::io::blueprint::read_mesh(output_root,
                                                   n_read,
@@ -519,7 +519,7 @@ TEST(blueprint_mpi_relay, spiral_multi_file)
 
         EXPECT_TRUE(conduit::utils::is_directory(output_dir));
         EXPECT_TRUE(conduit::utils::is_file(output_root));
-        EXPECT_EQ(output_root, relay::mpi::io::blueprint::get_root_filename(data, output_base, "hdf5", opts, comm));
+        EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(data, output_base, "hdf5", opts, comm));
 
         for(int i=0;i<nfiles_to_check;i++)
         {
@@ -643,7 +643,7 @@ TEST(blueprint_mpi_relay, spiral_root_only)
                                                   opts,
                                                   comm);
     EXPECT_TRUE(conduit::utils::is_file(tout_root));
-    EXPECT_EQ(tout_root, relay::mpi::io::blueprint::get_root_filename(data, tout_base, "hdf5", opts, comm));
+    EXPECT_EQ(tout_root, relay::mpi::io::blueprint::generate_root_filename(data, tout_base, "hdf5", opts, comm));
 
     // read the mesh back in diff to make sure we have the same data
     Node n_read, info;
@@ -795,7 +795,7 @@ TEST(blueprint_mpi_relay, test_write_error_hang)
                                                   opts,
                                                   comm);
 
-    EXPECT_EQ(output_root, relay::mpi::io::blueprint::get_root_filename(data, output_base, "hdf5", opts, comm));
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(data, output_base, "hdf5", opts, comm));
 
     Node n_read, info;
     // load mesh back back in and diff to check values
@@ -900,7 +900,7 @@ TEST(blueprint_mpi_relay, test_sparse_domains_case_1)
                                                   opts,
                                                   comm);
     EXPECT_TRUE(conduit::utils::is_file(tout_root));
-    EXPECT_EQ(tout_root, relay::mpi::io::blueprint::get_root_filename(data, tout_base, "hdf5", opts, comm));
+    EXPECT_EQ(tout_root, relay::mpi::io::blueprint::generate_root_filename(data, tout_base, "hdf5", opts, comm));
 
 }
 
@@ -996,7 +996,7 @@ TEST(blueprint_mpi_relay, test_sparse_domains_case_2)
                                                   opts,
                                                   comm);
     EXPECT_TRUE(conduit::utils::is_file(tout_root));
-    EXPECT_EQ(tout_root, relay::mpi::io::blueprint::get_root_filename(data, tout_base, "hdf5", opts, comm));
+    EXPECT_EQ(tout_root, relay::mpi::io::blueprint::generate_root_filename(data, tout_base, "hdf5", opts, comm));
 
 
 
@@ -1095,7 +1095,7 @@ TEST(blueprint_mpi_relay, test_sparse_domains_case_3)
                                                   opts,
                                                   comm);
     EXPECT_TRUE(conduit::utils::is_file(tout_root));
-    EXPECT_EQ(tout_root, relay::mpi::io::blueprint::get_root_filename(data, tout_base, "hdf5", opts, comm));
+    EXPECT_EQ(tout_root, relay::mpi::io::blueprint::generate_root_filename(data, tout_base, "hdf5", opts, comm));
 
 
 }
@@ -1176,7 +1176,7 @@ TEST(blueprint_mpi_relay, spiral_multi_file_yaml_json_hdf5_silo)
     // this to diff clean
 
     const string output_root = output_base + ".cycle_000000.root";
-    EXPECT_EQ(output_root, relay::mpi::io::blueprint::get_root_filename(dset, output_base, "hdf5", comm));
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(dset, output_base, "hdf5", comm));
     Node n_read, n_diff_info;
     conduit::relay::mpi::io::blueprint::read_mesh(output_root,
                                                   n_read,
@@ -1275,7 +1275,7 @@ TEST(conduit_blueprint_mesh_relay, spiral_multi_file_yaml_json_hdf5_silo)
                                                        protocol,
                                                        comm);
 
-        EXPECT_EQ(output_root, relay::mpi::io::blueprint::get_root_filename(data, output_base, protocol, comm));
+        EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(data, output_base, protocol, comm));
 
         // make sure we can load back, this tests the auto detection
         // of the file type

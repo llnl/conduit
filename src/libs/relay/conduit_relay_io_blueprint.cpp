@@ -1906,45 +1906,45 @@ bool check_mesh_valid_for_save(int &cycle,
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-std::string get_root_filename(const conduit::Node &mesh,
-                              const std::string &path
-                              CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
+std::string generate_root_filename(const conduit::Node &mesh,
+                                   const std::string &path
+                                   CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
 {
     // empty opts
     Node opts;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    return get_root_filename(mesh,
-                             path,
-                             detail::identify_protocol(path),
-                             opts,
-                             mpi_comm);
+    return generate_root_filename(mesh,
+                                  path,
+                                  detail::identify_protocol(path),
+                                  opts,
+                                  mpi_comm);
 #else
-    return get_root_filename(mesh,
-                             path,
-                             detail::identify_protocol(path),
-                             opts);
+    return generate_root_filename(mesh,
+                                  path,
+                                  detail::identify_protocol(path),
+                                  opts);
 #endif
 }
 
 //-----------------------------------------------------------------------------
-std::string get_root_filename(const conduit::Node &mesh,
-                              const std::string &path,
-                              const std::string &file_protocol
-                              CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
+std::string generate_root_filename(const conduit::Node &mesh,
+                                   const std::string &path,
+                                   const std::string &file_protocol
+                                   CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
 {
     // empty opts
     Node opts;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    return get_root_filename(mesh,
-                             path,
-                             file_protocol,
-                             opts,
-                             mpi_comm);
+    return generate_root_filename(mesh,
+                                  path,
+                                  file_protocol,
+                                  opts,
+                                  mpi_comm);
 #else
-    return get_root_filename(mesh,
-                             path,
-                             file_protocol,
-                             opts);
+    return generate_root_filename(mesh,
+                                  path,
+                                  file_protocol,
+                                  opts);
 #endif
 }
 
@@ -1966,11 +1966,11 @@ std::string get_root_filename(const conduit::Node &mesh,
 ///            if overlink, this parameter is unused.
 ///
 //-----------------------------------------------------------------------------
-std::string get_root_filename(const conduit::Node &mesh,
-                              const std::string &path,
-                              const std::string &file_protocol,
-                              const conduit::Node &opts
-                              CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
+std::string generate_root_filename(const conduit::Node &mesh,
+                                   const std::string &path,
+                                   const std::string &file_protocol,
+                                   const conduit::Node &opts
+                                   CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
 {
     // The assumption here is that everything is multi domain
 
@@ -2030,7 +2030,7 @@ std::string get_root_filename(const conduit::Node &mesh,
                                    par_size))
 #endif
     {
-        CONDUIT_INFO("get_root_filename: no valid data exists. Unable to generate root filename.");
+        CONDUIT_INFO("generate_root_filename: no valid data exists. Unable to generate root filename.");
         return "";
     }
 
