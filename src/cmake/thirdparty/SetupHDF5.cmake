@@ -29,7 +29,7 @@ endif()
 # Use CMake's FindHDF5 module to locate hdf5 and setup hdf5
 find_package(HDF5 REQUIRED)
 
-# FindHDF5/find_package sets HDF5_DIR to it's installed CMake info if it exists
+# FindHDF5/find_package sets HDF5_DIR to its installed CMake info if it exists
 # we want to keep HDF5_DIR as the root dir of the install to be 
 # consistent with other packages
 
