@@ -93,48 +93,18 @@ default_free_handler(void *data_ptr)
 
 //-----------------------------------------------------------------------------
 void
-default_memset_handler(void * ptr, int value, size_t num )
-{
-  memset(ptr,value,num);
-}
-
-//-----------------------------------------------------------------------------
-void
 default_memcpy_handler(void * destination, const void * source, size_t num)
 {
   memcpy(destination,source,num);
 }
 
-
-//-----------------------------------------------------------------------------
-// Private namespace member that holds our memcpy callback.
-void (*conduit_handle_memcpy)(void * destination,
-                              const void * source,
-                              size_t num) = default_memcpy_handler;
-
-//-----------------------------------------------------------------------------
-// Private namespace member that holds our memset callback.
-void (*conduit_handle_memset)(void * ptr,
-                              int value,
-                              size_t num ) = default_memset_handler;
-
 //-----------------------------------------------------------------------------
 void
-set_memcpy_handler(void(*conduit_hnd_copy)(void*,
-                                           const void *,
-                                           size_t))
+default_memset_handler(void * ptr, int value, size_t num )
 {
-    conduit_handle_memcpy = conduit_hnd_copy;
+  memset(ptr,value,num);
 }
 
-//-----------------------------------------------------------------------------
-void
-set_memset_handler(void(*conduit_hnd_memset)(void*,
-                                             int,
-                                             size_t))
-{
-    conduit_handle_memset = conduit_hnd_memset;
-}
 
 namespace detail
 {
@@ -142,7 +112,7 @@ namespace detail
     // AllocManager: A singleton that holds our alloc and free function maps
     //
     //
-    // NOTE: THE SINGLETON INSTNACE IS INTENTIONALLY LEAKED!
+    // NOTE: THE SINGLETON INSTANCE IS INTENTIONALLY LEAKED!
     // 
     // These maps are used by Node instances to alloc and free
     // memory, they need to exist as long as any Node object exists!
@@ -182,8 +152,8 @@ namespace detail
           }
 
           // reg interface
-          index_t register_allocator(void*(*conduit_hnd_allocate) (size_t, size_t),
-                                     void(*conduit_hnd_free)(void *))
+          index_t register_allocator(handle_alloc_type conduit_hnd_allocate,
+                                     handle_free_type conduit_hnd_free)
           {
               m_allocator_map[m_allocator_id] = conduit_hnd_allocate;
               m_free_map[m_allocator_id]      = conduit_hnd_free;
@@ -205,11 +175,38 @@ namespace detail
               m_free_map[allocator_id](ptr);
           }
 
+          // set memcpy and memset handlers
+          void set_memcpy_handler(handle_memcpy_type conduit_hnd_memcpy)
+          {
+              m_handle_memcpy = conduit_hnd_memcpy;
+          }
+
+          void set_memset_handler(handle_memset_type conduit_hnd_memset)
+          {
+              m_handle_memset = conduit_hnd_memset;
+          }
+
+          void memcpy(void *destination,
+                      const void *source,
+                      size_t num)
+          {
+              m_handle_memcpy(destination, source, num);
+          }
+
+          void memset(void *ptr,
+                      int value,
+                      size_t num)
+          {
+              m_handle_memset(ptr, value, num);
+          }
+
      private:
           // constructor
           AllocManager()
           : m_allocator_map(),
-            m_free_map()
+            m_free_map(),
+            m_handle_memcpy(default_memcpy_handler),
+            m_handle_memset(default_memset_handler)
           {
               // register default handlers
               m_allocator_map[0] = &default_alloc_handler;
@@ -226,17 +223,33 @@ namespace detail
           }
 
           // vars
-          index_t                                    m_allocator_id;
-          std::map<index_t,void*(*)(size_t, size_t)> m_allocator_map;
-          std::map<index_t,void(*)(void*)>           m_free_map;
+          index_t                                m_allocator_id;
+          std::map<index_t,handle_alloc_type>    m_allocator_map;
+          std::map<index_t,handle_free_type>     m_free_map;
 
+          handle_memcpy_type                     m_handle_memcpy;
+          handle_memset_type                     m_handle_memset;
     };
 }
 
 //-----------------------------------------------------------------------------
+void
+set_memcpy_handler(handle_memcpy_type conduit_hnd_memcpy)
+{
+    detail::AllocManager::instance().set_memcpy_handler(conduit_hnd_memcpy);
+}
+
+//-----------------------------------------------------------------------------
+void
+set_memset_handler(handle_memset_type conduit_hnd_memset)
+{
+    detail::AllocManager::instance().set_memset_handler(conduit_hnd_memset);
+}
+
+//-----------------------------------------------------------------------------
 index_t
-register_allocator(void*(*conduit_hnd_allocate) (size_t, size_t),
-                   void(*conduit_hnd_free)(void *))
+register_allocator(handle_alloc_type conduit_hnd_allocate,
+                   handle_free_type conduit_hnd_free)
 {
     return detail::AllocManager::instance().register_allocator(conduit_hnd_allocate,
                                                                conduit_hnd_free);
@@ -268,7 +281,7 @@ conduit_memcpy(void *destination,
                const void *source,
                size_t num)
 {
-    conduit_handle_memcpy(destination,source,num);
+    detail::AllocManager::instance().memcpy(destination,source,num);
 }
 
 
@@ -277,7 +290,7 @@ void conduit_memset(void *ptr,
                     int value,
                     size_t num)
 {
-    conduit_handle_memset(ptr,value,num);
+    detail::AllocManager::instance().memset(ptr,value,num);
 }
 //-----------------------------------------------------------------------------
 void
@@ -291,9 +304,9 @@ conduit_memcpy_strided_elements(void *dest,
     // source and dest are compact
     if( dest_stride == ele_bytes && src_stride == ele_bytes)
     {
-        utils::conduit_memcpy(dest,
-                              src,
-                              ele_bytes * num_elements);
+        detail::AllocManager::instance().memcpy(dest,
+                                                src,
+                                                ele_bytes * num_elements);
     }
     else // the source or dest are strided in a non compact way
     {
@@ -302,9 +315,9 @@ conduit_memcpy_strided_elements(void *dest,
         for(size_t i=0; i< num_elements; i++)
         {
             // copy next strided element
-            utils::conduit_memcpy(dest_data_ptr,
-                                  src_data_ptr,
-                                  ele_bytes);
+            detail::AllocManager::instance().memcpy(dest_data_ptr,
+                                                    src_data_ptr,
+                                                    ele_bytes);
             // move by src stride
             src_data_ptr  += src_stride;
             // move by dest stride
