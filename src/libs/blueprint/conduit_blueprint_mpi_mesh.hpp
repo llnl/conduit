@@ -111,12 +111,6 @@ index_t CONDUIT_BLUEPRINT_API cycle(const conduit::Node &mesh,
                                     MPI_Comm comm);
 
 //-------------------------------------------------------------------------
-index_t CONDUIT_BLUEPRINT_API cycle(const conduit::Node &mesh,
-                                    const std::string &path,
-                                    bool just_asking,
-                                    MPI_Comm comm);
-
-//-------------------------------------------------------------------------
 float64 CONDUIT_BLUEPRINT_API time(const conduit::Node &mesh,
                                    MPI_Comm comm);
 

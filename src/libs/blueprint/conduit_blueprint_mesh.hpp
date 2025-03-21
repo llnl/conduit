@@ -83,11 +83,6 @@ bool CONDUIT_BLUEPRINT_API is_cycle_present(const conduit::Node &mesh);
 index_t CONDUIT_BLUEPRINT_API cycle(const conduit::Node &mesh);
 
 //-------------------------------------------------------------------------
-index_t CONDUIT_BLUEPRINT_API cycle(const conduit::Node &mesh,
-                                    const std::string &path,
-                                    bool just_asking);
-
-//-------------------------------------------------------------------------
 float64 CONDUIT_BLUEPRINT_API time(const conduit::Node &mesh);
 
 //-----------------------------------------------------------------------------

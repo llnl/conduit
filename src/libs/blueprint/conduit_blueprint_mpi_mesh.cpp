@@ -278,42 +278,6 @@ cycle(const conduit::Node &mesh, MPI_Comm comm)
 }
 
 //-------------------------------------------------------------------------
-index_t
-cycle(const conduit::Node &mesh, 
-      const std::string &path,
-      bool just_asking, 
-      MPI_Comm comm)
-{
-    Node state;
-    ::conduit::blueprint::mpi::mesh::state(mesh, state, comm);
-    if (state.has_child("cycle"))
-    {
-        return state["cycle"].to_index_t();
-    }
-    CONDUIT_INFO("is_cycle_present: no 'state/cycle' present."
-                 " Defaulting to counter");
-    static std::map<std::string,int> counters;
-    index_t cycle = counters[path];
-
-    // reduce to unify the cycle in this case
-    Node n_local, n_reduced;
-    n_local = static_cast<int>(cycle);
-    relay::mpi::min_all_reduce(n_local,
-                               n_reduced,
-                               comm);
-    cycle = n_reduced.as_int();
-
-    // if we're just using this function to ask what the cycle could be, 
-    // then we don't want to mess with the static counter. If we are
-    // in the process of writing files, then we can make up a new cycle.
-    if (! just_asking)
-    {
-        counters[path] ++;
-    }
-    return cycle;
-}
-
-//-------------------------------------------------------------------------
 bool
 is_cycle_present(const conduit::Node &mesh, 
                  MPI_Comm comm)

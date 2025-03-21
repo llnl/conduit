@@ -1750,43 +1750,44 @@ void determine_cycle_and_resolve_suffix(const Node &multi_dom,
                                         bool gen_name
                                         CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
 {
-    cycle = std::numeric_limits<int>::max();
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
     const bool cycle_exists = conduit::blueprint::mpi::mesh::is_cycle_present(multi_dom, mpi_comm);
+    cycle = conduit::blueprint::mpi::mesh::cycle(multi_dom, mpi_comm);
 #else
     const bool cycle_exists = conduit::blueprint::mesh::is_cycle_present(multi_dom);
+    cycle = conduit::blueprint::mesh::cycle(multi_dom);
 #endif
-    // why do we only generate the cycle if it exists? See NOTE below.
-    if (cycle_exists)
-    {
-#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-        cycle = conduit::blueprint::mpi::mesh::cycle(multi_dom, path, gen_name, mpi_comm);
-#else
-        cycle = conduit::blueprint::mesh::cycle(multi_dom, path, gen_name);
-#endif
-    }
 
     if (! cycle_exists)
     {
-        // opts_suffix default resolves to none and none is already none
-        if ("cycle" != opts_suffix)
+        if ("cycle" == opts_suffix)
         {
-            opts_suffix = "none";
-            // NOTE: we don't want to generate the cycle in this case.
-            // If we do, we will mess up our static counter for this
-            // path when we don't have to. This can lead to skipping
-            // cycle numbers if this path is reused, as we see in
-            // tests.
+            CONDUIT_INFO("determine_cycle_and_resolve_suffix: no 'state/cycle' present."
+                         " Defaulting to counter");
+            static std::map<std::string, int> counters;
+            cycle = counters[path];
+
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+            // reduce to unify the cycle in this case
+            Node n_local, n_reduced;
+            n_local = static_cast<int>(cycle);
+            relay::mpi::min_all_reduce(n_local,
+                                       n_reduced,
+                                       mpi_comm);
+            cycle = n_reduced.as_int();
+#endif
+            
+            // If we're just using this function to ask what the filename could be, 
+            // then we don't want to mess with the static counter. If we are
+            // in the process of writing files, then we can make up a new cycle.
+            if (! gen_name)
+            {
+                counters[path] ++;
+            }
         }
-        // if the cycle doesn't exist and we've asked for the cycle,
-        // then we need to make up a value that all tasks agree on
         else
         {
-#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-            cycle = conduit::blueprint::mpi::mesh::cycle(multi_dom, path, gen_name, mpi_comm);
-#else
-            cycle = conduit::blueprint::mesh::cycle(multi_dom, path, gen_name);
-#endif
+            opts_suffix = "none";
         }
     }
     // if the cycle exists and we are in the default suffix case
