@@ -1766,16 +1766,6 @@ void determine_cycle_and_resolve_suffix(const Node &multi_dom,
                          " Defaulting to counter");
             static std::map<std::string, int> counters;
             cycle = counters[path];
-
-#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-            // reduce to unify the cycle in this case
-            Node n_local, n_reduced;
-            n_local = static_cast<int>(cycle);
-            relay::mpi::min_all_reduce(n_local,
-                                       n_reduced,
-                                       mpi_comm);
-            cycle = n_reduced.as_int();
-#endif
             
             // If we're just using this function to ask what the filename could be, 
             // then we don't want to mess with the static counter. If we are
