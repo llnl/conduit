@@ -32,6 +32,14 @@ if(ADIOS_FOUND AND MPI_FOUND)
   SET(CONDUIT_RELAY_IO_MPI_ADIOS_ENABLED TRUE)
 endif()
 
+if(ADIOS2_FOUND AND NOT MPI_FOUND)
+  SET(CONDUIT_RELAY_IO_ADIOS2_ENABLED TRUE)
+endif()
+
+if(ADIOS2_FOUND AND MPI_FOUND)
+  SET(CONDUIT_RELAY_IO_MPI_ADIOS2_ENABLED TRUE)
+endif()
+
 if(ZFP_FOUND)
   SET(CONDUIT_RELAY_ZFP_ENABLED TRUE)
 endif()
@@ -135,6 +143,13 @@ if(ADIOS_FOUND AND NOT MPI_FOUND)
     list(APPEND conduit_relay_sources conduit_relay_io_adios.cpp)
 endif()
 
+if(ADIOS2_FOUND AND NOT MPI_FOUND)
+    list(APPEND conduit_relay_headers
+         conduit_relay_io_adios2.hpp
+        )
+    list(APPEND conduit_relay_sources conduit_relay_io_adios2.cpp)
+endif()
+
 if(ZFP_FOUND)
     list(APPEND conduit_relay_headers conduit_relay_zfp.hpp)
     list(APPEND conduit_relay_sources conduit_relay_zfp.cpp)
@@ -180,7 +195,7 @@ endif()
 mark_as_advanced(CONDUIT_MAKE_EXTRA_LIBS)
 
 #
-# Link with silo and hdf5 and adios if these are enabled
+# Link with silo, hdf5, adios, and adios2 if these are enabled
 #
 if(SILO_FOUND)
     list(APPEND conduit_relay_deps silo)
@@ -200,6 +215,11 @@ endif()
 if(ADIOS_FOUND AND NOT MPI_FOUND)
     # Link with the serial ADIOS libraries.
     list(APPEND conduit_relay_deps adios_nompi)
+endif()
+
+if(ADIOS2_FOUND AND NOT MPI_FOUND)
+    # Link with the serial ADIOS2 libraries.
+    list(APPEND conduit_relay_deps adios2::cxx11)
 endif()
 
 if(ZFP_FOUND)
@@ -400,6 +420,13 @@ if(ADIOS_FOUND)
     list(APPEND conduit_relay_mpi_io_sources conduit_relay_io_adios.cpp)
     # Link with parallel versions of ADIOS
     list(APPEND conduit_relay_mpi_io_deps adios_mpi)
+endif()
+
+if(ADIOS2_FOUND)
+    list(APPEND conduit_relay_mpi_io_headers conduit_relay_mpi_io_adios2.hpp)
+    list(APPEND conduit_relay_mpi_io_sources conduit_relay_io_adios2.cpp)
+    # Link with parallel versions of ADIOS2
+    list(APPEND conduit_relay_mpi_io_deps adios2::cxx11_mpi MPI::MPI_CXX)
 endif()
  
 

@@ -150,6 +150,19 @@ if(ADIOS_DIR)
 endif()
 
 ################################
+# Setup ADIOS2 if available
+################################
+# Search for ADIOS2.
+if(ADIOS2_DIR)
+    include(cmake/thirdparty/SetupADIOS2.cmake)
+    include_directories(${ADIOS2_INCLUDE_DIRS})
+    # if we don't find ADIOS2, throw a fatal error
+    if(NOT ADIOS2_FOUND)
+        message(FATAL_ERROR "ADIOS2_DIR is set, but ADIOS2 wasn't found.")
+    endif()
+endif()
+
+################################
 # Setup Zfp if available
 ################################
 # Search for Zfp.

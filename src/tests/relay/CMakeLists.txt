@@ -123,6 +123,27 @@ else()
     message(STATUS "ADIOS disabled: Skipping conduit_relay ADIOS tests")
 endif()
 
+if(ADIOS2_FOUND)
+    if(NOT MPI_FOUND)
+        message(STATUS "ADIOS2 enabled: Adding conduit_relay ADIOS2 unit tests")
+        foreach(TEST ${RELAY_ADIOS2_TESTS})
+            add_cpp_test(TEST ${TEST}
+                         DEPENDS_ON conduit conduit_relay
+                         FOLDER tests/relay)
+        endforeach()
+    else()
+        message(STATUS "ADIOS2 + MPI enabled: Adding conduit_relay_mpi_adios2 unit tests")
+        foreach(TEST ${RELAY_MPI_ADIOS2_TESTS})
+            add_cpp_mpi_test(TEST ${TEST}
+                             NUM_MPI_TASKS 2
+                             DEPENDS_ON conduit conduit_relay_mpi_io
+                             FOLDER tests/relay)
+        endforeach()
+    endif()
+else()
+    message(STATUS "ADIOS2 disabled: Skipping conduit_relay ADIOS tests")
+endif()
+
 
 if(MPI_FOUND)
     message(STATUS "MPI enabled: Adding conduit_relay_mpi unit tests")
