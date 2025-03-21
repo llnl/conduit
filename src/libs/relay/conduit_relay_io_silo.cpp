@@ -7416,49 +7416,50 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     }
 
     // -----------------------------------------------------------
-    // get the number of local domains and the cycle info
+    // get the cycle info
     // -----------------------------------------------------------
-    int local_num_domains;
+    index_t cycle;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    conduit::relay::mpi::io::blueprint::get_num_local_doms_and_cycle(local_num_domains,
-                                                                     n_local,
-                                                                     n_reduced,
-                                                                     par_rank,
-                                                                     multi_dom,
-                                                                     is_valid,
-                                                                     opts_suffix,
-                                                                     cycle,
-                                                                     false, // we are not just generating the root file name
-                                                                     path,
-                                                                     mpi_comm);
+    conduit::relay::mpi::io::blueprint::determine_cycle_and_resolve_suffix(
+        multi_dom,
+        path,
+        cycle,
+        opts_suffix,
+        false, // we are not just generating the root file name
+        mpi_comm);
 #else
-    conduit::relay::io::blueprint::get_num_local_doms_and_cycle(local_num_domains,
-                                                                multi_dom,
-                                                                is_valid,
-                                                                opts_suffix,
-                                                                cycle,
-                                                                false, // we are not just generating the root file name
-                                                                path);
+    conduit::relay::io::blueprint::determine_cycle_and_resolve_suffix(
+        multi_dom,
+        path,
+        cycle,
+        opts_suffix,
+        false); // we are not just generating the root file name
+#endif
+
+    // -----------------------------------------------------------
+    // par_rank and par_size
+    // -----------------------------------------------------------
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    const int par_rank = relay::mpi::rank(mpi_comm);
+    const int par_size = relay::mpi::size(mpi_comm);
+#else
+    const int par_rank = 0;
+    const int par_size = 1;    
 #endif
     
     // -----------------------------------------------------------
-    // find the # of global domains
+    // find the local and global # of domains
     // -----------------------------------------------------------
-    int global_num_domains = (int)local_num_domains;
-
+    const int local_num_domains = conduit::blueprint::mesh::number_of_domains(multi_dom);
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    n_local = local_num_domains;
-
-    relay::mpi::sum_all_reduce(n_local,
-                               n_reduced,
-                               mpi_comm);
-
-    global_num_domains = n_reduced.as_int();
+    const int global_num_domains = conduit::blueprint::mpi::mesh::number_of_domains(multi_dom, mpi_comm);
+#else
+    const int global_num_domains = local_num_domains;
 #endif
 
-    if(global_num_domains == 0)
+    if (global_num_domains == 0)
     {
-        if(par_rank == 0)
+        if (par_rank == 0)
         {
             CONDUIT_WARN("There is no data to save. Doing nothing.");
         }
@@ -7568,6 +7569,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         // make sure everyone knows if dir creation was successful 
 
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+        Node n_local, n_reduced;
         // use an mpi sum to check if the dir exists
         n_local = dir_ok ? 1 : 0;
 
@@ -7888,6 +7890,9 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     }
     else if (global_num_domains == num_files)
     {
+        if (par_rank == 0)
+            multi_dom.print();
+
         // write out each domain
         // writes are independent, so no baton here
         for (int i = 0; i < local_num_domains; ++i)

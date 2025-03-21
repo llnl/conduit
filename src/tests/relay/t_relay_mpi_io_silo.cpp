@@ -271,14 +271,15 @@ TEST(conduit_relay_mpi_io_silo, mpi_mesh_examples_spiral_1dom)
     }
     MPI_Barrier(comm);
 
+    const std::string output_root = output_base + ".cycle_000000.root";
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(save_mesh, output_base, "silo", opts, comm));
+
     conduit::relay::mpi::io::silo::save_mesh(save_mesh,
                                              output_base,
                                              opts,
                                              comm);
 
     // read this back using read_mesh, should diff clean
-    std::string output_root = output_base + ".cycle_000000.root";
-    EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(save_mesh, output_base, "silo", opts, comm));
     Node load_mesh, n_diff_info;
     conduit::relay::mpi::io::silo::load_mesh(output_root,
                                              load_mesh,

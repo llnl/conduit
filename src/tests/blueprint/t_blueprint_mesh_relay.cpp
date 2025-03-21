@@ -438,8 +438,8 @@ TEST(conduit_blueprint_mesh_relay, save_read_mesh_opts)
 
     // this should error
     opts["suffix"] = "garbage";
-    EXPECT_THROW(relay::io::blueprint::write_mesh(data, tout_base, "hdf5", opts),Error);
     EXPECT_THROW(relay::io::blueprint::generate_root_filename(data, tout_base, "hdf5", opts),Error);
+    EXPECT_THROW(relay::io::blueprint::write_mesh(data, tout_base, "hdf5", opts),Error);
 
 
     //
@@ -512,10 +512,10 @@ TEST(conduit_blueprint_mesh_relay, save_read_mesh_opts)
 
     tout_base = "tout_relay_bp_mesh_opts_mesh_name";
     tout_root = tout_base + ".root";
+    EXPECT_EQ(tout_root, relay::io::blueprint::generate_root_filename(data, tout_base, "hdf5", opts));
     remove_path_if_exists(tout_root);
     relay::io::blueprint::write_mesh(data, tout_base, "hdf5", opts);
     EXPECT_TRUE(is_file( tout_root));
-    EXPECT_EQ(tout_root, relay::io::blueprint::generate_root_filename(data, tout_base, "hdf5", opts));
 
     // even custom name should work just fine with default
     // (it will pick the first mesh)

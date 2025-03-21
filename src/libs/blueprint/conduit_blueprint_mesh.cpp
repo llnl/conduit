@@ -1999,7 +1999,7 @@ mesh::state(const conduit::Node &mesh, conduit::Node &state)
     }
     else
     {
-        NodeIterator doms_itr = mesh.children();
+        auto doms_itr = mesh.children();
         while (doms_itr.has_next())
         {
             const Node &dom = doms_itr.next();
@@ -2023,6 +2023,41 @@ mesh::cycle(const conduit::Node &mesh)
         return state["cycle"].to_index_t();
     }
     return std::numeric_limits<int>::max();
+}
+
+//-------------------------------------------------------------------------
+index_t
+mesh::cycle(const conduit::Node &mesh, 
+            const std::string &path,
+            bool just_asking)
+{
+    Node state;
+    ::conduit::blueprint::mesh::state(mesh, state);
+    if (state.has_child("cycle"))
+    {
+        return state["cycle"].to_index_t();
+    }
+    CONDUIT_INFO("is_cycle_present: no 'state/cycle' present."
+                 " Defaulting to counter");
+    static std::map<std::string, int> counters;
+    index_t cycle = counters[path];
+    // if we're just using this function to ask what the cycle could be, 
+    // then we don't want to mess with the static counter. If we are
+    // in the process of writing files, then we can make up a new cycle.
+    if (! just_asking)
+    {
+        counters[path] ++;
+    }
+    return cycle;
+}
+
+//-------------------------------------------------------------------------
+bool
+mesh::is_cycle_present(const conduit::Node &mesh)
+{
+    Node state;
+    ::conduit::blueprint::mesh::state(mesh, state);
+    return state.has_child("cycle");
 }
 
 //-------------------------------------------------------------------------

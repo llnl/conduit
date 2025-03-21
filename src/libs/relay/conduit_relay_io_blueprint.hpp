@@ -144,15 +144,13 @@ void CONDUIT_RELAY_API write_mesh(const conduit::Node &mesh,
                                   const conduit::Node &opts);
 
 // -----------------------------------------------------------
-// get the number of local domains and the cycle info
+// get the cycle info
 // -----------------------------------------------------------
-void CONDUIT_RELAY_API get_num_local_doms_and_cycle(int &local_num_domains,
-                                                    const Node &multi_dom,
-                                                    const bool &is_valid,
-                                                    std::string &opts_suffix,
-                                                    int &cycle,
-                                                    bool gen_name,
-                                                    const std::string &path);
+void CONDUIT_RELAY_API determine_cycle_and_resolve_suffix(const Node &multi_dom,
+                                                          const std::string &path,
+                                                          index_t &cycle,
+                                                          std::string &opts_suffix,
+                                                          bool gen_name);
 
 //-----------------------------------------------------------------------------
 // Generate root file name given parameters
