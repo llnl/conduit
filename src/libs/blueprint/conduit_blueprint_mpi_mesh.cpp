@@ -243,24 +243,37 @@ state(const conduit::Node &mesh,
       conduit::Node &state,
       MPI_Comm comm)
 {
-    Node local_state;
-    ::conduit::blueprint::mesh::state(mesh, local_state);
+    state.reset();
+    ::conduit::blueprint::mesh::state(mesh, state);
 
-
-    Node global_state_nodes;
-    relay::mpi::all_gather_using_schema(local_state,
-                                        global_state_nodes,
-                                        comm);
-
-    auto state_itr = global_state_nodes.children();
-    while (state_itr.has_next())
+    int local = std::numeric_limits<int>::max();
+    const int par_rank = relay::mpi::rank(comm);
+    if (state.number_of_children() > 0)
     {
-        Node &state_i = state_itr.next();
-        if (state_i.number_of_children() > 0)
-        {
-            state.set(state_i);
-            break;
-        }
+        local = par_rank;
+    }
+
+    Node n_local, n_reduced;
+    n_local = local;
+    std::cout << "Rank " << par_rank << ": n_local = " << n_local.as_int() << std::endl;
+    relay::mpi::min_all_reduce(n_local,
+                               n_reduced,
+                               comm);
+    std::cout << "Rank " << par_rank << ": n_local = " << n_local.as_int() << ", n_reduced = " << n_reduced.as_int() << std::endl;
+
+    int global = n_reduced.as_int();
+    std::cout << "Rank " << par_rank << ": global = " << global << std::endl;
+    if (global == std::numeric_limits<int>::max())
+    {
+        std::cout << "Rank " << par_rank << ": No state, skipping broadcast." << std::endl;
+        // no state
+        return;
+    }
+
+    // min rank that has state
+    if (global == par_rank)
+    {
+        relay::mpi::broadcast_using_schema(state, global, comm);
     }
 }
 
