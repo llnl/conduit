@@ -7890,9 +7890,6 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     }
     else if (global_num_domains == num_files)
     {
-        if (par_rank == 0)
-            multi_dom.print();
-
         // write out each domain
         // writes are independent, so no baton here
         for (int i = 0; i < local_num_domains; ++i)

@@ -169,7 +169,7 @@ std::string CONDUIT_RELAY_API generate_root_filename(const conduit::Node &mesh,
 /// The following options can be passed via the opts Node:
 //-----------------------------------------------------------------------------
 /// opts:
-///      file_style: "default", "root_only", "multi_file"
+///      file_style: "default", "root_only", "multi_file", "overlink"
 ///            when # of domains == 1,  "default"   ==> "root_only"
 ///            else,                    "default"   ==> "multi_file"
 ///
