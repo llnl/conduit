@@ -157,6 +157,53 @@ void CONDUIT_RELAY_API write_mesh(const conduit::Node &mesh,
                                   const conduit::Node &opts,
                                   MPI_Comm comm);
 
+// -----------------------------------------------------------
+// get the cycle info
+// -----------------------------------------------------------
+void CONDUIT_RELAY_API determine_cycle_and_resolve_suffix(const Node &multi_dom,
+                                                          const std::string &path,
+                                                          index_t &cycle,
+                                                          std::string &opts_suffix,
+                                                          bool gen_name,
+                                                          MPI_Comm comm);
+
+//-----------------------------------------------------------------------------
+// Generate root file name given parameters
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+std::string CONDUIT_RELAY_API generate_root_filename(const conduit::Node &mesh,
+                                                     const std::string &path,
+                                                     MPI_Comm comm);
+
+//-----------------------------------------------------------------------------
+std::string CONDUIT_RELAY_API generate_root_filename(const conduit::Node &mesh,
+                                                     const std::string &path,
+                                                     const std::string &protocol,
+                                                     MPI_Comm comm);
+
+//-----------------------------------------------------------------------------
+/// The following options can be passed via the opts Node:
+//-----------------------------------------------------------------------------
+/// opts:
+///      file_style: "default", "root_only", "multi_file", "overlink"
+///            when # of domains == 1,  "default"   ==> "root_only"
+///            else,                    "default"   ==> "multi_file"
+///
+///      suffix: "default", "cycle", "none" 
+///            when cycle is present,  "default"   ==> "cycle"
+///            else,                   "default"   ==> "none"
+///
+///      root_file_ext: "default", "root", "silo"
+///            "default"   ==> "root"
+///            if overlink, this parameter is unused.
+///
+//-----------------------------------------------------------------------------
+std::string CONDUIT_RELAY_API generate_root_filename(const conduit::Node &mesh,
+                                                     const std::string &path,
+                                                     const std::string &protocol,
+                                                     const conduit::Node &opts,
+                                                     MPI_Comm comm);
 
 //-----------------------------------------------------------------------------
 // Load a blueprint mesh from root + file set

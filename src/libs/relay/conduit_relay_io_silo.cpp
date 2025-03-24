@@ -7239,7 +7239,6 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     int         opts_num_files     = -1;
     bool        opts_truncate      = false;
     int         silo_type          = DB_HDF5;
-    std::set<std::string> filelist;
 
     // check for + validate file_style option
     if(opts.has_child("file_style") && opts["file_style"].dtype().is_string())
@@ -7402,158 +7401,69 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
 
     int num_files = opts_num_files;
 
-#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    // nodes used for MPI comm (share them for many operations)
-    Node n_local, n_reduced;
-#endif
-
-    // -----------------------------------------------------------
+    //-----------------------------------------------------------------------------
     // make sure some MPI task has data
-    // -----------------------------------------------------------
+    //-----------------------------------------------------------------------------
     Node multi_dom;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    bool is_valid = conduit::relay::mpi::io::blueprint::clean_mesh(mesh, multi_dom, mpi_comm);
+    if (! conduit::relay::mpi::io::blueprint::clean_mesh(mesh, multi_dom, mpi_comm))
 #else
-    bool is_valid = conduit::relay::io::blueprint::clean_mesh(mesh, multi_dom);
+    if (! conduit::relay::io::blueprint::clean_mesh(mesh, multi_dom))
 #endif
-
-    int par_rank = 0;
-    int par_size = 1;
-    // we may not have any domains so init to max
-    int cycle = std::numeric_limits<int>::max();
-
-    int local_boolean = is_valid ? 1 : 0;
-    int global_boolean = local_boolean;
-
-
-#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    par_rank = relay::mpi::rank(mpi_comm);
-    par_size = relay::mpi::size(mpi_comm);
-
-    // reduce to check to see if any valid data exists
-
-    n_local = (int)cycle;
-    relay::mpi::sum_all_reduce(n_local,
-                               n_reduced,
-                               mpi_comm);
-
-    global_boolean = n_reduced.as_int();
-
-#endif
-
-    if(global_boolean == 0)
     {
-      CONDUIT_INFO("Silo save: no valid data exists. Skipping save");
-      return;
+        CONDUIT_INFO("Silo save: no valid data exists. Skipping save");
+        return;
     }
 
     // -----------------------------------------------------------
-    // get the number of local domains and the cycle info
+    // get the cycle info
     // -----------------------------------------------------------
-
-    int local_num_domains = (int)multi_dom.number_of_children();
-    // figure out what cycle we are
-    if(local_num_domains > 0 && is_valid)
-    {
-        Node dom = multi_dom.child(0);
-        if(!dom.has_path("state/cycle"))
-        {
-            if(opts_suffix == "cycle")
-            {
-                static std::map<std::string,int> counters;
-                CONDUIT_INFO("Silo save: no 'state/cycle' present."
-                             " Defaulting to counter");
-                cycle = counters[path];
-                counters[path]++;
-            }
-            else
-            {
-                opts_suffix = "none";
-            }
-        }
-        else if(opts_suffix == "cycle")
-        {
-            cycle = dom["state/cycle"].to_int();
-        }
-        else if(opts_suffix == "default")
-        {
-            cycle = dom["state/cycle"].to_int();
-            opts_suffix = "cycle";
-        }
-    }
-
+    index_t cycle;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    // reduce to get the cycle (some tasks might not have domains)
-    n_local = (int)cycle;
+    conduit::relay::mpi::io::blueprint::determine_cycle_and_resolve_suffix(
+        multi_dom,
+        path,
+        cycle,
+        opts_suffix,
+        false, // we are not just generating the root file name
+        mpi_comm);
+#else
+    conduit::relay::io::blueprint::determine_cycle_and_resolve_suffix(
+        multi_dom,
+        path,
+        cycle,
+        opts_suffix,
+        false); // we are not just generating the root file name
+#endif
 
-    relay::mpi::min_all_reduce(n_local,
-                               n_reduced,
-                               mpi_comm);
-
-    cycle = n_reduced.as_int();
-
-    // we also need to have all mpi tasks agree on the `opts_suffix`
-    // checking the first mpi task with domains should be sufficient.
-    // find first
-    n_local   = local_num_domains;
-    n_reduced.reset();
-    
-    relay::mpi::all_gather(n_local,
-                           n_reduced,
-                           mpi_comm);
-
-    index_t_accessor counts = n_reduced.value();
-    index_t idx = -1;
-    index_t i =0;
-    NodeConstIterator counts_itr = n_reduced.children();
-    while(counts_itr.has_next() && idx < 0)
-    {
-        const Node &curr = counts_itr.next();
-        index_t count = curr.to_index_t();
-        if(count > 0)
-        {
-            idx = i;
-        }
-        i++;
-    }
-
-    // now broadcast from idx
-    Node n_opts_suffix;
-    if(par_rank == idx)
-    {
-        n_opts_suffix = opts_suffix;
-    }
-
-    conduit::relay::mpi::broadcast_using_schema(n_opts_suffix,
-                                                idx,
-                                                mpi_comm);
-
-    opts_suffix = n_opts_suffix.as_string();
-
+    // -----------------------------------------------------------
+    // par_rank and par_size
+    // -----------------------------------------------------------
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    const int par_rank = relay::mpi::rank(mpi_comm);
+    const int par_size = relay::mpi::size(mpi_comm);
+#else
+    const int par_rank = 0;
+    const int par_size = 1;    
 #endif
     
     // -----------------------------------------------------------
-    // find the # of global domains
+    // find the local and global # of domains
     // -----------------------------------------------------------
-    int global_num_domains = (int)local_num_domains;
-
+    const int local_num_domains = conduit::blueprint::mesh::number_of_domains(multi_dom);
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    n_local = local_num_domains;
-
-    relay::mpi::sum_all_reduce(n_local,
-                               n_reduced,
-                               mpi_comm);
-
-    global_num_domains = n_reduced.as_int();
+    const int global_num_domains = conduit::blueprint::mpi::mesh::number_of_domains(multi_dom, mpi_comm);
+#else
+    const int global_num_domains = local_num_domains;
 #endif
 
-    if(global_num_domains == 0)
+    if (global_num_domains == 0)
     {
-      if(par_rank == 0)
-      {
-          CONDUIT_WARN("There no data to save. Doing nothing.");
-      }
-      return;
+        if (par_rank == 0)
+        {
+            CONDUIT_WARN("There is no data to save. Doing nothing.");
+        }
+        return;
     }
 
     std::string output_dir = "";
@@ -7659,6 +7569,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         // make sure everyone knows if dir creation was successful 
 
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+        Node n_local, n_reduced;
         // use an mpi sum to check if the dir exists
         n_local = dir_ok ? 1 : 0;
 

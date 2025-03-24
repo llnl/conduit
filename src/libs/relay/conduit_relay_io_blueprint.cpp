@@ -658,56 +658,56 @@ bool clean_mesh(const conduit::Node &data,
                 conduit::Node &output
                 CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
 {
-  output.reset();
-  const index_t potential_doms = data.number_of_children();
-  bool maybe_multi_dom = true;
+    output.reset();
+    const index_t potential_doms = data.number_of_children();
+    bool maybe_multi_dom = true;
 
-  if(!data.dtype().is_object() && !data.dtype().is_list())
-  {
-    maybe_multi_dom = false;
-  }
-
-  if(maybe_multi_dom)
-  {
-    // check all the children for valid domains
-    for(int i = 0; i < potential_doms; ++i)
+    if(!data.dtype().is_object() && !data.dtype().is_list())
     {
-      // we expect folks to use their best behaivor
-      // (mesh bp verify is true before passing data)
-      // so we can assume we have valid mesh bp.
-      // if a child looks like a mesh, we have one
-      conduit::Node info;
-      const conduit::Node &child = data.child(i);
+        maybe_multi_dom = false;
+    }
 
-      bool is_valid = detail::quick_mesh_check(child);
-      if(is_valid)
-      {
-        conduit::Node &dest_dom = output.append();
-        dest_dom.set_external(child);
-        // note: this algo may re-write domain ids
-        // so make sure this isn't set as external
-        if(dest_dom.has_path("state/domain_id"))
+    if(maybe_multi_dom)
+    {
+        // check all the children for valid domains
+        for(int i = 0; i < potential_doms; ++i)
         {
-            index_t dom_id = dest_dom["state/domain_id"].to_index_t();
-            dest_dom["state/domain_id"].reset();
-            dest_dom["state/domain_id"] = dom_id;
+            // we expect folks to use their best behaivor
+            // (mesh bp verify is true before passing data)
+            // so we can assume we have valid mesh bp.
+            // if a child looks like a mesh, we have one
+            conduit::Node info;
+            const conduit::Node &child = data.child(i);
+
+            bool is_valid = detail::quick_mesh_check(child);
+            if(is_valid)
+            {
+                conduit::Node &dest_dom = output.append();
+                dest_dom.set_external(child);
+                // note: this algo may re-write domain ids
+                // so make sure this isn't set as external
+                if(dest_dom.has_path("state/domain_id"))
+                {
+                    index_t dom_id = dest_dom["state/domain_id"].to_index_t();
+                    dest_dom["state/domain_id"].reset();
+                    dest_dom["state/domain_id"] = dom_id;
+                }
+            }
         }
-      }
     }
-  }
-  // if there is nothing in the output, lets see if it is a
-  // valid single domain
-  if(output.number_of_children() == 0)
-  {
-    // check to see if this is a single valid domain
-    conduit::Node info;
-    bool is_valid = detail::quick_mesh_check(data);
-    if(is_valid)
+    // if there is nothing in the output, lets see if it is a
+    // valid single domain
+    if(output.number_of_children() == 0)
     {
-      conduit::Node &dest_dom = output.append();
-      dest_dom.set_external(data);
+        // check to see if this is a single valid domain
+        conduit::Node info;
+        bool is_valid = detail::quick_mesh_check(data);
+        if(is_valid)
+        {
+            conduit::Node &dest_dom = output.append();
+            dest_dom.set_external(data);
+        }
     }
-  }
 
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
     conduit::blueprint::mpi::mesh::generate_domain_ids(output, mpi_comm);
@@ -715,8 +715,12 @@ bool clean_mesh(const conduit::Node &data,
     conduit::blueprint::mesh::generate_domain_ids(output);
 #endif
 
-
-  return output.number_of_children() > 0;
+    const bool local_is_valid = output.number_of_children() > 0;
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    return detail::global_someone_agrees(local_is_valid, mpi_comm);
+#else
+    return local_is_valid;
+#endif
 }
 
 
@@ -952,7 +956,7 @@ void write_mesh(const Node &mesh,
         }
     }
     
-    // check for + validate suffix option
+    // check for + validate mesh_name option
     if(opts.has_child("mesh_name") && opts["mesh_name"].dtype().is_string())
     {
         opts_mesh_name = opts["mesh_name"].as_string();
@@ -975,157 +979,67 @@ void write_mesh(const Node &mesh,
 
     int num_files = opts_num_files;
 
-#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    // nodes used for MPI comm (share them for many operations)
-    Node n_local, n_reduced;
-#endif
-
-    // -----------------------------------------------------------
+    //-----------------------------------------------------------------------------
     // make sure some MPI task has data
-    // -----------------------------------------------------------
+    //-----------------------------------------------------------------------------
     Node multi_dom;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    bool is_valid = conduit::relay::mpi::io::blueprint::clean_mesh(mesh, multi_dom, mpi_comm);
+    if (! conduit::relay::mpi::io::blueprint::clean_mesh(mesh, multi_dom, mpi_comm))
 #else
-    bool is_valid = conduit::relay::io::blueprint::clean_mesh(mesh, multi_dom);
+    if (! conduit::relay::io::blueprint::clean_mesh(mesh, multi_dom))
 #endif
-
-    int par_rank = 0;
-    int par_size = 1;
-    // we may not have any domains so init to max
-    int cycle = std::numeric_limits<int>::max();
-
-    int local_boolean = is_valid ? 1 : 0;
-    int global_boolean = local_boolean;
-
-
-#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    par_rank = relay::mpi::rank(mpi_comm);
-    par_size = relay::mpi::size(mpi_comm);
-
-    // reduce to check to see if any valid data exists
-
-    n_local = (int)cycle;
-    relay::mpi::sum_all_reduce(n_local,
-                               n_reduced,
-                               mpi_comm);
-
-    global_boolean = n_reduced.as_int();
-
-#endif
-
-    if(global_boolean == 0)
     {
-      CONDUIT_INFO("Blueprint save: no valid data exists. Skipping save");
-      return;
+        CONDUIT_INFO("Blueprint save: no valid data exists. Skipping save");
+        return;
     }
 
     // -----------------------------------------------------------
-    // get the number of local domains and the cycle info
+    // get the cycle info
     // -----------------------------------------------------------
-
-    int local_num_domains = (int)multi_dom.number_of_children();
-    // figure out what cycle we are
-    if(local_num_domains > 0 && is_valid)
-    {
-        Node dom = multi_dom.child(0);
-        if(!dom.has_path("state/cycle"))
-        {
-            if(opts_suffix == "cycle")
-            {
-                static std::map<std::string,int> counters;
-                CONDUIT_INFO("Blueprint save: no 'state/cycle' present."
-                             " Defaulting to counter");
-                cycle = counters[path];
-                counters[path]++;
-            }
-            else
-            {
-                opts_suffix = "none";
-            }
-        }
-        else if(opts_suffix == "cycle")
-        {
-            cycle = dom["state/cycle"].to_int();
-        }
-        else if(opts_suffix == "default")
-        {
-            cycle = dom["state/cycle"].to_int();
-            opts_suffix = "cycle";
-        }
-    }
-
+    index_t cycle;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    // reduce to get the cycle (some tasks might not have domains)
-    n_local = (int)cycle;
+    determine_cycle_and_resolve_suffix(multi_dom,
+                                       path,
+                                       cycle,
+                                       opts_suffix,
+                                       false, // we are not just generating the root file name
+                                       mpi_comm);
+#else
+    determine_cycle_and_resolve_suffix(multi_dom,
+                                       path,
+                                       cycle,
+                                       opts_suffix,
+                                       false); // we are not just generating the root file name
+#endif
 
-    relay::mpi::min_all_reduce(n_local,
-                               n_reduced,
-                               mpi_comm);
-
-    cycle = n_reduced.as_int();
-
-    // we also need to have all mpi tasks agree on the `opts_suffix`
-    // checking the first mpi task with domains should be sufficient.
-    // find first
-    n_local   = local_num_domains;
-    n_reduced.reset();
-    
-    relay::mpi::all_gather(n_local,
-                           n_reduced,
-                           mpi_comm);
-
-
-    index_t_accessor counts = n_reduced.value();
-    index_t idx = -1;
-    NodeConstIterator counts_itr = n_reduced.children();
-    for(index_t i = 0; counts_itr.has_next() && idx < 0; i++)
-    {
-        const Node &curr = counts_itr.next();
-        index_t count = curr.to_index_t();
-        if(count > 0)
-        {
-            idx = i;
-        }
-    }
-
-    // now broadcast from idx
-    Node n_opts_suffix;
-    if(par_rank == idx)
-    {
-        n_opts_suffix = opts_suffix;
-    }
-
-    conduit::relay::mpi::broadcast_using_schema(n_opts_suffix,
-                                                idx,
-                                                mpi_comm);
-
-    opts_suffix = n_opts_suffix.as_string();
-
+    // -----------------------------------------------------------
+    // par_rank and par_size
+    // -----------------------------------------------------------
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    const int par_rank = relay::mpi::rank(mpi_comm);
+    const int par_size = relay::mpi::size(mpi_comm);
+#else
+    const int par_rank = 0;
+    const int par_size = 1;    
 #endif
     
     // -----------------------------------------------------------
-    // find the # of global domains
+    // find the local and global # of domains
     // -----------------------------------------------------------
-    int global_num_domains = (int)local_num_domains;
-
+    const int local_num_domains = conduit::blueprint::mesh::number_of_domains(multi_dom);
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    n_local = local_num_domains;
-
-    relay::mpi::sum_all_reduce(n_local,
-                               n_reduced,
-                               mpi_comm);
-
-    global_num_domains = n_reduced.as_int();
+    const int global_num_domains = conduit::blueprint::mpi::mesh::number_of_domains(multi_dom, mpi_comm);
+#else
+    const int global_num_domains = local_num_domains;
 #endif
 
-    if(global_num_domains == 0)
+    if (global_num_domains == 0)
     {
-      if(par_rank == 0)
-      {
-          CONDUIT_WARN("There no data to save. Doing nothing.");
-      }
-      return;
+        if (par_rank == 0)
+        {
+            CONDUIT_WARN("There is no data to save. Doing nothing.");
+        }
+        return;
     }
 
     std::string output_dir = "";
@@ -1176,6 +1090,7 @@ void write_mesh(const Node &mesh,
         // make sure everyone knows if dir creation was successful 
 
         #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+        Node n_local, n_reduced;
         // use an mpi sum to check if the dir exists
         n_local = dir_ok ? 1 : 0;
 
@@ -1823,6 +1738,278 @@ void write_mesh(const Node &mesh,
     #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
         MPI_Barrier(mpi_comm);
     #endif
+}
+
+// -----------------------------------------------------------
+// get the cycle info
+// -----------------------------------------------------------
+void determine_cycle_and_resolve_suffix(const Node &multi_dom,
+                                        const std::string &path,
+                                        index_t &cycle,
+                                        std::string &opts_suffix,
+                                        bool gen_name
+                                        CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
+{
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    cycle = conduit::blueprint::mpi::mesh::cycle(multi_dom, mpi_comm);
+#else
+    cycle = conduit::blueprint::mesh::cycle(multi_dom);
+#endif
+    // int max is the default cycle value if none exists
+    const bool cycle_exists = (std::numeric_limits<int>::max() != cycle);
+
+    if (! cycle_exists)
+    {
+        if ("cycle" == opts_suffix)
+        {
+            CONDUIT_INFO("determine_cycle_and_resolve_suffix: no 'state/cycle' present."
+                         " Defaulting to counter");
+            static std::map<std::string, int> counters;
+            cycle = counters[path];
+            
+            // If we're just using this function to ask what the filename could be, 
+            // then we don't want to mess with the static counter. If we are
+            // in the process of writing files, then we can make up a new cycle.
+            if (! gen_name)
+            {
+                counters[path] ++;
+            }
+        }
+        else
+        {
+            opts_suffix = "none";
+        }
+    }
+    // if the cycle exists and we are in the default suffix case
+    else if ("default" == opts_suffix)
+    {
+        opts_suffix = "cycle";
+    }
+    // if the cycle exists and we are in the cycle suffix case - cycle
+    // has already been set appropriately.
+    // if the cycle exists and we are in the no suffix case - it 
+    // doesn't matter what we have set cycle to.
+}
+
+//-----------------------------------------------------------------------------
+// Generate root file name given parameters
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+std::string generate_root_filename(const conduit::Node &mesh,
+                                   const std::string &path
+                                   CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
+{
+    // empty opts
+    Node opts;
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    return generate_root_filename(mesh,
+                                  path,
+                                  detail::identify_protocol(path),
+                                  opts,
+                                  mpi_comm);
+#else
+    return generate_root_filename(mesh,
+                                  path,
+                                  detail::identify_protocol(path),
+                                  opts);
+#endif
+}
+
+//-----------------------------------------------------------------------------
+std::string generate_root_filename(const conduit::Node &mesh,
+                                   const std::string &path,
+                                   const std::string &file_protocol
+                                   CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
+{
+    // empty opts
+    Node opts;
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    return generate_root_filename(mesh,
+                                  path,
+                                  file_protocol,
+                                  opts,
+                                  mpi_comm);
+#else
+    return generate_root_filename(mesh,
+                                  path,
+                                  file_protocol,
+                                  opts);
+#endif
+}
+
+
+//-----------------------------------------------------------------------------
+/// The following options can be passed via the opts Node:
+//-----------------------------------------------------------------------------
+/// opts:
+///      file_style: "default", "root_only", "multi_file", "overlink"
+///            when # of domains == 1,  "default"   ==> "root_only"
+///            else,                    "default"   ==> "multi_file"
+///
+///      suffix: "default", "cycle", "none" 
+///            when cycle is present,  "default"   ==> "cycle"
+///            else,                   "default"   ==> "none"
+///
+///      root_file_ext: "default", "root", "silo"
+///            "default"   ==> "root"
+///            if overlink, this parameter is unused.
+///
+//-----------------------------------------------------------------------------
+std::string generate_root_filename(const conduit::Node &mesh,
+                                   const std::string &path,
+                                   const std::string &file_protocol,
+                                   const conduit::Node &opts
+                                   CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
+{
+    // The assumption here is that everything is multi domain
+
+    std::string opts_file_style    = "default";
+    std::string opts_suffix        = "default";
+    std::string opts_root_file_ext = "default";
+    bool write_overlink            = false;
+
+    // We will use opts_root_file_ext so that we can share logic between
+    // Silo and Blueprint in this function. We hardcode non-Silo (just 
+    // Blueprint) to use "root".
+    if (file_protocol != "silo")
+    {
+        opts_root_file_ext = "root";
+    }
+
+    // check for + validate suffix option
+    if (opts.has_child("suffix") && opts["suffix"].dtype().is_string())
+    {
+        opts_suffix = opts["suffix"].as_string();
+
+        if (opts_suffix != "default" && 
+            opts_suffix != "cycle" &&
+            opts_suffix != "none" )
+        {
+            CONDUIT_ERROR("write_mesh invalid suffix option: \"" 
+                          << opts_suffix << "\"\n"
+                          " expected: \"default\", \"cycle\", or \"none\"");
+        }
+    }
+
+    //-----------------------------------------------------------------------------
+    // make sure some MPI task has data
+    //-----------------------------------------------------------------------------
+    Node multi_dom;
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    if (! conduit::relay::mpi::io::blueprint::clean_mesh(mesh, multi_dom, mpi_comm))
+#else
+    if (! conduit::relay::io::blueprint::clean_mesh(mesh, multi_dom))
+#endif
+    {
+        CONDUIT_INFO("generate_root_filename: no valid data exists. Filename could not be generated.");
+        return "";
+    }
+
+    // 
+    // extra silo logic
+    // 
+    if (file_protocol == "silo")
+    {
+        // check for + validate file_style option
+        if (opts.has_child("file_style") && opts["file_style"].dtype().is_string())
+        {
+            opts_file_style = opts["file_style"].as_string();
+
+            if (opts_file_style != "default" && 
+                opts_file_style != "root_only" &&
+                opts_file_style != "multi_file" &&
+                opts_file_style != "overlink")
+            {
+                CONDUIT_ERROR("write_mesh invalid file_style option: \"" 
+                              << opts_file_style << "\"\n"
+                              " expected: \"default\", \"root_only\", "
+                              "\"multi_file\", or \"overlink\"");
+            }
+        }
+
+        // this is the earliest place we know for sure if we are writing overlink or not
+        // this is set in stone.
+        write_overlink = opts_file_style == "overlink";
+
+        // check for + validate root_file_ext option
+        if (opts.has_child("root_file_ext") && opts["root_file_ext"].dtype().is_string())
+        {
+            opts_root_file_ext = opts["root_file_ext"].as_string();
+
+            if (opts_root_file_ext != "default" && 
+                opts_root_file_ext != "root" &&
+                opts_root_file_ext != "silo" )
+            {
+                CONDUIT_ERROR("write_mesh invalid root_file_ext option: \"" 
+                              << opts_root_file_ext << "\"\n"
+                              " expected: \"default\", \"root\", or \"silo\"");
+            }
+        }
+
+        if (opts_root_file_ext == "default")
+        {
+            opts_root_file_ext = "root";
+        }
+
+        if (write_overlink)
+        {
+            opts_suffix = "none"; // force no suffix for overlink case
+            opts_root_file_ext = "silo"; // force .silo file extension for root file
+        }
+    }
+
+    // -----------------------------------------------------------
+    // get the cycle info
+    // -----------------------------------------------------------
+    index_t cycle;
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    determine_cycle_and_resolve_suffix(multi_dom,
+                                       path,
+                                       cycle,
+                                       opts_suffix,
+                                       true, // we are just generating the root file name
+                                       mpi_comm);
+#else
+    determine_cycle_and_resolve_suffix(multi_dom,
+                                       path,
+                                       cycle,
+                                       opts_suffix,
+                                       true); // we are just generating the root file name
+#endif
+    
+    // ----------------------------------------------------
+    // setup root file name
+    // ----------------------------------------------------
+    std::string root_filename;
+    if (file_protocol == "silo" && write_overlink)
+    {
+        std::string output_dir = path;
+
+        // at this point for suffix, we should only see
+        // cycle or none -- default has been resolved
+        if (opts_suffix == "cycle")
+        {
+            output_dir += conduit_fmt::format(".cycle_{:06d}", cycle);
+        }
+
+        root_filename = utils::join_file_path(output_dir, "OvlTop." + opts_root_file_ext);
+    }
+    else
+    {
+        root_filename = path;
+
+        // at this point for suffix, we should only see 
+        // cycle or none -- default has been resolved
+        if (opts_suffix == "cycle")
+        {
+            root_filename += conduit_fmt::format(".cycle_{:06d}", cycle);
+        }
+
+        root_filename += "." + opts_root_file_ext;
+    }
+
+    return root_filename;
 }
 
 //-----------------------------------------------------------------------------

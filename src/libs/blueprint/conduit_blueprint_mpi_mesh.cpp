@@ -237,6 +237,65 @@ number_of_domains(const conduit::Node &n,
     return global_num_domains;
 }
 
+//-----------------------------------------------------------------------------
+void
+state(const conduit::Node &mesh,
+      conduit::Node &state,
+      MPI_Comm comm)
+{
+    state.reset();
+    ::conduit::blueprint::mesh::state(mesh, state);
+
+    int local = std::numeric_limits<int>::max();
+    const int par_rank = relay::mpi::rank(comm);
+    if (state.number_of_children() > 0)
+    {
+        local = par_rank;
+    }
+
+    Node n_local, n_reduced;
+    n_local = local;
+    relay::mpi::min_all_reduce(n_local,
+                               n_reduced,
+                               comm);
+
+    int global = n_reduced.as_int();
+    if (global == std::numeric_limits<int>::max())
+    {
+        // no state
+        return;
+    }
+
+    // min rank that has state
+    relay::mpi::broadcast_using_schema(state, global, comm);
+}
+
+//-------------------------------------------------------------------------
+index_t
+cycle(const conduit::Node &mesh, MPI_Comm comm)
+{
+    Node state;
+    ::conduit::blueprint::mpi::mesh::state(mesh, state, comm);
+    if (state.has_child("cycle"))
+    {
+        return state["cycle"].to_index_t();
+    }
+    return std::numeric_limits<int>::max();
+}
+
+//-------------------------------------------------------------------------
+float64
+time(const conduit::Node &mesh, MPI_Comm comm)
+{
+    Node state;
+    ::conduit::blueprint::mpi::mesh::state(mesh, state, comm);
+    if (state.has_child("time"))
+    {
+        return state["time"].to_float64();
+    }
+    return std::numeric_limits<int>::max();
+}
+
 //-------------------------------------------------------------------------
 void to_polytopal(const Node &n,
                   Node &dest,
