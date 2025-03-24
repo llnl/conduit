@@ -2026,15 +2026,6 @@ mesh::cycle(const conduit::Node &mesh)
 }
 
 //-------------------------------------------------------------------------
-bool
-mesh::is_cycle_present(const conduit::Node &mesh)
-{
-    Node state;
-    ::conduit::blueprint::mesh::state(mesh, state);
-    return state.has_child("cycle");
-}
-
-//-------------------------------------------------------------------------
 float64
 mesh::time(const conduit::Node &mesh)
 {

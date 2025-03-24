@@ -103,10 +103,6 @@ void CONDUIT_BLUEPRINT_API state(const conduit::Node &mesh,
                                  MPI_Comm comm);
 
 //-------------------------------------------------------------------------
-bool CONDUIT_BLUEPRINT_API is_cycle_present(const conduit::Node &mesh,
-                                            MPI_Comm comm);
-
-//-------------------------------------------------------------------------
 index_t CONDUIT_BLUEPRINT_API cycle(const conduit::Node &mesh,
                                     MPI_Comm comm);
 

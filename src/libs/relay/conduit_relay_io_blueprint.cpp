@@ -1751,12 +1751,12 @@ void determine_cycle_and_resolve_suffix(const Node &multi_dom,
                                         CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
 {
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    const bool cycle_exists = conduit::blueprint::mpi::mesh::is_cycle_present(multi_dom, mpi_comm);
     cycle = conduit::blueprint::mpi::mesh::cycle(multi_dom, mpi_comm);
 #else
-    const bool cycle_exists = conduit::blueprint::mesh::is_cycle_present(multi_dom);
     cycle = conduit::blueprint::mesh::cycle(multi_dom);
 #endif
+    // int max is the default cycle value if none exists
+    const bool cycle_exists = (std::numeric_limits<int>::max() != cycle);
 
     if (! cycle_exists)
     {

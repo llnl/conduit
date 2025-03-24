@@ -284,16 +284,6 @@ cycle(const conduit::Node &mesh, MPI_Comm comm)
 }
 
 //-------------------------------------------------------------------------
-bool
-is_cycle_present(const conduit::Node &mesh, 
-                 MPI_Comm comm)
-{
-    Node state;
-    ::conduit::blueprint::mpi::mesh::state(mesh, state, comm);
-    return state.has_child("cycle");
-}
-
-//-------------------------------------------------------------------------
 float64
 time(const conduit::Node &mesh, MPI_Comm comm)
 {

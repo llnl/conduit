@@ -77,9 +77,6 @@ index_t CONDUIT_BLUEPRINT_API number_of_domains(const conduit::Node &mesh);
 void CONDUIT_BLUEPRINT_API state(const conduit::Node &mesh, Node &state);
 
 //-------------------------------------------------------------------------
-bool CONDUIT_BLUEPRINT_API is_cycle_present(const conduit::Node &mesh);
-
-//-------------------------------------------------------------------------
 index_t CONDUIT_BLUEPRINT_API cycle(const conduit::Node &mesh);
 
 //-------------------------------------------------------------------------
