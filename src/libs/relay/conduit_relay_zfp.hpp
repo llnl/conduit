@@ -47,7 +47,7 @@ static const std::string ZFP_HEADER_SCALAR_TYPE_FIELD = "zfp_header_scalar_type"
 static const std::string ZFP_COMPRESSED_DATA_FIELD = "zfp_compressed_data";
 
 
-zfp::array* CONDUIT_RELAY_API unwrap_zfparray(const Node &node);
+CONDUIT_RELAY_API zfp::array* unwrap_zfparray(const Node &node);
 
 void CONDUIT_RELAY_API        wrap_zfparray(const zfp::array &arr,
                                             Node &node);

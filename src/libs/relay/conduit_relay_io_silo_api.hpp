@@ -27,7 +27,7 @@ bool CONDUIT_RELAY_API is_silo_file(const std::string &path,
 //-----------------------------------------------------------------------------
 /// Opens a silo file and returns a silo file handle
 //-----------------------------------------------------------------------------
-DBfile* CONDUIT_RELAY_API silo_open_file_for_read(const std::string &path);
+CONDUIT_RELAY_API DBfile* silo_open_file_for_read(const std::string &path);
 
 //-----------------------------------------------------------------------------
 /// Close silo file handle
