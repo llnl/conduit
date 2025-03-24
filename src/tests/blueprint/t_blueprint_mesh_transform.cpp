@@ -279,8 +279,8 @@ TEST(conduit_blueprint_mesh_transform, topology_transforms)
 
         Node imesh;
         blueprint::mesh::examples::braid(itopology_braid,
-                                         2,
-                                         3,
+                                         200,
+                                         300,
                                          braid_bound_npts_z(itopology_braid,4),
                                          imesh);
         const Node &itopology = imesh["topologies"].child(0);

@@ -1023,7 +1023,7 @@ convert_coordset_to_explicit(const std::string &base_type,
         dst_cvals_node.set(DataType(float_dtype.id(), coords_len));
         float64_accessor dest_cvals_acc = dst_cvals_node.value();
 
-        //Node src_cval_node, dst_cval_node;
+        Node src_cval_node, dst_cval_node;
         for(index_t d = 0; d < dim_lens[i]; d++)
         {
             index_t doffset = d * dim_block_size;
@@ -1033,22 +1033,23 @@ convert_coordset_to_explicit(const std::string &base_type,
                 for(index_t bi = 0; bi < dim_block_size; bi++)
                 {
                     index_t ioffset = doffset + boffset + bi;
-                    // dst_cval_node.set_external(float_dtype,
-                    //     dst_cvals_node.element_ptr(ioffset));
+                    dst_cval_node.set_external(float_dtype,
+                        dst_cvals_node.element_ptr(ioffset));
 
                     if(is_base_rectilinear)
                     {
-                        dest_cvals_acc.set(ioffset, src_cvals_acc[d]);
-                        // src_cval_node.set_external(
-                        //     DataType(src_cvals_node.dtype().id(), 1),
-                        //     (void*)src_cvals_node.element_ptr(d));
+                        // dest_cvals_acc.set(ioffset, src_cvals_acc[d]);
+
+                        src_cval_node.set_external(
+                            DataType(src_cvals_node.dtype().id(), 1),
+                            (void*)src_cvals_node.element_ptr(d));
                     }
                     else if(is_base_uniform)
                     {
-                        dest_cvals_acc.set(ioffset, dim_origin + d * dim_spacing);
-                        // src_cval_node.set(dim_origin + d * dim_spacing);
+                        // dest_cvals_acc.set(ioffset, dim_origin + d * dim_spacing);
+                        src_cval_node.set(dim_origin + d * dim_spacing);
                     }
-                    // src_cval_node.to_data_type(float_dtype.id(), dst_cval_node);
+                    src_cval_node.to_data_type(float_dtype.id(), dst_cval_node);
                 }
             }
         }
@@ -1253,6 +1254,7 @@ convert_topology_to_unstructured(const std::string &base_type,
     }
     index_t indices_per_elem = (index_t) pow(2, csys_axes.size());
 
+    CONDUIT_ANNOTATE_MARK_BEGIN("to_unstructured_index_gen");
     conduit::Node &conn_node = dest["elements/connectivity"];
     conn_node.set(DataType(int_dtype.id(), num_elems * indices_per_elem));
     int64_accessor conn_node_vals = conn_node.value();
@@ -1272,17 +1274,18 @@ convert_topology_to_unstructured(const std::string &base_type,
             memcpy(&curr_vert[0], &curr_elem[0], 3 * sizeof(index_t));
             for(index_t d = 0; d < (index_t)csys_axes.size(); d++)
             {
-                //curr_vert[d] += (i & (index_t)pow(2, d)) >> d;
-                curr_vert[d] += (i & (index_t) (2 << d)) >> d;
+                curr_vert[d] += (i & (index_t)pow(2, d)) >> d;
+                // curr_vert[d] += (i & (index_t) (2 << d)) >> d;
             }
             grid_ijk_to_id(&curr_vert[0], &vdims_axes[0], v);
 
-            conn_node_vals.set(idx,v);
-            idx++;
-            // src_idx_node.set(v);
-            // dst_idx_node.set_external(int_dtype,
-            //     conn_node.element_ptr(e * indices_per_elem + i));
-            // src_idx_node.to_data_type(int_dtype.id(), dst_idx_node);
+            // conn_node_vals.set(idx,v);
+            // idx++;
+            
+            src_idx_node.set(v);
+            dst_idx_node.set_external(int_dtype,
+                conn_node.element_ptr(e * indices_per_elem + i));
+            src_idx_node.to_data_type(int_dtype.id(), dst_idx_node);
         }
 
         // TODO(JRC): This loop inverts quads/hexes to conform to
@@ -1294,20 +1297,21 @@ convert_topology_to_unstructured(const std::string &base_type,
             index_t p1 = e * indices_per_elem + p;
             index_t p2 = e * indices_per_elem + p + 1;
 
-            int64 value_swap = conn_node_vals[p1];
-            conn_node_vals.set(p1,conn_node_vals[p2]);
-            conn_node_vals.set(p2,value_swap);
+            // int64 value_swap = conn_node_vals[p1];
+            // conn_node_vals.set(p1,conn_node_vals[p2]);
+            // conn_node_vals.set(p2,value_swap);
 
-            // Node t1, t2, t3;
-            // t1.set(int_dtype, conn_node.element_ptr(p1));
-            // t2.set(int_dtype, conn_node.element_ptr(p2));
-            //
-            // t3.set_external(int_dtype, conn_node.element_ptr(p1));
-            // t2.to_data_type(int_dtype.id(), t3);
-            // t3.set_external(int_dtype, conn_node.element_ptr(p2));
-            // t1.to_data_type(int_dtype.id(), t3);
+            Node t1, t2, t3;
+            t1.set(int_dtype, conn_node.element_ptr(p1));
+            t2.set(int_dtype, conn_node.element_ptr(p2));
+
+            t3.set_external(int_dtype, conn_node.element_ptr(p1));
+            t2.to_data_type(int_dtype.id(), t3);
+            t3.set_external(int_dtype, conn_node.element_ptr(p2));
+            t1.to_data_type(int_dtype.id(), t3);
         }
     }
+    CONDUIT_ANNOTATE_MARK_END("to_unstructured_index_gen");
 
 }
 
