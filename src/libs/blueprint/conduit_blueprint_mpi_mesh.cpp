@@ -255,26 +255,19 @@ state(const conduit::Node &mesh,
 
     Node n_local, n_reduced;
     n_local = local;
-    std::cout << "Rank " << par_rank << ": n_local = " << n_local.as_int() << std::endl;
     relay::mpi::min_all_reduce(n_local,
                                n_reduced,
                                comm);
-    std::cout << "Rank " << par_rank << ": n_local = " << n_local.as_int() << ", n_reduced = " << n_reduced.as_int() << std::endl;
 
     int global = n_reduced.as_int();
-    std::cout << "Rank " << par_rank << ": global = " << global << std::endl;
     if (global == std::numeric_limits<int>::max())
     {
-        std::cout << "Rank " << par_rank << ": No state, skipping broadcast." << std::endl;
         // no state
         return;
     }
 
     // min rank that has state
-    if (global == par_rank)
-    {
-        relay::mpi::broadcast_using_schema(state, global, comm);
-    }
+    relay::mpi::broadcast_using_schema(state, global, comm);
 }
 
 //-------------------------------------------------------------------------
