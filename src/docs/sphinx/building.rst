@@ -12,7 +12,7 @@ This page provides details on several ways to build Conduit from source.
 
 For the shortest path from zero to Conduit, see :doc:`quick_start`.
 
-If you are building features that depend on third party libraries we recommend using :ref:`uberenv <building_with_uberenv>` which leverages Spack or :ref:`Spack directly<building_with_spack>`. 
+If you are building features that depend on third party libraries we recommend using :ref:`uberenv <building_with_uberenv>` which leverages Spack or :ref:`Spack directly<building_with_spack>`.
 We also provide info about :ref:`building for known HPC clusters using uberenv <building_known_hpc>`.
 and a :ref:`Docker example <building_with_docker>` that leverages Spack.
 
@@ -24,15 +24,15 @@ Obtain the Conduit source
 Clone the Conduit repo from Github:
 
 .. code:: bash
-    
+
     git clone --recursive https://github.com/llnl/conduit.git
 
 
-``--recursive`` is necessary because we are using a git submodule to pull in BLT (https://github.com/llnl/blt). 
+``--recursive`` is necessary because we are using a git submodule to pull in BLT (https://github.com/llnl/blt).
 If you cloned without ``--recursive``, you can checkout this submodule using:
 
 .. code:: bash
-    
+
     cd conduit
     git submodule init
     git submodule update
@@ -41,16 +41,16 @@ If you cloned without ``--recursive``, you can checkout this submodule using:
 Configure a build
 ~~~~~~~~~~~~~~~~~~~~
 
-Conduit uses CMake for its build system. These instructions assume ``cmake`` is in your path. 
+Conduit uses CMake for its build system. These instructions assume ``cmake`` is in your path.
 We recommend CMake 3.21 or newer, for more details see :ref:`Supported CMake Versions <supported_cmake>`.
 
-``config-build.sh`` is a simple wrapper for the cmake call to configure conduit. 
+``config-build.sh`` is a simple wrapper for the cmake call to configure conduit.
 This creates a new out-of-source build directory ``build-debug`` and a directory for the install ``install-debug``.
-It optionally includes a ``host-config.cmake`` file with detailed configuration options. 
+It optionally includes a ``host-config.cmake`` file with detailed configuration options.
 
 
 .. code:: bash
-    
+
     cd conduit
     ./config-build.sh
 
@@ -58,7 +58,7 @@ It optionally includes a ``host-config.cmake`` file with detailed configuration 
 Build, test, and install Conduit:
 
 .. code:: bash
-    
+
     cd build-debug
     make -j 8
     make test
@@ -69,7 +69,7 @@ Build, test, and install Conduit:
 Build Options
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The core Conduit library has no dependencies outside of the repo, however Conduit provides optional support for I/O and Communication (MPI) features that require externally built third party libraries.  
+The core Conduit library has no dependencies outside of the repo, however Conduit provides optional support for I/O and Communication (MPI) features that require externally built third party libraries.
 
 Conduit's build system supports the following CMake options:
 
@@ -194,15 +194,15 @@ Additional Build Notes
 Host Config Files
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To handle build options, third party library paths, etc we rely on CMake's initial-cache file mechanism. 
+To handle build options, third party library paths, etc we rely on CMake's initial-cache file mechanism.
 
 
 .. code:: bash
-    
+
     cmake -C config_file.cmake
 
 
-We call these initial-cache files *host-config* files, since we typically create a file for each platform or specific hosts if necessary. 
+We call these initial-cache files *host-config* files, since we typically create a file for each platform or specific hosts if necessary.
 
 
 These files use standard CMake commands. To properly seed the cache, CMake *set* commands need to specify ``CACHE`` as follows:
@@ -228,17 +228,17 @@ Building Third Party Dependencies for Development
 .. note::
   Conduit developers use ``scripts/uberenv/uberenv.py`` to setup third party libraries for Conduit development.
   For info on how to use the Conduit Spack package see :ref:`building_with_spack`.
-  
+
 
 On OSX and Linux, you can use ``scripts/uberenv/uberenv.py`` to help setup your development environment. This script leverages **Spack** to build all of the external third party libraries and tools used by Conduit. Fortran support is optional and all dependencies should build without a fortran compiler. After building these libraries and tools, it writes an initial *host-config* file and adds the Spack built CMake binary to your PATH so can immediately call the ``config-build.sh`` helper script to configure a conduit build.
 
 .. code:: bash
-    
+
     #build third party libs using spack
     python3 scripts/uberenv/uberenv.py
-    
-    # run the configure helper script and give it the 
-    # path to a host-config file 
+
+    # run the configure helper script and give it the
+    # path to a host-config file
     ./config-build.sh uberenv_libs/`hostname`*.cmake
 
 
@@ -258,7 +258,7 @@ Uberenv Options for Building Third Party Dependencies
                                                                       osx: (empty)
   -k                   Ignore SSL Errors                              **False**
   --install            Fully install conduit, not just dependencies   **False**
-  --run_tests          Invoke tests during build and against install  **False** 
+  --run_tests          Invoke tests during build and against install  **False**
  ==================== ============================================== ==============================================================
 
 The ``-k`` option exists for sites where SSL certificate interception undermines fetching
@@ -276,7 +276,7 @@ Default invocation on Linux:
 .. code:: bash
 
     python3 scripts/uberenv/uberenv.py --prefix uberenv_libs \
-                                       --spec %gcc 
+                                       --spec %gcc
 
 Suggested invocation on macOS:
 
@@ -303,13 +303,13 @@ To run tests during the build process to validate the build and install, you can
 
 For details on Spack's spec syntax, see the `Spack Specs & dependencies <http://spack.readthedocs.io/en/latest/basic_usage.html#specs-dependencies>`_ documentation.
 
- 
+
 You use the **--spack-env-file** option to specify a Spack environment file. See the `Spack Environments <https://spack.readthedocs.io/en/latest/environments.html>`_
 and `Spack System Packages
 <http://spack.readthedocs.io/en/latest/getting_started.html#system-packages>`_
 documentation for details.
 
-For macOS, the enries in ``scripts/uberenv_configs/spack_configs/envs/darwin/spack.yaml`` are X-Code's clang and gfortran from https://gcc.gnu.org/wiki/GFortranBinaries#MacOS. 
+For macOS, the enries in ``scripts/uberenv_configs/spack_configs/envs/darwin/spack.yaml`` are X-Code's clang and gfortran from https://gcc.gnu.org/wiki/GFortranBinaries#MacOS.
 
 .. note::
     The bootstrapping process ignores ``~/.spack/compilers.yaml`` to avoid conflicts
@@ -347,19 +347,19 @@ that specifies the compiler settings and paths to all of the dependencies.
 
 Building Conduit and its Dependencies with Spack
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  
+
 As of 1/4/2017, Spack's develop branch includes a `recipe <https://github.com/LLNL/spack/blob/develop/var/spack/repos/builtin/packages/conduit/package.py>`_ to build and install Conduit.
 
 To install the latest released version of Conduit with all options (and also build all of its dependencies as necessary) run:
 
 .. code:: bash
-  
+
   spack install conduit
 
 To build and install Conduit's github develop branch run:
-  
+
 .. code:: bash
-  
+
   spack install conduit@develop
 
 
@@ -416,7 +416,7 @@ Example Basic Build:
 
 .. code:: bash
 
-    pip install . --user 
+    pip install . --user
 
 Or for those with certificate woes:
 
@@ -445,7 +445,7 @@ Example Build with MPI and HDF5 Support:
 Example Build with MPI and HDF5 Support using a host config file:
 
 .. code:: bash
-    echo 'set(ENABLE_MPI "ON" CACHE BOOL "")'  >> conduit-config.cmake
+    echo 'set(ENABLE_MPI "ON" CACHE BOOL "")'  > conduit-config.cmake
     echo 'set(HDF5_DIR "{path/to/hdf5/install}" CACHE PATH "")' >> conduit-config.cmake
     env HOST_CONFIG=conduit-config.cmake pip install . --user
 

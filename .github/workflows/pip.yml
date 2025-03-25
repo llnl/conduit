@@ -38,7 +38,7 @@ jobs:
                                 libbz2-dev \
                                 mpich \
                                 libmpich-dev \
-                                libhdf5-dev 
+                                libhdf5-dev
     - name: Setup Python Env
       run: python3 -m pip install --upgrade pip numpy mpi4py
     - uses: actions/checkout@v4
@@ -85,7 +85,7 @@ jobs:
                                 libbz2-dev \
                                 mpich \
                                 libmpich-dev \
-                                libhdf5-dev 
+                                libhdf5-dev
     - name: Setup Python Env
       run: python3 -m pip install --upgrade pip numpy mpi4py
     - uses: actions/checkout@v4
@@ -93,12 +93,10 @@ jobs:
         submodules: 'recursive'
     - name: Build & Test
       run: |
-        echo 'set(ENABLE_MPI "ON" CACHE BOOL "")'  >> conduit-config.cmake
+        echo 'set(ENABLE_MPI "ON" CACHE BOOL "")'  >  conduit-config.cmake
         echo 'set(HDF5_DIR "/usr/" CACHE PATH "")' >> conduit-config.cmake
-        env HOST_CONFIG=conduit-config.cmake HDF5_DIR=/usr/ pip install -v .
+        env HOST_CONFIG=conduit-config.cmake pip install -v .
         rm -rf build
         python3 -c "import conduit;print(conduit.about());"
         python3 -c "import conduit.relay;print(conduit.relay.io.about())"
         python3 -c "import conduit.relay.mpi;print(conduit.relay.mpi.about())"
-
-
