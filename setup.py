@@ -46,12 +46,12 @@ from setuptools.command.build_ext import build_ext
 # with distutils gone, there is no built-in equivalent to:
 # from distutils.version import LooseVersion
 #
-# The packaging module helps, but it's *not* built in to 
-# standard python installs and we don't want to add another 
+# The packaging module helps, but it's *not* built in to
+# standard python installs and we don't want to add another
 # dep for a one line check for cmake.
 #
 # I removed the cmake version check.
-# 
+#
 ##############################################################################
 
 CONDUIT_VERSION = '0.9.3'
@@ -81,7 +81,7 @@ class CMakeBuild(build_ext):
         # when off,  will build the main conduit libs as shared
         # and they will be linked into the python modules dynamic libs
         build_shared_libs = "OFF"
-        
+
         # required for auto-detection of auxiliary "native" libs
         if not extdir.endswith(os.path.sep):
             extdir += os.path.sep
@@ -99,7 +99,7 @@ class CMakeBuild(build_ext):
 
         # cmake initial cache file support
         if HOST_CONFIG != "IGNORE":
-            cmake_args.append('-C ' + HOST_CONFIG)
+            cmake_args.extend(['-C',HOST_CONFIG])
 
         cfg = 'Debug' if self.debug else 'Release'
         build_args = ['--config', cfg]
