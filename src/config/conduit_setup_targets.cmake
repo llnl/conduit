@@ -93,6 +93,7 @@ if(CONDUIT_PYTHON_ENABLED)
          set_property(TARGET conduit::conduit_python
                       APPEND PROPERTY
                       INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_ROOT}/${CONDUIT_PYTHON_MODULE_DIR}/conduit/")
+     endif()
 endif()
 
 # and if mpi enabled, a convenience target for remaining mpi deps (conduit::conduit_mpi)
