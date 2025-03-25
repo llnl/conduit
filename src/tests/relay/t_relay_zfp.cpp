@@ -46,10 +46,12 @@ TEST(conduit_relay_zfp, zfparray_to_zfparray_no_conduit)
     std::memcpy(data_bytes.data(), arr.compressed_data(), arr.compressed_size());
 
     zfp::array1f::header r_header(hdr_bytes.data(), hdr_bytes.size());
-    zfp::array *r_arr = zfp::array::construct(r_header);
-    // copy data into the array instance
-    std::memcpy(r_arr->compressed_data(),
-                data_bytes.data(), data_bytes.size());
+
+    // NOTE: This no longer works with new zfp (https://github.com/LLNL/zfp/issues/253)
+    // zfp::array *r_arr = zfp::array::construct(r_header);
+    // // copy data into the array instance
+    // std::memcpy(r_arr->compressed_data(),
+    //             data_bytes.data(), data_bytes.size());
 
 }
 
@@ -131,8 +133,8 @@ TEST(conduit_relay_zfp, wrap_zfparray_with_header_exception)
 TEST(conduit_relay_zfp, unwrap_zfparray)
 {
     // create compressed-array
-    uint nx = 9;
-    uint ny = 12;
+    const uint nx = 9;
+    const uint ny = 12;
 
     float vals[nx * ny];
     uint i, j;
