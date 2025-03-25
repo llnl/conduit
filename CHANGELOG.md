@@ -22,6 +22,11 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Relay
 - Ported relay and blueprint zfp support to use zfp 1.0 api. Added extra meta data to zfparray blueprint protocol to support roundtrip wrapping and unwrapping with zfp 1.0 api.
 
+### Fixed
+
+#### Relay
+- Fixed an issue with the relay hdf5 detection heuristic on windows.
+
 ## [0.9.3] - Released 2025-01-27
 
 ### Added
