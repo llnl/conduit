@@ -82,9 +82,17 @@ if(CONDUIT_PYTHON_ENABLED)
     # Python Capsule API for conduit
     add_library(conduit::conduit_python INTERFACE IMPORTED)
 
-    set_property(TARGET conduit::conduit_python
-                 APPEND PROPERTY
-                 INTERFACE_INCLUDE_DIRECTORIES "${CONDUIT_PYTHON_MODULE_DIR}/conduit/")
+    # custom prefix allows the module to be installed outside of the
+    # conduit install, when given we use that exact path
+    if(CONDUIT_PYTHON_MODULE_CUSTOM_PREFIX)
+        set_property(TARGET conduit::conduit_python
+                     APPEND PROPERTY
+                     INTERFACE_INCLUDE_DIRECTORIES "${CONDUIT_PYTHON_MODULE_DIR}/conduit/")
+     else()
+         # default case, find the python headers relative to the install root
+         set_property(TARGET conduit::conduit_python
+                      APPEND PROPERTY
+                      INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_ROOT}/${CONDUIT_PYTHON_MODULE_DIR}/conduit/")
 endif()
 
 # and if mpi enabled, a convenience target for remaining mpi deps (conduit::conduit_mpi)
