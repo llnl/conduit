@@ -427,12 +427,13 @@ Or for those with certificate woes:
 
 You can enable Conduit features using the following environment variables:
 
- ================== ========================================= ======================================
+ ================== ========================================== ======================================
   Option              Description                              Default
- ================== ========================================= ======================================
+ ================== ========================================== ======================================
+  **HOST_CONFIG**     Path to a host config with cmake options IGNORE
   **HDF5_DIR**        Path to HDF5 install for HDF5 Support    IGNORE
   **ENABLE_MPI**      Build Conduit with MPI  Support          OFF
- ================== ========================================= ======================================
+ ================== ========================================== ======================================
 
 
 Example Build with MPI and HDF5 Support:
@@ -441,26 +442,34 @@ Example Build with MPI and HDF5 Support:
 
     env ENABLE_MPI=ON HDF5_DIR={path/to/hdf5/install} pip install . --user
 
-
-
-Notes for Cray systems
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-HDF5 and gtest use runtime features such as ``dlopen``. Because of this, building static on Cray systems commonly yields the following flavor of compiler warning:
-
-.. code:: 
-
-   Using 'zzz' in statically linked applications requires at runtime the shared libraries from the glibc version used for linking
-
-You can avoid related linking warnings by adding the ``-dynamic`` compiler flag, or by setting the CRAYPE_LINK_TYPE environment variable:
+Example Build with MPI and HDF5 Support using a host config file:
 
 .. code:: bash
+    echo 'set(ENABLE_MPI "ON" CACHE BOOL "")'  >> conduit-config.cmake
+    echo 'set(HDF5_DIR "{path/to/hdf5/install}" CACHE PATH "")' >> conduit-config.cmake
+    env HOST_CONFIG=conduit-config.cmake pip install . --user
 
-  export CRAYPE_LINK_TYPE=dynamic
+The specific `HDF5_DIR` and `ENABLE_MPI` are provided for convenience, the `HOST_CONFIG`
+option allows you to set any of Conduit's CMake options.
 
-`Shared Memory Maps are read only <https://pubs.cray.com/content/S-0005/CLE%206.0.UP02/xctm-series-dvs-administration-guide-cle-60up02-s-0005/dvs-caveats>`_
-on Cray systems, so updates to data using ``Node::mmap`` will not be seen between processes.
-
+.. Notes for Cray systems
+.. ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+..
+.. HDF5 and gtest use runtime features such as ``dlopen``. Because of this, building static on Cray systems commonly yields the following flavor of compiler warning:
+..
+.. .. code::
+..
+..    Using 'zzz' in statically linked applications requires at runtime the shared libraries from the glibc version used for linking
+..
+.. You can avoid related linking warnings by adding the ``-dynamic`` compiler flag, or by setting the CRAYPE_LINK_TYPE environment variable:
+..
+.. .. code:: bash
+..
+..   export CRAYPE_LINK_TYPE=dynamic
+..
+.. `Shared Memory Maps are read only <https://pubs.cray.com/content/S-0005/CLE%206.0.UP02/xctm-series-dvs-administration-guide-cle-60up02-s-0005/dvs-caveats>`_
+.. on Cray systems, so updates to data using ``Node::mmap`` will not be seen between processes.
+..
 
 
 Notes for using OpenMPI in a container as root

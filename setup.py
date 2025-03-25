@@ -89,15 +89,13 @@ class CMakeBuild(build_ext):
                       '-DCMAKE_INSTALL_PREFIX=' + pjoin(ext.sourcedir,"_install"),
                       '-DPYTHON_EXECUTABLE=' + sys.executable,
                       '-DENABLE_PYTHON:BOOL=ON',
+                      '-DENABLE_MPI=' + ENABLE_MPI,
                       '-DBUILD_SHARED_LIBS:BOOL=' + build_shared_libs,
                       '-DENABLE_TESTS:BOOL=OFF',
                       '-DENABLE_DOCS:BOOL=OFF']
 
         if HDF5_DIR != "IGNORE":
             cmake_args.append('-DHDF5_DIR=' + HDF5_DIR)
-
-        if ENABLE_MPI != "IGNORE":
-            cmake_args.append('-DENABLE_MPI=' + ENABLE_MPI)
 
         # cmake initial cache file support
         if HOST_CONFIG != "IGNORE":
