@@ -52,8 +52,8 @@ jobs:
         python3 -c "import conduit.relay;print(conduit.relay.io.about())"
         python3 -c "import conduit.relay.mpi;print(conduit.relay.mpi.about())"
 
-  build_pip_host_config
-    name: Ubuntu pip setup.py
+  build_pip_using_host_config:
+    name: Ubuntu pip setup.py using host config
     runs-on: ubuntu-22.04
     steps:
     - name: Install Deps
