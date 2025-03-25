@@ -50,5 +50,52 @@ jobs:
         python3 -c "import conduit.relay;print(conduit.relay.io.about())"
         python3 -c "import conduit.relay.mpi;print(conduit.relay.mpi.about())"
 
+jobs:
+  build_pip_host_config
+    name: Ubuntu pip setup.py
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Install Deps
+      run: |
+           sudo apt-get update
+           sudo apt-get install binutils \
+                                gcc \
+                                g++ \
+                                gfortran \
+                                python3 \
+                                perl \
+                                git \
+                                git-lfs \
+                                curl \
+                                wget \
+                                tar \
+                                unzip \
+                                build-essential \
+                                libncurses-dev \
+                                libssl-dev \
+                                libblas-dev \
+                                liblapack-dev \
+                                zlib1g-dev \
+                                libgdbm-dev \
+                                libreadline-dev \
+                                libsqlite3-dev \
+                                libbz2-dev \
+                                mpich \
+                                libmpich-dev \
+                                libhdf5-dev 
+    - name: Setup Python Env
+      run: python3 -m pip install --upgrade pip numpy mpi4py
+    - uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+    - name: Build & Test
+      run: |
+        echo 'set(ENABLE_MPI "ON" CACHE BOOL "")'  >> conduit-config.cmake
+        echo 'set(HDF5_DIR "/usr/" CACHE PATH "")' >> conduit-config.cmake
+        env HOST_CONFIG=conduit-config.cmake HDF5_DIR=/usr/ pip install -v .
+        rm -rf build
+        python3 -c "import conduit;print(conduit.about());"
+        python3 -c "import conduit.relay;print(conduit.relay.io.about())"
+        python3 -c "import conduit.relay.mpi;print(conduit.relay.mpi.about())"
 
 

@@ -90,10 +90,18 @@ class CMakeBuild(build_ext):
                       '-DPYTHON_EXECUTABLE=' + sys.executable,
                       '-DENABLE_PYTHON:BOOL=ON',
                       '-DBUILD_SHARED_LIBS:BOOL=' + build_shared_libs,
-                      '-DHDF5_DIR=' + HDF5_DIR,
-                      '-DENABLE_MPI=' + ENABLE_MPI,
                       '-DENABLE_TESTS:BOOL=OFF',
                       '-DENABLE_DOCS:BOOL=OFF']
+
+        if HDF5_DIR != "IGNORE":
+            cmake_args.append('-DHDF5_DIR=' + HDF5_DIR)
+
+        if ENABLE_MPI != "IGNORE":
+            cmake_args.append('-DENABLE_MPI=' + ENABLE_MPI)
+
+        # cmake initial cache file support
+        if HOST_CONFIG != "IGNORE":
+            cmake_args.append('-C ' + HOST_CONFIG)
 
         cfg = 'Debug' if self.debug else 'Release'
         build_args = ['--config', cfg]
@@ -120,14 +128,15 @@ class CMakeBuild(build_ext):
                                env=env)
 
         subprocess.check_call(['cmake', '--build', '.', '--target','install'] + build_args,
-                              cwd=self.build_temp,
-                              env=env)
+                               cwd=self.build_temp,
+                               env=env)
 
 #
 # pass options via env vars
 #
-HDF5_DIR = os.environ.get('HDF5_DIR', 'IGNORE')
-ENABLE_MPI = os.environ.get('ENABLE_MPI', 'OFF')
+HOST_CONFIG = os.environ.get('HOST_CONFIG', 'IGNORE')
+HDF5_DIR    = os.environ.get('HDF5_DIR', 'IGNORE')
+ENABLE_MPI  = os.environ.get('ENABLE_MPI', 'OFF')
 
 # keyword reference:
 # https://packaging.python.org/guides/distributing-packages-using-setuptools
