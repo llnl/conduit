@@ -595,8 +595,9 @@ TEST(conduit_blueprint_mesh_relay, save_with_subdir)
     data["state/domain_id"] = 0;
 
     std::string output_dir = "tout_subdir";
-    std::string tout_base = "tout_subdir/tout_relay_subdir_test_hdf5";
-    std::string tout_file = "tout_subdir/tout_relay_subdir_test_hdf5.root";
+    std::string tout_base = utils::join_file_path("tout_subdir","tout_relay_subdir_test_hdf5");
+    std::string tout_file = utils::join_file_path("tout_subdir","tout_relay_subdir_test_hdf5.root");
+
     Node opts;
     opts["suffix"] = "none";
 
@@ -620,15 +621,15 @@ TEST(conduit_blueprint_mesh_relay, save_with_subdir)
     // add round trip multi domain tests as well
     conduit::blueprint::mesh::examples::spiral(3,data);
 
-    tout_base = "tout_subdir/tout_relay_subdir_test_hdf5_multi_dom";
-    tout_file = "tout_subdir/tout_relay_subdir_test_hdf5_multi_dom.root";
+    tout_base = utils::join_file_path("tout_subdir","tout_relay_subdir_test_hdf5_multi_dom");
+    tout_file = utils::join_file_path("tout_subdir","tout_relay_subdir_test_hdf5_multi_dom.root");
     EXPECT_EQ(tout_file, relay::io::blueprint::generate_root_filename(data, tout_base, "hdf5", opts));
     relay::io::blueprint::save_mesh(data,tout_base,"hdf5",opts);
     relay::io::blueprint::load_mesh(tout_file,n_load);
     EXPECT_FALSE(data[0].diff(n_load[0],info));
 
-    tout_base = "tout_subdir/tout_relay_subdir_test_hdf5_multi_dom_multi_file";
-    tout_file = "tout_subdir/tout_relay_subdir_test_hdf5_multi_dom_multi_file.root";
+    tout_base = utils::join_file_path("tout_subdir","tout_relay_subdir_test_hdf5_multi_dom_multi_file");
+    tout_file = utils::join_file_path("tout_subdir","tout_relay_subdir_test_hdf5_multi_dom_multi_file.root");
     opts["number_of_files"] = 2;
     EXPECT_EQ(tout_file, relay::io::blueprint::generate_root_filename(data, tout_base, "hdf5", opts));
     relay::io::blueprint::save_mesh(data,tout_base,"hdf5",opts);
@@ -914,7 +915,7 @@ TEST(conduit_blueprint_mesh_relay, spiral_multi_file_yaml_json_hdf5_silo)
     {
         protocols.push_back("silo");
     }
-    
+
     for(auto protocol : protocols)
     {
         // use spiral , with 7 domains

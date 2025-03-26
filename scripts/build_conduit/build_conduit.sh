@@ -9,7 +9,7 @@
 #   env enable_mpi=ON enable_openmp=ON ./build_conduit.sh
 #
 #
-# Assumes: 
+# Assumes:
 #  - cmake is in your path
 #  - selected compilers are in your path or set via env vars
 #  - [when enabled] MPI and Python (+numpy and mpi4py), are in your path
@@ -75,7 +75,7 @@ function ospath()
     echo `cygpath -m $1`
   else
     echo $1
-  fi 
+  fi
 }
 
 function abs_path()
@@ -107,7 +107,7 @@ cd ${root_dir}
 # override with `prefix` env var
 install_dir="${install_dir:=$root_dir/install}"
 
-echo "*** prefix:       ${root_dir}" 
+echo "*** prefix:       ${root_dir}"
 echo "*** build root:   ${build_dir}"
 echo "*** sources root: ${source_dir}"
 echo "*** install root: ${install_dir}"
@@ -480,6 +480,7 @@ ZFP_DIR=${zfp_install_dir}/lib/cmake/zfp/ \
 cmake -S ${h5zzfp_src_dir} -B ${h5zzfp_build_dir} ${cmake_compiler_settings} \
   -DCMAKE_VERBOSE_MAKEFILE:BOOL=${enable_verbose} \
   -DCMAKE_BUILD_TYPE=${build_config} \
+  -DFORTRAN_INTERFACE=OFF \
   -DBUILD_SHARED_LIBS=${build_shared_libs} \
   -DCMAKE_INSTALL_PREFIX=${h5zzfp_install_dir}
 

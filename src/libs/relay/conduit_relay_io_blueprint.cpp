@@ -34,7 +34,7 @@
 #define CONDUIT_RELAY_COMMUNICATOR_ARG(ARG) ,ARG
 #else
 // Define an argument macro that does not add the communicator argument.
-#define CONDUIT_RELAY_COMMUNICATOR_ARG(ARG) 
+#define CONDUIT_RELAY_COMMUNICATOR_ARG(ARG)
 #endif
 
 // std includes
@@ -73,7 +73,7 @@ namespace mpi
 //-----------------------------------------------------------------------------
 namespace io
 {
-    
+
 //-----------------------------------------------------------------------------
 // -- begin conduit::relay::io::<mpi>::blueprint
 //-----------------------------------------------------------------------------
@@ -135,7 +135,7 @@ void gen_domain_to_file_map(index_t num_domains,
 
 //
 // Lots of helpers pulled in from Ascent for dealing with
-// with mesh blueprint writing and reading. 
+// with mesh blueprint writing and reading.
 // TODO: Could use cleanup.
 //
 namespace detail
@@ -280,7 +280,7 @@ public:
     {
         // init the map that takes us from domain_id (what we want)
         // to part map entry
-        
+
         index_t_accessor doms = part_map["domain"].value();
         index_t num_domains = doms.max() + 1;
         // NOTE: Most cases will be compact, but what about
@@ -292,7 +292,7 @@ public:
             dom_to_tree_vals[doms[i]] = i;
         }
     }
-    
+
     //-------------------------------------------------------------------//
     BlueprintPartitonMapPathGenerator(const std::string &part_pattern)
     : m_part_pattern(part_pattern),
@@ -357,7 +357,7 @@ public:
 private:
     std::string m_part_pattern;
     Node        m_part_map;
-    // extra map for non trivial domain 
+    // extra map for non trivial domain
     Node        m_dom_to_tree;
 };
 
@@ -365,13 +365,13 @@ private:
 class BlueprintTreePathGenerator
 {
 public:
-    
+
     BlueprintTreePathGenerator()
     : m_impl(nullptr)
     {
 
     }
-    
+
     void Cleanup()
     {
         if(m_impl != nullptr)
@@ -380,7 +380,7 @@ public:
             m_impl = nullptr;
         }
     }
-    
+
     //-------------------------------------------------------------------//
     void Init(const std::string &file_pattern,
               const std::string &tree_pattern,
@@ -395,7 +395,7 @@ public:
                                                   num_trees,
                                                   protocol);
     }
-    
+
     //-------------------------------------------------------------------//
     void Init(const std::string   &part_pattern,
              const conduit::Node &part_map)
@@ -404,7 +404,7 @@ public:
         m_impl = new BlueprintPartitonMapPathGenerator(part_pattern,
                                                        part_map);
     }
-    
+
     //-------------------------------------------------------------------//
     void Init(const std::string   &part_pattern)
     {
@@ -575,7 +575,7 @@ void filter_fields(const conduit::Node &input,
 #else
     has_data = detail::global_someone_agrees(has_data);
 #endif
-  
+
   if(!has_data)
   {
     CONDUIT_ERROR("Relay: field selection resulted in no data."
@@ -782,7 +782,7 @@ void save_mesh(const Node &mesh,
 ///            when # of domains == 1,  "default"   ==> "root_only"
 ///            else,                    "default"   ==> "multi_file"
 ///
-///      suffix: "default", "cycle", "none" 
+///      suffix: "default", "cycle", "none"
 ///            when cycle is present,  "default"   ==> "cycle"
 ///            else,                   "default"   ==> "none"
 ///
@@ -878,7 +878,7 @@ void write_mesh(const Node &mesh,
 ///            when # of domains == 1,  "default"   ==> "root_only"
 ///            else,                    "default"   ==> "multi_file"
 ///
-///      suffix: "default", "cycle", "none" 
+///      suffix: "default", "cycle", "none"
 ///            when cycle is present,  "default"   ==> "cycle"
 ///            else,                   "default"   ==> "none"
 ///
@@ -915,7 +915,7 @@ void write_mesh(const Node &mesh,
                   << "conduit build lacks silo support\n");
 #endif
     }
-    
+
     // The assumption here is that everything is multi domain
 
     std::string opts_file_style = "default";
@@ -929,11 +929,11 @@ void write_mesh(const Node &mesh,
     {
         opts_file_style = opts["file_style"].as_string();
 
-        if(opts_file_style != "default" && 
+        if(opts_file_style != "default" &&
            opts_file_style != "root_only" &&
            opts_file_style != "multi_file" )
         {
-            CONDUIT_ERROR("write_mesh invalid file_style option: \"" 
+            CONDUIT_ERROR("write_mesh invalid file_style option: \""
                           << opts_file_style << "\"\n"
                           " expected: \"default\", \"root_only\", "
                           "or \"multi_file\"");
@@ -946,22 +946,22 @@ void write_mesh(const Node &mesh,
     {
         opts_suffix = opts["suffix"].as_string();
 
-        if(opts_suffix != "default" && 
+        if(opts_suffix != "default" &&
            opts_suffix != "cycle" &&
            opts_suffix != "none" )
         {
-            CONDUIT_ERROR("write_mesh invalid suffix option: \"" 
+            CONDUIT_ERROR("write_mesh invalid suffix option: \""
                           << opts_suffix << "\"\n"
                           " expected: \"default\", \"cycle\", or \"none\"");
         }
     }
-    
+
     // check for + validate mesh_name option
     if(opts.has_child("mesh_name") && opts["mesh_name"].dtype().is_string())
     {
         opts_mesh_name = opts["mesh_name"].as_string();
     }
-    
+
 
     // check for number_of_files, 0 or -1 implies #files => # domains
     if(opts.has_child("number_of_files") && opts["number_of_files"].dtype().is_integer())
@@ -1020,9 +1020,9 @@ void write_mesh(const Node &mesh,
     const int par_size = relay::mpi::size(mpi_comm);
 #else
     const int par_rank = 0;
-    const int par_size = 1;    
+    const int par_size = 1;
 #endif
-    
+
     // -----------------------------------------------------------
     // find the local and global # of domains
     // -----------------------------------------------------------
@@ -1045,7 +1045,7 @@ void write_mesh(const Node &mesh,
     std::string output_dir = "";
 
     // resolve file_style == default
-    // 
+    //
     // default implies multi_file if more than one domain
     if(opts_file_style == "default")
     {
@@ -1087,7 +1087,7 @@ void write_mesh(const Node &mesh,
             }
         }
 
-        // make sure everyone knows if dir creation was successful 
+        // make sure everyone knows if dir creation was successful
 
         #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
         Node n_local, n_reduced;
@@ -1112,7 +1112,7 @@ void write_mesh(const Node &mesh,
     // ----------------------------------------------------
     std::string root_filename = path;
 
-    // at this point for suffix, we should only see 
+    // at this point for suffix, we should only see
     // cycle or none -- default has been resolved
     if(opts_suffix == "cycle")
     {
@@ -1181,7 +1181,7 @@ void write_mesh(const Node &mesh,
                         hnd.open(root_filename,file_protocol,open_opts);
                         local_root_file_created.set((int)1);
                     }
-                    
+
                     if(!hnd.is_open())
                     {
                         hnd.open(root_filename,file_protocol);
@@ -1206,7 +1206,7 @@ void write_mesh(const Node &mesh,
                     }
                     hnd.write(dom,mesh_path);
                 }
-                
+
                 // NOTE: local file handle goes out of scope here
                 // and data is committed to file for handles that write
                 // on close
@@ -1437,7 +1437,7 @@ void write_mesh(const Node &mesh,
                                 //              << output_file << " path " << path);
 
                                 hnd.write(dom, curr_path);
-                                
+
                                 // update status, we are done with this doman
                                 local_domain_status[d] = 0;
                             }
@@ -1482,7 +1482,6 @@ void write_mesh(const Node &mesh,
             //              << " details\n"
             //              << books.to_yaml();
             // }
-            (void)twirls;
 
             // check if we have another round
             // stop when all batons are -1
@@ -1542,7 +1541,7 @@ void write_mesh(const Node &mesh,
                                                    global_num_domains,
                                                    local_bp_idx);
     }
-    // handle mpi case. 
+    // handle mpi case.
     // this logic is from the mpi ver of mesh index gen
     // it is duplicated here b/c we dont want a circular dep
     // between conduit_blueprint_mpi and conduit_relay_io_mpi
@@ -1581,18 +1580,18 @@ void write_mesh(const Node &mesh,
         // new style bp index partition spec
         std::string output_partition_pattern;
 
-        // NOTE: 
+        // NOTE:
         // The file pattern needs to be relative to
-        // the root file. 
+        // the root file.
         // reverse split the path
 
         if(opts_file_style == "root_only")
         {
             // make sure this is relative to output dir
             std::string tmp;
-            utils::rsplit_path(root_filename,
-                               output_file_pattern,
-                               tmp);
+            utils::rsplit_file_path(root_filename,
+                                    output_file_pattern,
+                                    tmp);
 
             if(global_num_domains == 1)
             {
@@ -1630,9 +1629,9 @@ void write_mesh(const Node &mesh,
             }
 
             std::string tmp;
-            utils::rsplit_path(output_dir_base,
-                               output_file_pattern,
-                               tmp);
+            utils::rsplit_file_path(output_dir_base,
+                                    output_file_pattern,
+                                    tmp);
 
             output_partition_pattern = conduit::utils::join_file_path(
                                                 output_file_pattern,
@@ -1648,9 +1647,9 @@ void write_mesh(const Node &mesh,
         else
         {
             std::string tmp;
-            utils::rsplit_path(output_dir_base,
-                               output_file_pattern,
-                               tmp);
+            utils::rsplit_file_path(output_dir_base,
+                                    output_file_pattern,
+                                    tmp);
 
             output_partition_pattern = conduit::utils::join_file_path(
                                                 output_file_pattern,
@@ -1717,7 +1716,7 @@ void write_mesh(const Node &mesh,
 
         relay::io::IOHandle hnd;
 
-        // if not root only, this is the first time we are writing 
+        // if not root only, this is the first time we are writing
         // to the root file -- make sure to properly support truncate
         Node open_opts;
         if(opts_file_style != "root_only" && opts_truncate)
@@ -1731,7 +1730,7 @@ void write_mesh(const Node &mesh,
     }
 
     // barrier at end of work to avoid file system race
-    // (non root task could write the root file in write_mesh, 
+    // (non root task could write the root file in write_mesh,
     // but root task is always the one to read the root file
     // in read_mesh.
 
@@ -1766,8 +1765,8 @@ void determine_cycle_and_resolve_suffix(const Node &multi_dom,
                          " Defaulting to counter");
             static std::map<std::string, int> counters;
             cycle = counters[path];
-            
-            // If we're just using this function to ask what the filename could be, 
+
+            // If we're just using this function to ask what the filename could be,
             // then we don't want to mess with the static counter. If we are
             // in the process of writing files, then we can make up a new cycle.
             if (! gen_name)
@@ -1787,7 +1786,7 @@ void determine_cycle_and_resolve_suffix(const Node &multi_dom,
     }
     // if the cycle exists and we are in the cycle suffix case - cycle
     // has already been set appropriately.
-    // if the cycle exists and we are in the no suffix case - it 
+    // if the cycle exists and we are in the no suffix case - it
     // doesn't matter what we have set cycle to.
 }
 
@@ -1847,7 +1846,7 @@ std::string generate_root_filename(const conduit::Node &mesh,
 ///            when # of domains == 1,  "default"   ==> "root_only"
 ///            else,                    "default"   ==> "multi_file"
 ///
-///      suffix: "default", "cycle", "none" 
+///      suffix: "default", "cycle", "none"
 ///            when cycle is present,  "default"   ==> "cycle"
 ///            else,                   "default"   ==> "none"
 ///
@@ -1870,7 +1869,7 @@ std::string generate_root_filename(const conduit::Node &mesh,
     bool write_overlink            = false;
 
     // We will use opts_root_file_ext so that we can share logic between
-    // Silo and Blueprint in this function. We hardcode non-Silo (just 
+    // Silo and Blueprint in this function. We hardcode non-Silo (just
     // Blueprint) to use "root".
     if (file_protocol != "silo")
     {
@@ -1882,11 +1881,11 @@ std::string generate_root_filename(const conduit::Node &mesh,
     {
         opts_suffix = opts["suffix"].as_string();
 
-        if (opts_suffix != "default" && 
+        if (opts_suffix != "default" &&
             opts_suffix != "cycle" &&
             opts_suffix != "none" )
         {
-            CONDUIT_ERROR("write_mesh invalid suffix option: \"" 
+            CONDUIT_ERROR("write_mesh invalid suffix option: \""
                           << opts_suffix << "\"\n"
                           " expected: \"default\", \"cycle\", or \"none\"");
         }
@@ -1906,9 +1905,9 @@ std::string generate_root_filename(const conduit::Node &mesh,
         return "";
     }
 
-    // 
+    //
     // extra silo logic
-    // 
+    //
     if (file_protocol == "silo")
     {
         // check for + validate file_style option
@@ -1916,12 +1915,12 @@ std::string generate_root_filename(const conduit::Node &mesh,
         {
             opts_file_style = opts["file_style"].as_string();
 
-            if (opts_file_style != "default" && 
+            if (opts_file_style != "default" &&
                 opts_file_style != "root_only" &&
                 opts_file_style != "multi_file" &&
                 opts_file_style != "overlink")
             {
-                CONDUIT_ERROR("write_mesh invalid file_style option: \"" 
+                CONDUIT_ERROR("write_mesh invalid file_style option: \""
                               << opts_file_style << "\"\n"
                               " expected: \"default\", \"root_only\", "
                               "\"multi_file\", or \"overlink\"");
@@ -1937,11 +1936,11 @@ std::string generate_root_filename(const conduit::Node &mesh,
         {
             opts_root_file_ext = opts["root_file_ext"].as_string();
 
-            if (opts_root_file_ext != "default" && 
+            if (opts_root_file_ext != "default" &&
                 opts_root_file_ext != "root" &&
                 opts_root_file_ext != "silo" )
             {
-                CONDUIT_ERROR("write_mesh invalid root_file_ext option: \"" 
+                CONDUIT_ERROR("write_mesh invalid root_file_ext option: \""
                               << opts_root_file_ext << "\"\n"
                               " expected: \"default\", \"root\", or \"silo\"");
             }
@@ -1977,7 +1976,7 @@ std::string generate_root_filename(const conduit::Node &mesh,
                                        opts_suffix,
                                        true); // we are just generating the root file name
 #endif
-    
+
     // ----------------------------------------------------
     // setup root file name
     // ----------------------------------------------------
@@ -1999,7 +1998,7 @@ std::string generate_root_filename(const conduit::Node &mesh,
     {
         root_filename = path;
 
-        // at this point for suffix, we should only see 
+        // at this point for suffix, we should only see
         // cycle or none -- default has been resolved
         if (opts_suffix == "cycle")
         {
@@ -2102,7 +2101,7 @@ read_root_blueprint_index(const std::string &root_file_path,
 
     if(root_protocol == "unknown")
     {
-        error_oss << "failed to detect file protocol (protocol ='" 
+        error_oss << "failed to detect file protocol (protocol ='"
                   << root_protocol
                   << "') of root file: "
                   << root_file_path;
@@ -2177,10 +2176,10 @@ read_root_blueprint_index(const std::string &root_file_path,
         // bad name, construct an error message that
         // displays the valid options
         error_oss << "Mesh named '" << mesh_name << "' "
-            << " not found in " 
+            << " not found in "
             << root_file_path
             << std::endl
-            << " Mesh names found blueprint index: " 
+            << " Mesh names found blueprint index: "
             << std::endl;
         NodeConstIterator itr = root_node["blueprint_index"].children();
         while(itr.has_next())
@@ -2191,7 +2190,7 @@ read_root_blueprint_index(const std::string &root_file_path,
         }
         return false;
     }
-    
+
     return true;
 }
 
@@ -2260,7 +2259,7 @@ void read_mesh(const std::string &root_file_path,
             error = 1;
         }
     }
-    
+
 #if CONDUIT_RELAY_IO_MPI_ENABLED
     Node n_local, n_global;
     n_local.set((int)error);
@@ -2331,7 +2330,7 @@ void read_mesh(const std::string &root_file_path,
     {
         CONDUIT_ERROR("Root missing `number_of_files`");
     }
-    
+
     std::string data_protocol = "hdf5";
 
     if(root_node.has_child("protocol"))
@@ -2363,7 +2362,7 @@ void read_mesh(const std::string &root_file_path,
     // three cases:
     //  legacy case that uses file_pattern and tree_pattern
     //  case that uses a mesh specific partition pattern and partition map
-    //  case that uses a mesh specific partition pattern 
+    //  case that uses a mesh specific partition pattern
     if(mesh_index["state"].has_child("partition_pattern"))
     {
         if(mesh_index["state"].has_child("partition_map"))
@@ -2441,8 +2440,8 @@ void read_mesh(const std::string &root_file_path,
         for(int i = domain_start ; i < domain_end; i++)
         {
             std::string current, next;
-            utils::rsplit_file_path (root_file_path, current, next);
-            std::string domain_file = utils::join_path(next, gen.GenerateFilePath(i));
+            utils::rsplit_file_path(root_file_path, current, next);
+            std::string domain_file = utils::join_file_path(next, gen.GenerateFilePath(i));
 
             hnd.open(domain_file, data_protocol, open_opts);
 
@@ -2472,7 +2471,7 @@ void read_mesh(const std::string &root_file_path,
                                  mesh_out[outer_name]);
                     }
                     else
-                    { 
+                    {
                         if(outer.has_child("cycle"))
                         {
                              mesh_out[outer_name]["cycle"] = outer["cycle"];
@@ -2499,7 +2498,7 @@ void read_mesh(const std::string &root_file_path,
                         // some parts may not exist in all domains
                         // only read if they are there
                         if(hnd.has_path(fetch_path))
-                        {   
+                        {
                             hnd.read(fetch_path,
                                      mesh_out[outer_name][entry_name]);
                         }
@@ -2508,7 +2507,7 @@ void read_mesh(const std::string &root_file_path,
             }
         }
     }
-    
+
 }
 
 
