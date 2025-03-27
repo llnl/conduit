@@ -257,7 +257,57 @@ class Test_Conduit_Node(unittest.TestCase):
             self.assertEqual(d.to_string("yaml"),d.to_yaml())
             self.assertEqual(d.to_string("json"),d.to_json())
 
-
+    def test_stride_methods(self):
+        # Regular and aligned stride case
+        dt = DataType()
+        dt.set(dtype_id = DataType.name_to_id("uint32"),
+               num_elements = 10,
+               offset = 0,
+               stride = 8,
+               element_bytes = 4)
+        
+        # Element stride should be stride / element_bytes (8 / 4 = 2)
+        self.assertEqual(dt.element_stride(), 2)
+        # Stride is aligned with element boundaries (8 % 4 = 0)
+        self.assertTrue(dt.is_stride_element_aligned())
+        # Stride is aligned with 2-byte boundary (8 % 2 = 0)
+        self.assertTrue(dt.is_stride_aligned(2))
+        # Stride is aligned with 4-byte boundary (8 % 4 = 0)
+        self.assertTrue(dt.is_stride_aligned(4))
+        # Stride is not aligned with 3-byte boundary (8 % 3 != 0)
+        self.assertFalse(dt.is_stride_aligned(3))
+        
+        # Non-aligned stride case
+        dt.set_stride(6)
+        # Element stride should be integer division (6 / 4 = 1)
+        self.assertEqual(dt.element_stride(), 1)
+        # Stride is not aligned with element boundaries (6 % 4 != 0)
+        self.assertFalse(dt.is_stride_element_aligned())
+        # Stride is aligned with 2-byte boundary (6 % 2 = 0)
+        self.assertTrue(dt.is_stride_aligned(2))
+        # Stride is aligned with 3-byte boundary (6 % 3 = 0)
+        self.assertTrue(dt.is_stride_aligned(3))
+        # Stride is not aligned with 4-byte boundary (6 % 4 != 0)
+        self.assertFalse(dt.is_stride_aligned(4))
+        
+        # Special case - zero stride
+        dt.set_stride(0)
+        # Element stride should be 0 for zero stride (0 / 4 = 0)
+        self.assertEqual(dt.element_stride(), 0)
+        # Zero stride is considered element aligned
+        self.assertTrue(dt.is_stride_element_aligned())
+        # Zero stride is aligned with any byte boundary
+        self.assertTrue(dt.is_stride_aligned(4))
+        self.assertTrue(dt.is_stride_aligned(3))
+        self.assertTrue(dt.is_stride_aligned(2))
+        
+        # Special case - zero element_bytes
+        dt.set_stride(8)
+        dt.set_element_bytes(0)
+        # Element stride is currently defined to return 0 for zero element_bytes case
+        self.assertEqual(dt.element_stride(), 0)
+        # Element alignment is currently defined to return true for zero element_bytes
+        self.assertTrue(dt.is_stride_element_aligned())
 
 
 if __name__ == '__main__':
