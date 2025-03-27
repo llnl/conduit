@@ -6173,7 +6173,7 @@ TEST(conduit_node_set, set_path_cstyle_signed_int)
     EXPECT_TRUE(n.has_path("one"));
     EXPECT_TRUE(n["one"].has_path("two/three"));
     nc = n["one/two/three"];
-    EXPECT_EQ(nc.as_signed_long(), slong_long_v);
+    EXPECT_EQ(nc.as_signed_long_long(), slong_long_v);
     EXPECT_EQ(nc.dtype().is_number(), true);
     EXPECT_EQ(nc.dtype().is_integer(), true);
     EXPECT_EQ(nc.dtype().is_signed_integer(), true);
