@@ -27,7 +27,7 @@
 
 cmake_minimum_required(VERSION 3.0)
 
-project(using_with_cmake)
+project(using_with_cmake_umpire)
 
 
 ################################################################
