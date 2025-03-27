@@ -654,6 +654,70 @@ TEST(dtype_tests,dtype_endianness_checks)
     EXPECT_FALSE(dt.endianness_matches_machine());
 }
 
+//-----------------------------------------------------------------------------
+TEST(dtype_tests,dtype_stride_checks)
+{
+    // Test for element stride calculation and alignment checks
+    DataType dt;
+    
+    // Standard case: stride equals element_bytes (compact data)
+    dt.set(DataType::FLOAT64_ID,
+           10,                    // 10 elements
+           0,                     // 0 offset
+           sizeof(float64),       // stride = 8 bytes
+           sizeof(float64),       // element_bytes = 8 bytes
+           Endianness::DEFAULT_ID);
+    
+    EXPECT_EQ(dt.element_stride(), 1);
+    EXPECT_TRUE(dt.is_stride_element_aligned());
+    EXPECT_TRUE(dt.is_stride_aligned(4));
+    EXPECT_TRUE(dt.is_stride_aligned(2));
+    EXPECT_TRUE(dt.is_stride_aligned(1));
+    
+    // Strided case: stride is multiple of element_bytes
+    dt.set(DataType::FLOAT64_ID,
+           10,                    // 10 elements
+           0,                     // 0 offset
+           sizeof(float64)*2,     // stride = 16 bytes (2 elements)
+           sizeof(float64),       // element_bytes = 8 bytes
+           Endianness::DEFAULT_ID);
+    
+    EXPECT_EQ(dt.element_stride(), 2);
+    EXPECT_TRUE(dt.is_stride_element_aligned());
+    EXPECT_TRUE(dt.is_stride_aligned(8));
+    EXPECT_TRUE(dt.is_stride_aligned(4));
+    EXPECT_TRUE(dt.is_stride_aligned(2));
+    
+    // Unaligned case: stride is not a multiple of element_bytes
+    dt.set(DataType::FLOAT64_ID,
+           10,                    // 10 elements
+           0,                     // 0 offset
+           sizeof(float64) + 1,   // stride = 9 bytes (8 + 1)
+           sizeof(float64),       // element_bytes = 8 bytes
+           Endianness::DEFAULT_ID);
+    
+    // Since 9/8 = 1.125, the element_stride will be 1 (integer division)
+    // but it's not properly aligned
+    EXPECT_EQ(dt.element_stride(), 1);
+    EXPECT_FALSE(dt.is_stride_element_aligned());
+    EXPECT_FALSE(dt.is_stride_aligned(8));
+    EXPECT_FALSE(dt.is_stride_aligned(4));
+    EXPECT_FALSE(dt.is_stride_aligned(2));
+    EXPECT_TRUE(dt.is_stride_aligned(1));
+    
+    // Zero element_bytes case (should handle gracefully)
+    dt.set(DataType::EMPTY_ID,
+           0,                     // 0 elements
+           0,                     // 0 offset
+           0,                     // stride = 0 bytes
+           0,                     // element_bytes = 0 bytes
+           Endianness::DEFAULT_ID);
+    
+    EXPECT_EQ(dt.element_stride(), 0);
+    EXPECT_FALSE(dt.is_stride_element_aligned());
+    EXPECT_TRUE(dt.is_stride_aligned(8));
+}
+
 
 //-----------------------------------------------------------------------------
 TEST(dtype_tests,dtype_to_string_simple_checks)

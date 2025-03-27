@@ -399,6 +399,13 @@ public:
     conduit::index_t     element_bytes()       const { return m_ele_bytes;}
     conduit::index_t     endianness()          const { return m_endianness;}
     conduit::index_t     element_index(conduit::index_t idx) const;
+    
+    /// Returns the stride in elements (stride in bytes / element_bytes)
+    conduit::index_t     element_stride() const;
+    /// Tests if stride is aligned with element boundaries (stride % element_bytes == 0)
+    bool                 is_stride_element_aligned() const;
+    /// Tests if stride is a multiple of given bytes
+    bool                 is_stride_aligned(conduit::index_t nbytes) const;
 
     /// strided bytes = stride() * (number_of_elements() -1) + element_bytes()
     conduit::index_t     strided_bytes() const;
