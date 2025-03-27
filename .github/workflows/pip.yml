@@ -95,6 +95,7 @@ jobs:
       run: |
         echo 'set(ENABLE_MPI "ON" CACHE BOOL "")'  >  conduit-config.cmake
         echo 'set(HDF5_DIR "/usr/" CACHE PATH "")' >> conduit-config.cmake
+        cat conduit-config.cmake
         env HOST_CONFIG=`pwd`/conduit-config.cmake pip install -v .
         rm -rf build
         python3 -c "import conduit;print(conduit.about());"
