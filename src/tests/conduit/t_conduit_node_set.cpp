@@ -2282,7 +2282,7 @@ TEST(conduit_node_set, set_cstyle_native_int)
     long long long_long_v = 16;
     // long long
     n.set(long_long_v);
-    EXPECT_EQ(n.as_long(), long_long_v);
+    EXPECT_EQ(n.as_long_long(), long_long_v);
     EXPECT_EQ(n.dtype().is_number(), true);
     EXPECT_EQ(n.dtype().is_integer(), true);
 #ifdef CONDUIT_LONG_LONG_IS_SIGNED
