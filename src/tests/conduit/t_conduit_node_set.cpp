@@ -2184,18 +2184,22 @@ TEST(conduit_node_set, set_path_external_bitwidth_float_ptr)
 //  -- set & set_external -- 
 //-----------------------------------------------------------------------------
 //
+//. set_cstyle_native_int
 //  set_cstyle_native_int_ptr
 //  set_cstyle_native_int_array
 //  set_cstyle_native_int_vec
 //
+//. set_cstyle_unsigned_int
 //  set_cstyle_unsigned_int_ptr
 //  set_cstyle_unsigned_int_array
 //  set_cstyle_unsigned_int_vec
 //
+//  set_cstyle_signed_int
 //  set_cstyle_signed_int_ptr
 //  set_cstyle_signed_int_array
 //  set_cstyle_signed_int_vec
 //
+//  set_cstyle_float
 //  set_cstyle_float_ptr
 //  set_cstyle_float_array
 //  set_cstyle_float_vec
@@ -2203,8 +2207,95 @@ TEST(conduit_node_set, set_path_external_bitwidth_float_ptr)
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// set -- c style native ptr, array, and vec
+// set -- c style native scalar, ptr, array, and vec
 //-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+TEST(conduit_node_set, set_cstyle_native_int)
+{
+    char char_v = 2;
+    short short_v = 4;
+    int int_v = 8;
+    long long_v = 16;
+
+    Node n;
+    // char
+    n.set(char_v);
+    EXPECT_EQ(n.as_char(), char_v);
+    EXPECT_EQ(conduit_datatype_is_number(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(n.c_dtype()), true);
+#ifdef CONDUIT_CHAR_IS_SIGNED
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), false);
+#else
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), true);
+#endif
+    EXPECT_EQ(conduit_datatype_is_floating_point(n.c_dtype()), false);
+    EXPECT_EQ(n.to_char(), 2);
+
+    // short
+    n.set(short_v);
+    EXPECT_EQ(n.as_short(), short_v);
+    EXPECT_EQ(conduit_datatype_is_number(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(n.c_dtype()), true);
+#ifdef CONDUIT_SHORT_IS_SIGNED
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), false);
+#else
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), true);
+#endif
+    EXPECT_EQ(conduit_datatype_is_floating_point(n.c_dtype()), false);
+    EXPECT_EQ(n.to_short(), 4);
+
+    // int
+    n.set(int_v);
+    EXPECT_EQ(n.as_int(), int_v);
+    EXPECT_EQ(conduit_datatype_is_number(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(n.c_dtype()), true);
+#ifdef CONDUIT_INT_IS_SIGNED
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), false);
+#else
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), true);
+#endif
+    EXPECT_EQ(conduit_datatype_is_floating_point(n.c_dtype()), false);
+    EXPECT_EQ(n.to_int(), 8);
+
+    // long
+    n.set(long_v);
+    EXPECT_EQ(n.as_long(), long_v);
+    EXPECT_EQ(conduit_datatype_is_number(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(n.c_dtype()), true);
+#ifdef CONDUIT_LONG_IS_SIGNED
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), false);
+#else
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), true);
+#endif
+    EXPECT_EQ(conduit_datatype_is_floating_point(n.c_dtype()), false);
+    EXPECT_EQ(n.to_long(), 16);
+
+#ifdef CONDUIT_HAS_LONG_LONG
+    long long   longlong_v = 16;
+    // long long
+    n.set(long_long_v);
+    EXPECT_EQ(n.as_long(), long_long_v);
+    EXPECT_EQ(conduit_datatype_is_number(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(n.c_dtype()), true);
+#ifdef CONDUIT_LONG_LONG_IS_SIGNED
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), false);
+#else
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), true);
+#endif
+    EXPECT_EQ(conduit_datatype_is_floating_point(n.c_dtype()), false);
+    EXPECT_EQ(n.to_long_long(), 16);
+#endif
+}
 
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set, set_cstyle_native_int_ptr)
@@ -2829,8 +2920,72 @@ TEST(conduit_node_set, set_cstyle_native_int_vec)
 }
 
 //-----------------------------------------------------------------------------
-// set -- c style unsigned ptr, array, and vec
+// set -- c style unsigned scalar, ptr, array, and vec
 //-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+TEST(conduit_node_set, set_cstyle_unsigned_int)
+{
+    unsigned char uchar_v = 2;
+    unsigned short ushort_v = 4;
+    unsigned int uint_v = 8;
+    unsigned long ulong_v = 16;
+
+    Node n;
+    // char
+    n.set(uchar_v);
+    EXPECT_EQ(n.as_unsigned_char(), uchar_v);
+    EXPECT_EQ(conduit_datatype_is_number(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_floating_point(n.c_dtype()), false);
+    EXPECT_EQ(n.to_unsigned_char(), 2);
+
+    // short
+    n.set(ushort_v);
+    EXPECT_EQ(n.as_unsigned_short(), ushort_v);
+    EXPECT_EQ(conduit_datatype_is_number(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_floating_point(n.c_dtype()), false);
+    EXPECT_EQ(n.to_unsigned_short(), 4);
+
+    // int
+    n.set(uint_v);
+    EXPECT_EQ(n.as_unsigned_int(), uint_v);
+    EXPECT_EQ(conduit_datatype_is_number(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_floating_point(n.c_dtype()), false);
+    EXPECT_EQ(n.to_unsigned_int(), 8);
+
+    // long
+    n.set(ulong_v);
+    EXPECT_EQ(n.as_unsigned_long(), ulong_v);
+    EXPECT_EQ(conduit_datatype_is_number(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_floating_point(n.c_dtype()), false);
+    EXPECT_EQ(n.to_unsigned_long(), 16);
+
+#ifdef CONDUIT_HAS_LONG_LONG
+    // long long
+    unsigned long long ulong_long_v = 16;
+    n.set(ulong_long_v);
+    EXPECT_EQ(n.as_unsigned_long(), ulong_long_v);
+    EXPECT_EQ(conduit_datatype_is_number(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_floating_point(n.c_dtype()), false);
+    EXPECT_EQ(n.to_unsigned_long_long(), 16);
+#endif
+}
+
 
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set, set_cstyle_unsigned_int_ptr)
@@ -3454,8 +3609,72 @@ TEST(conduit_node_set, set_cstyle_unsigned_int_vec)
 }
 
 //-----------------------------------------------------------------------------
-// set -- c style signed ptr, array, and vec
+// set -- c style signed scalar, ptr, array, and vec
 //-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+TEST(conduit_node_set, set_cstyle_signed_int)
+{
+    signed char schar_v = 2;
+    signed short sshort_v = 4;
+    signed int sint_v = 8;
+    signed long slong_v = 16;
+
+    Node n;
+    // char
+    n.set(schar_v);
+    EXPECT_EQ(n.as_signed_char(), schar_v);
+    EXPECT_EQ(conduit_datatype_is_number(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_floating_point(n.c_dtype()), false);
+    EXPECT_EQ(n.to_signed_char(), 2);
+
+    // short
+    n.set(sshort_v);
+    EXPECT_EQ(n.as_signed_short(), sshort_v);
+    EXPECT_EQ(conduit_datatype_is_number(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_floating_point(n.c_dtype()), false);
+    EXPECT_EQ(n.to_signed_short(), 4);
+
+    // int
+    n.set(sint_v);
+    EXPECT_EQ(n.as_signed_int(), sint_v);
+    EXPECT_EQ(conduit_datatype_is_number(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_floating_point(n.c_dtype()), false);
+    EXPECT_EQ(n.to_signed_int(), 8);
+
+    // long
+    n.set(slong_v);
+    EXPECT_EQ(n.as_signed_long(), slong_v);
+    EXPECT_EQ(conduit_datatype_is_number(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_floating_point(n.c_dtype()), false);
+    EXPECT_EQ(n.to_signed_long(), 16);
+
+#if defined CONDUIT_HAS_LONG_LONG
+    // long long
+    signed long long slong_long_v =16;
+    n.set(slong_long_v);
+    EXPECT_EQ(n.as_signed_long(), slong_long_v);
+    EXPECT_EQ(conduit_datatype_is_number(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_floating_point(n.c_dtype()), false);
+    EXPECT_EQ(n.to_signed_long_long(), 16);
+#endif
+}
+
 
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set, set_cstyle_signed_int_ptr)
@@ -4079,8 +4298,37 @@ TEST(conduit_node_set, set_cstyle_signed_int_vec)
 }
 
 //-----------------------------------------------------------------------------
-// set -- c style float ptr, array, and vec
+// set -- c style float scalar, ptr, array, and vec
 //-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+TEST(conduit_node_set, set_cstyle_float)
+{
+    float fv = -0.8f;
+    double dv = -1.6;
+
+    Node n;
+    // float
+    n.set(fv);
+    EXPECT_EQ(n.as_float(), fv);
+    EXPECT_EQ(conduit_datatype_is_number(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_floating_point(n.c_dtype()), true);
+    EXPECT_NEAR(n.to_float(), -0.8, 0.001);
+
+    // double
+    n.set(dv);
+    EXPECT_EQ(n.as_double(), dv);
+    EXPECT_EQ(conduit_datatype_is_number(n.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(n.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_floating_point(n.c_dtype()), true);
+    EXPECT_NEAR(n.to_double(), -1.6, 0.001);
+}
+
 
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set, set_cstyle_float_ptr)
@@ -4411,8 +4659,116 @@ TEST(conduit_node_set, set_cstyle_float_vec)
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// set_path -- c style native ptr, array, and vec
+// set_path -- c style native scalar, ptr, array, and vec
 //-----------------------------------------------------------------------------
+
+// add and expand cases that were added by kitware for their vendored conduit
+// https://gitlab.kitware.com/paraview/catalyst/-/commit/dbb5c297b5a05b98979912a4944af43a2ddd3818
+
+//-----------------------------------------------------------------------------
+TEST(conduit_node_set, set_path_cstyle_native_int)
+{
+    char char_v = 2;
+    short short_v = 4;
+    int int_v = 8;
+    long long_v = 16;
+
+    Node n;
+    // char
+    n.set_path("one/two/three", char_v);
+    EXPECT_TRUE(n.has_path("one"));
+    EXPECT_TRUE(n["one"].has_path("two/three"));
+    Node nc = n["one/two/three"];
+    EXPECT_EQ(nc.as_char(), char_v);
+    EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), true);
+#ifdef CONDUIT_CHAR_IS_SIGNED
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), false);
+else
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), true);
+#endif
+    EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), false);
+    EXPECT_EQ(nc.to_char(), 2);
+
+    // short
+    n.set_path("one/two/three", short_v);
+    EXPECT_TRUE(n.has_path("one"));
+    EXPECT_TRUE(n["one"].has_path("two/three"));
+    nc = n["one/two/three"];
+    EXPECT_EQ(nc.as_short(), short_v);
+    EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), true);
+#ifdef CONDUIT_SHORT_IS_SIGNED
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), false);
+else
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), true);
+#endif
+    EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), false);
+    EXPECT_EQ(nc.to_short(), 4);
+
+    // int
+    n.set_path("one/two/three", int_v);
+    EXPECT_TRUE(n.has_path("one"));
+    EXPECT_TRUE(n["one"].has_path("two/three"));
+    nc = n["one/two/three"];
+    EXPECT_EQ(nc.as_int(), int_v);
+    EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), true);
+#ifdef CONDUIT_INT_IS_SIGNED
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), false);
+else
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), true);
+#endif
+    EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), false);
+    EXPECT_EQ(nc.to_int(), 8);
+
+    // long
+    n.set_path("one/two/three", long_v);
+    EXPECT_TRUE(n.has_path("one"));
+    EXPECT_TRUE(n["one"].has_path("two/three"));
+    nc = n["one/two/three"];
+    EXPECT_EQ(nc.as_long(), long_v);
+    EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), true);
+#ifdef CONDUIT_LONG_IS_SIGNED
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), false);
+else
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), true);
+#endif
+    EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), false);
+    EXPECT_EQ(nc.to_long(), 16);
+
+#ifdef CONDUIT_HAS_LONG_LONG
+    // long long
+    long long long_long_v = 16;
+    n.set_path("one/two/three", long_long_v);
+    EXPECT_TRUE(n.has_path("one"));
+    EXPECT_TRUE(n["one"].has_path("two/three"));
+    nc = n["one/two/three"];
+    EXPECT_EQ(nc.as_signed_long(), long_long_v);
+    EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), true);
+#ifdef CONDUIT_LONG_LONG_IS_SIGNED
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), false);
+#else
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), true);
+#endif
+    EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), false);
+    EXPECT_EQ(nc.to_long_long(), 16);
+#endif
+
+}
+
 
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set, set_path_cstyle_native_int_ptr)
@@ -5037,8 +5393,91 @@ TEST(conduit_node_set, set_path_cstyle_native_int_vec)
 }
 
 //-----------------------------------------------------------------------------
-// set_path -- c style unsigned ptr, array, and vec
+// set_path -- c style unsigned ptr, scalar, array, and vec
 //-----------------------------------------------------------------------------
+
+
+//-----------------------------------------------------------------------------
+TEST(conduit_node_set, set_path_cstyle_unsigned_int)
+{
+    unsigned char uchar_v = 2;
+    unsigned short ushort_v = 4;
+    unsigned int uint_v = 8;
+    unsigned long ulong_v = 16;
+
+    Node n;
+    // char
+    n.set_path("one/two/three", uchar_v);
+    EXPECT_TRUE(n.has_path("one"));
+    EXPECT_TRUE(n["one"].has_path("two/three"));
+    Node nc = n["one/two/three"];
+    EXPECT_EQ(nc.as_unsigned_char(), uchar_v);
+    EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), false);
+    EXPECT_EQ(nc.to_unsigned_char(), 2);
+
+    // short
+    n.set_path("one/two/three", ushort_v);
+    EXPECT_TRUE(n.has_path("one"));
+    EXPECT_TRUE(n["one"].has_path("two/three"));
+    nc = n["one/two/three"];
+    EXPECT_EQ(nc.as_unsigned_short(), ushort_v);
+    EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), false);
+    EXPECT_EQ(nc.to_unsigned_short(), 4);
+
+    // int
+    n.set_path("one/two/three", uint_v);
+    EXPECT_TRUE(n.has_path("one"));
+    EXPECT_TRUE(n["one"].has_path("two/three"));
+    nc = n["one/two/three"];
+    EXPECT_EQ(nc.as_unsigned_int(), uint_v);
+    EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), false);
+    EXPECT_EQ(nc.to_unsigned_int(), 8);
+
+    // long
+    n.set_path("one/two/three", ulong_v);
+    EXPECT_TRUE(n.has_path("one"));
+    EXPECT_TRUE(n["one"].has_path("two/three"));
+    nc = n["one/two/three"];
+    EXPECT_EQ(nc.as_unsigned_long(), ulong_v);
+    EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), false);
+    EXPECT_EQ(nc.to_unsigned_long(), 16);
+
+#ifdef CONDUIT_HAS_LONG_LONG
+    // long long
+    unsigned long long ulong_long_v = 16;
+    n.set_path("one/two/three", ulong_long_v);
+    EXPECT_TRUE(n.has_path("one"));
+    EXPECT_TRUE(n["one"].has_path("two/three"));
+    nc = n["one/two/three"];
+    EXPECT_EQ(nc.as_signed_long(), ulong_long_v);
+    EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), false);
+    EXPECT_EQ(nc.to_long_long(), 16);
+#endif
+
+}
+
+
+
 
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set, set_path_cstyle_unsigned_int_ptr)
@@ -5661,8 +6100,90 @@ TEST(conduit_node_set, set_path_cstyle_unsigned_int_vec)
 }
 
 //-----------------------------------------------------------------------------
-// set_path -- c style signed ptr, array, and vec
+// set_path -- c style scalar, signed ptr, array, and vec
 //-----------------------------------------------------------------------------
+
+
+//-----------------------------------------------------------------------------
+TEST(conduit_node_set, set_path_cstyle_signed_int)
+{
+    signed char schar_v = 2;
+    signed short sshort_v = 4;
+    signed int sint_v = 8;
+    signed long slong_v = 16;
+
+    Node n;
+    // char
+    n.set_path("one/two/three", schar_v);
+    EXPECT_TRUE(n.has_path("one"));
+    EXPECT_TRUE(n["one"].has_path("two/three"));
+    Node nc = n["one/two/three"];
+    EXPECT_EQ(nc.as_signed_char(), schar_v);
+    EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), false);
+    EXPECT_EQ(nc.to_signed_char(), 2);
+
+    // short
+    n.set_path("one/two/three", sshort_v);
+    EXPECT_TRUE(n.has_path("one"));
+    EXPECT_TRUE(n["one"].has_path("two/three"));
+    nc = n["one/two/three"];
+    EXPECT_EQ(nc.as_signed_short(), sshort_v);
+    EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), false);
+    EXPECT_EQ(nc.to_signed_short(), 4);
+
+    // int
+    n.set_path("one/two/three", sint_v);
+    EXPECT_TRUE(n.has_path("one"));
+    EXPECT_TRUE(n["one"].has_path("two/three"));
+    nc = n["one/two/three"];
+    EXPECT_EQ(nc.as_signed_int(), sint_v);
+    EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), false);
+    EXPECT_EQ(nc.to_signed_int(), 8);
+
+    // long
+    n.set_path("one/two/three", slong_v);
+    EXPECT_TRUE(n.has_path("one"));
+    EXPECT_TRUE(n["one"].has_path("two/three"));
+    nc = n["one/two/three"];
+    EXPECT_EQ(nc.as_signed_long(), slong_v);
+    EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), false);
+    EXPECT_EQ(nc.to_signed_long(), 16);
+
+#ifdef CONDUIT_HAS_LONG_LONG
+    // long long
+    signed long long slong_long_v = 16;
+    n.set_path("one/two/three", slong_long_v);
+    EXPECT_TRUE(n.has_path("one"));
+    EXPECT_TRUE(n["one"].has_path("two/three"));
+    nc = n["one/two/three"];
+    EXPECT_EQ(nc.as_signed_long(), slong_long_v);
+    EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), false);
+    EXPECT_EQ(nc.to_signed_long_long(), 16);
+#endif
+
+}
+
+
 
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set, set_path_cstyle_signed_int_ptr)
@@ -6289,8 +6810,59 @@ TEST(conduit_node_set, set_path_cstyle_signed_int_vec)
 }
 
 //-----------------------------------------------------------------------------
-// set_path -- c style float ptr, array, and vec
+// set_path -- c style float scalar, ptr, array, and vec
 //-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+TEST(conduit_node_set, set_path_cstyle_float)
+{
+  float fv = -0.8f;
+  double dv = -1.6;
+
+  Node n;
+  // float
+  n.set_path("one/two/three", fv);
+  EXPECT_TRUE(n.has_path("one"));
+  EXPECT_TRUE(n["one"].has_path("two/three"));
+  Node nc = n["one/two/three"];
+  EXPECT_EQ(nc.as_float(), fv);
+  EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+  EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), false);
+  EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), false);
+  EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), false);
+  EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), true);
+  EXPECT_NEAR(nc.to_float(), -0.8, 0.001);
+
+  // double
+  n.set_path("one/two/three", dv);
+  EXPECT_TRUE(n.has_path("one"));
+  EXPECT_TRUE(n["one"].has_path("two/three"));
+  nc = n["one/two/three"];
+  EXPECT_EQ(nc.as_double(), dv);
+  EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+  EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), false);
+  EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), false);
+  EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), false);
+  EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), true);
+  EXPECT_NEAR(nc.to_double(), -1.6, 0.001);
+
+#ifdef CONDUIT_USE_LONG_DOUBLE
+    // double
+    long double  ldav  -1.6;
+    n.set_path("one/two/three", dv);
+    EXPECT_TRUE(n.has_path("one"));
+    EXPECT_TRUE(n["one"].has_path("two/three"));
+    nc = n["one/two/three"];
+    EXPECT_EQ(nc.as_double(), dv);
+    EXPECT_EQ(conduit_datatype_is_number(nc.c_dtype()), true);
+    EXPECT_EQ(conduit_datatype_is_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_signed_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_unsigned_integer(nc.c_dtype()), false);
+    EXPECT_EQ(conduit_datatype_is_floating_point(nc.c_dtype()), true);
+    EXPECT_NEAR(nc.to_long_double(), -1.6, 0.001);
+#endif
+
+}
 
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set, set_path_cstyle_float_ptr)
