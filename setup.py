@@ -89,13 +89,15 @@ class CMakeBuild(build_ext):
                       '-DCMAKE_INSTALL_PREFIX=' + pjoin(ext.sourcedir,"_install"),
                       '-DPYTHON_EXECUTABLE=' + sys.executable,
                       '-DENABLE_PYTHON:BOOL=ON',
-                      '-DENABLE_MPI=' + ENABLE_MPI,
                       '-DBUILD_SHARED_LIBS:BOOL=' + build_shared_libs,
                       '-DENABLE_TESTS:BOOL=OFF',
                       '-DENABLE_DOCS:BOOL=OFF']
 
         if HDF5_DIR != "IGNORE":
             cmake_args.append('-DHDF5_DIR=' + HDF5_DIR)
+
+        if ENABLE_MPI != "IGNORE":
+            cmake_args.append('-DENABLE_MPI=' + ENABLE_MPI)
 
         # cmake initial cache file support
         if HOST_CONFIG != "IGNORE":
@@ -119,7 +121,7 @@ class CMakeBuild(build_ext):
             self.distribution.get_version())
         if not os.path.exists(self.build_temp):
             os.makedirs(self.build_temp)
-
+        print(cmake_args)
         subprocess.check_call(['cmake',
                                pjoin(ext.sourcedir,"src")] + cmake_args,
                                cwd=self.build_temp,
@@ -134,7 +136,7 @@ class CMakeBuild(build_ext):
 #
 HOST_CONFIG = os.environ.get('HOST_CONFIG', 'IGNORE')
 HDF5_DIR    = os.environ.get('HDF5_DIR', 'IGNORE')
-ENABLE_MPI  = os.environ.get('ENABLE_MPI', 'OFF')
+ENABLE_MPI  = os.environ.get('ENABLE_MPI', 'IGNORE')
 
 # keyword reference:
 # https://packaging.python.org/guides/distributing-packages-using-setuptools
