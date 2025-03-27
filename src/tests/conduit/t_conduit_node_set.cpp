@@ -3665,7 +3665,7 @@ TEST(conduit_node_set, set_cstyle_signed_int)
     // long long
     signed long long slong_long_v =16;
     n.set(slong_long_v);
-    EXPECT_EQ(n.as_signed_long(), slong_long_v);
+    EXPECT_EQ(n.as_signed_long_long(), slong_long_v);
     EXPECT_EQ(n.dtype().is_number(), true);
     EXPECT_EQ(n.dtype().is_integer(), true);
     EXPECT_EQ(n.dtype().is_signed_integer(), true);
