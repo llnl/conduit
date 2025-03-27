@@ -144,6 +144,14 @@ contains
           call assert_true( conduit_datatype_element_bytes(dataType) == 8)
           call assert_true( conduit_datatype_stride(dataType) == 8)
           call assert_true( conduit_datatype_offset(dataType) == 0)
+          
+          ! Test the new element stride methods
+          call assert_true( conduit_datatype_element_stride(dataType) == 1) ! 8/8 = 1
+          call assert_true( c_conduit_datatype_is_stride_element_aligned(dataType) == 1) ! 8 % 8 = 0
+          call assert_true( c_conduit_datatype_is_stride_aligned(dataType, 8) == 1) ! 8 % 8 = 0
+          call assert_true( c_conduit_datatype_is_stride_aligned(dataType, 4) == 1) ! 8 % 4 = 0
+          call assert_true( c_conduit_datatype_is_stride_aligned(dataType, 2) == 1) ! 8 % 2 = 0
+          
           call assert_true( c_conduit_datatype_is_number(dataType) == 1)
           call assert_true( c_conduit_datatype_is_integer(dataType) == 0)
           call assert_true( c_conduit_datatype_is_signed_integer(dataType) == 0)

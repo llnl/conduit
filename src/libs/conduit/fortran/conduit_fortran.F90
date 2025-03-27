@@ -1387,6 +1387,15 @@ module conduit
     end function conduit_datatype_element_bytes
     
     !--------------------------------------------------------------------------
+    pure function conduit_datatype_element_stride(cdatatype) result(res) &
+            bind(C, name="conduit_datatype_element_stride")
+         use iso_c_binding
+         implicit none
+         type(C_PTR), value, intent(IN) :: cdatatype
+         integer(kind(F_CONDUIT_INDEX_ID)) :: res
+    end function conduit_datatype_element_stride
+    
+    !--------------------------------------------------------------------------
     pure function conduit_datatype_endianness(cdatatype) result(res) &
             bind(C, name="conduit_datatype_endianness")
          use iso_c_binding
@@ -1705,6 +1714,25 @@ module conduit
          type(C_PTR), value, intent(IN) :: cdatatype
          integer(C_INT) :: res
     end function c_conduit_datatype_endianness_matches_machine
+    
+    !--------------------------------------------------------------------------
+    pure function c_conduit_datatype_is_stride_element_aligned(cdatatype) result(res) &
+            bind(C, name="conduit_datatype_is_stride_element_aligned")
+         use iso_c_binding
+         implicit none
+         type(C_PTR), value, intent(IN) :: cdatatype
+         integer(C_INT) :: res
+    end function c_conduit_datatype_is_stride_element_aligned
+    
+    !--------------------------------------------------------------------------
+    pure function c_conduit_datatype_is_stride_aligned(cdatatype, nbytes) result(res) &
+            bind(C, name="conduit_datatype_is_stride_aligned")
+         use iso_c_binding
+         implicit none
+         type(C_PTR), value, intent(IN) :: cdatatype
+         integer(kind(F_CONDUIT_INDEX_ID)), value, intent(IN) :: nbytes
+         integer(C_INT) :: res
+    end function c_conduit_datatype_is_stride_aligned
 
 
     !--------------------------------------------------------------------------
