@@ -2184,12 +2184,12 @@ TEST(conduit_node_set, set_path_external_bitwidth_float_ptr)
 //  -- set & set_external -- 
 //-----------------------------------------------------------------------------
 //
-//. set_cstyle_native_int
+//  set_cstyle_native_int
 //  set_cstyle_native_int_ptr
 //  set_cstyle_native_int_array
 //  set_cstyle_native_int_vec
 //
-//. set_cstyle_unsigned_int
+//  set_cstyle_unsigned_int
 //  set_cstyle_unsigned_int_ptr
 //  set_cstyle_unsigned_int_array
 //  set_cstyle_unsigned_int_vec
