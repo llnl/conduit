@@ -91,6 +91,10 @@ CONDUIT_API int conduit_datatype_is_little_endian(const conduit_datatype *cdatat
 CONDUIT_API int conduit_datatype_is_big_endian(const conduit_datatype *cdatatype);
 CONDUIT_API int conduit_datatype_endianness_matches_machine(const conduit_datatype *cdatatype);
 
+CONDUIT_API conduit_index_t conduit_datatype_element_stride(const conduit_datatype *cdatatype);
+CONDUIT_API int conduit_datatype_is_stride_element_aligned(const conduit_datatype *cdatatype);
+CONDUIT_API int conduit_datatype_is_stride_aligned(const conduit_datatype *cdatatype, conduit_index_t nbytes);
+
 #ifdef __cplusplus
 }
 #endif

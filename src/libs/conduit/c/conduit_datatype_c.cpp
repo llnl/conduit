@@ -251,6 +251,21 @@ int conduit_datatype_endianness_matches_machine(const conduit_datatype *cdatatyp
     return cpp_datatype_ref(cdatatype).endianness_matches_machine() ? 1 : 0;
 }
 
+conduit_index_t conduit_datatype_element_stride(const conduit_datatype *cdatatype)
+{
+    return cpp_datatype_ref(cdatatype).element_stride();
+}
+
+int conduit_datatype_is_stride_element_aligned(const conduit_datatype *cdatatype)
+{
+    return cpp_datatype_ref(cdatatype).is_stride_element_aligned() ? 1 : 0;
+}
+
+int conduit_datatype_is_stride_aligned(const conduit_datatype *cdatatype, conduit_index_t nbytes)
+{
+    return cpp_datatype_ref(cdatatype).is_stride_aligned(nbytes) ? 1 : 0;
+}
+
 }
 //-----------------------------------------------------------------------------
 // -- end extern C
