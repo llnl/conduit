@@ -31,7 +31,7 @@
 // conduit includes
 //---------------------------------------------------------------------------//
 #include "conduit.hpp"
-#include "conduit_blueprint_mpi.hpp"
+#include "conduit_blueprint_mpi_mesh.hpp"
 #include "conduit_relay_mpi.hpp"
 #include "conduit_blueprint_python_exports.h"
 
@@ -64,24 +64,21 @@ PyBlueprint_MPI_mesh_verify(PyObject *, //self
                            PyObject *args,
                            PyObject *kwargs)
 {
-    const char *protocol = NULL;
     PyObject   *py_node  = NULL;
     PyObject   *py_info  = NULL;
     Py_ssize_t  mpi_comm_id;
 
     // TODO: future also accept mpi4py comm
     
-    static const char *kwlist[] = {"protocol",
-                                   "node",
+    static const char *kwlist[] = {"node",
                                    "info",
                                    "comm",
                                    NULL};
 
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwargs,
-                                     "sOOn",
+                                     "OOn",
                                      const_cast<char**>(kwlist),
-                                     &protocol, 
                                      &py_node,
                                      &py_info,
                                      &mpi_comm_id))
@@ -126,7 +123,7 @@ PyBlueprint_MPI_mesh_verify(PyObject *, //self
     Node &info = *PyConduit_Node_Get_Node_Ptr(py_info);
 
 
-    if(blueprint::mpi::mesh::verify(std::string(protocol), node,info,comm);)
+    if(blueprint::mpi::mesh::verify(node,info,comm))
         Py_RETURN_TRUE;
     else
         Py_RETURN_FALSE;
@@ -324,10 +321,10 @@ PyBlueprint_MPI_mesh_partition(PyObject *, //self
     Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
     Node &output = *PyConduit_Node_Get_Node_Ptr(py_output);
 
-    blueprint::mesh::partition(mesh,
-                               options,
-                               output,
-                               comm);
+    blueprint::mpi::mesh::partition(mesh,
+                                    options,
+                                    output,
+                                    comm);
 
     Py_RETURN_NONE;
 }
@@ -426,7 +423,7 @@ PyBlueprint_MPI_mesh_flatten(PyObject *, //self
     const Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
     Node &output = *PyConduit_Node_Get_Node_Ptr(py_output);
 
-    blueprint::mesh::flatten(mesh, options, output, comm);
+    blueprint::mpi::mesh::flatten(mesh, options, output, comm);
 
     Py_RETURN_NONE;
 }
@@ -575,11 +572,11 @@ CONDUIT_BLUEPRINT_PYTHON_API void initconduit_blueprint_mpi_mesh_python(void)
 
 
 #ifdef Py_LIMITED_API
-    GLOBAL_MODULE = blueprint_mpi_mesh_module;
+    GLOBAL_MODULE = py_module;
 #endif
 
 #if defined(IS_PY3K)
-    return blueprint_mpi_mesh_module;
+    return py_module;
 #endif
 
 }
