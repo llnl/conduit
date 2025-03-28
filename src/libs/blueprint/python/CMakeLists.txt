@@ -138,3 +138,40 @@ if(MPI_FOUND)
     target_link_libraries(conduit_blueprint_mpi_python PRIVATE conduit conduit_blueprint_mpi conduit_python_build)
 
 endif()
+
+#############################################################
+# blueprint.mpi.mesh
+#############################################################
+
+if(MPI_FOUND)
+
+    # add mesh submodule
+    PYTHON_ADD_COMPILED_MODULE(NAME          conduit_blueprint_mpi_mesh_python
+                               DEST_DIR      python-modules
+                               PY_MODULE_DIR conduit/blueprint/mpi/mesh
+                               SOURCES       conduit_blueprint_mpi_mesh_python.cpp
+                                             ${CMAKE_CURRENT_BINARY_DIR}/conduit_blueprint_python_exports.h
+                               FOLDER        libs/python)
+
+    # compiled modules depend on output dir structure created by main module setup
+    target_link_libraries(conduit_blueprint_mpi_mesh_python PRIVATE conduit_python_py_setup)
+
+    # link with the proper libs (beyond python)
+    target_link_libraries(conduit_blueprint_mpi_mesh_python PRIVATE conduit conduit_blueprint_mpi conduit_python_build)
+
+
+    # add mesh examples submodule
+    PYTHON_ADD_COMPILED_MODULE(NAME          conduit_blueprint_mpi_mesh_examples_python
+                               DEST_DIR      python-modules
+                               PY_MODULE_DIR conduit/blueprint/mpi/mesh/examples
+                               SOURCES       conduit_blueprint_mpi_mesh_examples_python.cpp
+                                             ${CMAKE_CURRENT_BINARY_DIR}/conduit_blueprint_python_exports.h
+                               FOLDER        libs/python)
+
+    # compiled modules depend on output dir structure created by main module setup
+    target_link_libraries(conduit_blueprint_mpi_mesh_examples_python PRIVATE conduit_python_py_setup)
+
+    # link with the proper libs (beyond python)
+    target_link_libraries(conduit_blueprint_mpi_mesh_examples_python PRIVATE conduit conduit_blueprint_mpi conduit_python_build)
+
+endif()
