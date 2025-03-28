@@ -10,8 +10,16 @@ set(PYTHON_MODULE_TESTS t_python_blueprint_smoke
                         t_python_blueprint_mesh
                         t_python_blueprint_table)
 
+set(PYTHON_MODULE_MPI_TESTS t_python_blueprint_mpi)
 
 foreach(TEST ${PYTHON_MODULE_TESTS})
     add_python_test(TEST ${TEST} FOLDER tests/blueprint/python)
 endforeach()
 
+if(MPI_FOUND)
+    foreach(TEST ${PYTHON_MODULE_MPI_TESTS})
+        add_python_mpi_test(TEST ${TEST}
+                            NUM_MPI_TASKS 2)
+                            # FOLDER tests/blueprint/python)
+    endforeach()
+endif()

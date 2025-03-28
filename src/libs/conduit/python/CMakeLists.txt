@@ -18,6 +18,7 @@ SET(conduit_py_python_sources  py_src/__init__.py
                                py_src/blueprint/__init__.py
                                py_src/blueprint/mcarray/__init__.py
                                py_src/blueprint/mcarray/examples/__init__.py
+                               py_src/blueprint/mpi/__init__.py
                                py_src/blueprint/mesh/__init__.py
                                py_src/blueprint/mesh/examples/__init__.py
                                py_src/blueprint/table/__init__.py

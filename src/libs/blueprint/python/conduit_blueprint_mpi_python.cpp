@@ -38,23 +38,6 @@
 // conduit python module capi header
 #include "conduit_python.hpp"
 
-
-//-----------------------------------------------------------------------------
-// -- standard lib includes -- 
-//-----------------------------------------------------------------------------
-#include <iostream>
-#include <vector>
-
-//---------------------------------------------------------------------------//
-// conduit includes
-//---------------------------------------------------------------------------//
-#include "conduit.hpp"
-#include "conduit_blueprint.hpp"
-#include "conduit_blueprint_python_exports.h"
-
-// conduit python module capi header
-#include "conduit_python.hpp"
-
 using namespace conduit;
 
 
@@ -62,14 +45,14 @@ using namespace conduit;
 // conduit::blueprint::mpi::about
 //---------------------------------------------------------------------------//
 // doc str
-const char *PyBlueprint_about_doc_str =
+const char *PyBlueprint_MPI_about_doc_str =
 "about()\n"
 "\n"
 "Returns node with details about as built blueprint features.\n";
 
 // python func
 static PyObject *
-PyBlueprint_about()
+PyBlueprint_MPI_about()
 {
     //create and return a node with the result of about
     PyObject *py_node_res = PyConduit_Node_Python_Create();
@@ -82,7 +65,7 @@ PyBlueprint_about()
 // conduit::blueprint::mpi::verify
 //---------------------------------------------------------------------------//
 // doc str
-const char *PyBlueprint_mesh_verify_doc_str =
+const char *PyBlueprint_MPI_mesh_verify_doc_str =
 "verify(node, info, protocol, comm)\n"
 "\n"
 "Returns True if passed node conforms to a blueprint protocol.\n"
@@ -96,7 +79,7 @@ const char *PyBlueprint_mesh_verify_doc_str =
 
 // python func
 static PyObject * 
-PyBlueprint_verify(PyObject *, //self
+PyBlueprint_MPI_verify(PyObject *, //self
                    PyObject *args,
                    PyObject *kwargs)
 {
@@ -177,13 +160,13 @@ static PyMethodDef blueprint_mpi_python_funcs[] =
 {
     //-----------------------------------------------------------------------//
     {"about",
-     (PyCFunction)PyBlueprint_about,
+     (PyCFunction)PyBlueprint_MPI_about,
       METH_NOARGS,
-      PyBlueprint_about_doc_str},
+      PyBlueprint_MPI_about_doc_str},
     {"verify",
-     (PyCFunction)PyBlueprint_verify,
+     (PyCFunction)PyBlueprint_MPI_verify,
       METH_VARARGS | METH_KEYWORDS,
-      PyBlueprint_mesh_verify_doc_str},
+      PyBlueprint_MPI_mesh_verify_doc_str},
     //-----------------------------------------------------------------------//
     // end blueprint mpi methods table
     //-----------------------------------------------------------------------//
