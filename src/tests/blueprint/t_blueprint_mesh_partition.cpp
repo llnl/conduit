@@ -16,6 +16,7 @@
 #include "conduit_blueprint_mesh_utils_iterate_elements.hpp"
 #include "conduit_relay.hpp"
 #include "conduit_log.hpp"
+#include "conduit_fmt/conduit_fmt.h"
 
 #include <math.h>
 #include <array>
@@ -100,7 +101,7 @@ test_logical_selection_2d(const std::string &topo, const std::string &base)
     input["state/cycle"].set(i100);
     input["state/domain_id"].set((int)0);
 
-    // With no options (turn mapping off though because otherwise we add 
+    // With no options (turn mapping off though because otherwise we add
     // the original vertex and element fields), test that output==input
     const char *opt0 =
 "mapping: 0";
@@ -238,7 +239,7 @@ test_logical_selection_3d(const std::string &topo, const std::string &base)
     input["state/cycle"].set(i100);
     input["state/domain_id"].set((int)0);
 
-    // With no options (turn mapping off though because otherwise we add 
+    // With no options (turn mapping off though because otherwise we add
     // the original vertex and element fields), test that output==input
     const char *opt0 =
 "mapping: 0";
@@ -1338,7 +1339,7 @@ TEST(conduit_blueprint_mesh_combine, uniform)
         const std::string case_name = (is3d) ? "3d" : "2d";
         const std::string base_file_name = "combine_uniform_" + case_name;
         std::cout << "-------- Start case " << case_name << " --------" << std::endl;
-        
+
         // 0
         domains.emplace_back();
         basic("uniform", 11, 6, nz, domains.back());
@@ -1435,7 +1436,7 @@ TEST(conduit_blueprint_mesh_combine, uniform)
         for(conduit::index_t i = 0; i < static_cast<conduit::index_t>(domains.size()); i++)
         {
             domains[i]["state/domain_id"] = i;
-            mesh0[(i < 10) 
+            mesh0[(i < 10)
                 ? ("domain_0000" + std::to_string(i))
                 : ("domain_000" + std::to_string(i))] = domains[i];
         }
@@ -1476,7 +1477,7 @@ TEST(conduit_blueprint_mesh_combine, uniform)
                     domains[i]["coordsets/coords/origin/z"] = 1;
                 }
             }
-            mesh1[(i < 10) 
+            mesh1[(i < 10)
                 ? ("domain_0000" + std::to_string(i))
                 : ("domain_000" + std::to_string(i))] = domains[i];
         }
@@ -1663,7 +1664,7 @@ void create_structured_domain(conduit::Node &out, const int domain_id,
                     coords[idx+1] = origin[1] + temp[reorder[1]];
                     coords[idx+2] = origin[2] + temp[reorder[2]];
                     vfield[id] = id;
-                    
+
                     const double dx = coords[idx]   - g_origin[0];
                     const double dy = coords[idx+1] - g_origin[1];
                     const double dz = coords[idx+2] - g_origin[2];
@@ -1694,7 +1695,7 @@ void create_structured_domain(conduit::Node &out, const int domain_id,
                 coords[idx]   = origin[0] + temp[reorder[0]];
                 coords[idx+1] = origin[1] + temp[reorder[1]];
                 vfield[id] = id;
-                
+
                 const double dx = coords[idx]   - g_origin[0];
                 const double dy = coords[idx+1] - g_origin[1];
                 dist[id] = std::sqrt(dx*dx + dy*dy);
@@ -1720,7 +1721,7 @@ void create_grain_case(conduit::Node &out)
     // For all domains
     const int dims[3] = {3, 4, 2};
     const double g_origin[3] = {0., 0., 0.};
-    
+
     // Cases
     const int origin_x[8] = {0,    1,   0,    1,   0,   1,     0,   1};
     const int origin_y[8] = {0,    0,   1,    1,   0,   0,     1,   1};
@@ -1775,7 +1776,7 @@ TEST(blueprint_mesh_combine, structured)
         const std::string case_name = (is3d) ? "3d" : "2d";
         const std::string file_name = base_name + "_" + case_name;
         conduit::Node braid;
-        conduit::blueprint::mesh::examples::braid("structured", 11, 11, 
+        conduit::blueprint::mesh::examples::braid("structured", 11, 11,
             (is3d) ? 11 : 1, braid);
         save_visit("Braid" + case_name + "Structured", braid);
 
@@ -1964,7 +1965,7 @@ TEST(blueprint_mesh_combine, structured)
         create_grain_case(grain);
 
         save_visit("combine_structured_grain_3d_input", grain);
-        
+
         conduit::Node opts; opts["target"] = 1;
         conduit::Node output;
         conduit::blueprint::mesh::partition(grain, opts, output);
@@ -2611,7 +2612,7 @@ TEST(conduit_blueprint_mesh_partition, threshold_example)
 
     // lets threshold the boundary mesh, remove any interior to the problem
     // elements
-    
+
     // step 1: create a selection description of the zones we want to keep
 
     // loop over all domains
@@ -2629,14 +2630,14 @@ TEST(conduit_blueprint_mesh_partition, threshold_example)
         std::vector<int64> ele_ids_to_keep;
         for(index_t i=0; i< bndry_vals.number_of_elements(); i++)
         {
-            // this is our criteria to "keep" and element 
+            // this is our criteria to "keep" and element
             if(bndry_vals[i] == 1)
             {
                 ele_ids_to_keep.push_back(i);
             }
         }
 
-        // add selection description 
+        // add selection description
         Node &d_sel = opts["selections"].append();
         d_sel["type"] = "explicit";
         d_sel["domain_id"] = domain_id;
@@ -2958,8 +2959,7 @@ TEST(conduit_blueprint_mesh_partition, partition_single_group)
     conduit::Node mesh;
     for(int d = 0; d < 3; d++)
     {
-        char name[32];
-        sprintf(name, "domain_%05d", d);
+        std::string name = conduit_fmt::format("domain_{:05}",d);
         conduit::Node &dom = mesh[name];
         const int nnodes = dims[d][0] * dims[d][1];
 
@@ -2981,7 +2981,7 @@ TEST(conduit_blueprint_mesh_partition, partition_single_group)
         dom["fields/single_group/values/group0"].set(conduit::DataType::int32(nnodes));
         int *sg = dom["fields/single_group/values/group0"].as_int_ptr();
         std::iota(sg, sg + nnodes, 0);
-    }  
+    }
 
     // Repartition the mesh from 3 domains into 2 domains.
     conduit::Node part, options;

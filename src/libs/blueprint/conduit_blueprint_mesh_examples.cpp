@@ -960,7 +960,9 @@ fill_corner_point(Node& n,
         }
     }
 
-    if (x != nullptr && (dims == 1 || y != nullptr && (dims == 2 || z != nullptr)))
+    if ((x != nullptr) &&
+        (dims == 1 || y != nullptr) &&
+        (dims == 2 || z != nullptr))
     {
         an[0] = x[idx];
         if (dims > 1)
@@ -995,15 +997,12 @@ braid_init_explicit_lerp_coordset(index_t npts_x,
 {
     coords["type"] = "explicit";
 
-    index_t npts = npts_x;
     index_t dims = 1;
     if (npts_y > 0)
     {
-        npts *= npts_y;
         dims = 2;
         if (npts_z > 1)
         {
-            npts *= npts_z;
             dims = 3;
         }
     }
@@ -1179,7 +1178,7 @@ braid_init_example_adjset(Node &mesh)
     // where the set of domains comprising that border is the key and the value is
     // a vector (one for each domain) of vectors (the indices of the border points
     // in that domain).
-    // 
+    //
     // In the map value, the order of domains (the outer vector) is determined by
     // the iterator over the key (the set of owning domains).  The main point is
     // that the order of the inner vectors (the points in that domain) is consistent.
@@ -1789,7 +1788,6 @@ braid_bent_quads(const Node & spec, Node &res)
 
     int32 nele_x = (int32)(npts_x - 1);
     int32 nele_y = (int32)(npts_y - 1);
-    int32 nele = nele_x * nele_y;
 
     braid_init_example_state(res);
     res["state/domain_id"] = domain_id;
@@ -2648,7 +2646,6 @@ braid_bent_hexs(const Node & spec, Node &res)
     int32 nele_x = (int32)(npts_x - 1);
     int32 nele_y = (int32)(npts_y - 1);
     int32 nele_z = (int32)(npts_z - 1);
-    int32 nele = nele_x * nele_y * nele_z;
 
     braid_init_example_state(res);
     res["state/domain_id"] = domain_id;

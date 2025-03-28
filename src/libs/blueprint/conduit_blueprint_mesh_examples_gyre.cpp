@@ -59,7 +59,7 @@ void gyre(index_t nx_verts,
           Node &res)
 {
     res.reset();
-    
+
     // min of two verts for each dim
 
     // create a uniform coordset
@@ -111,7 +111,7 @@ void gyre(index_t nx_verts,
         {
             // scale y to 0-1
             float64 y_n = float64(y)/float64(ny_verts);
-            float64 y_t = sin(PI_VALUE * y_n);
+
             for(index_t x=0; x < nx_verts; x++)
             {
                 // scale x to 0-1

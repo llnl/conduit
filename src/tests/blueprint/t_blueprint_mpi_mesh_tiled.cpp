@@ -18,6 +18,8 @@
 #include "conduit_relay_mpi_io_blueprint.hpp"
 #include "conduit_log.hpp"
 
+#include "conduit_fmt/conduit_fmt.h"
+
 #include "blueprint_test_helpers.hpp"
 #include "blueprint_mpi_test_helpers.hpp"
 
@@ -118,11 +120,15 @@ make_tiled(conduit::Node &mesh, const int dims[3], const int domains[3],
 
             if(ndoms > 1)
             {
-                char domainName[64];
+                std::string domainName;
                 if(!domainNumbering.empty())
-                    sprintf(domainName, "domain_%07d", domainNumbering[domainIndex]);
+                {
+                    domainName = conduit_fmt::format("domain_{:07}",domainNumbering[domainIndex]);
+                }
                 else
-                    sprintf(domainName, "domain_%07d", domainIndex);
+                {
+                    domainName = conduit_fmt::format("domain_{:07}",domainIndex);
+                }
                 conduit::Node &dom = mesh[domainName];
                 conduit::blueprint::mesh::examples::tiled(dims[0], dims[1], dims[2], dom, opts);
             }

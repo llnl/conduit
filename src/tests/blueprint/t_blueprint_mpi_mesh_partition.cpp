@@ -16,6 +16,8 @@
 #include "conduit_relay.hpp"
 #include "conduit_log.hpp"
 
+#include "conduit_fmt/conduit_fmt.h"
+
 #include <math.h>
 #include <iostream>
 #include "gtest/gtest.h"
@@ -117,9 +119,7 @@ void make_spiral(int ndoms, conduit::Node &n)
 std::string
 rank_str(int rank)
 {
-    char tmp[20];
-    sprintf(tmp, "%02d", rank);
-    return std::string(tmp);
+    return conduit_fmt::format("{:02}",rank);
 }
 
 //-----------------------------------------------------------------------------
@@ -355,7 +355,7 @@ TEST(blueprint_mesh_mpi_partition, split_single)
         EXPECT_EQ(compare_baseline(b00, output), true);
 #endif
     }
-    
+
     // Go from 1 to 5 domains
     const char *opt1 =
 "target: 5";
@@ -648,7 +648,7 @@ TEST(blueprint_mesh_mpi_partition, invalid_selections)
     int ndomains[] = {3,2,1,1};
     distribute_domains(rank, ndomains, spiral, input);
 
-const char *opt0 = 
+const char *opt0 =
 "selections:\n"
 "   -\n"
 "     type: lksdhskdlf\n"
