@@ -1006,7 +1006,6 @@ convert_coordset_to_explicit(const std::string &base_type,
         // rectilinear transform case.
         const Node &src_cvals_node = coordset.has_child("values") ?
             coordset["values"][csys_axis] : info;
-        // new
         float64_accessor src_cvals_acc = src_cvals_node.value();
         // NOTE: The following values are specific to the
         // uniform transform case.
@@ -1027,7 +1026,6 @@ convert_coordset_to_explicit(const std::string &base_type,
 
         float64_accessor dst_cvals_acc = dst_cvals_node.value();
 
-        Node src_cval_node, dst_cval_node;
         for(index_t d = 0; d < dim_lens[i]; d++)
         {
             index_t doffset = d * dim_block_size;
