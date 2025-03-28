@@ -1482,6 +1482,8 @@ void write_mesh(const Node &mesh,
             //              << " details\n"
             //              << books.to_yaml();
             // }
+            // void twirls warning for general case
+            (void)twirls;
 
             // check if we have another round
             // stop when all batons are -1

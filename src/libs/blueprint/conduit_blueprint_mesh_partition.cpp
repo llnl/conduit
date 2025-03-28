@@ -180,7 +180,7 @@ Selection::length(const conduit::Node &/*n_mesh*/) const
 bool
 Selection::get_whole(const conduit::Node &n_mesh)
 {
-    // If we have not yet determined whether the selection appears whole, 
+    // If we have not yet determined whether the selection appears whole,
     // do it now.
     if(whole == WHOLE_UNDETERMINED)
         set_whole(determine_is_whole(n_mesh));
@@ -352,8 +352,8 @@ public:
     // Computes the number of cells in the selection.
     virtual index_t length(const conduit::Node &/*n_mesh*/) const override
     {
-        return cells_for_axis(0) * 
-               cells_for_axis(1) * 
+        return cells_for_axis(0) *
+               cells_for_axis(1) *
                cells_for_axis(2);
     }
 
@@ -490,7 +490,7 @@ SelectionLogical::applicable(const conduit::Node &n_mesh)
 
         bool is_uniform = n_coords["type"].as_string() == "uniform";
         bool is_rectilinear = n_coords["type"].as_string() == "rectilinear";
-        bool is_structured = n_coords["type"].as_string() == "explicit" && 
+        bool is_structured = n_coords["type"].as_string() == "explicit" &&
                              n_topo["type"].as_string() == "structured";
         if(is_uniform || is_rectilinear || is_structured)
         {
@@ -898,7 +898,7 @@ SelectionExplicit::get_element_ids(const conduit::Node &n_mesh,
     {
         const conduit::Node &n_topo = selected_topology(n_mesh);
         auto topolen = topology::length(n_topo);
-        
+
         auto n = ids_storage.dtype().number_of_elements();
         auto indices = get_indices();
         element_ids.reserve(n);
@@ -1752,7 +1752,7 @@ Partitioner::create_selection_all_elements(const conduit::Node &n_mesh) const
     // Does the topo+coordset combo look structured?
     bool is_uniform = n_coords["type"].as_string() == "uniform";
     bool is_rectilinear = n_coords["type"].as_string() == "rectilinear";
-    bool is_structured = n_coords["type"].as_string() == "explicit" && 
+    bool is_structured = n_coords["type"].as_string() == "explicit" &&
                          n_topo["type"].as_string() == "structured";
 
     if(is_uniform || is_rectilinear || is_structured)
@@ -1966,7 +1966,7 @@ Partitioner::initialize(const conduit::Node &n_mesh,
     {
         // We are likely using all domains on this rank and on all ranks,
         // so we need to sum the number of domains to arrive at the target.
-        // Or, we did not pass target and had valid selections. Or, we 
+        // Or, we did not pass target and had valid selections. Or, we
         // had an invalid target. In any case, we sum the number of valid
         // selections.
         target = count_targets();
@@ -3077,7 +3077,7 @@ Partitioner::extract(size_t idx, const conduit::Node &n_mesh, std::vector<index_
             create_new_explicit_coordset(n_coordset, vertex_ids, n_new_coordsets[csname]);
 
             // Create a new topology consisting of the selected element ids.
-            create_new_unstructured_topo(n_topo, csname, 
+            create_new_unstructured_topo(n_topo, csname,
                 element_ids, vertex_ids, n_new_topos[n_topo.name()]);
         }
 
@@ -3570,7 +3570,7 @@ Partitioner::unstructured_topo_from_unstructured(const conduit::Node &n_topo,
             n_new_topo["elements/element_types"].set(n_topo["elements/element_types"]);
             n_new_topo["elements/element_index/stream_ids"].set(new_stream_ids);
             n_new_topo["elements/element_index/element_counts"].set(new_element_counts);
-            n_new_topo["elements/stream"].set(new_conn);            
+            n_new_topo["elements/stream"].set(new_conn);
         }
         else
         {
@@ -4459,7 +4459,7 @@ Partitioner::starting_index(const std::vector<Partitioner::Chunk> &/*chunks*/)
 void
 Partitioner::map_chunks(const std::vector<Partitioner::Chunk> &chunks,
     std::vector<int> &dest_ranks,
-    std::vector<int> &dest_domain, 
+    std::vector<int> &dest_domain,
     std::vector<int> &offsets)
 {
     // All data for this rank begins at offset 0.
@@ -4673,7 +4673,7 @@ namespace coordset
 class point_merge
 {
 public:
-    void execute(const std::vector<const conduit::Node *> &coordsets, 
+    void execute(const std::vector<const conduit::Node *> &coordsets,
                  double tolerance,
                  Node &output);
 
@@ -6778,7 +6778,7 @@ public:
         }
 
         tolerance = merge_tolerance;
-        
+
         if(mode == CombineImplicitMode::Structured)
         {
             retval = combine_structured_impl(n_meshes, original_element_ids, original_vertex_ids, output);
@@ -7069,7 +7069,7 @@ private:
     /**
     @brief Inspects the given face ids and permutation id to determine
       how the two meshes will need to be oriented in the resulting combination.
-    
+
       The *order variables will hold a mapping from local_dims to global dims
       IE: (i,j,k) -> (k,j,i) would be represented as [2,1,0]
 
@@ -7077,8 +7077,8 @@ private:
       IE: (i,j,k) -> (-k,j,-i) would be represented as [1,0,1].
     */
     void
-    lookup_case(const index_t lhs_face, const index_t rhs_face, 
-        const index_t rhs_permutation, 
+    lookup_case(const index_t lhs_face, const index_t rhs_face,
+        const index_t rhs_permutation,
         index_t *lhs_order, int *lhs_reverse,
         index_t *rhs_order, int *rhs_reverse) const
     {
@@ -7143,7 +7143,7 @@ private:
             {
                 lhs_reverse[dim_lhs] = true;
             }
-            
+
             // Opposite applies for RHS
             if(rhs_matched_dim_value == 1)
             {
@@ -7177,7 +7177,7 @@ private:
             {
                 lhs_reverse[dim_lhs] = true;
             }
-            
+
             // Opposite applies for RHS
             if(rhs_matched_dim_value == 1)
             {
@@ -7195,9 +7195,9 @@ private:
         std::vector<vec> &out_bb) const
     {
         std::array<index_t, MAXDIM> dims;
-        mesh::utils::topology::logical_dims(n_mesh.fetch_existing(topo_path), 
+        mesh::utils::topology::logical_dims(n_mesh.fetch_existing(topo_path),
             dims.data(), MAXDIM);
-        
+
         // Want to work in vertex dims here
         for(index_t &d : dims) d += 1;
 
@@ -7277,8 +7277,8 @@ private:
         permuting the faces of rhs if necessary.
     */
     bool match_structured_faces(
-                const combine_structured_data_t &lhs, 
-                const combine_structured_data_t &rhs, 
+                const combine_structured_data_t &lhs,
+                const combine_structured_data_t &rhs,
                 index_t &lhs_face_id, index_t &rhs_face_id, index_t &perm) const
     {
         const double t2    = tolerance*tolerance;
@@ -7793,7 +7793,7 @@ private:
                                 Schema s;
                                 for(index_t dj = 0; dj < dimension; dj++)
                                 {
-                                    s[axes[dj]].set(DataType(out_dtype.id(), dim_sizes[dj], offset, 
+                                    s[axes[dj]].set(DataType(out_dtype.id(), dim_sizes[dj], offset,
                                         out_dtype.element_bytes(), out_dtype.element_bytes(), out_dtype.endianness()));
                                     offset += out_dtype.element_bytes() * dim_sizes[dj];
                                 }
@@ -7865,8 +7865,8 @@ private:
     bool
     combine_structured_impl(
             const std::vector<const Node *> &n_meshes,
-            const std::string &original_element_ids,
-            const std::string &original_vertex_ids,
+            const std::string &/*original_element_ids*/,
+            const std::string &/*original_vertex_ids*/,
             Node &output) const
     {
         // Cannot use axis-aligned bounding boxes for structured grids
@@ -7908,7 +7908,7 @@ private:
                     ovid["topology"] = "mesh";
                     ovid["values"].set_external(mesh["coordsets/coords/pointmaps"]);
                 }
-                std::ofstream f_out("combine_structured_iteration." + 
+                std::ofstream f_out("combine_structured_iteration." +
                     ((iteration < 10) ? ("0000" + std::to_string(iteration)) : ("000" + std::to_string(iteration)))
                     + ".yaml");
                 temp.to_string_stream(f_out);
@@ -7935,7 +7935,7 @@ private:
                     index_t ej_face = 0;
                     index_t ej_permutation = 0;
                     bool match_found = match_structured_faces(
-                        meshes_and_bbs[ei], meshes_and_bbs[ej], 
+                        meshes_and_bbs[ei], meshes_and_bbs[ej],
                         ei_face, ej_face, ej_permutation);
 
                     if(match_found)
@@ -7959,7 +7959,7 @@ private:
                         }
 
                     #ifdef DEBUG_STRUCTURED_COMBINE
-                        std::cout << "Matched faces " << n_meshi->fetch_existing("id").to_index_t() << ":" << ei_face 
+                        std::cout << "Matched faces " << n_meshi->fetch_existing("id").to_index_t() << ":" << ei_face
                             << " to " << n_meshj->fetch_existing("id").to_index_t() << ":" << ej_face << ":"
                             << ej_permutation << std::endl;
                     #endif
@@ -8141,7 +8141,7 @@ private:
 
                         // Creates the "new_mesh" and handling orientation cases
                         combine_structured_submeshes(
-                            *n_lhs, *n_rhs, dims_lhs.data(), 
+                            *n_lhs, *n_rhs, dims_lhs.data(),
                             dims_rhs.data(), lhs_face, rhs_face, ej_permutation,
                             new_mesh);
 
@@ -8213,8 +8213,8 @@ private:
         std::array<index_t, MAXDIM> order_rhs{0,1,2};
         std::array<int, MAXDIM>     reverse_lhs{0,0,0};
         std::array<int, MAXDIM>     reverse_rhs{0,0,0};
-        lookup_case(face_lhs, face_rhs, perm_rhs, 
-            order_lhs.data(), reverse_lhs.data(), 
+        lookup_case(face_lhs, face_rhs, perm_rhs,
+            order_lhs.data(), reverse_lhs.data(),
             order_rhs.data(), reverse_rhs.data());
         std::array<index_t, MAXDIM> new_dims{1, 1, 1};
         for(index_t i = 0; i < dimension; i++)
@@ -8290,7 +8290,7 @@ private:
             // RHS will be tranformed to exist in LHS' ijk space
             std::array<index_t, MAXDIM> offsets{0,0,0};
             offsets[matched_dim] = dims_lhs[matched_dim] - 1;
-            map_structured_verts_elems(domain_lookup[1], new_dims.data(), 
+            map_structured_verts_elems(domain_lookup[1], new_dims.data(),
                 dims_rhs, order_rhs.data(), reverse_rhs.data(), offsets.data(),
                 orig_vert_domains, orig_vert_ids, elem_map);
         }
@@ -8318,7 +8318,7 @@ private:
                         DataType(n_vals_lhs[d].dtype().id(),1),
                         const_cast<void*>(n_vals_lhs[d].element_ptr(id)));
                     temp1.to_data_type(out_vals[d].dtype().id(), temp2);
-                    std::memcpy(out_vals[d].element_ptr(i), 
+                    std::memcpy(out_vals[d].element_ptr(i),
                         temp2.element_ptr(0),
                         temp2.dtype().element_bytes());
                 }
@@ -8338,7 +8338,7 @@ private:
                         DataType(n_vals_rhs[d].dtype().id(),1),
                         const_cast<void*>(n_vals_rhs[d].element_ptr(id)));
                     temp1.to_data_type(out_vals[d].dtype().id(), temp2);
-                    std::memcpy(out_vals[d].element_ptr(i), 
+                    std::memcpy(out_vals[d].element_ptr(i),
                         temp2.element_ptr(0),
                         temp2.dtype().element_bytes());
                 }
@@ -9478,8 +9478,8 @@ Partitioner::recommended_topology(const std::vector<const Node *> &inputs,
 
     // Redefine these here because the order matters
     static const std::array<std::string, 3> coordset_types = {
-        "uniform", 
-        "rectilinear", 
+        "uniform",
+        "rectilinear",
         "explicit"
     };
 
@@ -9570,7 +9570,7 @@ group_coordsets(const std::vector<const Node *> inputs)
             const Node *cset = csets->fetch_ptr(cset_name);
             if(!cset) { continue; }
 
-            auto itr = std::find_if(coordset_groups.begin(), coordset_groups.end(), 
+            auto itr = std::find_if(coordset_groups.begin(), coordset_groups.end(),
                 [&cset_name](const cset_group_t &a)
             {
                 return a.first == cset_name;
@@ -10460,7 +10460,7 @@ Partitioner::combine_as_unstructured(const std::string &topo_name,
         // Make sure we have the correct number of point maps
         if(pointmaps.number_of_children() != (index_t)working_topologies.size())
         {
-            CONDUIT_ERROR("Number of input pointmaps and number of input topologies do not match! " 
+            CONDUIT_ERROR("Number of input pointmaps and number of input topologies do not match! "
                 << pointmaps.number_of_children() << " != " << working_topologies.size());
             return;
         }
