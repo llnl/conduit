@@ -934,7 +934,8 @@ void
 convert_coordset_to_rectilinear(const std::string &/*base_type*/,
                                 const conduit::Node &coordset,
                                 conduit::Node &dest)
-{
+{ 
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     // bool is_base_uniform = true;
 
     dest.reset();
@@ -961,6 +962,7 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
         Node src_cval_node, dst_cval_node;
         for(index_t d = 0; d < dim_len; d++)
         {
+            // TODO: USE ACCESSORS
             src_cval_node.set(dim_origin + d * dim_spacing);
             dst_cval_node.set_external(float_dtype, dst_cvals_node.element_ptr(d));
             src_cval_node.to_data_type(float_dtype.id(), dst_cval_node);
@@ -1726,6 +1728,7 @@ calculate_unstructured_centroids(const conduit::Node &topo,
         auto n = static_cast<int64>(topo_num_elems);
         for(ei_value = 0; ei_value < n; ei_value++)
         {
+            // TODO: USE ACCESSORS
             // Use data_node to wrap connectivity[ei].
             data_node.set_external(int_dtype, dest_elem_conn.element_ptr(ei_value));
             // Convert ei_data to int, store in data_node.
@@ -3047,6 +3050,7 @@ generate_derived_entities(conduit::Node &mesh,
             index_t ni = 0;
             for(auto nitr = group_nidxs.begin(); nitr != group_nidxs.end(); ++nitr)
             {
+                // TODO: USE ACCESSORS
                 src_data.set_external(DataType::index_t(1),
                     (void*)&(*nitr));
                 dst_data.set_external(DataType(src_neighbors_dtype.id(), 1),
@@ -3057,6 +3061,7 @@ generate_derived_entities(conduit::Node &mesh,
             dst_values.set(DataType(src_values_dtype.id(), group_entities.size()));
             for(index_t ei = 0; ei < (index_t)group_entities.size(); ei++)
             {
+                // TODO: USE ACCESSORS
                 src_data.set_external(DataType::index_t(1),
                     (void*)&std::get<1>(group_entities[ei]));
                 dst_data.set_external(DataType(src_values_dtype.id(), 1),
@@ -3386,6 +3391,7 @@ generate_decomposed_entities(conduit::Node &mesh,
             index_t ni = 0;
             for(auto nitr = group_nidxs.begin(); nitr != group_nidxs.end(); ++nitr)
             {
+                // TODO: USE ACCESSORS
                 src_data.set_external(DataType::index_t(1),
                     (void*)&(*nitr));
                 dst_data.set_external(DataType(src_neighbors_dtype.id(), 1),
@@ -3396,6 +3402,7 @@ generate_decomposed_entities(conduit::Node &mesh,
             dst_values.set(DataType(src_values_dtype.id(), group_entities.size()));
             for(index_t ei = 0; ei < (index_t)group_entities.size(); ei++)
             {
+                // TODO: USE ACCESSORS
                 src_data.set_external(DataType::index_t(1),
                     (void*)&std::get<1>(group_entities[ei]));
                 dst_data.set_external(DataType(src_values_dtype.id(), 1),
@@ -4609,6 +4616,7 @@ mesh::topology::unstructured::to_polygonal(const Node &topo,
                 {
                     for (index_t ii = 0; ii < embed_shape.indices; ii++)
                     {
+                        // TODO: USE ACCESSORS
                         index_t inner_data_off = data_off +
                           topo_shape.embedding[fi * embed_shape.indices + ii];
                         temp.set_external(topo_dtype,
@@ -4640,6 +4648,7 @@ mesh::topology::unstructured::to_polygonal(const Node &topo,
             temp.to_data_type(int_dtype.id(), dest["elements/connectivity"]);
 
             std::vector<int64> polyhedral_size_data(topo_elems, topo_shape.embed_count);
+
             temp.set_external(polyhedral_size_data);
             temp.to_data_type(int_dtype.id(), dest["elements/sizes"]);
 
@@ -4882,7 +4891,7 @@ mesh::topology::unstructured::generate_sides(const Node &topo,
             {
                 const Node &cset_axis = cset["values"][csys_axes[ai]];
                 index_t cset_length = cset_axis.dtype().number_of_elements();
-
+                // TODO: USE ACCESSORS
                 dst_data.set_external(DataType(float_dtype.id(), cset_length),
                     dst_axis.element_ptr(doffset));
                 cset_axis.to_data_type(float_dtype.id(), dst_data);
@@ -4970,6 +4979,7 @@ mesh::topology::unstructured::generate_sides(const Node &topo,
                     side_data_raw[2 + pi] = dim_coord_offsets[parent_dim] + parent_id;
                 }
 
+                // TODO: USE ACCESSORS?
                 misc_data.set_external(DataType(int_dtype.id(), sides_elem_degree),
                     dest_conn.element_ptr(sides_elem_degree * side_index));
                 side_data.to_data_type(int_dtype.id(), misc_data);
@@ -4984,6 +4994,7 @@ mesh::topology::unstructured::generate_sides(const Node &topo,
 
                 int64 side_num_elems = 1;
                 raw_data.set(side_num_elems);
+
                 misc_data.set_external(DataType(int_dtype.id(), 1),
                     d2smap["sizes"].element_ptr(d2s_elem_index++));
                 raw_data.to_data_type(int_dtype.id(), misc_data);
@@ -4994,6 +5005,7 @@ mesh::topology::unstructured::generate_sides(const Node &topo,
 
         int64 elem_num_sides = s2d_val_index - s2d_start_index;
         raw_data.set(elem_num_sides);
+        // TODO: USE ACCESSORS
         misc_data.set_external(DataType(int_dtype.id(), 1),
             s2dmap["sizes"].element_ptr(s2d_elem_index++));
         raw_data.to_data_type(int_dtype.id(), misc_data);
@@ -5733,7 +5745,7 @@ mesh::topology::unstructured::generate_corners(const Node &topo,
             const Node &cset = (di != 0) ? dim_cent_coords[di] : *coordset;
             const Node &cset_axis = cset["values"][csys_axes[ai]];
             index_t cset_length = cset_axis.dtype().number_of_elements();
-
+            // TODO: USE ACCESSORS?
             dst_data.set_external(DataType(float_dtype.id(), cset_length),
                 dst_axis.element_ptr(doffset));
             cset_axis.to_data_type(float_dtype.id(), dst_data);
@@ -5988,6 +6000,7 @@ mesh::topology::unstructured::generate_corners(const Node &topo,
 
     Node raw_data, info;
     {
+        // TODO: USE ACCESSORS?
         raw_data.set_external(
             DataType::int64(conn_data_raw.size()),
             conn_data_raw.data());
