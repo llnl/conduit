@@ -279,8 +279,8 @@ TEST(conduit_blueprint_mesh_transform, topology_transforms)
 
         Node imesh;
         blueprint::mesh::examples::braid(itopology_braid,
-                                         200,
-                                         300,
+                                         2,
+                                         3,
                                          braid_bound_npts_z(itopology_braid,4),
                                          imesh);
         const Node &itopology = imesh["topologies"].child(0);
@@ -297,8 +297,8 @@ TEST(conduit_blueprint_mesh_transform, topology_transforms)
 
             Node jmesh;
             blueprint::mesh::examples::braid(jtopology_braid,
-                                             200,
-                                             300,
+                                             2,
+                                             3,
                                              braid_bound_npts_z(jtopology_braid,4),
                                              jmesh);
             Node &jtopology = jmesh["topologies"].child(0);
