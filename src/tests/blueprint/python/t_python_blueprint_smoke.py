@@ -15,8 +15,6 @@ import conduit.blueprint as blueprint
 class Test_Blueprint_Basic(unittest.TestCase):
     def test_about(self):
         print(blueprint.about())
-        print("ahshadhahdhasd")
-        print(blueprint.__file__)
 
 if __name__ == '__main__':
     unittest.main()
