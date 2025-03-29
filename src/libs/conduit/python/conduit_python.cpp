@@ -2656,6 +2656,49 @@ PyConduit_DataType_float64_id(PyObject *) // unused
     return PyLong_FromSsize_t(DataType::FLOAT64_ID);
 }
 
+//-----------------------------------------------------------------------------
+static PyObject *
+PyConduit_DataType_element_stride(PyConduit_DataType *self)
+{
+    return PyLong_FromSsize_t(self->dtype.element_stride());
+}
+
+//-----------------------------------------------------------------------------
+static PyObject *
+PyConduit_DataType_is_stride_element_aligned(PyConduit_DataType *self)
+{
+    if(self->dtype.is_stride_element_aligned())
+    {
+        Py_RETURN_TRUE;
+    }
+    else
+    {
+        Py_RETURN_FALSE;
+    }
+}
+
+//-----------------------------------------------------------------------------
+static PyObject *
+PyConduit_DataType_is_stride_aligned(PyConduit_DataType *self,
+                                     PyObject *args)
+{
+    Py_ssize_t nbytes;
+    if (!PyArg_ParseTuple(args, "n", &nbytes))
+    {
+        PyErr_SetString(PyExc_TypeError,
+                        "nbytes must be an integer");
+        return NULL;
+    }
+
+    if(self->dtype.is_stride_aligned((index_t)nbytes))
+    {
+        Py_RETURN_TRUE;
+    }
+    else
+    {
+        Py_RETURN_FALSE;
+    }
+}
 
 //----------------------------------------------------------------------------//
 // DataType methods table
@@ -2725,6 +2768,21 @@ static PyMethodDef PyConduit_DataType_METHODS[] = {
      (PyCFunction)PyConduit_DataType_element_bytes,
      METH_NOARGS,
      "Returns the number of bytes per element property of this DataType"},
+    //-----------------------------------------------------------------------//
+    {"element_stride",
+     (PyCFunction)PyConduit_DataType_element_stride,
+     METH_NOARGS,
+     "Returns the element stride (stride / element_bytes) property of this DataType"},
+    //-----------------------------------------------------------------------//
+    {"is_stride_element_aligned",
+     (PyCFunction)PyConduit_DataType_is_stride_element_aligned,
+     METH_NOARGS,
+     "Returns whether the stride is aligned with element boundaries (stride % element_bytes == 0)"},
+    //-----------------------------------------------------------------------//
+    {"is_stride_aligned",
+     (PyCFunction)PyConduit_DataType_is_stride_aligned,
+     METH_VARARGS,
+     "Returns whether the stride is aligned with the given number of bytes (stride % nbytes == 0)"},
     //-----------------------------------------------------------------------//
     {"endianness",
      (PyCFunction)PyConduit_DataType_endianness,

@@ -18,6 +18,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Changed
 #### Conduit
 - Changed Conduit memory handler callbacks from function pointers to `std::function` objects, allowing users more flexibility in dealing with different memory spaces.
+- Added element stride helper methods to the DataType class.
 
 #### Relay
 - Ported relay and blueprint zfp support to use zfp 1.0 api. Added extra meta data to zfparray blueprint protocol to support roundtrip wrapping and unwrapping with zfp 1.0 api.

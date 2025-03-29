@@ -1050,6 +1050,53 @@ DataType::element_index(conduit::index_t idx) const
     return m_offset + m_stride * idx;
 }
 
+//---------------------------------------------------------------------------//
+conduit::index_t
+DataType::element_stride() const
+{
+    // Check for zero to avoid division by zero
+    if(m_ele_bytes == 0)
+    {
+        return 0;
+    }
+    
+    return m_stride / m_ele_bytes;
+}
+
+//---------------------------------------------------------------------------//
+bool
+DataType::is_stride_element_aligned() const
+{
+    // If element_bytes is zero, we can't determine alignment
+    if(m_ele_bytes == 0)
+    {
+        return false;
+    }
+    
+    // Test if stride is a multiple of element_bytes
+    return (m_stride % m_ele_bytes) == 0;
+}
+
+//---------------------------------------------------------------------------//
+bool
+DataType::is_stride_aligned(conduit::index_t nbytes) const
+{
+    // If nbytes is zero, we can't determine alignment
+    if(nbytes == 0)
+    {
+        return false;
+    }
+    
+    // For zero stride (empty case), consider it aligned with everything
+    if(m_stride == 0)
+    {
+        return true;
+    }
+    
+    // Test if stride is a multiple of nbytes
+    return (m_stride % nbytes) == 0;
+}
+
 //-----------------------------------------------------------------------------
 // TypeID to string and string to TypeId
 //-----------------------------------------------------------------------------
