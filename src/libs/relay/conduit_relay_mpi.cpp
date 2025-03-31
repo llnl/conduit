@@ -1946,10 +1946,6 @@ memory_usage(Node &info,
     info.reset();
     int com_size = mpi::size(comm);
 
-    // Node n;
-    // n.set(conduit::utils::memory_usage());
-    // int mpi_error = mpi::all_gather(n,info,comm);
-
     uint64 musage =conduit::utils::memory_usage();
 
     void *musage_ptr = static_cast<void*>(&musage);
