@@ -934,7 +934,7 @@ void
 convert_coordset_to_rectilinear(const std::string &/*base_type*/,
                                 const conduit::Node &coordset,
                                 conduit::Node &dest)
-{
+{ 
     CONDUIT_ANNOTATE_MARK_FUNCTION;
     // bool is_base_uniform = true;
 
@@ -1306,7 +1306,7 @@ convert_topology_to_unstructured(const std::string &base_type,
  @param n The number of values in the sequence.
  @param mask A buffer in which to store the mask. It must have at least n
              elements.
-
+ 
  @return True if there were dups; False otherwise.
 
  @note This function could be useful in a few places. I might move it later.
@@ -1768,9 +1768,9 @@ calculate_unstructured_centroids(const conduit::Node &topo,
             float64 *typed_dest_centroid[3] = {nullptr, nullptr, nullptr};
             for(index_t ai = 0; ai < csys_axes_size; ai++)
                 typed_dest_centroid[ai] = reinterpret_cast<float64 *>(dest_centroid[ai]->element_ptr(0));
-
+            
             unstructured_centroid_polyhedral(topo_shape,
-                topo_conn_access, topo_offsets_access, topo_sizes_access,
+                topo_conn_access, topo_offsets_access, topo_sizes_access, 
                 topo_subconn_access, topo_suboffsets_access, topo_subsizes_access,
                 topo_num_elems,
                 axis_data_access, csys_axes_size,
@@ -1807,7 +1807,7 @@ calculate_unstructured_centroids(const conduit::Node &topo,
             float64 *typed_dest_centroid[3] = {nullptr, nullptr, nullptr};
             for(index_t ai = 0; ai < csys_axes_size; ai++)
                 typed_dest_centroid[ai] = reinterpret_cast<float64 *>(dest_centroid[ai]->element_ptr(0));
-
+            
             unstructured_centroid(topo_shape,
                 topo_conn_access, topo_offsets_access, topo_sizes_access, topo_num_elems,
                 axis_data_access, csys_axes_size,
@@ -2624,7 +2624,7 @@ mesh::generate_strip(conduit::Node &mesh,
 }
 
 
-void
+void 
 mesh::generate_strip(const conduit::Node& topo,
                      conduit::Node& topo_dest,
                      conduit::Node& coords_dest,
@@ -2826,7 +2826,7 @@ group_domains_and_maps(conduit::Node &mesh, conduit::Node &s2dmap, conduit::Node
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-// -- Top level generate methods that support multi domain meshes --
+// -- Top level generate methods that support multi domain meshes -- 
 // These were moved from conduit::blueprint::mpi, b/c the do not depend on mpi
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -2847,7 +2847,7 @@ group_domains_and_maps(conduit::Node &mesh, conduit::Node &s2dmap, conduit::Node
         epsilon deltas across domain boundaries) and exchanging entity query
         topologies.
 
-
+        
         The query is passed in so parallel functions can pass in a parallel
         version of the MatchQuery.
 
@@ -2951,7 +2951,7 @@ generate_derived_entities(conduit::Node &mesh,
         for(index_t ei = 0; ei < dst_topo_len; ei++)
         {
             // if we are dealing with anything but points
-            // we don't want to include duplicated entities
+            // we don't want to include duplicated entities 
             // (that means they are internal to the domain)
             std::vector<index_t> entity_pidxs = bputils::topology::unstructured::points(dst_topo, ei);
             if(d2s_sizes[ei] < 2 || entity_pidxs.size() == 1)
@@ -3225,7 +3225,7 @@ generate_decomposed_entities(conduit::Node &mesh,
 
         // Organize Adjset Points into Interfaces (Pair-Wise Groups) //
         //
-        //   Iterate over all adjset groups and build a list of vertex ids for
+        //   Iterate over all adjset groups and build a list of vertex ids for 
         //   each neighbor (neighbor_pidxs). Each list of vertex ids contains
         //   vertices in the main topology's coordset. The vertex ids will
         //   probably also all live on the external surfaces of the domain.
@@ -5169,7 +5169,7 @@ namespace detail
                 vec3 d = vec3(static_cast<float64>(coords_x[connec[i * 4 + 3]]),
                               static_cast<float64>(coords_y[connec[i * 4 + 3]]),
                               static_cast<float64>(coords_z[connec[i * 4 + 3]]));
-
+                
                 tri_volumes[i] = tetrahedron_volume(a,b,c,d);
             }
         }
@@ -5507,8 +5507,8 @@ namespace detail
 
                 int field_out_size = vert_assoc ? new_num_points : new_num_shapes;
 
-                // If we are volume dependent or vertex associated, we do not care what
-                // the original type of the fields was. We are going to make brand new
+                // If we are volume dependent or vertex associated, we do not care what 
+                // the original type of the fields was. We are going to make brand new 
                 // fields that have type float64.
                 if (vol_dep || vert_assoc)
                 {
@@ -6098,7 +6098,7 @@ mesh::topology::unstructured::generate_corners(const Node &topo,
         // TODO(JRC): Implement these counts in-line instead of being lazy and
         // taking care of it at the end of the function w/ a helper.
         generate_offsets_inline(topo_dest);
-
+        
         blueprint::o2mrelation::generate_offsets(s2dmap, info);
         blueprint::o2mrelation::generate_offsets(d2smap, info);
     }
