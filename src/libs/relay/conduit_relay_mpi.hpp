@@ -53,7 +53,7 @@ namespace mpi
 /// Helpers for MPI Params
 //-----------------------------------------------------------------------------
     int CONDUIT_RELAY_API size(MPI_Comm mpi_comm);
-    
+
     int CONDUIT_RELAY_API rank(MPI_Comm mpi_comm);
 
 //-----------------------------------------------------------------------------
@@ -122,13 +122,13 @@ namespace mpi
 //-----------------------------------------------------------------------------
 /// MPI Reduce
 //-----------------------------------------------------------------------------
-    
-    /// MPI reduce and all reduce methods. 
 
-    /// While the input does not need to be compact, 
+    /// MPI reduce and all reduce methods.
+
+    /// While the input does not need to be compact,
     /// reductions require all MPI ranks have identical compact representations.
 
-    /// These methods do not check across ranks for identical compact 
+    /// These methods do not check across ranks for identical compact
     /// representation.
 
     /// Conduit empty, object, and list dtypes can not be reduced.
@@ -136,9 +136,9 @@ namespace mpi
     /// If the send_node is not compact, it will be compacted prior to sending.
 
     /// for reduce on the root rank and all_reduce for all ranks:
-    ///   if the recv_node is compatible but not compact, data will be placed 
-    ///   into a compact buffer, then read back out into the recv_node node. 
-    /// 
+    ///   if the recv_node is compatible but not compact, data will be placed
+    ///   into a compact buffer, then read back out into the recv_node node.
+    ///
     ///   if the recv_node is not compatible, it will be reset to
     ///   a compact compatible type.
 
@@ -157,7 +157,7 @@ namespace mpi
 //-----------------------------------------------------------------------------
 /// MPI Reduce Helpers
 //-----------------------------------------------------------------------------
-    
+
     int CONDUIT_RELAY_API sum_reduce(const Node &send_node,
                                      Node &recv_node,
                                      int root,
@@ -180,7 +180,7 @@ namespace mpi
                                       MPI_Comm comm);
 
 
-    
+
     int CONDUIT_RELAY_API sum_all_reduce(const Node &send_node,
                                          Node &recv_node,
                                          MPI_Comm comm);
@@ -226,7 +226,7 @@ namespace mpi
 
     int CONDUIT_RELAY_API wait_send(Request *request,
                                     MPI_Status *status);
-   
+
     int CONDUIT_RELAY_API wait_recv(Request *request,
                                     MPI_Status *status);
 
@@ -261,7 +261,7 @@ namespace mpi
 
     int CONDUIT_RELAY_API gather_using_schema(Node &send_node,
                                               Node &recv_node,
-                                              int root, 
+                                              int root,
                                               MPI_Comm mpi_comm);
 
     int CONDUIT_RELAY_API all_gather_using_schema(Node &send_node,
@@ -279,6 +279,14 @@ namespace mpi
     int CONDUIT_RELAY_API broadcast_using_schema(Node &node,
                                                  int root,
                                                  MPI_Comm comm );
+
+//-----------------------------------------------------------------------------
+/// Memory usage helpers (results in kB)
+//-----------------------------------------------------------------------------
+    /// memory usage per mpi task in kB
+    void memory_usage(Node &info,MPI_Comm comm);
+    ///  min, max, mean memory usage across mpi tasks
+    void memory_stats(Node &info,MPI_Comm comm);
 
 //-----------------------------------------------------------------------------
 /// Communicate multiple nodes at once using schema

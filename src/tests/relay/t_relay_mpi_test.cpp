@@ -1235,10 +1235,10 @@ TEST(conduit_mpi_test, reuse_of_node_as_input)
 
     int rank = mpi::rank(MPI_COMM_WORLD);
     int com_size = mpi::size(MPI_COMM_WORLD);
-    
+
     int value = 0;
     std::string msg;
-    
+
     if(rank == 0)
     {
         value = 1;
@@ -1275,9 +1275,9 @@ TEST(conduit_mpi_test, reduce_compat_check)
 
     int rank = mpi::rank(MPI_COMM_WORLD);
     int com_size = mpi::size(MPI_COMM_WORLD);
-    
+
     int value = 0;
-    
+
     if(rank == 0)
     {
         value = 1;
@@ -1302,6 +1302,46 @@ TEST(conduit_mpi_test, reduce_compat_check)
 
     EXPECT_FALSE(n_global.diff(n_expected,info));
 
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_mpi_test, mem_info)
+{
+    Node alloc_help;
+    Node usage_prev, stats_prev, usage_curr, stats_curr;
+
+    relay::mpi::memory_usage(usage_prev,MPI_COMM_WORLD);
+    relay::mpi::memory_stats(stats_prev,MPI_COMM_WORLD);
+
+    if(rank == 0)
+    {
+        alloc_help.set(DataType::uint8(2*1024*1024);
+    }
+    else
+    {
+        alloc_help.set(DataType::uint8(5*1024*1024));
+    }
+
+    relay::mpi::memory_usage(usage_curr,MPI_COMM_WORLD);
+    relay::mpi::memory_stats(stats_curr,MPI_COMM_WORLD);
+
+    if(rank == 0)
+    {
+        std::cout << "rank 0: ";
+        std::cout << "mem_usage - prev: " << usage_prev.to_yaml();
+        std::cout << "mem_usage - curr: " << usage_curr.to_yaml();
+        std::cout << "mem_stats - prev: " << stats_prev.to_yaml();
+        std::cout << "mem_stats - curr: " << stats_curr.to_yaml();
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    if(rank == 1)
+    {
+        std::cout << "rank 1: ";
+        std::cout << "mem_usage - prev: " << usage_prev.to_yaml();
+        std::cout << "mem_usage - curr: " << usage_curr.to_yaml();
+        std::cout << "mem_stats - prev: " << stats_prev.to_yaml();
+        std::cout << "mem_stats - curr: " << stats_curr.to_yaml();
+    }
 }
 
 //-----------------------------------------------------------------------------
