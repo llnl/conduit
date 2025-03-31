@@ -54,7 +54,7 @@ from setuptools.command.build_ext import build_ext
 #
 ##############################################################################
 
-CONDUIT_VERSION = '0.9.3'
+CONDUIT_VERSION = '0.9.4'
 
 class CMakeExtension(Extension):
     def __init__(self, name, sourcedir=''):
