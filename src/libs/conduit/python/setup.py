@@ -49,4 +49,6 @@ setup (name = 'conduit',
                  'conduit.relay.io.blueprint',
                  'conduit.relay.io.silo',
                  'conduit.relay.mpi',
+                 'conduit.relay.mpi.io',
+                 'conduit.relay.mpi.io.blueprint',
                  'conduit.relay.web'])

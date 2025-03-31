@@ -918,7 +918,7 @@ PyRelay_io_load(PyObject *, //self
         if(!PyConduit_Node_Check(py_node))
         {
             PyErr_SetString(PyExc_TypeError,
-                            "relay::load 'node' argument must be a "
+                            "relay::io::load 'node' argument must be a "
                             "conduit.Node instance");
             return NULL;
         }
@@ -981,7 +981,7 @@ PyRelay_io_load_merged(PyObject *, //self
         if(!PyConduit_Node_Check(py_node))
         {
             PyErr_SetString(PyExc_TypeError,
-                            "relay::load 'node' argument must be a "
+                            "relay::io::load 'node' argument must be a "
                             "conduit.Node instance");
             return NULL;
         }

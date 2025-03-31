@@ -103,3 +103,40 @@ if(MPI_FOUND)
 
 endif()
 
+#############################################################
+# relay.mpi.io
+#############################################################
+
+if(MPI_FOUND)
+
+    # add io submodule
+    PYTHON_ADD_COMPILED_MODULE(NAME          conduit_relay_mpi_io_python
+                               DEST_DIR      python-modules
+                               PY_MODULE_DIR conduit/relay/mpi/io
+                               SOURCES       conduit_relay_mpi_io_python.cpp
+                                             ${CMAKE_CURRENT_BINARY_DIR}/conduit_relay_python_exports.h
+                               FOLDER        libs/python)
+
+    # compiled modules depend on output dir structure created by main module setup
+    target_link_libraries(conduit_relay_mpi_io_python PRIVATE conduit_python_py_setup)
+
+    # link with the proper libs (beyond python)
+    target_link_libraries(conduit_relay_mpi_io_python PRIVATE conduit conduit_relay_mpi conduit_python_build)
+
+
+    # add io blueprint submodule
+    PYTHON_ADD_COMPILED_MODULE(NAME          conduit_relay_mpi_io_blueprint_python
+                               DEST_DIR      python-modules
+                               PY_MODULE_DIR conduit/relay/mpi/io/blueprint
+                               SOURCES       conduit_relay_mpi_io_blueprint_python.cpp
+                                             ${CMAKE_CURRENT_BINARY_DIR}/conduit_relay_python_exports.h
+                               FOLDER        libs/python)
+
+    # compiled modules depend on output dir structure created by main module setup
+    target_link_libraries(conduit_relay_mpi_io_blueprint_python PRIVATE conduit_python_py_setup)
+
+    # link with the proper libs (beyond python)
+    target_link_libraries(conduit_relay_mpi_io_blueprint_python PRIVATE conduit conduit_relay_mpi conduit_python_build)
+
+endif()
+
