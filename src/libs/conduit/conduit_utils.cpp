@@ -14,7 +14,7 @@
 // -- standard lib includes --
 //-----------------------------------------------------------------------------
 
-// for sleep funcs
+// for sleep and mem usage funcs
 #if defined(CONDUIT_PLATFORM_WINDOWS)
 #define NOMINMAX
 #include <windows.h>
@@ -24,9 +24,17 @@
 #endif
 #undef min
 #undef max
-#else
+// mem usage api
+#include <psapi.h>
+
+#else // not windows
 #include <dirent.h>
 #include <time.h>
+#endif
+
+// for macos memory usage functions
+#if defined(CONDUIT_PLATFORM_APPLE) && defined(__MACH__)
+#include <mach/mach.h>
 #endif
 
 // file system funcs
@@ -113,13 +121,13 @@ namespace detail
     //
     //
     // NOTE: THE SINGLETON INSTANCE IS INTENTIONALLY LEAKED!
-    // 
+    //
     // These maps are used by Node instances to alloc and free
     // memory, they need to exist as long as any Node object exists!
     //
     // We are doing static init correctly here, so we
     // avoid the C++ static obj init fiasco:
-    // https://isocpp.org/wiki/faq/ctors#static-init-order 
+    // https://isocpp.org/wiki/faq/ctors#static-init-order
     //
     // However, we still can't apply fine grained control
     // to when these objects are cleaned up. This means
@@ -131,10 +139,10 @@ namespace detail
     // into the same compilation unit. We tried this
     // but we still hit an on exit cleanup where
     // the alloc maps were destructed, but a static Node
-    // object still needed to cleanup. 
+    // object still needed to cleanup.
     //
     // If leaking this singleton offends your sensibilities,
-    // I am sorry. Ideally, these would be cleaned up on 
+    // I am sorry. Ideally, these would be cleaned up on
     // exit absolutely last - meaning you could never use
     // those few precious bytes for anything else.
     //
@@ -956,7 +964,7 @@ strip_quoted_strings(const std::string &input, const std::string &quote_char)
     for(size_t i = 0; i < input.size(); ++i)
     {
         emit = true;
-        // emit a character when not in a string, including the opening and 
+        // emit a character when not in a string, including the opening and
         // closing quote.
         //
         // check for a quote + start & end of a string
@@ -1665,29 +1673,29 @@ format(const std::string &pattern,
         {
             if(map_index >= curr.number_of_children())
             {
-                 CONDUIT_ERROR("conduit::utils::format map_index " 
+                 CONDUIT_ERROR("conduit::utils::format map_index "
                                << "(value = " << map_index  << ")"
                                << " for '" << itr.name() << "'"
                                << " list map entry "
                                << " is out of bounds."
-                               << " Number of children = " 
+                               << " Number of children = "
                                << curr.number_of_children()
-                               << ". Valid range is [0," 
+                               << ". Valid range is [0,"
                                << curr.number_of_children() << ").");
             }
         }
         else if(curr.dtype().is_number())
-        {            
+        {
             if(map_index >= curr.dtype().number_of_elements())
             {
-                 CONDUIT_ERROR("conduit::utils::format map_index " 
+                 CONDUIT_ERROR("conduit::utils::format map_index "
                                << "(value = " << map_index  << ")"
                                << " for '" << itr.name() << "'"
                                << " array map entry "
                                << " is out of bounds."
-                               << " Number of elements = " 
+                               << " Number of elements = "
                                << curr.dtype().number_of_elements()
-                               << ". Valid range is [0," 
+                               << ". Valid range is [0,"
                                << curr.dtype().number_of_elements() << ").");
             }
         }
@@ -1837,7 +1845,7 @@ format(const std::string &pattern,
                 }
                 break;
             }
-            // support lists of strings ONLY ... 
+            // support lists of strings ONLY ...
             case conduit::DataType::LIST_ID:
             {
                 const Node &lst_ent = curr[map_index];
@@ -1860,7 +1868,7 @@ format(const std::string &pattern,
                 {
                     store.push_back(val);
                 }
-                
+
                 break;
             }
             default:
@@ -1891,6 +1899,45 @@ format(const std::string &pattern,
     return res;
 }
 
+//-----------------------------------------------------------------------------
+index_t
+memory_usage()
+{
+
+#if defined(CONDUIT_PLATFORM_WINDOWS)
+    PROCESS_MEMORY_COUNTERS pmc;
+    if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc)))
+    {
+        return static_cast<index_t>(pmc.WorkingSetSize / 1024);
+    }
+#elif defined(CONDUIT_PLATFORM_APPLE)
+    mach_task_basic_info_data_t info;
+    mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+    kern_return_t ret = task_info(mach_task_self(),
+                                  MACH_TASK_BASIC_INFO,
+                                  task_info_t)&info, &count);
+
+    if (ret == KERN_SUCCESS)
+    {
+        return static_cast<index_t>(info.resident_size / 1024);
+    }
+
+#else //linux, unix, etc
+    std::ifstream file("/proc/self/status");
+    std::string line;
+    while (std::getline(file, line))
+    {
+        if (line.find("VmRSS") != std::string::npos)
+        {
+            size_t pos = line.find(":");
+            return static_cast<index_t>(std::stol(line.substr(pos + 1)));
+            break;
+        }
+    }
+#endif
+
+    return 0;
+}
 
 //-----------------------------------------------------------------------------
 // String hash functions

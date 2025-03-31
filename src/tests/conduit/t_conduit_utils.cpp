@@ -203,11 +203,11 @@ TEST(conduit_utils, handler_defaults_are_the_defaults)
     EXPECT_NE(on_info,on_error);
     EXPECT_NE(on_info,on_warning);
 
-    // 
+    //
     // NOTE: (Excerpt from "Adventures in fun with compilers")
     // The default implementations of:
     //    conduit::utils::default_warning_handler
-    //       and 
+    //       and
     //    conduit::utils::default_error_handler
     // are identical at the source level.
     // On windows, we hit a case where the compiler understands this
@@ -680,7 +680,7 @@ TEST(conduit_utils, trim_string)
     std::string trailing2 = "trimmed\r\n";
     std::string both =  "  trimmed ";
     std::string both2 = "\f\ttrimmed\v ";
-    
+
     utils::trim_string(leading);
     EXPECT_EQ(ans, leading);
     utils::trim_string(leading2);
@@ -790,7 +790,7 @@ TEST(conduit_utils, format_maps)
     {
         EXPECT_THROW(conduit::utils::format("{a} {b} {c}",maps,-100),
                      conduit::Error);
-                 
+
         EXPECT_THROW(conduit::utils::format("{a} {b} {c}",maps,-1),
                      conduit::Error);
     }
@@ -916,3 +916,21 @@ TEST(conduit_utils, timer)
     // check that at least 1/4 a second has elapsed
     EXPECT_TRUE(t.elapsed() > .249);
 }
+
+//-----------------------------------------------------------------------------
+TEST(conduit_utils, memory_usage)
+{
+    index_t prev_usage = conduit::utils::memory_usage();
+
+    // alloc two mB
+    Node n;
+    n.set(DataType::uint8(2097152));
+
+    index_t curr_usage = conduit::utils::memory_usage();
+
+    std::cout << "memory usage compare - prev: " << prev_usage << std::endl;
+    std::cout << "memory usage compare - curr: " << curr_usage << std::endl;
+
+    EXPECT_TRUE(curr_usage >  prev_usage);
+}
+

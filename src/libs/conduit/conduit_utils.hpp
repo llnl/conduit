@@ -299,7 +299,7 @@ namespace utils
                                             const void *source,
                                             size_t num);
 
-    // general memcpy interface used by conduit 
+    // general memcpy interface used by conduit
     void CONDUIT_API conduit_memcpy(void *destination,
                                     const void *source,
                                     size_t num);
@@ -537,7 +537,7 @@ namespace utils
      }
 
 //-----------------------------------------------------------------------------
-// Helpers to identify value cast consequences 
+// Helpers to identify value cast consequences
 //-----------------------------------------------------------------------------
      // adapted from: https://stackoverflow.com/a/17225324/203071
     template< typename T_SRC, typename T_DEST>
@@ -547,8 +547,8 @@ namespace utils
         {
             return true;
         }
-        
-        return ( (value > static_cast<T_SRC>(0) ) == 
+
+        return ( (value > static_cast<T_SRC>(0) ) ==
                  (static_cast<T_DEST>(value) > static_cast<T_DEST>(0))
                ) && static_cast<T_SRC>(static_cast<T_DEST>(value)) == value;
 
@@ -599,19 +599,18 @@ namespace utils
     std::string CONDUIT_API float64_to_string(float64 value);
 
 //-----------------------------------------------------------------------------
-     void CONDUIT_API indent(std::ostream &os,
-                             index_t indent,
-                             index_t depth,
-                             const std::string &pad);
+    void CONDUIT_API indent(std::ostream &os,
+                            index_t indent,
+                            index_t depth,
+                            const std::string &pad);
 
 //-----------------------------------------------------------------------------
-     void CONDUIT_API sleep(index_t milliseconds);
-
+    void CONDUIT_API sleep(index_t milliseconds);
 
 //-----------------------------------------------------------------------------
 /// Simple timer class
 //-----------------------------------------------------------------------------
-    class CONDUIT_API Timer 
+    class CONDUIT_API Timer
     {
         typedef std::chrono::high_resolution_clock high_resolution_clock;
         typedef std::chrono::duration<float> fsec;
@@ -659,6 +658,12 @@ namespace utils
              values will equal the original number.
      */
     std::vector<conduit::index_t> CONDUIT_API factor(conduit::index_t num);
+
+//-----------------------------------------------------------------------------
+// Memory usage helper
+//-----------------------------------------------------------------------------
+    /// returns process memory usage in kB, or zero if unable to read usage
+    index_t CONDUIT_API memory_usage();
 
 }
 //-----------------------------------------------------------------------------
