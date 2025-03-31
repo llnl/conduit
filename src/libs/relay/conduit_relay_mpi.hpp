@@ -284,9 +284,9 @@ namespace mpi
 /// Memory usage helpers (results in kB)
 //-----------------------------------------------------------------------------
     /// memory usage per mpi task in kB
-    void memory_usage(Node &info,MPI_Comm comm);
+    int CONDUIT_RELAY_API memory_usage(Node &info, MPI_Comm comm);
     ///  min, max, mean memory usage across mpi tasks
-    void memory_stats(Node &info,MPI_Comm comm);
+    int CONDUIT_RELAY_API memory_stats(Node &info, MPI_Comm comm);
 
 //-----------------------------------------------------------------------------
 /// Communicate multiple nodes at once using schema

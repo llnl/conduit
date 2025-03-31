@@ -1333,7 +1333,9 @@ TEST(conduit_mpi_test, mem_info)
         std::cout << "mem_stats - prev: " << stats_prev.to_yaml();
         std::cout << "mem_stats - curr: " << stats_curr.to_yaml();
     }
+
     MPI_Barrier(MPI_COMM_WORLD);
+
     if(rank == 1)
     {
         std::cout << "rank 1: ";

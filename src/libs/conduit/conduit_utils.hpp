@@ -663,7 +663,7 @@ namespace utils
 // Memory usage helper
 //-----------------------------------------------------------------------------
     /// returns process memory usage in kB, or zero if unable to read usage
-    index_t CONDUIT_API memory_usage();
+    uint64 CONDUIT_API memory_usage();
 
 }
 //-----------------------------------------------------------------------------

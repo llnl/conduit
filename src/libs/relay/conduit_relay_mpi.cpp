@@ -24,8 +24,8 @@
         char check_mpi_err_str_buff[MPI_MAX_ERROR_STRING];          \
         int  check_mpi_err_str_len=0;                               \
         MPI_Error_string( check_mpi_err_code ,                      \
-                         check_mpi_err_str_buff,                    \
-                         &check_mpi_err_str_len);                   \
+                          check_mpi_err_str_buff,                   \
+                          &check_mpi_err_str_len);                  \
                                                                     \
         CONDUIT_ERROR("MPI call failed: \n"                         \
                       << " error code = "                           \
@@ -35,7 +35,6 @@
         return  check_mpi_err_code;                                 \
     }                                                               \
 }
-
 
 //-----------------------------------------------------------------------------
 // -- begin conduit:: --
@@ -1940,32 +1939,32 @@ broadcast_using_schema(Node &node,
 }
 
 //---------------------------------------------------------------------------//
-void
+int
 memory_usage(Node &info,
              MPI_Comm comm)
 {
     info.reset();
-    int rank     = mpi::rank(comm);
     int com_size = mpi::size(comm);
 
-    index_t musage = conduit::utils::memory_usage();
-    info.set(DataType::index_t(com_size));
+    uint64 musage = conduit::utils::memory_usage();
 
-    int mpi_dtype = conduit_dtype_to_mpi_dtype(info.dtype().id());
+    info.set(DataType::uint64(com_size));
 
-    int mpi_error = MPI_Allgather( const_cast<void*>(&musage), // local data
+    int mpi_dtype = conduit_dtype_to_mpi_dtype(info.dtype());
+
+    int mpi_error = MPI_Allgather( &musage, // local data
                                    1, // local data len
-                                   mpi_dtype, // send index_t
+                                   mpi_dtype, // send uint64
                                    info.data_ptr(),  // rcv buffer
                                    com_size, // data len
-                                   mpi_dtype,  // rcv index_t
+                                   mpi_dtype,  // rcv uint64
                                    mpi_comm); // mpi com
-    CONDUIT_CHECK_MPI_ERROR(mpi_error);
 
+    CONDUIT_CHECK_MPI_ERROR(mpi_error);
 }
 
 //---------------------------------------------------------------------------//
-void
+int
 memory_stats(Node &info,
              MPI_Comm comm)
 {
@@ -1974,12 +1973,18 @@ memory_stats(Node &info,
     info.reset();
     Node snd,rcv;
     snd = conduit::utils::memory_usage();
-    mpi::all_reduce(snd, rcv, MPI_MIN, comm);
+
+    int mpi_error = mpi::all_reduce(snd, rcv, MPI_MIN, comm);
+    CONDUIT_CHECK_MPI_ERROR(mpi_error);
     info["min"] = rcv;
-    mpi::all_reduce(snd, rcv, MPI_MAX, comm);
+
+    mpi_error = mpi::all_reduce(snd, rcv, MPI_MAX, comm);
+    CONDUIT_CHECK_MPI_ERROR(mpi_error);
     info["max"] = rcv;
-    mpi::all_reduce(snd, rcv, MPI_SUM, comm);
-    info["mean"] = rcv.to_int64() / static_cast<int64>(com_size);
+
+    mpi_error = mpi::all_reduce(snd, rcv, MPI_SUM, comm);
+    CONDUIT_CHECK_MPI_ERROR(mpi_error);
+    info["mean"] = rcv.to_uint64() / static_cast<uint64>(com_size);
 }
 
 
