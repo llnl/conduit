@@ -1930,7 +1930,7 @@ memory_usage()
         if (line.find("VmRSS") != std::string::npos)
         {
             size_t pos = line.find(":");
-            return static_cast<uint64>(std::stol(line.substr(pos + 1)));
+            return static_cast<uint64>(std::stoll(line.substr(pos + 1)));
         }
     }
 #endif
