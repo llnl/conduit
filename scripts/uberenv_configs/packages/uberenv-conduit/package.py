@@ -53,15 +53,21 @@ class UberenvConduit(Conduit):
             default=True,
             description="Build deps needed for Conduit python support")
 
-    depends_on("hdf5@1.8~mpi",when="+hdf5+hdf5_compat")
+    # things we want in our view to support development need to be
+    # tagged `run``
+    depends_on("cmake", type=("build","run"))
+    depends_on("py-sphinx", when="+python+doc", type=("build","run"))
+    depends_on("py-sphinx-rtd-theme", when="+python+doc", type=("build","run"))
+    depends_on("py-sphinxcontrib-jquery", when="+python+doc", type=("build","run"))
 
-    ###################################
-    # build phases used by this package
-    ###################################
-    phases = ['hostconfig']
+    def url_for_version(self, version):
+        dummy_tar_path =  os.path.abspath(pjoin(os.path.split(__file__)[0]))
+        dummy_tar_path = pjoin(dummy_tar_path,"uberenv-conduit.tar.gz")
+        url      = "file://" + dummy_tar_path
+        return url
 
-    @run_after("hostconfig")
-    def host_config_fix(self):
+    def hostconfig(self,spec,prefix):
+        spack.pkg.builtin.conduit.Conduit.hostconfig(self)
         # remove python install prefix
         hcfname = self._get_host_config_path(self.spec)
         lines = open(hcfname).readlines()
@@ -70,8 +76,7 @@ class UberenvConduit(Conduit):
             if l.count("PYTHON_MODULE_INSTALL_PREFIX") == 0:
                 ofile.write(l + "\n")
 
-    def url_for_version(self, version):
-        dummy_tar_path =  os.path.abspath(pjoin(os.path.split(__file__)[0]))
-        dummy_tar_path = pjoin(dummy_tar_path,"uberenv-conduit.tar.gz")
-        url      = "file://" + dummy_tar_path
-        return url
+    ###################################
+    # build phases used by this package
+    ###################################
+    phases = ['hostconfig']
