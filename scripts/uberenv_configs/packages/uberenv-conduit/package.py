@@ -30,9 +30,9 @@ import os
 from os.path import join as pjoin
 from os import environ as env
 
-from .conduit import Conduit
+import spack.pkg.builtin.ascent
 
-class UberenvConduit(Conduit):
+class UberenvConduit(spack.pkg.builtin.conduit.Conduit):
     """Conduit is an open source project from Lawrence Livermore National
     Laboratory that provides an intuitive model for describing hierarchical
     scientific data in C++, C, Fortran, and Python. It is used for data
