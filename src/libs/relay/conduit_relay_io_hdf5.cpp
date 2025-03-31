@@ -682,7 +682,7 @@ void read_hdf5_tree_into_conduit_node(hid_t hdf5_id,
 /// @param inopts Input options
 /// @param dataspace_id ID of the dataspace of the dataset in question
 /// @param filled_opts[out] The options, filled out with defaults
-/// 
+///
 /// This routine uses the following children of \a inopts:
 /// - sizes (or size)
 /// - offsets (or offset)
@@ -690,10 +690,10 @@ void read_hdf5_tree_into_conduit_node(hid_t hdf5_id,
 /// .
 /// All are optional.  All should be numeric and of the same length
 /// (the dimensionality of the dataset \a dataspace_id).
-/// 
+///
 /// This routine does the following:
 /// 1. makes a deep copy of \a inopts into \a filled_opts
-/// 2. retrieves metadata from \a dataspace_id.  If it's not a dataspace, 
+/// 2. retrieves metadata from \a dataspace_id.  If it's not a dataspace,
 ///    throw an error.
 /// 3. sets filled_opts["slabparams/rank"] as a scalar, the rank (number
 ///    of dimensions) of the dataset
@@ -708,7 +708,7 @@ void read_hdf5_tree_into_conduit_node(hid_t hdf5_id,
 ///    the user provided in inopts
 /// 7. sets filled_opts["slabparams/readcount"] as a scalar, the number
 ///    of values to read, as specified by offset, stride, and size
-void 
+void
 fill_dataset_opts(const std::string & ref_path, const Node& inopts,
     hid_t dataspace_id, Node& filled_opts);
 
@@ -2507,7 +2507,7 @@ struct h5_read_opdata
 #else
     haddr_t                 addr;        /* Group address */
 #endif
-    
+
     // pointer to conduit node, anchors traversal to
     Node            *node;
     const Node      *opts;
@@ -2565,7 +2565,7 @@ int
 h5_group_check(h5_read_opdata *od,
                haddr_t target_addr)
 {
-    
+
     if (od->addr == target_addr)
     {
         /* Addresses match */
@@ -2810,7 +2810,7 @@ read_hdf5_group_into_conduit_node(hid_t hdf5_group_id,
 #else
     herr_t h5_status = H5Oget_info(hdf5_group_id,
                                    &h5_info_buf);
-#endif 
+#endif
 
     // Check if this is a list or an object case
     if(check_if_hdf5_group_has_conduit_list_attribute(hdf5_group_id,
@@ -2928,14 +2928,14 @@ conduit_node_to_argarray(Node& n,
             p_ary[d] = dft;
         }
     }
-    
+
     return hdf5array.as_index_t_array();
 }
 
 
 //---------------------------------------------------------------------------//
 index_t
-calculate_readsize(index_t_array readsize, index_t rank, 
+calculate_readsize(index_t_array readsize, index_t rank,
     const index_t_array dataset_sizes, const index_t_array offsets, const index_t_array strides)
 {
     index_t readtotal = 1;
@@ -2979,7 +2979,7 @@ fill_dataset_opts(const std::string & ref_path, const Node & inopts,
     // - Each element of offset >= 0
 
     // If dataspace_id is a scalar, then H5Sget_simple_extent_ndims will
-    // return zero.  Setting rank to 0 makes the following code create 
+    // return zero.  Setting rank to 0 makes the following code create
     // zero-length arrays for offset, stride, and size, which is unhealthy.
     bool is_scalar = false;
     if (rank < 1)
@@ -3077,7 +3077,7 @@ read_hdf5_dataset_into_conduit_node(hid_t hdf5_dset_id,
         std::vector<hsize_t> readsize_vec;
         std::vector<hsize_t> offset_vec;
         std::vector<hsize_t> stride_vec;
-        
+
         make_dataset_opt_copy(filled_opts, "sizes",readsize_vec);
         make_dataset_opt_copy(filled_opts, "offsets", offset_vec);
         make_dataset_opt_copy(filled_opts, "strides", stride_vec);
@@ -3267,7 +3267,7 @@ read_hdf5_tree_into_conduit_node(hid_t hdf5_id,
     herr_t h5_status = H5Oget_info(hdf5_id,&h5_info_buf,H5O_INFO_ALL);
 #else
     herr_t h5_status = H5Oget_info(hdf5_id,&h5_info_buf);
-#endif 
+#endif
 
 
     CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_status,
@@ -3391,6 +3391,20 @@ create_hdf5_file_access_plist()
         {
             h5_status = H5Pset_libver_bounds(h5_fa_props, H5F_LIBVER_V18, H5F_LIBVER_V110);
         }
+// nested case for hdf5 >= 1.12
+#if H5_VERSION_GE(1, 12, 0)
+        else if(HDF5Options::libver == "v1120")
+        {
+            h5_status = H5Pset_libver_bounds(h5_fa_props, H5F_LIBVER_V18, H5F_LIBVER_V112);
+        }
+#endif
+// nested case for hdf5 >= 1.14
+#if H5_VERSION_GE(1, 14, 0)
+        else if(HDF5Options::libver == "v1140")
+        {
+            h5_status = H5Pset_libver_bounds(h5_fa_props, H5F_LIBVER_V18, H5F_LIBVER_V114);
+        }
+#endif
         else if(HDF5Options::libver == "latest")
         {
             h5_status = H5Pset_libver_bounds(h5_fa_props, H5F_LIBVER_V18, H5F_LIBVER_LATEST);
@@ -3403,7 +3417,7 @@ create_hdf5_file_access_plist()
         {
             // unknown or unsupported libver
             CONDUIT_ERROR("HDF5 libver option: '"
-                          << HDF5Options::libver 
+                          << HDF5Options::libver
                           << "' is unknown or unsupported with HDF5 v"
                           << major_num << "." << major_num << "." << release_num
                           );
@@ -3424,7 +3438,7 @@ create_hdf5_file_access_plist()
         {
             // unknown or unsupported libver
             CONDUIT_ERROR("HDF5 libver option: '"
-                          << HDF5Options::libver 
+                          << HDF5Options::libver
                           << "' is unknown or unsupported with HDF5 v"
                           << major_num << "." << major_num << "." << release_num
                           );
