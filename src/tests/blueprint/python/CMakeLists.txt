@@ -10,7 +10,8 @@ set(PYTHON_MODULE_TESTS t_python_blueprint_smoke
                         t_python_blueprint_mesh
                         t_python_blueprint_table)
 
-set(PYTHON_MODULE_MPI_TESTS t_python_blueprint_mpi)
+set(PYTHON_MODULE_MPI_TESTS t_python_blueprint_mpi
+                            t_python_blueprint_mpi_mesh)
 
 foreach(TEST ${PYTHON_MODULE_TESTS})
     add_python_test(TEST ${TEST} FOLDER tests/blueprint/python)
