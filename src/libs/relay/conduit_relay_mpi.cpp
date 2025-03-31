@@ -1946,21 +1946,31 @@ memory_usage(Node &info,
     info.reset();
     int com_size = mpi::size(comm);
 
-    uint64 musage = conduit::utils::memory_usage();
+    // Node n;
+    // n.set(conduit::utils::memory_usage());
+    // int mpi_error = mpi::all_gather(n,info,comm);
+
+    uint64 musage =conduit::utils::memory_usage();
+
+    void *musage_ptr = static_cast<void*>(&musage);
 
     info.set(DataType::uint64(com_size));
 
-    int mpi_dtype = conduit_dtype_to_mpi_dtype(info.dtype());
+    // we want an array answer, not a list
+    // so we use mpi directly vs conduit all gather helper
+    MPI_Datatype mpi_dtype = conduit_dtype_to_mpi_dtype(info.dtype());
 
-    int mpi_error = MPI_Allgather( &musage, // local data
+    int mpi_error = MPI_Allgather( musage_ptr, // local data
                                    1, // local data len
                                    mpi_dtype, // send uint64
                                    info.data_ptr(),  // rcv buffer
-                                   com_size, // data len
+                                   1, // data len
                                    mpi_dtype,  // rcv uint64
-                                   mpi_comm); // mpi com
+                                   comm); // mpi com
 
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
+
+    return mpi_error;
 }
 
 //---------------------------------------------------------------------------//
@@ -1968,9 +1978,10 @@ int
 memory_stats(Node &info,
              MPI_Comm comm)
 {
-    int rank = mpi::rank(comm);
-    int com_size = mpi::size(comm);
     info.reset();
+
+    int com_size = mpi::size(comm);
+
     Node snd,rcv;
     snd = conduit::utils::memory_usage();
 
@@ -1984,7 +1995,10 @@ memory_stats(Node &info,
 
     mpi_error = mpi::all_reduce(snd, rcv, MPI_SUM, comm);
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
-    info["mean"] = rcv.to_uint64() / static_cast<uint64>(com_size);
+    info["sum"] = rcv.to_uint64();
+    info["mean"] = (rcv.to_uint64() / static_cast<uint64>(com_size));
+
+    return mpi_error;
 }
 
 

@@ -1908,18 +1908,18 @@ memory_usage()
     PROCESS_MEMORY_COUNTERS pmc;
     if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc)))
     {
-        return static_cast<index_t>(pmc.WorkingSetSize / 1024);
+        return static_cast<uint64>(pmc.WorkingSetSize / 1024);
     }
 #elif defined(CONDUIT_PLATFORM_APPLE)
     mach_task_basic_info_data_t info;
     mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
     kern_return_t ret = task_info(mach_task_self(),
                                   MACH_TASK_BASIC_INFO,
-                                  task_info_t)&info, &count);
+                                  (task_info_t)&info, &count);
 
     if (ret == KERN_SUCCESS)
     {
-        return static_cast<index_t>(info.resident_size / 1024);
+        return static_cast<uint64>(info.resident_size / 1024);
     }
 
 #else //linux, unix, etc
@@ -1930,8 +1930,7 @@ memory_usage()
         if (line.find("VmRSS") != std::string::npos)
         {
             size_t pos = line.find(":");
-            return static_cast<index_t>(std::stol(line.substr(pos + 1)));
-            break;
+            return static_cast<uint64>(std::stol(line.substr(pos + 1)));
         }
     }
 #endif
