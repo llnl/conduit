@@ -1235,10 +1235,10 @@ TEST(conduit_mpi_test, reuse_of_node_as_input)
 
     int rank = mpi::rank(MPI_COMM_WORLD);
     int com_size = mpi::size(MPI_COMM_WORLD);
-    
+
     int value = 0;
     std::string msg;
-    
+
     if(rank == 0)
     {
         value = 1;
@@ -1275,9 +1275,9 @@ TEST(conduit_mpi_test, reduce_compat_check)
 
     int rank = mpi::rank(MPI_COMM_WORLD);
     int com_size = mpi::size(MPI_COMM_WORLD);
-    
+
     int value = 0;
-    
+
     if(rank == 0)
     {
         value = 1;
@@ -1301,6 +1301,92 @@ TEST(conduit_mpi_test, reduce_compat_check)
     n_expected.append() = 0;
 
     EXPECT_FALSE(n_global.diff(n_expected,info));
+
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_mpi_test, mem_info)
+{
+    Node alloc_help, usage_prev, stats_prev, usage_curr, stats_curr;
+
+    int rank = mpi::rank(MPI_COMM_WORLD);
+
+    relay::mpi::memory_usage(usage_prev,MPI_COMM_WORLD);
+    relay::mpi::memory_stats(stats_prev,MPI_COMM_WORLD);
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    if(rank == 0)
+    {
+        // 5 mb
+        alloc_help.set(DataType::uint8(5*1024*1024));
+        alloc_help.print();
+    }
+
+    if (rank == 1)
+    {
+        // 15 mB -- 10 extra than rank 0
+        alloc_help.set(DataType::uint8(15*1024*1024));
+
+        alloc_help.print();
+    }
+
+    // we have to touch the memory to make sure
+    // it is reported as used
+    uint8_array vals =alloc_help.value();
+    for(index_t i=0;i<vals.number_of_elements();i++)
+    {
+        vals[i] = i % 256;
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    relay::mpi::memory_usage(usage_curr,MPI_COMM_WORLD);
+    relay::mpi::memory_stats(stats_curr,MPI_COMM_WORLD);
+
+    if(rank == 0)
+    {
+        std::cout << "rank 0:\n"
+                  << "mem_usage - prev:\n" << usage_prev.to_yaml() << "\n"
+                  << "mem_usage - curr:\n" << usage_curr.to_yaml() << "\n"
+                  << "mem_stats - prev:\n" << stats_prev.to_yaml() << "\n"
+                  << "mem_stats - curr:\n" << stats_curr.to_yaml() << "\n"
+                  << std::endl;
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    if(rank == 1)
+    {
+
+        std::cout << "rank 1:\n"
+                  << "mem_usage - prev:\n" << usage_prev.to_yaml() << "\n"
+                  << "mem_usage - curr:\n" << usage_curr.to_yaml() << "\n"
+                  << "mem_stats - prev:\n" << stats_prev.to_yaml() << "\n"
+                  << "mem_stats - curr:\n" << stats_curr.to_yaml() << "\n"
+                  << std::endl;
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    uint64_array uprev_vals = usage_prev.value();
+    uint64_array ucurr_vals = usage_curr.value();
+
+    // curr should be higher than prev
+    EXPECT_GT(ucurr_vals[0],uprev_vals[0]);
+    EXPECT_GT(ucurr_vals[1],uprev_vals[1]);
+    // rank 1 should be higher than rank 0
+    EXPECT_GT(ucurr_vals[1],ucurr_vals[0]);
+
+    // curr should be higher than prev
+    EXPECT_GT(stats_curr["min"].to_uint64(), stats_prev["min"].to_uint64());
+    EXPECT_GT(stats_curr["max"].to_uint64(), stats_prev["max"].to_uint64());
+
+    // expect max to be at least 8 mB above min
+    EXPECT_GT(stats_curr["max"].to_uint64() -stats_prev["max"].to_uint64(),
+              1024*8); // results are all kB
+
+    // mean should be higher than rank 0
+    EXPECT_GT(stats_curr["mean"].to_uint64(), ucurr_vals[0]);
 
 }
 
