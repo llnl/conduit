@@ -47,7 +47,7 @@ stages:
   ###############################################################################
   # Ubuntu 18 build and test, using spack to build tpls
   #
-  # When setup in Ascent, Azure didint have an Ubuntu 18 dev image, so we are 
+  # When setup in Ascent, Azure didint have an Ubuntu 18 dev image, so we are
   #  using the standard Ubuntu 18 container.
   #
   ###############################################################################
@@ -397,9 +397,9 @@ stages:
            # docs
            if [ $ENABLE_DOCS  = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC}+doc"; fi
            if [ $ENABLE_DOCS  = 'OFF' ]; then export SPACK_SPEC="${SPACK_SPEC}~doc"; fi
-           # openmp
-           if [ $ENABLE_OPENMP  = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC}+openmp"; fi
-           if [ $ENABLE_OPENMP  = 'OFF' ]; then export SPACK_SPEC="${SPACK_SPEC}~openmp"; fi
+           # openmp # NOTE: OpenMP is not in main spack pkg
+           # if [ $ENABLE_OPENMP  = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC}+openmp"; fi
+           # if [ $ENABLE_OPENMP  = 'OFF' ]; then export SPACK_SPEC="${SPACK_SPEC}~openmp"; fi
            # package ver selections and extra tweaks
            export SPACK_SPEC="${SPACK_SPEC} ^cmake@${CMAKE_VERSION}"
            # python constraints
@@ -609,19 +609,19 @@ stages:
           export PATH=${CMAKE_BIN_DIR}:$PATH
           echo $PATH
           # find spack installed python (use spack view dir)
-          export PYTHON_EXE=`ls ${ROOT_DIR}/uberenv_libs/spack_view/bin/python3` 
+          export PYTHON_EXE=`ls ${ROOT_DIR}/uberenv_libs/spack_view/bin/python3`
           # add conduit module to python path
           export PYTHONPATH=${ROOT_DIR}/install/python-modules/
           # NOTE:
           #  also add spack's python view dir to python path env var
-          #  this wasn't needed with older spack. 
+          #  this wasn't needed with older spack.
           #  I think embedded linking logic is resolving symlinks and therefore
           #  not using view layout that wires up dependent python modules
           py_site_pkgs_dir=`ls -d ${ROOT_DIR}/uberenv_libs/spack_view/lib/python*/site-packages`
           export PYTHONPATH=${PYTHONPATH}:${py_site_pkgs_dir}
           echo $PYTHONPATH
           # CI LD_LIB FIX
-          # NOTE: 
+          # NOTE:
           #  THIS LD+_LIB FIX FOR AN ISSUE THAT OCCURED IN A CI PYTHON 2.7 STATIC LIBS TEST CASE
           #  Since the issue is related to hdf5 (not python!) we should investigate further.
           #
