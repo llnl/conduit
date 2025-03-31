@@ -922,9 +922,15 @@ TEST(conduit_utils, memory_usage)
 {
     index_t prev_usage = conduit::utils::memory_usage();
 
-    // alloc two mB
+    // alloc 5 mB
     Node n;
-    n.set(DataType::uint8(2097152));
+    n.set(DataType::uint8(5*1024*1024));
+    //  touch memory to make sure it is actually used
+    uint8_array vals = n.value();
+    for(index_t i=0;i<vals.number_of_elements();i++)
+    {
+        vals[i] = i % 256;
+    }
 
     index_t curr_usage = conduit::utils::memory_usage();
 
