@@ -307,6 +307,13 @@ save_merged(const Node &node,
     {
         identify_protocol(path,protocol);
     }
+
+    if (protocol != "adios")
+    {
+        CONDUIT_ERROR("conduit::relay::mpi::io::save_merged() was called with "
+                      "a protocol that is not adios. The non-MPI version of "
+                      "save_merged should be used for non-adios cases.");
+    }
     
     // support conduit::Node's basic save cases
     if(protocol == "conduit_bin" ||
