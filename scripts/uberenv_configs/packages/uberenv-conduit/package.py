@@ -38,8 +38,6 @@ class UberenvConduit(spack.pkg.builtin.conduit.Conduit):
     scientific data in C++, C, Fortran, and Python. It is used for data
     coupling between packages in-core, serialization, and I/O tasks."""
 
-    version('0.0.0', 'c8b277080a00041cfc4f64619e31f6d6',preferred=True)
-
     # These are default choices for development that differ
     # from spacks default choices
     # (for example, spack wants docs off, python off -- by default)
@@ -68,10 +66,11 @@ class UberenvConduit(spack.pkg.builtin.conduit.Conduit):
 
     def hostconfig(self,spec,prefix):
         spack.pkg.builtin.conduit.Conduit.hostconfig(self)
+        dst = join_path(self.spec.prefix, os.path.basename(src))
+        copy(src, dst)
         # remove python install prefix
-        hcfname = self._get_host_config_path(self.spec)
-        lines = open(hcfname).readlines()
-        ofile = open(hcfname,"w")
+        lines = open(dst).readlines()
+        ofile = open(dst,"w")
         for l in lines:
             if l.count("PYTHON_MODULE_INSTALL_PREFIX") == 0:
                 ofile.write(l + "\n")

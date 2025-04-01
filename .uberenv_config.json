@@ -10,7 +10,7 @@
 "spack_commit": "2bfcc69fa870d3c6919be87593f22647981b648a",
 "spack_host_config_patches":
  {
-   "PYTHON_EXECUTABLE": "spack_view/bin/python3",
-   "SPHINX_EXECUTABLE": "spack_view/bin/sphinx-build"
+   "PYTHON_EXECUTABLE": "spack_view/view/bin/python3",
+   "SPHINX_EXECUTABLE": "spack_view/view/bin/sphinx-build"
  }
 }
