@@ -121,7 +121,7 @@ if(MPI_FOUND)
     target_link_libraries(conduit_relay_mpi_io_python PRIVATE conduit_python_py_setup)
 
     # link with the proper libs (beyond python)
-    target_link_libraries(conduit_relay_mpi_io_python PRIVATE conduit conduit_relay_mpi conduit_python_build)
+    target_link_libraries(conduit_relay_mpi_io_python PRIVATE conduit conduit_relay_mpi conduit_relay_mpi_io conduit_python_build)
 
 
     # add io blueprint submodule
@@ -136,7 +136,7 @@ if(MPI_FOUND)
     target_link_libraries(conduit_relay_mpi_io_blueprint_python PRIVATE conduit_python_py_setup)
 
     # link with the proper libs (beyond python)
-    target_link_libraries(conduit_relay_mpi_io_blueprint_python PRIVATE conduit conduit_relay_mpi conduit_python_build)
+    target_link_libraries(conduit_relay_mpi_io_blueprint_python PRIVATE conduit conduit_relay_mpi conduit_relay_mpi_io conduit_python_build)
 
 endif()
 
