@@ -144,65 +144,6 @@ class Test_Relay_IO(unittest.TestCase):
         self.assertTrue(n_load.has_child("a"))
         self.assertTrue(n_load['a'] == a_val)
         self.assertTrue(n_load['d'] == d_val)
-
-    # # TODO fix
-    # def test_save_merged(self):
-    #     # skip tests on windows until we work out proper
-    #     # mpi4py install for our windows ci
-    #     if sys.platform == "win32":
-    #         return
-    #     from mpi4py import MPI
-    #     comm = MPI.COMM_WORLD
-    #     comm_id = MPI.COMM_WORLD.py2f()
-    #     rank    = relay.mpi.rank(comm_id)
-    #     size    = relay.mpi.size(comm_id)
-    #     a_val = int64(10)
-    #     b_val = int64(20)
-    #     c_val = float64(30.0)
-    #     d_val = a_val * 4
-
-    #     n = Node()
-    #     n['a'] = a_val
-    #     n['b'] = b_val
-    #     n['c'] = c_val
-    #     tout = "tout_python_relay_io_save_merged.conduit_bin"
-
-    #     if rank == 0:
-    #         if os.path.isfile(tout):
-    #             os.remove(tout)
-    #         if os.path.isfile(tout + "_json"):
-    #             os.remove(tout + "_json")
-            
-
-    #     comm.Barrier()
-
-    #     split_comm = comm.Split(color=rank, key=0)
-
-    #     if rank == 0:
-    #         for dom in range(size):
-    #             if dom == 0:
-    #                 relay.mpi.io.save(n[dom], path, split_comm)
-    #             else:
-    #                 relay.mpi.io.save_merged(n[dom], path, split_comm)
-
-    #     relay.mpi.io.save_merged(n,tout,comm_id)
-    #     # comm.Barrier()
-    #     # self.assertTrue(os.path.isfile(tout))
-    #     # self.assertTrue(os.path.isfile(tout + "_json"))
-
-    #     # n2 = Node()
-    #     # n2['d'] = d_val
-    #     # relay.mpi.io.save_merged(n2,tout,comm_id)
-    #     # comm.Barrier()
-
-    #     # self.assertTrue(os.path.isfile(tout))
-    #     # n_load = Node()
-    #     # relay.mpi.io.load(n_load,tout,comm_id)
-    #     # print(n_load)
-    #     # self.assertTrue(n_load.has_child("d"))
-    #     # self.assertTrue(n_load.has_child("a"))
-    #     # self.assertTrue(n_load['a'] == a_val)
-    #     # self.assertTrue(n_load['d'] == d_val)
    
     def test_hdf5_generic_save_opts(self):
         # skip tests on windows until we work out proper
