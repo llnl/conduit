@@ -30,6 +30,10 @@
             defined(conduit_relay_io_python_EXPORTS) || \
             defined(CONDUIT_RELAY_MPI_PYTHON_EXPORTS) || \
             defined(conduit_relay_mpi_python_EXPORTS) || \
+            defined(CONDUIT_RELAY_MPI_IO_PYTHON_EXPORTS) || \
+            defined(conduit_relay_mpi_io_python_EXPORTS) || \
+            defined(CONDUIT_RELAY_MPI_IO_BLUEPRINT_PYTHON_EXPORTS) || \
+            defined(conduit_relay_mpi_io_blueprint_python_EXPORTS) || \
             defined(CONDUIT_RELAY_WEB_PYTHON_EXPORTS)|| \
             defined(conduit_relay_web_python_EXPORTS) 
     /* define catch all def */
