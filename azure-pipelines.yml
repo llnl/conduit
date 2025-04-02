@@ -9,7 +9,7 @@
 #####
 variables:
   ubuntu_20_04_tag: alpinedav/ascent-devel:ubuntu-20.04-x86_64
-  ubuntu_21_10_tag: alpinedav/ascent-devel:ubuntu-21.10-devel
+  ubuntu_22_04_tag: alpinedav/ascent-devel:ubuntu-22.04-devel
 
 # only build merge target pr to develop
 trigger: none
@@ -83,7 +83,7 @@ stages:
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
-        ub_20_04_static_py38_cmake_3_21:
+        ub_20_04_static_py39_cmake_3_21:
           containerImage: ${{ variables.ubuntu_20_04_tag }}
           COMPILER_CC: gcc
           COMPILER_CXX: g++
@@ -104,13 +104,13 @@ stages:
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: ON
           ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.8.19
+          PYTHON_VERSION: 3.9.19
           CMAKE_VERSION: 3.21.7
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
 
-        ub_20_04_shared_py38_cmake_3_21:
+        ub_20_04_shared_py39_cmake_3_21:
           containerImage: ${{ variables.ubuntu_20_04_tag }}
           COMPILER_CC: gcc
           COMPILER_CXX: g++
@@ -131,12 +131,12 @@ stages:
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: ON
           ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.8.16
+          PYTHON_VERSION: 3.9.19
           CMAKE_VERSION: 3.21.7
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
-        ub_20_04_shared_py38_cmake_3_21_hdf5_1_10:
+        ub_20_04_shared_py39_cmake_3_21_hdf5_1_10:
           containerImage: ${{ variables.ubuntu_20_04_tag }}
           COMPILER_CC: gcc
           COMPILER_CXX: g++
@@ -157,12 +157,12 @@ stages:
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: ON
           ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.8.16
+          PYTHON_VERSION: 3.9.19
           CMAKE_VERSION: 3.21.7
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
-        ub_20_04_shared_py38_cmake_3_21_hdf5_1_12:
+        ub_20_04_shared_py39_cmake_3_21_hdf5_1_12:
           containerImage: ${{ variables.ubuntu_20_04_tag }}
           COMPILER_CC: gcc
           COMPILER_CXX: g++
@@ -185,7 +185,7 @@ stages:
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: ON
           ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.8.16
+          PYTHON_VERSION: 3.9.19
           CMAKE_VERSION: 3.21.7
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
@@ -299,8 +299,8 @@ stages:
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: OFF
 
-        ub_21_10_shared_py38_cmake_3_21:
-          containerImage: ${{ variables.ubuntu_21_10_tag }}
+        ub_22_04_shared_py39_cmake_3_21:
+          containerImage: ${{ variables.ubuntu_22_04_tag }}
           COMPILER_CC: gcc
           COMPILER_CXX: g++
           COMPILER_FC: gfortran
@@ -320,7 +320,7 @@ stages:
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: ON
           ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.8.16
+          PYTHON_VERSION: 3.9.19
           CMAKE_VERSION: 3.21.7
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
@@ -586,7 +586,9 @@ stages:
           export PATH=${CMAKE_BIN_DIR}:$PATH
           echo $PATH
           # find spack installed python (use spack view dir)
-          export PYTHON_EXE=`ls ${ROOT_DIR}/uberenv_libs/spack_view/bin/python3`
+          export SPACK_ENV_VIEW_PATH=${ROOT_DIR}/uberenv_libs/spack_view/view/
+          export PYTHON_EXE=`ls ${SPACK_ENV_VIEW_PATH}/bin/python3`
+          echo "PYTHON_EXE=${PYTHON_EXE}"
           # add conduit module to python path
           export PYTHONPATH=${ROOT_DIR}/install/python-modules/
           # NOTE:
@@ -594,7 +596,7 @@ stages:
           #  this wasn't needed with older spack.
           #  I think embedded linking logic is resolving symlinks and therefore
           #  not using view layout that wires up dependent python modules
-          py_site_pkgs_dir=`ls -d ${ROOT_DIR}/uberenv_libs/spack_view/lib/python*/site-packages`
+          py_site_pkgs_dir=`ls -d ${SPACK_ENV_VIEW_PATH}/lib/python*/site-packages`
           export PYTHONPATH=${PYTHONPATH}:${py_site_pkgs_dir}
           echo $PYTHONPATH
           # CI LD_LIB FIX
