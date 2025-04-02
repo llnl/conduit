@@ -382,7 +382,7 @@ stages:
            # hdf5 constraints
            if [ $ENABLE_HDF5 = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC} ^${HDF5_SPEC}"; fi
            # silo constraints
-           if [ $ENABLE_SILO = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC} ^silo~mpi"; fi
+           if [ $ENABLE_SILO = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC} ^silo~mpi~python"; fi
            # show final spec
            echo "SPACK SPEC:"
            echo $SPACK_SPEC
