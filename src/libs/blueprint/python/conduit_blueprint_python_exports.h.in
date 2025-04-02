@@ -37,8 +37,8 @@
     defined(conduit_blueprint_mpi_python_EXPORTS) || \
     defined(CONDUIT_BLUEPRINT_MPI_MESH_PYTHON_EXPORTS) || \
     defined(conduit_blueprint_mpi_mesh_python_EXPORTS) || \
-    defined(CONDUIT_BLUEPRINT_MPI_MESH_BLUEPRINT_PYTHON_EXPORTS) || \
-    defined(conduit_blueprint_mpi_mesh_blueprint_python_EXPORTS)
+    defined(CONDUIT_BLUEPRINT_MPI_MESH_EXAMPLES_PYTHON_EXPORTS) || \
+    defined(conduit_blueprint_mpi_mesh_examples_python_EXPORTS)
     /* define catch all def */
     #define CONDUIT_BLUEPRINT_PYTHON_EXPORTS_DEFINED 1
 #endif
