@@ -31,125 +31,192 @@
 // conduit includes
 //---------------------------------------------------------------------------//
 #include "conduit.hpp"
-#include "conduit_blueprint.hpp"
+#include "conduit_blueprint_mpi_mesh_examples.hpp"
+#include "conduit_relay_mpi.hpp"
 #include "conduit_blueprint_python_exports.h"
 
 // conduit python module capi header
 #include "conduit_python.hpp"
 
+
 using namespace conduit;
 
+//---------------------------------------------------------------------------//
+// conduit::blueprint::mpi::mesh::examples::braid_uniform_multi_domain
+//---------------------------------------------------------------------------//
 
-//---------------------------------------------------------------------------//
-// conduit::blueprint::about
-//---------------------------------------------------------------------------//
-// doc str
-const char *PyBlueprint_about_doc_str =
-"about()\n"
+// doc string
+const char *PyBlueprint_mpi_mesh_examples_braid_uniform_multi_domain_doc_str =
+"braid_uniform_multi_domain(dest, comm)\n"
 "\n"
-"Returns node with details about as built blueprint features.\n";
-
-// python func
-static PyObject *
-PyBlueprint_about()
-{
-    //create and return a node with the result of about
-    PyObject *py_node_res = PyConduit_Node_Python_Create();
-    Node *node = PyConduit_Node_Get_Node_Ptr(py_node_res);
-    conduit::blueprint::about(*node);
-    return (PyObject*)py_node_res;
-}
-
-//---------------------------------------------------------------------------//
-// conduit::blueprint::verify
-//---------------------------------------------------------------------------//
-// doc str
-const char *PyBlueprint_mesh_verify_doc_str =
-"verify(node, info, protocol)\n"
+"Generates a uniform grid per MPI task using blueprint::mesh::examples::braid.\n"
 "\n"
-"Returns True if passed node conforms to a blueprint protocol.\n"
-"Populates info node with verification details\n"
+"https://llnl-conduit.readthedocs.io/en/latest/blueprint_mesh.html#braid\n"
+"\n"
+"Adds an element-associated scalar field painted with the domain id.\n"
 "\n"
 "Arguments:\n"
-"  protocol: input string with protocol name\n"
-"  node: input node (conduit.Node instance)\n"
-"  info: node to hold verify info (conduit.Node instance)\n";
+"  dest: Mesh output (conduit.Node instance)\n"
+"  comm: MPI Communicator\n";
 
 // python func
 static PyObject * 
-PyBlueprint_verify(PyObject *, //self
-                   PyObject *args,
-                   PyObject *kwargs)
+PyBlueprint_mpi_mesh_examples_braid_uniform_multi_domain(PyObject *, //self
+                                PyObject *args,
+                                PyObject *kwargs)
 {
-    const char *protocol = NULL;
     PyObject   *py_node  = NULL;
-    PyObject   *py_info  = NULL;
+    Py_ssize_t  mpi_comm_id;
 
-    static const char *kwlist[] = {"protocol",
-                                   "node",
-                                   "info",
+    // TODO: future also accept mpi4py comm
+    
+    static const char *kwlist[] = {"dest",
+                                   "comm",
                                    NULL};
 
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwargs,
-                                     "sOO",
+                                     "On",
                                      const_cast<char**>(kwlist),
-                                     &protocol,
                                      &py_node,
-                                     &py_info))
+                                     &mpi_comm_id))
     {
         return (NULL);
     }
-    
+
     if(!PyConduit_Node_Check(py_node))
     {
         PyErr_SetString(PyExc_TypeError,
-                        "'node' argument must be a "
+                        "'dest' argument must be a "
                         "conduit.Node instance");
         return NULL;
     }
 
-    
-    if(!PyConduit_Node_Check(py_info))
+    // get c mpi comm hnd
+    MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
+
+    int rank = -1;
+
+    try
     {
-        PyErr_SetString(PyExc_TypeError,
-                        "'info' argument must be a "
-                        "conduit.Node instance");
+        rank = relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
         return NULL;
     }
-    
     
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
-    Node &info = *PyConduit_Node_Get_Node_Ptr(py_info);
     
+    blueprint::mpi::mesh::examples::braid_uniform_multi_domain(node, comm);
 
-    if(blueprint::verify(std::string(protocol), node,info))
-        Py_RETURN_TRUE;
-    else
-        Py_RETURN_FALSE;
+    Py_RETURN_NONE;
+}
+
+
+//---------------------------------------------------------------------------//
+// conduit::blueprint::mpi::mesh::examples::spiral_round_robin
+//---------------------------------------------------------------------------//
+
+// doc string
+const char *PyBlueprint_mpi_mesh_examples_spiral_round_robin_doc_str =
+"spiral(ndoms, dest)\n"
+"\n"
+"Generates a multi-domain fibonacci estimation of a golden spiral.\n"
+"\n"
+"https://llnl-conduit.readthedocs.io/en/latest/blueprint_mesh.html#spiral\n"
+"\n"
+"Domains are assigned round-robin to MPI tasks.\n"
+"\n"
+"Arguments:\n"
+"  ndoms: number of domains to generate\n"
+"  dest: Mesh output (conduit.Node instance)\n"
+"  comm: MPI Communicator\n";
+
+// python func
+static PyObject * 
+PyBlueprint_mpi_mesh_examples_spiral_round_robin(PyObject *, //self
+                                 PyObject *args,
+                                 PyObject *kwargs)
+{
+    Py_ssize_t ndoms = 0;
+    PyObject   *py_node  = NULL;
+    Py_ssize_t  mpi_comm_id;
+
+    // TODO: future also accept mpi4py comm
+    
+    static const char *kwlist[] = {"ndoms",
+                                   "dest",
+                                   "comm",
+                                   NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args,
+                                     kwargs,
+                                     "nOn",
+                                     const_cast<char**>(kwlist),
+                                     &ndoms,
+                                     &py_node,
+                                     &mpi_comm_id))
+    {
+        return (NULL);
+    }
+
+    if(!PyConduit_Node_Check(py_node))
+    {
+        PyErr_SetString(PyExc_TypeError,
+                        "'dest' argument must be a "
+                        "conduit.Node instance");
+        return NULL;
+    }
+
+    // get c mpi comm hnd
+    MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
+
+    int rank = -1;
+
+    try
+    {
+        rank = relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
+        return NULL;
+    }
+    
+    Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
+    
+    blueprint::mpi::mesh::examples::spiral_round_robin(ndoms,
+                                                       node,
+                                                       comm);
+
+    Py_RETURN_NONE;
 }
 
 
 //---------------------------------------------------------------------------//
 // Python Module Method Defs
 //---------------------------------------------------------------------------//
-static PyMethodDef blueprint_python_funcs[] =
+static PyMethodDef blueprint_mpi_mesh_examples_python_funcs[] =
 {
     //-----------------------------------------------------------------------//
-    {"about",
-     (PyCFunction)PyBlueprint_about,
-      METH_NOARGS,
-      PyBlueprint_about_doc_str},
-    {"verify",
-     (PyCFunction)PyBlueprint_verify,
+    {"braid_uniform_multi_domain",
+     (PyCFunction)PyBlueprint_mpi_mesh_examples_braid_uniform_multi_domain,
       METH_VARARGS | METH_KEYWORDS,
-      PyBlueprint_mesh_verify_doc_str},
+      PyBlueprint_mpi_mesh_examples_braid_uniform_multi_domain_doc_str},
     //-----------------------------------------------------------------------//
-    // end blueprint methods table
+    {"spiral_round_robin",
+     (PyCFunction)PyBlueprint_mpi_mesh_examples_spiral_round_robin,
+      METH_VARARGS | METH_KEYWORDS,
+      PyBlueprint_mpi_mesh_examples_spiral_round_robin_doc_str},
+    //-----------------------------------------------------------------------//
+    // end methods table
     //-----------------------------------------------------------------------//
     {NULL, NULL, METH_VARARGS, NULL}
 };
-
 
 //---------------------------------------------------------------------------//
 //---------------------------------------------------------------------------//
@@ -176,7 +243,7 @@ static struct module_state _state;
 #if defined(IS_PY3K)
 //---------------------------------------------------------------------------//
 static int
-blueprint_python_traverse(PyObject *m, visitproc visit, void *arg)
+blueprint_mpi_mesh_examples_python_traverse(PyObject *m, visitproc visit, void *arg)
 {
     Py_VISIT(GETSTATE(m)->error);
     return 0;
@@ -184,25 +251,27 @@ blueprint_python_traverse(PyObject *m, visitproc visit, void *arg)
 
 //---------------------------------------------------------------------------//
 static int 
-blueprint_python_clear(PyObject *m)
+blueprint_mpi_mesh_examples_python_clear(PyObject *m)
 {
     Py_CLEAR(GETSTATE(m)->error);
     return 0;
 }
 
 //---------------------------------------------------------------------------//
-static struct PyModuleDef blueprint_python_module_def = 
+static struct PyModuleDef blueprint_mpi_mesh_examples_python_module_def = 
 {
         PyModuleDef_HEAD_INIT,
-        "blueprint_python",
+        "blueprint_mpi_mesh_examples_python",
         NULL,
         sizeof(struct module_state),
-        blueprint_python_funcs,
+        blueprint_mpi_mesh_examples_python_funcs,
         NULL,
-        blueprint_python_traverse,
-        blueprint_python_clear,
+        blueprint_mpi_mesh_examples_python_traverse,
+        blueprint_mpi_mesh_examples_python_clear,
         NULL
 };
+
+
 #endif
 
 //---------------------------------------------------------------------------//
@@ -223,9 +292,9 @@ static struct PyModuleDef blueprint_python_module_def =
 extern "C" 
 //---------------------------------------------------------------------------//
 #if defined(IS_PY3K)
-CONDUIT_BLUEPRINT_PYTHON_API PyObject * PyInit_conduit_blueprint_python(void)
+CONDUIT_BLUEPRINT_PYTHON_API PyObject *PyInit_conduit_blueprint_mpi_mesh_examples_python(void)
 #else
-CONDUIT_BLUEPRINT_PYTHON_API void initconduit_blueprint_python(void)
+CONDUIT_BLUEPRINT_PYTHON_API void initconduit_blueprint_mpi_mesh_examples_python(void)
 #endif
 //---------------------------------------------------------------------------//
 {    
@@ -234,25 +303,26 @@ CONDUIT_BLUEPRINT_PYTHON_API void initconduit_blueprint_python(void)
     //-----------------------------------------------------------------------//
 
 #if defined(IS_PY3K)
-    PyObject *blueprint_module = PyModule_Create(&blueprint_python_module_def);
+    PyObject *py_module = PyModule_Create(&blueprint_mpi_mesh_examples_python_module_def);
 #else
-    PyObject *blueprint_module = Py_InitModule((char*)"conduit_blueprint_python",
-                                             blueprint_python_funcs);
+    PyObject *py_module = Py_InitModule((char*)"conduit_blueprint_mpi_mesh_examples_python",
+                                               blueprint_mpi_mesh_examples_python_funcs);
 #endif
 
-    if(blueprint_module == NULL)
+
+    if(py_module == NULL)
     {
         PY_MODULE_INIT_RETURN_ERROR;
     }
 
-    struct module_state *st = GETSTATE(blueprint_module);
+    struct module_state *st = GETSTATE(py_module);
     
-    st->error = PyErr_NewException((char*)"conduit_blueprint_python.Error",
+    st->error = PyErr_NewException((char*)"blueprint_mpi_mesh_examples_python.Error",
                                    NULL,
                                    NULL);
     if (st->error == NULL)
     {
-        Py_DECREF(blueprint_module);
+        Py_DECREF(py_module);
         PY_MODULE_INIT_RETURN_ERROR;
     }
 
@@ -263,8 +333,12 @@ CONDUIT_BLUEPRINT_PYTHON_API void initconduit_blueprint_python(void)
     }
 
 
+#ifdef Py_LIMITED_API
+    GLOBAL_MODULE = py_module;
+#endif
+
 #if defined(IS_PY3K)
-    return blueprint_module;
+    return py_module;
 #endif
 
 }

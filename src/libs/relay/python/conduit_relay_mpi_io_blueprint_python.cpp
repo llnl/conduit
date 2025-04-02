@@ -13,6 +13,13 @@
 #define IS_PY3K
 #endif
 
+// use  proper strdup
+#ifdef CONDUIT_PLATFORM_WINDOWS
+    #define _conduit_strdup _strdup
+#else
+    #define _conduit_strdup strdup
+#endif
+
 
 //-----------------------------------------------------------------------------
 // -- standard lib includes -- 
@@ -24,7 +31,9 @@
 // conduit includes
 //---------------------------------------------------------------------------//
 #include "conduit.hpp"
-#include "conduit_relay.hpp"
+#include "conduit_relay_mpi.hpp"
+#include "conduit_relay_mpi_io.hpp"
+#include "conduit_relay_mpi_io_blueprint.hpp"
 
 #include "conduit_relay_python_exports.h"
 
@@ -32,14 +41,14 @@
 #include "conduit_python.hpp"
 
 using namespace conduit;
-using namespace conduit::relay::io;
+using namespace conduit::relay::mpi::io;
 
 //---------------------------------------------------------------------------//
-// conduit::relay::io::blueprint::write_mesh
+// conduit::relay::mpi::io::blueprint::write_mesh
 //---------------------------------------------------------------------------//
 // append semantics
 static PyObject * 
-PyRelay_io_blueprint_write_mesh(PyObject *, //self
+PyRelay_mpi_io_blueprint_write_mesh(PyObject *, //self
                                 PyObject *args,
                                 PyObject *kwargs)
 {
@@ -47,19 +56,24 @@ PyRelay_io_blueprint_write_mesh(PyObject *, //self
     const char *path       = NULL;
     const char *protocol   = NULL;
     PyObject   *py_options = NULL;
+    Py_ssize_t  mpi_comm_id;
+
+    // TODO: future also accept mpi4py comm
 
     static const char *kwlist[] = {"node",
                                    "path",
+                                   "comm",
                                    "protocol",
                                    "options",
                                    NULL};
 
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwargs,
-                                     "Os|sO",
+                                     "Osn|sO",
                                      const_cast<char**>(kwlist),
                                      &py_node,
                                      &path,
+                                     &mpi_comm_id,
                                      &protocol,
                                      &py_options))
     {
@@ -69,7 +83,7 @@ PyRelay_io_blueprint_write_mesh(PyObject *, //self
     if(!PyConduit_Node_Check(py_node))
     {
         PyErr_SetString(PyExc_TypeError,
-                        "relay::io::blueprint::write_mesh "
+                        "relay::mpi::io::blueprint::write_mesh "
                         "'node' argument must be a "
                         "conduit.Node instance");
         return NULL;
@@ -78,9 +92,25 @@ PyRelay_io_blueprint_write_mesh(PyObject *, //self
     if( (py_options != NULL) && !PyConduit_Node_Check(py_options) )
     {
         PyErr_SetString(PyExc_TypeError,
-                        "relay::io::blueprint::write_mesh "
+                        "relay::mpi::io::blueprint::write_mesh "
                         "'options' argument must "
                         "be a conduit.Node");
+        return NULL;
+    }
+
+    // get c mpi comm hnd
+    MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
+
+    int rank = -1;
+
+    try
+    {
+        rank = relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
         return NULL;
     }
 
@@ -104,10 +134,11 @@ PyRelay_io_blueprint_write_mesh(PyObject *, //self
     
     try
     {
-        relay::io::blueprint::write_mesh(node,
+        relay::mpi::io::blueprint::write_mesh(node,
                                          std::string(path),
                                          protocol_str,
-                                         *opts_ptr);
+                                         *opts_ptr,
+                                         comm);
     }
     catch(conduit::Error &e)
     {
@@ -120,11 +151,11 @@ PyRelay_io_blueprint_write_mesh(PyObject *, //self
 }
 
 //---------------------------------------------------------------------------//
-// conduit::relay::io::blueprint::save_mesh
+// conduit::relay::mpi::io::blueprint::save_mesh
 //---------------------------------------------------------------------------//
 // truncate semantics
 static PyObject * 
-PyRelay_io_blueprint_save_mesh(PyObject *, //self
+PyRelay_mpi_io_blueprint_save_mesh(PyObject *, //self
                                PyObject *args,
                                PyObject *kwargs)
 {
@@ -132,19 +163,24 @@ PyRelay_io_blueprint_save_mesh(PyObject *, //self
     const char *path       = NULL;
     const char *protocol   = NULL;
     PyObject   *py_options = NULL;
+    Py_ssize_t  mpi_comm_id;
+
+    // TODO: future also accept mpi4py comm
 
     static const char *kwlist[] = {"node",
                                    "path",
+                                   "comm",
                                    "protocol",
                                    "options",
                                    NULL};
 
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwargs,
-                                     "Os|sO",
+                                     "Osn|sO",
                                      const_cast<char**>(kwlist),
                                      &py_node,
                                      &path,
+                                     &mpi_comm_id,
                                      &protocol,
                                      &py_options))
     {
@@ -154,7 +190,7 @@ PyRelay_io_blueprint_save_mesh(PyObject *, //self
     if(!PyConduit_Node_Check(py_node))
     {
         PyErr_SetString(PyExc_TypeError,
-                        "relay::io::blueprint::write_mesh "
+                        "relay::mpi::io::blueprint::write_mesh "
                         "'node' argument must be a "
                         "conduit.Node instance");
         return NULL;
@@ -163,9 +199,25 @@ PyRelay_io_blueprint_save_mesh(PyObject *, //self
     if( (py_options != NULL) && !PyConduit_Node_Check(py_options) )
     {
         PyErr_SetString(PyExc_TypeError,
-                        "relay::io::blueprint::write_mesh "
+                        "relay::mpi::io::blueprint::write_mesh "
                         "'options' argument must "
                         "be a conduit.Node");
+        return NULL;
+    }
+
+    // get c mpi comm hnd
+    MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
+
+    int rank = -1;
+
+    try
+    {
+        rank = relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
         return NULL;
     }
 
@@ -189,10 +241,11 @@ PyRelay_io_blueprint_save_mesh(PyObject *, //self
     
     try
     {
-        relay::io::blueprint::save_mesh(node,
+        relay::mpi::io::blueprint::save_mesh(node,
                                         std::string(path),
                                         protocol_str,
-                                        *opts_ptr);
+                                        *opts_ptr,
+                                        comm);
     }
     catch(conduit::Error &e)
     {
@@ -207,29 +260,34 @@ PyRelay_io_blueprint_save_mesh(PyObject *, //self
 
 
 //---------------------------------------------------------------------------//
-// conduit::relay::io::blueprint::read_mesh
+// conduit::relay::mpi::io::blueprint::read_mesh
 //---------------------------------------------------------------------------//
 
 static PyObject * 
-PyRelay_io_blueprint_read_mesh(PyObject *, //self
+PyRelay_mpi_io_blueprint_read_mesh(PyObject *, //self
                                PyObject *args,
                                PyObject *kwargs)
 {
     PyObject   *py_node    = NULL;
     const char *path       = NULL;
     PyObject   *py_options = NULL;
+    Py_ssize_t  mpi_comm_id;
+
+    // TODO: future also accept mpi4py comm
     
     static const char *kwlist[] = {"node",
                                    "path",
+                                   "comm",
                                    "options",
                                    NULL};
 
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwargs,
-                                     "Os|O",
+                                     "Osn|O",
                                      const_cast<char**>(kwlist),
                                      &py_node,
                                      &path,
+                                     &mpi_comm_id,
                                      &py_options))
     {
         return (NULL);
@@ -238,7 +296,7 @@ PyRelay_io_blueprint_read_mesh(PyObject *, //self
     if(!PyConduit_Node_Check(py_node))
     {
         PyErr_SetString(PyExc_TypeError,
-                        "relay::io::blueprint::read_mesh "
+                        "relay::mpi::io::blueprint::read_mesh "
                         "'node' argument must be a "
                         "conduit.Node instance");
         return NULL;
@@ -247,9 +305,25 @@ PyRelay_io_blueprint_read_mesh(PyObject *, //self
     if( (py_options != NULL) && !PyConduit_Node_Check(py_options) )
     {
         PyErr_SetString(PyExc_TypeError,
-                        "relay::io::blueprint::read_mesh "
+                        "relay::mpi::io::blueprint::read_mesh "
                         "'options' argument must "
                         "be a conduit.Node");
+        return NULL;
+    }
+
+    // get c mpi comm hnd
+    MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
+
+    int rank = -1;
+
+    try
+    {
+        rank = relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
         return NULL;
     }
 
@@ -266,9 +340,10 @@ PyRelay_io_blueprint_read_mesh(PyObject *, //self
 
     try
     {
-        relay::io::blueprint::read_mesh(std::string(path),
+        relay::mpi::io::blueprint::read_mesh(std::string(path),
                                         *opts_ptr,
-                                        node);
+                                        node,
+                                        comm);
     }
     catch(conduit::Error &e)
     {
@@ -281,29 +356,34 @@ PyRelay_io_blueprint_read_mesh(PyObject *, //self
 }
 
 //---------------------------------------------------------------------------//
-// conduit::relay::io::blueprint::load_mesh
+// conduit::relay::mpi::io::blueprint::load_mesh
 //---------------------------------------------------------------------------//
 
 static PyObject * 
-PyRelay_io_blueprint_load_mesh(PyObject *, //self
+PyRelay_mpi_io_blueprint_load_mesh(PyObject *, //self
                                PyObject *args,
                                PyObject *kwargs)
 {
     PyObject   *py_node    = NULL;
     const char *path       = NULL;
     PyObject   *py_options = NULL;
+    Py_ssize_t  mpi_comm_id;
+
+    // TODO: future also accept mpi4py comm
     
     static const char *kwlist[] = {"node",
                                    "path",
+                                   "comm",
                                    "options",
                                    NULL};
 
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwargs,
-                                     "Os|O",
+                                     "Osn|O",
                                      const_cast<char**>(kwlist),
                                      &py_node,
                                      &path,
+                                     &mpi_comm_id,
                                      &py_options))
     {
         return (NULL);
@@ -312,7 +392,7 @@ PyRelay_io_blueprint_load_mesh(PyObject *, //self
     if(!PyConduit_Node_Check(py_node))
     {
         PyErr_SetString(PyExc_TypeError,
-                        "relay::io::blueprint::read_mesh "
+                        "relay::mpi::io::blueprint::read_mesh "
                         "'node' argument must be a "
                         "conduit.Node instance");
         return NULL;
@@ -321,9 +401,25 @@ PyRelay_io_blueprint_load_mesh(PyObject *, //self
     if( (py_options != NULL) && !PyConduit_Node_Check(py_options) )
     {
         PyErr_SetString(PyExc_TypeError,
-                        "relay::io::blueprint::read_mesh "
+                        "relay::mpi::io::blueprint::read_mesh "
                         "'options' argument must "
                         "be a conduit.Node");
+        return NULL;
+    }
+
+    // get c mpi comm hnd
+    MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
+
+    int rank = -1;
+
+    try
+    {
+        rank = relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
         return NULL;
     }
 
@@ -340,9 +436,10 @@ PyRelay_io_blueprint_load_mesh(PyObject *, //self
 
     try
     {
-        relay::io::blueprint::load_mesh(std::string(path),
+        relay::mpi::io::blueprint::load_mesh(std::string(path),
                                         *opts_ptr,
-                                        node);
+                                        node,
+                                        comm);
     }
     catch(conduit::Error &e)
     {
@@ -358,25 +455,25 @@ PyRelay_io_blueprint_load_mesh(PyObject *, //self
 //---------------------------------------------------------------------------//
 // Python Module Method Defs
 //---------------------------------------------------------------------------//
-static PyMethodDef relay_io_blueprint_python_funcs[] =
+static PyMethodDef relay_mpi_io_blueprint_python_funcs[] =
 {
     //-----------------------------------------------------------------------//
     //-----------------------------------------------------------------------//
     {"write_mesh",
-     (PyCFunction)PyRelay_io_blueprint_write_mesh,
+     (PyCFunction)PyRelay_mpi_io_blueprint_write_mesh,
       METH_VARARGS | METH_KEYWORDS,
       "Write blueprint mesh to files using 'write' (append) semantics"},
     //-----------------------------------------------------------------------//
     {"save_mesh",
-     (PyCFunction)PyRelay_io_blueprint_save_mesh,
+     (PyCFunction)PyRelay_mpi_io_blueprint_save_mesh,
       METH_VARARGS | METH_KEYWORDS,
       "Write blueprint mesh to files using 'save' (truncate) semantics"},
     {"read_mesh",
-     (PyCFunction)PyRelay_io_blueprint_read_mesh,
+     (PyCFunction)PyRelay_mpi_io_blueprint_read_mesh,
       METH_VARARGS | METH_KEYWORDS,
       "Read blueprint mesh from files into passed node"},
     {"load_mesh",
-     (PyCFunction)PyRelay_io_blueprint_load_mesh,
+     (PyCFunction)PyRelay_mpi_io_blueprint_load_mesh,
       METH_VARARGS | METH_KEYWORDS,
       "Reset passed node and load blueprint mesh from files into it"},
     //-----------------------------------------------------------------------//
@@ -404,13 +501,18 @@ static struct module_state _state;
 #endif
 //---------------------------------------------------------------------------//
 
+#ifdef Py_LIMITED_API
+// A pointer to the initialized module.
+PyObject* GLOBAL_MODULE = NULL;
+#endif
+
 //---------------------------------------------------------------------------//
 // Extra Module Setup Logic for Python3
 //---------------------------------------------------------------------------//
 #if defined(IS_PY3K)
 //---------------------------------------------------------------------------//
 static int
-relay_io_blueprint_python_traverse(PyObject *m, visitproc visit, void *arg)
+relay_mpi_io_blueprint_python_traverse(PyObject *m, visitproc visit, void *arg)
 {
     Py_VISIT(GETSTATE(m)->error);
     return 0;
@@ -418,23 +520,23 @@ relay_io_blueprint_python_traverse(PyObject *m, visitproc visit, void *arg)
 
 //---------------------------------------------------------------------------//
 static int 
-relay_io_blueprint_python_clear(PyObject *m)
+relay_mpi_io_blueprint_python_clear(PyObject *m)
 {
     Py_CLEAR(GETSTATE(m)->error);
     return 0;
 }
 
 //---------------------------------------------------------------------------//
-static struct PyModuleDef relay_io_blueprint_python_module_def = 
+static struct PyModuleDef relay_mpi_io_blueprint_python_module_def = 
 {
         PyModuleDef_HEAD_INIT,
-        "relay_io_blueprint_python",
+        "relay_mpi_io_blueprint_python",
         NULL,
         sizeof(struct module_state),
-        relay_io_blueprint_python_funcs,
+        relay_mpi_io_blueprint_python_funcs,
         NULL,
-        relay_io_blueprint_python_traverse,
-        relay_io_blueprint_python_clear,
+        relay_mpi_io_blueprint_python_traverse,
+        relay_mpi_io_blueprint_python_clear,
         NULL
 };
 
@@ -460,9 +562,9 @@ static struct PyModuleDef relay_io_blueprint_python_module_def =
 extern "C" 
 //---------------------------------------------------------------------------//
 #if defined(IS_PY3K)
-CONDUIT_RELAY_PYTHON_API PyObject * PyInit_conduit_relay_io_blueprint_python(void)
+CONDUIT_RELAY_PYTHON_API PyObject * PyInit_conduit_relay_mpi_io_blueprint_python(void)
 #else
-CONDUIT_RELAY_PYTHON_API void initconduit_relay_io_blueprint_python(void)
+CONDUIT_RELAY_PYTHON_API void initconduit_relay_mpi_io_blueprint_python(void)
 #endif
 //---------------------------------------------------------------------------//
 {    
@@ -471,10 +573,10 @@ CONDUIT_RELAY_PYTHON_API void initconduit_relay_io_blueprint_python(void)
     //-----------------------------------------------------------------------//
 
 #if defined(IS_PY3K)
-    PyObject *res_mod = PyModule_Create(&relay_io_blueprint_python_module_def);
+    PyObject *res_mod = PyModule_Create(&relay_mpi_io_blueprint_python_module_def);
 #else
-    PyObject *res_mod = Py_InitModule((char*)"conduit_relay_io_blueprint_python",
-                                      relay_io_blueprint_python_funcs);
+    PyObject *res_mod = Py_InitModule((char*)"conduit_relay_mpi_io_blueprint_python",
+                                      relay_mpi_io_blueprint_python_funcs);
 #endif
 
 
@@ -485,7 +587,7 @@ CONDUIT_RELAY_PYTHON_API void initconduit_relay_io_blueprint_python(void)
 
     struct module_state *st = GETSTATE(res_mod);
     
-    st->error = PyErr_NewException((char*)"relay_io_blueprint_python.Error",
+    st->error = PyErr_NewException((char*)"relay_mpi_io_blueprint_python.Error",
                                    NULL,
                                    NULL);
     if (st->error == NULL)
@@ -499,6 +601,10 @@ CONDUIT_RELAY_PYTHON_API void initconduit_relay_io_blueprint_python(void)
     {
         PY_MODULE_INIT_RETURN_ERROR;
     }
+
+#ifdef Py_LIMITED_API
+    GLOBAL_MODULE = res_mod;
+#endif
 
 #if defined(IS_PY3K)
     return res_mod;

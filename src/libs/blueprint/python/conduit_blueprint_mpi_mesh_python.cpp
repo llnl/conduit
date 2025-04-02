@@ -31,8 +31,8 @@
 // conduit includes
 //---------------------------------------------------------------------------//
 #include "conduit.hpp"
-#include "conduit_blueprint.hpp"
-
+#include "conduit_blueprint_mpi_mesh.hpp"
+#include "conduit_relay_mpi.hpp"
 #include "conduit_blueprint_python_exports.h"
 
 // conduit python module capi header
@@ -43,11 +43,11 @@ using namespace conduit;
 
 
 //---------------------------------------------------------------------------//
-// conduit::blueprint::mesh::verify
+// conduit::blueprint::mpi::mesh::verify
 //---------------------------------------------------------------------------//
 // doc str
-const char *PyBlueprint_mesh_verify_doc_str =
-"verify(node, info, protocol)\n"
+const char *PyBlueprint_MPI_mesh_verify_doc_str =
+"verify(node, info, protocol, comm)\n"
 "\n"
 "Returns True if passed node conforms to the mesh blueprint.\n"
 "Populates info node with verification details.\n"
@@ -55,28 +55,33 @@ const char *PyBlueprint_mesh_verify_doc_str =
 "Arguments:\n"
 "  node: input node (conduit.Node instance)\n"
 "  info: node to hold verify info (conduit.Node instance)\n"
-"  protocol: optional string with sub-protocol name\n";
+"  protocol: optional string with sub-protocol name\n"
+"  comm: MPI Communicator\n";
 
 // python func
 static PyObject * 
-PyBlueprint_mesh_verify(PyObject *, //self
+PyBlueprint_MPI_mesh_verify(PyObject *, //self
                            PyObject *args,
                            PyObject *kwargs)
 {
     PyObject   *py_node  = NULL;
     PyObject   *py_info  = NULL;
-    const char *protocol = NULL;
+    Py_ssize_t  mpi_comm_id;
+
+    // TODO: future also accept mpi4py comm
     
     static const char *kwlist[] = {"node",
                                    "info",
-                                   "protocol",
+                                   "comm",
                                    NULL};
 
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwargs,
-                                     "OO|s",
+                                     "OOn",
                                      const_cast<char**>(kwlist),
-                                     &py_node, &py_info, &protocol))
+                                     &py_node,
+                                     &py_info,
+                                     &mpi_comm_id))
     {
         return (NULL);
     }
@@ -96,35 +101,41 @@ PyBlueprint_mesh_verify(PyObject *, //self
                         "conduit.Node instance");
         return NULL;
     }
+
+    // get c mpi comm hnd
+    MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
+
+    int rank = -1;
+
+    try
+    {
+        rank = relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
+        return NULL;
+    }
     
 
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
     Node &info = *PyConduit_Node_Get_Node_Ptr(py_info);
-    
-    bool res = false;
-    
-    if(protocol != NULL)
-    {
-        res = blueprint::mesh::verify(std::string(protocol), node,info);
-    }
-    else
-    {
-        res = blueprint::mesh::verify(node,info);
-    }
 
-    if(res)
+
+    if(blueprint::mpi::mesh::verify(node,info,comm))
         Py_RETURN_TRUE;
     else
         Py_RETURN_FALSE;
 }
 
 //---------------------------------------------------------------------------//
-// conduit::blueprint::mesh::generate_index
+// conduit::blueprint::mpi::mesh::generate_index
 //---------------------------------------------------------------------------//
 
 // doc str
-const char *PyBlueprint_mesh_generate_index_doc_str =
-"generate_index(mesh, ref_path, num_domains, dest)\n"
+const char *PyBlueprint_MPI_mesh_generate_index_doc_str =
+"generate_index(mesh, ref_path, dest, comm)\n"
 "\n"
 "Assumes mesh::verify() is True\n"
 "\n"
@@ -133,36 +144,38 @@ const char *PyBlueprint_mesh_generate_index_doc_str =
 "Arguments:\n"
 "  mesh: input node (conduit.Node instance)\n"
 "  ref_path: string with reference path to mesh root\n"
-"  num_domains: number of total mesh domains\n"
-"  dest: output node (conduit.Node instance)\n";
+"  dest: output node (conduit.Node instance)\n"
+"  comm: MPI Communicator\n";
 
 // py func
 static PyObject * 
-PyBlueprint_mesh_generate_index(PyObject *, //self
+PyBlueprint_MPI_mesh_generate_index(PyObject *, //self
                                 PyObject *args,
                                 PyObject *kwargs)
 {
 
     PyObject   *py_mesh     = NULL;
     const char *ref_path    = NULL;
-    Py_ssize_t  num_domains = 0;
     PyObject   *py_dest     = NULL;
+    Py_ssize_t  mpi_comm_id;
+
+    // TODO: future also accept mpi4py comm
 
     
     static const char *kwlist[] = {"mesh",
                                    "ref_path",
-                                   "num_domains",
                                    "dest",
+                                   "comm",
                                    NULL};
 
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwargs,
-                                     "OsnO",
+                                     "OsOn",
                                      const_cast<char**>(kwlist),
                                      &py_mesh, 
                                      &ref_path,
-                                     &num_domains,
-                                     &py_dest))
+                                     &py_dest,
+                                     &mpi_comm_id))
     {
         return (NULL);
     }
@@ -182,27 +195,43 @@ PyBlueprint_mesh_generate_index(PyObject *, //self
                         "conduit.Node instance");
         return NULL;
     }
+
+    // get c mpi comm hnd
+    MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
+
+    int rank = -1;
+
+    try
+    {
+        rank = relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
+        return NULL;
+    }
     
 
     Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
     Node &dest = *PyConduit_Node_Get_Node_Ptr(py_dest);
     
 
-    blueprint::mesh::generate_index(mesh,
-                                    std::string(ref_path),
-                                    num_domains,
-                                    dest);
+    blueprint::mpi::mesh::generate_index(mesh,
+                                         std::string(ref_path),
+                                         dest,
+                                         comm);
 
     Py_RETURN_NONE;
 }
 
 //---------------------------------------------------------------------------//
-// conduit::blueprint::mesh::partition
+// conduit::blueprint::mpi::mesh::partition
 //---------------------------------------------------------------------------//
 
 // doc str
-const char *PyBlueprint_mesh_partition_doc_str =
-"partition(mesh, options, output)\n"
+const char *PyBlueprint_MPI_mesh_partition_doc_str =
+"partition(mesh, options, output, comm)\n"
 "\n"
 "Assumes mesh::verify() is True\n"
 "\n"
@@ -211,11 +240,12 @@ const char *PyBlueprint_mesh_partition_doc_str =
 "Arguments:\n"
 "  mesh: input node (conduit.Node instance)\n"
 "  options: options node (conduit.Node instance)\n"
-"  output: output node (conduit.Node instance)\n";
+"  output: output node (conduit.Node instance)\n"
+"  comm: MPI Communicator\n";
 
 // py func
 static PyObject * 
-PyBlueprint_mesh_partition(PyObject *, //self
+PyBlueprint_MPI_mesh_partition(PyObject *, //self
                            PyObject *args,
                            PyObject *kwargs)
 {
@@ -223,20 +253,25 @@ PyBlueprint_mesh_partition(PyObject *, //self
     PyObject   *py_mesh     = NULL;
     PyObject   *py_options  = NULL;
     PyObject   *py_output   = NULL;
+    Py_ssize_t  mpi_comm_id;
+
+    // TODO: future also accept mpi4py comm
 
     
     static const char *kwlist[] = {"mesh",
                                    "options",
                                    "output",
+                                   "comm",
                                    NULL};
 
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwargs,
-                                     "OOO",
+                                     "OOOn",
                                      const_cast<char**>(kwlist),
                                      &py_mesh, 
                                      &py_options,
-                                     &py_output))
+                                     &py_output,
+                                     &mpi_comm_id))
     {
         return NULL;
     }
@@ -262,6 +297,22 @@ PyBlueprint_mesh_partition(PyObject *, //self
         PyErr_SetString(PyExc_TypeError,
                         "'output' argument must be a "
                         "conduit.Node instance");
+        return NULL;
+    }
+
+    // get c mpi comm hnd
+    MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
+
+    int rank = -1;
+
+    try
+    {
+        rank = relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
         return NULL;
     }
     
@@ -270,20 +321,21 @@ PyBlueprint_mesh_partition(PyObject *, //self
     Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
     Node &output = *PyConduit_Node_Get_Node_Ptr(py_output);
 
-    blueprint::mesh::partition(mesh,
-                               options,
-                               output);
+    blueprint::mpi::mesh::partition(mesh,
+                                    options,
+                                    output,
+                                    comm);
 
     Py_RETURN_NONE;
 }
 
 //---------------------------------------------------------------------------//
-// conduit::blueprint::mesh::flatten
+// conduit::blueprint::mpi::mesh::flatten
 //---------------------------------------------------------------------------//
 
 // doc str
-const char *PyBlueprint_mesh_flatten_doc_str =
-"flatten(mesh, options, output)\n"
+const char *PyBlueprint_MPI_mesh_flatten_doc_str =
+"flatten(mesh, options, output, comm)\n"
 "\n"
 "Assumes mesh::verify() is True\n"
 "\n"
@@ -292,11 +344,12 @@ const char *PyBlueprint_mesh_flatten_doc_str =
 "Arguments:\n"
 "  mesh: Input node, a blueprint mesh. (conduit.Node instance)\n"
 "  options: Options node. (conduit.Node instance)\n"
-"  output: Output node, a blueprint table. (conduit.Node instance)\n";
+"  output: Output node, a blueprint table. (conduit.Node instance)\n"
+"  comm: MPI Communicator\n";
 
 // py func
 static PyObject *
-PyBlueprint_mesh_flatten(PyObject *, //self
+PyBlueprint_MPI_mesh_flatten(PyObject *, //self
                          PyObject *args,
                          PyObject *kwargs)
 {
@@ -304,19 +357,24 @@ PyBlueprint_mesh_flatten(PyObject *, //self
     PyObject   *py_mesh     = NULL;
     PyObject   *py_options  = NULL;
     PyObject   *py_output   = NULL;
+    Py_ssize_t  mpi_comm_id;
+
+    // TODO: future also accept mpi4py comm
 
     static const char *kwlist[] = {"mesh",
                                    "options",
                                    "output",
+                                   "comm",
                                    NULL};
 
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwargs,
-                                     "OOO",
+                                     "OOOn",
                                      const_cast<char**>(kwlist),
                                      &py_mesh,
                                      &py_options,
-                                     &py_output))
+                                     &py_output,
+                                     &mpi_comm_id))
     {
         return NULL;
     }
@@ -345,11 +403,27 @@ PyBlueprint_mesh_flatten(PyObject *, //self
         return NULL;
     }
 
+    // get c mpi comm hnd
+    MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
+
+    int rank = -1;
+
+    try
+    {
+        rank = relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
+        return NULL;
+    }
+
     const Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
     const Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
     Node &output = *PyConduit_Node_Get_Node_Ptr(py_output);
 
-    blueprint::mesh::flatten(mesh, options, output);
+    blueprint::mpi::mesh::flatten(mesh, options, output, comm);
 
     Py_RETURN_NONE;
 }
@@ -357,25 +431,25 @@ PyBlueprint_mesh_flatten(PyObject *, //self
 //---------------------------------------------------------------------------//
 // Python Module Method Defs
 //---------------------------------------------------------------------------//
-static PyMethodDef blueprint_mesh_python_funcs[] =
+static PyMethodDef blueprint_mpi_mesh_python_funcs[] =
 {
     //-----------------------------------------------------------------------//
     {"verify",
-     (PyCFunction)PyBlueprint_mesh_verify,
+     (PyCFunction)PyBlueprint_MPI_mesh_verify,
       METH_VARARGS | METH_KEYWORDS,
-      PyBlueprint_mesh_verify_doc_str},
+      PyBlueprint_MPI_mesh_verify_doc_str},
     {"generate_index",
-     (PyCFunction)PyBlueprint_mesh_generate_index,
+     (PyCFunction)PyBlueprint_MPI_mesh_generate_index,
       METH_VARARGS | METH_KEYWORDS,
-      PyBlueprint_mesh_generate_index_doc_str},
+      PyBlueprint_MPI_mesh_generate_index_doc_str},
     {"partition",
-     (PyCFunction)PyBlueprint_mesh_partition,
+     (PyCFunction)PyBlueprint_MPI_mesh_partition,
       METH_VARARGS | METH_KEYWORDS,
-      PyBlueprint_mesh_partition_doc_str},
+      PyBlueprint_MPI_mesh_partition_doc_str},
     {"flatten",
-     (PyCFunction)PyBlueprint_mesh_flatten,
+     (PyCFunction)PyBlueprint_MPI_mesh_flatten,
      METH_VARARGS | METH_KEYWORDS,
-     PyBlueprint_mesh_flatten_doc_str},
+     PyBlueprint_MPI_mesh_flatten_doc_str},
     //-----------------------------------------------------------------------//
     // end methods table
     //-----------------------------------------------------------------------//
@@ -407,7 +481,7 @@ static struct module_state _state;
 #if defined(IS_PY3K)
 //---------------------------------------------------------------------------//
 static int
-blueprint_mesh_python_traverse(PyObject *m, visitproc visit, void *arg)
+blueprint_mpi_mesh_python_traverse(PyObject *m, visitproc visit, void *arg)
 {
     Py_VISIT(GETSTATE(m)->error);
     return 0;
@@ -415,23 +489,23 @@ blueprint_mesh_python_traverse(PyObject *m, visitproc visit, void *arg)
 
 //---------------------------------------------------------------------------//
 static int 
-blueprint_mesh_python_clear(PyObject *m)
+blueprint_mpi_mesh_python_clear(PyObject *m)
 {
     Py_CLEAR(GETSTATE(m)->error);
     return 0;
 }
 
 //---------------------------------------------------------------------------//
-static struct PyModuleDef blueprint_mesh_python_module_def = 
+static struct PyModuleDef blueprint_mpi_mesh_python_module_def = 
 {
         PyModuleDef_HEAD_INIT,
-        "blueprint_mesh_python",
+        "blueprint_mpi_mesh_python",
         NULL,
         sizeof(struct module_state),
-        blueprint_mesh_python_funcs,
+        blueprint_mpi_mesh_python_funcs,
         NULL,
-        blueprint_mesh_python_traverse,
-        blueprint_mesh_python_clear,
+        blueprint_mpi_mesh_python_traverse,
+        blueprint_mpi_mesh_python_clear,
         NULL
 };
 
@@ -456,9 +530,9 @@ static struct PyModuleDef blueprint_mesh_python_module_def =
 extern "C" 
 //---------------------------------------------------------------------------//
 #if defined(IS_PY3K)
-CONDUIT_BLUEPRINT_PYTHON_API PyObject *PyInit_conduit_blueprint_mesh_python(void)
+CONDUIT_BLUEPRINT_PYTHON_API PyObject *PyInit_conduit_blueprint_mpi_mesh_python(void)
 #else
-CONDUIT_BLUEPRINT_PYTHON_API void initconduit_blueprint_mesh_python(void)
+CONDUIT_BLUEPRINT_PYTHON_API void initconduit_blueprint_mpi_mesh_python(void)
 #endif
 //---------------------------------------------------------------------------//
 {    
@@ -467,10 +541,10 @@ CONDUIT_BLUEPRINT_PYTHON_API void initconduit_blueprint_mesh_python(void)
     //-----------------------------------------------------------------------//
 
 #if defined(IS_PY3K)
-    PyObject *py_module = PyModule_Create(&blueprint_mesh_python_module_def);
+    PyObject *py_module = PyModule_Create(&blueprint_mpi_mesh_python_module_def);
 #else
-    PyObject *py_module = Py_InitModule((char*)"conduit_blueprint_mesh_python",
-                                               blueprint_mesh_python_funcs);
+    PyObject *py_module = Py_InitModule((char*)"conduit_blueprint_mpi_mesh_python",
+                                               blueprint_mpi_mesh_python_funcs);
 #endif
 
 
@@ -481,7 +555,7 @@ CONDUIT_BLUEPRINT_PYTHON_API void initconduit_blueprint_mesh_python(void)
 
     struct module_state *st = GETSTATE(py_module);
     
-    st->error = PyErr_NewException((char*)"blueprint_mesh_python.Error",
+    st->error = PyErr_NewException((char*)"blueprint_mpi_mesh_python.Error",
                                    NULL,
                                    NULL);
     if (st->error == NULL)
@@ -496,6 +570,10 @@ CONDUIT_BLUEPRINT_PYTHON_API void initconduit_blueprint_mesh_python(void)
         PY_MODULE_INIT_RETURN_ERROR;
     }
 
+
+#ifdef Py_LIMITED_API
+    GLOBAL_MODULE = py_module;
+#endif
 
 #if defined(IS_PY3K)
     return py_module;
