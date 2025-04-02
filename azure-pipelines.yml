@@ -356,6 +356,8 @@ stages:
            if [ $ENABLE_MPI  = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC}+mpi"; fi
            if [ $ENABLE_MPI  = 'OFF' ]; then export SPACK_SPEC="${SPACK_SPEC}~mpi"; fi
            # hdf5
+           if [ $ENABLE_HDF5 = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC}+hdf5"; fi
+           if [ $ENABLE_HDF5 = 'OFF' ]; then export SPACK_SPEC="${SPACK_SPEC}~hdf5"; fi
            if [ $ENABLE_HDF5_COMPAT = 'OFF' ]; then export SPACK_SPEC="${SPACK_SPEC}~hdf5_compat"; fi
            # silo
            if [ $ENABLE_SILO  = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC}+silo"; fi
