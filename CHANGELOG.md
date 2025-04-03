@@ -990,12 +990,15 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Resolved several bugs across libraries
 - Resolved compiler warnings and memory leaks
 
-## 0.1.0 - Released 2016-03-30
+## [0.1.0] - Released 2016-03-30
 
 ### Added
 - Initial Open Source Release on GitHub
 
-[Unreleased]: https://github.com/llnl/conduit/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/llnl/conduit/compare/v0.9.4...HEAD
+[0.9.4]: https://github.com/llnl/conduit/compare/v0.9.3...v0.9.4
+[0.9.3]: https://github.com/llnl/conduit/compare/v0.9.2...v0.9.3
+[0.9.2]: https://github.com/llnl/conduit/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/llnl/conduit/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/llnl/conduit/compare/v0.8.8...v0.9.0
 [0.8.8]: https://github.com/llnl/conduit/compare/v0.8.7...v0.8.8
@@ -1018,4 +1021,5 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 [0.3.0]: https://github.com/llnl/conduit/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/llnl/conduit/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/llnl/conduit/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/LLNL/conduit/releases/tag/v0.1.0
 
