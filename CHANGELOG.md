@@ -9,8 +9,6 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Added
 #### Conduit
 - Added `conduit::utils::memory_usage` helper.
-
-#### Conduit
 - Added an example demonstrating a strategy to use Umpire with Conduit's allocators.
 - Added `conduit::utils::memory_usage` helper.
 - Added extra unit tests for native signed and unsigned Node set methods.
