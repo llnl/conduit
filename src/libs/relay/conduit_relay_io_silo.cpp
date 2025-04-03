@@ -3149,6 +3149,7 @@ read_multimesh(DBfile *dbfile,
     nblocks = mmesh_obj->nblocks;
     root_node[multimesh_name]["nblocks"] = nblocks;
 
+    // does this mesh use nameschemes?
     bool nameschemes = false;
     if (nullptr == mmesh_obj->meshnames)
     {
@@ -3247,11 +3248,20 @@ read_multivars(DBtoc *toc,
 
         // does this variable use nameschemes?
         bool nameschemes = false;
-        if (!mmvar_obj->varnames || !mmvar_obj->vartypes)
+        if (nullptr == mmvar_obj->varnames)
         {
-            nameschemes = true;
-            CONDUIT_INFO("Multivar " << multivar_name << " uses nameschemes which are not yet supported. Skipping.");
-            continue;
+            // if we do not have varnames, then we are either using nameschemes
+            // or our mvar is invalid
+            if (nullptr == mmvar_obj->block_ns)
+            {
+                CONDUIT_INFO("Multivar " << multivar_name << 
+                             " is missing var names and namescheme specifiers.");
+                continue;
+            }
+            else
+            {
+                nameschemes = true;
+            }
         }
 
         // is this multivar associated with a multimesh?
@@ -3262,7 +3272,7 @@ read_multivars(DBtoc *toc,
         // 2. the components of the multivar are associated with components of a multimesh
 
         // we begin with the second case:
-        if (!mmvar_obj->mmesh_name)
+        if (nullptr == mmvar_obj->mmesh_name)
         {
             // This multivar has no associated multimesh.
             // We will assume it is associated with the multimesh
@@ -3278,7 +3288,7 @@ read_multivars(DBtoc *toc,
         if (! multimesh_assoc)
         {
             CONDUIT_INFO("Multivar " << multivar_name << " is not associated " <<
-                         "with a multimesh. Skipping.");
+                         "with multimesh " << multimesh_name << ". Skipping.");
             continue;
         }
 
@@ -3289,22 +3299,60 @@ read_multivars(DBtoc *toc,
                          multimesh_name + ". Skipping.");
             continue;
         }
+
+        // create the variable now that we have passed all skip cases
         Node &var = root_node[multimesh_name]["vars"][multivar_name];
-        // TODO nameschemes
+
+        // you can have var names or a namescheme to describe var names
+        // you can have var types or a single var type
+        // these two options are independent of each other, so we must support
+        // all four cases.
+
         if (nameschemes)
         {
-            var["nameschemes"] = "yes";
+            var["namescheme"]["block"].set(mmvar_obj->block_ns);
+            // file nameschemes are optional
+            if (nullptr != mmvar_obj->file_ns)
+            {
+                var["namescheme"]["file"].set(mmvar_obj->file_ns);
+            }
+            // list of empty domains is optional
+            if (nullptr != mmvar_obj->empty_list && 0 < mmvar_obj->empty_cnt)
+            {
+                var["namescheme"]["empty_list"].set(DataType::index_t(mmvar_obj->empty_cnt));
+                index_t_array empty_list = var["namescheme"]["empty_list"].value();
+                for (int empty_id = 0; empty_id < mmvar_obj->empty_cnt; empty_id ++)
+                {
+                    // save the empty_list elements
+                    empty_list[empty_id] = mmvar_obj->empty_list[empty_id];
+                }
+            }
         }
         else
         {
-            var["nameschemes"] = "no";
+            for (int block_id = 0; block_id < nblocks; block_id ++)
+            {
+                // save the var name
+                Node &var_path = var["var_paths"].append();
+                var_path.set(mmvar_obj->varnames[block_id]);
+            }
+        }
+        
+        if (nullptr == mmvar_obj->vartypes)
+        {
+            // if we do not have vartypes, we can assume we either have a single
+            // var type or we have invalid data. We have no way of figuring out
+            // if the provided single var type is a valid var type yet, so we
+            // assume the best.
+            var["single_var_type"].set(mmvar_obj->block_type);
+        }
+        else
+        {
             var["var_types"].set(DataType::index_t(nblocks));
             index_t_array var_types = var["var_types"].value();
             for (int block_id = 0; block_id < nblocks; block_id ++)
             {
-                // save the var name and var type
-                Node &var_path = var["var_paths"].append();
-                var_path.set(mmvar_obj->varnames[block_id]);
+                // save the var type
                 var_types[block_id] = mmvar_obj->vartypes[block_id];
             }
         }
