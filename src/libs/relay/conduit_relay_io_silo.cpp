@@ -3164,19 +3164,14 @@ read_multimesh(DBfile *dbfile,
             nameschemes = true;
         }
     }
-    else
-    {
-        // we have mesh names, so we must have mesh types to succeed
-        if (nullptr == mmesh_obj->meshtypes)
-        {
-            error_oss << "Multimesh " << multimesh_name << " is missing mesh types.";
-            return false;
-        }
-    }
+
+    // you can have mesh names or a namescheme to describe mesh names
+    // you can have mesh types or a single mesh type
+    // these two options are independent of each other, so we must support
+    // all four cases.
 
     if (nameschemes)
     {
-        root_node[multimesh_name]["nameschemes"] = "yes";
         root_node[multimesh_name]["namescheme"]["block"].set(mmesh_obj->block_ns);
         // file nameschemes are optional
         if (nullptr != mmesh_obj->file_ns)
@@ -3186,14 +3181,29 @@ read_multimesh(DBfile *dbfile,
     }
     else
     {
-        root_node[multimesh_name]["nameschemes"] = "no";
+        for (int block_id = 0; block_id < nblocks; block_id ++)
+        {
+            // save the mesh name
+            Node &mesh_path = root_node[multimesh_name]["mesh_paths"].append();
+            mesh_path.set(mmesh_obj->meshnames[block_id]);
+        }
+    }
+    
+    if (nullptr == mmesh_obj->meshtypes)
+    {
+        // if we do not have meshtypes, we can assume we either have a single
+        // mesh type or we have invalid data. We have no way of figuring out
+        // if the provided single mesh type is a valid mesh type yet, so we
+        // assume the best.
+        root_node[multimesh_name]["single_mesh_type"].set(mmesh_obj->block_type);
+    }
+    else
+    {
         root_node[multimesh_name]["mesh_types"].set(DataType::index_t(nblocks));
         index_t_array mesh_types = root_node[multimesh_name]["mesh_types"].value();
         for (int block_id = 0; block_id < nblocks; block_id ++)
         {
-            // save the mesh name and mesh type
-            Node &mesh_path = root_node[multimesh_name]["mesh_paths"].append();
-            mesh_path.set(mmesh_obj->meshnames[block_id]);
+            // save the mesh type
             mesh_types[block_id] = mmesh_obj->meshtypes[block_id];
         }
     }
@@ -3217,18 +3227,19 @@ read_multivars(DBtoc *toc,
         detail::SiloObjectWrapper<DBmultivar, decltype(&DBFreeMultivar)> multivar{
             DBGetMultivar(dbfile, multivar_name.c_str()),
             &DBFreeMultivar};
-        if (! multivar.getSiloObject())
+        DBmultivar *mmvar_obj = multivar.getSiloObject();
+        if (nullptr == mmvar_obj)
         {
-            CONDUIT_INFO("Error opening MultiVar " << multivar_name << ". Skipping.");
+            CONDUIT_INFO("Error opening multivar " << multivar_name << ". Skipping.");
             continue;
         }
 
         // does this variable use nameschemes?
         bool nameschemes = false;
-        if (!multivar.getSiloObject()->varnames || !multivar.getSiloObject()->vartypes)
+        if (!mmvar_obj->varnames || !mmvar_obj->vartypes)
         {
             nameschemes = true;
-            CONDUIT_INFO("MultiVar " << multivar_name << " uses nameschemes which are not yet supported. Skipping.");
+            CONDUIT_INFO("Multivar " << multivar_name << " uses nameschemes which are not yet supported. Skipping.");
             continue;
         }
 
@@ -3240,7 +3251,7 @@ read_multivars(DBtoc *toc,
         // 2. the components of the multivar are associated with components of a multimesh
 
         // we begin with the second case:
-        if (!multivar.getSiloObject()->mmesh_name)
+        if (!mmvar_obj->mmesh_name)
         {
             // This multivar has no associated multimesh.
             // We will assume it is associated with the multimesh
@@ -3248,19 +3259,19 @@ read_multivars(DBtoc *toc,
             multimesh_assoc = true;
         }
         // and then the first case
-        else if (multivar.getSiloObject()->mmesh_name == multimesh_name)
+        else if (mmvar_obj->mmesh_name == multimesh_name)
         {
             multimesh_assoc = true;
         }
 
         if (! multimesh_assoc)
         {
-            CONDUIT_INFO("MultiVar " << multivar_name << " is not associated " <<
+            CONDUIT_INFO("Multivar " << multivar_name << " is not associated " <<
                          "with a multimesh. Skipping.");
             continue;
         }
 
-        if (multivar.getSiloObject()->nvars != nblocks)
+        if (mmvar_obj->nvars != nblocks)
         {
             CONDUIT_INFO("Domain count mismatch between multivar " +
                          multivar_name + " and multimesh " +
@@ -3282,8 +3293,8 @@ read_multivars(DBtoc *toc,
             {
                 // save the var name and var type
                 Node &var_path = var["var_paths"].append();
-                var_path.set(multivar.getSiloObject()->varnames[block_id]);
-                var_types[block_id] = multivar.getSiloObject()->vartypes[block_id];
+                var_path.set(mmvar_obj->varnames[block_id]);
+                var_types[block_id] = mmvar_obj->vartypes[block_id];
             }
         }
     }
@@ -3857,12 +3868,17 @@ read_root_silo_index(const std::string &root_file_path,
     //       time: 10
     //       dtime: 10
     //    nblocks: 5
-    //    nameschemes: "no"
     //    mesh_paths:
     //       - "domain_000000.silo:mesh"
     //       - "domain_000001.silo:mesh"
     //         ...
-    //    mesh_types: [UCD_MESH, UCD_MESH, ...]
+    //    // if nameschemes were used, we would have a child called namescheme
+    //    namescheme:
+    //       block: "|/domain%d/mesh|#domfiles[n]"
+    //       file: "|domain_%06d.silo|#procs[n]" // (optional)
+    //    // we will either have 'mesh_types' or 'single_mesh_type', never both
+    //    mesh_types: [DB_UCD_MESH, DB_UCD_MESH, ...]
+    //    single_mesh_type: [DB_UCD_MESH]
     //    vars:
     //       field:
     //          nameschemes: "no"
