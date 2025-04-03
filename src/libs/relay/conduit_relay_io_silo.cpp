@@ -3178,6 +3178,17 @@ read_multimesh(DBfile *dbfile,
         {
             root_node[multimesh_name]["namescheme"]["file"].set(mmesh_obj->file_ns);
         }
+        // list of empty domains is optional
+        if (nullptr != mmesh_obj->empty_list && 0 < mmesh_obj->empty_cnt)
+        {
+            root_node[multimesh_name]["namescheme"]["empty_list"].set(DataType::index_t(mmesh_obj->empty_cnt));
+            index_t_array empty_list = root_node[multimesh_name]["namescheme"]["empty_list"].value();
+            for (int empty_id = 0; empty_id < mmesh_obj->empty_cnt; empty_id ++)
+            {
+                // save the empty_list elements
+                empty_list[empty_id] = mmesh_obj->empty_list[empty_id];
+            }
+        }
     }
     else
     {
@@ -3868,34 +3879,45 @@ read_root_silo_index(const std::string &root_file_path,
     //       time: 10
     //       dtime: 10
     //    nblocks: 5
+    //    // we will either have 'mesh_paths' or 'namescheme', never both
     //    mesh_paths:
     //       - "domain_000000.silo:mesh"
     //       - "domain_000001.silo:mesh"
     //         ...
-    //    // if nameschemes were used, we would have a child called namescheme
     //    namescheme:
     //       block: "|/domain%d/mesh|#domfiles[n]"
     //       file: "|domain_%06d.silo|#procs[n]" // (optional)
+    //       empty_list: [5, 7, 9] // (optional)
     //    // we will either have 'mesh_types' or 'single_mesh_type', never both
-    //    mesh_types: [DB_UCD_MESH, DB_UCD_MESH, ...]
-    //    single_mesh_type: [DB_UCD_MESH]
+    //    mesh_types: [DB_UCDMESH, DB_UCDMESH, ...]
+    //    single_mesh_type: [DB_UCDMESH]
     //    vars:
     //       field:
-    //          nameschemes: "no"
+    //          // we will either have 'var_paths' or 'namescheme', never both
     //          var_paths:
     //             - "domain_000000.silo:field"
     //             - "domain_000001.silo:field"
     //               ...
+    //          namescheme:
+    //             block: "|/domain%d/field|#domfiles[n]"
+    //             file: "|domain_%06d.silo|#procs[n]" // (optional)
+    //             empty_list: [5, 7, 9] // (optional)
+    //          // we will either have 'var_types' or 'single_var_type', never both
     //          var_types: [DB_UCDVAR, DB_UCDVAR, ...]
+    //          single_var_type: [DB_UCDVAR]
     //          volume_dependent: "false" // (optional) this can be provided with overlink var attributes
     //       ...
     //    matsets:
     //       material:
-    //          nameschemes: "no"
+    //          // we will either have 'matset_paths' or 'namescheme', never both
     //          matset_paths:
     //             - "domain_000000.silo:material"
     //             - "domain_000001.silo:material"
     //               ...
+    //          namescheme:
+    //             block: "|/domain%d/material|#domfiles[n]"
+    //             file: "|domain_%06d.silo|#procs[n]" // (optional)
+    //             empty_list: [5, 7, 9] // (optional)
     //          material_map: // (optional) this can be reconstructed if dboptions are present
     //             a: 1
     //             b: 2
@@ -3904,11 +3926,15 @@ read_root_silo_index(const std::string &root_file_path,
     //       ...
     //    specsets:
     //       specset:
-    //          nameschemes: "no"
+    //          // we will either have 'specset_paths' or 'namescheme', never both
     //          specset_paths:
-    //             - "domain_000000.silo:specset"
-    //             - "domain_000001.silo:specset"
+    //             - "domain_000000.silo:species"
+    //             - "domain_000001.silo:species"
     //               ...
+    //          namescheme:
+    //             block: "|/domain%d/species|#domfiles[n]"
+    //             file: "|domain_%06d.silo|#procs[n]" // (optional)
+    //             empty_list: [5, 7, 9] // (optional)
     //          species_names: // (optional together with nmatspec)
     //             - "energon"
     //             - "unobtanium"
@@ -3925,21 +3951,6 @@ read_root_silo_index(const std::string &root_file_path,
     // mesh2:
     //    ...
     // ...
-
-    //
-    // OR, if nameschemes are used...
-    //
-
-    // mesh:
-    //    state:
-    //       cycle: 100
-    //       time: 10
-    //       dtime: 10
-    //    nblocks: 5
-    //    nameschemes: "yes"
-    //    namescheme:
-    //       block: "|/domain%d/hydro_mesh|#DomainFiles[n]"
-    //       file: "|x_2d_x00000/x_2d_x-%04d-00000.silo|#/procs[n]" // (optional)
 
     return true;
 }
