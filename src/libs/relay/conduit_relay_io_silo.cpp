@@ -3138,26 +3138,51 @@ read_multimesh(DBfile *dbfile,
     detail::SiloObjectWrapper<DBmultimesh, decltype(&DBFreeMultimesh)> multimesh{
         DBGetMultimesh(dbfile, multimesh_name.c_str()),
         &DBFreeMultimesh};
-    if (! multimesh.getSiloObject())
+    DBmultimesh *mmesh_obj = multimesh.getSiloObject();
+
+    if (nullptr == mmesh_obj)
     {
         error_oss << "Error opening multimesh " << multimesh_name;
         return false;
     }
 
-    nblocks = multimesh.getSiloObject()->nblocks;
+    nblocks = mmesh_obj->nblocks;
     root_node[multimesh_name]["nblocks"] = nblocks;
 
     bool nameschemes = false;
-    if (!multimesh.getSiloObject()->meshnames || !multimesh.getSiloObject()->meshtypes)
+    if (nullptr == mmesh_obj->meshnames)
     {
-        nameschemes = true;
+        // if we do not have mesnnames, then we are either using nameschemes
+        // or our mmesh is invalid
+        if (nullptr == mmesh_obj->block_ns)
+        {
+            error_oss << "Multimesh " << multimesh_name << " is missing mesh names and namescheme specifiers.";
+            return false;
+        }
+        else
+        {
+            nameschemes = true;
+        }
     }
-    // TODO nameschemes
+    else
+    {
+        // we have mesh names, so we must have mesh types to succeed
+        if (nullptr == mmesh_obj->meshtypes)
+        {
+            error_oss << "Multimesh " << multimesh_name << " is missing mesh types.";
+            return false;
+        }
+    }
+
     if (nameschemes)
     {
         root_node[multimesh_name]["nameschemes"] = "yes";
-        error_oss << "multimesh " << multimesh_name << " uses nameschemes which are not yet supported.";
-        return false;
+        root_node[multimesh_name]["namescheme"]["block"].set(mmesh_obj->block_ns);
+        // file nameschemes are optional
+        if (nullptr != mmesh_obj->file_ns)
+        {
+            root_node[multimesh_name]["namescheme"]["file"].set(mmesh_obj->file_ns);
+        }
     }
     else
     {
@@ -3168,8 +3193,8 @@ read_multimesh(DBfile *dbfile,
         {
             // save the mesh name and mesh type
             Node &mesh_path = root_node[multimesh_name]["mesh_paths"].append();
-            mesh_path.set(multimesh.getSiloObject()->meshnames[block_id]);
-            mesh_types[block_id] = multimesh.getSiloObject()->meshtypes[block_id];
+            mesh_path.set(mmesh_obj->meshnames[block_id]);
+            mesh_types[block_id] = mmesh_obj->meshtypes[block_id];
         }
     }
 
@@ -3884,6 +3909,21 @@ read_root_silo_index(const std::string &root_file_path,
     // mesh2:
     //    ...
     // ...
+
+    //
+    // OR, if nameschemes are used...
+    //
+
+    // mesh:
+    //    state:
+    //       cycle: 100
+    //       time: 10
+    //       dtime: 10
+    //    nblocks: 5
+    //    nameschemes: "yes"
+    //    namescheme:
+    //       block: "|/domain%d/hydro_mesh|#DomainFiles[n]"
+    //       file: "|x_2d_x00000/x_2d_x-%04d-00000.silo|#/procs[n]" // (optional)
 
     return true;
 }
