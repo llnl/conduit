@@ -4,11 +4,17 @@ Notable changes to Conduit are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project aspires to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.9.4] - Released 2025-04-03
 
 ### Added
 #### Conduit
 - Added `conduit::utils::memory_usage` helper.
+
+#### Conduit
+- Added an example demonstrating a strategy to use Umpire with Conduit's allocators.
+- Added `conduit::utils::memory_usage` helper.
+- Added extra unit tests for native signed and unsigned Node set methods.
+- Added support to read a `HOST_CONFIG` environment variable to allow `pip` installs. When set, pip install will pass a host config file to set CMake options.
 
 #### Blueprint
 - Added `conduit::blueprint::<mpi>::mesh::state()`, `conduit::blueprint::<mpi>::mesh::cycle()`, and `conduit::blueprint::<mpi>::mesh::time()`, utilities for getting state information from meshes.
@@ -23,15 +29,19 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 ### Changed
 #### Conduit
+- Updated build system to use blt 0.7.0.
 - Changed Conduit memory handler callbacks from function pointers to `std::function` objects, allowing users more flexibility in dealing with different memory spaces.
+- Adjusted how imported CMake target `conduit::conduit_python` locates python headers for case where Conduit's python module is installed as part of the overall conduit install.
 
 #### Relay
 - Ported relay and blueprint zfp support to use zfp 1.0 api. Added extra meta data to zfparray blueprint protocol to support roundtrip wrapping and unwrapping with zfp 1.0 api.
+- Added `conduit::relay::mpi::memory_usage` and `conduit::relay::mpi::memory_stats` helpers.
 
 ### Fixed
 
 #### Relay
 - Fixed an issue with the relay hdf5 detection heuristic on windows.
+- Fixed a bug with path creation logic that impact reading mesh blueprint data on windows.
 
 ## [0.9.3] - Released 2025-01-27
 
@@ -980,12 +990,15 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Resolved several bugs across libraries
 - Resolved compiler warnings and memory leaks
 
-## 0.1.0 - Released 2016-03-30
+## [0.1.0] - Released 2016-03-30
 
 ### Added
 - Initial Open Source Release on GitHub
 
-[Unreleased]: https://github.com/llnl/conduit/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/llnl/conduit/compare/v0.9.4...HEAD
+[0.9.4]: https://github.com/llnl/conduit/compare/v0.9.3...v0.9.4
+[0.9.3]: https://github.com/llnl/conduit/compare/v0.9.2...v0.9.3
+[0.9.2]: https://github.com/llnl/conduit/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/llnl/conduit/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/llnl/conduit/compare/v0.8.8...v0.9.0
 [0.8.8]: https://github.com/llnl/conduit/compare/v0.8.7...v0.8.8
@@ -1008,4 +1021,5 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 [0.3.0]: https://github.com/llnl/conduit/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/llnl/conduit/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/llnl/conduit/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/LLNL/conduit/releases/tag/v0.1.0
 
