@@ -25,9 +25,9 @@
 #
 ###############################################################################
 
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.0)
 
-project(using_with_cmake)
+project(using_with_cmake_umpire)
 
 
 ################################################################
@@ -61,31 +61,24 @@ find_package(Conduit REQUIRED
              PATHS ${CONDUIT_DIR}/lib/cmake/conduit)
 
 
-################################################################
-# Option 2: import conduit using find_package search
-################################################################
-##
-## Add Conduit's install path to CMAKE_PREFIX_PATH 
-## and use following find_package call to import conduit's targets
-##
 #
-# find_package(Conduit REQUIRED)
+# Use CMake's find_package to import umpire's targets
+# using explicit path
 #
+find_package(Umpire REQUIRED
+             NO_DEFAULT_PATH 
+             PATHS ${UMPIRE_DIR}/lib/cmake/umpire)
 
-######
-# Conduit requires c++14 support
-######
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 
 
 #######################################################
 # create our example 
 #######################################################
-add_executable(conduit_example conduit_example.cpp)
+add_executable(conduit_umpire_example conduit_umpire_example.cpp)
 
 # link to conduit targets
-target_link_libraries(conduit_example conduit::conduit)
+target_link_libraries(conduit_umpire_example conduit::conduit umpire)
 
 # if you are using conduit's python CAPI capsule interface
 # target_link_libraries(conduit_example conduit::conduit_python)

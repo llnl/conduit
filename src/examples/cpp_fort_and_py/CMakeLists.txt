@@ -34,7 +34,7 @@
 # > env PYTHONPATH=/path/to/conduit-install/python-modules  ./conduit_fort_and_py_ex
 ###############################################################################
 
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.21)
 
 project(conduit_cpp_fort_and_py C CXX Fortran)
 
