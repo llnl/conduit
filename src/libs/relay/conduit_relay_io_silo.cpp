@@ -694,6 +694,7 @@ public:
         return nullptr != names_list;
     }
 
+    // TODO what the heck is this
     void GeneratePaths(const std::string &path,
                        const std::string &relative_dir,
                        std::string &file_path,
@@ -4416,15 +4417,6 @@ read_mesh(const std::string &root_file_path,
         detail::name_generator_tools::populate_path_gen_map(
             root_file.getSiloObject(), mesh_index, "specsets", "specset_paths");
 
-    bool mesh_nameschemes = false;
-    if (mesh_index.has_child("nameschemes") &&
-        mesh_index["nameschemes"].as_string() == "yes")
-    {
-        mesh_nameschemes = true;
-        CONDUIT_ERROR("TODO no support for nameschemes yet");
-    }
-    detail::SiloTreePathGenerator mesh_path_gen{mesh_nameschemes};
-
     std::string root_file_name, relative_dir;
     utils::rsplit_file_path(root_file_path, root_file_name, relative_dir);
 
@@ -4440,8 +4432,19 @@ read_mesh(const std::string &root_file_path,
         //
 
         const std::string silo_mesh_path = mesh_index["mesh_paths"][domain_id].as_string();
-        const int_accessor meshtypes = mesh_index["mesh_types"].value();
-        const int meshtype = meshtypes[domain_id];
+        const int meshtype = [&]() -> int
+        {
+            // it is either one or the other
+            if (mesh_index.has_child("mesh_types"))
+            {
+                const int_accessor meshtypes = mesh_index["mesh_types"].value();
+                return meshtypes[domain_id];
+            }
+            else // (mesh_index.has_child("single_mesh_type"))
+            {
+                return mesh_index["single_mesh_type"].as_int();
+            }
+        }();
 
         std::string mesh_name, mesh_domain_filename;
         mesh_path_gen.GeneratePaths(silo_mesh_path, relative_dir, mesh_domain_filename, mesh_name);
@@ -4679,8 +4682,19 @@ read_mesh(const std::string &root_file_path,
                 detail::SiloTreePathGenerator var_path_gen{var_nameschemes};
 
                 const std::string silo_var_path = n_var["var_paths"][domain_id].as_string();
-                int_accessor vartypes = n_var["var_types"].value();
-                int vartype = vartypes[domain_id];
+                const int vartype = [&]() -> int
+                {
+                    // it is either one or the other
+                    if (n_var.has_child("var_types"))
+                    {
+                        const int_accessor vartypes = n_var["var_types"].value();
+                        return vartypes[domain_id];
+                    }
+                    else // (n_var.has_child("single_var_type"))
+                    {
+                        return n_var["single_var_type"].as_int();
+                    }
+                }();
 
                 std::string var_name, var_domain_filename;
                 var_path_gen.GeneratePaths(silo_var_path, relative_dir, var_domain_filename, var_name);
