@@ -416,139 +416,6 @@ namespace detail
 //-----------------------------------------------------------------------------
 namespace name_generator_tools // tools for making `SiloTreePathGenerator`s
 {
-//-----------------------------------------------------------------------------
-// fetches the paths from part of the root silo index
-std::vector<std::string> 
-get_paths(const Node &silo_index_path,
-          const std::string path_string,
-          const int num_domains)
-{
-    std::vector<std::string> paths;
-    if (silo_index_path.has_child(path_string))
-    {
-        // Preallocate memory to avoid repeated reallocations
-        paths.reserve(num_domains);
-        for (int block_id = 0; block_id < num_domains; block_id ++)
-        {
-            paths.push_back(silo_index_path[block_id]);
-        }
-    }
-    // leverage RVO
-    return paths;
-}
-
-//-----------------------------------------------------------------------------
-// creates silo tree path generators
-SiloTreePathGenerator
-create_silo_tree_path_generator(DBfile *root_file,
-                                const int num_domains,
-                                const Node &n_item,
-                                const std::string &what_kind_of_paths)
-{
-    return SiloTreePathGenerator(
-        // silo database file
-        root_file,
-        
-        // objpath - we are at the root of the root file
-        "",
-        
-        // number of blocks
-        num_domains,
-        
-        // mesh paths
-        std::move(get_paths(n_item, what_kind_of_paths, num_domains)),
-        
-        // file namescheme
-        n_item.has_path("namescheme/file") ? 
-            n_item["namescheme"]["file"].as_string() : 
-            std::string(""),
-        
-        // block namescheme
-        n_item.has_path("namescheme/block") ? 
-            n_item["namescheme"]["block"].as_string() : 
-            std::string(""),
-        
-        // number of elements in the empty list
-        n_item.has_path("namescheme/empty_list") ?
-            n_item["namescheme"]["empty_list"].dtype().number_of_elements() :
-            0,
-        
-        // pointer to the empty list
-        n_item.has_path("namescheme/empty_list") ?
-            n_item["namescheme"]["empty_list"].value() :
-            nullptr);
-}
-
-//-----------------------------------------------------------------------------
-// populates a map of field/matset/specset names to path name generators for them
-std::map<std::string, SiloTreePathGenerator>
-populate_path_gen_map(DBfile *root_file,
-                      const Node &mesh_index,
-                      const std::string item, // "vars", "matsets", "specsets"
-                      const std::string what_kind_of_paths)
-{
-    std::map<std::string, SiloTreePathGenerator> path_gen_map;
-    auto item_itr = mesh_index[item].children();
-    while (item_itr.has_next())
-    {
-        const Node &n_item = item_itr.next();
-        const std::string item_name = item_itr.name();
-        path_gen_map[item_name] = 
-            create_silo_tree_path_generator(root_file, n_item, what_kind_of_paths);
-    }
-    // leverage RVO
-    return path_gen_map;
-};
-
-}
-//-----------------------------------------------------------------------------
-// -- end conduit::relay::<mpi>::io::silo::detail::name_generator_tools --
-//-----------------------------------------------------------------------------
-
-template <class T, class Deleter>
-class SiloObjectWrapper
-{
-private:
-    T *obj;
-    Deleter del;
-
-public:
-    SiloObjectWrapper(T *o, Deleter d) :
-        obj(o), del{d} {}
-    T* getSiloObject() { return obj; }
-    void setSiloObject(T *o) { obj = o; }
-    ~SiloObjectWrapper()
-    {
-        if (obj)
-        {
-            del(obj);
-        }
-    }
-};
-
-//-----------------------------------------------------------------------------
-
-template <class T, class Deleter>
-class SiloObjectWrapperCheckError
-{
-private:
-    T *obj;
-    Deleter del;
-    std::string errmsg = "";
-
-public:
-    SiloObjectWrapperCheckError(T *o, Deleter d, std::string err) :
-        obj(o), del{d}, errmsg{err} {}
-    SiloObjectWrapperCheckError(T *o, Deleter d) :
-        obj(o), del{d} {}
-    T* getSiloObject() { return obj; }
-    void setSiloObject(T *o) { obj = o; }
-    void setErrMsg(std::string newmsg) { errmsg = newmsg; }
-    ~SiloObjectWrapperCheckError()
-    {
-        CONDUIT_ASSERT(!(obj && del(obj) != 0 && !errmsg.empty()), errmsg);
-    }
-};
 
 //-----------------------------------------------------------------------------
 
@@ -681,34 +548,157 @@ public:
 
         return res;
     }
+};
 
-    int
-    NumberOfBlocks() const
+//-----------------------------------------------------------------------------
+// fetches the paths from part of the root silo index
+std::vector<std::string> 
+get_paths(const Node &silo_index_path,
+          const std::string path_string,
+          const int num_domains)
+{
+    std::vector<std::string> paths;
+    if (silo_index_path.has_child(path_string))
     {
-        return nblocks;
-    }
-
-    bool
-    IsExplicit() const
-    {
-        return nullptr != names_list;
-    }
-
-    // TODO what the heck is this
-    void GeneratePaths(const std::string &path,
-                       const std::string &relative_dir,
-                       std::string &file_path,
-                       std::string &silo_name)
-    {
-        conduit::utils::rsplit_file_path(path, ":", silo_name, file_path);
-        if (silo_name.length() > 1 && silo_name[0] == '/')
+        // Preallocate memory to avoid repeated reallocations
+        paths.reserve(num_domains);
+        for (int block_id = 0; block_id < num_domains; block_id ++)
         {
-            silo_name = silo_name.substr(1);
+            paths.push_back(silo_index_path[block_id]);
         }
-        if (!file_path.empty())
+    }
+    // leverage RVO
+    return paths;
+}
+
+//-----------------------------------------------------------------------------
+// creates silo tree path generators
+SiloTreePathGenerator
+create_silo_tree_path_generator(DBfile *root_file,
+                                const int num_domains,
+                                const Node &n_item,
+                                const std::string &what_kind_of_paths)
+{
+    return SiloTreePathGenerator(
+        // silo database file
+        root_file,
+        
+        // objpath - we are at the root of the root file
+        "",
+        
+        // number of blocks
+        num_domains,
+        
+        // mesh paths
+        std::move(get_paths(n_item, what_kind_of_paths, num_domains)),
+        
+        // file namescheme
+        n_item.has_path("namescheme/file") ? 
+            n_item["namescheme"]["file"].as_string() : 
+            std::string(""),
+        
+        // block namescheme
+        n_item.has_path("namescheme/block") ? 
+            n_item["namescheme"]["block"].as_string() : 
+            std::string(""),
+        
+        // number of elements in the empty list
+        n_item.has_path("namescheme/empty_list") ?
+            n_item["namescheme"]["empty_list"].dtype().number_of_elements() :
+            0,
+        
+        // pointer to the empty list
+        n_item.has_path("namescheme/empty_list") ?
+            n_item["namescheme"]["empty_list"].value() :
+            nullptr);
+}
+
+//-----------------------------------------------------------------------------
+// populates a map of field/matset/specset names to path name generators for them
+std::map<std::string, SiloTreePathGenerator>
+populate_path_gen_map(DBfile *root_file,
+                      const Node &mesh_index,
+                      const std::string item, // "vars", "matsets", "specsets"
+                      const std::string what_kind_of_paths)
+{
+    std::map<std::string, SiloTreePathGenerator> path_gen_map;
+    auto item_itr = mesh_index[item].children();
+    while (item_itr.has_next())
+    {
+        const Node &n_item = item_itr.next();
+        const std::string item_name = item_itr.name();
+        path_gen_map[item_name] = 
+            create_silo_tree_path_generator(root_file, n_item, what_kind_of_paths);
+    }
+    // leverage RVO
+    return path_gen_map;
+}
+
+//-----------------------------------------------------------------------------
+void
+generate_paths(const std::string &path,
+               const std::string &relative_dir,
+               std::string &file_path,
+               std::string &silo_name)
+{
+    conduit::utils::rsplit_file_path(path, ":", silo_name, file_path);
+    if (silo_name.length() > 1 && silo_name[0] == '/')
+    {
+        silo_name = silo_name.substr(1);
+    }
+    if (! file_path.empty())
+    {
+        file_path = conduit::utils::join_file_path(relative_dir, file_path);
+    }
+}
+
+}
+//-----------------------------------------------------------------------------
+// -- end conduit::relay::<mpi>::io::silo::detail::name_generator_tools --
+//-----------------------------------------------------------------------------
+
+template <class T, class Deleter>
+class SiloObjectWrapper
+{
+private:
+    T *obj;
+    Deleter del;
+
+public:
+    SiloObjectWrapper(T *o, Deleter d) :
+        obj(o), del{d} {}
+    T* getSiloObject() { return obj; }
+    void setSiloObject(T *o) { obj = o; }
+    ~SiloObjectWrapper()
+    {
+        if (obj)
         {
-            file_path = conduit::utils::join_file_path(relative_dir, file_path);
+            del(obj);
         }
+    }
+};
+
+//-----------------------------------------------------------------------------
+
+template <class T, class Deleter>
+class SiloObjectWrapperCheckError
+{
+private:
+    T *obj;
+    Deleter del;
+    std::string errmsg = "";
+
+public:
+    SiloObjectWrapperCheckError(T *o, Deleter d, std::string err) :
+        obj(o), del{d}, errmsg{err} {}
+    SiloObjectWrapperCheckError(T *o, Deleter d) :
+        obj(o), del{d} {}
+    T* getSiloObject() { return obj; }
+    void setSiloObject(T *o) { obj = o; }
+    void setErrMsg(std::string newmsg) { errmsg = newmsg; }
+    ~SiloObjectWrapperCheckError()
+    {
+        CONDUIT_ASSERT(!(obj && del(obj) != 0 && !errmsg.empty()), errmsg);
     }
 };
 
@@ -4405,20 +4395,25 @@ read_mesh(const std::string &root_file_path,
     //
     // Create name generators for the mesh and each variable, matset, specset
     //
-    detail::SiloTreePathGenerator mesh_path_gen = 
-        detail::name_generator_tools::create_silo_tree_path_generator(root_file.getSiloObject(), mesh_index, "mesh_paths");
-    std::map<std::string, detail::SiloTreePathGenerator> var_path_gen = 
+    detail::name_generator_tools::SiloTreePathGenerator mesh_path_gen = 
+        detail::name_generator_tools::create_silo_tree_path_generator(
+            root_file.getSiloObject(), mesh_index, "mesh_paths");
+    std::map<std::string, detail::name_generator_tools::SiloTreePathGenerator> var_path_gen = 
         detail::name_generator_tools::populate_path_gen_map(
             root_file.getSiloObject(), mesh_index, "vars", "var_paths");
-    std::map<std::string, detail::SiloTreePathGenerator> mat_path_gen = 
+    std::map<std::string, detail::name_generator_tools::SiloTreePathGenerator> mat_path_gen = 
         detail::name_generator_tools::populate_path_gen_map(
             root_file.getSiloObject(), mesh_index, "matsets", "matset_paths");
-    std::map<std::string, detail::SiloTreePathGenerator> spec_path_gen = 
+    std::map<std::string, detail::name_generator_tools::SiloTreePathGenerator> spec_path_gen = 
         detail::name_generator_tools::populate_path_gen_map(
             root_file.getSiloObject(), mesh_index, "specsets", "specset_paths");
 
     std::string root_file_name, relative_dir;
     utils::rsplit_file_path(root_file_path, root_file_name, relative_dir);
+    // example:
+    //    root_file_path = "/path/to/silo/myrootfile.root"
+    //    relative_dir   = "/path/to/silo/"
+    //    root_file_name = "myrootfile.root"
 
     // If the root file is named OvlTop.silo, then there is a very good chance that
     // this file is valid overlink. Therefore, we must modify the paths we get from
@@ -4431,7 +4426,7 @@ read_mesh(const std::string &root_file_path,
         // Read Mesh
         //
 
-        const std::string silo_mesh_path = mesh_index["mesh_paths"][domain_id].as_string();
+        const std::string silo_mesh_path = mesh_path_gen.Name(domain_id);
         const int meshtype = [&]() -> int
         {
             // it is either one or the other
@@ -4447,15 +4442,32 @@ read_mesh(const std::string &root_file_path,
         }();
 
         std::string mesh_name, mesh_domain_filename;
-        mesh_path_gen.GeneratePaths(silo_mesh_path, relative_dir, mesh_domain_filename, mesh_name);
+        detail::name_generator_tools::generate_paths(silo_mesh_path,
+                                                     relative_dir,
+                                                     mesh_domain_filename,
+                                                     mesh_name);
+        // example:
+        //    silo_mesh_path:       "domain_000000.silo:path/to/mesh"
+        //    relative_dir:         "/path/to/silo/"
+        //    mesh_domain_filename: "/path/to/silo/domain_000000.silo"
+        //    mesh_name:            "path/to/mesh"
+        // example2:
+        //    silo_mesh_path:       "path/to/mesh"
+        //    relative_dir:         "/path/to/silo/"
+        //    mesh_domain_filename: ""
+        //    mesh_name:            "path/to/mesh"
 
-        if (mesh_name == "EMPTY")
+        if ("EMPTY" == mesh_name)
         {
             continue; // skip this domain
         }
 
         std::string bottom_level_mesh_name, tmp;
         conduit::utils::rsplit_file_path(mesh_name, "/", bottom_level_mesh_name, tmp);
+        // example:
+        //    mesh_name:              "path/to/mesh"
+        //    bottom_level_mesh_name: "mesh"
+        //    tmp:                    "path/to/"
 
         // root only case
         if (mesh_domain_filename.empty())
@@ -4534,22 +4546,25 @@ read_mesh(const std::string &root_file_path,
             {
                 const Node &n_matset = matset_itr.next();
                 const std::string multimat_name = matset_itr.name();
-
-                bool matset_nameschemes = false;
-                if (n_matset.has_child("nameschemes") &&
-                    n_matset["nameschemes"].as_string() == "yes")
-                {
-                    matset_nameschemes = true;
-                    CONDUIT_ERROR("TODO no support for nameschemes yet");
-                }
-                detail::SiloTreePathGenerator matset_path_gen{matset_nameschemes};
-
-                const std::string silo_matset_path = n_matset["matset_paths"][domain_id].as_string();
+                const std::string silo_matset_path = mat_path_gen[multimat_name].Name(domain_id);
 
                 std::string matset_name, matset_domain_filename;
-                matset_path_gen.GeneratePaths(silo_matset_path, relative_dir, matset_domain_filename, matset_name);
+                detail::name_generator_tools::generate_paths(silo_matset_path,
+                                                             relative_dir,
+                                                             matset_domain_filename,
+                                                             matset_name);
+                // example:
+                //    silo_matset_path:       "domain_000000.silo:path/to/matset"
+                //    relative_dir:           "/path/to/silo/"
+                //    matset_domain_filename: "/path/to/silo/domain_000000.silo"
+                //    matset_name:            "path/to/matset"
+                // example2:
+                //    silo_matset_path:       "path/to/matset"
+                //    relative_dir:           "/path/to/silo/"
+                //    matset_domain_filename: ""
+                //    matset_name:            "path/to/matset"
 
-                if (matset_name == "EMPTY")
+                if ("EMPTY" == matset_name)
                 {
                     // we choose not to write anything to blueprint
                     continue;
@@ -4610,22 +4625,25 @@ read_mesh(const std::string &root_file_path,
             {
                 const Node &n_specset = specset_itr.next();
                 const std::string multimatspec_name = specset_itr.name();
-
-                bool specset_nameschemes = false;
-                if (n_specset.has_child("nameschemes") &&
-                    n_specset["nameschemes"].as_string() == "yes")
-                {
-                    specset_nameschemes = true;
-                    CONDUIT_ERROR("TODO no support for nameschemes yet");
-                }
-                detail::SiloTreePathGenerator specset_path_gen{specset_nameschemes};
-
-                const std::string silo_specset_path = n_specset["specset_paths"][domain_id].as_string();
+                const std::string silo_specset_path = spec_path_gen[multimatspec_name].Name(domain_id);
 
                 std::string specset_name, specset_domain_filename;
-                specset_path_gen.GeneratePaths(silo_specset_path, relative_dir, specset_domain_filename, specset_name);
+                detail::name_generator_tools::generate_paths(silo_specset_path,
+                                                             relative_dir,
+                                                             specset_domain_filename,
+                                                             specset_name);
+                // example:
+                //    silo_specset_path:       "domain_000000.silo:path/to/specset"
+                //    relative_dir:            "/path/to/silo/"
+                //    specset_domain_filename: "/path/to/silo/domain_000000.silo"
+                //    specset_name:            "path/to/specset"
+                // example2:
+                //    silo_specset_path:       "path/to/specset"
+                //    relative_dir:            "/path/to/silo/"
+                //    specset_domain_filename: ""
+                //    specset_name:            "path/to/specset"
 
-                if (specset_name == "EMPTY")
+                if ("EMPTY" == specset_name)
                 {
                     // we choose not to write anything to blueprint
                     continue;
@@ -4671,17 +4689,7 @@ read_mesh(const std::string &root_file_path,
             {
                 const Node &n_var = var_itr.next();
                 const std::string multivar_name = var_itr.name();
-
-                bool var_nameschemes = false;
-                if (n_var.has_child("nameschemes") &&
-                    n_var["nameschemes"].as_string() == "yes")
-                {
-                    var_nameschemes = true;
-                    CONDUIT_ERROR("TODO no support for nameschemes yet");
-                }
-                detail::SiloTreePathGenerator var_path_gen{var_nameschemes};
-
-                const std::string silo_var_path = n_var["var_paths"][domain_id].as_string();
+                const std::string silo_var_path = var_path_gen[multivar_name].Name(domain_id);
                 const int vartype = [&]() -> int
                 {
                     // it is either one or the other
@@ -4697,9 +4705,22 @@ read_mesh(const std::string &root_file_path,
                 }();
 
                 std::string var_name, var_domain_filename;
-                var_path_gen.GeneratePaths(silo_var_path, relative_dir, var_domain_filename, var_name);
+                detail::name_generator_tools::generate_paths(silo_var_path,
+                                                             relative_dir,
+                                                             var_domain_filename,
+                                                             var_name);
+                // example:
+                //    silo_var_path:       "domain_000000.silo:path/to/var"
+                //    relative_dir:        "/path/to/silo/"
+                //    var_domain_filename: "/path/to/silo/domain_000000.silo"
+                //    var_name:            "path/to/var"
+                // example2:
+                //    silo_var_path:       "path/to/var"
+                //    relative_dir:        "/path/to/silo/"
+                //    var_domain_filename: ""
+                //    var_name:            "path/to/var"
 
-                if (var_name == "EMPTY")
+                if ("EMPTY" == var_name)
                 {
                     // we choose not to write anything to blueprint
                     continue;
