@@ -461,23 +461,23 @@ public:
 class SiloTreePathGenerator
 {
 private:
-    int                 nblocks;
-    char const * const *names_list;
-    DBnamescheme       *file_namescheme;
-    DBnamescheme       *block_namescheme;
-    int                 empty_count;
-    int const          *empty_list;
+    int                      nblocks;
+    std::vector<std::string> names_list;
+    DBnamescheme            *file_namescheme;
+    DBnamescheme            *block_namescheme;
+    int                      empty_count;
+    int const               *empty_list;
 
 public:
-    SiloTreePathGenerator(DBfile             *dbfile,
-                          char const         *objpath,
-                          int                 nblocks_,
-                          char const * const *names_list_,
-                          const char         *file_namescheme_,
-                          const char         *block_namescheme_,
-                          int                 empty_count_,
-                          int const          *empty_list_) : 
-        nblocks(nblocks_), names_list(names_list_),
+    SiloTreePathGenerator(DBfile                    *dbfile,
+                          char const                *objpath,
+                          int                        nblocks_,
+                          std::vector<std::string> &&names_list_,
+                          std::string              &&file_namescheme_,
+                          std::string              &&block_namescheme_,
+                          int                        empty_count_,
+                          int const                 *empty_list_) : 
+        nblocks(nblocks_), names_list(std::move(names_list_)),
         file_namescheme(0), block_namescheme(0),
         empty_count(empty_count_), empty_list(empty_list_)
     {
@@ -488,7 +488,7 @@ public:
         }
 
         // if we simple have a list of names we are done
-        if (nullptr != names_list)
+        if (0 == names_list.size())
         {
             return;
         }
@@ -537,9 +537,9 @@ public:
         }
 
         // check for simple case
-        if (names_list != 0)
+        if (0 < names_list.size())
         {
-            return string(names_list[idx]);
+            return names_list[idx];
         }
 
         if (empty_list)
@@ -3875,7 +3875,8 @@ read_root_silo_index(const std::string &root_file_path,
                      const Node &opts,
                      Node &root_node, // output
                      std::string &mesh_name_to_read, // output
-                     std::ostringstream &error_oss) // output
+                     std::ostringstream &error_oss, // output
+                     detail::SiloObjectWrapperCheckError<DBfile, decltype(&DBClose)> &root_file) // output
 {
     // clear output vars
     root_node.reset();
@@ -3890,18 +3891,16 @@ read_root_silo_index(const std::string &root_file_path,
     }
 
     // open silo file
-    detail::SiloObjectWrapperCheckError<DBfile, decltype(&DBClose)> dbfile{
-        silo_open_file_for_read(root_file_path),
-        &DBClose,
-        "Error closing Silo file: " + root_file_path};
-    if (! dbfile.getSiloObject())
+    root_file.setSiloObject(silo_open_file_for_read(root_file_path));
+    root_file.setErrMsg("Error closing Silo file: " + root_file_path);
+    if (! root_file.getSiloObject())
     {
         error_oss << "Error opening Silo file for reading: " << root_file_path;
         return false;
     }
 
     // get table of contents
-    DBtoc *toc = DBGetToc(dbfile.getSiloObject()); // shouldn't be free'd
+    DBtoc *toc = DBGetToc(root_file.getSiloObject()); // shouldn't be free'd
     if (!toc)
     {
         error_oss << "Table of contents could not be extracted from file: " << root_file_path;
@@ -4040,7 +4039,7 @@ read_root_silo_index(const std::string &root_file_path,
     if (DB_MULTIMESH == mesh_type)
     {
         int nblocks;
-        if (! read_multimesh(dbfile.getSiloObject(),
+        if (! read_multimesh(root_file.getSiloObject(),
                              mesh_name_to_read,
                              nblocks,
                              root_node,
@@ -4049,22 +4048,22 @@ read_root_silo_index(const std::string &root_file_path,
             return false;
         }
         read_multivars(toc,
-                       dbfile.getSiloObject(),
+                       root_file.getSiloObject(),
                        mesh_name_to_read,
                        nblocks,
                        root_node);
         read_multimats(toc,
-                       dbfile.getSiloObject(),
+                       root_file.getSiloObject(),
                        mesh_name_to_read,
                        nblocks,
                        root_node);
         read_multimatspecs(toc,
-                           dbfile.getSiloObject(),
+                           root_file.getSiloObject(),
                            mesh_name_to_read,
                            nblocks,
                            root_node);
         // overlink-specific
-        read_var_attributes(dbfile.getSiloObject(),
+        read_var_attributes(root_file.getSiloObject(),
                             mesh_name_to_read,
                             root_node);
     }
@@ -4092,12 +4091,14 @@ read_root_silo_index(const std::string &root_file_path,
         return false;
     }
 
-    read_state(dbfile.getSiloObject(), root_node, mesh_name_to_read);
+    read_state(root_file.getSiloObject(), root_node, mesh_name_to_read);
 
     if (! opts_matset_style.empty())
     {
         root_node[mesh_name_to_read]["matset_style"] = opts_matset_style;
     }
+
+    return true;
 
     // our silo index should look like this:
 
@@ -4176,8 +4177,6 @@ read_root_silo_index(const std::string &root_file_path,
     //          nmatspec: [3, 5, ...] // (optional together with species_names)
     //       ...
     //    matset_style: "default", OR "multi_buffer_full", OR "sparse_by_element", OR "multi_buffer_by_material"
-
-    return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -4209,6 +4208,8 @@ read_mesh(const std::string &root_file_path,
     std::ostringstream error_oss;
     std::string mesh_name_to_read;
     Node root_node;
+    detail::SiloObjectWrapperCheckError<DBfile, decltype(&DBClose)> root_file{
+        nullptr, &DBClose};
 
     // only read bp index on rank 0
     if (0 == par_rank)
@@ -4217,7 +4218,8 @@ read_mesh(const std::string &root_file_path,
                                    opts,
                                    root_node,
                                    mesh_name_to_read,
-                                   error_oss))
+                                   error_oss,
+                                   root_file))
         {
             error = 1;
         }
@@ -4267,7 +4269,7 @@ read_mesh(const std::string &root_file_path,
     const Node &mesh_index = root_node[mesh_name_to_read];
 
     // read all domains for given mesh
-    int num_domains = mesh_index["nblocks"].to_int();
+    const int num_domains = mesh_index["nblocks"].to_int();
 
     std::ostringstream oss;
     int domain_start = 0;
@@ -4304,6 +4306,137 @@ read_mesh(const std::string &root_file_path,
 
     const std::string opts_matset_style = (mesh_index.has_child("matset_style") ?
         mesh_index["matset_style"].as_string() : "default");
+
+    //
+    // tools for making name generators
+    //
+
+    // this lambda fetches the paths from part of the root silo index
+    auto get_paths = [&](const Node &silo_index_path,
+                         const std::string path_string) -> std::vector<std::string>
+    {
+        std::vector<std::string> paths;
+        if (silo_index_path.has_child(path_string))
+        {
+            // Preallocate memory to avoid repeated reallocations
+            paths.reserve(num_domains);
+            for (int block_id = 0; block_id < num_domains; block_id ++)
+            {
+                paths.push_back(silo_index_path[block_id]);
+            }
+        }
+        // leverage RVO
+        return paths;
+    };
+
+    // this lambda creates silo tree path generators
+    auto create_silo_tree_path_generator = [&](const Node &n_item,
+                                               const std::string &what_kind_of_paths) -> detail::SiloTreePathGenerator
+    {
+        return detail::SiloTreePathGenerator(
+            // silo database file
+            root_file.getSiloObject(),
+            
+            // objpath - we are at the root of the root file
+            "",
+            
+            // number of blocks
+            num_domains,
+            
+            // mesh paths
+            std::move(get_paths(n_item, what_kind_of_paths)),
+            
+            // file namescheme
+            n_item.has_path("namescheme/file") ? 
+                n_item["namescheme"]["file"].as_string() : 
+                std::string(""),
+            
+            // block namescheme
+            n_item.has_path("namescheme/block") ? 
+                n_item["namescheme"]["block"].as_string() : 
+                std::string(""),
+            
+            // number of elements in the empty list
+            n_item.has_path("namescheme/empty_list") ?
+                n_item["namescheme"]["empty_list"].dtype().number_of_elements() :
+                0,
+            
+            // pointer to the empty list
+            n_item.has_path("namescheme/empty_list") ?
+                n_item["namescheme"]["empty_list"].value() :
+                nullptr);
+    };
+
+    // this lambda populates a map of field/matset/specset names to path name generators for them
+    auto populate_path_gen_map = [&](const std::string item, // "vars", "matsets", "specsets"
+                                     const std::string what_kind_of_paths) -> std::map<std::string, detail::SiloTreePathGenerator>
+    {
+        std::map<std::string, detail::SiloTreePathGenerator> path_gen_map;
+        auto item_itr = mesh_index[item].children();
+        while (item_itr.has_next())
+        {
+            const Node &n_item = item_itr.next();
+            const std::string item_name = item_itr.name();
+            path_gen_map[item_name] = create_silo_tree_path_generator(n_item, what_kind_of_paths);
+        }
+        // leverage RVO
+        return path_gen_map;
+    };
+
+    //
+    // Now that we have all our tools in place, we can go ahead and
+    // create name generators for the mesh and each variable, matset, specset
+    //
+
+    detail::SiloTreePathGenerator mesh_path_gen = 
+        create_silo_tree_path_generator(mesh_index, "mesh_paths");
+    std::map<std::string, detail::SiloTreePathGenerator> var_path_gen = 
+        populate_path_gen_map("vars", "var_paths");
+    std::map<std::string, detail::SiloTreePathGenerator> mat_path_gen = 
+        populate_path_gen_map("matsets", "matset_paths");
+    std::map<std::string, detail::SiloTreePathGenerator> spec_path_gen = 
+        populate_path_gen_map("specsets", "specset_paths");
+
+
+
+    auto var_itr = mesh_index["vars"].children();
+    while (var_itr.has_next())
+    {
+        const Node &n_var = var_itr.next();
+        const std::string var_name = var_itr.name();
+        var_path_gen[var_name] = detail::SiloTreePathGenerator(
+            // silo database file
+            root_file.getSiloObject(),
+            
+            // objpath - we are at the root of the root file
+            "",
+            
+            // number of blocks
+            num_domains,
+            
+            // mesh paths
+            std::move(get_paths(n_var, "var_paths")),
+            
+            // file namescheme
+            n_var.has_path("namescheme/file") ? 
+                n_var["namescheme"]["file"].as_string() : 
+                std::string(""),
+            
+            // block namescheme
+            n_var.has_path("namescheme/block") ? 
+                n_var["namescheme"]["block"].as_string() : 
+                std::string(""),
+            
+            // number of elements in the empty list
+            n_var.has_path("namescheme/empty_list") ?
+                n_var["namescheme"]["empty_list"].dtype().number_of_elements() :
+                0,
+            
+            // pointer to the empty list
+            n_var.has_path("namescheme/empty_list") ?
+                n_var["namescheme"]["empty_list"].value() :
+                nullptr);
+    }
 
     bool mesh_nameschemes = false;
     if (mesh_index.has_child("nameschemes") &&
