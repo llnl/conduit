@@ -411,6 +411,100 @@ namespace silo
 namespace detail
 {
 
+//-----------------------------------------------------------------------------
+// -- begin conduit::relay::<mpi>::io::silo::detail::name_generator_tools --
+//-----------------------------------------------------------------------------
+namespace name_generator_tools // tools for making `SiloTreePathGenerator`s
+{
+//-----------------------------------------------------------------------------
+// fetches the paths from part of the root silo index
+std::vector<std::string> 
+get_paths(const Node &silo_index_path,
+          const std::string path_string,
+          const int num_domains)
+{
+    std::vector<std::string> paths;
+    if (silo_index_path.has_child(path_string))
+    {
+        // Preallocate memory to avoid repeated reallocations
+        paths.reserve(num_domains);
+        for (int block_id = 0; block_id < num_domains; block_id ++)
+        {
+            paths.push_back(silo_index_path[block_id]);
+        }
+    }
+    // leverage RVO
+    return paths;
+}
+
+//-----------------------------------------------------------------------------
+// creates silo tree path generators
+SiloTreePathGenerator
+create_silo_tree_path_generator(DBfile *root_file,
+                                const int num_domains,
+                                const Node &n_item,
+                                const std::string &what_kind_of_paths)
+{
+    return SiloTreePathGenerator(
+        // silo database file
+        root_file,
+        
+        // objpath - we are at the root of the root file
+        "",
+        
+        // number of blocks
+        num_domains,
+        
+        // mesh paths
+        std::move(get_paths(n_item, what_kind_of_paths, num_domains)),
+        
+        // file namescheme
+        n_item.has_path("namescheme/file") ? 
+            n_item["namescheme"]["file"].as_string() : 
+            std::string(""),
+        
+        // block namescheme
+        n_item.has_path("namescheme/block") ? 
+            n_item["namescheme"]["block"].as_string() : 
+            std::string(""),
+        
+        // number of elements in the empty list
+        n_item.has_path("namescheme/empty_list") ?
+            n_item["namescheme"]["empty_list"].dtype().number_of_elements() :
+            0,
+        
+        // pointer to the empty list
+        n_item.has_path("namescheme/empty_list") ?
+            n_item["namescheme"]["empty_list"].value() :
+            nullptr);
+}
+
+//-----------------------------------------------------------------------------
+// populates a map of field/matset/specset names to path name generators for them
+std::map<std::string, SiloTreePathGenerator>
+populate_path_gen_map(DBfile *root_file,
+                      const Node &mesh_index,
+                      const std::string item, // "vars", "matsets", "specsets"
+                      const std::string what_kind_of_paths)
+{
+    std::map<std::string, SiloTreePathGenerator> path_gen_map;
+    auto item_itr = mesh_index[item].children();
+    while (item_itr.has_next())
+    {
+        const Node &n_item = item_itr.next();
+        const std::string item_name = item_itr.name();
+        path_gen_map[item_name] = 
+            create_silo_tree_path_generator(root_file, n_item, what_kind_of_paths);
+    }
+    // leverage RVO
+    return path_gen_map;
+};
+
+}
+//-----------------------------------------------------------------------------
+// -- end conduit::relay::<mpi>::io::silo::detail::name_generator_tools --
+//-----------------------------------------------------------------------------
+
 template <class T, class Deleter>
 class SiloObjectWrapper
 {
@@ -4308,135 +4402,19 @@ read_mesh(const std::string &root_file_path,
         mesh_index["matset_style"].as_string() : "default");
 
     //
-    // tools for making name generators
+    // Create name generators for the mesh and each variable, matset, specset
     //
-
-    // this lambda fetches the paths from part of the root silo index
-    auto get_paths = [&](const Node &silo_index_path,
-                         const std::string path_string) -> std::vector<std::string>
-    {
-        std::vector<std::string> paths;
-        if (silo_index_path.has_child(path_string))
-        {
-            // Preallocate memory to avoid repeated reallocations
-            paths.reserve(num_domains);
-            for (int block_id = 0; block_id < num_domains; block_id ++)
-            {
-                paths.push_back(silo_index_path[block_id]);
-            }
-        }
-        // leverage RVO
-        return paths;
-    };
-
-    // this lambda creates silo tree path generators
-    auto create_silo_tree_path_generator = [&](const Node &n_item,
-                                               const std::string &what_kind_of_paths) -> detail::SiloTreePathGenerator
-    {
-        return detail::SiloTreePathGenerator(
-            // silo database file
-            root_file.getSiloObject(),
-            
-            // objpath - we are at the root of the root file
-            "",
-            
-            // number of blocks
-            num_domains,
-            
-            // mesh paths
-            std::move(get_paths(n_item, what_kind_of_paths)),
-            
-            // file namescheme
-            n_item.has_path("namescheme/file") ? 
-                n_item["namescheme"]["file"].as_string() : 
-                std::string(""),
-            
-            // block namescheme
-            n_item.has_path("namescheme/block") ? 
-                n_item["namescheme"]["block"].as_string() : 
-                std::string(""),
-            
-            // number of elements in the empty list
-            n_item.has_path("namescheme/empty_list") ?
-                n_item["namescheme"]["empty_list"].dtype().number_of_elements() :
-                0,
-            
-            // pointer to the empty list
-            n_item.has_path("namescheme/empty_list") ?
-                n_item["namescheme"]["empty_list"].value() :
-                nullptr);
-    };
-
-    // this lambda populates a map of field/matset/specset names to path name generators for them
-    auto populate_path_gen_map = [&](const std::string item, // "vars", "matsets", "specsets"
-                                     const std::string what_kind_of_paths) -> std::map<std::string, detail::SiloTreePathGenerator>
-    {
-        std::map<std::string, detail::SiloTreePathGenerator> path_gen_map;
-        auto item_itr = mesh_index[item].children();
-        while (item_itr.has_next())
-        {
-            const Node &n_item = item_itr.next();
-            const std::string item_name = item_itr.name();
-            path_gen_map[item_name] = create_silo_tree_path_generator(n_item, what_kind_of_paths);
-        }
-        // leverage RVO
-        return path_gen_map;
-    };
-
-    //
-    // Now that we have all our tools in place, we can go ahead and
-    // create name generators for the mesh and each variable, matset, specset
-    //
-
     detail::SiloTreePathGenerator mesh_path_gen = 
-        create_silo_tree_path_generator(mesh_index, "mesh_paths");
+        detail::name_generator_tools::create_silo_tree_path_generator(root_file.getSiloObject(), mesh_index, "mesh_paths");
     std::map<std::string, detail::SiloTreePathGenerator> var_path_gen = 
-        populate_path_gen_map("vars", "var_paths");
+        detail::name_generator_tools::populate_path_gen_map(
+            root_file.getSiloObject(), mesh_index, "vars", "var_paths");
     std::map<std::string, detail::SiloTreePathGenerator> mat_path_gen = 
-        populate_path_gen_map("matsets", "matset_paths");
+        detail::name_generator_tools::populate_path_gen_map(
+            root_file.getSiloObject(), mesh_index, "matsets", "matset_paths");
     std::map<std::string, detail::SiloTreePathGenerator> spec_path_gen = 
-        populate_path_gen_map("specsets", "specset_paths");
-
-
-
-    auto var_itr = mesh_index["vars"].children();
-    while (var_itr.has_next())
-    {
-        const Node &n_var = var_itr.next();
-        const std::string var_name = var_itr.name();
-        var_path_gen[var_name] = detail::SiloTreePathGenerator(
-            // silo database file
-            root_file.getSiloObject(),
-            
-            // objpath - we are at the root of the root file
-            "",
-            
-            // number of blocks
-            num_domains,
-            
-            // mesh paths
-            std::move(get_paths(n_var, "var_paths")),
-            
-            // file namescheme
-            n_var.has_path("namescheme/file") ? 
-                n_var["namescheme"]["file"].as_string() : 
-                std::string(""),
-            
-            // block namescheme
-            n_var.has_path("namescheme/block") ? 
-                n_var["namescheme"]["block"].as_string() : 
-                std::string(""),
-            
-            // number of elements in the empty list
-            n_var.has_path("namescheme/empty_list") ?
-                n_var["namescheme"]["empty_list"].dtype().number_of_elements() :
-                0,
-            
-            // pointer to the empty list
-            n_var.has_path("namescheme/empty_list") ?
-                n_var["namescheme"]["empty_list"].value() :
-                nullptr);
-    }
+        detail::name_generator_tools::populate_path_gen_map(
+            root_file.getSiloObject(), mesh_index, "specsets", "specset_paths");
 
     bool mesh_nameschemes = false;
     if (mesh_index.has_child("nameschemes") &&
