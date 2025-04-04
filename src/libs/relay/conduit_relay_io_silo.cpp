@@ -427,7 +427,7 @@ private:
     DBnamescheme            *file_namescheme;
     DBnamescheme            *block_namescheme;
     int                      empty_count;
-    int const               *empty_list;
+    const index_t           *empty_list;
 
 public:
     SiloTreePathGenerator(DBfile                    *dbfile,
@@ -437,7 +437,7 @@ public:
                           std::string              &&file_namescheme_,
                           std::string              &&block_namescheme_,
                           int                        empty_count_,
-                          int const                 *empty_list_) : 
+                          const index_t             *empty_list_) : 
         nblocks(nblocks_), names_list(std::move(names_list_)),
         file_namescheme(0), block_namescheme(0),
         empty_count(empty_count_), empty_list(empty_list_)
@@ -455,18 +455,18 @@ public:
         }
 
         // we need to create nameschemes.
-        if (file_namescheme_)
+        if (! file_namescheme_.empty())
         {
             file_namescheme = DBMakeNamescheme(
-                file_namescheme_, 
+                file_namescheme_.c_str(), 
                 0, 
                 dbfile,
                 objpath ? (strlen(objpath) ? objpath : 0) : 0);
         }
-        if (block_namescheme_)
+        if (! block_namescheme_.empty())
         {
             block_namescheme = DBMakeNamescheme(
-                block_namescheme_,
+                block_namescheme_.c_str(),
                 0,
                 dbfile,
                 objpath ? (strlen(objpath) ? objpath : 0) : 0);
@@ -489,7 +489,7 @@ public:
     std::string
     Name(int idx) const
     {
-        string res = "";
+        std::string res = "";
 
         // bounds check
         if (idx < 0 || idx >= nblocks)
@@ -533,7 +533,7 @@ public:
             const char *file_res = DBGetName(file_namescheme, idx);
             if (nullptr != file_res)
             {
-                res += (string(file_res) + ":");
+                res += (std::string(file_res) + ":");
             }
         }
 
@@ -542,7 +542,7 @@ public:
             const char *block_res = DBGetName(block_namescheme, idx);
             if (nullptr != block_res)
             {
-                res += string(block_res);
+                res += std::string(block_res);
             }
         }
 
@@ -564,7 +564,7 @@ get_paths(const Node &silo_index_path,
         paths.reserve(num_domains);
         for (int block_id = 0; block_id < num_domains; block_id ++)
         {
-            paths.push_back(silo_index_path[block_id]);
+            paths.push_back(silo_index_path[block_id].as_string());
         }
     }
     // leverage RVO
@@ -609,14 +609,16 @@ create_silo_tree_path_generator(DBfile *root_file,
         
         // pointer to the empty list
         n_item.has_path("namescheme/empty_list") ?
-            n_item["namescheme"]["empty_list"].value() :
-            nullptr);
+            n_item["namescheme"]["empty_list"].as_index_t_ptr() :
+            nullptr
+        );
 }
 
 //-----------------------------------------------------------------------------
 // populates a map of field/matset/specset names to path name generators for them
 std::map<std::string, SiloTreePathGenerator>
 populate_path_gen_map(DBfile *root_file,
+                      const int num_domains,
                       const Node &mesh_index,
                       const std::string item, // "vars", "matsets", "specsets"
                       const std::string what_kind_of_paths)
@@ -627,8 +629,11 @@ populate_path_gen_map(DBfile *root_file,
     {
         const Node &n_item = item_itr.next();
         const std::string item_name = item_itr.name();
-        path_gen_map[item_name] = 
-            create_silo_tree_path_generator(root_file, n_item, what_kind_of_paths);
+        path_gen_map.emplace(item_name,
+                             create_silo_tree_path_generator(root_file,
+                                                             num_domains,
+                                                             n_item,
+                                                             what_kind_of_paths));
     }
     // leverage RVO
     return path_gen_map;
@@ -3598,11 +3603,11 @@ read_multimats(DBtoc *toc,
 
         // does this material use nameschemes?
         bool nameschemes = false;
-        if (nullptr == mmvar_ptr->matnames)
+        if (nullptr == multimat_ptr->matnames)
         {
             // if we do not have matnames, then we are either using nameschemes
             // or our mmat is invalid
-            if (nullptr == mmvar_ptr->block_ns)
+            if (nullptr == multimat_ptr->block_ns)
             {
                 CONDUIT_INFO("Multimat " << multimat_name << 
                              " is missing material names and namescheme specifiers. Skipping.");
@@ -4396,17 +4401,28 @@ read_mesh(const std::string &root_file_path,
     // Create name generators for the mesh and each variable, matset, specset
     //
     detail::name_generator_tools::SiloTreePathGenerator mesh_path_gen = 
-        detail::name_generator_tools::create_silo_tree_path_generator(
-            root_file.getSiloObject(), mesh_index, "mesh_paths");
+        detail::name_generator_tools::create_silo_tree_path_generator(root_file.getSiloObject(),
+                                                                      num_domains,
+                                                                      mesh_index,
+                                                                      "mesh_paths");
     std::map<std::string, detail::name_generator_tools::SiloTreePathGenerator> var_path_gen = 
-        detail::name_generator_tools::populate_path_gen_map(
-            root_file.getSiloObject(), mesh_index, "vars", "var_paths");
+        detail::name_generator_tools::populate_path_gen_map(root_file.getSiloObject(),
+                                                            num_domains,
+                                                            mesh_index,
+                                                            "vars",
+                                                            "var_paths");
     std::map<std::string, detail::name_generator_tools::SiloTreePathGenerator> mat_path_gen = 
-        detail::name_generator_tools::populate_path_gen_map(
-            root_file.getSiloObject(), mesh_index, "matsets", "matset_paths");
+        detail::name_generator_tools::populate_path_gen_map(root_file.getSiloObject(),
+                                                            num_domains,
+                                                            mesh_index,
+                                                            "matsets",
+                                                            "matset_paths");
     std::map<std::string, detail::name_generator_tools::SiloTreePathGenerator> spec_path_gen = 
-        detail::name_generator_tools::populate_path_gen_map(
-            root_file.getSiloObject(), mesh_index, "specsets", "specset_paths");
+        detail::name_generator_tools::populate_path_gen_map(root_file.getSiloObject(),
+                                                            num_domains,
+                                                            mesh_index,
+                                                            "specsets",
+                                                            "specset_paths");
 
     std::string root_file_name, relative_dir;
     utils::rsplit_file_path(root_file_path, root_file_name, relative_dir);
@@ -4546,7 +4562,8 @@ read_mesh(const std::string &root_file_path,
             {
                 const Node &n_matset = matset_itr.next();
                 const std::string multimat_name = matset_itr.name();
-                const std::string silo_matset_path = mat_path_gen[multimat_name].Name(domain_id);
+                const std::string silo_matset_path = 
+                    mat_path_gen.at(multimat_name).Name(domain_id);
 
                 std::string matset_name, matset_domain_filename;
                 detail::name_generator_tools::generate_paths(silo_matset_path,
@@ -4625,7 +4642,8 @@ read_mesh(const std::string &root_file_path,
             {
                 const Node &n_specset = specset_itr.next();
                 const std::string multimatspec_name = specset_itr.name();
-                const std::string silo_specset_path = spec_path_gen[multimatspec_name].Name(domain_id);
+                const std::string silo_specset_path = 
+                    spec_path_gen.at(multimatspec_name).Name(domain_id);
 
                 std::string specset_name, specset_domain_filename;
                 detail::name_generator_tools::generate_paths(silo_specset_path,
@@ -4689,7 +4707,8 @@ read_mesh(const std::string &root_file_path,
             {
                 const Node &n_var = var_itr.next();
                 const std::string multivar_name = var_itr.name();
-                const std::string silo_var_path = var_path_gen[multivar_name].Name(domain_id);
+                const std::string silo_var_path = 
+                    var_path_gen.at(multivar_name).Name(domain_id);
                 const int vartype = [&]() -> int
                 {
                     // it is either one or the other
