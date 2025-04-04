@@ -3877,8 +3877,7 @@ read_root_silo_index(const std::string &root_file_path,
                                              char **spec_names)
     {
         root_node[mesh_name_to_read]["nblocks"] = 1;
-        root_node[mesh_name_to_read]["nameschemes"] = "no";
-        root_node[mesh_name_to_read]["mesh_types"].set(mesh_type);
+        root_node[mesh_name_to_read]["single_mesh_type"].set(mesh_type);
         root_node[mesh_name_to_read]["mesh_paths"].append().set(mesh_name_to_read);
 
         // TODO should we check here if vars are associated with this mesh?
@@ -3887,8 +3886,7 @@ read_root_silo_index(const std::string &root_file_path,
         {
             const std::string var_name = var_names[i];
             Node &var = root_node[mesh_name_to_read]["vars"][var_name];
-            var["nameschemes"] = "no";
-            var["var_types"].set(var_type);
+            var["single_var_type"].set(var_type);
             var["var_paths"].append().set(var_name);
         }
         // TODO should we check here if materials are associated with this mesh?
@@ -3897,7 +3895,6 @@ read_root_silo_index(const std::string &root_file_path,
         {
             const std::string mat_name = mat_names[i];
             Node &material = root_node[mesh_name_to_read]["matsets"][mat_name];
-            material["nameschemes"] = "no";
             material["matset_paths"].append().set(mat_name);
         }
 
@@ -3907,7 +3904,6 @@ read_root_silo_index(const std::string &root_file_path,
         {
             const std::string spec_name = spec_names[i];
             Node &specset = root_node[mesh_name_to_read]["specsets"][spec_name];
-            specset["nameschemes"] = "no";
             specset["specset_paths"].append().set(spec_name);
         }
     };
