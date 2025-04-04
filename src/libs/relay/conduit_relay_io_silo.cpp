@@ -461,14 +461,143 @@ public:
 class SiloTreePathGenerator
 {
 private:
-    // TODO more work is required to support nameschemes
-    // bool nameschemes;
+    int                 nblocks;
+    char const * const *names_list;
+    DBnamescheme       *file_namescheme;
+    DBnamescheme       *block_namescheme;
+    int                 empty_count;
+    int const          *empty_list;
 
 public:
-    SiloTreePathGenerator(bool /*nameschemes_on*/)
-    /*: nameschemes(nameschemes_on)*/
+    SiloTreePathGenerator(DBfile             *dbfile,
+                          char const         *objpath,
+                          int                 nblocks_,
+                          char const * const *names_list_,
+                          const char         *file_namescheme_,
+                          const char         *block_namescheme_,
+                          int                 empty_count_,
+                          int const          *empty_list_) : 
+        nblocks(nblocks_), names_list(names_list_),
+        file_namescheme(0), block_namescheme(0),
+        empty_count(empty_count_), empty_list(empty_list_)
     {
+        // if we have an empty object, we
+        if (0 == nblocks)
+        {
+            return;
+        }
 
+        // if we simple have a list of names we are done
+        if (nullptr != names_list)
+        {
+            return;
+        }
+
+        // we need to create nameschemes.
+        if (file_namescheme_)
+        {
+            file_namescheme = DBMakeNamescheme(
+                file_namescheme_, 
+                0, 
+                dbfile,
+                objpath ? (strlen(objpath) ? objpath : 0) : 0);
+        }
+        if (block_namescheme_)
+        {
+            block_namescheme = DBMakeNamescheme(
+                block_namescheme_,
+                0,
+                dbfile,
+                objpath ? (strlen(objpath) ? objpath : 0) : 0);
+        }
+    }
+
+    virtual ~SiloTreePathGenerator()
+    {
+        // clean up namescheme data if we generated it.
+        if (nullptr != file_namescheme)
+        {
+            DBFreeNamescheme(file_namescheme);
+        }
+        if (nullptr != block_namescheme)
+        {
+            DBFreeNamescheme(block_namescheme);
+        }
+    }
+
+    std::string
+    Name(int idx) const
+    {
+        string res = "";
+
+        // bounds check
+        if (idx < 0 || idx >= nblocks)
+        {
+            return res;
+        }
+
+        // check for simple case
+        if (names_list != 0)
+        {
+            return string(names_list[idx]);
+        }
+
+        if (empty_list)
+        {
+            int bot = 0;
+            int top = empty_count - 1;
+            int mid;
+            while (bot <= top)
+            {
+                mid = (bot + top) >> 1;
+
+                if (idx > empty_list[mid])
+                {
+                    bot = mid + 1;
+                }
+                else if (idx < empty_list[mid])
+                {
+                    top = mid - 1;
+                }
+                else
+                {
+                    return "EMPTY";
+                }
+            }
+        }
+
+        // namescheme case
+        if (nullptr != file_namescheme)
+        {
+            const char *file_res = DBGetName(file_namescheme, idx);
+            if (nullptr != file_res)
+            {
+                res += (string(file_res) + ":");
+            }
+        }
+
+        if (nullptr != block_namescheme)
+        {
+            const char *block_res = DBGetName(block_namescheme, idx);
+            if (nullptr != block_res)
+            {
+                res += string(block_res);
+            }
+        }
+
+        return res;
+    }
+
+    int
+    NumberOfBlocks() const
+    {
+        return nblocks;
+    }
+
+    bool
+    IsExplicit() const
+    {
+        return nullptr != names_list;
     }
 
     void GeneratePaths(const std::string &path,
@@ -4047,9 +4176,6 @@ read_root_silo_index(const std::string &root_file_path,
     //          nmatspec: [3, 5, ...] // (optional together with species_names)
     //       ...
     //    matset_style: "default", OR "multi_buffer_full", OR "sparse_by_element", OR "multi_buffer_by_material"
-    // mesh2:
-    //    ...
-    // ...
 
     return true;
 }
