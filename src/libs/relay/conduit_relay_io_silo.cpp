@@ -442,14 +442,14 @@ public:
         file_namescheme(0), block_namescheme(0),
         empty_count(empty_count_), empty_list(empty_list_)
     {
-        // if we have an empty object, we
+        // if we have an empty object
         if (0 == nblocks)
         {
             return;
         }
 
-        // if we simple have a list of names we are done
-        if (0 == names_list.size())
+        // if we have a list of names we are done
+        if (0 != names_list.size())
         {
             return;
         }
