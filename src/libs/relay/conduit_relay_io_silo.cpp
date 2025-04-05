@@ -554,7 +554,7 @@ public:
 // fetches the paths from part of the root silo index
 std::vector<std::string> 
 get_paths(const Node &silo_index_path,
-          const std::string path_string,
+          const std::string &path_string,
           const int num_domains)
 {
     std::vector<std::string> paths;
@@ -564,7 +564,8 @@ get_paths(const Node &silo_index_path,
         paths.reserve(num_domains);
         for (int block_id = 0; block_id < num_domains; block_id ++)
         {
-            paths.push_back(silo_index_path[block_id].as_string());
+            //                mesh_index   ["mesh_paths"][domain#]
+            paths.push_back(silo_index_path[path_string][block_id].as_string());
         }
     }
     // leverage RVO
@@ -624,16 +625,19 @@ populate_path_gen_map(DBfile *root_file,
                       const std::string what_kind_of_paths)
 {
     std::map<std::string, SiloTreePathGenerator> path_gen_map;
-    auto item_itr = mesh_index[item].children();
-    while (item_itr.has_next())
+    if (mesh_index.has_child(item))
     {
-        const Node &n_item = item_itr.next();
-        const std::string item_name = item_itr.name();
-        path_gen_map.emplace(item_name,
-                             create_silo_tree_path_generator(root_file,
-                                                             num_domains,
-                                                             n_item,
-                                                             what_kind_of_paths));
+        auto item_itr = mesh_index[item].children();
+        while (item_itr.has_next())
+        {
+            const Node &n_item = item_itr.next();
+            const std::string item_name = item_itr.name();
+            path_gen_map.emplace(item_name,
+                                 create_silo_tree_path_generator(root_file,
+                                                                 num_domains,
+                                                                 n_item,
+                                                                 what_kind_of_paths));
+        }
     }
     // leverage RVO
     return path_gen_map;
