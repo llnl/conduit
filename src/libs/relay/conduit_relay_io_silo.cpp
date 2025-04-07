@@ -574,18 +574,18 @@ get_paths(const Node &silo_index_path,
 
 //-----------------------------------------------------------------------------
 // creates silo tree path generators
-SiloTreePathGenerator
+std::unique_ptr<SiloTreePathGenerator>
 create_silo_tree_path_generator(DBfile *root_file,
                                 const int num_domains,
                                 const Node &n_item,
                                 const std::string &what_kind_of_paths)
 {
-    return SiloTreePathGenerator(
+    return std::make_unique<SiloTreePathGenerator>(
         // silo database file
         root_file,
         
         // objpath - we are at the root of the root file
-        "",
+        ".",
         
         // number of blocks
         num_domains,
@@ -617,14 +617,14 @@ create_silo_tree_path_generator(DBfile *root_file,
 
 //-----------------------------------------------------------------------------
 // populates a map of field/matset/specset names to path name generators for them
-std::map<std::string, SiloTreePathGenerator>
+std::map<std::string, std::unique_ptr<SiloTreePathGenerator>>
 populate_path_gen_map(DBfile *root_file,
                       const int num_domains,
                       const Node &mesh_index,
                       const std::string item, // "vars", "matsets", "specsets"
                       const std::string what_kind_of_paths)
 {
-    std::map<std::string, SiloTreePathGenerator> path_gen_map;
+    std::map<std::string, std::unique_ptr<SiloTreePathGenerator>> path_gen_map;
     if (mesh_index.has_child(item))
     {
         auto item_itr = mesh_index[item].children();
@@ -1492,6 +1492,8 @@ read_dims_from_mesh_info(const Node &mesh_info_for_topo, int *dims)
 //-----------------------------------------------------------------------------
 // -- end conduit::relay::<mpi>::io::silo::detail --
 //-----------------------------------------------------------------------------
+
+using SiloNameGenerator = detail::name_generator_tools::SiloTreePathGenerator;
 
 //-----------------------------------------------------------------------------
 // add complete topology and coordset entries to a mesh domain
@@ -4404,29 +4406,29 @@ read_mesh(const std::string &root_file_path,
     //
     // Create name generators for the mesh and each variable, matset, specset
     //
-    detail::name_generator_tools::SiloTreePathGenerator mesh_path_gen = 
+    std::unique_ptr<SiloNameGenerator> mesh_path_gen = 
         detail::name_generator_tools::create_silo_tree_path_generator(root_file.getSiloObject(),
                                                                       num_domains,
                                                                       mesh_index,
                                                                       "mesh_paths");
-    std::map<std::string, detail::name_generator_tools::SiloTreePathGenerator> var_path_gen = 
-        detail::name_generator_tools::populate_path_gen_map(root_file.getSiloObject(),
-                                                            num_domains,
-                                                            mesh_index,
-                                                            "vars",
-                                                            "var_paths");
-    std::map<std::string, detail::name_generator_tools::SiloTreePathGenerator> mat_path_gen = 
+    std::map<std::string, std::unique_ptr<SiloNameGenerator>> mat_path_gen = 
         detail::name_generator_tools::populate_path_gen_map(root_file.getSiloObject(),
                                                             num_domains,
                                                             mesh_index,
                                                             "matsets",
                                                             "matset_paths");
-    std::map<std::string, detail::name_generator_tools::SiloTreePathGenerator> spec_path_gen = 
+    std::map<std::string, std::unique_ptr<SiloNameGenerator>> spec_path_gen = 
         detail::name_generator_tools::populate_path_gen_map(root_file.getSiloObject(),
                                                             num_domains,
                                                             mesh_index,
                                                             "specsets",
                                                             "specset_paths");
+    std::map<std::string, std::unique_ptr<SiloNameGenerator>> var_path_gen = 
+        detail::name_generator_tools::populate_path_gen_map(root_file.getSiloObject(),
+                                                            num_domains,
+                                                            mesh_index,
+                                                            "vars",
+                                                            "var_paths");
 
     std::string root_file_name, relative_dir;
     utils::rsplit_file_path(root_file_path, root_file_name, relative_dir);
@@ -4446,7 +4448,7 @@ read_mesh(const std::string &root_file_path,
         // Read Mesh
         //
 
-        const std::string silo_mesh_path = mesh_path_gen.Name(domain_id);
+        const std::string silo_mesh_path = mesh_path_gen->Name(domain_id);
         const int meshtype = [&]() -> int
         {
             // it is either one or the other
@@ -4567,7 +4569,7 @@ read_mesh(const std::string &root_file_path,
                 const Node &n_matset = matset_itr.next();
                 const std::string multimat_name = matset_itr.name();
                 const std::string silo_matset_path = 
-                    mat_path_gen.at(multimat_name).Name(domain_id);
+                    mat_path_gen.at(multimat_name)->Name(domain_id);
 
                 std::string matset_name, matset_domain_filename;
                 detail::name_generator_tools::generate_paths(silo_matset_path,
@@ -4647,7 +4649,7 @@ read_mesh(const std::string &root_file_path,
                 const Node &n_specset = specset_itr.next();
                 const std::string multimatspec_name = specset_itr.name();
                 const std::string silo_specset_path = 
-                    spec_path_gen.at(multimatspec_name).Name(domain_id);
+                    spec_path_gen.at(multimatspec_name)->Name(domain_id);
 
                 std::string specset_name, specset_domain_filename;
                 detail::name_generator_tools::generate_paths(silo_specset_path,
@@ -4712,7 +4714,7 @@ read_mesh(const std::string &root_file_path,
                 const Node &n_var = var_itr.next();
                 const std::string multivar_name = var_itr.name();
                 const std::string silo_var_path = 
-                    var_path_gen.at(multivar_name).Name(domain_id);
+                    var_path_gen.at(multivar_name)->Name(domain_id);
                 const int vartype = [&]() -> int
                 {
                     // it is either one or the other
