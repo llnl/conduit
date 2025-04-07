@@ -2380,36 +2380,37 @@ TEST(conduit_relay_io_silo, read_overlink_directly)
 
 // TODO exception tests? (EXPECT_THROW)
 
-//-----------------------------------------------------------------------------
-TEST(conduit_relay_io_silo, hades)
-{
-    const std::string dirname  = "/usr/workspace/justin/hades_extracts_to_read_into_conduit/x_2d_x00000/";
-    const std::string basename = "x_2d_x-0000-00000";
-    const std::string fileext  = ".silo";
-    const std::string meshname = "";
+// //-----------------------------------------------------------------------------
+// TEST(conduit_relay_io_silo, hades)
+// {
+//     const std::string dirname  = "/usr/workspace/justin/hades_extracts_to_read_into_conduit/";
+//     const std::string basename = "x_2d_x00000";
+//     const std::string fileext  = ".root";
+//     const std::string meshname = "";
 
-    Node load_mesh, info, read_opts, write_opts;
-    std::string filepath = utils::join_file_path(dirname, basename) + fileext;
-    // filepath = utils::join_file_path("overlink", filepath);
-    // std::string input_file = relay_test_silo_data_path(filepath);
-    std::string input_file = filepath;
+//     Node load_mesh, info, read_opts, write_opts;
+//     std::string filepath = utils::join_file_path(dirname, basename) + fileext;
+//     // filepath = utils::join_file_path("overlink", filepath);
+//     // std::string input_file = relay_test_silo_data_path(filepath);
+//     std::string input_file = filepath;
 
-    // read_opts["mesh_name"] = meshname;
-    // io::silo::load_mesh(input_file, read_opts, load_mesh);
-    io::silo::load_mesh(input_file, load_mesh);
-    EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
+//     // read_opts["mesh_name"] = meshname;
+//     // io::silo::load_mesh(input_file, read_opts, load_mesh);
+//     io::silo::load_mesh(input_file, load_mesh);
+//     EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
 
-    // const std::string out_name = "read_overlink_symlink_" + basename + 
-    //                              (meshname.empty() ? "" : "_" + meshname);
+//     load_mesh.print();
 
-    // remove_path_if_exists(out_name + "_write_blueprint");
-    // io::blueprint::save_mesh(load_mesh, out_name + "_write_blueprint", "hdf5");
+//     const std::string out_name = "hades_" + basename;
 
-    // remove_path_if_exists(out_name + "_write_silo");
-    // io::silo::save_mesh(load_mesh, out_name + "_write_silo");
+//     remove_path_if_exists(out_name + "_write_blueprint");
+//     io::blueprint::save_mesh(load_mesh, out_name + "_write_blueprint", "hdf5");
 
-    // remove_path_if_exists(out_name + "_write_overlink");
-    // write_opts["file_style"] = "overlink";
-    // write_opts["ovl_topo_name"] = "MMESH";
-    // io::silo::save_mesh(load_mesh, out_name + "_write_overlink", write_opts);
-}
+//     // remove_path_if_exists(out_name + "_write_silo");
+//     // io::silo::save_mesh(load_mesh, out_name + "_write_silo");
+
+//     // remove_path_if_exists(out_name + "_write_overlink");
+//     // write_opts["file_style"] = "overlink";
+//     // write_opts["ovl_topo_name"] = "MMESH";
+//     // io::silo::save_mesh(load_mesh, out_name + "_write_overlink", write_opts);
+// }
