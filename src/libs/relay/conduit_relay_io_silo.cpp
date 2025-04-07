@@ -4335,6 +4335,7 @@ read_mesh(const std::string &root_file_path,
     std::ostringstream error_oss;
     std::string mesh_name_to_read;
     Node root_node;
+    // TODO use this in the open_or_reuse_file function
     detail::SiloObjectWrapperCheckError<DBfile, decltype(&DBClose)> root_file{
         nullptr, &DBClose};
 
@@ -4392,6 +4393,18 @@ read_mesh(const std::string &root_file_path,
         CONDUIT_ERROR(error_oss.str());
     }
 #endif
+
+    // we need the root file so we can create nameschemes on every rank
+    if (0 != par_rank)
+    {
+        root_file.setSiloObject(silo_open_file_for_read(root_file_path));
+        root_file.setErrMsg("Error closing Silo file: " + root_file_path);
+        if (! root_file.getSiloObject())
+        {
+            // this is really bad.
+            CONDUIT_ERROR("Failed to open root file on rank " << par_rank);
+        }
+    }
 
     const Node &mesh_index = root_node[mesh_name_to_read];
 
