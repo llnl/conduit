@@ -749,6 +749,19 @@ int silo_type_to_ovl_attr_type(int silo_type)
 }
 
 //-----------------------------------------------------------------------------
+// we don't support string variables (DB_CHAR) or anything else not in this list
+bool
+check_var_type(int datatype)
+{
+    return datatype == DB_INT    ||
+           datatype == DB_SHORT  ||
+           datatype == DB_LONG   ||
+           datatype == DB_FLOAT  ||
+           datatype == DB_DOUBLE ||
+           datatype == DB_LONG_LONG;
+}
+
+//-----------------------------------------------------------------------------
 int dtype_to_silo_type(DataType dtype)
 {
     if (dtype.is_float())
@@ -1972,6 +1985,13 @@ read_variable_domain_mixvals(const T *var_ptr,
         return;
     }
 
+    if (! detail::check_var_type(var_ptr->datatype))
+    {
+        CONDUIT_INFO("Unsupported datatype " << var_ptr->datatype << " for variable " <<
+                     var_name << ". Skipping.");
+        return;
+    }
+
     CONDUIT_ASSERT(var_ptr->mixvals,
         "mixlen is > 0 but no mixvals are provided for var " << var_name);
     CONDUIT_ASSERT(var_ptr->mixvals[0], "mixvals are NULL for var " << var_name);
@@ -2052,6 +2072,7 @@ read_variable_domain_helper(const T *var_ptr,
     // If we cannot fetch this var we will skip
     if (! var_ptr)
     {
+        CONDUIT_INFO("Variable " << var_name << " was unable to be fetched. Skipping.");
         return false;
     }
 
@@ -2079,6 +2100,13 @@ read_variable_domain_helper(const T *var_ptr,
         CONDUIT_INFO(vartype_str + " " + var_name + " is not "
                      "associated with mesh " + bottom_level_mesh_name +
                      ". Skipping.");
+        return false;
+    }
+
+    if (! detail::check_var_type(var_ptr->datatype))
+    {
+        CONDUIT_INFO("Unsupported datatype " << var_ptr->datatype << " for variable " <<
+                     var_name << ". Skipping.");
         return false;
     }
 
@@ -2212,14 +2240,17 @@ read_variable_domain(const int vartype,
                      const Node &matset_field_reconstruction,
                      Node &mesh_out)
 {
+    // TODO audit the failure cases. Can we skip instead?
     if (! DBInqVarExists(var_domain_file_to_use, var_name.c_str()))
     {
         // This var is missing
+        CONDUIT_INFO("Variable " << var_name << " is missing. Skipping.");
         return false;
     }
     if (DBInqVarType(var_domain_file_to_use, var_name.c_str()) != vartype)
     {
         // This var is the wrong type
+        CONDUIT_INFO("Variable " << var_name << " is not the right type. Skipping.");
         return false;
     }
 
