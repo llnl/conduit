@@ -6978,15 +6978,15 @@ void write_multimesh(DBfile *dbfile,
     int *mesh_types_ptr = nullptr;
     int mesh_type;
     // TODO should probably relax this so that empty domains do not fail this
+    // TODO if nameschemes are enabled then this has to happen too
     if (detail::all_ints_the_same(mesh_types))
     {
         mesh_type = mesh_types.empty() ? 0 : mesh_types[0];
-        int silo_error = 0;
-        silo_error += DBAddOption(optlist.getSiloObject(),
-                                  DBOPT_MB_BLOCK_TYPE,
-                                  &mesh_type);
-        CONDUIT_CHECK_SILO_ERROR(silo_error,
-                                 "adding block type option ");
+        CONDUIT_CHECK_SILO_ERROR(
+            DBAddOption(optlist.getSiloObject(),
+                        DBOPT_MB_BLOCK_TYPE,
+                        &mesh_type),
+            "Error adding block type option for DBPutMultimesh for " << multimesh_name << ".");
     }
     else
     {
@@ -7172,13 +7172,30 @@ write_multivars(DBfile *dbfile,
                                     const_cast<char *>(multimesh_name.c_str())),
                         "Error creating options for putting multivar");
 
+                    int *var_types_ptr = nullptr;
+                    int var_type;
+                    // TODO should probably relax this so that empty domains do not fail this
+                    if (detail::all_ints_the_same(var_types))
+                    {
+                        var_type = var_types.empty() ? 0 : var_types[0];
+                        CONDUIT_CHECK_SILO_ERROR(
+                            DBAddOption(optlist.getSiloObject(),
+                                        DBOPT_MB_BLOCK_TYPE,
+                                        &var_type),
+                            "Error adding block type option for DBPutMultivar for " << multivar_name << ".");
+                    }
+                    else
+                    {
+                        var_types_ptr = var_types.data();
+                    }
+
                     CONDUIT_CHECK_SILO_ERROR(
                         DBPutMultivar(
                             dbfile,
                             multivar_name.c_str(),
                             global_num_domains,
                             var_name_ptrs.data(),
-                            var_types.data(),
+                            var_types_ptr,
                             optlist.getSiloObject()),
                         "Error putting multivar corresponding to field: " << var_name);
                 }
