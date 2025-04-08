@@ -1271,11 +1271,21 @@ assign_values(int datatype,
 }
 
 //-----------------------------------------------------------------------------
+// check if mesh types or var types are the same
+// we also allow them to equal "-1" because that is a sentinel value
+// that means a domain does not contain that mesh or variable.
+// We are using this function to decide if we can save a single mesh/var type
+// or need to save mesh/var types for every domain. If some domains are missing
+// it doesn't matter if the rest of them have the same type. When we read, we
+// don't use missing mesh/var types to decide if we skip a domain or not, we use 
+// the mesh/var name.
 bool
-all_ints_the_same(std::vector<int> &v)
+all_types_the_same(std::vector<int> &v)
 {
     return v.empty() || 
-           std::all_of(v.begin(), v.end(), [&](int elem){ return elem == v[0]; });
+           std::all_of(v.begin(), 
+                       v.end(), 
+                       [&](int elem){ return elem == v[0] || elem == -1; });
 }
 
 //-----------------------------------------------------------------------------
@@ -6977,9 +6987,8 @@ void write_multimesh(DBfile *dbfile,
 
     int *mesh_types_ptr = nullptr;
     int mesh_type;
-    // TODO should probably relax this so that empty domains do not fail this
-    // TODO if nameschemes are enabled then this has to happen too
-    if (detail::all_ints_the_same(mesh_types))
+    // TODO is there a world where we want to give people the option to control this?
+    if (detail::all_types_the_same(mesh_types))
     {
         mesh_type = mesh_types.empty() ? 0 : mesh_types[0];
         CONDUIT_CHECK_SILO_ERROR(
@@ -7174,8 +7183,7 @@ write_multivars(DBfile *dbfile,
 
                     int *var_types_ptr = nullptr;
                     int var_type;
-                    // TODO should probably relax this so that empty domains do not fail this
-                    if (detail::all_ints_the_same(var_types))
+                    if (detail::all_types_the_same(var_types))
                     {
                         var_type = var_types.empty() ? 0 : var_types[0];
                         CONDUIT_CHECK_SILO_ERROR(
