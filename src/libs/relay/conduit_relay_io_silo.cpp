@@ -1271,6 +1271,14 @@ assign_values(int datatype,
 }
 
 //-----------------------------------------------------------------------------
+bool
+all_ints_the_same(std::vector<int> &v)
+{
+    return v.empty() || 
+           std::all_of(v.begin(), v.end(), [&](int elem){ return elem == v[0]; });
+}
+
+//-----------------------------------------------------------------------------
 void
 generate_silo_names(const Node &n_mesh_state,
                     const std::string &silo_path,
@@ -6931,12 +6939,12 @@ void write_multimesh(DBfile *dbfile,
         domain_name_ptrs.push_back(domain_name_strings[i].c_str());
     }
 
-    // create state optlist
-    detail::SiloObjectWrapperCheckError<DBoptlist, decltype(&DBFreeOptlist)> state_optlist{
-        DBMakeOptlist(3),
+    // create optlist
+    detail::SiloObjectWrapperCheckError<DBoptlist, decltype(&DBFreeOptlist)> optlist{
+        DBMakeOptlist(4),
         &DBFreeOptlist,
-        "Error freeing state optlist."};
-    CONDUIT_ASSERT(state_optlist.getSiloObject(), "Error creating state optlist");
+        "Error freeing optlist."};
+    CONDUIT_ASSERT(optlist.getSiloObject(), "Error creating optlist");
 
     int cycle;
     float ftime;
@@ -6948,23 +6956,41 @@ void write_multimesh(DBfile *dbfile,
         if (n_state.has_child("cycle"))
         {
             cycle = n_state["cycle"].to_int();
-            silo_error += DBAddOption(state_optlist.getSiloObject(),
+            silo_error += DBAddOption(optlist.getSiloObject(),
                                       DBOPT_CYCLE,
                                       &cycle);
         }
         if (n_state.has_child("time"))
         {
             ftime = n_state["time"].to_float();
-            silo_error += DBAddOption(state_optlist.getSiloObject(),
+            silo_error += DBAddOption(optlist.getSiloObject(),
                                       DBOPT_TIME,
                                       &ftime);
             dtime = n_state["time"].to_double();
-            silo_error += DBAddOption(state_optlist.getSiloObject(),
+            silo_error += DBAddOption(optlist.getSiloObject(),
                                       DBOPT_DTIME,
                                       &dtime);
         }
         CONDUIT_CHECK_SILO_ERROR(silo_error,
-                                 "creating state optlist (time, cycle) ");
+                                 "creating optlist (time, cycle) ");
+    }
+
+    int *mesh_types_ptr = nullptr;
+    int mesh_type;
+    // TODO should probably relax this so that empty domains do not fail this
+    if (detail::all_ints_the_same(mesh_types))
+    {
+        mesh_type = mesh_types.empty() ? 0 : mesh_types[0];
+        int silo_error = 0;
+        silo_error += DBAddOption(optlist.getSiloObject(),
+                                  DBOPT_MB_BLOCK_TYPE,
+                                  &mesh_type);
+        CONDUIT_CHECK_SILO_ERROR(silo_error,
+                                 "adding block type option ");
+    }
+    else
+    {
+        mesh_types_ptr = mesh_types.data();
     }
 
     // TODO add dboptions for nameschemes
@@ -6974,8 +7000,8 @@ void write_multimesh(DBfile *dbfile,
             multimesh_name.c_str(),
             global_num_domains,
             domain_name_ptrs.data(),
-            mesh_types.data(),
-            state_optlist.getSiloObject()),
+            mesh_types_ptr,
+            optlist.getSiloObject()),
         "Error putting multimesh corresponding to topo: " << topo_name);
 }
 
@@ -7715,6 +7741,9 @@ write_num_species_sets(DBfile *dbfile,
 ///
 ///      ovl_topo_name: (used if present, default ==> "")
 ///
+///      nameschemes: "default", "yes", "no"
+///            "default" ==> "no"
+///
 ///      number_of_files:  {# of files}
 ///            when "multi_file" or "overlink":
 ///                 <= 0, use # of files == # of domains
@@ -7743,11 +7772,12 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     // The assumption here is that everything is multi domain
 
     std::string opts_file_style    = "default";
+    std::string opts_silo_type     = "default";
     std::string opts_suffix        = "default";
     std::string opts_root_file_ext = "default";
     std::string opts_out_mesh_name = "mesh"; // used only for the non-overlink case
     std::string opts_ovl_topo_name = ""; // used only for the overlink case
-    std::string opts_silo_type     = "default";
+    bool        opts_nameschemes   = false;
     int         opts_num_files     = -1;
     bool        opts_truncate      = false;
     int         silo_type          = DB_HDF5;
@@ -7832,9 +7862,28 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     // check for truncate (overwrite)
     if(opts.has_child("truncate") && opts["truncate"].dtype().is_string())
     {
-        const std::string ow_string = opts["truncate"].as_string();
-        if(ow_string == "true")
+        const std::string truncate_string = opts["truncate"].as_string();
+        if (truncate_string == "true")
+        {
             opts_truncate = true;
+        }
+    }
+
+    // check for + validate nameschemes option
+    if (opts.has_child("nameschemes") && opts["nameschemes"].dtype().is_string())
+    {
+        const std::string nameschemes_string = opts["nameschemes"].as_string();
+
+        if (nameschemes_string != "default" &&
+            nameschemes_string != "yes" &&
+            nameschemes_string != "no" )
+        {
+            CONDUIT_ERROR("write_mesh invalid nameschemes option: \""
+                          << nameschemes_string << "\"\n"
+                          " expected: \"default\", \"yes\", or \"no\"");
+        }
+        // We only do nameschemes if asked for. Default is "no"
+        opts_nameschemes = nameschemes_string == "yes";
     }
 
     // check for + validate silo_type option
@@ -8051,8 +8100,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     // ----------------------------------------------------
     // if using multi_file or overlink, create output dir
     // ----------------------------------------------------
-    if (opts_file_style == "multi_file" ||
-        write_overlink)
+    if ("multi_file" == opts_file_style || write_overlink)
     {
         // setup the directory
         output_dir = path;
