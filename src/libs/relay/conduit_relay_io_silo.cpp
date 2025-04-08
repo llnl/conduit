@@ -6923,7 +6923,8 @@ void write_multimesh(DBfile *dbfile,
                      const Node &root,
                      const int global_num_domains,
                      const std::string &multimesh_name,
-                     const bool overlink)
+                     const bool overlink,
+                     const bool prefer_unified_types)
 {
     const int num_files = root["number_of_files"].as_int();
     const bool root_only = root["file_style"].as_string() == "root_only";
@@ -6987,8 +6988,7 @@ void write_multimesh(DBfile *dbfile,
 
     int *mesh_types_ptr = nullptr;
     int mesh_type;
-    // TODO is there a world where we want to give people the option to control this?
-    if (detail::all_types_the_same(mesh_types))
+    if (prefer_unified_types && detail::all_types_the_same(mesh_types))
     {
         mesh_type = mesh_types.empty() ? 0 : mesh_types[0];
         CONDUIT_CHECK_SILO_ERROR(
@@ -7019,7 +7019,8 @@ void write_multimeshes(DBfile *dbfile,
                        const std::string &opts_out_mesh_name,
                        const std::string &ovl_topo_name,
                        const Node &root,
-                       const bool write_overlink)
+                       const bool write_overlink,
+                       const bool prefer_unified_types)
 {
     const int global_num_domains = root["number_of_domains"].to_index_t();
     const Node &n_mesh = root["blueprint_index"][opts_out_mesh_name];
@@ -7039,7 +7040,8 @@ void write_multimeshes(DBfile *dbfile,
                         root,
                         global_num_domains,
                         opts_out_mesh_name, // "MMESH"
-                        write_overlink);
+                        write_overlink,
+                        prefer_unified_types);
     }
     // write all meshes for nonoverlink case
     else
@@ -7064,7 +7066,8 @@ void write_multimeshes(DBfile *dbfile,
                             root,
                             global_num_domains,
                             multimesh_name,
-                            write_overlink);
+                            write_overlink,
+                            prefer_unified_types);
         }
     }
 }
@@ -7075,7 +7078,8 @@ write_multivars(DBfile *dbfile,
                 const std::string &opts_mesh_name,
                 const std::string &ovl_topo_name,
                 const Node &root,
-                const bool write_overlink)
+                const bool write_overlink,
+                const bool prefer_unified_types)
 {
     const int num_files = root["number_of_files"].to_index_t();
     const int global_num_domains = root["number_of_domains"].to_index_t();
@@ -7183,7 +7187,7 @@ write_multivars(DBfile *dbfile,
 
                     int *var_types_ptr = nullptr;
                     int var_type;
-                    if (detail::all_types_the_same(var_types))
+                    if (prefer_unified_types && detail::all_types_the_same(var_types))
                     {
                         var_type = var_types.empty() ? 0 : var_types[0];
                         CONDUIT_CHECK_SILO_ERROR(
@@ -7769,6 +7773,12 @@ write_num_species_sets(DBfile *dbfile,
 ///      nameschemes: "default", "yes", "no"
 ///            "default" ==> "no"
 ///
+///      unified_types: "default", "yes", "no"
+///            "default" ==> "yes"
+///            prefer single mesh/var types versus writing an entire array
+///            of types. "yes" will prefer this if possible, "no" will 
+///            always write the entire array.
+///
 ///      number_of_files:  {# of files}
 ///            when "multi_file" or "overlink":
 ///                 <= 0, use # of files == # of domains
@@ -7796,16 +7806,17 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
 {
     // The assumption here is that everything is multi domain
 
-    std::string opts_file_style    = "default";
-    std::string opts_silo_type     = "default";
-    std::string opts_suffix        = "default";
-    std::string opts_root_file_ext = "default";
-    std::string opts_out_mesh_name = "mesh"; // used only for the non-overlink case
-    std::string opts_ovl_topo_name = ""; // used only for the overlink case
-    bool        opts_nameschemes   = false;
-    int         opts_num_files     = -1;
-    bool        opts_truncate      = false;
-    int         silo_type          = DB_HDF5;
+    std::string opts_file_style           = "default";
+    std::string opts_silo_type            = "default";
+    std::string opts_suffix               = "default";
+    std::string opts_root_file_ext        = "default";
+    std::string opts_out_mesh_name        = "mesh"; // used only for the non-overlink case
+    std::string opts_ovl_topo_name        = ""; // used only for the overlink case
+    bool        opts_nameschemes          = false;
+    bool        opts_prefer_unified_types = true;
+    int         opts_num_files            = -1;
+    bool        opts_truncate             = false;
+    int         silo_type                 = DB_HDF5;
 
     // check for + validate file_style option
     if(opts.has_child("file_style") && opts["file_style"].dtype().is_string())
@@ -7909,6 +7920,23 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         }
         // We only do nameschemes if asked for. Default is "no"
         opts_nameschemes = nameschemes_string == "yes";
+    }
+
+    // check for + validate unified_types option
+    if (opts.has_child("unified_types") && opts["unified_types"].dtype().is_string())
+    {
+        const std::string unified_types_string = opts["unified_types"].as_string();
+
+        if (unified_types_string != "default" &&
+            unified_types_string != "yes" &&
+            unified_types_string != "no" )
+        {
+            CONDUIT_ERROR("write_mesh invalid unified_types option: \""
+                          << unified_types_string << "\"\n"
+                          " expected: \"default\", \"yes\", or \"no\"");
+        }
+        // We try to do unified_types unless explicitly turned off. Default is "yes"
+        opts_prefer_unified_types = unified_types_string != "no";
     }
 
     // check for + validate silo_type option
@@ -9147,12 +9175,14 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                           opts_out_mesh_name,
                           opts_ovl_topo_name,
                           root,
-                          write_overlink);
+                          write_overlink,
+                          opts_prefer_unified_types);
         write_multivars(dbfile.getSiloObject(),
                         opts_out_mesh_name,
                         opts_ovl_topo_name,
                         root,
-                        write_overlink);
+                        write_overlink,
+                        opts_prefer_unified_types);
         write_multimats(dbfile.getSiloObject(),
                         opts_out_mesh_name,
                         opts_ovl_topo_name,
