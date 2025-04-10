@@ -1522,6 +1522,81 @@ read_dims_from_mesh_info(const Node &mesh_info_for_topo, int *dims)
     }
 }
 
+//-----------------------------------------------------------------------------
+// pull out logic that is common to all multi-block object writers
+// we pass everything in the kitchen sink
+// to get either an optlist packed full of namescheme stuff
+// or a set of pointers to names that we can pass directly to silo
+void
+handle_nameschemes_or_pathnames(const bool do_nameschemes,
+                                const std::vector<std::string> &name_strings,
+                                const std::string &global_file_namescheme,
+                                const std::string &global_block_namescheme,
+                                const std::string &silo_name,
+                                const std::string &mbobj_name,
+                                const std::string &mbobj_writer_type,
+                                const int num_empty_doms,
+                                std::vector<int> &empty_domains,
+                                DBoptlist *optlist,
+                                std::string &block_namescheme,
+                                std::vector<const char *> &name_ptrs,
+                                const char **name_ptr)
+{
+    if (do_nameschemes)
+    {
+        block_namescheme = conduit_fmt::format(global_block_namescheme, silo_name);
+
+        if (! global_file_namescheme.empty())
+        {
+            CONDUIT_CHECK_SILO_ERROR(
+                DBAddOption(optlist.getSiloObject(),
+                            DBOPT_MB_FILE_NS,
+                            global_file_namescheme.c_str()),
+                "Error adding file namescheme option for " << mbobj_writer_type << 
+                " for " << mbobj_name << ".");
+        }
+
+        CONDUIT_CHECK_SILO_ERROR(
+            DBAddOption(optlist.getSiloObject(),
+                        DBOPT_MB_BLOCK_NS,
+                        block_namescheme.c_str()),
+            "Error adding block namescheme option for " << mbobj_writer_type << 
+            " for " << mbobj_name << ".");
+    
+        // if we have some domains that are "empty"
+        if (! empty_domains.empty())
+        {
+            // we need it sorted because readers expect it this way
+            // e.g. VisIt, Conduit as well but we could change it
+            // if we wished.
+            std::sort(empty_domains.begin(), empty_domains.end());
+
+            CONDUIT_CHECK_SILO_ERROR(
+                DBAddOption(optlist.getSiloObject(),
+                            DBOPT_MB_EMPTY_LIST,
+                            empty_domains.data()),
+                "Error adding empty list option for " << mbobj_writer_type << 
+                " for " << mbobj_name << ".");
+
+            CONDUIT_CHECK_SILO_ERROR(
+                DBAddOption(optlist.getSiloObject(),
+                            DBOPT_MB_EMPTY_COUNT,
+                            &num_empty_doms),
+                "Error adding empty size option for " << mbobj_writer_type << 
+                " for " << mbobj_name << ".");
+        }
+    }
+    else
+    {
+        // package up char ptrs for silo
+        for (size_t i = 0; i < name_strings.size(); i ++)
+        {
+            name_ptrs.push_back(name_strings[i].c_str());
+        }
+        name_ptr = name_ptrs.data();
+    }
+}
+
 }
 //-----------------------------------------------------------------------------
 // -- end conduit::relay::<mpi>::io::silo::detail --
@@ -7014,63 +7089,29 @@ void write_multimesh(DBfile *dbfile,
 
     // need to create vars out here so they have lifetime thru the end of the function
     std::vector<const char *> domain_name_ptrs;
-    const char **dom_name_ptr = nullptr;
-    const std::string block_namescheme = conduit_fmt::format(global_block_namescheme, silo_meshname);
+    const char **dom_names_ptr = nullptr;
+    std::string block_namescheme;
     const int num_empty_doms = static_cast<int>(empty_domains.size());
-    if (do_nameschemes)
-    {
-        if (! global_file_namescheme.empty())
-        {
-            CONDUIT_CHECK_SILO_ERROR(
-                DBAddOption(optlist.getSiloObject(),
-                            DBOPT_MB_FILE_NS,
-                            global_file_namescheme.c_str()),
-                "Error adding file namescheme option for DBPutMultimesh for " << multimesh_name << ".");
-        }
-
-        CONDUIT_CHECK_SILO_ERROR(
-            DBAddOption(optlist.getSiloObject(),
-                        DBOPT_MB_BLOCK_NS,
-                        block_namescheme.c_str()),
-            "Error adding block namescheme option for DBPutMultimesh for " << multimesh_name << ".");
-    
-        // if we have some domains that are "empty"
-        if (! empty_domains.empty())
-        {
-            // we need it sorted because readers expect it this way
-            // e.g. VisIt, Conduit as well but we could change it
-            // if we wished.
-            std::sort(empty_domains.begin(), empty_domains.end());
-
-            CONDUIT_CHECK_SILO_ERROR(
-                DBAddOption(optlist.getSiloObject(),
-                            DBOPT_MB_EMPTY_LIST,
-                            empty_domains.data()),
-                "Error adding empty list option for DBPutMultimesh for " << multimesh_name << ".");
-
-            CONDUIT_CHECK_SILO_ERROR(
-                DBAddOption(optlist.getSiloObject(),
-                            DBOPT_MB_EMPTY_COUNT,
-                            &num_empty_doms),
-                "Error adding empty size option for DBPutMultimesh for " << multimesh_name << ".");
-        }
-    }
-    else
-    {
-        // package up char ptrs for silo
-        for (size_t i = 0; i < domain_name_strings.size(); i ++)
-        {
-            domain_name_ptrs.push_back(domain_name_strings[i].c_str());
-        }
-        dom_name_ptr = domain_name_ptrs.data();
-    }
+    detail::handle_nameschemes_or_pathnames(do_nameschemes,
+                                            domain_name_strings,
+                                            global_file_namescheme,
+                                            global_block_namescheme,
+                                            silo_meshname,
+                                            multimesh_name,
+                                            "DBPutMultimesh",
+                                            num_empty_doms,
+                                            empty_domains,
+                                            optlist.getSiloObject(),
+                                            block_namescheme,
+                                            domain_name_ptrs,
+                                            dom_names_ptr);
 
     CONDUIT_CHECK_SILO_ERROR(
         DBPutMultimesh(
             dbfile,
             multimesh_name.c_str(),
             global_num_domains,
-            dom_name_ptr,
+            dom_names_ptr,
             mesh_types_ptr,
             optlist.getSiloObject()),
         "Error putting multimesh corresponding to topo: " << topo_name);
@@ -7267,63 +7308,29 @@ write_multivars(DBfile *dbfile,
 
                     // need to create vars out here so they have lifetime thru the end of the function
                     std::vector<const char *> var_name_ptrs;
-                    const char **var_name_ptr = nullptr;
-                    const std::string block_namescheme = conduit_fmt::format(global_block_namescheme, silo_meshname);
+                    const char **var_names_ptr = nullptr;
+                    std::string block_namescheme;
                     const int num_empty_doms = static_cast<int>(empty_domains.size());
-                    if (do_nameschemes)
-                    {
-                        if (! global_file_namescheme.empty())
-                        {
-                            CONDUIT_CHECK_SILO_ERROR(
-                                DBAddOption(optlist.getSiloObject(),
-                                            DBOPT_MB_FILE_NS,
-                                            global_file_namescheme.c_str()),
-                                "Error adding file namescheme option for DBPutMultivar for " << multivar_name << ".");
-                        }
-
-                        CONDUIT_CHECK_SILO_ERROR(
-                            DBAddOption(optlist.getSiloObject(),
-                                        DBOPT_MB_BLOCK_NS,
-                                        block_namescheme.c_str()),
-                            "Error adding block namescheme option for DBPutMultivar for " << multivar_name << ".");
-                    
-                        // if we have some domains that are "empty"
-                        if (! empty_domains.empty())
-                        {
-                            // we need it sorted because readers expect it this way
-                            // e.g. VisIt, Conduit as well but we could change it
-                            // if we wished.
-                            std::sort(empty_domains.begin(), empty_domains.end());
-
-                            CONDUIT_CHECK_SILO_ERROR(
-                                DBAddOption(optlist.getSiloObject(),
-                                            DBOPT_MB_EMPTY_LIST,
-                                            empty_domains.data()),
-                                "Error adding empty list option for DBPutMultivar for " << multivar_name << ".");
-
-                            CONDUIT_CHECK_SILO_ERROR(
-                                DBAddOption(optlist.getSiloObject(),
-                                            DBOPT_MB_EMPTY_COUNT,
-                                            &num_empty_doms),
-                                "Error adding empty size option for DBPutMultivar for " << multivar_name << ".");
-                        }
-                    }
-                    else
-                    {
-                        // package up char ptrs for silo
-                        for (size_t i = 0; i < var_name_strings.size(); i ++)
-                        {
-                            var_name_ptrs.push_back(var_name_strings[i].c_str());
-                        }
-                        var_name_ptr = var_name_ptrs.data();
-                    }
+                    detail::handle_nameschemes_or_pathnames(do_nameschemes,
+                                                            var_name_strings,
+                                                            global_file_namescheme,
+                                                            global_block_namescheme,
+                                                            var_name,
+                                                            multivar_name,
+                                                            "DBPutMultivar",
+                                                            num_empty_doms,
+                                                            empty_domains,
+                                                            optlist.getSiloObject(),
+                                                            block_namescheme,
+                                                            var_name_ptrs,
+                                                            var_names_ptr);
 
                     CONDUIT_CHECK_SILO_ERROR(
                         DBPutMultivar(
                             dbfile,
                             multivar_name.c_str(),
                             global_num_domains,
-                            var_name_ptr,
+                            var_names_ptr,
                             var_types_ptr,
                             optlist.getSiloObject()),
                         "Error putting multivar corresponding to field: " << var_name);
@@ -7354,7 +7361,8 @@ write_multimats(DBfile *dbfile,
                 const std::string &opts_mesh_name,
                 const std::string &ovl_topo_name,
                 const Node &root,
-                const bool write_overlink)
+                const bool write_overlink,
+                const bool do_nameschemes)
 {
     const int num_files = root["number_of_files"].to_index_t();
     const int global_num_domains = root["number_of_domains"].to_index_t();
@@ -7395,6 +7403,7 @@ write_multimats(DBfile *dbfile,
                 const std::string silo_matset_name = (write_overlink ? "MATERIAL" : matset_name);
 
                 std::vector<std::string> matset_name_strings;
+                std::vector<int> empty_domains;
                 detail::generate_silo_names(n_mesh["state"],
                                             root["silo_path"].as_string(),
                                             silo_matset_name,
@@ -7405,14 +7414,15 @@ write_multimats(DBfile *dbfile,
                                             -1, // default type. Not needed for matsets and specsets
                                             true, // we are doing matset or specset names
                                             matset_name_strings,
-                                            nullptr); // no need to pass a vector for types for matsets or specsets
+                                            nullptr, // no need to pass a vector for types for matsets or specsets
+                                            &empty_domains);
 
-                // package up char ptrs for silo
-                std::vector<const char *> matset_name_ptrs;
-                for (size_t i = 0; i < matset_name_strings.size(); i ++)
-                {
-                    matset_name_ptrs.push_back(matset_name_strings[i].c_str());
-                }
+                // create optlist
+                detail::SiloObjectWrapperCheckError<DBoptlist, decltype(&DBFreeOptlist)> optlist{
+                    DBMakeOptlist(4),
+                    &DBFreeOptlist,
+                    "Error freeing optlist."};
+                CONDUIT_ASSERT(optlist.getSiloObject(), "Error creating options");
 
                 const std::string multimesh_name = (write_overlink ?
                                                     opts_mesh_name :
@@ -7431,12 +7441,6 @@ write_multimats(DBfile *dbfile,
                                           matnames,
                                           matname_ptrs,
                                           matnos);
-
-                detail::SiloObjectWrapperCheckError<DBoptlist, decltype(&DBFreeOptlist)> optlist{
-                    DBMakeOptlist(4),
-                    &DBFreeOptlist,
-                    "Error freeing optlist."};
-                CONDUIT_ASSERT(optlist.getSiloObject(), "Error creating options");
 
                 // have to const_cast because converting to void *
                 CONDUIT_CHECK_SILO_ERROR(
@@ -7460,12 +7464,31 @@ write_multimats(DBfile *dbfile,
                                 matname_ptrs.data()),
                     "Error adding matnames db option.");
 
+                // need to create vars out here so they have lifetime thru the end of the function
+                std::vector<const char *> matset_name_ptrs;
+                const char **matset_names_ptr = nullptr;
+                std::string block_namescheme;
+                const int num_empty_doms = static_cast<int>(empty_domains.size());
+                detail::handle_nameschemes_or_pathnames(do_nameschemes,
+                                                        matset_name_strings,
+                                                        global_file_namescheme,
+                                                        global_block_namescheme,
+                                                        silo_matset_name,
+                                                        multimat_name,
+                                                        "DBPutMultimat",
+                                                        num_empty_doms,
+                                                        empty_domains,
+                                                        optlist.getSiloObject(),
+                                                        block_namescheme,
+                                                        matset_name_ptrs,
+                                                        matset_names_ptr);
+
                 CONDUIT_CHECK_SILO_ERROR(
                     DBPutMultimat(
                         dbfile,
                         multimat_name.c_str(),
                         global_num_domains,
-                        matset_name_ptrs.data(),
+                        matset_names_ptr,
                         optlist.getSiloObject()),
                     "Error putting multimaterial corresponding to matset: " << matset_name);
             }
@@ -7480,7 +7503,8 @@ write_multimatspecs(DBfile *dbfile,
                     const std::string &ovl_topo_name,
                     const Node &root,
                     const bool write_overlink,
-                    const std::map<std::string, std::pair<std::string, std::string>> &ovl_specset_names)
+                    const std::map<std::string, std::pair<std::string, std::string>> &ovl_specset_names,
+                    const bool do_nameschemes)
 {
     const int num_files = root["number_of_files"].to_index_t();
     const int global_num_domains = root["number_of_domains"].to_index_t();
@@ -7490,6 +7514,7 @@ write_multimatspecs(DBfile *dbfile,
     const std::string &global_file_namescheme = root["global_file_namescheme"].as_string();
     const std::string &global_block_namescheme = root["global_block_namescheme"].as_string();
 
+    // we have to keep track for overlink
     int num_specsets_written = 0;
 
     // these should be the same b/c the num domains the bp index was given
@@ -7553,6 +7578,7 @@ write_multimatspecs(DBfile *dbfile,
                 }
 
                 std::vector<std::string> specset_name_strings;
+                std::vector<int> empty_domains;
                 detail::generate_silo_names(n_mesh["state"],
                                             root["silo_path"].as_string(),
                                             silo_specset_name,
@@ -7563,14 +7589,8 @@ write_multimatspecs(DBfile *dbfile,
                                             -1, // default type. Not needed for matsets and specsets
                                             true, // we are doing matset or specset names
                                             specset_name_strings,
-                                            nullptr); // no need to pass a vector for types for matsets or specsets
-
-                // package up char ptrs for silo
-                std::vector<const char *> specset_name_ptrs;
-                for (size_t i = 0; i < specset_name_strings.size(); i ++)
-                {
-                    specset_name_ptrs.push_back(specset_name_strings[i].c_str());
-                }
+                                            nullptr, // no need to pass a vector for types for matsets or specsets
+                                            &empty_domains);
 
                 const std::string silo_matset_name = (write_overlink ? "MATERIAL" : linked_matset_name);
                 const std::string multimesh_name = (write_overlink ?
@@ -7627,6 +7647,7 @@ write_multimatspecs(DBfile *dbfile,
                     specname_ptrs.push_back(specnames[i].c_str());
                 }
 
+                // create optlist
                 detail::SiloObjectWrapperCheckError<DBoptlist, decltype(&DBFreeOptlist)> optlist{
                     DBMakeOptlist(4),
                     &DBFreeOptlist,
@@ -7655,12 +7676,31 @@ write_multimatspecs(DBfile *dbfile,
                                 specname_ptrs.data()),
                     "error adding matnames option");
 
+                // need to create vars out here so they have lifetime thru the end of the function
+                std::vector<const char *> specset_name_ptrs;
+                const char **specset_names_ptr = nullptr;
+                std::string block_namescheme;
+                const int num_empty_doms = static_cast<int>(empty_domains.size());
+                detail::handle_nameschemes_or_pathnames(do_nameschemes,
+                                                        specset_name_strings,
+                                                        global_file_namescheme,
+                                                        global_block_namescheme,
+                                                        silo_specset_name,
+                                                        multimatspec_name,
+                                                        "DBPutMultimatspecies",
+                                                        num_empty_doms,
+                                                        empty_domains,
+                                                        optlist.getSiloObject(),
+                                                        block_namescheme,
+                                                        specset_name_ptrs,
+                                                        specset_names_ptr);
+
                 CONDUIT_CHECK_SILO_ERROR(
                     DBPutMultimatspecies(
                         dbfile,
                         multimatspec_name.c_str(),
                         global_num_domains,
-                        specset_name_ptrs.data(),
+                        specset_names_ptr,
                         optlist.getSiloObject()),
                     "Error putting multimaterial corresponding to specset: " << specset_name);
 
