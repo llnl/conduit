@@ -1428,9 +1428,9 @@ track_local_type_domain_info(const Node &options,
     // fetch the passed in options
     const std::string &comp = options["comp_info"]["comp"].as_string();
     const std::string &comp_name = options["comp_info"]["comp_name"].as_string();
-    index_t local_num_domains = options["domain_info"]["local_num_domains"].to_index_t();
-    index_t local_domain_index = options["domain_info"]["local_domain_index"].to_index_t();
-    index_t global_domain_id = options["domain_info"]["global_domain_id"].to_index_t();
+    const index_t local_num_domains = options["domain_info"]["local_num_domains"].to_index_t();
+    const index_t local_domain_index = options["domain_info"]["local_domain_index"].to_index_t();
+    const index_t global_domain_id = options["domain_info"]["global_domain_id"].to_index_t();
     const bool write_overlink = options["write_overlink"].as_string() == "yes";
 
     Node &local_type_domain_info_comp = local_type_domain_info[comp];
@@ -6986,6 +6986,7 @@ void write_multimesh(DBfile *dbfile,
                                  "creating optlist (time, cycle) ");
     }
 
+    // need to create vars out here so that they have scope for the function lifetime
     int *mesh_types_ptr = nullptr;
     int mesh_type;
     if (prefer_unified_types && detail::all_types_the_same(mesh_types))
@@ -7002,7 +7003,75 @@ void write_multimesh(DBfile *dbfile,
         mesh_types_ptr = mesh_types.data();
     }
 
-    // TODO add dboptions for nameschemes
+    // TODO handle empty!!!
+
+    // need to create vars out here so that they have scope for the function lifetime
+    std::string file_namescheme, block_namescheme;
+    if (do_nameschemes)
+    {
+        const std::string namescheme_delimiter = "|";
+        // single file case
+        if (root_only)
+        {
+            file_namescheme = "";
+            if (1 == global_num_domains)
+            {
+                
+            }
+            else
+            {
+                
+            }
+        }
+        else
+        {
+            std::string output_dir_base, output_dir_path;
+            utils::rsplit_file_path(output_dir,
+                                    output_dir_base,
+                                    output_dir_path);
+            
+            // num domains == num files case
+            if (global_num_domains == num_files)
+            {
+                if (overlink)
+                {
+                    
+                }
+                else
+                {
+                    
+                }
+            }
+            // m to n case
+            else
+            {
+                if (overlink)
+                {
+                    
+                }
+                else
+                {
+                    
+                }
+            }
+        }
+
+        if (! file_namescheme.empty())
+        {
+            CONDUIT_CHECK_SILO_ERROR(
+                DBAddOption(optlist.getSiloObject(),
+                            DBOPT_MB_FILE_NS,
+                            file_namescheme.c_str()),
+                "Error adding file namescheme option for DBPutMultimesh for " << multimesh_name << ".");
+        }
+
+        CONDUIT_CHECK_SILO_ERROR(
+            DBAddOption(optlist.getSiloObject(),
+                        DBOPT_MB_BLOCK_NS,
+                        block_namescheme.c_str()),
+            "Error adding block namescheme option for DBPutMultimesh for " << multimesh_name << ".");
+    }
+
     CONDUIT_CHECK_SILO_ERROR(
         DBPutMultimesh(
             dbfile,
@@ -9017,18 +9086,32 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
             assemble_root_type_dom_info("specsets");
         }
 
-        std::string output_silo_path;
+        std::string output_silo_path, global_block_namescheme, global_file_namescheme;
 
         // single file case
         if (opts_file_style == "root_only")
         {
-            if (global_num_domains == 1)
+            // there is no case for overlink here because you can't do
+            // the root only case when you are doing overlink.
+
+            global_file_namescheme = "";
+            if (1 == global_num_domains)
             {
                 output_silo_path = opts_out_mesh_name + "/{}";
+
+                // "|mesh/topo"
+                global_block_namescheme = namescheme_delimiter
+                                        + opts_out_mesh_name + "/{}";
             }
             else
             {
                 output_silo_path = "domain_{:06d}/" + opts_out_mesh_name + "/{}";
+
+                // "|domain_%06d/mesh/topo|n"
+                global_block_namescheme = namescheme_delimiter
+                                        + "domain_%06d/"
+                                        + opts_out_mesh_name + "/{}"
+                                        + namescheme_delimiter + "n";
             }
 
             // generate part map (we only need domain for this case)
@@ -9065,17 +9148,81 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                 if (write_overlink)
                 {
                     output_silo_path = utils::join_file_path(output_dir_base, "domain{:d}.silo:{}");
+
+                    // "|domain%d.silo|n"
+                    global_file_namescheme = namescheme_delimiter 
+                                           + utils::join_file_path(output_dir_base, 
+                                                                   "domain%d.silo")
+                                           + namescheme_delimiter + "n";
+                    // "|topo"
+                    global_block_namescheme = namescheme_delimiter + "{}";
                 }
                 else
                 {
                     output_silo_path = utils::join_file_path(output_dir_base, "domain_{:06d}.silo") + ":"
                                      + opts_out_mesh_name + "/{}";
+
+                    // "|my_silo_dir.cycle_000000/domain%06d.silo|n"
+                    global_file_namescheme = namescheme_delimiter
+                                           + utils::join_file_path(output_dir_base, 
+                                                                   "domain_%06d.silo")
+                                           + namescheme_delimiter + "n";
+                    // "|mesh/topo"
+                    global_block_namescheme = namescheme_delimiter
+                                            + opts_out_mesh_name + "/{}";
                 }
             }
             // m to n case
             else
             {
                 // we generated the partition map earlier
+
+                //
+                // Pseudocode to explain myself:
+                //
+
+                // the number of domains per (regular) file (some may have one additonal)
+                // numDomsPerFile = numDoms // numFiles;
+
+                // the number of files with extra domains
+                // numFilesExtraDoms = numDoms % numFiles;
+
+                // the starting index of domains that are in files without extra domains
+                // nStart = (numDomsPerFile + 1) * numFilesExtraDoms;
+
+                // a boolean for if a domain n is in a file that has extra domains
+                // domInExtraDomFile = n < nStart;
+
+                // numDomsPerFile, numFilesExtraDoms, and domInExtraDomFile are the values 
+                // I need to save as integer arrays in Silo for the namescheme strings to 
+                // refer to.
+                //  - I will save numDomsPerFile as an int array with a single element
+                //  - I will save numFilesExtraDoms as an int array with a single element
+                //  - I will save domInExtraDomFile as an int array with one value for each
+                //    domain. It will be a 0 or 1 depending on if that domain index is in
+                //    a file that has extra domains or not. I opted to save this as an array 
+                //    instead of solving for (n < nStart) arithmetically without using "<"
+                //    or any other comparison operators, which are not part of the grammar.
+                //    Solving for this arithmetically was quite complicated and would make
+                //    the namescheme string nearly impossible to understand.
+
+                // With these building blocks, we can make an expression to get the file id
+                // given a domain id n:
+                // def get_file_id(n):
+                //     if (domInExtraDomFile[n])
+                //     {
+                //         return n // (numDomsPerFile[0] + 1);
+                //     }
+                //     else
+                //     {
+                //         return (n - numFilesExtraDoms[0]) // numDomsPerFile[0];
+                //     }
+
+                // translated into the grammar of silo namescheme strings, we get the following 
+                // ternary operation:
+                // #domInExtraDomFile[n]?n/(#numDomsPerFile[0]+1):(n-#numFilesExtraDoms[0])/#numDomsPerFile[0]:
+
+                // I JUST REALIZED I CAN SKIP ALL OF THIS
 
                 if (write_overlink)
                 {
