@@ -1290,19 +1290,39 @@ all_types_the_same(std::vector<int> &v)
 
 //-----------------------------------------------------------------------------
 void
-generate_silo_names(const Node &n_mesh_state,
-                    const std::string &silo_path,
-                    const std::string &silo_name,
-                    const int num_files,
-                    const int global_num_domains,
-                    const bool root_only,
-                    const Node &dom_flags_or_types,
-                    const int default_type,
-                    const bool mat_or_spec_names, // are we doing material or specset names
-                    std::vector<std::string> &name_strings,
-                    std::vector<int> *types,
-                    std::vector<int> *empty_domains)
+generate_silo_mb_data(const Node &n_mesh_state,
+                      const std::string &silo_path,
+                      const std::string &silo_name,
+                      const int num_files,
+                      const int global_num_domains,
+                      const bool root_only,
+                      const Node &dom_flags_or_types,
+                      const int default_type,
+                      const bool do_types, // are we doing material or specset names
+                      const bool do_nameschemes,
+                      std::vector<std::string> &name_strings,
+                      std::vector<int> *types,
+                      std::vector<int> *empty_domains)
 {
+    // TODO I believe that it is possible to use the types we collected in the
+    // root type domain info for writing out (instead of copying them all as we do
+    // here). The only thing we have to do differently is put in the default type 
+    // at the beginning and then record empty domains another way. That would 
+    // simplify this logic as well; if we knew empty domains all along we wouldn't 
+    // have to create them here.
+
+    // this function does many things, and all need to be done in a loop over all the domains.
+    // we can 
+    //  - generate names for multi-block data paths,
+    //  - collect information about the types,
+    //  - and track the empty domains.
+    // we only generate names if we ARE NOT doing nameschemes, and we only
+    // track the empty domains if we ARE doing nameschemes.
+    // we only collect type info if we are doing matsets or specsets.
+    // So this function is a switchyard where we have the same general structure
+    // and then substitute in the right cases depending on what we ask it to do.
+    // We provide several lambdas and then the cases are at the bottom.
+
     // a little helper to determine the domain or file
     auto determine_domain_or_file = [&](const std::string domain_or_file,
                                         const index_t global_domain_id) -> index_t
@@ -1352,54 +1372,104 @@ generate_silo_names(const Node &n_mesh_state,
         }
     };
 
-    // now we go ahead and use the lambdas we created
-
-    // simplified route for matsets and specsets, as they do not have type info
-    // to take into account
-    if (mat_or_spec_names)
+    // execute the main loop
+    auto main_loop = [&](void (missing_domain_case)(index_t),
+                         void (else_case)(index_t, index_t, int_accessor&))
     {
-        int_accessor domain_flags = dom_flags_or_types.value();
+        int_accessor stored_types_or_dom_flags = dom_flags_or_types.value();
         for (index_t global_domain_id = 0; global_domain_id < global_num_domains; global_domain_id ++)
         {
             // determine which domain
             const index_t domain_index = determine_domain_or_file("domain", global_domain_id);
 
             // we are missing a domain
-            if (domain_flags[domain_index] == -1)
+            if (stored_types_or_dom_flags[domain_index] == -1)
             {
-                // we create the silo names
-                name_strings.push_back("EMPTY");
-                empty_domains->push_back(domain_index);
+                missing_domain_case(domain_index);
             }
             else
             {
-                // we create the silo names
-                name_strings.push_back(generate_cases(domain_index, global_domain_id));
+                else_case(domain_index, global_domain_id, stored_types_or_dom_flags);
             }
         }
+    };
+
+    // now we go ahead and use the lambdas we created
+
+    // if we're doing nameschemes, we don't have to generate names but we do need
+    // to track empty domains.
+    if (do_nameschemes)
+    {
+        // meshes and variables need to track type information
+        if (do_types)
+        {
+            main_loop(
+                [](const index_t domain_index)
+                {
+                    types->push_back(default_type);
+                    empty_domains->push_back(domain_index);
+                },
+                [](const index_t domain_index,
+                   const index_t global_domain_id,
+                   int_accessor &stored_types)
+                {
+                    types->push_back(stored_types[domain_index]);
+                });
+        }
+        // simplified route for matsets and specsets, as they do not have type info
+        // to take into account
+        else
+        {
+            main_loop(
+                [](const index_t domain_index)
+                {
+                    empty_domains->push_back(domain_index);
+                },
+                [](const index_t domain_index,
+                   const index_t global_domain_id,
+                   int_accessor &stored_types)
+                {});
+        }
     }
+    // we need to record per-block object names and do not need to track empty domains
     else
     {
-        int_accessor stored_types = dom_flags_or_types.value();
-        for (index_t global_domain_id = 0; global_domain_id < global_num_domains; global_domain_id ++)
+        // meshes and variables need to track type information
+        if (do_types)
         {
-            // determine which domain
-            const index_t domain_index = determine_domain_or_file("domain", global_domain_id);
-
-            // we are missing a domain
-            if (stored_types[domain_index] == -1)
-            {
-                // we create the silo names
-                name_strings.push_back("EMPTY");
-                types->push_back(default_type);
-                empty_domains->push_back(domain_index);
-            }
-            else
-            {
-                // we create the silo names
-                name_strings.push_back(generate_cases(domain_index, global_domain_id));
-                types->push_back(stored_types[domain_index]);
-            }
+            main_loop(
+                [](const index_t domain_index)
+                {
+                    // we create the silo names
+                    name_strings.push_back("EMPTY");
+                    types->push_back(default_type);
+                },
+                [](const index_t domain_index,
+                   const index_t global_domain_id,
+                   int_accessor &stored_types)
+                {
+                    // we create the silo names
+                    name_strings.push_back(generate_cases(domain_index, global_domain_id));
+                    types->push_back(stored_types[domain_index]);
+                });
+        }
+        // simplified route for matsets and specsets, as they do not have type info
+        // to take into account
+        else
+        {
+            main_loop(
+                [](const index_t domain_index)
+                {
+                    // we create the silo names
+                    name_strings.push_back("EMPTY");
+                },
+                [](const index_t domain_index,
+                   const index_t global_domain_id,
+                   int_accessor &stored_types)
+                {
+                    // we create the silo names
+                    name_strings.push_back(generate_cases(domain_index, global_domain_id));
+                });
         }
     }
 }
@@ -7017,21 +7087,19 @@ void write_multimesh(DBfile *dbfile,
     std::vector<int> mesh_types;
     std::vector<int> empty_domains;
 
-    // TODO our next nameschemes issue - we don't have to waste time/resources
-    // generating names. We only need the types to get generated.
-
-    detail::generate_silo_names(n_mesh["state"],
-                                root["silo_path"].as_string(),
-                                silo_meshname,
-                                num_files,
-                                global_num_domains,
-                                root_only,
-                                root["type_domain_info"]["meshes"][topo_name],
-                                DB_QUADMESH, // the default if we have an empty domain
-                                false, // we are not doing matset or specset names
-                                domain_name_strings,
-                                &mesh_types,
-                                &empty_domains);
+    detail::generate_silo_mb_data(n_mesh["state"],
+                                  root["silo_path"].as_string(),
+                                  silo_meshname,
+                                  num_files,
+                                  global_num_domains,
+                                  root_only,
+                                  root["type_domain_info"]["meshes"][topo_name],
+                                  DB_QUADMESH, // the default if we have an empty domain
+                                  true, // we are doing mesh or var names
+                                  do_nameschemes,
+                                  domain_name_strings,
+                                  &mesh_types,
+                                  &empty_domains);
 
     // create optlist
     detail::SiloObjectWrapperCheckError<DBoptlist, decltype(&DBFreeOptlist)> optlist{
@@ -7049,7 +7117,6 @@ void write_multimesh(DBfile *dbfile,
         const Node &n_state = n_mesh["state"];
         if (n_state.has_child("cycle"))
         {
-            // TODO should these not be passed by value?
             cycle = n_state["cycle"].to_int();
             silo_error += DBAddOption(optlist.getSiloObject(),
                                       DBOPT_CYCLE,
@@ -7251,18 +7318,19 @@ write_multivars(DBfile *dbfile,
                     std::vector<std::string> var_name_strings;
                     std::vector<int> var_types;
                     std::vector<int> empty_domains;
-                    detail::generate_silo_names(n_mesh["state"],
-                                                root["silo_path"].as_string(),
-                                                var_name,
-                                                num_files,
-                                                global_num_domains,
-                                                root_only,
-                                                root["type_domain_info"]["vars"][var_name],
-                                                DB_QUADVAR, // the default if we have an empty domain
-                                                false, // we are not doing matset or specset names
-                                                var_name_strings,
-                                                &var_types,
-                                                &empty_domains);
+                    detail::generate_silo_mb_data(n_mesh["state"],
+                                                  root["silo_path"].as_string(),
+                                                  var_name,
+                                                  num_files,
+                                                  global_num_domains,
+                                                  root_only,
+                                                  root["type_domain_info"]["vars"][var_name],
+                                                  DB_QUADVAR, // the default if we have an empty domain
+                                                  true, // we are not doing mesh or var names
+                                                  do_nameschemes
+                                                  var_name_strings,
+                                                  &var_types,
+                                                  &empty_domains);
 
                     // create optlist
                     detail::SiloObjectWrapperCheckError<DBoptlist, decltype(&DBFreeOptlist)> optlist{
@@ -7404,18 +7472,19 @@ write_multimats(DBfile *dbfile,
 
                 std::vector<std::string> matset_name_strings;
                 std::vector<int> empty_domains;
-                detail::generate_silo_names(n_mesh["state"],
-                                            root["silo_path"].as_string(),
-                                            silo_matset_name,
-                                            num_files,
-                                            global_num_domains,
-                                            root_only,
-                                            root["type_domain_info"]["matsets"][matset_name],
-                                            -1, // default type. Not needed for matsets and specsets
-                                            true, // we are doing matset or specset names
-                                            matset_name_strings,
-                                            nullptr, // no need to pass a vector for types for matsets or specsets
-                                            &empty_domains);
+                detail::generate_silo_mb_data(n_mesh["state"],
+                                              root["silo_path"].as_string(),
+                                              silo_matset_name,
+                                              num_files,
+                                              global_num_domains,
+                                              root_only,
+                                              root["type_domain_info"]["matsets"][matset_name],
+                                              -1, // default type. Not needed for matsets and specsets
+                                              false, // we are doing matset or specset names
+                                              do_nameschemes,
+                                              matset_name_strings,
+                                              nullptr, // no need to pass a vector for types for matsets or specsets
+                                              &empty_domains);
 
                 // create optlist
                 detail::SiloObjectWrapperCheckError<DBoptlist, decltype(&DBFreeOptlist)> optlist{
@@ -7579,18 +7648,19 @@ write_multimatspecs(DBfile *dbfile,
 
                 std::vector<std::string> specset_name_strings;
                 std::vector<int> empty_domains;
-                detail::generate_silo_names(n_mesh["state"],
-                                            root["silo_path"].as_string(),
-                                            silo_specset_name,
-                                            num_files,
-                                            global_num_domains,
-                                            root_only,
-                                            root["type_domain_info"]["specsets"][specset_name],
-                                            -1, // default type. Not needed for matsets and specsets
-                                            true, // we are doing matset or specset names
-                                            specset_name_strings,
-                                            nullptr, // no need to pass a vector for types for matsets or specsets
-                                            &empty_domains);
+                detail::generate_silo_mb_data(n_mesh["state"],
+                                              root["silo_path"].as_string(),
+                                              silo_specset_name,
+                                              num_files,
+                                              global_num_domains,
+                                              root_only,
+                                              root["type_domain_info"]["specsets"][specset_name],
+                                              -1, // default type. Not needed for matsets and specsets
+                                              false, // we are doing matset or specset names
+                                              do_nameschemes,
+                                              specset_name_strings,
+                                              nullptr, // no need to pass a vector for types for matsets or specsets
+                                              &empty_domains);
 
                 const std::string silo_matset_name = (write_overlink ? "MATERIAL" : linked_matset_name);
                 const std::string multimesh_name = (write_overlink ?
@@ -7901,6 +7971,51 @@ write_num_species_sets(DBfile *dbfile,
                 1, // dimension of the data
                 DB_INT), // data is an integer
         "Error writing num_species_sets to Overlink.");
+}
+
+//-----------------------------------------------------------------------------
+// only needed for nameschemes in the m domains to n files case
+void
+write_dom2filemap(DBfile *dbfile,
+                  const Node &partition_map)
+{
+    index_t_accessor file   = partition_map["file"].value();
+    index_t_accessor domain = partition_map["domain"].value();
+
+    // load this data into a vector of pairs for sorting
+    // we want to get the file for a domain i given by the index
+    std::vector<std::pair<index_t, index_t>> file_dom_pairs;
+    for (index_t i = 0; i < file.number_of_elements(); i ++)
+    {
+        // create pair objects in place
+        file_dom_pairs.emplace_back(domain[i], file[i]);
+    }
+
+    // sort based on the domain ids
+    std::sort(file_dom_pairs.begin(), 
+              file_dom_pairs.end(), 
+              [](std::pair<index_t, index_t> pair1,
+                 std::pair<index_t, index_t> pair2)
+              {
+                  return pair1.first < pair2.first;
+              });
+
+    std::vector<int> sorted_file_ids;
+    for (size_t i = 0; i < file_dom_pairs.size(); i ++)
+    {
+        sorted_file_ids.push_back(static_cast<int>(file_dom_pairs[i].second));
+    }
+
+    const int data_length = static_cast<int>(sorted_file_ids.size());
+
+    CONDUIT_CHECK_SILO_ERROR(
+        DBWrite(dbfile, // dbfile
+                "dom2filemap", // name
+                sorted_file_ids.data(), // address of single integer
+                &data_length, // data length
+                1, // dimension of the data
+                DB_INT), // data is an integer
+        "Error writing dom2filemap to Silo.");
 }
 
 //-----------------------------------------------------------------------------
@@ -9269,8 +9384,6 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
             {
                 // we generated the partition map earlier
 
-                // TODO nameschemes we need to write (sorted!) dom2filemap to the file
-
                 if (write_overlink)
                 {
                     output_silo_path = utils::join_file_path(output_dir_base, "domfile{:d}.silo:domain{:d}/{}");
@@ -9435,6 +9548,16 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
             write_pad_dims(dbfile.getSiloObject(),
                            opts_out_mesh_name,
                            root);
+        }
+
+        // only if we are doing nameschemes and we are in the 
+        // m domains to n files case
+        if (do_nameschemes && 
+            opts_file_style != "root_only" &&
+            global_num_domains != num_files)
+        {
+            write_dom2filemap(dbfile.getSiloObject(),
+                              root["blueprint_index"][opts_out_mesh_name]["state"]["partition_map"]);
         }
     }
 
