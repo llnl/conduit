@@ -1310,6 +1310,9 @@ generate_silo_mb_data(const Node &n_mesh_state,
     // at the beginning and then record empty domains another way. That would 
     // simplify this logic as well; if we knew empty domains all along we wouldn't 
     // have to create them here.
+    // When I make the described change, the madness of this function will melt 
+    // away, leaving behind elegant and simple C++ where there once was darkness 
+    // and evil.
 
     // this function does many things, and all need to be done in a loop over all the domains.
     // we can 
@@ -1319,9 +1322,6 @@ generate_silo_mb_data(const Node &n_mesh_state,
     // we only generate names if we ARE NOT doing nameschemes, and we only
     // track the empty domains if we ARE doing nameschemes.
     // we only collect type info if we are doing matsets or specsets.
-    // So this function is a switchyard where we have the same general structure
-    // and then substitute in the right cases depending on what we ask it to do.
-    // We provide several lambdas and then the cases are at the bottom.
 
     // a little helper to determine the domain or file
     auto determine_domain_or_file = [&](const std::string domain_or_file,
@@ -1372,63 +1372,50 @@ generate_silo_mb_data(const Node &n_mesh_state,
         }
     };
 
-    // execute the main loop
-    auto main_loop = [&](void (missing_domain_case)(index_t),
-                         void (else_case)(index_t, index_t, int_accessor&))
-    {
-        int_accessor stored_types_or_dom_flags = dom_flags_or_types.value();
-        for (index_t global_domain_id = 0; global_domain_id < global_num_domains; global_domain_id ++)
-        {
-            // determine which domain
-            const index_t domain_index = determine_domain_or_file("domain", global_domain_id);
-
-            // we are missing a domain
-            if (stored_types_or_dom_flags[domain_index] == -1)
-            {
-                missing_domain_case(domain_index);
-            }
-            else
-            {
-                else_case(domain_index, global_domain_id, stored_types_or_dom_flags);
-            }
-        }
-    };
-
     // now we go ahead and use the lambdas we created
 
     // if we're doing nameschemes, we don't have to generate names but we do need
-    // to track empty domains.
+    // to track empty domains
     if (do_nameschemes)
     {
         // meshes and variables need to track type information
         if (do_types)
         {
-            main_loop(
-                [](const index_t domain_index)
+            int_accessor stored_types = dom_flags_or_types.value();
+            for (index_t global_domain_id = 0; global_domain_id < global_num_domains; global_domain_id ++)
+            {
+                // determine which domain
+                const index_t domain_index = determine_domain_or_file("domain", global_domain_id);
+
+                // we are missing a domain
+                if (stored_types[domain_index] == -1)
                 {
                     types->push_back(default_type);
                     empty_domains->push_back(domain_index);
-                },
-                [](const index_t domain_index,
-                   const index_t global_domain_id,
-                   int_accessor &stored_types)
+                }
+                else
                 {
                     types->push_back(stored_types[domain_index]);
-                });
+                }
+            }
         }
         // simplified route for matsets and specsets, as they do not have type info
         // to take into account
         else
         {
-            main_loop(
-                [](const index_t domain_index)
+            int_accessor domain_flags = dom_flags_or_types.value();
+            for (index_t global_domain_id = 0; global_domain_id < global_num_domains; global_domain_id ++)
+            {
+                // determine which domain
+                const index_t domain_index = determine_domain_or_file("domain", global_domain_id);
+
+                // we are missing a domain
+                if (domain_flags[domain_index] == -1)
                 {
                     empty_domains->push_back(domain_index);
-                },
-                [](const index_t domain_index,
-                   const index_t global_domain_id,
-                   int_accessor &stored_types)
-                {});
+                }
+                // else
+            }
         }
     }
     // we need to record per-block object names and do not need to track empty domains
@@ -1437,39 +1424,49 @@ generate_silo_mb_data(const Node &n_mesh_state,
         // meshes and variables need to track type information
         if (do_types)
         {
-            main_loop(
-                [](const index_t domain_index)
+            int_accessor stored_types = dom_flags_or_types.value();
+            for (index_t global_domain_id = 0; global_domain_id < global_num_domains; global_domain_id ++)
+            {
+                // determine which domain
+                const index_t domain_index = determine_domain_or_file("domain", global_domain_id);
+
+                // we are missing a domain
+                if (stored_types[domain_index] == -1)
                 {
                     // we create the silo names
                     name_strings.push_back("EMPTY");
                     types->push_back(default_type);
-                },
-                [](const index_t domain_index,
-                   const index_t global_domain_id,
-                   int_accessor &stored_types)
+                }
+                else
                 {
                     // we create the silo names
                     name_strings.push_back(generate_cases(domain_index, global_domain_id));
                     types->push_back(stored_types[domain_index]);
-                });
+                }
+            }
         }
         // simplified route for matsets and specsets, as they do not have type info
         // to take into account
         else
         {
-            main_loop(
-                [](const index_t domain_index)
+            int_accessor domain_flags = dom_flags_or_types.value();
+            for (index_t global_domain_id = 0; global_domain_id < global_num_domains; global_domain_id ++)
+            {
+                // determine which domain
+                const index_t domain_index = determine_domain_or_file("domain", global_domain_id);
+
+                // we are missing a domain
+                if (domain_flags[domain_index] == -1)
                 {
                     // we create the silo names
                     name_strings.push_back("EMPTY");
-                },
-                [](const index_t domain_index,
-                   const index_t global_domain_id,
-                   int_accessor &stored_types)
+                }
+                else
                 {
                     // we create the silo names
                     name_strings.push_back(generate_cases(domain_index, global_domain_id));
-                });
+                }
+            }
         }
     }
 }
@@ -1597,7 +1594,7 @@ read_dims_from_mesh_info(const Node &mesh_info_for_topo, int *dims)
 // we pass everything in the kitchen sink
 // to get either an optlist packed full of namescheme stuff
 // or a set of pointers to names that we can pass directly to silo
-void
+const char **
 handle_nameschemes_or_pathnames(const bool do_nameschemes,
                                 const std::vector<std::string> &name_strings,
                                 const std::string &global_file_namescheme,
@@ -1609,8 +1606,7 @@ handle_nameschemes_or_pathnames(const bool do_nameschemes,
                                 std::vector<int> &empty_domains,
                                 DBoptlist *optlist,
                                 std::string &block_namescheme,
-                                std::vector<const char *> &name_ptrs,
-                                const char **name_ptr)
+                                std::vector<const char *> &name_ptrs)
 {
     if (do_nameschemes)
     {
@@ -1619,17 +1615,17 @@ handle_nameschemes_or_pathnames(const bool do_nameschemes,
         if (! global_file_namescheme.empty())
         {
             CONDUIT_CHECK_SILO_ERROR(
-                DBAddOption(optlist.getSiloObject(),
+                DBAddOption(optlist,
                             DBOPT_MB_FILE_NS,
-                            global_file_namescheme.c_str()),
+                            const_cast<char *>(global_file_namescheme.c_str())),
                 "Error adding file namescheme option for " << mbobj_writer_type << 
                 " for " << mbobj_name << ".");
         }
 
         CONDUIT_CHECK_SILO_ERROR(
-            DBAddOption(optlist.getSiloObject(),
+            DBAddOption(optlist,
                         DBOPT_MB_BLOCK_NS,
-                        block_namescheme.c_str()),
+                        const_cast<char *>(block_namescheme.c_str())),
             "Error adding block namescheme option for " << mbobj_writer_type << 
             " for " << mbobj_name << ".");
     
@@ -1642,19 +1638,22 @@ handle_nameschemes_or_pathnames(const bool do_nameschemes,
             std::sort(empty_domains.begin(), empty_domains.end());
 
             CONDUIT_CHECK_SILO_ERROR(
-                DBAddOption(optlist.getSiloObject(),
+                DBAddOption(optlist,
                             DBOPT_MB_EMPTY_LIST,
                             empty_domains.data()),
                 "Error adding empty list option for " << mbobj_writer_type << 
                 " for " << mbobj_name << ".");
 
             CONDUIT_CHECK_SILO_ERROR(
-                DBAddOption(optlist.getSiloObject(),
+                DBAddOption(optlist,
                             DBOPT_MB_EMPTY_COUNT,
-                            &num_empty_doms),
+                            const_cast<void *>(
+                                static_cast<const void *>(
+                                    &num_empty_doms))),
                 "Error adding empty size option for " << mbobj_writer_type << 
                 " for " << mbobj_name << ".");
         }
+        return nullptr;
     }
     else
     {
@@ -1663,7 +1662,7 @@ handle_nameschemes_or_pathnames(const bool do_nameschemes,
         {
             name_ptrs.push_back(name_strings[i].c_str());
         }
-        name_ptr = name_ptrs.data();
+        return name_ptrs.data();
     }
 }
 
@@ -7156,22 +7155,21 @@ void write_multimesh(DBfile *dbfile,
 
     // need to create vars out here so they have lifetime thru the end of the function
     std::vector<const char *> domain_name_ptrs;
-    const char **dom_names_ptr = nullptr;
     std::string block_namescheme;
     const int num_empty_doms = static_cast<int>(empty_domains.size());
-    detail::handle_nameschemes_or_pathnames(do_nameschemes,
-                                            domain_name_strings,
-                                            global_file_namescheme,
-                                            global_block_namescheme,
-                                            silo_meshname,
-                                            multimesh_name,
-                                            "DBPutMultimesh",
-                                            num_empty_doms,
-                                            empty_domains,
-                                            optlist.getSiloObject(),
-                                            block_namescheme,
-                                            domain_name_ptrs,
-                                            dom_names_ptr);
+    const char **dom_names_ptr = 
+        detail::handle_nameschemes_or_pathnames(do_nameschemes,
+                                                domain_name_strings,
+                                                global_file_namescheme,
+                                                global_block_namescheme,
+                                                silo_meshname,
+                                                multimesh_name,
+                                                "DBPutMultimesh",
+                                                num_empty_doms,
+                                                empty_domains,
+                                                optlist.getSiloObject(),
+                                                block_namescheme,
+                                                domain_name_ptrs);
 
     CONDUIT_CHECK_SILO_ERROR(
         DBPutMultimesh(
@@ -7327,7 +7325,7 @@ write_multivars(DBfile *dbfile,
                                                   root["type_domain_info"]["vars"][var_name],
                                                   DB_QUADVAR, // the default if we have an empty domain
                                                   true, // we are not doing mesh or var names
-                                                  do_nameschemes
+                                                  do_nameschemes,
                                                   var_name_strings,
                                                   &var_types,
                                                   &empty_domains);
@@ -7376,22 +7374,21 @@ write_multivars(DBfile *dbfile,
 
                     // need to create vars out here so they have lifetime thru the end of the function
                     std::vector<const char *> var_name_ptrs;
-                    const char **var_names_ptr = nullptr;
                     std::string block_namescheme;
                     const int num_empty_doms = static_cast<int>(empty_domains.size());
-                    detail::handle_nameschemes_or_pathnames(do_nameschemes,
-                                                            var_name_strings,
-                                                            global_file_namescheme,
-                                                            global_block_namescheme,
-                                                            var_name,
-                                                            multivar_name,
-                                                            "DBPutMultivar",
-                                                            num_empty_doms,
-                                                            empty_domains,
-                                                            optlist.getSiloObject(),
-                                                            block_namescheme,
-                                                            var_name_ptrs,
-                                                            var_names_ptr);
+                    const char **var_names_ptr = 
+                        detail::handle_nameschemes_or_pathnames(do_nameschemes,
+                                                                var_name_strings,
+                                                                global_file_namescheme,
+                                                                global_block_namescheme,
+                                                                var_name,
+                                                                multivar_name,
+                                                                "DBPutMultivar",
+                                                                num_empty_doms,
+                                                                empty_domains,
+                                                                optlist.getSiloObject(),
+                                                                block_namescheme,
+                                                                var_name_ptrs);
 
                     CONDUIT_CHECK_SILO_ERROR(
                         DBPutMultivar(
@@ -7535,22 +7532,21 @@ write_multimats(DBfile *dbfile,
 
                 // need to create vars out here so they have lifetime thru the end of the function
                 std::vector<const char *> matset_name_ptrs;
-                const char **matset_names_ptr = nullptr;
                 std::string block_namescheme;
                 const int num_empty_doms = static_cast<int>(empty_domains.size());
-                detail::handle_nameschemes_or_pathnames(do_nameschemes,
-                                                        matset_name_strings,
-                                                        global_file_namescheme,
-                                                        global_block_namescheme,
-                                                        silo_matset_name,
-                                                        multimat_name,
-                                                        "DBPutMultimat",
-                                                        num_empty_doms,
-                                                        empty_domains,
-                                                        optlist.getSiloObject(),
-                                                        block_namescheme,
-                                                        matset_name_ptrs,
-                                                        matset_names_ptr);
+                const char **matset_names_ptr = 
+                    detail::handle_nameschemes_or_pathnames(do_nameschemes,
+                                                            matset_name_strings,
+                                                            global_file_namescheme,
+                                                            global_block_namescheme,
+                                                            silo_matset_name,
+                                                            multimat_name,
+                                                            "DBPutMultimat",
+                                                            num_empty_doms,
+                                                            empty_domains,
+                                                            optlist.getSiloObject(),
+                                                            block_namescheme,
+                                                            matset_name_ptrs);
 
                 CONDUIT_CHECK_SILO_ERROR(
                     DBPutMultimat(
@@ -7748,22 +7744,21 @@ write_multimatspecs(DBfile *dbfile,
 
                 // need to create vars out here so they have lifetime thru the end of the function
                 std::vector<const char *> specset_name_ptrs;
-                const char **specset_names_ptr = nullptr;
                 std::string block_namescheme;
                 const int num_empty_doms = static_cast<int>(empty_domains.size());
-                detail::handle_nameschemes_or_pathnames(do_nameschemes,
-                                                        specset_name_strings,
-                                                        global_file_namescheme,
-                                                        global_block_namescheme,
-                                                        silo_specset_name,
-                                                        multimatspec_name,
-                                                        "DBPutMultimatspecies",
-                                                        num_empty_doms,
-                                                        empty_domains,
-                                                        optlist.getSiloObject(),
-                                                        block_namescheme,
-                                                        specset_name_ptrs,
-                                                        specset_names_ptr);
+                const char **specset_names_ptr = 
+                    detail::handle_nameschemes_or_pathnames(do_nameschemes,
+                                                            specset_name_strings,
+                                                            global_file_namescheme,
+                                                            global_block_namescheme,
+                                                            silo_specset_name,
+                                                            multimatspec_name,
+                                                            "DBPutMultimatspecies",
+                                                            num_empty_doms,
+                                                            empty_domains,
+                                                            optlist.getSiloObject(),
+                                                            block_namescheme,
+                                                            specset_name_ptrs);
 
                 CONDUIT_CHECK_SILO_ERROR(
                     DBPutMultimatspecies(
@@ -9294,6 +9289,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         }
 
         std::string output_silo_path, global_block_namescheme, global_file_namescheme;
+        constexpr char namescheme_delimiter = '|';
 
         // single file case
         if (opts_file_style == "root_only")
@@ -9506,20 +9502,20 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                           root,
                           write_overlink,
                           opts_prefer_unified_types,
-                          do_nameschemes);
+                          opts_nameschemes);
         write_multivars(dbfile.getSiloObject(),
                         opts_out_mesh_name,
                         opts_ovl_topo_name,
                         root,
                         write_overlink,
                         opts_prefer_unified_types,
-                        do_nameschemes);
+                        opts_nameschemes);
         write_multimats(dbfile.getSiloObject(),
                         opts_out_mesh_name,
                         opts_ovl_topo_name,
                         root,
                         write_overlink,
-                        do_nameschemes);
+                        opts_nameschemes);
 
         // TODO for overlink: Specie sets: A domain may contain multiple specie
         // sets. All domains must contain the same number of specie sets. The
@@ -9534,7 +9530,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                                 root,
                                 write_overlink,
                                 ovl_specset_names,
-                                do_nameschemes);
+                                opts_nameschemes);
 
         if (write_overlink)
         {
@@ -9552,7 +9548,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
 
         // only if we are doing nameschemes and we are in the 
         // m domains to n files case
-        if (do_nameschemes && 
+        if (opts_nameschemes && 
             opts_file_style != "root_only" &&
             global_num_domains != num_files)
         {
