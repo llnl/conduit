@@ -76,8 +76,6 @@ TEST(conduit_relay_io_silo, conduit_silo_cold_storage_generic_iface)
 // test silo file format detection
 TEST(conduit_relay_io_silo, test_silo_detect)
 {
-
-
     // make sure bogus file doesn't return true
     EXPECT_FALSE(io::is_silo_file("BoGUS.txt"));
     
@@ -1232,6 +1230,15 @@ TEST(conduit_relay_io_silo, unstructured_points)
 ///
 ///      ovl_topo_name: (used if present, default ==> "")
 ///
+///      nameschemes: "default", "yes", "no"
+///            "default" ==> "no"
+///
+///      unified_types: "default", "yes", "no"
+///            "default" ==> "yes"
+///            prefer single mesh/var types versus writing an entire array
+///            of types. "yes" will prefer this if possible, "no" will 
+///            always write the entire array.
+///
 ///      number_of_files:  {# of files}
 ///            when "multi_file" or "overlink":
 ///                 <= 0, use # of files == # of domains
@@ -1438,7 +1445,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_mesh_name)
 TEST(conduit_relay_io_silo, round_trip_save_option_silo_type)
 {
     const std::vector<std::string> silo_types = {"default", "pdb", "hdf5", "unknown"};
-    for (int i = 3; i < silo_types.size(); i ++)
+    for (int i = 0; i < silo_types.size(); i ++)
     {
         Node opts;
         opts["silo_type"] = silo_types[i];
@@ -1465,6 +1472,148 @@ TEST(conduit_relay_io_silo, round_trip_save_option_silo_type)
         EXPECT_FALSE(load_mesh[0].diff(save_mesh, info, CONDUIT_EPSILON, true));
     }
 }
+
+// //-----------------------------------------------------------------------------
+// // this tests the unified types setting
+// TEST(conduit_relay_io_silo, round_trip_save_option_unified_types)
+// {
+//     const std::vector<std::string> silo_types = {"default", "pdb", "hdf5", "unknown"};
+
+
+//     Node write_opts, read_opts;
+//     write_opts["file_style"] = "overlink";
+//     read_opts["matset_style"] = "multi_buffer_full";
+
+//     const std::string basename = "silo_save_option_overlink_basic";
+//     const std::string filename = basename + "/OvlTop.silo";
+
+//     Node save_mesh, load_mesh, info;
+//     blueprint::mesh::examples::basic("structured", 3, 3, 1, save_mesh);
+
+//     // add another field that is volume dependent
+//     Node &field2 = save_mesh["fields"]["field2"];
+//     field2["association"] = "element";
+//     field2["topology"] = "mesh";
+//     field2["volume_dependent"] = "true";
+//     field2["values"].set_external(save_mesh["fields"]["field"]["values"]);
+
+//     // add a matset to make overlink happy
+//     add_multi_buffer_full_matset(save_mesh, 4, "mesh");
+
+//     EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, basename, "silo", write_opts));
+//     remove_path_if_exists(filename);
+//     io::silo::save_mesh(save_mesh, basename, write_opts);
+//     io::silo::load_mesh(filename, read_opts, load_mesh);
+//     EXPECT_TRUE(blueprint::mesh::verify(load_mesh,info));
+
+//     // make changes to save mesh so the diff will pass
+//     overlink_name_changer(save_mesh);
+
+//     // the loaded mesh will be in the multidomain format
+//     // but the saved mesh is in the single domain format
+//     EXPECT_EQ(load_mesh.number_of_children(), 1);
+//     EXPECT_EQ(load_mesh[0].number_of_children(), save_mesh.number_of_children());
+
+//     EXPECT_FALSE(load_mesh[0].diff(save_mesh, info, CONDUIT_EPSILON, true));
+
+//     // open silo files and do some checks
+
+//     DBfile *rootfile = DBOpen(filename.c_str(), DB_UNKNOWN, DB_READ);
+//     EXPECT_TRUE(DBInqVarExists(rootfile, "VAR_ATTRIBUTES"));
+//     EXPECT_TRUE(DBInqVarType(rootfile, "VAR_ATTRIBUTES") == DB_ARRAY);
+
+//     DBcompoundarray *var_attr = DBGetCompoundarray(rootfile, "VAR_ATTRIBUTES");
+
+//     // fetch pointers to elements inside the compound array
+//     char **elemnames = var_attr->elemnames;
+//     int *elemlengths = var_attr->elemlengths;
+//     int nelems       = var_attr->nelems;
+//     int *values      = static_cast<int *>(var_attr->values);
+//     int nvalues      = var_attr->nvalues;
+//     int datatype     = var_attr->datatype;
+
+//     EXPECT_EQ(std::string(elemnames[0]), "field");
+//     EXPECT_EQ(std::string(elemnames[1]), "field2");
+//     EXPECT_EQ(elemlengths[0], 5);
+//     EXPECT_EQ(elemlengths[1], 5);
+//     EXPECT_EQ(nelems, 2);
+//     // for first var
+//     EXPECT_EQ(values[0], 1);
+//     EXPECT_EQ(values[1], 0);
+//     EXPECT_EQ(values[2], 1);
+//     EXPECT_EQ(values[3], 0);
+//     EXPECT_EQ(values[4], 1);
+//     // for second var
+//     EXPECT_EQ(values[5], 1);
+//     EXPECT_EQ(values[6], 1);
+//     EXPECT_EQ(values[7], 1);
+//     EXPECT_EQ(values[8], 0);
+//     EXPECT_EQ(values[9], 1);
+//     EXPECT_EQ(nvalues, 10);
+//     EXPECT_EQ(datatype, DB_INT);
+
+//     DBFreeCompoundarray(var_attr);
+
+//     EXPECT_TRUE(DBInqVarExists(rootfile, "PAD_DIMS"));
+//     EXPECT_TRUE(DBInqVarType(rootfile, "PAD_DIMS") == DB_ARRAY);
+
+//     DBcompoundarray *pad_dims = DBGetCompoundarray(rootfile, "PAD_DIMS");
+
+//     // fetch pointers to elements inside the compound array
+//     elemnames   = pad_dims->elemnames;
+//     elemlengths = pad_dims->elemlengths;
+//     nelems      = pad_dims->nelems;
+//     values      = static_cast<int *>(pad_dims->values);
+//     nvalues     = pad_dims->nvalues;
+//     datatype    = pad_dims->datatype;
+
+//     EXPECT_EQ(std::string(elemnames[0]), "paddims");
+//     EXPECT_EQ(elemlengths[0], 6);
+//     EXPECT_EQ(nelems, 1);
+//     EXPECT_EQ(values[0], 0);
+//     EXPECT_EQ(values[1], 0);
+//     EXPECT_EQ(values[2], 0);
+//     EXPECT_EQ(values[3], 0);
+//     EXPECT_EQ(values[4], 0);
+//     EXPECT_EQ(values[5], 0);
+//     EXPECT_EQ(nvalues, 6);
+//     EXPECT_EQ(datatype, DB_INT);
+
+//     DBFreeCompoundarray(pad_dims);
+
+//     DBClose(rootfile);
+
+//     // now check domain file
+
+//     const std::string dom_filename = basename + "/domain0.silo";
+//     DBfile *domfile = DBOpen(dom_filename.c_str(), DB_UNKNOWN, DB_READ);
+
+//     EXPECT_TRUE(DBInqVarExists(domfile, "DOMAIN_NEIGHBOR_NUMS"));
+//     EXPECT_TRUE(DBInqVarType(domfile, "DOMAIN_NEIGHBOR_NUMS") == DB_ARRAY);
+
+//     DBcompoundarray *dom_neighbor_nums = DBGetCompoundarray(domfile, "DOMAIN_NEIGHBOR_NUMS");
+
+//     // fetch pointers to elements inside the compound array
+//     elemnames   = dom_neighbor_nums->elemnames;
+//     elemlengths = dom_neighbor_nums->elemlengths;
+//     nelems      = dom_neighbor_nums->nelems;
+//     values      = static_cast<int *>(dom_neighbor_nums->values);
+//     nvalues     = dom_neighbor_nums->nvalues;
+//     datatype    = dom_neighbor_nums->datatype;
+
+//     EXPECT_EQ(std::string(elemnames[0]), "num_neighbors");
+//     EXPECT_EQ(std::string(elemnames[1]), "neighbor_nums");
+//     EXPECT_EQ(elemlengths[0], 1);
+//     EXPECT_EQ(elemlengths[1], 0);
+//     EXPECT_EQ(nelems, 2);
+//     EXPECT_EQ(values[0], 0);
+//     EXPECT_EQ(nvalues, 1);
+//     EXPECT_EQ(datatype, DB_INT);
+
+//     DBFreeCompoundarray(dom_neighbor_nums);
+
+//     DBClose(domfile);
+// }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_silo, round_trip_save_option_overlink1)
