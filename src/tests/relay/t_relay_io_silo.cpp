@@ -1473,147 +1473,114 @@ TEST(conduit_relay_io_silo, round_trip_save_option_silo_type)
     }
 }
 
-// //-----------------------------------------------------------------------------
-// // this tests the unified types setting
-// TEST(conduit_relay_io_silo, round_trip_save_option_unified_types)
-// {
-//     const std::vector<std::string> silo_types = {"default", "pdb", "hdf5", "unknown"};
+//-----------------------------------------------------------------------------
+// this tests the unified types setting
+TEST(conduit_relay_io_silo, round_trip_save_option_unified_types)
+{
+    const std::vector<std::string> unified_types = {"default", "yes", "no"};
+    for (int i = 0; i < unified_types.size(); i ++)
+    {
+        const std::string basename = "silo_save_option_unified_types_" + 
+                                     unified_types[i] + "_spiral";
+        const std::string filename = basename + ".cycle_000000.root";
+        const int ndomains = 5;
 
+        Node write_opts;
+        write_opts["unified_types"] = unified_types[i];
 
-//     Node write_opts, read_opts;
-//     write_opts["file_style"] = "overlink";
-//     read_opts["matset_style"] = "multi_buffer_full";
+        Node save_mesh, load_mesh, info;
+        blueprint::mesh::examples::spiral(ndomains, save_mesh);
+        EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, basename, "silo", write_opts));
 
-//     const std::string basename = "silo_save_option_overlink_basic";
-//     const std::string filename = basename + "/OvlTop.silo";
+        remove_path_if_exists(filename);
+        io::silo::save_mesh(save_mesh, basename, write_opts);
+        io::silo::load_mesh(filename, load_mesh);
+        EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
 
-//     Node save_mesh, load_mesh, info;
-//     blueprint::mesh::examples::basic("structured", 3, 3, 1, save_mesh);
+        // make changes to save mesh so the diff will pass
+        for (index_t child = 0; child < save_mesh.number_of_children(); child ++)
+        {
+            silo_name_changer("mesh", save_mesh[child]);
+        }
 
-//     // add another field that is volume dependent
-//     Node &field2 = save_mesh["fields"]["field2"];
-//     field2["association"] = "element";
-//     field2["topology"] = "mesh";
-//     field2["volume_dependent"] = "true";
-//     field2["values"].set_external(save_mesh["fields"]["field"]["values"]);
+        EXPECT_EQ(load_mesh.number_of_children(), save_mesh.number_of_children());
+        NodeConstIterator l_itr = load_mesh.children();
+        NodeConstIterator s_itr = save_mesh.children();
+        while (l_itr.has_next())
+        {
+            const Node &l_curr = l_itr.next();
+            const Node &s_curr = s_itr.next();
 
-//     // add a matset to make overlink happy
-//     add_multi_buffer_full_matset(save_mesh, 4, "mesh");
+            EXPECT_FALSE(l_curr.diff(s_curr, info, CONDUIT_EPSILON, true));
+        }
 
-//     EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, basename, "silo", write_opts));
-//     remove_path_if_exists(filename);
-//     io::silo::save_mesh(save_mesh, basename, write_opts);
-//     io::silo::load_mesh(filename, read_opts, load_mesh);
-//     EXPECT_TRUE(blueprint::mesh::verify(load_mesh,info));
+        // open silo files and do some checks
 
-//     // make changes to save mesh so the diff will pass
-//     overlink_name_changer(save_mesh);
+        DBfile *rootfile = DBOpen(filename.c_str(), DB_UNKNOWN, DB_READ);
+        
+        // check multimesh
+        {
+            EXPECT_TRUE(DBInqVarExists(rootfile, "mesh_topo"));
+            EXPECT_TRUE(DBInqVarType(rootfile, "mesh_topo") == DB_MULTIMESH);
+    
+            DBmultimesh *mmesh_ptr = DBGetMultimesh(rootfile, "mesh_topo");
+    
+            // fetch pointers to elements inside the compound array
+            int *mesh_types = mmesh_ptr->meshtypes;
+            int  block_type = mmesh_ptr->block_type;
+    
+            if (unified_types[i] == "default" ||
+                unified_types[i] == "yes")
+            {
+                EXPECT_EQ(mesh_types, nullptr);
+                EXPECT_EQ(block_type, DB_QUADMESH);
+            }
+            else
+            {
+                for (int i = 0; i < ndomains; i ++)
+                {
+                    EXPECT_EQ(mesh_types[i], DB_QUADMESH);
+                }
+                EXPECT_NE(block_type, DB_QUADMESH);
+            }
+    
+            DBFreeMultimesh(mmesh_ptr);
+        }
 
-//     // the loaded mesh will be in the multidomain format
-//     // but the saved mesh is in the single domain format
-//     EXPECT_EQ(load_mesh.number_of_children(), 1);
-//     EXPECT_EQ(load_mesh[0].number_of_children(), save_mesh.number_of_children());
+        // check multivar
+        {
+            EXPECT_TRUE(DBInqVarExists(rootfile, "mesh_dist"));
+            EXPECT_TRUE(DBInqVarType(rootfile, "mesh_dist") == DB_MULTIVAR);
 
-//     EXPECT_FALSE(load_mesh[0].diff(save_mesh, info, CONDUIT_EPSILON, true));
+            DBmultivar *mmvar_ptr = DBGetMultivar(rootfile, "mesh_dist");
 
-//     // open silo files and do some checks
+            // fetch pointers to elements inside the compound array
+            int *var_types = mmvar_ptr->vartypes;
+            int block_type = mmvar_ptr->block_type;
 
-//     DBfile *rootfile = DBOpen(filename.c_str(), DB_UNKNOWN, DB_READ);
-//     EXPECT_TRUE(DBInqVarExists(rootfile, "VAR_ATTRIBUTES"));
-//     EXPECT_TRUE(DBInqVarType(rootfile, "VAR_ATTRIBUTES") == DB_ARRAY);
+            if (unified_types[i] == "default" ||
+                unified_types[i] == "yes")
+            {
+                EXPECT_EQ(var_types, nullptr);
+                EXPECT_EQ(block_type, DB_QUADVAR);
+            }
+            else
+            {
+                for (int i = 0; i < ndomains; i ++)
+                {
+                    EXPECT_EQ(var_types[i], DB_QUADVAR);
+                }
+                EXPECT_NE(block_type, DB_QUADVAR);
+            }
 
-//     DBcompoundarray *var_attr = DBGetCompoundarray(rootfile, "VAR_ATTRIBUTES");
+            DBFreeMultivar(mmvar_ptr);
 
-//     // fetch pointers to elements inside the compound array
-//     char **elemnames = var_attr->elemnames;
-//     int *elemlengths = var_attr->elemlengths;
-//     int nelems       = var_attr->nelems;
-//     int *values      = static_cast<int *>(var_attr->values);
-//     int nvalues      = var_attr->nvalues;
-//     int datatype     = var_attr->datatype;
+            // close root file
 
-//     EXPECT_EQ(std::string(elemnames[0]), "field");
-//     EXPECT_EQ(std::string(elemnames[1]), "field2");
-//     EXPECT_EQ(elemlengths[0], 5);
-//     EXPECT_EQ(elemlengths[1], 5);
-//     EXPECT_EQ(nelems, 2);
-//     // for first var
-//     EXPECT_EQ(values[0], 1);
-//     EXPECT_EQ(values[1], 0);
-//     EXPECT_EQ(values[2], 1);
-//     EXPECT_EQ(values[3], 0);
-//     EXPECT_EQ(values[4], 1);
-//     // for second var
-//     EXPECT_EQ(values[5], 1);
-//     EXPECT_EQ(values[6], 1);
-//     EXPECT_EQ(values[7], 1);
-//     EXPECT_EQ(values[8], 0);
-//     EXPECT_EQ(values[9], 1);
-//     EXPECT_EQ(nvalues, 10);
-//     EXPECT_EQ(datatype, DB_INT);
-
-//     DBFreeCompoundarray(var_attr);
-
-//     EXPECT_TRUE(DBInqVarExists(rootfile, "PAD_DIMS"));
-//     EXPECT_TRUE(DBInqVarType(rootfile, "PAD_DIMS") == DB_ARRAY);
-
-//     DBcompoundarray *pad_dims = DBGetCompoundarray(rootfile, "PAD_DIMS");
-
-//     // fetch pointers to elements inside the compound array
-//     elemnames   = pad_dims->elemnames;
-//     elemlengths = pad_dims->elemlengths;
-//     nelems      = pad_dims->nelems;
-//     values      = static_cast<int *>(pad_dims->values);
-//     nvalues     = pad_dims->nvalues;
-//     datatype    = pad_dims->datatype;
-
-//     EXPECT_EQ(std::string(elemnames[0]), "paddims");
-//     EXPECT_EQ(elemlengths[0], 6);
-//     EXPECT_EQ(nelems, 1);
-//     EXPECT_EQ(values[0], 0);
-//     EXPECT_EQ(values[1], 0);
-//     EXPECT_EQ(values[2], 0);
-//     EXPECT_EQ(values[3], 0);
-//     EXPECT_EQ(values[4], 0);
-//     EXPECT_EQ(values[5], 0);
-//     EXPECT_EQ(nvalues, 6);
-//     EXPECT_EQ(datatype, DB_INT);
-
-//     DBFreeCompoundarray(pad_dims);
-
-//     DBClose(rootfile);
-
-//     // now check domain file
-
-//     const std::string dom_filename = basename + "/domain0.silo";
-//     DBfile *domfile = DBOpen(dom_filename.c_str(), DB_UNKNOWN, DB_READ);
-
-//     EXPECT_TRUE(DBInqVarExists(domfile, "DOMAIN_NEIGHBOR_NUMS"));
-//     EXPECT_TRUE(DBInqVarType(domfile, "DOMAIN_NEIGHBOR_NUMS") == DB_ARRAY);
-
-//     DBcompoundarray *dom_neighbor_nums = DBGetCompoundarray(domfile, "DOMAIN_NEIGHBOR_NUMS");
-
-//     // fetch pointers to elements inside the compound array
-//     elemnames   = dom_neighbor_nums->elemnames;
-//     elemlengths = dom_neighbor_nums->elemlengths;
-//     nelems      = dom_neighbor_nums->nelems;
-//     values      = static_cast<int *>(dom_neighbor_nums->values);
-//     nvalues     = dom_neighbor_nums->nvalues;
-//     datatype    = dom_neighbor_nums->datatype;
-
-//     EXPECT_EQ(std::string(elemnames[0]), "num_neighbors");
-//     EXPECT_EQ(std::string(elemnames[1]), "neighbor_nums");
-//     EXPECT_EQ(elemlengths[0], 1);
-//     EXPECT_EQ(elemlengths[1], 0);
-//     EXPECT_EQ(nelems, 2);
-//     EXPECT_EQ(values[0], 0);
-//     EXPECT_EQ(nvalues, 1);
-//     EXPECT_EQ(datatype, DB_INT);
-
-//     DBFreeCompoundarray(dom_neighbor_nums);
-
-//     DBClose(domfile);
-// }
+            DBClose(rootfile);
+        }
+    }    
+}
 
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_silo, round_trip_save_option_overlink1)
