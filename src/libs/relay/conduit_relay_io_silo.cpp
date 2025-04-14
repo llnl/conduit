@@ -3660,8 +3660,8 @@ read_multivars(DBtoc *toc,
         detail::SiloObjectWrapper<DBmultivar, decltype(&DBFreeMultivar)> multivar{
             DBGetMultivar(dbfile, multivar_name.c_str()),
             &DBFreeMultivar};
-        DBmultivar *mmvar_ptr = multivar.getSiloObject();
-        if (nullptr == mmvar_ptr)
+        DBmultivar *mvar_ptr = multivar.getSiloObject();
+        if (nullptr == mvar_ptr)
         {
             CONDUIT_INFO("Error opening multivar " << multivar_name << ". Skipping.");
             continue;
@@ -3669,11 +3669,11 @@ read_multivars(DBtoc *toc,
 
         // does this variable use nameschemes?
         bool nameschemes = false;
-        if (nullptr == mmvar_ptr->varnames)
+        if (nullptr == mvar_ptr->varnames)
         {
             // if we do not have varnames, then we are either using nameschemes
             // or our mvar is invalid
-            if (nullptr == mmvar_ptr->block_ns)
+            if (nullptr == mvar_ptr->block_ns)
             {
                 CONDUIT_INFO("Multivar " << multivar_name << 
                              " is missing var names and namescheme specifiers. Skipping.");
@@ -3693,7 +3693,7 @@ read_multivars(DBtoc *toc,
         // 2. the components of the multivar are associated with components of a multimesh
 
         // we begin with the second case:
-        if (nullptr == mmvar_ptr->mmesh_name)
+        if (nullptr == mvar_ptr->mmesh_name)
         {
             // This multivar has no associated multimesh.
             // We will assume it is associated with the multimesh
@@ -3701,7 +3701,7 @@ read_multivars(DBtoc *toc,
             multimesh_assoc = true;
         }
         // and then the first case
-        else if (mmvar_ptr->mmesh_name == multimesh_name)
+        else if (mvar_ptr->mmesh_name == multimesh_name)
         {
             multimesh_assoc = true;
         }
@@ -3713,7 +3713,7 @@ read_multivars(DBtoc *toc,
             continue;
         }
 
-        if (mmvar_ptr->nvars != nblocks)
+        if (mvar_ptr->nvars != nblocks)
         {
             CONDUIT_INFO("Domain count mismatch between multivar " +
                          multivar_name + " and multimesh " +
@@ -3731,21 +3731,21 @@ read_multivars(DBtoc *toc,
 
         if (nameschemes)
         {
-            var["namescheme"]["block"].set(mmvar_ptr->block_ns);
+            var["namescheme"]["block"].set(mvar_ptr->block_ns);
             // file nameschemes are optional
-            if (nullptr != mmvar_ptr->file_ns)
+            if (nullptr != mvar_ptr->file_ns)
             {
-                var["namescheme"]["file"].set(mmvar_ptr->file_ns);
+                var["namescheme"]["file"].set(mvar_ptr->file_ns);
             }
             // list of empty domains is optional
-            if (nullptr != mmvar_ptr->empty_list && 0 < mmvar_ptr->empty_cnt)
+            if (nullptr != mvar_ptr->empty_list && 0 < mvar_ptr->empty_cnt)
             {
-                var["namescheme"]["empty_list"].set(DataType::index_t(mmvar_ptr->empty_cnt));
+                var["namescheme"]["empty_list"].set(DataType::index_t(mvar_ptr->empty_cnt));
                 index_t_array empty_list = var["namescheme"]["empty_list"].value();
-                for (int empty_id = 0; empty_id < mmvar_ptr->empty_cnt; empty_id ++)
+                for (int empty_id = 0; empty_id < mvar_ptr->empty_cnt; empty_id ++)
                 {
                     // save the empty_list elements
-                    empty_list[empty_id] = mmvar_ptr->empty_list[empty_id];
+                    empty_list[empty_id] = mvar_ptr->empty_list[empty_id];
                 }
             }
         }
@@ -3755,17 +3755,17 @@ read_multivars(DBtoc *toc,
             {
                 // save the var name
                 Node &var_path = var["var_paths"].append();
-                var_path.set(mmvar_ptr->varnames[block_id]);
+                var_path.set(mvar_ptr->varnames[block_id]);
             }
         }
         
-        if (nullptr == mmvar_ptr->vartypes)
+        if (nullptr == mvar_ptr->vartypes)
         {
             // if we do not have vartypes, we can assume we either have a single
             // var type or we have invalid data. We have no way of figuring out
             // if the provided single var type is a valid var type yet, so we
             // assume the best.
-            var["single_var_type"].set(mmvar_ptr->block_type);
+            var["single_var_type"].set(mvar_ptr->block_type);
         }
         else
         {
@@ -3774,7 +3774,7 @@ read_multivars(DBtoc *toc,
             for (int block_id = 0; block_id < nblocks; block_id ++)
             {
                 // save the var type
-                var_types[block_id] = mmvar_ptr->vartypes[block_id];
+                var_types[block_id] = mvar_ptr->vartypes[block_id];
             }
         }
     }

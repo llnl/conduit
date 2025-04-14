@@ -1552,11 +1552,11 @@ TEST(conduit_relay_io_silo, round_trip_save_option_unified_types)
             EXPECT_TRUE(DBInqVarExists(rootfile, "mesh_dist"));
             EXPECT_TRUE(DBInqVarType(rootfile, "mesh_dist") == DB_MULTIVAR);
 
-            DBmultivar *mmvar_ptr = DBGetMultivar(rootfile, "mesh_dist");
+            DBmultivar *mvar_ptr = DBGetMultivar(rootfile, "mesh_dist");
 
             // fetch pointers to elements inside the mvar
-            int *var_types = mmvar_ptr->vartypes;
-            int block_type = mmvar_ptr->block_type;
+            int *var_types = mvar_ptr->vartypes;
+            int block_type = mvar_ptr->block_type;
 
             if (unified_types[i] == "no")
             {
@@ -1572,7 +1572,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_unified_types)
                 EXPECT_EQ(block_type, DB_QUADVAR);
             }
 
-            DBFreeMultivar(mmvar_ptr);
+            DBFreeMultivar(mvar_ptr);
         }
 
         // close root file
@@ -1585,8 +1585,6 @@ TEST(conduit_relay_io_silo, round_trip_save_option_unified_types)
 // this tests nameschemes on a simple problem
 TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes1)
 {
-    // TODO check that empty domains info and dom2file map are not written
-
     const std::vector<std::string> nameschemes = {"default", "yes", "no"};
     for (int i = 0; i < nameschemes.size(); i ++)
     {
@@ -1650,9 +1648,11 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes1)
             DBmultimesh *mmesh_ptr = DBGetMultimesh(rootfile, "mesh_topo");
     
             // fetch pointers to elements inside the mesh
-            char **meshnames = mmesh_ptr->meshnames;
-            char  *file_ns   = mmesh_ptr->file_ns;
-            char  *block_ns  = mmesh_ptr->block_ns;
+            char **meshnames  = mmesh_ptr->meshnames;
+            char  *file_ns    = mmesh_ptr->file_ns;
+            char  *block_ns   = mmesh_ptr->block_ns;
+            int   *empty_list = mmesh_ptr->empty_list;
+            int    empty_cnt  = mmesh_ptr->empty_cnt;
     
             if (nameschemes[i] == "yes")
             {
@@ -1672,6 +1672,9 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes1)
                 EXPECT_EQ(file_ns, nullptr);
                 EXPECT_EQ(block_ns, nullptr);
             }
+
+            EXPECT_EQ(empty_list, nullptr);
+            EXPECT_EQ(empty_cnt, 0);
     
             DBFreeMultimesh(mmesh_ptr);
         }
@@ -1681,12 +1684,14 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes1)
             EXPECT_TRUE(DBInqVarExists(rootfile, "mesh_dist"));
             EXPECT_TRUE(DBInqVarType(rootfile, "mesh_dist") == DB_MULTIVAR);
 
-            DBmultivar *mmvar_ptr = DBGetMultivar(rootfile, "mesh_dist");
+            DBmultivar *mvar_ptr = DBGetMultivar(rootfile, "mesh_dist");
 
             // fetch pointers to elements inside the mmvar
-            char **varnames = mmvar_ptr->varnames;
-            char  *file_ns  = mmvar_ptr->file_ns;
-            char  *block_ns = mmvar_ptr->block_ns;
+            char **varnames   = mvar_ptr->varnames;
+            char  *file_ns    = mvar_ptr->file_ns;
+            char  *block_ns   = mvar_ptr->block_ns;
+            int   *empty_list = mvar_ptr->empty_list;
+            int    empty_cnt  = mvar_ptr->empty_cnt;
             
             if (nameschemes[i] == "yes")
             {
@@ -1707,7 +1712,10 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes1)
                 EXPECT_EQ(block_ns, nullptr);
             }
 
-            DBFreeMultivar(mmvar_ptr);
+            EXPECT_EQ(empty_list, nullptr);
+            EXPECT_EQ(empty_cnt, 0);
+
+            DBFreeMultivar(mvar_ptr);
         }
 
         // check multimat
@@ -1718,9 +1726,11 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes1)
             DBmultimat *multimat_ptr = DBGetMultimat(rootfile, "mesh_matset");
 
             // fetch pointers to elements inside the mmvar
-            char **matnames = multimat_ptr->matnames;
-            char  *file_ns  = multimat_ptr->file_ns;
-            char  *block_ns = multimat_ptr->block_ns;
+            char **matnames   = multimat_ptr->matnames;
+            char  *file_ns    = multimat_ptr->file_ns;
+            char  *block_ns   = multimat_ptr->block_ns;
+            int   *empty_list = multimat_ptr->empty_list;
+            int    empty_cnt  = multimat_ptr->empty_cnt;
             
             if (nameschemes[i] == "yes")
             {
@@ -1741,7 +1751,15 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes1)
                 EXPECT_EQ(block_ns, nullptr);
             }
 
+            EXPECT_EQ(empty_list, nullptr);
+            EXPECT_EQ(empty_cnt, 0);
+
             DBFreeMultimat(multimat_ptr);
+        }
+
+        // check dom2filemap
+        {
+            EXPECT_FALSE(DBInqVarExists(rootfile, "dom2filemap"));
         }
 
         // close root file
@@ -1755,20 +1773,6 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes1)
 // m domains to n files case, so 
 TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes2)
 {
-    // TODO check if I can scramble anything with MPI - perhaps file map
-
-    // TODO we also need to check for the existence of my dom2filemap array
-    // and check that it is correct.
-
-    // TODO check empty array and empty count as well
-
-    // TODO we need an overlink nameschemes round trip test
-
-    // TODO after this all we need is a read silo test with a real file
-    // with nameschemes
-
-    // TODO we should do a root only test as well
-
     const std::vector<std::string> nameschemes = {"default", "yes", "no"};
     for (int i = 0; i < nameschemes.size(); i ++)
     {
@@ -1858,17 +1862,17 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes2)
             DBmultimesh *mmesh_ptr = DBGetMultimesh(rootfile, "mesh_topo");
     
             // fetch pointers to elements inside the mesh
-            char **meshnames = mmesh_ptr->meshnames;
-            char  *file_ns   = mmesh_ptr->file_ns;
-            char  *block_ns  = mmesh_ptr->block_ns;
+            char **meshnames  = mmesh_ptr->meshnames;
+            char  *file_ns    = mmesh_ptr->file_ns;
+            char  *block_ns   = mmesh_ptr->block_ns;
+            int   *empty_list = mmesh_ptr->empty_list;
+            int    empty_cnt  = mmesh_ptr->empty_cnt;
     
             if (nameschemes[i] == "yes")
             {
                 EXPECT_EQ(meshnames, nullptr);
                 EXPECT_EQ(std::string(file_ns), "|silo_save_option_nameschemes2_yes_spiral.cycle_000000/file_%06d.silo|#dom2filemap[n]");
                 EXPECT_EQ(std::string(block_ns), "|domain_%06d/mesh/topo|n");
-
-                // TODO check that empty list is nullptr
             }
             else
             {
@@ -1884,6 +1888,9 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes2)
                 EXPECT_EQ(file_ns, nullptr);
                 EXPECT_EQ(block_ns, nullptr);
             }
+
+            EXPECT_EQ(empty_list, nullptr);
+            EXPECT_EQ(empty_cnt, 0);
     
             DBFreeMultimesh(mmesh_ptr);
         }
@@ -1893,18 +1900,23 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes2)
             EXPECT_TRUE(DBInqVarExists(rootfile, "mesh_dist"));
             EXPECT_TRUE(DBInqVarType(rootfile, "mesh_dist") == DB_MULTIVAR);
 
-            DBmultivar *mmvar_ptr = DBGetMultivar(rootfile, "mesh_dist");
+            DBmultivar *mvar_ptr = DBGetMultivar(rootfile, "mesh_dist");
 
             // fetch pointers to elements inside the mmvar
-            char **varnames = mmvar_ptr->varnames;
-            char  *file_ns  = mmvar_ptr->file_ns;
-            char  *block_ns = mmvar_ptr->block_ns;
+            char **varnames   = mvar_ptr->varnames;
+            char  *file_ns    = mvar_ptr->file_ns;
+            char  *block_ns   = mvar_ptr->block_ns;
+            int   *empty_list = mvar_ptr->empty_list;
+            int    empty_cnt  = mvar_ptr->empty_cnt;
             
             if (nameschemes[i] == "yes")
             {
                 EXPECT_EQ(varnames, nullptr);
                 EXPECT_EQ(std::string(file_ns), "|silo_save_option_nameschemes2_yes_spiral.cycle_000000/file_%06d.silo|#dom2filemap[n]");
                 EXPECT_EQ(std::string(block_ns), "|domain_%06d/mesh/dist|n");
+                EXPECT_EQ(empty_cnt, 2);
+                EXPECT_EQ(empty_list[0], 2);
+                EXPECT_EQ(empty_list[1], 3);
             }
             else
             {
@@ -1927,9 +1939,11 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes2)
                 }
                 EXPECT_EQ(file_ns, nullptr);
                 EXPECT_EQ(block_ns, nullptr);
+                EXPECT_EQ(empty_list, nullptr);
+                EXPECT_EQ(empty_cnt, 0);
             }
 
-            DBFreeMultivar(mmvar_ptr);
+            DBFreeMultivar(mvar_ptr);
         }
 
         // check multimat
@@ -1940,16 +1954,19 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes2)
             DBmultimat *multimat_ptr = DBGetMultimat(rootfile, "mesh_matset");
 
             // fetch pointers to elements inside the mmvar
-            char **matnames = multimat_ptr->matnames;
-            char  *file_ns  = multimat_ptr->file_ns;
-            char  *block_ns = multimat_ptr->block_ns;
+            char **matnames   = multimat_ptr->matnames;
+            char  *file_ns    = multimat_ptr->file_ns;
+            char  *block_ns   = multimat_ptr->block_ns;
+            int   *empty_list = multimat_ptr->empty_list;
+            int    empty_cnt  = multimat_ptr->empty_cnt;
             
             if (nameschemes[i] == "yes")
             {
                 EXPECT_EQ(matnames, nullptr);
                 EXPECT_EQ(std::string(file_ns), "|silo_save_option_nameschemes2_yes_spiral.cycle_000000/file_%06d.silo|#dom2filemap[n]");
                 EXPECT_EQ(std::string(block_ns), "|domain_%06d/mesh/matset|n");
-
+                EXPECT_EQ(empty_cnt, 1);
+                EXPECT_EQ(empty_list[0], 2);
             }
             else
             {
@@ -1971,9 +1988,33 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes2)
                 }
                 EXPECT_EQ(file_ns, nullptr);
                 EXPECT_EQ(block_ns, nullptr);
+                EXPECT_EQ(empty_list, nullptr);
+                EXPECT_EQ(empty_cnt, 0);
             }
 
             DBFreeMultimat(multimat_ptr);
+        }
+
+        // check dom2filemap
+        {
+            if (nameschemes[i] == "yes")
+            {
+                EXPECT_TRUE(DBInqVarExists(rootfile, "dom2filemap"));
+                EXPECT_TRUE(DBInqVarType(rootfile, "dom2filemap") == DB_VARIABLE);
+                int* data_ptr = new int[5];
+                DBReadVar(rootfile, "dom2filemap", static_cast<void *>(data_ptr));
+                EXPECT_EQ(data_ptr[0], 0);
+                EXPECT_EQ(data_ptr[1], 0);
+                EXPECT_EQ(data_ptr[2], 1);
+                EXPECT_EQ(data_ptr[3], 1);
+                EXPECT_EQ(data_ptr[4], 2);
+
+                delete[] data_ptr;
+            }
+            else
+            {
+                EXPECT_FALSE(DBInqVarExists(rootfile, "dom2filemap"));
+            }
         }
 
         // close root file
