@@ -1242,8 +1242,8 @@ TEST(conduit_relay_io_silo, unstructured_points)
 ///
 ///      number_of_files:  {# of files}
 ///            when "multi_file" or "overlink":
-///                 <= 0, use # of files == # of domains
-///                  > 0, # of files == number_of_files
+///                 <= 0, use # of files ==> # of domains
+///                  > 0, # of files ==> number_of_files
 
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_silo, round_trip_save_option_file_style)
@@ -1585,6 +1585,8 @@ TEST(conduit_relay_io_silo, round_trip_save_option_unified_types)
 // this tests nameschemes on a simple problem
 TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes1)
 {
+    // TODO check that empty domains info and dom2file map are not written
+
     const std::vector<std::string> nameschemes = {"default", "yes", "no"};
     for (int i = 0; i < nameschemes.size(); i ++)
     {
@@ -1745,25 +1747,239 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes1)
         // close root file
 
         DBClose(rootfile);
-    }    
+    }
 }
 
 //-----------------------------------------------------------------------------
-// this tests nameschemes on a hard problem where the domains are scrambled
-// across files (m domains to n files case)
+// this tests nameschemes with a more complicated problem
+// m domains to n files case, so 
 TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes2)
 {
-    // TODO TODO TODO TODO
+    // TODO check if I can scramble anything with MPI - perhaps file map
 
-    // we also need to check for the existence of my dom2filemap array
+    // TODO we also need to check for the existence of my dom2filemap array
     // and check that it is correct.
 
-    // we also need to do tests for empty domains
+    // TODO check empty array and empty count as well
 
-    // check empty array and empty count as well
+    // TODO we need an overlink nameschemes round trip test
 
     // TODO after this all we need is a read silo test with a real file
     // with nameschemes
+
+    // TODO we should do a root only test as well
+
+    const std::vector<std::string> nameschemes = {"default", "yes", "no"};
+    for (int i = 0; i < nameschemes.size(); i ++)
+    {
+        const std::string basename = "silo_save_option_nameschemes2_" + 
+                                     nameschemes[i] + "_spiral";
+        const std::string filename = basename + ".cycle_000000.root";
+        const int ndomains = 5;
+
+        Node save_mesh, load_mesh, info;
+        blueprint::mesh::examples::spiral(ndomains, save_mesh);
+        add_matset_to_spiral(save_mesh, ndomains);
+
+        Node write_opts;
+        write_opts["nameschemes"] = nameschemes[i];
+        write_opts["number_of_files"] = 3;
+
+        // remove fields from domain 2 and 3 to trigger empty logic
+        save_mesh[2].remove_child("fields");
+        save_mesh[3].remove_child("fields");
+
+        // remove matsets from domain 2 to trigger empty logic
+        save_mesh[2].remove_child("matsets");
+
+        EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, basename, "silo", write_opts));
+
+        remove_path_if_exists(filename);
+        io::silo::save_mesh(save_mesh, basename, write_opts);
+        io::silo::load_mesh(filename, load_mesh);
+        EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
+
+        // make changes to save mesh so the diff will pass
+        for (index_t child = 0; child < save_mesh.number_of_children(); child ++)
+        {
+            if (save_mesh[child].has_path("matsets/matset"))
+            {
+                // get the matset for this domain
+                Node &n_matset = save_mesh[child]["matsets"]["matset"];
+
+                // clean up volume fractions
+                Node vf_arr;
+                n_matset["volume_fractions"].to_float64_array(vf_arr);
+                n_matset["volume_fractions"].reset();
+                n_matset["volume_fractions"].set(vf_arr);
+                
+                // cheat a little bit - we don't have these to start
+                n_matset["sizes"].set_external(load_mesh[child]["matsets"]["mesh_matset"]["sizes"]);
+                n_matset["offsets"].set_external(load_mesh[child]["matsets"]["mesh_matset"]["offsets"]);
+            }
+
+            silo_name_changer("mesh", save_mesh[child]);
+        }
+
+        EXPECT_EQ(load_mesh.number_of_children(), save_mesh.number_of_children());
+        NodeConstIterator l_itr = load_mesh.children();
+        NodeConstIterator s_itr = save_mesh.children();
+        while (l_itr.has_next())
+        {
+            const Node &l_curr = l_itr.next();
+            const Node &s_curr = s_itr.next();
+
+            EXPECT_FALSE(l_curr.diff(s_curr, info, CONDUIT_EPSILON, true));
+        }
+
+        std::map<int, int> dom2filemap;
+        dom2filemap[0] = 0;
+        dom2filemap[1] = 0;
+        dom2filemap[2] = 1;
+        dom2filemap[3] = 1;
+        dom2filemap[4] = 2;
+
+        std::set<int> empty_var_domains;
+        empty_var_domains.insert(2);
+        empty_var_domains.insert(3);
+
+        std::set<int> empty_matset_domains;
+        empty_matset_domains.insert(2);
+
+        // open silo files and do some checks
+
+        DBfile *rootfile = DBOpen(filename.c_str(), DB_UNKNOWN, DB_READ);
+        
+        // check multimesh
+        {
+            EXPECT_TRUE(DBInqVarExists(rootfile, "mesh_topo"));
+            EXPECT_TRUE(DBInqVarType(rootfile, "mesh_topo") == DB_MULTIMESH);
+    
+            DBmultimesh *mmesh_ptr = DBGetMultimesh(rootfile, "mesh_topo");
+    
+            // fetch pointers to elements inside the mesh
+            char **meshnames = mmesh_ptr->meshnames;
+            char  *file_ns   = mmesh_ptr->file_ns;
+            char  *block_ns  = mmesh_ptr->block_ns;
+    
+            if (nameschemes[i] == "yes")
+            {
+                EXPECT_EQ(meshnames, nullptr);
+                EXPECT_EQ(std::string(file_ns), "|silo_save_option_nameschemes2_yes_spiral.cycle_000000/file_%06d.silo|#dom2filemap[n]");
+                EXPECT_EQ(std::string(block_ns), "|domain_%06d/mesh/topo|n");
+
+                // TODO check that empty list is nullptr
+            }
+            else
+            {
+                for (int i = 0; i < ndomains; i ++)
+                {
+                    const std::string meshname = 
+                        conduit_fmt::format(
+                            basename + ".cycle_000000/file_{:06d}.silo:domain_{:06d}/mesh/topo",
+                            dom2filemap.at(i),
+                            i);
+                    EXPECT_EQ(meshnames[i], meshname);
+                }
+                EXPECT_EQ(file_ns, nullptr);
+                EXPECT_EQ(block_ns, nullptr);
+            }
+    
+            DBFreeMultimesh(mmesh_ptr);
+        }
+
+        // check multivar
+        {
+            EXPECT_TRUE(DBInqVarExists(rootfile, "mesh_dist"));
+            EXPECT_TRUE(DBInqVarType(rootfile, "mesh_dist") == DB_MULTIVAR);
+
+            DBmultivar *mmvar_ptr = DBGetMultivar(rootfile, "mesh_dist");
+
+            // fetch pointers to elements inside the mmvar
+            char **varnames = mmvar_ptr->varnames;
+            char  *file_ns  = mmvar_ptr->file_ns;
+            char  *block_ns = mmvar_ptr->block_ns;
+            
+            if (nameschemes[i] == "yes")
+            {
+                EXPECT_EQ(varnames, nullptr);
+                EXPECT_EQ(std::string(file_ns), "|silo_save_option_nameschemes2_yes_spiral.cycle_000000/file_%06d.silo|#dom2filemap[n]");
+                EXPECT_EQ(std::string(block_ns), "|domain_%06d/mesh/dist|n");
+            }
+            else
+            {
+                for (int i = 0; i < ndomains; i ++)
+                {
+                    if (empty_var_domains.find(i) != empty_var_domains.end())
+                    {
+                        EXPECT_EQ(varnames[i], std::string("EMPTY"));
+                    }
+                    else
+                    {
+                        const std::string varname = 
+                            conduit_fmt::format(
+                                basename + ".cycle_000000/file_{:06d}.silo:domain_{:06d}/mesh/dist",
+                                dom2filemap.at(i),
+                                i);
+                        EXPECT_EQ(varnames[i], varname);
+                    }
+                    
+                }
+                EXPECT_EQ(file_ns, nullptr);
+                EXPECT_EQ(block_ns, nullptr);
+            }
+
+            DBFreeMultivar(mmvar_ptr);
+        }
+
+        // check multimat
+        {
+            EXPECT_TRUE(DBInqVarExists(rootfile, "mesh_matset"));
+            EXPECT_TRUE(DBInqVarType(rootfile, "mesh_matset") == DB_MULTIMAT);
+
+            DBmultimat *multimat_ptr = DBGetMultimat(rootfile, "mesh_matset");
+
+            // fetch pointers to elements inside the mmvar
+            char **matnames = multimat_ptr->matnames;
+            char  *file_ns  = multimat_ptr->file_ns;
+            char  *block_ns = multimat_ptr->block_ns;
+            
+            if (nameschemes[i] == "yes")
+            {
+                EXPECT_EQ(matnames, nullptr);
+                EXPECT_EQ(std::string(file_ns), "|silo_save_option_nameschemes2_yes_spiral.cycle_000000/file_%06d.silo|#dom2filemap[n]");
+                EXPECT_EQ(std::string(block_ns), "|domain_%06d/mesh/matset|n");
+
+            }
+            else
+            {
+                for (int i = 0; i < ndomains; i ++)
+                {
+                    if (empty_matset_domains.find(i) != empty_matset_domains.end())
+                    {
+                        EXPECT_EQ(matnames[i], std::string("EMPTY"));
+                    }
+                    else
+                    {
+                        const std::string matname = 
+                            conduit_fmt::format(
+                                basename + ".cycle_000000/file_{:06d}.silo:domain_{:06d}/mesh/matset",
+                                dom2filemap.at(i),
+                                i);
+                        EXPECT_EQ(matnames[i], matname);
+                    }
+                }
+                EXPECT_EQ(file_ns, nullptr);
+                EXPECT_EQ(block_ns, nullptr);
+            }
+
+            DBFreeMultimat(multimat_ptr);
+        }
+
+        // close root file
+
+        DBClose(rootfile);
+    }
 }
 
 //-----------------------------------------------------------------------------

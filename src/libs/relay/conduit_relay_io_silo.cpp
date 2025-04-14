@@ -1602,7 +1602,7 @@ handle_nameschemes_or_pathnames(const bool do_nameschemes,
                                 const std::string &silo_name,
                                 const std::string &mbobj_name,
                                 const std::string &mbobj_writer_type,
-                                const int num_empty_doms,
+                                const int &num_empty_doms,
                                 std::vector<int> &empty_domains,
                                 DBoptlist *optlist,
                                 std::string &block_namescheme,
@@ -9289,7 +9289,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         }
 
         std::string output_silo_path, global_block_namescheme, global_file_namescheme;
-        constexpr char namescheme_delimiter = '|';
+        const std::string namescheme_delimiter = "|";
 
         // single file case
         if (opts_file_style == "root_only")
@@ -9407,7 +9407,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                     global_block_namescheme = namescheme_delimiter
                                             + "domain_%06d/"
                                             + opts_out_mesh_name + "/{}"
-                                            + namescheme_delimiter + "n";;
+                                            + namescheme_delimiter + "n";
                 }
             }
         }
@@ -9441,6 +9441,12 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         // partition_map:
         //    file:  [ 0, 0, 1, 2, 2 ]
         //    domain: [ 4, 0, 3, 2, 1 ]
+
+        // TODO I would argue that the final case where the domains are scrambled
+        // is not possible no matter what you do. If that is the case, then a lot
+        // of the `std::sort`ing that we do can be eliminated. Look back at how
+        // the partition map is created to see why it is not possible to get that
+        // case.
 
         if (output_partition_map.number_of_children() > 0 )
         {
@@ -9643,8 +9649,8 @@ void CONDUIT_RELAY_API save_mesh(const Node &mesh,
 ///
 ///      number_of_files:  {# of files}
 ///            when "multi_file" or "overlink":
-///                 <= 0, use # of files == # of domains
-///                  > 0, # of files == number_of_files
+///                 <= 0, use # of files ==> # of domains
+///                  > 0, # of files ==> number_of_files
 ///
 /// Note:
 ///  In the non-overlink case...
