@@ -8980,9 +8980,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                             if (write_overlink)
                             {
                                 file_name = conduit_fmt::format("domfile{:d}.silo", f);
-                                curr_path = conduit_fmt::format("domain{:d}/{}",
-                                                                domain_id,
-                                                                opts_out_mesh_name);
+                                curr_path = conduit_fmt::format("domain{:d}", domain_id);
                             }
                             else
                             {
@@ -9389,8 +9387,9 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                                            + utils::join_file_path(output_dir_base, 
                                                                    "domfile%d.silo")
                                            + namescheme_delimiter + "#dom2filemap[n]";
-                    // "|topo"
-                    global_block_namescheme = namescheme_delimiter + "{}";
+                    // "|domain%d/topo"
+                    global_block_namescheme = namescheme_delimiter + "domain%d/{}"
+                                            + namescheme_delimiter + "n";
                 }
                 else
                 {
