@@ -1599,6 +1599,14 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_root_only)
         Node save_mesh, load_mesh, info;
         blueprint::mesh::examples::spiral(ndomains, save_mesh);
         add_matset_to_spiral(save_mesh, ndomains);
+
+        // remove fields from domain 2 and 3 to trigger empty logic
+        save_mesh[2].remove_child("fields");
+        save_mesh[3].remove_child("fields");
+
+        // remove matsets from domain 2 to trigger empty logic
+        save_mesh[2].remove_child("matsets");
+
         EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, basename, "silo", write_opts));
 
         remove_path_if_exists(filename);
@@ -1609,18 +1617,21 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_root_only)
         // make changes to save mesh so the diff will pass
         for (index_t child = 0; child < save_mesh.number_of_children(); child ++)
         {
-            // get the matset for this domain
-            Node &n_matset = save_mesh[child]["matsets"]["matset"];
+            if (save_mesh[child].has_path("matsets/matset"))
+            {
+                // get the matset for this domain
+                Node &n_matset = save_mesh[child]["matsets"]["matset"];
 
-            // clean up volume fractions
-            Node vf_arr;
-            n_matset["volume_fractions"].to_float64_array(vf_arr);
-            n_matset["volume_fractions"].reset();
-            n_matset["volume_fractions"].set(vf_arr);
-            
-            // cheat a little bit - we don't have these to start
-            n_matset["sizes"].set_external(load_mesh[child]["matsets"]["mesh_matset"]["sizes"]);
-            n_matset["offsets"].set_external(load_mesh[child]["matsets"]["mesh_matset"]["offsets"]);
+                // clean up volume fractions
+                Node vf_arr;
+                n_matset["volume_fractions"].to_float64_array(vf_arr);
+                n_matset["volume_fractions"].reset();
+                n_matset["volume_fractions"].set(vf_arr);
+                
+                // cheat a little bit - we don't have these to start
+                n_matset["sizes"].set_external(load_mesh[child]["matsets"]["mesh_matset"]["sizes"]);
+                n_matset["offsets"].set_external(load_mesh[child]["matsets"]["mesh_matset"]["offsets"]);
+            }
 
             silo_name_changer("mesh", save_mesh[child]);
         }
@@ -1635,6 +1646,13 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_root_only)
 
             EXPECT_FALSE(l_curr.diff(s_curr, info, CONDUIT_EPSILON, true));
         }
+
+        std::set<int> empty_var_domains;
+        empty_var_domains.insert(2);
+        empty_var_domains.insert(3);
+
+        std::set<int> empty_matset_domains;
+        empty_matset_domains.insert(2);
 
         // open silo files and do some checks
 
@@ -1695,21 +1713,31 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_root_only)
             {
                 EXPECT_EQ(varnames, nullptr);
                 EXPECT_EQ(std::string(block_ns), "|domain_%06d/mesh/dist|n");
+                EXPECT_EQ(empty_cnt, 2);
+                EXPECT_EQ(empty_list[0], 2);
+                EXPECT_EQ(empty_list[1], 3);
             }
             else
             {
                 for (int domid = 0; domid < ndomains; domid ++)
                 {
-                    const std::string varname = 
-                        conduit_fmt::format("domain_{:06d}/mesh/dist", domid);
-                    EXPECT_EQ(varnames[domid], varname);
+                    if (empty_var_domains.find(domid) != empty_var_domains.end())
+                    {
+                        EXPECT_EQ(varnames[domid], std::string("EMPTY"));
+                    }
+                    else
+                    {
+                        const std::string varname = 
+                            conduit_fmt::format("domain_{:06d}/mesh/dist", domid);
+                        EXPECT_EQ(varnames[domid], varname);
+                    }
                 }
                 EXPECT_EQ(block_ns, nullptr);
+                EXPECT_EQ(empty_cnt, 0);
+                EXPECT_EQ(empty_list, nullptr);
             }
 
             EXPECT_EQ(file_ns, nullptr);
-            EXPECT_EQ(empty_list, nullptr);
-            EXPECT_EQ(empty_cnt, 0);
 
             DBFreeMultivar(mvar_ptr);
         }
@@ -1732,21 +1760,30 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_root_only)
             {
                 EXPECT_EQ(matnames, nullptr);
                 EXPECT_EQ(std::string(block_ns), "|domain_%06d/mesh/matset|n");
+                EXPECT_EQ(empty_cnt, 1);
+                EXPECT_EQ(empty_list[0], 2);
             }
             else
             {
                 for (int domid = 0; domid < ndomains; domid ++)
                 {
-                    const std::string matname = 
-                        conduit_fmt::format("domain_{:06d}/mesh/matset", domid);
-                    EXPECT_EQ(matnames[domid], matname);
+                    if (empty_matset_domains.find(domid) != empty_matset_domains.end())
+                    {
+                        EXPECT_EQ(matnames[domid], std::string("EMPTY"));
+                    }
+                    else
+                    {
+                        const std::string matname = 
+                            conduit_fmt::format("domain_{:06d}/mesh/matset", domid);
+                        EXPECT_EQ(matnames[domid], matname);
+                    }
                 }
                 EXPECT_EQ(block_ns, nullptr);
+                EXPECT_EQ(empty_cnt, 0);
+                EXPECT_EQ(empty_list, nullptr);
             }
 
             EXPECT_EQ(file_ns, nullptr);
-            EXPECT_EQ(empty_list, nullptr);
-            EXPECT_EQ(empty_cnt, 0);
 
             DBFreeMultimat(multimat_ptr);
         }
