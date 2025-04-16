@@ -4,13 +4,24 @@ Notable changes to Conduit are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project aspires to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+#### Relay
+- Added namescheme read and write support to the Relay Silo/Overlink Reader/Writer.
+- Added support for block types or unified types to the Relay Silo/Overlink Reader/Writer.
+
+### Changed
+
+### Fixed
+#### Relay
+- Fixed an issue with the Overlink Writer preventing it from correctly writing out data in the n files to m domains case.
+
 ## [0.9.4] - Released 2025-04-03
 
 ### Added
 #### Conduit
 - Added `conduit::utils::memory_usage` helper.
-
-#### Conduit
 - Added an example demonstrating a strategy to use Umpire with Conduit's allocators.
 - Added `conduit::utils::memory_usage` helper.
 - Added extra unit tests for native signed and unsigned Node set methods.
