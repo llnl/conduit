@@ -513,6 +513,74 @@ protected:
              conduit::Node &n_new_topo) const;
 
     /**
+     @brief Creates a new unstructured topology from a subset of the 
+            input unstructured topology.
+
+     @param n_topo A Conduit node containing source topology.
+     @param csname The name of the coordset to use in the new topology.
+     @param element_ids The element ids to include from the source topology.
+     @param old2new A map of old vertex ids to new vertex ids.
+     @param n_new_topo A Conduit node that will contain the new topology.
+     */
+    void unstructured_topo_from_polygonal(const conduit::Node &n_topo,
+             const std::string &csname,
+             const std::vector<index_t> &element_ids,
+             const std::vector<index_t> &vertex_ids,
+             const std::map<index_t,index_t> &old2new,
+             conduit::Node &n_new_topo) const;
+
+    /**
+     @brief Creates a new unstructured topology from a subset of the 
+            input unstructured topology.
+
+     @param n_topo A Conduit node containing source topology.
+     @param csname The name of the coordset to use in the new topology.
+     @param element_ids The element ids to include from the source topology.
+     @param old2new A map of old vertex ids to new vertex ids.
+     @param n_new_topo A Conduit node that will contain the new topology.
+     */
+    void unstructured_topo_from_polyhedral(const conduit::Node &n_topo,
+             const std::string &csname,
+             const std::vector<index_t> &element_ids,
+             const std::vector<index_t> &vertex_ids,
+             const std::map<index_t,index_t> &old2new,
+             conduit::Node &n_new_topo) const;
+
+    /**
+     @brief Creates a new unstructured topology from a subset of the 
+            input unstructured topology.
+
+     @param n_topo A Conduit node containing source topology.
+     @param csname The name of the coordset to use in the new topology.
+     @param element_ids The element ids to include from the source topology.
+     @param old2new A map of old vertex ids to new vertex ids.
+     @param n_new_topo A Conduit node that will contain the new topology.
+     */
+    void unstructured_topo_from_stream(const conduit::Node &n_topo,
+             const std::string &csname,
+             const std::vector<index_t> &element_ids,
+             const std::vector<index_t> &vertex_ids,
+             const std::map<index_t,index_t> &old2new,
+             conduit::Node &n_new_topo) const;
+
+    /**
+     @brief Creates a new unstructured topology from a subset of the 
+            input unstructured topology.
+
+     @param n_topo A Conduit node containing source topology.
+     @param csname The name of the coordset to use in the new topology.
+     @param element_ids The element ids to include from the source topology.
+     @param old2new A map of old vertex ids to new vertex ids.
+     @param n_new_topo A Conduit node that will contain the new topology.
+     */
+    void unstructured_topo_from_mixed(const conduit::Node &n_topo,
+             const std::string &csname,
+             const std::vector<index_t> &element_ids,
+             const std::vector<index_t> &vertex_ids,
+             const std::map<index_t,index_t> &old2new,
+             conduit::Node &n_new_topo) const;
+
+    /**
      @brief Make a shallow copy of the input mesh node but make it have
             its own fields so we can add original vertex and element maps.
             All other fields are shallow copied.
