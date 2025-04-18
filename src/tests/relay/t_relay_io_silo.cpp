@@ -3110,6 +3110,7 @@ TEST(conduit_relay_io_silo, load_mesh_geometry)
 TEST(conduit_relay_io_silo, read_silo)
 {
     const std::vector<std::vector<std::string>> file_info = {
+        // dirname              basename        filext  meshname
         {".",                  "multi_curv3d", ".silo", ""            }, // test default case
         {".",                  "multi_curv3d", ".silo", "mesh1"       },
         // {".",                  "multi_curv3d", ".silo", "mesh1_back"  }, // this multimesh points to paths that do not exist
@@ -3124,6 +3125,10 @@ TEST(conduit_relay_io_silo, read_silo)
         {".",                  "emptydomains", ".silo", "mesh"        },
         {"multidir_test_data", "multidir0000", ".root", ""            }, // test default case
         {"multidir_test_data", "multidir0000", ".root", "Mesh"        },
+        // tests nameschemes
+        // TODO understand the file handle issue
+        // {".",                  "ucd3d_root",   ".pdb",  ""            }, // test default case
+        // {".",                  "ucd3d_root",   ".pdb",  "mesh1"       },
     };
 
     // TODO what to do in the case where a multimesh points to no data? (mesh1_back)
