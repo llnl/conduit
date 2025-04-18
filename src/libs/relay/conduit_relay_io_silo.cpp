@@ -9445,7 +9445,11 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         // is not possible no matter what you do. If that is the case, then a lot
         // of the `std::sort`ing that we do can be eliminated. Look back at how
         // the partition map is created to see why it is not possible to get that
-        // case.
+        // case. I checked with Cyrus and we don't think it is possible for the
+        // domain list to be scrambled nor do we think it is possible for the file
+        // list to not be monotonic increasing.
+
+        output_partition_map.print();
 
         if (output_partition_map.number_of_children() > 0 )
         {
