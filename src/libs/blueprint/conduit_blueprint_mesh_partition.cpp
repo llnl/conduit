@@ -3075,9 +3075,10 @@ Partitioner::extract(size_t idx, const conduit::Node &n_mesh, std::vector<index_
 
             // Create a new coordset consisting of the selected vertex ids.
             create_new_explicit_coordset(n_coordset, vertex_ids, n_new_coordsets[csname]);
+            index_t originalCoordsetLength = conduit::blueprint::mesh::coordset::length(n_coordset);
 
             // Create a new topology consisting of the selected element ids.
-            create_new_unstructured_topo(n_topo, csname,
+            create_new_unstructured_topo(n_topo, csname, originalCoordsetLength,
                 element_ids, vertex_ids, n_new_topos[n_topo.name()]);
         }
 
@@ -3275,6 +3276,7 @@ Partitioner::create_new_structured_topo(const conduit::Node &n_topo,
 void
 Partitioner::create_new_unstructured_topo(const conduit::Node &n_topo,
     const std::string &csname,
+    index_t originalCoordsetLength,
     const std::vector<index_t> &element_ids,
     const std::vector<index_t> &vertex_ids,
     conduit::Node &n_new_topo) const
@@ -3283,23 +3285,24 @@ Partitioner::create_new_unstructured_topo(const conduit::Node &n_topo,
     {
         conduit::Node n_uns, cdest; // what is cdest?
         conduit::blueprint::mesh::topology::uniform::to_unstructured(n_topo, n_uns, cdest);
-        unstructured_topo_from_unstructured(n_uns, csname, element_ids, vertex_ids, n_new_topo);
+        unstructured_topo_from_unstructured(n_uns, csname, originalCoordsetLength, element_ids, vertex_ids, n_new_topo);
     }
     else if(n_topo["type"].as_string() == "rectilinear")
     {
         conduit::Node n_uns, cdest; // what is cdest?
         conduit::blueprint::mesh::topology::rectilinear::to_unstructured(n_topo, n_uns, cdest);
-        unstructured_topo_from_unstructured(n_uns, csname, element_ids, vertex_ids, n_new_topo);
+        unstructured_topo_from_unstructured(n_uns, csname, originalCoordsetLength, element_ids, vertex_ids, n_new_topo);
     }
     else if(n_topo["type"].as_string() == "structured")
     {
         conduit::Node n_uns, cdest; // what is cdest?
         conduit::blueprint::mesh::topology::structured::to_unstructured(n_topo, n_uns, cdest);
-        unstructured_topo_from_unstructured(n_uns, csname, element_ids, vertex_ids, n_new_topo);
+        unstructured_topo_from_unstructured(n_uns, csname, originalCoordsetLength, element_ids, vertex_ids, n_new_topo);
     }
     else if(n_topo["type"].as_string() == "unstructured")
     {
-        unstructured_topo_from_unstructured(n_topo, csname, element_ids, vertex_ids, n_new_topo);
+        unstructured_topo_from_unstructured(n_topo, csname, originalCoordsetLength,
+                                            element_ids, vertex_ids, n_new_topo);
     }
 }
 
@@ -3307,6 +3310,7 @@ Partitioner::create_new_unstructured_topo(const conduit::Node &n_topo,
 void
 Partitioner::unstructured_topo_from_unstructured(const conduit::Node &n_topo,
     const std::string &csname,
+    index_t originalCoordsetLength,
     const std::vector<index_t> &element_ids,
     const std::vector<index_t> &vertex_ids,
     conduit::Node &n_new_topo) const
@@ -3316,27 +3320,29 @@ Partitioner::unstructured_topo_from_unstructured(const conduit::Node &n_topo,
 
     // vertex_ids contains the list of old vertex ids that our selection uses
     // from the old coordset. It can serve as a new to old map.
-    std::map<index_t,index_t> old2new;
+    std::vector<index_t> old2new(originalCoordsetLength, INVALID_NODE);
     for(size_t i = 0; i < vertex_ids.size(); i++)
+    {
         old2new[vertex_ids[i]] = static_cast<index_t>(i);
+    }
 
     conduit::blueprint::mesh::utils::ShapeType shape(n_topo);
     std::vector<index_t> new_conn;
     if(shape.is_polygonal())
     {
-        unstructured_topo_from_polygonal(n_topo, csname, element_ids, vertex_ids, old2new, n_new_topo);
+        unstructured_topo_from_polygonal(n_topo, element_ids, old2new, n_new_topo);
     }
     else if(shape.is_polyhedral())
     {
-        unstructured_topo_from_polyhedral(n_topo, csname, element_ids, vertex_ids, old2new, n_new_topo);
+        unstructured_topo_from_polyhedral(n_topo, element_ids, old2new, n_new_topo);
     }
     else if(n_topo.has_path("elements/element_types"))
     {
-        unstructured_topo_from_stream(n_topo, csname, element_ids, vertex_ids, old2new, n_new_topo);
+        unstructured_topo_from_stream(n_topo, element_ids, old2new, n_new_topo);
     }
     else if(n_topo.fetch_existing("elements/shape").as_string() == "mixed")
     {
-        unstructured_topo_from_mixed(n_topo, csname, element_ids, vertex_ids, old2new, n_new_topo);
+        unstructured_topo_from_mixed(n_topo, element_ids, old2new, n_new_topo);
     }
     else
     {
@@ -3376,9 +3382,8 @@ Partitioner::unstructured_topo_from_unstructured(const conduit::Node &n_topo,
 //---------------------------------------------------------------------------
 void
 Partitioner::unstructured_topo_from_polygonal(const conduit::Node &n_topo,
-    const std::string &csname,
     const std::vector<index_t> &element_ids,
-    const std::map<index_t,index_t> &old2new,
+    const std::vector<index_t> &old2new,
     conduit::Node &n_new_topo) const
 {
     conduit::Node n_indices;
@@ -3403,7 +3408,7 @@ Partitioner::unstructured_topo_from_polygonal(const conduit::Node &n_topo,
     n_topo["elements/sizes"].to_unsigned_int_array(n_sizes);
     auto sizes = n_sizes.as_unsigned_int_array();
 
-    std::vector<index_t> new_offsets, new_sizes;
+    std::vector<index_t> new_conn, new_offsets, new_sizes;
     index_t next_offset = 0;
     for(size_t i = 0; i < element_ids.size(); i++)
     {
@@ -3424,9 +3429,8 @@ Partitioner::unstructured_topo_from_polygonal(const conduit::Node &n_topo,
 //---------------------------------------------------------------------------
 void
 Partitioner::unstructured_topo_from_polyhedral(const conduit::Node &n_topo,
-    const std::string &csname,
     const std::vector<index_t> &element_ids,
-    const std::map<index_t,index_t> &old2new,
+    const std::vector<index_t> &old2new,
     conduit::Node &n_new_topo) const
 {
     const auto conn = n_topo["elements/connectivity"].as_index_t_accessor();
@@ -3452,8 +3456,9 @@ Partitioner::unstructured_topo_from_polyhedral(const conduit::Node &n_topo,
     }
 
     std::map<index_t,index_t> old2new_faces;
-    std::vector<index_t> new_sizes, new_offsets, new_se_conn, new_se_sizes, new_se_offsets;
+    std::vector<index_t> new_conn, new_sizes, new_offsets, new_se_conn, new_se_sizes, new_se_offsets;
 
+    const index_t old2new_size = static_cast<index_t>(old2new.size());
     index_t new_offset = 0, new_se_offset = 0;
     for(auto eid : element_ids)
     {
@@ -3488,9 +3493,10 @@ Partitioner::unstructured_topo_from_polyhedral(const conduit::Node &n_topo,
                     {
                         const auto vid = se_conn[face_offset + vi];
 
-                        if(old2new.find(vid) == old2new.end())
+                        if(vid >= old2new_size || old2new[vid] == INVALID_NODE)
+                        {
                             CONDUIT_ERROR("No vertex " << vid << " in old2new.");
-
+                        }
                         const auto nvid = old2new[vid];
                         new_se_conn.push_back(nvid);
                     }
@@ -3503,8 +3509,10 @@ Partitioner::unstructured_topo_from_polyhedral(const conduit::Node &n_topo,
                     {
                         const auto vid = se_conn[face_offset + vi];
 
-                        if(old2new.find(vid) == old2new.end())
+                        if(vid >= old2new_size || old2new[vid] == INVALID_NODE)
+                        {
                             CONDUIT_ERROR("No vertex " << vid << " in old2new.");
+                        }
 
                         const auto nvid = old2new[vid];
                         new_se_conn.push_back(nvid);
@@ -3540,9 +3548,8 @@ Partitioner::unstructured_topo_from_polyhedral(const conduit::Node &n_topo,
 //---------------------------------------------------------------------------
 void
 Partitioner::unstructured_topo_from_stream(const conduit::Node &n_topo,
-    const std::string &csname,
     const std::vector<index_t> &element_ids,
-    const std::map<index_t,index_t> &old2new,
+    const std::vector<index_t> &old2new,
     conduit::Node &n_new_topo) const
 {
     const conduit::Node &n_element_types = n_topo["elements/element_types"];
@@ -3601,7 +3608,7 @@ Partitioner::unstructured_topo_from_stream(const conduit::Node &n_topo,
         // Now, for each element, add its topology to the new stream.
         int current_stream_id = -1;
         index_t current_stream_count = 0;
-        std::vector<index_t> new_stream_ids, new_element_counts;
+        std::vector<index_t> new_conn, new_stream_ids, new_element_counts;
         for(size_t i = 0; i < element_ids.size(); i++)
         {
             int sid = stream_ids_expanded[element_ids[i]];
@@ -3663,14 +3670,13 @@ Partitioner::unstructured_topo_from_stream(const conduit::Node &n_topo,
         }
         else
         {
-            conduit::Node n_indices;
-            as_index_t(n_topo["elements/stream"], n_indices);
-            auto iptr = as_index_t_array(n_indices);
+            std::vector<index_t> new_conn;
+            const auto conn = n_topo["elements/stream"].as_index_t_accessor();
             for(size_t i = 0; i < element_ids.size(); i++)
             {
                 auto offset = element_ids[i] * nverts_in_shape;
                 for(index_t j = 0; j < nverts_in_shape; j++)
-                    new_conn.push_back(old2new[iptr[offset + j]]);
+                    new_conn.push_back(old2new[conn[offset + j]]);
             }
 
             n_new_topo["elements/shape"].set(n_topo["elements/shape"]);
@@ -3682,9 +3688,8 @@ Partitioner::unstructured_topo_from_stream(const conduit::Node &n_topo,
 //---------------------------------------------------------------------------
 void
 Partitioner::unstructured_topo_from_mixed(const conduit::Node &n_topo,
-    const std::string &csname,
     const std::vector<index_t> &element_ids,
-    const std::map<index_t,index_t> &old2new,
+    const std::vector<index_t> &old2new,
     conduit::Node &n_new_topo) const
 {
     // Make map of shape value to name from the shape map.
@@ -3723,7 +3728,8 @@ Partitioner::unstructured_topo_from_mixed(const conduit::Node &n_topo,
  
     // Populate the new topology.
     index_t newOffset = 0;
-    for(size_t i = 0; i < newNumZones; i++)
+    std::set<int> selectedShapes;
+    for(index_t i = 0; i < newNumZones; i++)
     {
         const auto elemId = element_ids[i];
         const auto size = sizes[elemId];
