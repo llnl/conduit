@@ -9447,7 +9447,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         // the partition map is created to see why it is not possible to get that
         // case. I checked with Cyrus and we don't think it is possible for the
         // domain list to be scrambled nor do we think it is possible for the file
-        // list to not be monotonic increasing.
+        // list to not be monotonic increasing. But he thinks we should think about
+        // this further before making any changes.
 
         output_partition_map.print();
 
