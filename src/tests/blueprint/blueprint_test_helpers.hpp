@@ -569,6 +569,44 @@ domain1:
         root["domain1"].set(n["domain1"]);
 }
 
+void create_mixed_tile(conduit::Node &n_tile)
+{
+    // Define a tile.
+    const char *yaml = R"(
+coordsets:
+  coords:
+    type: explicit
+    values:
+      x: [0., 1., 2., 3., 0., 2., 3., 0., 1., 2., 3.]
+      y: [0., 0., 0., 0., 1., 1., 1., 2., 2., 2., 2.]
+topologies:
+  tile:
+    type: unstructured
+    coordset: coords
+    elements:
+      shape: mixed
+      connectivity: [4,8,7, 0,1,5,9,8,4, 1,2,3,6,5, 5,6,10,9]
+      sizes: [3,6,5,4]
+      offsets: [0,3,9,14]
+      shapes: [0,2,2,1]
+      shape_map:
+        tri: 0
+        quad: 1
+        polygonal: 2
+fields:
+  area:
+    association: element
+    topology: tile
+    values: [0.5, 3., 1.5, 1.]
+left: [0,4,7]
+right: [3,6,10]
+bottom: [0,1,2,3]
+top: [7,8,9,10]
+)";
+
+    n_tile.parse(yaml);
+}
+
 }
 //-----------------------------------------------------------------------------
 // -- end generate --
