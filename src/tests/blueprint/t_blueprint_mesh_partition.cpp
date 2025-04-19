@@ -83,7 +83,7 @@ tmp_err_handler(const std::string &s1, const std::string &s2, int i1)
 
     while(1);
 }
-#if 0
+
 //-----------------------------------------------------------------------------
 void
 test_logical_selection_2d(const std::string &topo, const std::string &base)
@@ -1078,6 +1078,7 @@ TEST(conduit_blueprint_mesh_combine, recombine_braid)
 
         // Compare combined mesh to baselines
         const std::string filename = baseline_file("recombine_braid_" + case_name);
+        save_visit("recombine_braid_" + case_name + "_combined", combine);
     #ifdef GENERATE_BASELINES
         make_baseline(filename, combine);
     #else
@@ -2998,7 +2999,6 @@ TEST(conduit_blueprint_mesh_partition, partition_single_group)
         EXPECT_EQ(dom.fetch_existing("fields/single_group/values").number_of_children(), 1);
     }
 }
-#endif
 
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_partition, mixed2d)
