@@ -4,6 +4,15 @@ Notable changes to Conduit are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project aspires to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+- Added support for unstructured topologies with `mixed` shape type in the `conduit::blueprint::mesh::partition()` and `conduit::blueprint::mesh::utils::topology::iterate_elements()` functions. They work with mixed shape types, including polyhedra.
+- Enhanced the `conduit::blueprint::mesh::examples::tiled()` function so it can accept mesh tiles containing `mixed` shape types for generating 2D tiled output.
+
+### Changed
+- The `conduit::blueprint::mesh::topology::dims()` function was changed so it will return the maximum topological dimension of the shape types from the `shape_map` for a `mixed` shape.
+
 ## [0.9.4] - Released 2025-04-03
 
 ### Added
