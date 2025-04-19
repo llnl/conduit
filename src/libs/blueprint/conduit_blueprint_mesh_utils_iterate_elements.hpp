@@ -582,6 +582,31 @@ traverse_structured(FuncType &&func, const Node &topo)
 }
 
 //-----------------------------------------------------------------------------
+inline void
+copy_subelements(entity &e,
+                 const index_t_accessor &se_conn,
+                 const index_t_accessor &se_sizes,
+                 const index_t_accessor &se_offsets)
+{
+    const index_t numFaces = static_cast<index_t>(e.element_ids.size());
+    e.subelement_ids.resize(numFaces);
+    for(index_t j = 0; j < numFaces; j++)
+    {
+        const auto faceId = e.element_ids[j];
+        const index_t se_size = se_sizes[faceId];
+        index_t se_offset = se_offsets[faceId];
+
+        auto &se_ids = e.subelement_ids[j];
+        se_ids.resize(se_size);
+
+        for(index_t k = 0; k < se_size; k++)
+        {
+            se_ids[k] = se_conn[se_offset++];
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
 template<typename FuncType>
 inline void
 traverse_mixed_elements(FuncType &&func, const Node &topo)
@@ -591,14 +616,26 @@ traverse_mixed_elements(FuncType &&func, const Node &topo)
     {
         CONDUIT_ERROR("Mixed topology requires \"shapes\"");
     }
+    if(!elements.has_child("shape_map"))
+    {
+        CONDUIT_ERROR("Mixed topology requires \"shape_map\"");
+    }
 
+    // Make a value2id map using the shape_map.
     const Node &n_shape_map = elements.fetch_existing("shape_map");
     std::map<index_t, index_t> value2id;
+    index_t phShape = -1;
+    bool hasPolyhedra = false;
     for(index_t i = 0; i < n_shape_map.number_of_children(); i++)
     {
         const Node &n_shape = n_shape_map[i];
         conduit::blueprint::mesh::utils::ShapeType shape(n_shape.name());
         value2id[n_shape.to_int()] = shape.id;
+        if(n_shape.name() == "polyhedral")
+        {
+            phShape = n_shape.to_int();
+            hasPolyhedra = true;
+        }
     }
 
     const index_t_accessor conn = elements["connectivity"].as_index_t_accessor();
@@ -610,49 +647,127 @@ traverse_mixed_elements(FuncType &&func, const Node &topo)
         const index_t_accessor sizes = elements["sizes"].as_index_t_accessor();
         const index_t_accessor offsets = elements["offsets"].as_index_t_accessor();
 
-        for(index_t ei = 0; ei < nzones; ei++)
+        if(hasPolyhedra && topo.has_path("subelements/connectivity"))
         {
-            const auto size = sizes[ei];
-            const auto offset = offsets[ei];
-            const auto shape = shapes[ei];
+            // The elements contain polyhedra.
+            const index_t_accessor se_conn = topo["subelements/connectivity"].as_index_t_accessor();
+            const index_t_accessor se_sizes = topo["subelements/sizes"].as_index_t_accessor();
+            const index_t_accessor se_offsets = topo["subelements/offsets"].as_index_t_accessor();
 
-            entity e;
-            e.entity_id = ei;
-            e.shape = utils::ShapeType(value2id[shape]);
-            e.element_ids.resize(size);
-            for(index_t j = 0; j < size; j++)
+            for(index_t ei = 0; ei < nzones; ei++)
             {
-                // Pull out vertex id at ei then cast to index_t
-                e.element_ids[j] = conn[offset + j];
-            }
+                const auto size = sizes[ei];
+                const auto offset = offsets[ei];
+                const auto shape = shapes[ei];
 
-            func(e);
+                // Copy basic shape data into the entity.
+                entity e;
+                e.entity_id = ei;
+                e.shape = utils::ShapeType(value2id[shape]);
+                e.element_ids.resize(size);
+                for(index_t j = 0; j < size; j++)
+                {
+                    e.element_ids[j] = conn[offset + j];
+                }
+
+                // Copy subelement data for polyhedral zones.
+                if(shape == phShape)
+                {
+                    copy_subelements(e, se_conn, se_sizes, se_offsets);
+                }
+
+                func(e);
+            }
+        }
+        else
+        {
+            // There are no polyhedra.
+            for(index_t ei = 0; ei < nzones; ei++)
+            {
+                const auto size = sizes[ei];
+                const auto offset = offsets[ei];
+                const auto shape = shapes[ei];
+
+                entity e;
+                e.entity_id = ei;
+                e.shape = utils::ShapeType(value2id[shape]);
+                e.element_ids.resize(size);
+                for(index_t j = 0; j < size; j++)
+                {
+                    // Pull out vertex id at ei then cast to index_t
+                    e.element_ids[j] = conn[offset + j];
+                }
+
+                func(e);
+            }
         }
     }
     else
     {
         // No offsets so we'll just iterate through the connectivity.
-        index_t offset = 0;
-        for(index_t ei = 0; ei < nzones; ei++)
+
+        if(hasPolyhedra && topo.has_path("subelements/connectivity"))
         {
-            const auto shape = shapes[ei];
-            entity e;
-            e.entity_id = ei;
-            e.shape = utils::ShapeType(value2id[shape]);
+            // The elements contain polyhedra.
+            const index_t_accessor se_conn = topo["subelements/connectivity"].as_index_t_accessor();
+            const index_t_accessor se_sizes = topo["subelements/sizes"].as_index_t_accessor();
+            const index_t_accessor se_offsets = topo["subelements/offsets"].as_index_t_accessor();
 
-            // Get size from shape.
-            const auto size = e.shape.indices;
-
-            e.element_ids.resize(size);
-            for(index_t j = 0; j < size; j++)
+            index_t offset = 0;
+            for(index_t ei = 0; ei < nzones; ei++)
             {
-                // Pull out vertex id at ei then cast to index_t
-                e.element_ids[j] = conn[offset + j];
+                const auto shape = shapes[ei];
+
+                // Copy basic shape data into the entity.
+                entity e;
+                e.entity_id = ei;
+                e.shape = utils::ShapeType(value2id[shape]);
+
+                // Get size from shape.
+                const auto size = e.shape.indices;
+
+                e.element_ids.resize(size);
+                for(index_t j = 0; j < size; j++)
+                {
+                    e.element_ids[j] = conn[offset + j];
+                }
+
+                // Copy subelement data for polyhedral zones.
+                if(shape == phShape)
+                {
+                    copy_subelements(e, se_conn, se_sizes, se_offsets);
+                }
+
+                func(e);
+
+                offset += size;
             }
+        }
+        else
+        {
+            // No offsets so we'll just iterate through the connectivity.
+            index_t offset = 0;
+            for(index_t ei = 0; ei < nzones; ei++)
+            {
+                const auto shape = shapes[ei];
+                entity e;
+                e.entity_id = ei;
+                e.shape = utils::ShapeType(value2id[shape]);
 
-            func(e);
+                // Get size from shape.
+                const auto size = e.shape.indices;
 
-            offset += size;
+                e.element_ids.resize(size);
+                for(index_t j = 0; j < size; j++)
+                {
+                    // Pull out vertex id at ei then cast to index_t
+                    e.element_ids[j] = conn[offset + j];
+                }
+
+                func(e);
+
+                offset += size;
+            }
         }
     }
 }

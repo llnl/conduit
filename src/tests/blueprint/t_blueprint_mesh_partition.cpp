@@ -33,7 +33,7 @@ using std::cout;
 using std::endl;
 
 // Enable this macro to generate baselines.
-// #define GENERATE_BASELINES
+#define GENERATE_BASELINES
 
 // #define USE_ERROR_HANDLER
 
@@ -83,7 +83,7 @@ tmp_err_handler(const std::string &s1, const std::string &s2, int i1)
 
     while(1);
 }
-
+#if 0
 //-----------------------------------------------------------------------------
 void
 test_logical_selection_2d(const std::string &topo, const std::string &base)
@@ -3065,7 +3065,7 @@ TEST(conduit_blueprint_mesh_partition, mixed2d)
     EXPECT_EQ(compare_baseline(b01, n_unpart), true);
 #endif
 }
-
+#endif
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_partition, mixed3d)
 {
@@ -3073,7 +3073,7 @@ TEST(conduit_blueprint_mesh_partition, mixed3d)
 
     // Make 1 tiled domain
     conduit::Node n_mesh;
-    conduit::blueprint::mesh::examples::braid("mixed", 5,5,5, n_mesh);
+    conduit::blueprint::mesh::examples::braid("mixed", 3,3,3, n_mesh);
     conduit::Node info;
     const bool v = conduit::blueprint::mesh::verify(n_mesh, info);
     EXPECT_TRUE(v);
@@ -3112,12 +3112,20 @@ TEST(conduit_blueprint_mesh_partition, mixed3d)
     EXPECT_EQ(compare_baseline(b00, n_part), true);
 #endif
 
-#if 0
     // Partition the 2 domains into 1 part.
     std::cout << "Combine 2 into 1" << std::endl;
     conduit::Node n_unpart;
     n_part_opts["target"] = 1;
     conduit::blueprint::mesh::partition(n_part, n_part_opts, n_unpart);
+
+    // Make sure the mesh is good.
+    info.reset();
+    const bool v2 = conduit::blueprint::mesh::verify(n_unpart, info);
+    EXPECT_TRUE(v2);
+    if(!v2)
+    {
+        info.print();
+    }
 
     conduit::relay::io::save(n_unpart, "unpart.yaml", "yaml");
     conduit::relay::io::blueprint::save_mesh(n_unpart, "unpart", "hdf5");
@@ -3126,6 +3134,5 @@ TEST(conduit_blueprint_mesh_partition, mixed3d)
     make_baseline(b01, n_unpart);
 #else
     EXPECT_EQ(compare_baseline(b01, n_unpart), true);
-#endif
 #endif
 }

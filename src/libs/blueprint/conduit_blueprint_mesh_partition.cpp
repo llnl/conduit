@@ -6510,9 +6510,16 @@ build_unstructured_output(const std::vector<const Node*> &topologies,
     output["coordset"].set(cset_name);
     std::set<index_t> shape_types;
     std::vector<index_t> out_conn, out_shapes, out_sizes, out_offsets;
+    std::vector<index_t> se_conn, se_shapes, se_sizes, se_offsets;
     std::vector<index_t> out_elem_map;
     const index_t ntopos = (index_t)topologies.size();
     index_t offset = 0;
+    std::map<std::pair<index_t, index_t>, index_t> domFace2Face;
+    const conduit::blueprint::mesh::utils::ShapeType triShape("tri");
+    const conduit::blueprint::mesh::utils::ShapeType quadShape("quad");
+    const conduit::blueprint::mesh::utils::ShapeType polygonShape("polygonal");
+    index_t se_shape_bits = 0;
+
     for(index_t i = 0; i < ntopos; i++)
     {
         const Node *topo = topologies[i];
@@ -6542,10 +6549,52 @@ build_unstructured_output(const std::vector<const Node*> &topologies,
             out_elem_map.push_back(i);
             out_elem_map.push_back(e.entity_id);
 
-            // Translate the point ids using the pointmap.
-            for(const index_t id : e.element_ids)
+            if(e.subelement_ids.empty())
             {
-                out_conn.push_back(pmap_da[id]);
+                // Non-PH elements.
+                for(const index_t id : e.element_ids)
+                {
+                    out_conn.push_back(pmap_da[id]);
+                }
+            }
+            else
+            {
+                // PH elements. e.element_ids stores face ids for domain i
+                for(size_t i = 0; i < e.element_ids.size(); i++)
+                {
+                    // Look for face.
+                    const std::pair<index_t, index_t> domFace(i, e.element_ids[i]);
+                    auto it = domFace2Face.find(domFace);
+                    index_t newFaceId = -1;
+
+                    if(it == domFace2Face.end())
+                    {
+                        // Define new face.
+                        newFaceId = domFace2Face.size();
+                        domFace2Face[domFace] = newFaceId;
+                        const auto &se_ids = e.subelement_ids[i];
+
+                        se_offsets.push_back(se_conn.size());
+                        const index_t numSides = static_cast<index_t>(se_ids.size());
+                        se_sizes.push_back(numSides);
+                        const index_t faceShape = (numSides == 3) ? triShape.id :
+                            ((numSides == 4) ? quadShape.id : polygonShape.id);
+                        se_shapes.push_back(faceShape);
+                        se_shape_bits |= (1 << faceShape);
+
+                        for(auto id : se_ids)
+                        {
+                            se_conn.push_back(pmap_da[id]);
+                        }
+                    }
+                    else
+                    {
+                        // Reuse face.
+                        newFaceId = it->second;
+                    }
+
+                    out_conn.push_back(newFaceId);
+                }
             }
 
             offset += e.element_ids.size();
@@ -6562,6 +6611,17 @@ build_unstructured_output(const std::vector<const Node*> &topologies,
             output["elements/sizes"].set(out_sizes);
             output["elements/offsets"].set(out_offsets);
         }
+        else if(shape.is_polyhedral() && !se_conn.empty())
+        {
+            output["elements/sizes"].set(out_sizes);
+            output["elements/offsets"].set(out_offsets);
+
+            output["subelements/shape"] = "polygonal";
+            output["subelements/connectivity"].set(se_conn);
+            output["subelements/sizes"].set(se_sizes);
+            output["subelements/offsets"].set(se_offsets);
+            output["subelements/shapes"].set(se_shapes);
+        }
     }
     else if(shape_types.size() > 1)
     {
@@ -6570,12 +6630,30 @@ build_unstructured_output(const std::vector<const Node*> &topologies,
         for(auto s : shape_types)
         {
             conduit::blueprint::mesh::utils::ShapeType shape(s);
-            output["elements/shape_map"][shape.type] = s;
+            // Cast b/c VisIt requires int32 at the moment.
+            output["elements/shape_map"][shape.type] = static_cast<int>(s);
         }
         output["elements/connectivity"].set(out_conn);
         output["elements/sizes"].set(out_sizes);
         output["elements/offsets"].set(out_offsets);
         output["elements/shapes"].set(out_shapes);
+
+        if(!se_conn.empty())
+        {
+            output["subelements/shape"] = "mixed";
+            output["subelements/connectivity"].set(se_conn);
+            output["subelements/sizes"].set(se_sizes);
+            output["subelements/offsets"].set(se_offsets);
+            output["subelements/shapes"].set(se_shapes);
+            // Make shape map.
+            // Cast b/c VisIt requires int32 at the moment.
+            if(se_shape_bits & (1 << triShape.id))
+                output["subelements/shape_map/tri"] = static_cast<int>(triShape.id);
+            if(se_shape_bits & (1 << quadShape.id))
+                output["subelements/shape_map/quad"] = static_cast<int>(quadShape.id);
+            if(se_shape_bits & (1 << polygonShape.id))
+                output["subelements/shape_map/polygonal"] = static_cast<int>(polygonShape.id);
+        }
     }
     output["element_map"].set(out_elem_map);
 }
