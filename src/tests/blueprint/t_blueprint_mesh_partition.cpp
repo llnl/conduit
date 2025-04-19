@@ -33,7 +33,7 @@ using std::cout;
 using std::endl;
 
 // Enable this macro to generate baselines.
-#define GENERATE_BASELINES
+// #define GENERATE_BASELINES
 
 // #define USE_ERROR_HANDLER
 
@@ -83,7 +83,7 @@ tmp_err_handler(const std::string &s1, const std::string &s2, int i1)
 
     while(1);
 }
-#if 0
+
 //-----------------------------------------------------------------------------
 void
 test_logical_selection_2d(const std::string &topo, const std::string &base)
@@ -3065,7 +3065,7 @@ TEST(conduit_blueprint_mesh_partition, mixed2d)
     EXPECT_EQ(compare_baseline(b01, n_unpart), true);
 #endif
 }
-#endif
+
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_partition, mixed3d)
 {
@@ -3073,7 +3073,7 @@ TEST(conduit_blueprint_mesh_partition, mixed3d)
 
     // Make 1 tiled domain
     conduit::Node n_mesh;
-    conduit::blueprint::mesh::examples::braid("mixed", 3,3,3, n_mesh);
+    conduit::blueprint::mesh::examples::braid("mixed", 5,5,5, n_mesh);
     conduit::Node info;
     const bool v = conduit::blueprint::mesh::verify(n_mesh, info);
     EXPECT_TRUE(v);

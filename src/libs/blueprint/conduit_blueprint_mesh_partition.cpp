@@ -6560,10 +6560,10 @@ build_unstructured_output(const std::vector<const Node*> &topologies,
             else
             {
                 // PH elements. e.element_ids stores face ids for domain i
-                for(size_t i = 0; i < e.element_ids.size(); i++)
+                for(size_t fi = 0; fi < e.element_ids.size(); fi++)
                 {
                     // Look for face.
-                    const std::pair<index_t, index_t> domFace(i, e.element_ids[i]);
+                    const std::pair<index_t, index_t> domFace(i, e.element_ids[fi]);
                     auto it = domFace2Face.find(domFace);
                     index_t newFaceId = -1;
 
@@ -6572,7 +6572,7 @@ build_unstructured_output(const std::vector<const Node*> &topologies,
                         // Define new face.
                         newFaceId = domFace2Face.size();
                         domFace2Face[domFace] = newFaceId;
-                        const auto &se_ids = e.subelement_ids[i];
+                        const auto &se_ids = e.subelement_ids[fi];
 
                         se_offsets.push_back(se_conn.size());
                         const index_t numSides = static_cast<index_t>(se_ids.size());
