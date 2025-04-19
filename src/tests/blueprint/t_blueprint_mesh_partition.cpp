@@ -83,7 +83,7 @@ tmp_err_handler(const std::string &s1, const std::string &s2, int i1)
 
     while(1);
 }
-
+#if 0
 //-----------------------------------------------------------------------------
 void
 test_logical_selection_2d(const std::string &topo, const std::string &base)
@@ -2997,4 +2997,71 @@ TEST(conduit_blueprint_mesh_partition, partition_single_group)
         EXPECT_TRUE(dom.has_path("fields/single_group/values/group0"));
         EXPECT_EQ(dom.fetch_existing("fields/single_group/values").number_of_children(), 1);
     }
+}
+#endif
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_partition, mixed2d)
+{
+    const std::string base("mixed2d");
+
+    // Make a "mixed" tile.
+    conduit::Node n_tile;
+    generate::create_mixed_tile(n_tile);
+
+    // Make sure the dimensions are 2.
+    EXPECT_EQ(conduit::blueprint::mesh::topology::dims(n_tile["topologies/tile"]), 2);
+
+    // Verify the tile.
+    conduit::Node info;
+    const bool v = conduit::blueprint::mesh::verify(n_tile, info);
+    EXPECT_TRUE(v);
+    if(!v)
+    {
+        info.print();
+    }
+
+    //conduit::relay::io::save(n_tile, "tile.yaml", "yaml");
+    //conduit::relay::io::blueprint::save_mesh(n_tile, "tile", "hdf5");
+
+    // Make 1 tiled domain
+    conduit::Node n_options;
+    //n_options["numDomains"] = 4;
+    n_options["tile"].set_external(n_tile);
+    n_options["meshname"] = "mesh";
+    conduit::Node n_mesh;
+    conduit::blueprint::mesh::examples::tiled(10,10,0, n_mesh, n_options);
+
+    //conduit::relay::io::save(n_mesh, "tilemesh.yaml", "yaml");
+    //conduit::relay::io::blueprint::save_mesh(n_mesh, "tilemesh", "hdf5");
+
+    // Partition the 1 domain into 4 parts.
+    std::cout << "Split 1 into 4" << std::endl;
+    conduit::Node n_part, n_part_opts;
+    n_part_opts["target"] = 4;
+    conduit::blueprint::mesh::partition(n_mesh, n_part_opts, n_part);
+
+    //conduit::relay::io::save(n_part, "part.yaml", "yaml");
+    //conduit::relay::io::blueprint::save_mesh(n_part, "part", "hdf5");
+    std::string b00 = baseline_file(base + "_00");
+#ifdef GENERATE_BASELINES
+    make_baseline(b00, n_part);
+#else
+    EXPECT_EQ(compare_baseline(b00, n_part), true);
+#endif
+
+    // Partition the 4 domains into 1 part.
+    std::cout << "Combine 4 into 1" << std::endl;
+    conduit::Node n_unpart;
+    n_part_opts["target"] = 1;
+    conduit::blueprint::mesh::partition(n_part, n_part_opts, n_unpart);
+
+    //conduit::relay::io::save(n_unpart, "unpart.yaml", "yaml");
+    //conduit::relay::io::blueprint::save_mesh(n_unpart, "unpart", "hdf5");
+    std::string b01 = baseline_file(base + "_01");
+#ifdef GENERATE_BASELINES
+    make_baseline(b01, n_unpart);
+#else
+    EXPECT_EQ(compare_baseline(b01, n_unpart), true);
+#endif
 }

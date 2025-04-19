@@ -2975,18 +2975,71 @@ Partitioner::get_vertex_ids_for_element_ids(const conduit::Node &n_topo,
                     vertex_ids.insert(stream[offsets[element_ids[i]] + j]);
             }
         }
+        else if(n_topo.fetch_existing("elements/shape").as_string() == "mixed")
+        {
+            const auto conn = n_topo["elements/connectivity"].as_index_t_accessor();
+            const auto shapes = n_topo.fetch_existing("elements/shapes").as_index_t_accessor();
+            if(n_topo.has_path("elements/sizes") && n_topo.has_path("elements/offsets"))
+            {
+                const auto sizes = n_topo.fetch_existing("elements/sizes").as_index_t_accessor();
+                const auto offsets = n_topo.fetch_existing("elements/offsets").as_index_t_accessor();
+                for(size_t i = 0; i < element_ids.size(); i++)
+                {
+                    const auto size = sizes[element_ids[i]];
+                    const auto offset = offsets[element_ids[i]];
+                    for(index_t j = 0; j < size; j++)
+                    {
+                        vertex_ids.insert(conn[offset + j]);
+                    }
+                }
+            }
+            else if(n_topo.has_path("elements/shape_map"))
+            {
+                // Get the shape ids in the shape_map so we can look them up by their shape value.
+                const Node &n_shape_map = n_topo.fetch_existing("elements/shape_map");
+                std::map<int, int> value2size;
+                for(index_t i = 0; i < n_shape_map.number_of_children(); i++)
+                {
+                    const Node &n_shape = n_shape_map[i];
+                    conduit::blueprint::mesh::utils::ShapeType shape(n_shape.name());
+                    value2size[n_shape.to_int()] = shape.indices;
+                }
+
+                // Make an offset vector for all elements.
+                std::vector<index_t> offsets;
+                index_t offset = 0;
+                for(size_t i = 0; i < element_ids.size(); i++)
+                {
+                    offsets.push_back(offset);
+                    offset += value2size[shapes[i]];
+                }
+
+                // Seek to the selected element_ids and select their vertices.
+                for(size_t i = 0; i < element_ids.size(); i++)
+                {
+                    const auto size = value2size[shapes[element_ids[i]]];
+                    const auto offset = offsets[element_ids[i]];
+                    for(index_t j = 0; j < size; j++)
+                    {
+                        vertex_ids.insert(conn[offset + j]);
+                    }
+                }
+            }
+            else
+            {
+                CONDUIT_ERROR("Mixed topology is incomplete.");
+            }
+        }
         else
         {
             // Shapes are single types one after the next in the connectivity.
-            conduit::Node n_indices;
-            as_index_t(n_topo["elements/connectivity"], n_indices);
-            auto iptr = as_index_t_array(n_indices);
+            const auto conn = n_topo["elements/connectivity"].as_index_t_accessor();
             auto nverts_in_shape = conduit::blueprint::mesh::utils::TOPO_SHAPE_INDEX_COUNTS[shape.id];
             for(size_t i = 0; i < element_ids.size(); i++)
             {
                 auto offset = element_ids[i] * nverts_in_shape;
                 for(index_t j = 0; j < nverts_in_shape; j++)
-                    vertex_ids.insert(iptr[offset + j]);
+                    vertex_ids.insert(conn[offset + j]);
             }
         }
     }
@@ -3325,7 +3378,15 @@ Partitioner::unstructured_topo_from_unstructured(const conduit::Node &n_topo,
     {
         old2new[vertex_ids[i]] = static_cast<index_t>(i);
     }
-
+#if 0
+    // Print the old2new map.
+    std::cout << "unstructured_topo_from_unstructured: old2new={";
+    for(size_t i = 0; i < vertex_ids.size(); i++)
+    {
+        std::cout << old2new[i] << ", ";
+    }
+    std::cout << "}\n";
+#endif
     conduit::blueprint::mesh::utils::ShapeType shape(n_topo);
     std::vector<index_t> new_conn;
     if(shape.is_polygonal())
@@ -6318,26 +6379,6 @@ namespace topology
 {
 
 //-----------------------------------------------------------------------------
-template<typename Func>
-static void iterate_int_data(const conduit::Node &node, Func &&func)
-{
-    const auto dtype = node.dtype();
-    if (dtype.is_integer())
-    {
-        index_t_accessor int_data = node.as_index_t_accessor();
-        const index_t nele = int_data.number_of_elements();
-        for(index_t i = 0; i < nele; i++)
-        {
-            func(int_data[i]);
-        }
-    }
-    else
-    {
-        CONDUIT_ERROR("Tried to iterate " << dtype.name() << " as integer data!");
-    }
-}
-
-//-----------------------------------------------------------------------------
 static void
 build_unstructured_output(const std::vector<const Node*> &topologies,
                           const Node &pointmaps,
@@ -6349,10 +6390,11 @@ build_unstructured_output(const std::vector<const Node*> &topologies,
     output.reset();
     output["type"].set("unstructured");
     output["coordset"].set(cset_name);
-    std::vector<std::string>          shape_types;
-    std::vector<std::vector<index_t>> out_connectivity;
-    std::vector<std::vector<index_t>> out_elem_map;
+    std::set<index_t> shape_types;
+    std::vector<index_t> out_conn, out_shapes, out_sizes, out_offsets;
+    std::vector<index_t> out_elem_map;
     const index_t ntopos = (index_t)topologies.size();
+    index_t offset = 0;
     for(index_t i = 0; i < ntopos; i++)
     {
         const Node *topo = topologies[i];
@@ -6371,56 +6413,53 @@ build_unstructured_output(const std::vector<const Node*> &topologies,
         }
         DataArray<index_t> pmap_da = pointmap->value();
 
-        iterate_elements(*topo, [&](const entity &e) {
-            // See if we already have a bucket for this shape in our output
-            const std::string &shape_string = e.shape.type;
-            // Find the index for this shape's bucket
-            const auto itr = std::find(shape_types.begin(), shape_types.end(), shape_string);
-            index_t idx = (index_t)(itr - shape_types.begin());
-            if(itr == shape_types.end())
-            {
-                idx = shape_types.size();
-                shape_types.push_back(shape_string);
-                out_connectivity.emplace_back();
-                out_elem_map.emplace_back();
-            }
+        iterate_elements(*topo, [&](const entity &e)
+        {
+            shape_types.insert(e.shape.id);
+            out_shapes.push_back(e.shape.id);
+            out_sizes.push_back(e.element_ids.size());
+            out_offsets.push_back(offset);
 
-            out_elem_map[idx].push_back(i);
-            out_elem_map[idx].push_back(e.entity_id);
+            // Build element_map.
+            out_elem_map.push_back(i);
+            out_elem_map.push_back(e.entity_id);
 
             // Translate the point ids using the pointmap.
-            std::vector<index_t> &out_conn = out_connectivity[idx];
             for(const index_t id : e.element_ids)
             {
                 out_conn.push_back(pmap_da[id]);
             }
+
+            offset += e.element_ids.size();
         });
     }
 
     if(shape_types.size() == 1)
     {
-        output["element_map"].set(out_elem_map[0]);
-        output["elements/shape"].set(shape_types[0]);
-        output["elements/connectivity"].set(out_connectivity[0]);
+        conduit::blueprint::mesh::utils::ShapeType shape(*shape_types.begin());
+        output["elements/shape"] = shape.type;
+        output["elements/connectivity"].set(out_conn);
+        if(shape.is_polygonal())
+        {
+            output["elements/sizes"].set(out_sizes);
+            output["elements/offsets"].set(out_offsets);
+        }
     }
     else if(shape_types.size() > 1)
     {
-        std::vector<index_t> elem_map;
-        const index_t nshapes = (index_t)shape_types.size();
-        for(index_t i = 0; i < nshapes; i++)
+        // Build mixed output.
+        output["elements/shape"] = "mixed";
+        for(auto s : shape_types)
         {
-            const std::string name = shape_types[i] + "s";
-            Node &bucket = output["elements"].add_child(name);
-            bucket["shape"].set(shape_types[i]);
-            bucket["connectivity"].set(out_connectivity[i]);
-            for(index_t id : out_elem_map[i])
-            {
-                elem_map.push_back(id);
-            }
-            std::vector<index_t>().swap(out_elem_map[i]);
+            conduit::blueprint::mesh::utils::ShapeType shape(s);
+            output["elements/shape_map"][shape.type] = s;
         }
-        output["element_map"].set(elem_map);
+        output["elements/connectivity"].set(out_conn);
+        output["elements/sizes"].set(out_sizes);
+        output["elements/offsets"].set(out_offsets);
+        output["elements/shapes"].set(out_shapes);
     }
+    output["element_map"].set(out_elem_map);
 }
 
 //-----------------------------------------------------------------------------
