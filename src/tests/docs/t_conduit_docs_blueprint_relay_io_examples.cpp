@@ -40,11 +40,12 @@ TEST(conduit_docs, blueprint_relay_io_example_multi_domain_spiral)
 
     BEGIN_EXAMPLE("blueprint_relay_io_example_multi_domain_spiral");
 
-    // node to hold mesh data and relay options
+    // declare nodes to hold mesh data and relay options
     conduit::Node mesh, opts;
 
-    //create an multi-domain example mesh
+    // create an multi-domain example mesh
     blueprint::mesh::examples::spiral(7, mesh);
+    // show mesh
     mesh.print();
 
     // save to blueprint yaml
@@ -70,9 +71,9 @@ TEST(conduit_docs, blueprint_relay_io_example_venn)
 
     BEGIN_EXAMPLE("blueprint_relay_io_example_venn");
 
-    // node to hold mesh data and relay options
+    // declare nodes to hold mesh data and relay options
     conduit::Node mesh, opts;
-    //create an example mesh with materials
+    // create an example mesh with materials
     blueprint::mesh::examples::venn("sparse_by_element", 100, 100, .25, mesh);
     mesh.print();
 
@@ -102,18 +103,21 @@ TEST(conduit_docs, blueprint_relay_io_example_venn_convert)
 
     BEGIN_EXAMPLE("blueprint_relay_io_example_venn_convert");
 
-    // node to hold mesh data and relay options
+    // declare nodes to hold mesh data and relay options
     conduit::Node mesh, opts;
-    //create an example mesh with materials
+    // create an example mesh with materials
     blueprint::mesh::examples::venn("sparse_by_element", 100, 100, .25, mesh);
     // save to blueprint hdf5
     conduit::relay::io::blueprint::save_mesh(mesh,"tout_venn_bp_hdf5_convert","hdf5");
 
     // reset mesh in-memory to start over
     mesh.reset();
+
     // load mesh data from blueprint hdf5
     conduit::relay::io::blueprint::load_mesh("tout_venn_bp_hdf5_src.root",mesh);
+    // show result
     mesh.print();
+
     // save to overlink flavored silo (note: overlink requires materials)
     opts["file_style"] = "overlink";
     conduit::relay::io::blueprint::save_mesh(mesh,"tout_venn_overlink_convert","silo",opts);
@@ -143,9 +147,12 @@ TEST(conduit_docs, blueprint_relay_io_example_venn_overlink_read)
 
     // reset mesh in-memory to start over
     mesh.reset();
+
     // load mesh data from blueprint hdf5
     std::string root_path = conduit::utils::join_path("tout_venn_overlink_read","OvlTop.silo");
     conduit::relay::io::blueprint::load_mesh(root_path,mesh);
+
+    // show result
     mesh.print();
 
     END_EXAMPLE("blueprint_relay_io_example_venn_ol_read");
