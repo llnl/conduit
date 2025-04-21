@@ -106,17 +106,18 @@ about(Node &n)
 
     // silo
 #ifdef CONDUIT_RELAY_IO_SILO_ENABLED
+    // general silo support
+    io_protos["silo"] = "enabled";
     // node is packed into two silo objects
     io_protos["conduit_silo"] = "enabled";
-#else
-    // node is packed into two silo objects
-    io_protos["conduit_silo"] = "disabled";
-#endif
-
     // silo mesh aware
-#ifdef CONDUIT_RELAY_IO_SILO_ENABLED
     io_protos["conduit_silo_mesh"] = "enabled";
 #else
+    // general silo support
+    io_protos["silo"] = "disabled";
+    // node is packed into two silo objects
+    io_protos["conduit_silo"] = "disabled";
+    // silo mesh aware
     io_protos["conduit_silo_mesh"] = "disabled";
 #endif
 
