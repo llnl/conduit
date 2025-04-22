@@ -3082,8 +3082,8 @@ TEST(conduit_blueprint_mesh_partition, mixed3d)
         info.print();
     }
 
-    conduit::relay::io::save(n_mesh, "mixed3d.yaml", "yaml");
-    conduit::relay::io::blueprint::save_mesh(n_mesh, "mixed3d", "hdf5");
+    //conduit::relay::io::save(n_mesh, "mixed3d.yaml", "yaml");
+    //conduit::relay::io::blueprint::save_mesh(n_mesh, "mixed3d", "hdf5");
 
     // Partition the 1 domain into 2 parts.
     std::cout << "Split 1 into 2" << std::endl;
@@ -3103,8 +3103,8 @@ TEST(conduit_blueprint_mesh_partition, mixed3d)
         }
     }
 
-    conduit::relay::io::save(n_part, "part.yaml", "yaml");
-    conduit::relay::io::blueprint::save_mesh(n_part, "part", "hdf5");
+    //conduit::relay::io::save(n_part, "part.yaml", "yaml");
+    //conduit::relay::io::blueprint::save_mesh(n_part, "part", "hdf5");
     std::string b00 = baseline_file(base + "_00");
 #ifdef GENERATE_BASELINES
     make_baseline(b00, n_part);
@@ -3127,8 +3127,8 @@ TEST(conduit_blueprint_mesh_partition, mixed3d)
         info.print();
     }
 
-    conduit::relay::io::save(n_unpart, "unpart.yaml", "yaml");
-    conduit::relay::io::blueprint::save_mesh(n_unpart, "unpart", "hdf5");
+    //conduit::relay::io::save(n_unpart, "unpart.yaml", "yaml");
+    //conduit::relay::io::blueprint::save_mesh(n_unpart, "unpart", "hdf5");
     std::string b01 = baseline_file(base + "_01");
 #ifdef GENERATE_BASELINES
     make_baseline(b01, n_unpart);
