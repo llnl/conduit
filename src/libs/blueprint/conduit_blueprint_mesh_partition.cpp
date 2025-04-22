@@ -2995,7 +2995,7 @@ Partitioner::get_vertex_ids_for_element_ids(const conduit::Node &n_topo,
                     const auto se_sizes = n_topo.fetch_existing("subelements/sizes").as_index_t_accessor();
                     const auto se_offsets = n_topo.fetch_existing("subelements/offsets").as_index_t_accessor();
 
-                    // Determien the value being used for polyhedra from the shape_map.
+                    // Determine the value being used for polyhedra from the shape_map.
                     index_t phShape = -1;
                     for(index_t i = 0; i < n_shape_map.number_of_children(); i++)
                     {
