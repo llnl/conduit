@@ -1615,6 +1615,17 @@ topology::dims(const Node &n)
     {
         ShapeType shape(n);
         topology_dims = (index_t)shape.dim;
+
+        if(topology_dims == -1 && n.has_path("elements/shape_map"))
+        {
+          // We appear to have a mixed shape.
+          const Node &n_shape_map = n.fetch_existing("elements/shape_map");
+          for(index_t i = 0; i < n_shape_map.number_of_children(); i++)
+          {
+            ShapeType shape2(n_shape_map[i].name());
+            topology_dims = std::max(topology_dims, static_cast<index_t>(shape2.dim));
+          }
+        }
     }
 
     return topology_dims;

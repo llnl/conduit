@@ -98,7 +98,7 @@ static const std::vector<std::string> TOPO_SHAPES = {"point", "line", "tri", "qu
 // "f" is for face
 // "c" is for cell
 static const std::vector<std::string> TOPO_SHAPE_IDS = {/*point*/ "p", /*line*/ "l", /*tri*/ "f", /*quad*/ "f", 
-    /*tet*/ "c", /*hex*/ "c", /*wedge*/ "c", /*pyramid*/ "c", /*polygonal*/ "f", /*polyhedral*/ "c"};
+    /*tet*/ "c", /*hex*/ "c", /*wedge*/ "c", /*pyramid*/ "c", /*polygonal*/ "f", /*polyhedral*/ "c", /*mixed*/ "c"};
 
 // The dimensions for each element in TOPO_SHAPES
 static const std::vector<index_t> TOPO_SHAPE_DIMS = {/*point*/ 0, /*line*/ 1, /*tri*/ 2, /*quad*/ 2, 
@@ -164,7 +164,7 @@ static const std::vector<const index_t*> TOPO_SHAPE_EMBEDDINGS = {
     &TOPO_TRI_EMBEDDING[0][0], &TOPO_QUAD_EMBEDDING[0][0],
     &TOPO_TET_EMBEDDING[0][0], &TOPO_HEX_EMBEDDING[0][0],
     &TOPO_WEDGE_EMBEDDING[0][0], &TOPO_PYRAMID_EMBEDDING[0][0],
-    nullptr, nullptr};
+    /*polygonal*/ nullptr, /*polyhedral*/ nullptr, /*mixed*/ nullptr};
 
 //-----------------------------------------------------------------------------
 /// blueprint mesh utility structures

@@ -6225,12 +6225,12 @@ mesh::topology::shape_map::verify(const Node& shape_map,
     if (isEnum)
     {
       log::info(info, protocol, "has valid value "+ log::quote(child.name()) +
-      "(" + std::to_string(child.as_int32()) + ")");
+      "(" + std::to_string(child.to_int32()) + ")");
     }
     else
     {
       log::error(info, protocol, "has invalid value " + log::quote(child.name()) +
-        "(" + std::to_string(child.as_int32()) + ")");
+        "(" + std::to_string(child.to_int32()) + ")");
     }
     res &= isEnum;
   }
