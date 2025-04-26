@@ -7038,13 +7038,11 @@ mesh::adjset::is_maxshare(const Node &adjset)
     while(group_itr.has_next() && res)
     {
         const Node &group = group_itr.next();
-        const Node &group_values = group["values"];
+        const auto values = group["values"].as_index_t_accessor();
 
-        for(index_t ni = 0; ni < group_values.dtype().number_of_elements(); ni++)
+        for(index_t vi = 0; vi < values.number_of_elements(); vi++)
         {
-            Node temp(DataType(group_values.dtype().id(), 1),
-                (void*)group_values.element_ptr(ni), true);
-            const index_t next_id = temp.to_index_t();
+            const index_t next_id = values[vi];
 
             res &= ids.find(next_id) == ids.end();
             ids.insert(next_id);
@@ -7078,23 +7076,22 @@ mesh::adjset::to_pairwise(const Node &adjset,
 
         std::vector<index_t> group_neighbors;
         {
-            const Node &group_nvals = group_node["neighbors"];
-            for(index_t ni = 0; ni < group_nvals.dtype().number_of_elements(); ++ni)
+            const auto neighbors = group_node["neighbors"].as_index_t_accessor();
+            group_neighbors.reserve(neighbors.number_of_elements());
+            for(index_t ni = 0; ni < neighbors.number_of_elements(); ++ni)
             {
-                Node temp(DataType(group_nvals.dtype().id(), 1),
-                    (void*)group_nvals.element_ptr(ni), true);
-                group_neighbors.push_back(temp.to_index_t());
+                group_neighbors.push_back(neighbors[ni]);
             }
         }
 
         std::vector<index_t> group_values;
         {
-            const Node &group_vals = group_node["values"];
-            for(index_t vi = 0; vi < group_vals.dtype().number_of_elements(); ++vi)
+            const auto values = group_node["values"].as_index_t_accessor();
+            const index_t numValues = values.number_of_elements();
+            group_values.reserve(numValues);
+            for(index_t vi = 0; vi < numValues; ++vi)
             {
-                Node temp(DataType(group_vals.dtype().id(), 1),
-                    (void*)group_vals.element_ptr(vi), true);
-                group_values.push_back(temp.to_index_t());
+                group_values.push_back(values[vi]);
             }
         }
 
@@ -7158,23 +7155,20 @@ mesh::adjset::to_maxshare(const Node &adjset,
 
         std::vector<index_t> group_neighbors;
         {
-            const Node &group_nvals = group_node["neighbors"];
-            for(index_t ni = 0; ni < group_nvals.dtype().number_of_elements(); ++ni)
+            const auto neighbors = group_node["neighbors"].as_index_t_accessor();
+            group_neighbors.reserve(neighbors.number_of_elements());
+            for(index_t ni = 0; ni < neighbors.number_of_elements(); ++ni)
             {
-                Node temp(DataType(group_nvals.dtype().id(), 1),
-                    (void*)group_nvals.element_ptr(ni), true);
-                group_neighbors.push_back(temp.to_index_t());
+                group_neighbors.push_back(neighbors[ni]);
             }
         }
 
         std::vector<index_t> group_values;
         {
-            const Node &group_vals = group_node["values"];
-            for(index_t vi = 0; vi < group_vals.dtype().number_of_elements(); ++vi)
+            const auto values = group_node["values"].as_index_t_accessor();
+            for(index_t vi = 0; vi < values.number_of_elements(); ++vi)
             {
-                Node temp(DataType(group_vals.dtype().id(), 1),
-                    (void*)group_vals.element_ptr(vi), true);
-                group_values.push_back(temp.to_index_t());
+                group_values.push_back(values[vi]);
             }
         }
 
@@ -7219,12 +7213,10 @@ mesh::adjset::to_maxshare(const Node &adjset,
     for(const std::string &group_name : adjset_group_names)
     {
         const Node &group_node = adjset["groups"][group_name];
-        const Node &group_vals = group_node["values"];
-        for(index_t vi = 0; vi < group_vals.dtype().number_of_elements(); ++vi)
+        const auto values = group_node["values"].as_index_t_accessor();
+        for(index_t vi = 0; vi < values.number_of_elements(); ++vi)
         {
-            Node temp(DataType(group_vals.dtype().id(), 1),
-                (void*)group_vals.element_ptr(vi), true);
-            const index_t group_entity = temp.to_index_t();
+            const index_t group_entity = values[vi];
 
             auto &groupset_pair = groupset_values_map[entity_groupset_map[group_entity]];
             std::vector<index_t> &groupset_valuelist = groupset_pair.first;
