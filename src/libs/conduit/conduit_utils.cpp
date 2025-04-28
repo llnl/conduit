@@ -241,6 +241,23 @@ namespace detail
 }
 
 //-----------------------------------------------------------------------------
+void set_memcpy_handler(void(*conduit_hnd_copy)(void*,
+                                                const void *,
+                                                size_t))
+{
+    detail::AllocManager::instance().set_memcpy_handler(handle_memcpy_type(conduit_hnd_copy));
+}
+
+//-----------------------------------------------------------------------------
+void
+set_memset_handler(void(*conduit_hnd_memset)(void*,
+                                             int,
+                                             size_t))
+{
+    detail::AllocManager::instance().set_memset_handler(handle_memset_type(conduit_hnd_memset));
+}
+
+//-----------------------------------------------------------------------------
 void
 set_memcpy_handler(handle_memcpy_type conduit_hnd_memcpy)
 {

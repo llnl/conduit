@@ -288,6 +288,12 @@ namespace utils
     // won't be tied into all of the places where source and dest pointers
     // need to be located.
     //
+    void CONDUIT_API set_memcpy_handler(void(*conduit_hnd_copy)(void*,
+                                                                const void *,
+                                                                size_t));
+    void CONDUIT_API set_memset_handler(void(*conduit_hnd_memset)(void*,
+                                                                  int,
+                                                                  size_t));
     void CONDUIT_API set_memcpy_handler(handle_memcpy_type);
     void CONDUIT_API set_memset_handler(handle_memset_type);
 
