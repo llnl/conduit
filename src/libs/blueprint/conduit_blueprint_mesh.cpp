@@ -57,9 +57,21 @@ typedef bputils::TopologyMetadata TopologyMetadata;
 //-----------------------------------------------------------------------------
 // -- begin internal helpers --
 //-----------------------------------------------------------------------------
-// TODO(JRC): Consider moving an improved version of this type to a more accessible location.
+
+/*
+ * @brief This struct represents a float64 with a custom less than operator that
+ *        considers a tolerance to determine whether values are the same. If
+ *        the difference in values is greater than the epsilon then the values
+ *        are different and we can compare with float64::operator<
+ *
+ * @note TODO(JRC): Consider moving an improved version of this type to a more accessible location.
+ */
 struct ffloat64
 {
+    // NOTE: Define an epsilon here that is smaller than CONDUIT_EPSILON so
+    //       values have to be closer together to be considered equal.
+    static constexpr conduit::float64 FFLOAT_EPSILON = CONDUIT_EPSILON / 10.;
+
     conduit::float64 data;
 
     ffloat64(conduit::float64 input = 0.0)
@@ -74,7 +86,8 @@ struct ffloat64
 
     bool operator<(const ffloat64 &other) const
     {
-        return this->data < other.data && std::abs(this->data - other.data) > CONDUIT_EPSILON;
+        //     less than               and  values are different
+        return this->data < other.data && std::abs(this->data - other.data) > FFLOAT_EPSILON;
     }
 };
 
@@ -85,7 +98,14 @@ namespace o2mrelation = conduit::blueprint::o2mrelation;
 
 // typedefs for verbose but commonly used types
 typedef std::tuple<conduit::Node*, conduit::Node*, conduit::Node*> DomMapsTuple;
+
+/*
+ * @brief Represent a point using ffloat64 so the point will use ffloat64's less
+ *        than operator on each component to determine less than for the point.
+ *        This helps Conduit sort points spatially.
+ */
 typedef std::tuple<ffloat64, ffloat64, ffloat64> PointTuple;
+
 // typedefs to enable passing around function pointers
 typedef void (*GenDerivedFun)(const conduit::Node&, conduit::Node&, conduit::Node&, conduit::Node&);
 typedef void (*GenDecomposedFun)(const conduit::Node&, conduit::Node&, conduit::Node&, conduit::Node&, conduit::Node&);
@@ -2874,6 +2894,9 @@ generate_derived_entities(conduit::Node &mesh,
                           GenDerivedFun generate_derived,
                           conduit::blueprint::mesh::utils::query::MatchQuery &Q)
 {
+    using Entity = std::tuple<std::set<PointTuple>, index_t>;
+    using EntityVector = std::vector<Entity>;
+
     CONDUIT_ANNOTATE_MARK_FUNCTION;
 
     // loop over all domains and call generate_derived on each domain
@@ -3026,56 +3049,62 @@ generate_derived_entities(conduit::Node &mesh,
         const Node &src_topo = *src_topo_ptr;
         const Node *src_cset_ptr = bputils::find_reference_node(src_topo, "coordset");
         const Node &src_cset = *src_cset_ptr;
+        const conduit::Node &src_adjset_groups = domain["adjsets"][src_adjset_name]["groups"];
 
         const Node &dst_topo = domain["topologies"][dst_topo_name];
 
-        const conduit::Node &src_adjset_groups = domain["adjsets"][src_adjset_name]["groups"];
         conduit::Node &dst_adjset_groups = domain["adjsets"][dst_adjset_name]["groups"];
 
         // Use Entity Interfaces to Construct Group Entity Lists //
 
-        std::map<std::set<index_t>, std::vector<std::tuple<std::set<PointTuple>, index_t>>> group_entity_map;
+        std::map<std::set<index_t>, EntityVector> group_entity_map;
         const auto &entity_neighbor_map = dom_entity_neighbor_map[domain_id];
         for(const auto &entity_neighbor_pair : entity_neighbor_map)
         {
             const index_t &ei = entity_neighbor_pair.first;
             const std::set<index_t> &entity_neighbors = entity_neighbor_pair.second;
-            std::tuple<std::set<PointTuple>, index_t> entity;
 
-            std::vector<index_t> entity_pidxs = bputils::topology::unstructured::points(dst_topo, ei);
-            std::set<PointTuple> &entity_points = std::get<0>(entity);
+            // Get point ids used in entity ei in dst_topo
+            const std::vector<index_t> entity_pidxs = bputils::topology::unstructured::points(dst_topo, ei);
+
+            // Make entity
+            Entity entity;
+            auto &entity_points = std::get<0>(entity);
+            auto &entity_id = std::get<1>(entity);
             for(const index_t &entity_pidx : entity_pidxs)
             {
+                // Get the points for entity_pidx. NOTE: src_cset is same as new dst_topo's coordset.
                 const std::vector<float64> point_coords = bputils::coordset::_explicit::coords(
                     src_cset, entity_pidx);
+
+                // Emplace the point into entity_points as a PointTuple.
                 entity_points.emplace(
                     point_coords[0],
                     (point_coords.size() > 1) ? point_coords[1] : 0.0,
                     (point_coords.size() > 2) ? point_coords[2] : 0.0);
             }
-
-            index_t &entity_id = std::get<1>(entity);
             entity_id = ei;
 
             // NOTE(JRC): Inserting with this method allows this algorithm to sort new
             // elements as they're generated, rather than as a separate process at the
-            // end (slight optimization overall).
-            std::vector<std::tuple<std::set<PointTuple>, index_t>> &group_entities =
-                group_entity_map[entity_neighbors];
+            // end (slight optimization overall). PointTuple and ffloat64's less than
+            // operator determines the insertion location.
+            auto &group_entities = group_entity_map[entity_neighbors];
             auto entity_itr = std::upper_bound(group_entities.begin(), group_entities.end(), entity);
             group_entities.insert(entity_itr, entity);
         }
 
         for(const auto &group_pair : group_entity_map)
         {
+            const std::set<index_t> &group_nidxs = group_pair.first;
+            const EntityVector &group_entities = group_pair.second;
+
             // NOTE(JRC): It's possible for the 'src_adjset_groups' node to be empty,
             // so we only want to query child data types if we know there is at least
             // 1 non-empty group.
             const conduit::DataType src_neighbors_dtype = src_adjset_groups.child(0)["neighbors"].dtype();
             const conduit::DataType src_values_dtype = src_adjset_groups.child(0)["values"].dtype();
 
-            const std::set<index_t> &group_nidxs = group_pair.first;
-            const std::vector<std::tuple<std::set<PointTuple>, index_t>> &group_entities = group_pair.second;
             std::string group_name;
             {
                 // NOTE(JRC): The current domain is included in the domain name so that
@@ -3164,6 +3193,9 @@ generate_decomposed_entities(conduit::Node &mesh,
                              const std::vector<index_t> &decomposed_centroid_dims,
                              conduit::blueprint::mesh::utils::query::PointQueryBase &query)
 {
+    using Entity = std::tuple<std::set<PointTuple>, index_t>;
+    using EntityVector = std::vector<Entity>;
+
     CONDUIT_ANNOTATE_MARK_FUNCTION;
 
     // Iterate over the domains and produce a "decomposed" mesh for each domain.
@@ -3373,16 +3405,11 @@ generate_decomposed_entities(conduit::Node &mesh,
         //
         // This assumption must be made to avoid a costly coordinate->id lookup.
 
-        std::map<std::set<index_t>, std::vector<std::tuple<std::set<PointTuple>, index_t>>> group_entity_map;
+        std::map<std::set<index_t>, EntityVector> group_entity_map;
         for(const auto &entity_neighbor_pair : entity_neighbor_map)
         {
             const index_t &entity_cidx = entity_neighbor_pair.first;
             const std::set<index_t> &entity_neighbors = entity_neighbor_pair.second;
-
-            // Make an entity tuple and get references to its members.
-            std::tuple<std::set<PointTuple>, index_t> entity;
-            std::set<PointTuple> &entity_points = std::get<0>(entity);
-            index_t &entity_id = std::get<1>(entity);
 
             // NOTE(JRC): Diff: Substitute entity for centroid point at the end here.
 
@@ -3391,6 +3418,12 @@ generate_decomposed_entities(conduit::Node &mesh,
             const std::vector<float64> point_coords = bputils::coordset::_explicit::coords(
                 dst_cset, entity_cidx);
 
+            // Make entity
+            Entity entity;
+            auto &entity_points = std::get<0>(entity);
+            auto &entity_id = std::get<1>(entity);
+
+            // 1 point is being added to the entity.
             entity_points.emplace(
                 point_coords[0],
                 (point_coords.size() > 1) ? point_coords[1] : 0.0,
@@ -3400,7 +3433,8 @@ generate_decomposed_entities(conduit::Node &mesh,
 
             // NOTE(JRC): Inserting with this method allows this algorithm to sort new
             // elements as they're generated, rather than as a separate process at the
-            // end (slight optimization overall).
+            // end (slight optimization overall). PointTuple and ffloat64's less than
+            // operator determines the insertion location.
             auto &group_entities = group_entity_map[entity_neighbors];
             auto entity_itr = std::upper_bound(group_entities.begin(), group_entities.end(), entity);
             group_entities.insert(entity_itr, entity);
