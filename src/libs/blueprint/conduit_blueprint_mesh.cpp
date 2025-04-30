@@ -3070,7 +3070,6 @@ generate_derived_entities(conduit::Node &mesh,
             // Make entity
             Entity entity;
             auto &entity_points = std::get<0>(entity);
-            auto &entity_id = std::get<1>(entity);
             for(const index_t &entity_pidx : entity_pidxs)
             {
                 // Get the points for entity_pidx. NOTE: src_cset is same as new dst_topo's coordset.
@@ -3083,7 +3082,7 @@ generate_derived_entities(conduit::Node &mesh,
                     (point_coords.size() > 1) ? point_coords[1] : 0.0,
                     (point_coords.size() > 2) ? point_coords[2] : 0.0);
             }
-            entity_id = ei;
+            std::get<1>(entity) = ei;
 
             // NOTE(JRC): Inserting with this method allows this algorithm to sort new
             // elements as they're generated, rather than as a separate process at the
@@ -3128,25 +3127,18 @@ generate_derived_entities(conduit::Node &mesh,
 
             dst_neighbors.set(DataType(src_neighbors_dtype.id(), group_nidxs.size()));
             index_t ni = 0;
+            auto neighbors = dst_neighbors.as_index_t_accessor();
             for(auto nitr = group_nidxs.begin(); nitr != group_nidxs.end(); ++nitr)
             {
-                // TODO: USE ACCESSORS
-                src_data.set_external(DataType::index_t(1),
-                    (void*)&(*nitr));
-                dst_data.set_external(DataType(src_neighbors_dtype.id(), 1),
-                    (void*)dst_neighbors.element_ptr(ni++));
-                src_data.to_data_type(dst_data.dtype().id(), dst_data);
+                neighbors.set(ni++, *nitr);
             }
 
             dst_values.set(DataType(src_values_dtype.id(), group_entities.size()));
+            auto values = dst_values.as_index_t_accessor();
             for(index_t ei = 0; ei < (index_t)group_entities.size(); ei++)
             {
-                // TODO: USE ACCESSORS
-                src_data.set_external(DataType::index_t(1),
-                    (void*)&std::get<1>(group_entities[ei]));
-                dst_data.set_external(DataType(src_values_dtype.id(), 1),
-                    (void*)dst_values.element_ptr(ei));
-                src_data.to_data_type(dst_data.dtype().id(), dst_data);
+                const index_t nodeid = std::get<1>(group_entities[ei]);
+                values.set(ei, nodeid);
             }
         }
     }
@@ -3425,10 +3417,8 @@ generate_decomposed_entities(conduit::Node &mesh,
 
             // Make entity
             Entity entity;
-            auto &entity_points = std::get<0>(entity);
-            auto &entity_id = std::get<1>(entity);
 #ifdef CONDUIT_SINGLE_POINT
-            entity_points = PointTuple{point_coords[0],
+            std::get<0>(entity) = PointTuple{point_coords[0],
                 (point_coords.size() > 1) ? point_coords[1] : 0.0,
                 (point_coords.size() > 2) ? point_coords[2] : 0.0};
 #else
@@ -3438,7 +3428,7 @@ generate_decomposed_entities(conduit::Node &mesh,
                 (point_coords.size() > 1) ? point_coords[1] : 0.0,
                 (point_coords.size() > 2) ? point_coords[2] : 0.0);
 #endif
-            entity_id = entity_cidx;
+            std::get<1>(entity) = entity_cidx;
 
             // NOTE(JRC): Inserting with this method allows this algorithm to sort new
             // elements as they're generated, rather than as a separate process at the
@@ -3486,33 +3476,15 @@ generate_decomposed_entities(conduit::Node &mesh,
             auto neighbors = dst_neighbors.as_index_t_accessor();
             for(auto nitr = group_nidxs.begin(); nitr != group_nidxs.end(); ++nitr)
             {
-#if 1
                 neighbors.set(ni++, *nitr);
-#else
-                // TODO: USE ACCESSORS
-                src_data.set_external(DataType::index_t(1),
-                    (void*)&(*nitr));
-                dst_data.set_external(DataType(src_neighbors_dtype.id(), 1),
-                    (void*)dst_neighbors.element_ptr(ni++));
-                src_data.to_data_type(dst_data.dtype().id(), dst_data);
-#endif
             }
 
             dst_values.set(DataType(src_values_dtype.id(), group_entities.size()));
             auto values = dst_values.as_index_t_accessor();
             for(index_t ei = 0; ei < (index_t)group_entities.size(); ei++)
             {
-#if 1
                 const index_t nodeid = std::get<1>(group_entities[ei]);
                 values.set(ei, nodeid);
-#else
-                // TODO: USE ACCESSORS
-                src_data.set_external(DataType::index_t(1),
-                    (void*)&std::get<1>(group_entities[ei]));
-                dst_data.set_external(DataType(src_values_dtype.id(), 1),
-                    (void*)dst_values.element_ptr(ei));
-                src_data.to_data_type(dst_data.dtype().id(), dst_data);
-#endif
             }
         }
     }
