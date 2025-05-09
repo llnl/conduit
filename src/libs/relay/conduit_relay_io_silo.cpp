@@ -4394,6 +4394,8 @@ read_root_silo_index(const std::string &root_file_path,
 
     // our silo index should look like this:
 
+    // TODO zero-copy data into this
+
     // mesh:
     //    state:
     //       cycle: 100
@@ -4710,6 +4712,8 @@ read_mesh(const std::string &root_file_path,
             // we are in the root file only case so overlink is not possible
             ovltop_case = false;
         }
+
+        // TODO this is bugged
 
         detail::SiloObjectWrapperCheckError<DBfile, decltype(&DBClose)> mesh_domain_file{
             nullptr, &DBClose};
