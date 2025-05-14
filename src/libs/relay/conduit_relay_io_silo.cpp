@@ -3451,17 +3451,11 @@ read_mesh(const std::string &root_file_path,
 }
 
 //-----------------------------------------------------------------------------
-// this function can be used for meshes, vars, and materials
-// The mesh_domain_filename and mesh_domain_file arguments are only
-// to be provided when calling this function for materials and variables.
-// When calling for meshes, provide the former as an empty string and
-// the latter as a nullptr.
-// This choice was made to ensure that in all three cases, the same logic can be used.
 DBfile*
 open_or_reuse_file(const bool ovltop_case,
                    std::string &domain_filename,
-                   const std::string &mesh_domain_filename,
-                   DBfile *mesh_domain_file,
+                   const std::string &open_file_filename,
+                   DBfile *already_opened_file,
                    detail::SiloObjectWrapperCheckError<DBfile, decltype(&DBClose)> &domain_file)
 {
     DBfile *domain_file_to_use = nullptr;
@@ -3482,9 +3476,9 @@ open_or_reuse_file(const bool ovltop_case,
         }
 
         // if we have already opened this file
-        if (domain_filename == mesh_domain_filename)
+        if (domain_filename == open_file_filename)
         {
-            domain_file_to_use = mesh_domain_file;
+            domain_file_to_use = already_opened_file;
         }
         // otherwise we need to open our own file
         else
@@ -3497,9 +3491,9 @@ open_or_reuse_file(const bool ovltop_case,
                 domain_filename = old_domain_filename;
 
                 // if we have already opened this file
-                if (domain_filename == mesh_domain_filename)
+                if (domain_filename == open_file_filename)
                 {
-                    domain_file_to_use = mesh_domain_file;
+                    domain_file_to_use = already_opened_file;
                 }
                 // otherwise we need to open our own file
                 else
@@ -3530,9 +3524,9 @@ open_or_reuse_file(const bool ovltop_case,
     else
     {
         // if we have already opened this file
-        if (domain_filename == mesh_domain_filename)
+        if (domain_filename == open_file_filename)
         {
-            domain_file_to_use = mesh_domain_file;
+            domain_file_to_use = already_opened_file;
         }
         // otherwise we need to open our own file
         else
@@ -4713,15 +4707,13 @@ read_mesh(const std::string &root_file_path,
             ovltop_case = false;
         }
 
-        // TODO this is bugged
-
         detail::SiloObjectWrapperCheckError<DBfile, decltype(&DBClose)> mesh_domain_file{
             nullptr, &DBClose};
         DBfile *mesh_domain_file_to_use =
             open_or_reuse_file(ovltop_case,
                                mesh_domain_filename,
-                               "",
-                               nullptr,
+                               root_file_path,
+                               root_file.getSiloObject(),
                                mesh_domain_file);
 
         // this is for the blueprint mesh output
