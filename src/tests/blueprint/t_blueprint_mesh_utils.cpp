@@ -709,12 +709,14 @@ TEST(conduit_blueprint_mesh_utils, adjset_compare_pointwise_2d)
     //if(!eq)
     //   info.print();
     EXPECT_FALSE(eq);
+    EXPECT_TRUE(info.number_of_children() > 0);
 
     // Test that the notevenclose adjset actually fails.
     info.reset();
     eq = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, "notevenclose", info);
     //if(!eq)
     //   info.print();
+    EXPECT_TRUE(info.number_of_children() > 0);
     EXPECT_FALSE(eq);
 }
 

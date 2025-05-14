@@ -74,8 +74,10 @@ addPointMesh(const std::string &adjsetName, const conduit::Node &info, conduit::
                     {
                         auto da = err["coordinate"].as_double_accessor();
                         cx.push_back(da[0]);
-                        cy.push_back(da[1]);
-                        cz.push_back(da[2]);
+                        if(da.number_of_elements() > 1)
+                            cy.push_back(da[1]);
+                        if(da.number_of_elements() > 2)
+                            cz.push_back(da[2]);
 
                         domain.push_back(static_cast<int>(domainId));
                         vertex.push_back(err["vertex"].to_int());
@@ -94,8 +96,10 @@ addPointMesh(const std::string &adjsetName, const conduit::Node &info, conduit::
         conduit::Node &coordset = n["coordsets/" + coordsetName];
         coordset["type"] = "explicit";
         coordset["values/x"].set(cx);
-        coordset["values/y"].set(cy);
-        coordset["values/z"].set(cz);
+        if(!cy.empty())
+            coordset["values/y"].set(cy);
+        if(!cz.empty())
+            coordset["values/z"].set(cz);
 
         // Add topo
         std::string topoName(adjsetName);
@@ -229,6 +233,9 @@ main(int argc, char *argv[])
                 {
                     std::cout << "Check " << association << " adjset " << adjsetName << "... FAIL: The adjset points have different orders" << std::endl;
                     info.print();
+                    // If we're outputting, make a point mesh of the differences.
+                    if(!output.empty())
+                        addPointMesh(adjsetName, info, pointMeshes);
                     err = true;
                 }
             }
