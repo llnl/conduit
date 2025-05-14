@@ -4162,7 +4162,7 @@ read_root_silo_index(const std::string &root_file_path,
                      Node &root_node, // output
                      std::string &mesh_name_to_read, // output
                      std::ostringstream &error_oss, // output
-                     detail::SiloObjectWrapperCheckError<DBfile, decltype(&DBClose)> &root_file) // output
+                     std::map<std::string, DBfile*> &file_map) // output
 {
     // clear output vars
     root_node.reset();
@@ -4177,16 +4177,15 @@ read_root_silo_index(const std::string &root_file_path,
     }
 
     // open silo file
-    root_file.setSiloObject(silo_open_file_for_read(root_file_path));
-    root_file.setErrMsg("Error closing Silo file: " + root_file_path);
-    if (! root_file.getSiloObject())
+    file_map[root_file_path] = silo_open_file_for_read(root_file_path);
+    if (! file_map.at(root_file_path))
     {
         error_oss << "Error opening Silo file for reading: " << root_file_path;
         return false;
     }
 
     // get table of contents
-    DBtoc *toc = DBGetToc(root_file.getSiloObject()); // shouldn't be free'd
+    DBtoc *toc = DBGetToc(file_map.at(root_file_path)); // shouldn't be free'd
     if (!toc)
     {
         error_oss << "Table of contents could not be extracted from file: " << root_file_path;
@@ -4325,7 +4324,7 @@ read_root_silo_index(const std::string &root_file_path,
     if (DB_MULTIMESH == mesh_type)
     {
         int nblocks;
-        if (! read_multimesh(root_file.getSiloObject(),
+        if (! read_multimesh(file_map.at(root_file_path),
                              mesh_name_to_read,
                              nblocks,
                              root_node,
@@ -4334,22 +4333,22 @@ read_root_silo_index(const std::string &root_file_path,
             return false;
         }
         read_multivars(toc,
-                       root_file.getSiloObject(),
+                       file_map.at(root_file_path),
                        mesh_name_to_read,
                        nblocks,
                        root_node);
         read_multimats(toc,
-                       root_file.getSiloObject(),
+                       file_map.at(root_file_path),
                        mesh_name_to_read,
                        nblocks,
                        root_node);
         read_multimatspecs(toc,
-                           root_file.getSiloObject(),
+                           file_map.at(root_file_path),
                            mesh_name_to_read,
                            nblocks,
                            root_node);
         // overlink-specific
-        read_var_attributes(root_file.getSiloObject(),
+        read_var_attributes(file_map.at(root_file_path),
                             mesh_name_to_read,
                             root_node);
     }
@@ -4377,7 +4376,7 @@ read_root_silo_index(const std::string &root_file_path,
         return false;
     }
 
-    read_state(root_file.getSiloObject(), root_node, mesh_name_to_read);
+    read_state(file_map.at(root_file_path), root_node, mesh_name_to_read);
 
     if (! opts_matset_style.empty())
     {
@@ -4496,9 +4495,10 @@ read_mesh(const std::string &root_file_path,
     std::ostringstream error_oss;
     std::string mesh_name_to_read;
     Node root_node;
-    // TODO use this in the open_or_reuse_file function
-    detail::SiloObjectWrapperCheckError<DBfile, decltype(&DBClose)> root_file{
-        nullptr, &DBClose};
+
+    // a map from filenames to dbfiles (file handles)
+    std::map<std::string, DBfile*> file_map;
+    file_map.emplace(root_file_path, nullptr);
 
     // only read bp index on rank 0
     if (0 == par_rank)
@@ -4508,7 +4508,7 @@ read_mesh(const std::string &root_file_path,
                                    root_node,
                                    mesh_name_to_read,
                                    error_oss,
-                                   root_file))
+                                   file_map))
         {
             error = 1;
         }
@@ -4558,11 +4558,11 @@ read_mesh(const std::string &root_file_path,
     // we need the root file so we can create nameschemes on every rank
     if (0 != par_rank)
     {
-        root_file.setSiloObject(silo_open_file_for_read(root_file_path));
-        root_file.setErrMsg("Error closing Silo file: " + root_file_path);
-        if (! root_file.getSiloObject())
+        file_map[root_file_path] = silo_open_file_for_read(root_file_path);
+        if (! file_map.at(root_file_path))
         {
             // this is really bad.
+            // TODO parallel error checking
             CONDUIT_ERROR("Failed to open root file on rank " << par_rank);
         }
     }
@@ -4612,24 +4612,24 @@ read_mesh(const std::string &root_file_path,
     // Create name generators for the mesh and each variable, matset, specset
     //
     std::unique_ptr<SiloNameGenerator> mesh_path_gen = 
-        detail::name_generator_tools::create_silo_tree_path_generator(root_file.getSiloObject(),
+        detail::name_generator_tools::create_silo_tree_path_generator(file_map.at(root_file_path),
                                                                       num_domains,
                                                                       mesh_index,
                                                                       "mesh_paths");
     std::map<std::string, std::unique_ptr<SiloNameGenerator>> mat_path_gen = 
-        detail::name_generator_tools::populate_path_gen_map(root_file.getSiloObject(),
+        detail::name_generator_tools::populate_path_gen_map(file_map.at(root_file_path),
                                                             num_domains,
                                                             mesh_index,
                                                             "matsets",
                                                             "matset_paths");
     std::map<std::string, std::unique_ptr<SiloNameGenerator>> spec_path_gen = 
-        detail::name_generator_tools::populate_path_gen_map(root_file.getSiloObject(),
+        detail::name_generator_tools::populate_path_gen_map(file_map.at(root_file_path),
                                                             num_domains,
                                                             mesh_index,
                                                             "specsets",
                                                             "specset_paths");
     std::map<std::string, std::unique_ptr<SiloNameGenerator>> var_path_gen = 
-        detail::name_generator_tools::populate_path_gen_map(root_file.getSiloObject(),
+        detail::name_generator_tools::populate_path_gen_map(file_map.at(root_file_path),
                                                             num_domains,
                                                             mesh_index,
                                                             "vars",
@@ -4712,8 +4712,8 @@ read_mesh(const std::string &root_file_path,
         DBfile *mesh_domain_file_to_use =
             open_or_reuse_file(ovltop_case,
                                mesh_domain_filename,
-                               root_file_path,
-                               root_file.getSiloObject(),
+                               "",
+                               nullptr,
                                mesh_domain_file);
 
         // this is for the blueprint mesh output
@@ -4996,6 +4996,18 @@ read_mesh(const std::string &root_file_path,
                                      matset_field_reconstruction,
                                      mesh_out);
             }
+        }
+    }
+
+    // clean up open files
+    for (auto &file_info : file_map)
+    {
+        // if this file is open
+        if (nullptr != file_info.second)
+        {
+            // close the file
+            CONDUIT_ASSERT(0 == DBClose(file_info.second),
+                           "Error closing Silo file " << file_info.first);
         }
     }
 }
@@ -9445,8 +9457,6 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         // domain list to be scrambled nor do we think it is possible for the file
         // list to not be monotonic increasing. But he thinks we should think about
         // this further before making any changes.
-
-        output_partition_map.print();
 
         if (output_partition_map.number_of_children() > 0 )
         {
