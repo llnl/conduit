@@ -3480,7 +3480,6 @@ open_or_reuse_file(const bool ovltop_case,
         // otherwise we need to open our own file
         else
         {
-            std::cout << "we must open" << std::endl;
             auto not_valid_overlink = [&]() -> DBfile*
             {
                 CONDUIT_INFO("Provided file is not valid Overlink; defaulting "
