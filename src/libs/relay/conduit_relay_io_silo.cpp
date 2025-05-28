@@ -3454,11 +3454,8 @@ read_mesh(const std::string &root_file_path,
 DBfile*
 open_or_reuse_file(const bool ovltop_case,
                    std::string &domain_filename,
-                   const std::string &open_file_filename,
-                   DBfile *already_opened_file,
-                   detail::SiloObjectWrapperCheckError<DBfile, decltype(&DBClose)> &domain_file)
+                   std::map<std::string, DBfile*> &file_map)
 {
-    DBfile *domain_file_to_use = nullptr;
     // handle ovltop.silo case
     if (ovltop_case)
     {
@@ -3476,14 +3473,15 @@ open_or_reuse_file(const bool ovltop_case,
         }
 
         // if we have already opened this file
-        if (domain_filename == open_file_filename)
+        if (file_map.count(domain_filename) > 0)
         {
-            domain_file_to_use = already_opened_file;
+            return file_map.at(domain_filename);
         }
         // otherwise we need to open our own file
         else
         {
-            auto not_valid_overlink = [&]()
+            std::cout << "we must open" << std::endl;
+            auto not_valid_overlink = [&]() -> DBfile*
             {
                 CONDUIT_INFO("Provided file is not valid Overlink; defaulting "
                              "to absolute path rather than assumed path.")
@@ -3491,32 +3489,37 @@ open_or_reuse_file(const bool ovltop_case,
                 domain_filename = old_domain_filename;
 
                 // if we have already opened this file
-                if (domain_filename == open_file_filename)
+                if (file_map.count(domain_filename) > 0)
                 {
-                    domain_file_to_use = already_opened_file;
+                    return file_map.at(domain_filename);
                 }
                 // otherwise we need to open our own file
                 else
                 {
-                    domain_file.setSiloObject(silo_open_file_for_read(domain_filename));
-                    domain_file.setErrMsg("Error closing Silo file: " + domain_filename);
-                    CONDUIT_ASSERT(domain_file_to_use = domain_file.getSiloObject(),
-                        "Error opening Silo file for reading: " << domain_filename);
+                    file_map[domain_filename] = silo_open_file_for_read(domain_filename);
+                    DBfile *domain_file_to_use = file_map.at(domain_filename);
+                    CONDUIT_ASSERT(domain_file_to_use,
+                                   "Error opening Silo file for reading: " << domain_filename);
+                    return domain_file_to_use;
                 }
             };
 
             if (DBInqFile(domain_filename.c_str()) > 0) // the file exists
             {
-                domain_file.setSiloObject(silo_open_file_for_read(domain_filename));
-                domain_file.setErrMsg("Error closing Silo file: " + domain_filename);
-                if (! (domain_file_to_use = domain_file.getSiloObject()))
+                DBfile *domain_file_to_use = silo_open_file_for_read(domain_filename);
+                if (domain_file_to_use)
                 {
-                    not_valid_overlink();
+                    file_map[domain_filename] = domain_file_to_use;
+                    return domain_file_to_use;
+                }
+                else
+                {
+                    return not_valid_overlink();
                 }
             }
             else
             {
-                not_valid_overlink();
+                return not_valid_overlink();
             }
         }
     }
@@ -3524,21 +3527,20 @@ open_or_reuse_file(const bool ovltop_case,
     else
     {
         // if we have already opened this file
-        if (domain_filename == open_file_filename)
+        if (file_map.count(domain_filename) > 0)
         {
-            domain_file_to_use = already_opened_file;
+            return file_map.at(domain_filename);
         }
         // otherwise we need to open our own file
         else
         {
-            domain_file.setSiloObject(silo_open_file_for_read(domain_filename));
-            domain_file.setErrMsg("Error closing Silo file: " + domain_filename);
-            CONDUIT_ASSERT(domain_file_to_use = domain_file.getSiloObject(),
-                "Error opening Silo file for reading: " << domain_filename);
+            file_map[domain_filename] = silo_open_file_for_read(domain_filename);
+            DBfile *domain_file_to_use = file_map.at(domain_filename);
+            CONDUIT_ASSERT(domain_file_to_use,
+                           "Error opening Silo file for reading: " << domain_filename);
+            return domain_file_to_use;
         }
     }
-
-    return domain_file_to_use;
 }
 
 //-----------------------------------------------------------------------------
@@ -4485,6 +4487,9 @@ read_mesh(const std::string &root_file_path,
           Node &mesh
           CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
 {
+    // TODO we should try to close files every loop iteration? Or something
+
+
     int par_rank = 0;
 #if CONDUIT_RELAY_IO_MPI_ENABLED
     par_rank = relay::mpi::rank(mpi_comm);
@@ -4707,17 +4712,13 @@ read_mesh(const std::string &root_file_path,
             ovltop_case = false;
         }
 
-        detail::SiloObjectWrapperCheckError<DBfile, decltype(&DBClose)> mesh_domain_file{
-            nullptr, &DBClose};
         DBfile *mesh_domain_file_to_use =
             open_or_reuse_file(ovltop_case,
                                mesh_domain_filename,
-                               "",
-                               nullptr,
-                               mesh_domain_file);
+                               file_map);
 
         // this is for the blueprint mesh output
-        std::string domain_path = conduit_fmt::format("domain_{:06d}", domain_id);
+        const std::string domain_path = conduit_fmt::format("domain_{:06d}", domain_id);
 
         if (! read_mesh_domain(meshtype,
                                mesh_domain_file_to_use,
@@ -4809,14 +4810,10 @@ read_mesh(const std::string &root_file_path,
                     ovltop_case = false;
                 }
 
-                detail::SiloObjectWrapperCheckError<DBfile, decltype(&DBClose)> matset_domain_file{
-                    nullptr, &DBClose};
                 DBfile *matset_domain_file_to_use =
                     open_or_reuse_file(ovltop_case,
                                        matset_domain_filename,
-                                       mesh_domain_filename,
-                                       mesh_domain_file.getSiloObject(),
-                                       matset_domain_file);
+                                       file_map);
 
                 // If this completes successfully, it means we have found a matset
                 // associated with this mesh. Thus we can break iteration here,
@@ -4889,14 +4886,10 @@ read_mesh(const std::string &root_file_path,
                     ovltop_case = false;
                 }
 
-                detail::SiloObjectWrapperCheckError<DBfile, decltype(&DBClose)> specset_domain_file{
-                    nullptr, &DBClose};
                 DBfile *specset_domain_file_to_use =
                     open_or_reuse_file(ovltop_case,
                                        specset_domain_filename,
-                                       mesh_domain_filename,
-                                       mesh_domain_file.getSiloObject(),
-                                       specset_domain_file);
+                                       file_map);
 
                 read_specset_domain(specset_domain_file_to_use,
                                     n_specset,
@@ -4974,14 +4967,10 @@ read_mesh(const std::string &root_file_path,
                     ovltop_case = false;
                 }
 
-                detail::SiloObjectWrapperCheckError<DBfile, decltype(&DBClose)> var_domain_file{
-                    nullptr, &DBClose};
                 DBfile *var_domain_file_to_use =
                     open_or_reuse_file(ovltop_case,
                                        var_domain_filename,
-                                       mesh_domain_filename,
-                                       mesh_domain_file.getSiloObject(),
-                                       var_domain_file);
+                                       file_map);
 
                 // we don't care if this skips the var or not since this is the
                 // last thing in the loop iteration
