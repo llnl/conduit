@@ -4986,6 +4986,13 @@ read_mesh(const std::string &root_file_path,
             }
         }
 
+        std::cout << "file map" << std::endl;
+        for (const auto &file_info : file_map)
+        {
+            std::cout << file_info.first << std::endl;
+        }
+        std::cout << "================" << std::endl;
+
         // close open files (except the root file!)
         for (auto file_map_itr = file_map.begin(); file_map_itr != file_map.end(); )
         {
