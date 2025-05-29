@@ -3495,10 +3495,10 @@ open_or_reuse_file(const bool ovltop_case,
                 // otherwise we need to open our own file
                 else
                 {
-                    file_map[domain_filename] = silo_open_file_for_read(domain_filename);
-                    DBfile *domain_file_to_use = file_map.at(domain_filename);
+                    DBfile *domain_file_to_use = silo_open_file_for_read(domain_filename);
                     CONDUIT_ASSERT(domain_file_to_use,
                                    "Error opening Silo file for reading: " << domain_filename);
+                    file_map[domain_filename] = domain_file_to_use;
                     return domain_file_to_use;
                 }
             };
@@ -3533,10 +3533,10 @@ open_or_reuse_file(const bool ovltop_case,
         // otherwise we need to open our own file
         else
         {
-            file_map[domain_filename] = silo_open_file_for_read(domain_filename);
-            DBfile *domain_file_to_use = file_map.at(domain_filename);
+            DBfile *domain_file_to_use = silo_open_file_for_read(domain_filename);
             CONDUIT_ASSERT(domain_file_to_use,
                            "Error opening Silo file for reading: " << domain_filename);
+            file_map[domain_filename] = domain_file_to_use;
             return domain_file_to_use;
         }
     }
