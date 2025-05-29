@@ -4985,6 +4985,29 @@ read_mesh(const std::string &root_file_path,
                                      mesh_out);
             }
         }
+
+        // close open files (except the root file!)
+        for (auto file_map_itr = file_map.begin(); file_map_itr != file_map.end(); )
+        {
+            // if this file is open and is not the root file
+            if (file_map_itr->first != root_file_path && 
+                nullptr != file_map_itr->second)
+            {
+                // close the file
+                CONDUIT_ASSERT(0 == DBClose(file_map_itr->second),
+                               "Error closing Silo file " << file_map_itr->first);
+                file_map_itr->second = nullptr;
+            }
+
+            if (file_map_itr->second == nullptr)
+            {
+                file_map_itr = file_map.erase(file_map_itr);
+            }
+            else
+            {
+                file_map_itr ++;
+            }
+        }
     }
 
     // clean up open files
@@ -4996,6 +5019,7 @@ read_mesh(const std::string &root_file_path,
             // close the file
             CONDUIT_ASSERT(0 == DBClose(file_info.second),
                            "Error closing Silo file " << file_info.first);
+            file_info.second = nullptr;
         }
     }
 }
