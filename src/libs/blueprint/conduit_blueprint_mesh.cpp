@@ -58,39 +58,6 @@ typedef bputils::TopologyMetadata TopologyMetadata;
 // -- begin internal helpers --
 //-----------------------------------------------------------------------------
 
-/*
- * @brief This struct represents a float64 with a custom less than operator that
- *        considers a tolerance to determine whether values are the same. If
- *        the difference in values is greater than the epsilon then the values
- *        are different and we can compare with float64::operator<
- *
- * @note TODO(JRC): Consider moving an improved version of this type to a more accessible location.
- */
-struct ffloat64
-{
-    // NOTE: Define an epsilon here that is smaller than CONDUIT_EPSILON so
-    //       values have to be closer together to be considered equal.
-    static constexpr conduit::float64 FFLOAT_EPSILON = CONDUIT_EPSILON / 10.;
-
-    conduit::float64 data;
-
-    ffloat64(conduit::float64 input = 0.0)
-    {
-        data = input;
-    }
-
-    operator conduit::float64() const
-    {
-        return this->data;
-    }
-
-    bool operator<(const ffloat64 &other) const
-    {
-        //     less than               and  values are different
-        return this->data < other.data && std::abs(this->data - other.data) > FFLOAT_EPSILON;
-    }
-};
-
 // access conduit blueprint mesh utilities
 namespace bputils = conduit::blueprint::mesh::utils;
 // access one-to-many index types
@@ -98,13 +65,6 @@ namespace o2mrelation = conduit::blueprint::o2mrelation;
 
 // typedefs for verbose but commonly used types
 typedef std::tuple<conduit::Node*, conduit::Node*, conduit::Node*> DomMapsTuple;
-
-/*
- * @brief Represent a point using ffloat64 so the point will use ffloat64's less
- *        than operator on each component to determine less than for the point.
- *        This helps Conduit sort points spatially.
- */
-typedef std::tuple<ffloat64, ffloat64, ffloat64> PointTuple;
 
 // typedefs to enable passing around function pointers
 typedef void (*GenDerivedFun)(const conduit::Node&, conduit::Node&, conduit::Node&, conduit::Node&);
@@ -2894,7 +2854,8 @@ generate_derived_entities(conduit::Node &mesh,
                           GenDerivedFun generate_derived,
                           conduit::blueprint::mesh::utils::query::MatchQuery &Q)
 {
-    using Entity = std::tuple<std::set<PointTuple>, index_t>;
+    namespace topoutils = conduit::blueprint::mesh::utils::topology;
+    using Entity = std::tuple<std::set<topoutils::Quantizer::QuantizedIndex>, index_t>;
     using EntityVector = std::vector<Entity>;
 
     CONDUIT_ANNOTATE_MARK_FUNCTION;
@@ -3053,6 +3014,11 @@ generate_derived_entities(conduit::Node &mesh,
 
         const Node &dst_topo = domain["topologies"][dst_topo_name];
 
+        // Compute information about the dst_topo and make a Quantizer with it.
+        topoutils::MeshInfo dst_info;
+        topoutils::compute_mesh_info(dst_topo, dst_info);
+        topoutils::Quantizer quantizer(dst_info);
+
         conduit::Node &dst_adjset_groups = domain["adjsets"][dst_adjset_name]["groups"];
 
         // Use Entity Interfaces to Construct Group Entity Lists //
@@ -3076,11 +3042,8 @@ generate_derived_entities(conduit::Node &mesh,
                 const std::vector<float64> point_coords = bputils::coordset::_explicit::coords(
                     src_cset, entity_pidx);
 
-                // Emplace the point into entity_points as a PointTuple.
-                entity_points.emplace(
-                    point_coords[0],
-                    (point_coords.size() > 1) ? point_coords[1] : 0.0,
-                    (point_coords.size() > 2) ? point_coords[2] : 0.0);
+                // Add a quantized point id to the entity points
+                entity_points.emplace(quantizer.quantize(point_coords));
             }
             std::get<1>(entity) = ei;
 
@@ -3185,12 +3148,8 @@ generate_decomposed_entities(conduit::Node &mesh,
                              const std::vector<index_t> &decomposed_centroid_dims,
                              conduit::blueprint::mesh::utils::query::PointQueryBase &query)
 {
-#define CONDUIT_SINGLE_POINT
-#ifdef CONDUIT_SINGLE_POINT
-    using Entity = std::tuple<PointTuple, index_t>;
-#else
-    using Entity = std::tuple<std::set<PointTuple>, index_t>;
-#endif
+    namespace topoutils = conduit::blueprint::mesh::utils::topology;
+    using Entity = std::tuple<topoutils::Quantizer::QuantizedIndex, index_t>;
     using EntityVector = std::vector<Entity>;
 
     CONDUIT_ANNOTATE_MARK_FUNCTION;
@@ -3391,6 +3350,13 @@ generate_decomposed_entities(conduit::Node &mesh,
         const Node &src_adjset_groups = domain["adjsets"][src_adjset_name]["groups"];
         Node &dst_adjset_groups = domain["adjsets"][dst_adjset_name]["groups"];
 
+        const Node &dst_topo = domain["topologies"][dst_topo_name];
+
+        // Compute information about the dst_topo and make a Quantizer with it.
+        topoutils::MeshInfo dst_info;
+        topoutils::compute_mesh_info(dst_topo, dst_info);
+        topoutils::Quantizer quantizer(dst_info);
+
         // Use Entity Interfaces to Construct Group Entity Lists //
 
         // Iterate over the entity_neighbor_map and build up group_entity_map.
@@ -3417,17 +3383,7 @@ generate_decomposed_entities(conduit::Node &mesh,
 
             // Make entity
             Entity entity;
-#ifdef CONDUIT_SINGLE_POINT
-            std::get<0>(entity) = PointTuple{point_coords[0],
-                (point_coords.size() > 1) ? point_coords[1] : 0.0,
-                (point_coords.size() > 2) ? point_coords[2] : 0.0};
-#else
-            // 1 point is being added to the entity.
-            entity_points.emplace(
-                point_coords[0],
-                (point_coords.size() > 1) ? point_coords[1] : 0.0,
-                (point_coords.size() > 2) ? point_coords[2] : 0.0);
-#endif
+            std::get<0>(entity) = quantizer.quantize(point_coords);
             std::get<1>(entity) = entity_cidx;
 
             // NOTE(JRC): Inserting with this method allows this algorithm to sort new

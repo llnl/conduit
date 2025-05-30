@@ -553,6 +553,77 @@ namespace topology
                                                   const conduit::Node &topo2);
 
     //-------------------------------------------------------------------------
+    /**
+     * @brief Compute information about a mesh; its coordinate extents and edge
+     *        lengths. It is implemented as a struct in case other quantities are
+     *        added in the future.
+     */
+    struct CONDUIT_BLUEPRINT_API MeshInfo
+    {
+        float64 minExtents[3];
+        float64 maxExtents[3];
+        float64 minEdgeLength;
+        float64 maxEdgeLength;
+    };
+
+    /**
+     * @brief Compute the mesh information.
+     *
+     * @param n_topo A topology to use for computing the mesh information.
+     * @param[out] info A struct that contains the mesh information.
+     */
+    void CONDUIT_BLUEPRINT_API compute_mesh_info(const conduit::Node &n_topo, MeshInfo &info);
+
+    /**
+     * @brief Output stream operator for MeshInfo
+     *
+     * @param os The output stream to use.
+     * @param obj The MeshInfo object to write.
+     *
+     * @return The output stream reference.
+     */
+    std::ostream & CONDUIT_BLUEPRINT_API operator << (std::ostream &os, const MeshInfo &obj);
+
+    //-------------------------------------------------------------------------
+    /**
+     * @brief Quantize a mesh node into an index by binning the points in a regular
+     *        grid determined using MeshInfo.
+     */
+    struct CONDUIT_BLUEPRINT_API Quantizer
+    {
+        using QuantizedIndex = uint64_t;
+
+        /// Constructor.
+        Quantizer(const MeshInfo &info);
+
+        /**
+         * @brief Quantize a single value using the binned spatial mesh, implied
+         *        by the MeshInfo.
+         *
+         * @param value The value to be quantized.
+         * @param dim The mesh dimension index (0,1,2) to be used for quantization.
+         *
+         * @return A quantized index along the dimension.
+         */
+        QuantizedIndex quantize(float64 value, index_t dim) const;
+
+        /**
+         * @brief Convert the input node into a quantized index in the binned
+         *        spatial mesh, implied by the MeshInfo.
+         *
+         * @param node A vector containing a point with 1-3 components.
+         *
+         * @return A quantized node index that can identify the node.
+         */
+        QuantizedIndex quantize(const std::vector<float64> &node) const;
+
+        MeshInfo meshInfo;
+        QuantizedIndex QX;
+        QuantizedIndex QY;
+        QuantizedIndex QXQY;
+    };
+
+    //-------------------------------------------------------------------------
     // -- begin conduit::blueprint::mesh::utils::topology::unstructured --
     //-------------------------------------------------------------------------
     namespace unstructured

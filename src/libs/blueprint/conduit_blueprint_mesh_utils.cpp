@@ -28,8 +28,10 @@
 #include "conduit_blueprint_o2mrelation.hpp"
 #include "conduit_blueprint_o2mrelation_iterator.hpp"
 #include "conduit_blueprint_mesh_utils.hpp"
+#include "conduit_blueprint_mesh_utils_iterate_elements.hpp"
 #include "conduit_execution.hpp"
 #include "conduit_annotations.hpp"
+#include "conduit_utils.hpp"
 #include "conduit_blueprint_mesh_kdtree.hpp"
 
 // access one-to-many index types
@@ -2316,6 +2318,161 @@ topology::search(const conduit::Node &topo1, const conduit::Node &topo2)
 
 //-----------------------------------------------------------------------------
 void
+topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &info)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+
+    // Get the coordset
+    const Node *n_coordset_ptr = find_reference_node(n_topo, "coordset");
+    if(n_coordset_ptr == nullptr)
+    {
+       CONDUIT_ERROR("Unable to get coordset for topology.");
+    }
+    const Node &n_coordset = *n_coordset_ptr;
+    if(n_coordset.fetch_existing("type").as_string() != "explicit")
+    {
+       CONDUIT_ERROR("Requires explicit coordset");
+    }
+
+    // Make coordset accessors for the components.
+    std::vector<double_accessor> coords;
+    for(const auto &axisName : conduit::blueprint::mesh::utils::coordset::axes(n_coordset))
+    {
+       coords.push_back(n_coordset.fetch_existing("values/" + axisName).as_double_accessor());
+    }
+
+    // Initialize the mesh information.
+    for(size_t i = 0; i < 3; i++)
+    {
+      info.minExtents[i] = (i < coords.size()) ? std::numeric_limits<double>::max() : 0.;
+      info.maxExtents[i] = (i < coords.size()) ? std::numeric_limits<double>::lowest() : 0.;
+    }
+    info.minEdgeLength = std::numeric_limits<double>::max();
+    info.maxEdgeLength = std::numeric_limits<double>::lowest();
+
+    // This lambda computes edge information for the edge between p0, p1.
+    auto computeEdgeInfo = [&](index_t p0, index_t p1)
+    {
+        double lenSquared = 0.;
+        for(size_t comp = 0; comp < coords.size(); comp++)
+        {
+            const auto &acc = coords[comp];
+            const auto v0 = acc[p0];
+            const auto v1 = acc[p1];
+            const auto dValue = v0 - v1;
+            lenSquared += dValue * dValue;
+
+            info.minExtents[comp] = std::min(info.minExtents[comp], v0);
+            info.maxExtents[comp] = std::max(info.maxExtents[comp], v0);
+        }
+
+        if(lenSquared > 0.)
+        {
+            info.minEdgeLength = std::min(info.minEdgeLength, lenSquared);
+            info.maxEdgeLength = std::max(info.maxEdgeLength, lenSquared);
+        }
+    };
+
+    // Iterate over all of the elements in the topology and compute the edge info
+    // for each element.
+    iterate_elements(n_topo, [&](const entity &e)
+    {
+        if(e.shape.is_polyhedral())
+        {
+            for(size_t f = 0; f < e.subelement_ids.size(); f++)
+            {
+                const auto &faceIds = e.subelement_ids[f];
+                index_t nIds = faceIds.size();
+                for(index_t i = 0; i < nIds; i++)
+                {
+                    computeEdgeInfo(faceIds[i], faceIds[(i + 1) % nIds]);
+                }
+            }
+        }
+        else if(e.shape.dim == 3)
+        {
+            for(index_t f = 0; f < e.shape.num_faces(); f++)
+            {
+                index_t nIds;
+                const auto *faceIds = e.shape.get_face(f, nIds);
+                for(index_t i = 0; i < nIds; i++)
+                {
+                    computeEdgeInfo(e.element_ids[faceIds[i]],
+                                    e.element_ids[faceIds[(i + 1) % nIds]]);
+                }
+            }
+        }
+        else if(e.shape.dim == 2)
+        {
+            const index_t nIds = static_cast<index_t>(e.element_ids.size());
+            for(index_t i = 0; i < nIds; i++)
+            {
+              computeEdgeInfo(e.element_ids[i],
+                              e.element_ids[(i + 1) % nIds]);
+            }
+        }
+    });
+
+    // If we had edges then the min,max edge lengths will be greater than zero.
+    // Turn them from len squared to len by taking the square root.
+    info.minEdgeLength = (info.minEdgeLength > 0.) ? sqrt(info.minEdgeLength) : 1.;
+    info.maxEdgeLength = (info.maxEdgeLength > 0.) ? sqrt(info.maxEdgeLength) : 1.;
+}
+
+//-----------------------------------------------------------------------------
+namespace topology
+{
+std::ostream &operator << (std::ostream &os, const MeshInfo &obj)
+{
+    os << "{minExtents={" << obj.minExtents[0] << ", " << obj.minExtents[1] << ", " << obj.minExtents[2] << "}, "
+       << "maxExtents={" << obj.maxExtents[0] << ", " << obj.maxExtents[1] << ", " << obj.maxExtents[2] << "}, "
+       << "minEdgeLength=" << obj.minEdgeLength << ", "
+       << "maxEdgeLength=" << obj.maxEdgeLength << "}";
+    return os;
+}
+} // end topology namespace
+
+//-----------------------------------------------------------------------------
+topology::Quantizer::Quantizer(const topology::MeshInfo &info) : meshInfo(info)
+{
+    // Set some values derived from the MeshInfo.
+    QX = std::max(uint64_t{1}, static_cast<uint64_t>(ceil((meshInfo.maxExtents[0] - meshInfo.minExtents[0]) / meshInfo.minEdgeLength)));
+    QY = std::max(uint64_t{1}, static_cast<uint64_t>(ceil((meshInfo.maxExtents[1] - meshInfo.minExtents[1]) / meshInfo.minEdgeLength)));
+    QXQY = QX * QY;
+}
+
+topology::Quantizer::QuantizedIndex
+topology::Quantizer::quantize(float64 value, index_t component) const
+{
+    CONDUIT_ASSERT(component >= 0 && component < 3, "Valid components are 0,1,2");
+    return static_cast<QuantizedIndex>((value - meshInfo.minExtents[component]) / meshInfo.minEdgeLength);
+}
+
+topology::Quantizer::QuantizedIndex
+topology::Quantizer::quantize(const std::vector<float64> &node) const
+{
+    CONDUIT_ASSERT(node.size() <= 3, "Node has invalid number of components");
+    QuantizedIndex qIndex = 0;
+    switch(node.size())
+    {
+    default:
+        CONDUIT_ERROR("Unsupported number of components.");
+        break;
+    case 3:
+        qIndex += QXQY * quantize(node[2], 2);
+        // Falls through
+    case 2:
+        qIndex += QX * quantize(node[1], 1);
+        // Falls through
+    case 1:
+        qIndex += quantize(node[0], 0);
+        break;
+    }
+    return qIndex;
+}
+
+//-----------------------------------------------------------------------------
+void
 topology::unstructured::generate_offsets_inline(Node &topo)
 {
     // check for polyhedral case
@@ -3140,8 +3297,16 @@ adjset::validate(const conduit::Node &doms,
                 ss << "Domain " << domain_id << " adjset " << adjsetName
                    << " group " << groupName
                    << ": vertex " << ptid
-                   << " (" << coord[0] << ", " << coord[1]
-                   << ", " << coord[2] << ") at index " << ptid
+                   << " (" << coord[0];
+                if(coord.size() > 1)
+                {
+                    ss << ", " << coord[1];
+                }
+                if(coord.size() > 2)
+                {
+                    ss << ", " << coord[2];
+                }
+                ss << ") at index " << ptid
                    << " could not be located in neighbor domain "
                    << nbr << ".";
 

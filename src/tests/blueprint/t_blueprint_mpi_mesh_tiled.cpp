@@ -26,7 +26,10 @@
 #include <algorithm>
 #include <vector>
 #include <string>
+#include <sstream>
+
 #include <mpi.h>
+
 #include "gtest/gtest.h"
 
 using namespace conduit;
@@ -35,6 +38,9 @@ using namespace generate;
 
 // Uncomment if we want to write the data files.
 //#define CONDUIT_WRITE_TEST_DATA
+
+// Uncomment for more verbose test output during debugging.
+//#define CONDUIT_DEBUG_TEST
 
 //---------------------------------------------------------------------------
 #ifdef CONDUIT_WRITE_TEST_DATA
@@ -87,6 +93,9 @@ make_tiled(conduit::Node &mesh, const int dims[3], const int domains[3],
         offset += domains_per_rank[i];
 
     // Make domains.
+#ifdef CONDUIT_DEBUG_TEST
+    std::stringstream ss;
+#endif
     const double extents[] = {0., 1., 0., 1., 0., 1.};
     int domainIndex = 0;
     for(int k = 0; k < domains[2]; k++)
@@ -118,17 +127,17 @@ make_tiled(conduit::Node &mesh, const int dims[3], const int domains[3],
             opts["domains"].set(domains, 3);
             opts["reorder"] = reorder;
 
+#ifdef CONDUIT_DEBUG_TEST
+            ss << "Rank " << par_rank << " makes domain " << domainId
+               << ", ijk={" << domain[0] << ", " << domain[1] << ", " << domain[2] << "}"
+               << ", extents={" << domainExt[0] << ", " << domainExt[1]
+               << ", " << domainExt[2] << ", " << domainExt[3]
+               << ", " << domainExt[4] << ", " << domainExt[5] << "}"
+               << ", reorder=\"" << reorder << "\"\n";
+#endif
             if(ndoms > 1)
             {
-                std::string domainName;
-                if(!domainNumbering.empty())
-                {
-                    domainName = conduit_fmt::format("domain_{:07}",domainNumbering[domainIndex]);
-                }
-                else
-                {
-                    domainName = conduit_fmt::format("domain_{:07}",domainIndex);
-                }
+                std::string domainName = conduit_fmt::format("domain_{:07}",domainId);
                 conduit::Node &dom = mesh[domainName];
                 conduit::blueprint::mesh::examples::tiled(dims[0], dims[1], dims[2], dom, opts);
             }
@@ -138,6 +147,19 @@ make_tiled(conduit::Node &mesh, const int dims[3], const int domains[3],
             }
         }
     }
+
+#ifdef CONDUIT_DEBUG_TEST
+    // Print some build messages.
+    for(int rank = 0; rank < par_size; rank++)
+    {
+        MPI_Barrier(MPI_COMM_WORLD);
+        if(rank == par_rank)
+        {
+           std::cout << ss.str();
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -224,7 +246,7 @@ test_tiled_adjsets(const int dims[3], const std::string &testName)
             in_rank_order(MPI_COMM_WORLD, [&](int rank) {
                 if(!same)
                 {
-                    if(info.number_of_children() > 0)
+                    if(info.number_of_children() > 0 && info["valid"].as_string() == "false")
                     {
                         std::cout << "Rank " << rank << ": mesh_adjset was different."
                                   << " domainNumbering=" << domainNumbering
@@ -241,7 +263,7 @@ test_tiled_adjsets(const int dims[3], const std::string &testName)
             in_rank_order(MPI_COMM_WORLD, [&](int rank) {
                 if(!same)
                 {
-                    if(info.number_of_children() > 0)
+                    if(info.number_of_children() > 0 && info["valid"].as_string() == "false")
                     {
                         std::cout << "Rank " << rank << ": corner_pairwise_adjset was different."
                                   << " domainNumbering=" << domainNumbering
