@@ -582,7 +582,7 @@ namespace topology
      *
      * @return The output stream reference.
      */
-    std::ostream & CONDUIT_BLUEPRINT_API operator << (std::ostream &os, const MeshInfo &obj);
+    std::ostream &operator << (std::ostream &os, const MeshInfo &obj);
 
     //-------------------------------------------------------------------------
     /**
