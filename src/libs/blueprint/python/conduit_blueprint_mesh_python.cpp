@@ -197,7 +197,7 @@ PyBlueprint_mesh_generate_index(PyObject *, //self
 }
 
 //---------------------------------------------------------------------------//
-// conduit::blueprint::mesh::generate_index
+// conduit::blueprint::mesh::partition
 //---------------------------------------------------------------------------//
 
 // doc str
@@ -276,6 +276,10 @@ PyBlueprint_mesh_partition(PyObject *, //self
 
     Py_RETURN_NONE;
 }
+
+//---------------------------------------------------------------------------//
+// conduit::blueprint::mesh::flatten
+//---------------------------------------------------------------------------//
 
 // doc str
 const char *PyBlueprint_mesh_flatten_doc_str =

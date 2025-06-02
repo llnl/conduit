@@ -102,6 +102,8 @@ TEST(blueprint_mpi_relay, basic_use)
                                                   "hdf5",
                                                   comm);
 
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(dset, output_base, "hdf5", comm));
+
     // read this back using read_mesh, should diff clean
     Node n_read, n_diff_info;
     conduit::relay::mpi::io::blueprint::read_mesh(output_root,
@@ -170,6 +172,8 @@ TEST(blueprint_mpi_relay, mpi_mesh_examples_braid)
                                                   "hdf5",
                                                   comm);
 
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(dset, output_base, "hdf5", comm));
+
     // read this back using read_mesh, should diff clean
     Node n_read, n_diff_info;
     conduit::relay::mpi::io::blueprint::read_mesh(output_root,
@@ -235,8 +239,8 @@ TEST(blueprint_mpi_relay, mpi_mesh_examples_spiral_5doms)
     // make sure the files don't exist
     if(par_rank == 0)
     {
-        string output_dir  = output_base + ".cycle_000000";
-        string output_root = output_base + ".cycle_000000.root";
+        const string output_dir  = output_base + ".cycle_000000";
+        const string output_root = output_base + ".cycle_000000.root";
 
         // remove existing output
         remove_path_if_exists(output_dir);
@@ -253,7 +257,8 @@ TEST(blueprint_mpi_relay, mpi_mesh_examples_spiral_5doms)
     // note the domain ids will change, so we don't expect
     // this to diff clean
 
-    string output_root = output_base + ".cycle_000000.root";
+    const string output_root = output_base + ".cycle_000000.root";
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(dset, output_base, "hdf5", comm));
     Node n_read, n_diff_info;
     conduit::relay::mpi::io::blueprint::read_mesh(output_root,
                                                   n_read,
@@ -353,7 +358,8 @@ TEST(blueprint_mpi_relay, mpi_mesh_examples_spiral_1dom)
                                                   comm);
 
     // read this back using read_mesh, should diff clean
-    string output_root = output_base + ".cycle_000000.root";
+    const string output_root = output_base + ".cycle_000000.root";
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(dset, output_base, "hdf5", opts, comm));
     Node n_read, n_diff_info;
     conduit::relay::mpi::io::blueprint::read_mesh(output_root,
                                                   n_read,
@@ -513,6 +519,7 @@ TEST(blueprint_mpi_relay, spiral_multi_file)
 
         EXPECT_TRUE(conduit::utils::is_directory(output_dir));
         EXPECT_TRUE(conduit::utils::is_file(output_root));
+        EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(data, output_base, "hdf5", opts, comm));
 
         for(int i=0;i<nfiles_to_check;i++)
         {
@@ -626,19 +633,21 @@ TEST(blueprint_mpi_relay, spiral_root_only)
     Node opts;
     opts["suffix"] = "none";
     opts["file_style"] = "root_only";
-    std::string tout_base = "tout_relay_mpi_spiral_root_only_hdf5";
+    const std::string tout_base = "tout_relay_mpi_spiral_root_only_hdf5";
+    const std::string tout_root = tout_base + ".root";
 
-    remove_path_if_exists(tout_base + ".root");
+    remove_path_if_exists(tout_root);
     conduit::relay::mpi::io::blueprint::save_mesh(data,
                                                   tout_base,
                                                   "hdf5",
                                                   opts,
                                                   comm);
-    EXPECT_TRUE(conduit::utils::is_file(tout_base + ".root"));
+    EXPECT_TRUE(conduit::utils::is_file(tout_root));
+    EXPECT_EQ(tout_root, relay::mpi::io::blueprint::generate_root_filename(data, tout_base, "hdf5", opts, comm));
 
     // read the mesh back in diff to make sure we have the same data
     Node n_read, info;
-    relay::mpi::io::blueprint::read_mesh(tout_base + ".root",
+    relay::mpi::io::blueprint::read_mesh(tout_root,
                                          n_read,
                                          comm);
 
@@ -712,7 +721,8 @@ TEST(blueprint_mpi_relay, test_write_error_hang)
     Node opts;
     opts["number_of_files"] = 2;
 
-    remove_path_if_exists(output_base + ".cycle_000100.root");
+    const std::string output_root = output_base + ".cycle_000100.root";
+    remove_path_if_exists(output_root);
     remove_path_if_exists(output_base + ".cycle_000100/file_000000.hdf5");
     remove_path_if_exists(output_base + ".cycle_000100/file_000001.hdf5");
 
@@ -785,9 +795,11 @@ TEST(blueprint_mpi_relay, test_write_error_hang)
                                                   opts,
                                                   comm);
 
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(data, output_base, "hdf5", opts, comm));
+
     Node n_read, info;
     // load mesh back back in and diff to check values
-    relay::mpi::io::blueprint::load_mesh(output_base + ".cycle_000100.root",
+    relay::mpi::io::blueprint::load_mesh(output_root,
                                          n_read,
                                          comm);
 
@@ -878,15 +890,17 @@ TEST(blueprint_mpi_relay, test_sparse_domains_case_1)
     EXPECT_TRUE(conduit::blueprint::mesh::verify(data,verify_info));
 
     Node opts; // empty for now
-    std::string tout_base = "tout_relay_mpi_sparse_case_1_hdf5";
+    const std::string tout_base = "tout_relay_mpi_sparse_case_1_hdf5";
+    const std::string tout_root = tout_base + ".cycle_000000.root";
 
-    remove_path_if_exists(tout_base + ".cycle_000000.root");
+    remove_path_if_exists(tout_root);
     conduit::relay::mpi::io::blueprint::save_mesh(data,
                                                   tout_base,
                                                   "hdf5",
                                                   opts,
                                                   comm);
-    EXPECT_TRUE(conduit::utils::is_file(tout_base + ".cycle_000000.root"));
+    EXPECT_TRUE(conduit::utils::is_file(tout_root));
+    EXPECT_EQ(tout_root, relay::mpi::io::blueprint::generate_root_filename(data, tout_base, "hdf5", opts, comm));
 
 }
 
@@ -972,15 +986,17 @@ TEST(blueprint_mpi_relay, test_sparse_domains_case_2)
     }
 
     Node opts; // empty for now
-    std::string tout_base = "tout_relay_mpi_sparse_case_2_hdf5";
+    const std::string tout_base = "tout_relay_mpi_sparse_case_2_hdf5";
+    const std::string tout_root = tout_base + ".cycle_000000.root";
 
-    remove_path_if_exists(tout_base + ".cycle_000000.root");
+    remove_path_if_exists(tout_root);
     conduit::relay::mpi::io::blueprint::save_mesh(data,
                                                   tout_base,
                                                   "hdf5",
                                                   opts,
                                                   comm);
-    EXPECT_TRUE(conduit::utils::is_file(tout_base + ".cycle_000000.root"));
+    EXPECT_TRUE(conduit::utils::is_file(tout_root));
+    EXPECT_EQ(tout_root, relay::mpi::io::blueprint::generate_root_filename(data, tout_base, "hdf5", opts, comm));
 
 
 
@@ -1069,16 +1085,17 @@ TEST(blueprint_mpi_relay, test_sparse_domains_case_3)
 
     Node opts;
     opts["suffix"] = "cycle";
-    std::string tout_base = "tout_relay_mpi_sparse_case_3_hdf5";
+    const std::string tout_base = "tout_relay_mpi_sparse_case_3_hdf5";
+    const std::string tout_root = tout_base + ".cycle_000000.root";
 
-    remove_path_if_exists(tout_base + ".cycle_000000.root");
+    remove_path_if_exists(tout_root);
     conduit::relay::mpi::io::blueprint::save_mesh(data,
                                                   tout_base,
                                                   "hdf5",
                                                   opts,
                                                   comm);
-    EXPECT_TRUE(conduit::utils::is_file(tout_base + ".cycle_000000.root"));
-
+    EXPECT_TRUE(conduit::utils::is_file(tout_root));
+    EXPECT_EQ(tout_root, relay::mpi::io::blueprint::generate_root_filename(data, tout_base, "hdf5", opts, comm));
 
 
 }
@@ -1158,7 +1175,8 @@ TEST(blueprint_mpi_relay, spiral_multi_file_yaml_json_hdf5_silo)
     // note the domain ids will change, so we don't expect
     // this to diff clean
 
-    string output_root = output_base + ".cycle_000000.root";
+    const string output_root = output_base + ".cycle_000000.root";
+    EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(dset, output_base, "hdf5", comm));
     Node n_read, n_diff_info;
     conduit::relay::mpi::io::blueprint::read_mesh(output_root,
                                                   n_read,
@@ -1256,6 +1274,8 @@ TEST(conduit_blueprint_mesh_relay, spiral_multi_file_yaml_json_hdf5_silo)
                                                        output_base,
                                                        protocol,
                                                        comm);
+
+        EXPECT_EQ(output_root, relay::mpi::io::blueprint::generate_root_filename(data, output_base, protocol, comm));
 
         // make sure we can load back, this tests the auto detection
         // of the file type

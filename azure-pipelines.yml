@@ -9,7 +9,7 @@
 #####
 variables:
   ubuntu_20_04_tag: alpinedav/ascent-devel:ubuntu-20.04-x86_64
-  ubuntu_21_10_tag: alpinedav/ascent-devel:ubuntu-21.10-devel
+  ubuntu_22_04_tag: alpinedav/ascent-devel:ubuntu-22.04-devel
 
 # only build merge target pr to develop
 trigger: none
@@ -47,7 +47,7 @@ stages:
   ###############################################################################
   # Ubuntu 18 build and test, using spack to build tpls
   #
-  # When setup in Ascent, Azure didint have an Ubuntu 18 dev image, so we are 
+  # When setup in Ascent, Azure didint have an Ubuntu 18 dev image, so we are
   #  using the standard Ubuntu 18 container.
   #
   ###############################################################################
@@ -79,11 +79,11 @@ stages:
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: OFF
           ENABLE_PYTHON: OFF
-          CMAKE_VERSION: 3.21.1
+          CMAKE_VERSION: 3.21.7
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
-        ub_20_04_static_py37_cmake_3_21:
+        ub_20_04_static_py39_cmake_3_21:
           containerImage: ${{ variables.ubuntu_20_04_tag }}
           COMPILER_CC: gcc
           COMPILER_CXX: g++
@@ -104,12 +104,13 @@ stages:
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: ON
           ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.7.16
-          CMAKE_VERSION: 3.21.1
+          PYTHON_VERSION: 3.9.19
+          CMAKE_VERSION: 3.21.7
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
-        ub_20_04_shared_py37_cmake_3_21:
+
+        ub_20_04_shared_py39_cmake_3_21:
           containerImage: ${{ variables.ubuntu_20_04_tag }}
           COMPILER_CC: gcc
           COMPILER_CXX: g++
@@ -130,38 +131,12 @@ stages:
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: ON
           ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.7.16
-          CMAKE_VERSION: 3.21.1
+          PYTHON_VERSION: 3.9.19
+          CMAKE_VERSION: 3.21.7
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
-        ub_20_04_shared_py38_cmake_3_21:
-          containerImage: ${{ variables.ubuntu_20_04_tag }}
-          COMPILER_CC: gcc
-          COMPILER_CXX: g++
-          COMPILER_FC: gfortran
-          COMPILER_SPEC: gcc
-          FORCE_COMPILERS: OFF
-          BUILD_SHARED_LIBS: ON
-          CMAKE_BUILD_TYPE: Debug
-          ENABLE_COVERAGE: OFF
-          ENABLE_MPI: ON
-          ENABLE_DOCS: ON
-          ENABLE_RELAY_WEBSERVER: ON
-          ENABLE_OPENMP: ON
-          ENABLE_HDF5: ON
-          ENABLE_HDF5_COMPAT: ON
-          HDF5_SPEC: "hdf5~mpi"
-          ENABLE_SILO: ON
-          ENABLE_ADIOS: OFF
-          ENABLE_PARMETIS: ON
-          ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.8.16
-          CMAKE_VERSION: 3.21.1
-          BLT_CXX_STD: c++14
-          BLT_ENABLE_FIND_MPI: ON
-
-        ub_20_04_shared_py38_cmake_3_21_hdf5_1_10:
+        ub_20_04_shared_py39_cmake_3_21_hdf5_1_10:
           containerImage: ${{ variables.ubuntu_20_04_tag }}
           COMPILER_CC: gcc
           COMPILER_CXX: g++
@@ -182,12 +157,12 @@ stages:
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: ON
           ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.8.16
-          CMAKE_VERSION: 3.21.1
+          PYTHON_VERSION: 3.9.19
+          CMAKE_VERSION: 3.21.7
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
-        ub_20_04_shared_py38_cmake_3_21_hdf5_1_12:
+        ub_20_04_shared_py39_cmake_3_21_hdf5_1_12:
           containerImage: ${{ variables.ubuntu_20_04_tag }}
           COMPILER_CC: gcc
           COMPILER_CXX: g++
@@ -210,8 +185,8 @@ stages:
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: ON
           ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.8.16
-          CMAKE_VERSION: 3.21.1
+          PYTHON_VERSION: 3.9.19
+          CMAKE_VERSION: 3.21.7
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
@@ -238,12 +213,12 @@ stages:
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: ON
           ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.10.10
-          CMAKE_VERSION: 3.24.2
+          PYTHON_VERSION: 3.10.14
+          CMAKE_VERSION: 3.24.4
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
-        ub_20_04_shared_py310_cmake_3_26_hdf5_1_14:
+        ub_20_04_shared_py310_cmake_3_30_hdf5_1_14:
           containerImage: ${{ variables.ubuntu_20_04_tag }}
           COMPILER_CC: gcc
           COMPILER_CXX: g++
@@ -266,8 +241,8 @@ stages:
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: ON
           ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.10.10
-          CMAKE_VERSION: 3.26.0
+          PYTHON_VERSION: 3.10.14
+          CMAKE_VERSION: 3.30.5
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
@@ -320,12 +295,12 @@ stages:
           ENABLE_SILO: ON
           ENABLE_ADIOS: OFF
           ENABLE_PYTHON: OFF
-          CMAKE_VERSION: 3.21.1
+          CMAKE_VERSION: 3.21.7
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: OFF
 
-        ub_21_10_shared_py38_cmake_3_21:
-          containerImage: ${{ variables.ubuntu_21_10_tag }}
+        ub_22_04_shared_py39_cmake_3_21:
+          containerImage: ${{ variables.ubuntu_22_04_tag }}
           COMPILER_CC: gcc
           COMPILER_CXX: g++
           COMPILER_FC: gfortran
@@ -345,8 +320,8 @@ stages:
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: ON
           ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.8.16
-          CMAKE_VERSION: 3.21.1
+          PYTHON_VERSION: 3.9.19
+          CMAKE_VERSION: 3.21.7
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
@@ -381,6 +356,8 @@ stages:
            if [ $ENABLE_MPI  = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC}+mpi"; fi
            if [ $ENABLE_MPI  = 'OFF' ]; then export SPACK_SPEC="${SPACK_SPEC}~mpi"; fi
            # hdf5
+           if [ $ENABLE_HDF5 = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC}+hdf5"; fi
+           if [ $ENABLE_HDF5 = 'OFF' ]; then export SPACK_SPEC="${SPACK_SPEC}~hdf5"; fi
            if [ $ENABLE_HDF5_COMPAT = 'OFF' ]; then export SPACK_SPEC="${SPACK_SPEC}~hdf5_compat"; fi
            # silo
            if [ $ENABLE_SILO  = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC}+silo"; fi
@@ -397,9 +374,9 @@ stages:
            # docs
            if [ $ENABLE_DOCS  = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC}+doc"; fi
            if [ $ENABLE_DOCS  = 'OFF' ]; then export SPACK_SPEC="${SPACK_SPEC}~doc"; fi
-           # openmp
-           if [ $ENABLE_OPENMP  = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC}+openmp"; fi
-           if [ $ENABLE_OPENMP  = 'OFF' ]; then export SPACK_SPEC="${SPACK_SPEC}~openmp"; fi
+           # openmp # NOTE: OpenMP is not in main spack pkg
+           # if [ $ENABLE_OPENMP  = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC}+openmp"; fi
+           # if [ $ENABLE_OPENMP  = 'OFF' ]; then export SPACK_SPEC="${SPACK_SPEC}~openmp"; fi
            # package ver selections and extra tweaks
            export SPACK_SPEC="${SPACK_SPEC} ^cmake@${CMAKE_VERSION}"
            # python constraints
@@ -407,7 +384,7 @@ stages:
            # hdf5 constraints
            if [ $ENABLE_HDF5 = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC} ^${HDF5_SPEC}"; fi
            # silo constraints
-           if [ $ENABLE_SILO = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC} ^silo~mpi"; fi
+           if [ $ENABLE_SILO = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC} ^silo~mpi~python"; fi
            # show final spec
            echo "SPACK SPEC:"
            echo $SPACK_SPEC
@@ -609,19 +586,21 @@ stages:
           export PATH=${CMAKE_BIN_DIR}:$PATH
           echo $PATH
           # find spack installed python (use spack view dir)
-          export PYTHON_EXE=`ls ${ROOT_DIR}/uberenv_libs/spack_view/bin/python3` 
+          export SPACK_ENV_VIEW_PATH=${ROOT_DIR}/uberenv_libs/spack_view/view/
+          export PYTHON_EXE=`ls ${SPACK_ENV_VIEW_PATH}/bin/python3`
+          echo "PYTHON_EXE=${PYTHON_EXE}"
           # add conduit module to python path
           export PYTHONPATH=${ROOT_DIR}/install/python-modules/
           # NOTE:
           #  also add spack's python view dir to python path env var
-          #  this wasn't needed with older spack. 
+          #  this wasn't needed with older spack.
           #  I think embedded linking logic is resolving symlinks and therefore
           #  not using view layout that wires up dependent python modules
-          py_site_pkgs_dir=`ls -d ${ROOT_DIR}/uberenv_libs/spack_view/lib/python*/site-packages`
+          py_site_pkgs_dir=`ls -d ${SPACK_ENV_VIEW_PATH}/lib/python*/site-packages`
           export PYTHONPATH=${PYTHONPATH}:${py_site_pkgs_dir}
           echo $PYTHONPATH
           # CI LD_LIB FIX
-          # NOTE: 
+          # NOTE:
           #  THIS LD+_LIB FIX FOR AN ISSUE THAT OCCURED IN A CI PYTHON 2.7 STATIC LIBS TEST CASE
           #  Since the issue is related to hdf5 (not python!) we should investigate further.
           #

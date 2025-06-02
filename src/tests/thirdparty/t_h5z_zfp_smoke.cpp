@@ -69,13 +69,13 @@ TEST(h5z_zfp_smoke, basic_use)
     H5Pset_zfp_rate(dataset_cprops_id, 4);
 
     /* Create the dataset. */
-    dataset_id = H5Dcreate2(file_id,
-                            "/compressed_dset",
-                            H5T_NATIVE_DOUBLE,
-                            dataspace_id,
-                            H5P_DEFAULT,
-                            dataset_cprops_id,
-                            H5P_DEFAULT);
+    dataset_id = H5Dcreate(file_id,
+                           "/compressed_dset",
+                           H5T_NATIVE_DOUBLE,
+                           dataspace_id,
+                           H5P_DEFAULT,
+                           dataset_cprops_id,
+                           H5P_DEFAULT);
 
     EXPECT_TRUE (dataset_id >= 0);
 

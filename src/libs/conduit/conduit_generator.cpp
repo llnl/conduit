@@ -11,7 +11,7 @@
 #include "conduit_config.hpp"
 
 //-----------------------------------------------------------------------------
-// -- standard lib includes -- 
+// -- standard lib includes --
 //-----------------------------------------------------------------------------
 #include <stdio.h>
 #include <cstdlib>
@@ -31,13 +31,13 @@
 
 
 //-----------------------------------------------------------------------------
-// -- libyaml includes -- 
+// -- libyaml includes --
 //-----------------------------------------------------------------------------
 #include "yaml.h"
 
 
 //-----------------------------------------------------------------------------
-// -- conduit library includes -- 
+// -- conduit library includes --
 //-----------------------------------------------------------------------------
 #include "conduit_error.hpp"
 #include "conduit_utils.hpp"
@@ -127,18 +127,18 @@ public:
 // We want to isolate the conduit API from the rapidjson headers
 // so any methods using rapidjson types are defined in here.
 // "friend Generator" in Node, allows Generator::Parser to construct complex
-// nodes. 
+// nodes.
 //-----------------------------------------------------------------------------
   class JSON
   {
   public:
-      
+
     static const conduit_json::ParseFlag JSON_PARSE_OPTS = conduit_json::kParseNoFlags;
-    
+
     static index_t json_to_numeric_dtype(const conduit_json::Value &jvalue);
-    
+
     static index_t check_homogenous_json_array(const conduit_json::Value &jvalue);
-    
+
     static void    parse_json_int64_array(const conduit_json::Value &jvalue,
                                           std::vector<int64> &res);
 
@@ -148,7 +148,7 @@ public:
 
     static void    parse_json_int64_array(const conduit_json::Value &jvalue,
                                           Node &node);
-                                          
+
     static void    parse_json_uint64_array(const conduit_json::Value &jvalue,
                                            std::vector<uint64> &res);
 
@@ -156,10 +156,10 @@ public:
     static void    parse_json_uint64_array(const conduit_json::Value &jvalue,
                                           uint64_array &res);
 
-                                           
+
     static void    parse_json_uint64_array(const conduit_json::Value &jvalue,
                                            Node &node);
-                                           
+
     static void    parse_json_float64_array(const conduit_json::Value &jvalue,
                                             std::vector<float64> &res);
 
@@ -169,26 +169,26 @@ public:
 
     static void    parse_json_float64_array(const conduit_json::Value &jvalue,
                                             Node &node);
-    
+
     static void    parse_leaf_dtype(const conduit_json::Value &jvalue,
                                     index_t offset,
                                     DataType &dtype_res);
-                                    
+
     static void    parse_inline_leaf(const conduit_json::Value &jvalue,
                                      Node &node);
     static void*   parse_inline_address(const conduit_json::Value& jvalue);
 
     static void    parse_inline_value(const conduit_json::Value &jvalue,
                                       Node &node);
-                                      
+
     static void    walk_json_schema(Schema *schema,
                                     const   conduit_json::Value &jvalue,
                                     index_t curr_offset);
-                                    
+
     static void    walk_pure_json_schema(Node  *node,
                                          Schema *schema,
                                          const conduit_json::Value &jvalue);
-    
+
     // if data pointer is provided, data is copied into dest node
     static void    walk_json_schema(Node   *node,
                                     Schema *schema,
@@ -215,7 +215,7 @@ public:
 // We want to isolate the conduit API from the libyaml headers
 // so any methods using libyaml types are defined in here.
 // "friend Generator" in Node, allows Generator::Parser to construct complex
-// nodes. 
+// nodes.
 //-----------------------------------------------------------------------------
   class YAML
   {
@@ -225,8 +225,8 @@ public:
     //-----------------------------------------------------------------------------
     // Wrappers around libyaml c API that help us parse
     //-----------------------------------------------------------------------------
-     
-    // YAMLParserWrapper class helps with libyaml cleanup when 
+
+    // YAMLParserWrapper class helps with libyaml cleanup when
     // exceptions are thrown during parsing
     class YAMLParserWrapper
     {
@@ -250,7 +250,7 @@ public:
 
     };
 
-    // 
+    //
     // yaml scalar (aka leaf) values are always strings, however that is
     // not a very useful way to parse into Conduit tree. We apply json
     // rules to the yaml leaves to get more useful types in Conduit
@@ -258,10 +258,10 @@ public:
     // excluded from the JSON-like rules are:
     //  boolean literals (true, false)
     //  the null literal (null)
-    // 
+    //
     // This is b/c we can't distinguish between string values like
     //    "true"
-    // vs non-quoted literals like 
+    // vs non-quoted literals like
     //    true
     // with the yaml parser
     //
@@ -329,13 +329,13 @@ public:
     static index_t yaml_leaf_to_numeric_dtype(const char *txt_value);
 
     // checks if the input yaml node is a homogenous numeric sequence
-    // 
+    //
     // if not: returns DataType::EMPTY_T and seq_size = -1
     //
     // if so:
     //  seq_size contains the sequence length and:
-    //  if homogenous integer sequence returns DataType::INT64_T 
-    //  if homogenous floating point sequence returns DataType::FLOAT64_T 
+    //  if homogenous integer sequence returns DataType::INT64_T
+    //  if homogenous floating point sequence returns DataType::FLOAT64_T
     static index_t check_homogenous_yaml_numeric_sequence(const Node &node,
                                                           yaml_document_t *yaml_doc,
                                                           const yaml_node_t *yaml_node,
@@ -364,7 +364,7 @@ public:
     static void    parse_base64(Node *node,
                                 yaml_document_t *yaml_doc,
                                 yaml_node_t *yaml_node);
-    
+
     // extract human readable parser errors
     static void    parse_error_details(yaml_parser_t *yaml_parser,
                                        std::ostream &os);
@@ -423,7 +423,7 @@ Generator::Parser::string_is_integer(const char *txt_value)
 }
 
 //---------------------------------------------------------------------------//
-double 
+double
 Generator::Parser::string_to_double(const char *txt_value)
 {
     char *val_end = NULL;
@@ -447,7 +447,7 @@ Generator::Parser::string_to_unsigned_long(const char *txt_value)
 }
 
 //---------------------------------------------------------------------------//
-index_t 
+index_t
 Generator::Parser::parse_leaf_dtype_name(const std::string &dtype_name)
 {
     index_t dtype_id = DataType::name_to_id(dtype_name);
@@ -473,15 +473,15 @@ Generator::Parser::parse_leaf_dtype_name(const std::string &dtype_name)
 //-----------------------------------------------------------------------------
 
 //---------------------------------------------------------------------------//
-index_t 
+index_t
 Generator::Parser::JSON::json_to_numeric_dtype(const conduit_json::Value &jvalue)
 {
-    index_t res = DataType::EMPTY_ID; 
+    index_t res = DataType::EMPTY_ID;
     if(jvalue.IsNumber())
     {
         // TODO: We could have better logic for dealing with int vs uint
-        if(jvalue.IsUint64() || 
-           jvalue.IsInt64()  || 
+        if(jvalue.IsUint64() ||
+           jvalue.IsInt64()  ||
            jvalue.IsUint()   ||
            jvalue.IsInt())
         {
@@ -490,7 +490,7 @@ Generator::Parser::JSON::json_to_numeric_dtype(const conduit_json::Value &jvalue
         else if(jvalue.IsDouble())
         {
             res  = DataType::FLOAT64_ID; // for float
-        } 
+        }
         // else -- value already inited to EMPTY_ID
     }
     else if(jvalue.IsString()) // we may have strings that are nan, inf, etc
@@ -514,7 +514,7 @@ Generator::Parser::JSON::check_homogenous_json_array(const conduit_json::Value &
 
     if(jvalue.Size() == 0)
         return DataType::EMPTY_ID;
-    
+
     // we could also have string reps of nan, infinity, etc.
     // json_to_numeric_dtype handles that case fo us
 
@@ -553,7 +553,7 @@ Generator::Parser::JSON::parse_json_int64_array(const conduit_json::Value &jvalu
    }
 }
 
-//---------------------------------------------------------------------------// 
+//---------------------------------------------------------------------------//
 void
 Generator::Parser::JSON::parse_json_int64_array(const conduit_json::Value &jvalue,
                                                 int64_array &res)
@@ -571,10 +571,10 @@ void
 Generator::Parser::JSON::parse_json_int64_array(const conduit_json::Value &jvalue,
                                                 Node &node)
 {
-    // TODO: we can make this more efficient 
+    // TODO: we can make this more efficient
     std::vector<int64> vals;
     parse_json_int64_array(jvalue,vals);
-    
+
     switch(node.dtype().id())
     {
         // signed ints
@@ -602,7 +602,7 @@ Generator::Parser::JSON::parse_json_int64_array(const conduit_json::Value &jvalu
             break;
         case DataType::UINT64_ID:
             node.as_uint64_array().set(vals);
-            break;  
+            break;
         //floats
         case DataType::FLOAT32_ID:
             node.as_float32_array().set(vals);
@@ -630,7 +630,7 @@ Generator::Parser::JSON::parse_json_uint64_array(const conduit_json::Value &jval
     }
 }
 
-//---------------------------------------------------------------------------// 
+//---------------------------------------------------------------------------//
 void
 Generator::Parser::JSON::parse_json_uint64_array(const conduit_json::Value &jvalue,
                                                  uint64_array &res)
@@ -647,10 +647,10 @@ void
 Generator::Parser::JSON::parse_json_uint64_array(const conduit_json::Value &jvalue,
                                                  Node &node)
 {
-    // TODO: we can make this more efficient 
+    // TODO: we can make this more efficient
     std::vector<uint64> vals;
     parse_json_uint64_array(jvalue,vals);
-    
+
     switch(node.dtype().id())
     {
         // signed ints
@@ -678,7 +678,7 @@ Generator::Parser::JSON::parse_json_uint64_array(const conduit_json::Value &jval
             break;
         case DataType::UINT64_ID:
             node.as_uint64_array().set(vals);
-            break;  
+            break;
         //floats
         case DataType::FLOAT32_ID:
             node.as_float32_array().set(vals);
@@ -719,7 +719,7 @@ Generator::Parser::JSON::parse_json_float64_array(const conduit_json::Value &jva
     }
 }
 
-//---------------------------------------------------------------------------// 
+//---------------------------------------------------------------------------//
 void
 Generator::Parser::JSON::parse_json_float64_array(const conduit_json::Value &jvalue,
                                                   float64_array &res)
@@ -750,10 +750,10 @@ void
 Generator::Parser::JSON::parse_json_float64_array(const conduit_json::Value &jvalue,
                                                   Node &node)
 {
-    // TODO: we can make this more efficient 
+    // TODO: we can make this more efficient
     std::vector<float64> vals;
     parse_json_float64_array(jvalue,vals);
-    
+
     switch(node.dtype().id())
     {
         case DataType::INT8_ID:
@@ -780,7 +780,7 @@ Generator::Parser::JSON::parse_json_float64_array(const conduit_json::Value &jva
             break;
         case DataType::UINT64_ID:
             node.as_uint64_array().set(vals);
-            break;  
+            break;
         //floats
         case DataType::FLOAT32_ID:
             node.as_float32_array().set(vals);
@@ -802,7 +802,7 @@ Generator::Parser::JSON::parse_leaf_dtype(const conduit_json::Value &jvalue,
                                           index_t offset,
                                           DataType &dtype_res)
 {
-    
+
     if(jvalue.IsString())
     {
         std::string dtype_name(jvalue.GetString());
@@ -820,9 +820,9 @@ Generator::Parser::JSON::parse_leaf_dtype(const conduit_json::Value &jvalue,
         CONDUIT_ASSERT( ( jvalue.HasMember("dtype") && jvalue["dtype"].IsString() ),
                         "JSON Generator error:\n"
                          << "'dtype' must be a JSON string.");
-            
+
         std::string dtype_name(jvalue["dtype"].GetString());
-        
+
         index_t length = 0;
 
         auto extract_uint64_member = [&](const char *member_name,
@@ -842,7 +842,7 @@ Generator::Parser::JSON::parse_leaf_dtype(const conduit_json::Value &jvalue,
         {
             const conduit_json::Value &json_num_eles = jvalue["number_of_elements"];
             if(json_num_eles.IsNumber())
-            {              
+            {
                 length = json_num_eles.GetUint64();
             }
             else
@@ -859,7 +859,7 @@ Generator::Parser::JSON::parse_leaf_dtype(const conduit_json::Value &jvalue,
         {
             const conduit_json::Value &json_len = jvalue["length"];
             if(json_len.IsNumber())
-            {              
+            {
                 length = json_len.GetUint64();
             }
             else
@@ -872,7 +872,7 @@ Generator::Parser::JSON::parse_leaf_dtype(const conduit_json::Value &jvalue,
         index_t dtype_id  = parse_leaf_dtype_name(dtype_name);
         index_t ele_size  = DataType::default_bytes(dtype_id);
         index_t stride    = ele_size;
-    
+
         //  parse offset (override default if passed)
         extract_uint64_member("offset", offset);
 
@@ -880,8 +880,8 @@ Generator::Parser::JSON::parse_leaf_dtype(const conduit_json::Value &jvalue,
         extract_uint64_member("stride", stride);
 
         // parse element_bytes (override default if passed)
-        extract_uint64_member("element_bytes", ele_size);    
-    
+        extract_uint64_member("element_bytes", ele_size);
+
         // parse endianness (override default if passed)
         index_t endianness = Endianness::DEFAULT_ID;
         if(jvalue.HasMember("endianness"))
@@ -913,7 +913,7 @@ Generator::Parser::JSON::parse_leaf_dtype(const conduit_json::Value &jvalue,
                           << " (\"big\" or \"little\")");
             }
         }
-    
+
         if (0 == length)
         {
             if(jvalue.HasMember("value") &&
@@ -927,11 +927,11 @@ Generator::Parser::JSON::parse_leaf_dtype(const conduit_json::Value &jvalue,
                 length = 1;
             }
         }
-    
+
         dtype_res.set(dtype_id,
                       length,
                       offset,
-                      stride, 
+                      stride,
                       ele_size,
                       endianness);
     }
@@ -980,11 +980,11 @@ Generator::Parser::JSON::parse_inline_leaf(const conduit_json::Value &jvalue,
              // only allow JSON bools to be assigned to a uint8 type
              // throw parsing error if our inline values
              // don't match what we expected
-            
+
             CONDUIT_ERROR("JSON Generator error:\n"
                            << "a JSON bool can only be used as an inline"
                            << " value for a Conduit UINT8 Node.");
-            
+
         }
     }
     else if(jvalue.IsNumber())
@@ -992,10 +992,10 @@ Generator::Parser::JSON::parse_inline_leaf(const conduit_json::Value &jvalue,
         switch(node.dtype().id())
         {
             // signed ints
-            case DataType::INT8_ID:   
+            case DataType::INT8_ID:
                 node.set((int8)jvalue.GetInt64());
                 break;
-            case DataType::INT16_ID: 
+            case DataType::INT16_ID:
                 node.set((int16)jvalue.GetInt64());
                 break;
             case DataType::INT32_ID:
@@ -1016,7 +1016,7 @@ Generator::Parser::JSON::parse_inline_leaf(const conduit_json::Value &jvalue,
                 break;
             case DataType::UINT64_ID:
                 node.set((uint64)jvalue.GetUint64());
-                break;  
+                break;
             //floats
             case DataType::FLOAT32_ID:
                 node.set((float32)jvalue.GetDouble());
@@ -1073,12 +1073,12 @@ Generator::Parser::JSON::parse_inline_value(const conduit_json::Value &jvalue,
     {
         // we assume a "value" is a leaf or list of compatible leaves
         index_t hval_type = check_homogenous_json_array(jvalue);
-        
-        CONDUIT_ASSERT( (node.dtype().number_of_elements() >= jvalue.Size() ),
-                       "JSON Generator error:\n" 
+
+        CONDUIT_ASSERT( (node.dtype().number_of_elements() >= static_cast<index_t>(jvalue.Size()) ),
+                       "JSON Generator error:\n"
                         << "number of elements in JSON array is more"
                         << "than dtype can hold");
-        
+
         if(hval_type == DataType::INT64_ID)
         {
             if(node.dtype().is_unsigned_integer())
@@ -1116,7 +1116,7 @@ Generator::Parser::JSON::parse_inline_value(const conduit_json::Value &jvalue,
 
 
 //---------------------------------------------------------------------------//
-void 
+void
 Generator::Parser::JSON::walk_json_schema(Schema *schema,
                                           const   conduit_json::Value &jvalue,
                                           index_t curr_offset)
@@ -1134,7 +1134,7 @@ Generator::Parser::JSON::walk_json_schema(Schema *schema,
                 if(jvalue.HasMember("length"))
                 {
                     const conduit_json::Value &len_value = jvalue["length"];
-                    if(len_value.IsObject() && 
+                    if(len_value.IsObject() &&
                        len_value.HasMember("reference"))
                     {
                         CONDUIT_ERROR("JSON Generator error:\n"
@@ -1154,7 +1154,7 @@ Generator::Parser::JSON::walk_json_schema(Schema *schema,
                     }
                 }
                 // we will create `length' # of objects of obj des by dt_value
-                 
+
                 // TODO: we only need to parse this once, not leng # of times
                 // but this is the easiest way to start.
                 for (int i = 0; i < length; i ++)
@@ -1179,10 +1179,10 @@ Generator::Parser::JSON::walk_json_schema(Schema *schema,
             // we still want the conduit schema to take on the
             // object role
             schema->set(DataType::object());
-            
+
             // loop over all entries
             for (conduit_json::Value::ConstMemberIterator itr =
-                 jvalue.MemberBegin(); 
+                 jvalue.MemberBegin();
                  itr != jvalue.MemberEnd(); ++itr)
             {
                 const std::string entry_name(itr->name.GetString());
@@ -1193,9 +1193,9 @@ Generator::Parser::JSON::walk_json_schema(Schema *schema,
             }
         }
     }
-    // List case 
-    else if(jvalue.IsArray()) 
-    { 
+    // List case
+    else if(jvalue.IsArray())
+    {
         // if we make it here and have an empty json list
         // we still want the conduit schema to take on the
         // list role
@@ -1225,7 +1225,7 @@ Generator::Parser::JSON::walk_json_schema(Schema *schema,
 }
 
 //---------------------------------------------------------------------------//
-void 
+void
 Generator::Parser::JSON::walk_pure_json_schema(Node *node,
                                                Schema *schema,
                                                const conduit_json::Value &jvalue)
@@ -1242,7 +1242,7 @@ Generator::Parser::JSON::walk_pure_json_schema(Node *node,
              itr != jvalue.MemberEnd(); ++itr)
         {
             std::string entry_name(itr->name.GetString());
-            
+
             // json files may have duplicate object names
             // we could provide some clear semantics, such as:
             //   always use first instance, or always use last instance
@@ -1252,7 +1252,7 @@ Generator::Parser::JSON::walk_pure_json_schema(Node *node,
             if(schema->has_child(entry_name))
             {
                 CONDUIT_ERROR("JSON Generator error:\n"
-                              << "Duplicate JSON object name: " 
+                              << "Duplicate JSON object name: "
                               << utils::join_path(node->path(),entry_name));
             }
 
@@ -1268,8 +1268,8 @@ Generator::Parser::JSON::walk_pure_json_schema(Node *node,
                                   itr->value);
         }
     }
-    // List case 
-    else if (jvalue.IsArray()) 
+    // List case
+    else if (jvalue.IsArray())
     {
         index_t hval_type = check_homogenous_json_array(jvalue);
         if(hval_type == DataType::INT64_ID)
@@ -1290,7 +1290,7 @@ Generator::Parser::JSON::walk_pure_json_schema(Node *node,
             // we still want the conduit node to take on the
             // list role
             schema->set(DataType::list());
-            
+
             for (conduit_json::SizeType i = 0; i < jvalue.Size(); i++)
             {
                 schema->append();
@@ -1327,7 +1327,7 @@ Generator::Parser::JSON::walk_pure_json_schema(Node *node,
     }
     else if(jvalue.IsNumber())
     {
-        // use 64bit types by default ... 
+        // use 64bit types by default ...
         if(jvalue.IsInt() || jvalue.IsInt64())
         {
             node->set((int64)jvalue.GetInt64());
@@ -1353,7 +1353,7 @@ Generator::Parser::JSON::walk_pure_json_schema(Node *node,
 
 
 //---------------------------------------------------------------------------//
-void 
+void
 Generator::Parser::JSON::walk_json_schema(Node   *node,
                                           Schema *schema,
                                           void   *data,
@@ -1376,10 +1376,10 @@ Generator::Parser::JSON::walk_json_schema(Node   *node,
                     {
                         length = jvalue["length"].GetInt();
                     }
-                    else if(jvalue["length"].IsObject() && 
+                    else if(jvalue["length"].IsObject() &&
                             jvalue["length"].HasMember("reference"))
                     {
-                        const std::string ref_path = 
+                        const std::string ref_path =
                           jvalue["length"]["reference"].GetString();
                         length = node->fetch(ref_path).to_index_t();
                     }
@@ -1389,10 +1389,10 @@ Generator::Parser::JSON::walk_json_schema(Node   *node,
                                       << "'length' must be a number "
                                       << "or reference.");
                     }
-                    
+
                 }
                 // we will create `length' # of objects of obj des by dt_value
-                 
+
                 // TODO: we only need to parse this once, not leng # of times
                 // but this is the easiest way to start.
                 for(index_t i=0;i< length;i++)
@@ -1412,7 +1412,7 @@ Generator::Parser::JSON::walk_json_schema(Node   *node,
                     if(data != NULL)
                         curr_offset += curr_schema->total_strided_bytes();
                 }
-                
+
             }
             else
             {
@@ -1465,11 +1465,11 @@ Generator::Parser::JSON::walk_json_schema(Node   *node,
             schema->set(DataType::object());
             // standard object case - loop over all entries
             for (conduit_json::Value::ConstMemberIterator itr =
-                 jvalue.MemberBegin(); 
+                 jvalue.MemberBegin();
                  itr != jvalue.MemberEnd(); ++itr)
             {
                 std::string entry_name(itr->name.GetString());
-                
+
                 // json files may have duplicate object names
                 // we could provide some clear semantics, such as:
                 //   always use first instance, or always use last instance.
@@ -1482,7 +1482,7 @@ Generator::Parser::JSON::walk_json_schema(Node   *node,
                 if(schema->has_child(entry_name))
                 {
                     CONDUIT_ERROR("JSON Generator error:\n"
-                                  << "Duplicate JSON object name: " 
+                                  << "Duplicate JSON object name: "
                                   << utils::join_path(node->path(),entry_name));
                 }
 
@@ -1496,16 +1496,16 @@ Generator::Parser::JSON::walk_json_schema(Node   *node,
                                  data,
                                  itr->value,
                                  curr_offset);
-                
+
                 // auto offset only makes sense when we have data
                 if(data != NULL)
                     curr_offset += curr_schema->total_strided_bytes();
             }
-            
+
         }
     }
-    // List case 
-    else if (jvalue.IsArray()) 
+    // List case
+    else if (jvalue.IsArray())
     {
         schema->set(DataType::list());
 
@@ -1533,7 +1533,7 @@ Generator::Parser::JSON::walk_json_schema(Node   *node,
         DataType dtype;
         parse_leaf_dtype(jvalue,curr_offset,dtype);
         schema->set(dtype);
-        
+
         if(data != NULL)
         {
             // node is already linked to the schema pointer
@@ -1557,7 +1557,7 @@ Generator::Parser::JSON::walk_json_schema(Node   *node,
 //---------------------------------------------------------------------------//
 // TODO can this be creatively combined with walk_json_schema? The functions
 // are nearly identical
-void 
+void
 Generator::Parser::JSON::walk_json_schema_external(Node   *node,
                                                    Schema *schema,
                                                    void   *data,
@@ -1581,10 +1581,10 @@ Generator::Parser::JSON::walk_json_schema_external(Node   *node,
                     {
                         length = jvalue["length"].GetInt();
                     }
-                    else if(jvalue["length"].IsObject() && 
+                    else if(jvalue["length"].IsObject() &&
                             jvalue["length"].HasMember("reference"))
                     {
-                        std::string ref_path = 
+                        std::string ref_path =
                           jvalue["length"]["reference"].GetString();
                         length = node->fetch(ref_path).to_index_t();
                     }
@@ -1594,10 +1594,10 @@ Generator::Parser::JSON::walk_json_schema_external(Node   *node,
                                       << "'length' must be a number "
                                       << "or reference.");
                     }
-                    
+
                 }
                 // we will create `length' # of objects of obj des by dt_value
-                 
+
                 // TODO: we only need to parse this once, not leng # of times
                 // but this is the easiest way to start.
                 for(index_t i=0;i< length;i++)
@@ -1622,7 +1622,7 @@ Generator::Parser::JSON::walk_json_schema_external(Node   *node,
             {
                 // handle leaf node with explicit props
                 DataType dtype;
-                
+
                 parse_leaf_dtype(jvalue,curr_offset,dtype);
 
                 // check for explciit address
@@ -1633,7 +1633,7 @@ Generator::Parser::JSON::walk_json_schema_external(Node   *node,
                 }
                 else
                 {
-    
+
                     if(data != NULL)
                     {
                         // node is already linked to the schema pointer
@@ -1661,11 +1661,11 @@ Generator::Parser::JSON::walk_json_schema_external(Node   *node,
             schema->set(DataType::object());
             // standard object case - loop over all entries
             for (conduit_json::Value::ConstMemberIterator itr =
-                 jvalue.MemberBegin(); 
+                 jvalue.MemberBegin();
                  itr != jvalue.MemberEnd(); ++itr)
             {
                 std::string entry_name(itr->name.GetString());
-                
+
                 // json files may have duplicate object names
                 // we could provide some clear semantics, such as:
                 //   always use first instance, or always use last instance.
@@ -1678,12 +1678,12 @@ Generator::Parser::JSON::walk_json_schema_external(Node   *node,
                 if(schema->has_child(entry_name))
                 {
                     CONDUIT_ERROR("JSON Generator error:\n"
-                                  << "Duplicate JSON object name: " 
+                                  << "Duplicate JSON object name: "
                                   << utils::join_path(node->path(),entry_name));
                 }
 
                 Schema *curr_schema = &schema->add_child(entry_name);
-                
+
                 Node *curr_node = new Node();
                 curr_node->set_schema_ptr(curr_schema);
                 curr_node->set_parent(node);
@@ -1693,16 +1693,16 @@ Generator::Parser::JSON::walk_json_schema_external(Node   *node,
                                           data,
                                           itr->value,
                                           curr_offset);
-                
+
                 // auto offset only makes sense when we have data
                 if(data != NULL)
                     curr_offset += curr_schema->total_strided_bytes();
             }
-            
+
         }
     }
-    // List case 
-    else if (jvalue.IsArray()) 
+    // List case
+    else if (jvalue.IsArray())
     {
         schema->set(DataType::list());
 
@@ -1730,7 +1730,7 @@ Generator::Parser::JSON::walk_json_schema_external(Node   *node,
         DataType dtype;
         parse_leaf_dtype(jvalue,curr_offset,dtype);
         schema->set(dtype);
-        
+
         if(data != NULL)
         {
              // node is already linked to the schema pointer
@@ -1753,14 +1753,14 @@ Generator::Parser::JSON::walk_json_schema_external(Node   *node,
 
 
 //---------------------------------------------------------------------------//
-void 
+void
 Generator::Parser::JSON::parse_base64(Node *node,
                                       const conduit_json::Value &jvalue)
 {
     // object case
 
     std::string base64_str = "";
-    
+
     if(jvalue.IsObject())
     {
         Schema s;
@@ -1772,7 +1772,7 @@ Generator::Parser::JSON::parse_base64(Node *node,
         {
             CONDUIT_ERROR("conduit_base64_json protocol error: missing data/base64");
         }
-        
+
         if (jvalue.HasMember("schema"))
         {
             // parse schema
@@ -1783,7 +1783,7 @@ Generator::Parser::JSON::parse_base64(Node *node,
         {
             CONDUIT_ERROR("conduit_base64_json protocol error: missing schema");
         }
-        
+
         const char *src_ptr = base64_str.c_str();
         index_t encoded_len = (index_t) base64_str.length();
         index_t dec_buff_size = utils::base64_decode_buffer_size(encoded_len);
@@ -1808,18 +1808,18 @@ Generator::Parser::JSON::parse_base64(Node *node,
 }
 
 //---------------------------------------------------------------------------//
-void 
+void
 Generator::Parser::JSON::parse_error_details(const std::string &json,
                                              const conduit_json::Document &document,
                                              std::ostream &os)
 {
-    // provide message with line + char from rapidjson parse error offset 
+    // provide message with line + char from rapidjson parse error offset
     index_t doc_offset = (index_t)document.GetErrorOffset();
     std::string json_curr = json.substr(0,doc_offset);
 
     std::string curr = "";
     std::string next = " ";
-    
+
     index_t doc_line   = 0;
     index_t doc_char   = 0;
 
@@ -1839,7 +1839,7 @@ Generator::Parser::JSON::parse_error_details(const std::string &json,
        << " offset: "    << doc_offset << "\n"
        << " line: "      << doc_line << "\n"
        << " character: " << doc_char << "\n"
-       << " json:\n"     << json << "\n"; 
+       << " json:\n"     << json << "\n";
 }
 
 
@@ -1945,7 +1945,7 @@ Generator::Parser::YAML::YAMLParserWrapper::yaml_doc_root_ptr()
 //-----------------------------------------------------------------------------
 
 //---------------------------------------------------------------------------//
-index_t 
+index_t
 Generator::Parser::YAML::yaml_leaf_to_numeric_dtype(const char *txt_value)
 {
     index_t res = DataType::EMPTY_ID;
@@ -1976,7 +1976,7 @@ Generator::Parser::YAML::check_yaml_is_number(const yaml_node_t *yaml_node)
 }
 
 //---------------------------------------------------------------------------//
-bool 
+bool
 Generator::Parser::YAML::check_yaml_is_int(const yaml_node_t *yaml_node)
 {
     if (check_yaml_is_scalar_node(yaml_node))
@@ -2001,21 +2001,21 @@ Generator::Parser::YAML::get_yaml_unsigned_long(const yaml_node_t *yaml_node)
 }
 
 //---------------------------------------------------------------------------//
-bool 
+bool
 Generator::Parser::YAML::check_yaml_is_scalar_node(const yaml_node_t *yaml_node)
 {
     return yaml_node->type == YAML_SCALAR_NODE;
 }
 
 //---------------------------------------------------------------------------//
-bool 
+bool
 Generator::Parser::YAML::check_yaml_is_sequence(const yaml_node_t *yaml_node)
 {
     return yaml_node->type == YAML_SEQUENCE_NODE;
 }
 
 //---------------------------------------------------------------------------//
-bool 
+bool
 Generator::Parser::YAML::check_yaml_is_mapping_node(const yaml_node_t *yaml_node)
 {
     return yaml_node->type == YAML_MAPPING_NODE;
@@ -2068,7 +2068,7 @@ Generator::Parser::YAML::fetch_yaml_node_from_object_by_name(yaml_document_t *ya
         CONDUIT_ASSERT(yaml_pair, "YAML Generator error:\nfailed to fetch mapping pair.");
         yaml_node_t *yaml_key = yaml_document_get_node(yaml_doc, yaml_pair->key);
         CONDUIT_ASSERT(yaml_key, "YAML Generator error:\nfailed to fetch mapping key.");
-        CONDUIT_ASSERT(check_yaml_is_scalar_node(yaml_key), 
+        CONDUIT_ASSERT(check_yaml_is_scalar_node(yaml_key),
                        "YAML Generator error:\nInvalid mapping key type.");
         const std::string entry_name(get_yaml_string(yaml_key));
         if (entry_name == member_name)
@@ -2099,7 +2099,7 @@ Generator::Parser::YAML::parse_inline_value(yaml_document_t *yaml_doc,
                                                                    seq_size);
 
         CONDUIT_ASSERT((node.dtype().number_of_elements() >= get_yaml_sequence_length(yaml_node)),
-                       "YAML Generator error:\n" 
+                       "YAML Generator error:\n"
                         << "number of elements in YAML array is more"
                         << "than dtype can hold");
 
@@ -2107,7 +2107,7 @@ Generator::Parser::YAML::parse_inline_value(yaml_document_t *yaml_doc,
         {
             if (node.dtype().is_unsigned_integer())
             {
-                // TODO: we can make this more efficient 
+                // TODO: we can make this more efficient
                 std::vector<uint64> vals;
                 parse_yaml_array<uint64>(yaml_doc, yaml_node, vals, seq_size);
                 switch (node.dtype().id())
@@ -2123,7 +2123,7 @@ Generator::Parser::YAML::parse_inline_value(yaml_document_t *yaml_doc,
                         break;
                     case DataType::UINT64_ID:
                         node.as_uint64_array().set(vals);
-                        break;  
+                        break;
                     default:
                         CONDUIT_ERROR("YAML Generator error:\n"
                                        << "attempting to set non-numeric Node with"
@@ -2133,7 +2133,7 @@ Generator::Parser::YAML::parse_inline_value(yaml_document_t *yaml_doc,
             }
             else
             {
-                // TODO: we can make this more efficient 
+                // TODO: we can make this more efficient
                 std::vector<int64> vals;
                 parse_yaml_array<int64>(yaml_doc, yaml_node, vals, seq_size);
                 switch (node.dtype().id())
@@ -2160,7 +2160,7 @@ Generator::Parser::YAML::parse_inline_value(yaml_document_t *yaml_doc,
         }
         else if(hval_type == DataType::FLOAT64_ID)
         {
-            // TODO: we can make this more efficient 
+            // TODO: we can make this more efficient
             std::vector<float64> vals;
             parse_yaml_array<float64>(yaml_doc, yaml_node, vals, seq_size);
             switch (node.dtype().id())
@@ -2237,7 +2237,7 @@ Generator::Parser::YAML::parse_yaml_array(yaml_document_t *yaml_doc,
     for (index_t cld_idx = 0; cld_idx < seq_size; cld_idx ++)
     {
         yaml_node_t *yaml_child = fetch_yaml_node_from_list(yaml_doc, yaml_node, cld_idx);
-        CONDUIT_ASSERT(yaml_child && check_yaml_is_scalar_node(yaml_child), 
+        CONDUIT_ASSERT(yaml_child && check_yaml_is_scalar_node(yaml_child),
                        "YAML Generator error:\nInvalid array value.");
         const char *yaml_value_str = get_yaml_string(yaml_child);
         if (std::is_same<T, int64>::value)
@@ -2271,7 +2271,7 @@ Generator::Parser::YAML::parse_yaml_array(yaml_document_t *yaml_doc,
     for (index_t cld_idx = 0; cld_idx < seq_size; cld_idx ++)
     {
         yaml_node_t *yaml_child = fetch_yaml_node_from_list(yaml_doc, yaml_node, cld_idx);
-        CONDUIT_ASSERT(yaml_child && check_yaml_is_scalar_node(yaml_child), 
+        CONDUIT_ASSERT(yaml_child && check_yaml_is_scalar_node(yaml_child),
                        "YAML Generator error:\nInvalid array value.");
         const char *yaml_value_str = get_yaml_string(yaml_child);
         if (std::is_same<T, int64>::value)
@@ -2359,10 +2359,10 @@ Generator::Parser::YAML::parse_inline_leaf(const char *yaml_txt,
         switch(node.dtype().id())
         {
             // signed ints
-            case DataType::INT8_ID:   
+            case DataType::INT8_ID:
                 node.set(static_cast<int8>(string_to_long(yaml_txt)));
                 break;
-            case DataType::INT16_ID: 
+            case DataType::INT16_ID:
                 node.set(static_cast<int16>(string_to_long(yaml_txt)));
                 break;
             case DataType::INT32_ID:
@@ -2383,7 +2383,7 @@ Generator::Parser::YAML::parse_inline_leaf(const char *yaml_txt,
                 break;
             case DataType::UINT64_ID:
                 node.set(static_cast<uint64>(string_to_unsigned_long(yaml_txt)));
-                break;  
+                break;
             //floats
             case DataType::FLOAT32_ID:
                 node.set(static_cast<float32>(string_to_double(yaml_txt)));
@@ -2472,7 +2472,7 @@ Generator::Parser::YAML::parse_leaf_dtype(yaml_document_t *yaml_doc,
     else if (check_yaml_is_mapping_node(yaml_node))
     {
         yaml_node_t* dtype_node = fetch_yaml_node_from_object_by_name(yaml_doc, yaml_node, "dtype");
-        CONDUIT_ASSERT(dtype_node && check_yaml_is_scalar_node(dtype_node), 
+        CONDUIT_ASSERT(dtype_node && check_yaml_is_scalar_node(dtype_node),
                        "YAML Generator error:\n'dtype' must be a YAML string.")
         const std::string dtype_name(get_yaml_string(dtype_node));
 
@@ -2597,7 +2597,7 @@ Generator::Parser::YAML::parse_leaf_dtype(yaml_document_t *yaml_doc,
 
 
 //---------------------------------------------------------------------------//
-void 
+void
 Generator::Parser::YAML::walk_yaml_schema(Node *node,
                                           Schema *schema,
                                           void *data,
@@ -2740,7 +2740,7 @@ Generator::Parser::YAML::walk_yaml_schema(Node *node,
                 CONDUIT_ASSERT(yaml_pair, "YAML Generator error:\nfailed to fetch mapping pair.");
                 yaml_node_t *yaml_key = yaml_document_get_node(yaml_doc, yaml_pair->key);
                 CONDUIT_ASSERT(yaml_key, "YAML Generator error:\nfailed to fetch mapping key.");
-                CONDUIT_ASSERT(check_yaml_is_scalar_node(yaml_key), 
+                CONDUIT_ASSERT(check_yaml_is_scalar_node(yaml_key),
                                "YAML Generator error:\nInvalid mapping key type.");
                 const std::string entry_name(get_yaml_string(yaml_key));
 
@@ -2749,7 +2749,7 @@ Generator::Parser::YAML::walk_yaml_schema(Node *node,
                 //   always use first instance, or always use last instance
                 // however duplicate object names are most likely a
                 // typo, so it's best to throw an error
-                // 
+                //
                 // also its highly unlikely that the auto offset case
                 // could safely deal with offsets for the
                 // duplicate key case
@@ -2841,7 +2841,7 @@ Generator::Parser::YAML::walk_yaml_schema(Node *node,
 
 
 //---------------------------------------------------------------------------//
-void 
+void
 Generator::Parser::YAML::walk_yaml_schema(Schema *schema,
                                           yaml_document_t *yaml_doc,
                                           const yaml_node_t *yaml_node,
@@ -2916,7 +2916,7 @@ Generator::Parser::YAML::walk_yaml_schema(Schema *schema,
                 CONDUIT_ASSERT(yaml_pair, "YAML Generator error:\nfailed to fetch mapping pair.");
                 yaml_node_t *yaml_key = yaml_document_get_node(yaml_doc, yaml_pair->key);
                 CONDUIT_ASSERT(yaml_key, "YAML Generator error:\nfailed to fetch mapping key.");
-                CONDUIT_ASSERT(check_yaml_is_scalar_node(yaml_key), 
+                CONDUIT_ASSERT(check_yaml_is_scalar_node(yaml_key),
                                "YAML Generator error:\nInvalid mapping key type.");
                 const std::string entry_name(get_yaml_string(yaml_key));
 
@@ -2980,13 +2980,13 @@ Generator::Parser::YAML::walk_yaml_schema(Schema *schema,
 
 
 //---------------------------------------------------------------------------//
-void 
+void
 Generator::Parser::YAML::walk_pure_yaml_schema(Node *node,
                                                Schema *schema,
                                                yaml_document_t *yaml_doc,
                                                yaml_node_t *yaml_node)
 {
-    
+
     // object cases
     if (check_yaml_is_mapping_node(yaml_node))
     {
@@ -3001,7 +3001,7 @@ Generator::Parser::YAML::walk_pure_yaml_schema(Node *node,
             CONDUIT_ASSERT(yaml_pair, "YAML Generator error:\nfailed to fetch mapping pair.");
             yaml_node_t *yaml_key = yaml_document_get_node(yaml_doc, yaml_pair->key);
             CONDUIT_ASSERT(yaml_key, "YAML Generator error:\nfailed to fetch mapping key.");
-            CONDUIT_ASSERT(check_yaml_is_scalar_node(yaml_key), 
+            CONDUIT_ASSERT(check_yaml_is_scalar_node(yaml_key),
                            "YAML Generator error:\nInvalid mapping key type.");
             const std::string entry_name(get_yaml_string(yaml_key));
             yaml_node_t *yaml_child = yaml_document_get_node(yaml_doc, yaml_pair->value);
@@ -3024,7 +3024,7 @@ Generator::Parser::YAML::walk_pure_yaml_schema(Node *node,
             curr_node->set_schema_ptr(curr_schema);
             curr_node->set_parent(node);
             node->append_node_ptr(curr_node);
-            
+
             walk_pure_yaml_schema(curr_node,
                                   curr_schema,
                                   yaml_doc,
@@ -3098,7 +3098,7 @@ Generator::Parser::YAML::walk_pure_yaml_schema(Node *node,
 
 
 //---------------------------------------------------------------------------//
-void 
+void
 Generator::Parser::YAML::parse_base64(Node *node,
                                       yaml_document_t *yaml_doc,
                                       yaml_node_t *yaml_node)
@@ -3106,7 +3106,7 @@ Generator::Parser::YAML::parse_base64(Node *node,
     // object case
 
     std::string base64_str = "";
-    
+
     if(check_yaml_is_mapping_node(yaml_node))
     {
         Schema s;
@@ -3140,7 +3140,7 @@ Generator::Parser::YAML::parse_base64(Node *node,
         {
             CONDUIT_ERROR("conduit_base64_yaml protocol error: missing schema");
         }
-        
+
         const char *src_ptr = base64_str.c_str();
         index_t encoded_len = (index_t) base64_str.length();
         index_t dec_buff_size = utils::base64_decode_buffer_size(encoded_len);
@@ -3201,7 +3201,7 @@ Generator::Parser::YAML::parse_error_details(yaml_parser_t *yaml_parser,
             os << "[Unknown Error!]";
             break;
     }
-    
+
     // Q: Is yaml_parser->problem_mark.index useful here?
     //    that might be the only case where we need the yaml_doc
     //    otherwise using yaml_parser is sufficient
@@ -3299,7 +3299,7 @@ Generator::data_ptr() const
 
 
 //---------------------------------------------------------------------------//
-void 
+void
 Generator::walk(Schema &schema) const
 {
     schema.reset();
@@ -3340,7 +3340,7 @@ Generator::walk(Schema &schema) const
 }
 
 //---------------------------------------------------------------------------//
-void 
+void
 Generator::walk(Node &node) const
 {
     // try catch b/c:
@@ -3355,7 +3355,7 @@ Generator::walk(Node &node) const
         {
             conduit_json::Document document;
             std::string res = utils::json_sanitize(m_schema);
-                    
+
             if(document.Parse<Parser::JSON::JSON_PARSE_OPTS>(res.c_str()).HasParseError())
             {
                 CONDUIT_JSON_PARSE_ERROR(res, document);
@@ -3385,7 +3385,7 @@ Generator::walk(Node &node) const
         {
             conduit_json::Document document;
             std::string res = utils::json_sanitize(m_schema);
-            
+
             if(document.Parse<Parser::JSON::JSON_PARSE_OPTS>(res.c_str()).HasParseError())
             {
                 CONDUIT_JSON_PARSE_ERROR(res, document);
@@ -3416,7 +3416,7 @@ Generator::walk(Node &node) const
             // this case is fully handled by conduit_json logic
             conduit_json::Document document;
             std::string res = utils::json_sanitize(m_schema);
-            
+
             if(document.Parse<Parser::JSON::JSON_PARSE_OPTS>(res.c_str()).HasParseError())
             {
                 CONDUIT_JSON_PARSE_ERROR(res, document);
@@ -3465,7 +3465,7 @@ Generator::walk(Node &node) const
 }
 
 //---------------------------------------------------------------------------//
-void 
+void
 Generator::walk_external(Node &node) const
 {
     // try catch b/c:
@@ -3480,7 +3480,7 @@ Generator::walk_external(Node &node) const
         {
             conduit_json::Document document;
             std::string res = utils::json_sanitize(m_schema);
-                    
+
             if(document.Parse<Parser::JSON::JSON_PARSE_OPTS>(res.c_str()).HasParseError())
             {
                 CONDUIT_JSON_PARSE_ERROR(res, document);
@@ -3512,7 +3512,7 @@ Generator::walk_external(Node &node) const
         {
             conduit_json::Document document;
             std::string res = utils::json_sanitize(m_schema);
-            
+
             if(document.Parse<Parser::JSON::JSON_PARSE_OPTS>(res.c_str()).HasParseError())
             {
                 CONDUIT_JSON_PARSE_ERROR(res, document);
@@ -3542,7 +3542,7 @@ Generator::walk_external(Node &node) const
             // this case is fully handled by conduit_json logic
             conduit_json::Document document;
             std::string res = utils::json_sanitize(m_schema);
-            
+
             if(document.Parse<Parser::JSON::JSON_PARSE_OPTS>(res.c_str()).HasParseError())
             {
                 CONDUIT_JSON_PARSE_ERROR(res, document);

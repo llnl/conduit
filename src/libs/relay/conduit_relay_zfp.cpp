@@ -9,7 +9,7 @@
 //-----------------------------------------------------------------------------
 
 #include "conduit_relay_zfp.hpp"
-#include "zfpfactory.h"
+#include "zfp/factory.hpp"
 
 //-----------------------------------------------------------------------------
 // -- begin conduit:: --
@@ -30,101 +30,208 @@ namespace relay
 namespace io
 {
 
-zfp::array*
+//-----------------------------------------------------------------------------
+zfp::array *
 unwrap_zfparray(const Node &node)
 {
-    Node compressed_data = node.fetch_existing(ZFP_COMPRESSED_DATA_FIELD_NAME);
+    const Node &zfp_hdr  = node.fetch_existing(ZFP_HEADER_FIELD);
+    const Node &zfp_data = node.fetch_existing(ZFP_COMPRESSED_DATA_FIELD);
 
-    // verify word size is readable with zfp
-    // zfp's bitstream consists of uint words
-    bool is_readable = true;
-    switch(stream_word_bits) {
-        case 64:
-            is_readable = compressed_data.dtype().is_uint64();
-            break;
+    uint zfp_dim   = node.fetch_existing(ZFP_HEADER_DIM_FIELD).to_value();
+    uint zfp_stype = node.fetch_existing(ZFP_HEADER_SCALAR_TYPE_FIELD).to_value();
 
-        case 32:
-            is_readable = compressed_data.dtype().is_uint32();
-            break;
-
-        case 16:
-            is_readable = compressed_data.dtype().is_uint16();
-            break;
-
-        case 8:
-            is_readable = compressed_data.dtype().is_uint8();
-            break;
-
-        default:
-            is_readable = false;
-            break;
+    if( zfp_stype == zfp_type_none )
+    {
+         CONDUIT_ERROR("unwrapping zfp array with scalar type zfp_type_none ("
+                       << zfp_stype << " is not supported") ;
+    }
+    else if( zfp_stype == zfp_type_int32 )
+    {
+         CONDUIT_ERROR("unwrapping zfp array with scalar type zfp_type_int32 ("
+                       << zfp_stype << " is not supported") ;
+    }
+    else  if( zfp_stype == zfp_type_int64 )
+    {
+         CONDUIT_ERROR("unwrapping zfp array with scalar type zfp_type_int64 ("
+                       << zfp_stype << " is not supported") ;
     }
 
-    if(!is_readable) {
-        return NULL;
+    if(zfp_dim == 1)
+    {
+        if(zfp_stype == zfp_type_float)
+        {
+            zfp::array1f::header h(zfp_hdr.data_ptr(), zfp_hdr.allocated_bytes());
+            zfp::array *res = zfp::array::construct(h);
+            // copy data into the array instance
+            std::memcpy(res->compressed_data(), 
+                        zfp_data.data_ptr(),zfp_data.allocated_bytes());
+            return res;
+        }
+        else if(zfp_stype == zfp_type_double)
+        {
+            zfp::array1d::header h(zfp_hdr.data_ptr(), zfp_hdr.allocated_bytes());
+            zfp::array *res = zfp::array::construct(h);
+            // copy data into the array instance
+            std::memcpy(res->compressed_data(), 
+                        zfp_data.data_ptr(),zfp_data.allocated_bytes());
+            return res;
+        }
+    }
+    else if(zfp_dim == 2)
+    {
+        if(zfp_stype == zfp_type_float)
+        {
+            zfp::array2f::header h(zfp_hdr.data_ptr(), zfp_hdr.allocated_bytes());
+            zfp::array *res = zfp::array::construct(h);
+            // copy data into the array instance
+            std::memcpy(res->compressed_data(), 
+                        zfp_data.data_ptr(),zfp_data.allocated_bytes());
+            return res;
+        }
+        else if(zfp_stype == zfp_type_double)
+        {
+            zfp::array2d::header h(zfp_hdr.data_ptr(), zfp_hdr.allocated_bytes());
+            zfp::array *res = zfp::array::construct(h);
+            // copy data into the array instance
+            std::memcpy(res->compressed_data(), 
+                        zfp_data.data_ptr(),zfp_data.allocated_bytes());
+            return res;
+        }
+    }
+    else if(zfp_dim == 3)
+    {
+        if(zfp_stype == zfp_type_float)
+        {
+            zfp::array3f::header h(zfp_hdr.data_ptr(), zfp_hdr.allocated_bytes());
+            zfp::array *res = zfp::array::construct(h);
+            // copy data into the array instance
+            std::memcpy(res->compressed_data(), 
+                        zfp_data.data_ptr(),zfp_data.allocated_bytes());
+            return res;
+        }
+        else if(zfp_stype == zfp_type_double)
+        {
+            zfp::array3d::header h(zfp_hdr.data_ptr(), zfp_hdr.allocated_bytes());
+            zfp::array *res = zfp::array::construct(h);
+            // copy data into the array instance
+            std::memcpy(res->compressed_data(), 
+                        zfp_data.data_ptr(),zfp_data.allocated_bytes());
+            return res;
+        }
+    }
+    // note: 4d is not supported
+    else
+    {
+        // error, unsupported dim
+        CONDUIT_ERROR("unwrapping zfp array with dimension " << zfp_dim << " is not supported") ;
     }
 
-    zfp::array::header header;
-    memcpy(header.buffer, node.fetch_existing(ZFP_HEADER_FIELD_NAME).data_ptr(), sizeof(header));
-
-    try {
-        return zfp::array::construct(header, static_cast<uchar*>(compressed_data.data_ptr()), compressed_data.allocated_bytes());
-    } catch(std::exception const &) {
-        // could be zfp::array::header::exception, or std::bad_alloc
-        return NULL;
-    }
+    return NULL;
 }
 
-template<typename T>
+
+//-----------------------------------------------------------------------------
 void
-cast_and_set_compressed_data(Node &dest, uchar* compressed_data, size_t num_data_words)
+wrap_zfparray(const zfp::array *arr,
+              Node &dest)
 {
-    void* intermediate_ptr = static_cast<void*>(compressed_data);
-    dest[ZFP_COMPRESSED_DATA_FIELD_NAME].set(static_cast<T*>(intermediate_ptr), num_data_words);
+    wrap_zfparray(*arr,dest);
 }
 
-int
-wrap_zfparray(const zfp::array *arr,
-         Node &dest)
+//-----------------------------------------------------------------------------
+void
+wrap_zfparray(const zfp::array &arr,
+              Node &dest)
 {
+    dest.reset();
+
     // store header
-    zfp::array::header header;
-    try {
-        header = arr->get_header();
-    } catch(zfp::array::header::exception const &) {
-        return 1;
+    uint zfp_dim   = arr.dimensionality();
+    uint zfp_stype = arr.scalar_type();
+
+    // array::scalar_type()
+    // supported types:
+    //  zfp_type_float  = 3, // single precision floating point
+    //  zfp_type_double = 4  // double precision floating point
+
+    // unsupported:
+    //  zfp_type_none   = 0, // unspecified type
+    //  zfp_type_int32  = 1, // 32-bit signed integer
+    //  zfp_type_int64  = 2, // 64-bit signed integer
+
+    if( zfp_stype == zfp_type_none )
+    {
+         CONDUIT_ERROR("wrapping zfp array with scalar type zfp_type_none ("
+                       << zfp_stype << " is not supported") ;
     }
-    dest[ZFP_HEADER_FIELD_NAME].set(static_cast<uint8*>(header.buffer), sizeof(header));
-
-    // store compressed data
-    size_t compressed_data_len_bits = arr->compressed_size() * CHAR_BIT;
-    // should already by a multiple of stream_word_bits (round for safety)
-    size_t num_data_words = (compressed_data_len_bits + stream_word_bits - 1) / stream_word_bits;
-
-    // store compressed-data under same dtype as bitstream's underlying word
-    switch(stream_word_bits) {
-        case 64:
-            cast_and_set_compressed_data<uint64>(dest, arr->compressed_data(), num_data_words);
-            break;
-
-        case 32:
-            cast_and_set_compressed_data<uint32>(dest, arr->compressed_data(), num_data_words);
-            break;
-
-        case 16:
-            cast_and_set_compressed_data<uint16>(dest, arr->compressed_data(), num_data_words);
-            break;
-
-        case 8:
-            cast_and_set_compressed_data<uint8>(dest, arr->compressed_data(), num_data_words);
-            break;
-
-        default:
-            // error
-            return 2;
+    else if( zfp_stype == zfp_type_int32 )
+    {
+         CONDUIT_ERROR("wrapping zfp array with scalar type zfp_type_int32 ("
+                       << zfp_stype << " is not supported") ;
+    }
+    else  if( zfp_stype == zfp_type_int64 )
+    {
+         CONDUIT_ERROR("wrapping zfp array with scalar type zfp_type_int64 ("
+                       << zfp_stype << " is not supported") ;
     }
 
-    return 0;
+    dest[ZFP_HEADER_DIM_FIELD] = zfp_dim;
+    dest[ZFP_HEADER_SCALAR_TYPE_FIELD] = zfp_stype;
+
+    if(zfp_dim == 1)
+    {
+        if(zfp_stype == zfp_type_float)
+        {
+            zfp::array1f::header h(arr);
+            dest[ZFP_HEADER_FIELD].set(static_cast<const uint8*>(h.data()),
+                                       h.size_bytes());
+        }
+        else if(zfp_stype == zfp_type_double)
+        {
+            zfp::array1d::header h(arr);
+            dest[ZFP_HEADER_FIELD].set(static_cast<const uint8*>(h.data()),
+                                       h.size_bytes());
+        }
+    }
+    else if(zfp_dim == 2)
+    {
+        if(zfp_stype == zfp_type_float)
+        {
+            zfp::array2f::header h(arr);
+            dest[ZFP_HEADER_FIELD].set(static_cast<const uint8*>(h.data()),
+                                       h.size_bytes());
+        }
+        else if(zfp_stype == zfp_type_double)
+        {
+            zfp::array2d::header h(arr);
+            dest[ZFP_HEADER_FIELD].set(static_cast<const uint8*>(h.data()),
+                                       h.size_bytes());
+        }
+    }
+    else if(zfp_dim == 3)
+    {
+        if(zfp_stype == zfp_type_float)
+        {
+            zfp::array3f::header h(arr);
+            dest[ZFP_HEADER_FIELD].set(static_cast<const uint8*>(h.data()),
+                                       h.size_bytes());
+        }
+        else if(zfp_stype == zfp_type_double)
+        {
+            zfp::array3d::header h(arr);
+            dest[ZFP_HEADER_FIELD].set(static_cast<const uint8*>(h.data()),
+                                       h.size_bytes());
+        }
+    } // note: 4d not supported
+    else
+    {
+        // error, unsupported dim
+        CONDUIT_ERROR("wrapping zfp array with dimension " << zfp_dim << " is not supported") ;
+    }
+
+    // store data
+    dest[ZFP_COMPRESSED_DATA_FIELD].set(static_cast<const uint8*>(arr.compressed_data()),
+                                        arr.compressed_size());
 }
 
 }

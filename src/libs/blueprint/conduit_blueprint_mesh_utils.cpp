@@ -1615,6 +1615,17 @@ topology::dims(const Node &n)
     {
         ShapeType shape(n);
         topology_dims = (index_t)shape.dim;
+
+        if(topology_dims == -1 && n.has_path("elements/shape_map"))
+        {
+          // We appear to have a mixed shape.
+          const Node &n_shape_map = n.fetch_existing("elements/shape_map");
+          for(index_t i = 0; i < n_shape_map.number_of_children(); i++)
+          {
+            ShapeType shape2(n_shape_map[i].name());
+            topology_dims = std::max(topology_dims, static_cast<index_t>(shape2.dim));
+          }
+        }
     }
 
     return topology_dims;
@@ -2989,6 +3000,22 @@ adjset::validate(const conduit::Node &doms,
 }
 
 //---------------------------------------------------------------------------
+template <typename StreamType, typename ContainerType>
+void print_point(StreamType &s, const ContainerType &container)
+{
+     s << "(";
+     for(size_t i = 0; i < container.size(); i++)
+     {
+         if(i > 0)
+         {
+             s << ", ";
+         }
+         s << container[i];
+     }
+     s << ")";
+}
+
+//---------------------------------------------------------------------------
 bool
 adjset::validate(const conduit::Node &doms,
                  const std::string &adjsetName,
@@ -3110,11 +3137,11 @@ adjset::validate(const conduit::Node &doms,
         // Iterate over the query results to flag any problems.
         for(const auto &obj : query_guide)
         {
-            index_t domain_id = std::get<0>(obj);
-            index_t ptid = std::get<1>(obj);
-            index_t nbr = std::get<2>(obj);
-            index_t idx = std::get<3>(obj);
-            size_t domIdx = std::get<4>(obj);
+            const index_t domain_id = std::get<0>(obj);
+            const index_t ptid = std::get<1>(obj);
+            const index_t nbr = std::get<2>(obj);
+            const index_t idx = std::get<3>(obj);
+            const size_t domIdx = std::get<4>(obj);
             const std::string &groupName = std::get<5>(obj);
             const std::vector<double> &coord = std::get<6>(obj);
 
@@ -3128,9 +3155,9 @@ adjset::validate(const conduit::Node &doms,
                 std::stringstream ss;
                 ss << "Domain " << domain_id << " adjset " << adjsetName
                    << " group " << groupName
-                   << ": vertex " << ptid
-                   << " (" << coord[0] << ", " << coord[1]
-                   << ", " << coord[2] << ") at index " << ptid
+                   << ": vertex " << ptid << " ";
+                print_point(ss, coord);
+                ss << " at index " << idx
                    << " could not be located in neighbor domain "
                    << nbr << ".";
 
@@ -3309,6 +3336,7 @@ bool
 foreach_adjset_mesh_pair_impl(conduit::Node &mesh, const std::string &adjsetName, Func &&func)
 {
     namespace bputils = conduit::blueprint::mesh::utils;
+    bool retval = true;
 
     // Determine total number of domains.
     std::vector<Node *> domains = conduit::blueprint::mesh::domains(mesh);
@@ -3392,18 +3420,25 @@ foreach_adjset_mesh_pair_impl(conduit::Node &mesh, const std::string &adjsetName
                     // Make the local point mesh.
                     B.execute(mesh[mi], shapeType);
 
+                    // Add the adjset values as a field.
+                    if(association == "vertex")
+                    {
+                        conduit::Node &n_field = mesh[mi]["fields/vertex_ids"];
+                        n_field["topology"] = topoName;
+                        n_field["association"] = association;
+                        n_field["values"].set_external(n_values);
+                    }
+
                     mi++;
                 }
             }
 
-            // Make sure the nodes are not different.
-            bool keepGoing = func(groupName, d0, mesh[0], d1, mesh[1]);
-            if(!keepGoing)
-                return false;
+            // Incorporate input from the supplied function.
+            retval &= func(groupName, d0, mesh[0], d1, mesh[1]);
         }
     }
 
-    return true;
+    return retval;
 }
 
 //-----------------------------------------------------------------------------
@@ -3440,18 +3475,116 @@ foreach_adjset_mesh_pair(conduit::Node &mesh, const std::string &adjsetName, Fun
 bool
 adjset::compare_pointwise(conduit::Node &mesh, const std::string &adjsetName, conduit::Node &info)
 {
-    auto compareMesh =
-        [&](const std::string &groupName, int /*dom1*/, conduit::Node &mesh1, int /*dom2*/, conduit::Node &mesh2)
+    const double eps = 1.e-8;
+
+    // Figures out a coordset axis path within a diff hierarchy.
+    auto coordPath = [&](const std::string &axisName)
     {
-        // Make sure the nodes are not different.
-        const double eps = 1.e-8;
-        bool different = mesh1.diff(mesh2, info, eps);
+        std::stringstream ss;
+        ss << "/children/diff/values/children/diff/" << axisName;
+        return ss.str();
+    };
+
+    // If there are infodiff differences in the coordset, add information about differences.
+    auto logDifferences = [&](const conduit::Node &infodiff,
+                              const std::string &groupName,
+                              int dom1,
+                              const conduit::Node &mesh1,
+                              int dom2,
+                              const conduit::Node &/*mesh2*/)
+    {
+        // We know that the way this is called, there is 1 coordset and 1 topology.
+        const conduit::Node &n_coordset = mesh1["coordsets"][0];
+        const std::string coordsetName = n_coordset.name();
+
+        // Check to see whether any of the coordinate diff arrays are different.
+        const auto axisNames = conduit::blueprint::mesh::utils::coordset::axes(n_coordset);
+        bool coordinatesDiffer = false;
+        for(size_t i = 0; i < axisNames.size(); i++)
+        {
+            const auto validPath = coordPath(axisNames[i]) + "/valid";
+            coordinatesDiffer |= infodiff.has_path(validPath) ?
+                (infodiff.fetch_existing(validPath).as_string() == "false") : false;
+        }
+
+        if(coordinatesDiffer)
+        {
+            // Get the diff coordinate values in accessors.
+            double_accessor coords[3];
+            int ncomps = 0;
+            for(size_t i = 0; i < axisNames.size(); i++)
+            {
+                const auto valuePath = coordPath(axisNames[i]) + "/value";
+                if(infodiff.has_path(valuePath))
+                {
+                    coords[i] = infodiff.fetch_existing(valuePath).as_double_accessor();
+                    ncomps++;
+                }
+            }
+
+            if(ncomps == static_cast<int>(axisNames.size()))
+            {
+                const index_t domain_id = dom1;
+                const index_t nbr = dom2;
+
+                // Get the original mesh's vertex ids from a field.
+                const auto vertex_ids = mesh1.fetch_existing("fields/vertex_ids/values").as_index_t_accessor();
+
+                // Make a node in which to stash the differences.
+                std::stringstream dss;
+                dss << domain_id;
+                std::string domainName = dss.str();
+                conduit::Node &n_info_group = info[domainName][adjsetName][groupName];
+
+                // For each node that differs, add information to info.
+                const index_t nnodes = coords[0].number_of_elements();
+                for(index_t idx = 0; idx < nnodes; idx++)
+                {
+                    bool nodeDiffers = false;
+                    for(int d = 0; d < ncomps; d++)
+                    {
+                        nodeDiffers |= (coords[d][idx] > eps);
+                    }
+
+                    if(nodeDiffers)
+                    {
+                        const index_t ptid = vertex_ids[idx];
+                        const auto coord = coordset::_explicit::coords(n_coordset, idx);
+
+                        conduit::Node &vn = n_info_group.append();
+                        std::stringstream ss;
+                        ss << "Domain " << domain_id << " adjset " << adjsetName
+                           << " group " << groupName
+                           << ": vertex " << ptid << " ";
+                        print_point(ss, coord);
+                        ss << " at index " << idx
+                           << " could not be located in neighbor domain "
+                           << dom2 << ".";
+
+                        vn["message"].set(ss.str());
+                        vn["vertex"] = ptid;
+                        vn["neighbor"] = nbr;
+                        vn["coordinate"] = coord;
+                    }
+                }
+            }
+        }
+    };
+
+    auto compareMesh =
+        [&](const std::string &groupName, int dom1, conduit::Node &mesh1, int dom2, conduit::Node &mesh2)
+    {
+        const conduit::Node cs1 = mesh1["coordsets"][0];
+        const conduit::Node cs2 = mesh2["coordsets"][0];
+
+        // Make sure the coordsets are not different.
+        conduit::Node infodiff;
+        bool different = cs1.diff(cs2, infodiff, eps);
 
         // Add some diagnostic info.
         if(different)
         {
-            info["adjset"] = adjsetName;
-            info["group"] = groupName;
+            logDifferences(infodiff, groupName, dom1, mesh1, dom2, mesh2);
         }
 
         return different ? false : true;

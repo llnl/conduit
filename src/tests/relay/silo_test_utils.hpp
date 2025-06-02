@@ -24,7 +24,7 @@ using namespace conduit::utils;
 std::string
 relay_test_silo_data_path(const std::string &test_fname)
 {
-    std::string res = utils::join_path(CONDUIT_T_SRC_DIR, "relay");
+    std::string res = utils::join_file_path(CONDUIT_T_SRC_DIR, "relay");
     res = utils::join_file_path(res, "data");
     res = utils::join_file_path(res, "silo");
     return utils::join_file_path(res, test_fname);
@@ -43,15 +43,15 @@ silo_uniform_to_rect_conversion(const std::string &coordset_name,
     Node &save_mesh_rect_coords = save_mesh_rect["coordsets"][coordset_name];
     Node &save_mesh_rect_topo = save_mesh_rect["topologies"][topo_name];
     blueprint::mesh::topology::uniform::to_rectilinear(
-        save_mesh["topologies"][topo_name], 
+        save_mesh["topologies"][topo_name],
         save_mesh_rect_topo, save_mesh_rect_coords);
     save_mesh["topologies"][topo_name].set(save_mesh_rect_topo);
     save_mesh["coordsets"][coordset_name].set(save_mesh_rect_coords);
 }
 
 //-----------------------------------------------------------------------------
-// The Blueprint to Silo transformation changes several names 
-// and some information is lost. We manually make changes so 
+// The Blueprint to Silo transformation changes several names
+// and some information is lost. We manually make changes so
 // that the diff will pass.
 void
 silo_name_changer(const std::string &mmesh_name,
@@ -132,7 +132,7 @@ silo_name_changer(const std::string &mmesh_name,
             {
                 continue;
                 // If this is the case, we probably need to delete this matset.
-                // But our job in this function is just to rename things, so we 
+                // But our job in this function is just to rename things, so we
                 // will just skip.
             }
             const std::string new_topo_name = old_to_new_names[old_topo_name];
@@ -165,7 +165,7 @@ silo_name_changer(const std::string &mmesh_name,
             {
                 continue;
                 // If this is the case, we probably need to delete this specset.
-                // But our job in this function is just to rename things, so we 
+                // But our job in this function is just to rename things, so we
                 // will just skip.
             }
 
@@ -233,7 +233,7 @@ silo_name_changer(const std::string &mmesh_name,
             {
                 continue;
                 // If this is the case, we probably need to delete this field.
-                // But our job in this function is just to rename things, so we 
+                // But our job in this function is just to rename things, so we
                 // will just skip.
             }
             const std::string new_topo_name = old_to_new_names[old_topo_name];
@@ -248,7 +248,7 @@ silo_name_changer(const std::string &mmesh_name,
                 {
                     continue;
                     // If this is the case, we probably need to delete this field.
-                    // But our job in this function is just to rename things, so we 
+                    // But our job in this function is just to rename things, so we
                     // will just skip.
                 }
                 const std::string new_matset_name = old_to_new_names[old_matset_name];
@@ -293,8 +293,8 @@ silo_name_changer(const std::string &mmesh_name,
 }
 
 //-----------------------------------------------------------------------------
-// The Blueprint to Overlink transformation changes several names 
-// and some information is lost. We manually make changes so 
+// The Blueprint to Overlink transformation changes several names
+// and some information is lost. We manually make changes so
 // that the diff will pass.
 void
 overlink_name_changer(conduit::Node &save_mesh)
@@ -366,7 +366,7 @@ overlink_name_changer(conduit::Node &save_mesh)
     if (save_mesh.has_child("matsets"))
     {
         // you can have multiple matsets when saving, provided you only have
-        // one per topo. But if you want the diff to pass for tests, you 
+        // one per topo. But if you want the diff to pass for tests, you
         // really can only have one. So we assume one.
         Node &n_matset = save_mesh["matsets"].children().next();
         const std::string matset_name = n_matset.name();
@@ -522,7 +522,7 @@ vector_field_to_scalars_braid(Node &n_mesh, const std::string &dim)
 // TODO generalize this approach so that it works for all fields as part of overlink_name_changer
 {
     Node &field_vel = n_mesh["fields"]["vel"];
-    
+
     Node &field_vel_u = n_mesh["fields"]["vel_u"];
     field_vel_u["topology"].set(field_vel["topology"]);
     field_vel_u["association"].set(field_vel["association"]);
@@ -535,7 +535,7 @@ vector_field_to_scalars_braid(Node &n_mesh, const std::string &dim)
     {
         field_vel_u["label"].set(field_vel["label"]);
     }
-    
+
     Node &field_vel_v = n_mesh["fields"]["vel_v"];
     field_vel_v["topology"].set(field_vel["topology"]);
     field_vel_v["association"].set(field_vel["association"]);

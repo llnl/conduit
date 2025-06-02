@@ -934,7 +934,8 @@ void
 convert_coordset_to_rectilinear(const std::string &/*base_type*/,
                                 const conduit::Node &coordset,
                                 conduit::Node &dest)
-{
+{ 
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     // bool is_base_uniform = true;
 
     dest.reset();
@@ -961,6 +962,7 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
         Node src_cval_node, dst_cval_node;
         for(index_t d = 0; d < dim_len; d++)
         {
+            // TODO: USE ACCESSORS
             src_cval_node.set(dim_origin + d * dim_spacing);
             dst_cval_node.set_external(float_dtype, dst_cvals_node.element_ptr(d));
             src_cval_node.to_data_type(float_dtype.id(), dst_cval_node);
@@ -974,6 +976,7 @@ convert_coordset_to_explicit(const std::string &base_type,
                              const conduit::Node &coordset,
                              conduit::Node &dest)
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     bool is_base_rectilinear = base_type == "rectilinear";
     bool is_base_uniform = base_type == "uniform";
 
@@ -1003,6 +1006,7 @@ convert_coordset_to_explicit(const std::string &base_type,
         // rectilinear transform case.
         const Node &src_cvals_node = coordset.has_child("values") ?
             coordset["values"][csys_axis] : info;
+        float64_accessor src_cvals_acc = src_cvals_node.value();
         // NOTE: The following values are specific to the
         // uniform transform case.
         float64 dim_origin = coordset.has_child("origin") ?
@@ -1020,7 +1024,8 @@ convert_coordset_to_explicit(const std::string &base_type,
         Node &dst_cvals_node = dest["values"][csys_axis];
         dst_cvals_node.set(DataType(float_dtype.id(), coords_len));
 
-        Node src_cval_node, dst_cval_node;
+        float64_accessor dst_cvals_acc = dst_cvals_node.value();
+
         for(index_t d = 0; d < dim_lens[i]; d++)
         {
             index_t doffset = d * dim_block_size;
@@ -1030,21 +1035,14 @@ convert_coordset_to_explicit(const std::string &base_type,
                 for(index_t bi = 0; bi < dim_block_size; bi++)
                 {
                     index_t ioffset = doffset + boffset + bi;
-                    dst_cval_node.set_external(float_dtype,
-                        dst_cvals_node.element_ptr(ioffset));
-
                     if(is_base_rectilinear)
                     {
-                        src_cval_node.set_external(
-                            DataType(src_cvals_node.dtype().id(), 1),
-                            (void*)src_cvals_node.element_ptr(d));
+                        dst_cvals_acc.set(ioffset, src_cvals_acc[d]);
                     }
                     else if(is_base_uniform)
                     {
-                        src_cval_node.set(dim_origin + d * dim_spacing);
+                        dst_cvals_acc.set(ioffset, dim_origin + d * dim_spacing);
                     }
-
-                    src_cval_node.to_data_type(float_dtype.id(), dst_cval_node);
                 }
             }
         }
@@ -1102,6 +1100,7 @@ convert_topology_to_rectilinear(const std::string &/*base_type*/,
                                 conduit::Node &dest,
                                 conduit::Node &cdest)
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     // bool is_base_uniform = true;
 
     dest.reset();
@@ -1122,6 +1121,7 @@ convert_topology_to_structured(const std::string &base_type,
                                conduit::Node &dest,
                                conduit::Node &cdest)
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     bool is_base_rectilinear = base_type == "rectilinear";
     bool is_base_uniform = base_type == "uniform";
 
@@ -1173,6 +1173,7 @@ convert_topology_to_unstructured(const std::string &base_type,
                                  conduit::Node &dest,
                                  conduit::Node &cdest)
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     bool is_base_structured = base_type == "structured";
     bool is_base_rectilinear = base_type == "rectilinear";
     bool is_base_uniform = base_type == "uniform";
@@ -1247,11 +1248,14 @@ convert_topology_to_unstructured(const std::string &base_type,
     }
     index_t indices_per_elem = (index_t) pow(2, csys_axes.size());
 
+    CONDUIT_ANNOTATE_MARK_BEGIN("to_unstructured_index_gen");
     conduit::Node &conn_node = dest["elements/connectivity"];
     conn_node.set(DataType(int_dtype.id(), num_elems * indices_per_elem));
 
+    int64_accessor conn_node_vals = conn_node.value();
     Node src_idx_node, dst_idx_node;
     index_t curr_elem[3], curr_vert[3];
+    index_t idx=0;
     for(index_t e = 0; e < num_elems; e++)
     {
         grid_id_to_ijk(e, &edims_axes[0], &curr_elem[0]);
@@ -1269,10 +1273,8 @@ convert_topology_to_unstructured(const std::string &base_type,
             }
             grid_ijk_to_id(&curr_vert[0], &vdims_axes[0], v);
 
-            src_idx_node.set(v);
-            dst_idx_node.set_external(int_dtype,
-                conn_node.element_ptr(e * indices_per_elem + i));
-            src_idx_node.to_data_type(int_dtype.id(), dst_idx_node);
+            conn_node_vals.set(idx,v);
+            idx++;
         }
 
         // TODO(JRC): This loop inverts quads/hexes to conform to
@@ -1284,16 +1286,13 @@ convert_topology_to_unstructured(const std::string &base_type,
             index_t p1 = e * indices_per_elem + p;
             index_t p2 = e * indices_per_elem + p + 1;
 
-            Node t1, t2, t3;
-            t1.set(int_dtype, conn_node.element_ptr(p1));
-            t2.set(int_dtype, conn_node.element_ptr(p2));
-
-            t3.set_external(int_dtype, conn_node.element_ptr(p1));
-            t2.to_data_type(int_dtype.id(), t3);
-            t3.set_external(int_dtype, conn_node.element_ptr(p2));
-            t1.to_data_type(int_dtype.id(), t3);
+            int64 value_swap = conn_node_vals[p1];
+            conn_node_vals.set(p1,conn_node_vals[p2]);
+            conn_node_vals.set(p2,value_swap);
         }
     }
+
+    CONDUIT_ANNOTATE_MARK_END("to_unstructured_index_gen");
 }
 
 //-------------------------------------------------------------------------
@@ -1727,6 +1726,7 @@ calculate_unstructured_centroids(const conduit::Node &topo,
         auto n = static_cast<int64>(topo_num_elems);
         for(ei_value = 0; ei_value < n; ei_value++)
         {
+            // TODO: USE ACCESSORS
             // Use data_node to wrap connectivity[ei].
             data_node.set_external(int_dtype, dest_elem_conn.element_ptr(ei_value));
             // Convert ei_data to int, store in data_node.
@@ -1983,6 +1983,59 @@ mesh::number_of_domains(const conduit::Node &mesh)
     {
         return mesh.number_of_children();
     }
+}
+
+//-------------------------------------------------------------------------
+void
+mesh::state(const conduit::Node &mesh, conduit::Node &state)
+{
+    state.reset();
+    if (! is_multi_domain(mesh))
+    {
+        if (mesh.has_child("state"))
+        {
+            state.set(mesh["state"]);
+        }
+    }
+    else
+    {
+        auto doms_itr = mesh.children();
+        while (doms_itr.has_next())
+        {
+            const Node &dom = doms_itr.next();
+            if (dom.has_child("state"))
+            {
+                state.set(dom["state"]);
+                break;
+            }
+        }
+    }
+}
+
+//-------------------------------------------------------------------------
+index_t
+mesh::cycle(const conduit::Node &mesh)
+{
+    Node state;
+    ::conduit::blueprint::mesh::state(mesh, state);
+    if (state.has_child("cycle"))
+    {
+        return state["cycle"].to_index_t();
+    }
+    return std::numeric_limits<int>::max();
+}
+
+//-------------------------------------------------------------------------
+float64
+mesh::time(const conduit::Node &mesh)
+{
+    Node state;
+    ::conduit::blueprint::mesh::state(mesh, state);
+    if (state.has_child("time"))
+    {
+        return state["time"].to_float64();
+    }
+    return std::numeric_limits<int>::max();
 }
 
 //-------------------------------------------------------------------------
@@ -3048,6 +3101,7 @@ generate_derived_entities(conduit::Node &mesh,
             index_t ni = 0;
             for(auto nitr = group_nidxs.begin(); nitr != group_nidxs.end(); ++nitr)
             {
+                // TODO: USE ACCESSORS
                 src_data.set_external(DataType::index_t(1),
                     (void*)&(*nitr));
                 dst_data.set_external(DataType(src_neighbors_dtype.id(), 1),
@@ -3058,6 +3112,7 @@ generate_derived_entities(conduit::Node &mesh,
             dst_values.set(DataType(src_values_dtype.id(), group_entities.size()));
             for(index_t ei = 0; ei < (index_t)group_entities.size(); ei++)
             {
+                // TODO: USE ACCESSORS
                 src_data.set_external(DataType::index_t(1),
                     (void*)&std::get<1>(group_entities[ei]));
                 dst_data.set_external(DataType(src_values_dtype.id(), 1),
@@ -3387,6 +3442,7 @@ generate_decomposed_entities(conduit::Node &mesh,
             index_t ni = 0;
             for(auto nitr = group_nidxs.begin(); nitr != group_nidxs.end(); ++nitr)
             {
+                // TODO: USE ACCESSORS
                 src_data.set_external(DataType::index_t(1),
                     (void*)&(*nitr));
                 dst_data.set_external(DataType(src_neighbors_dtype.id(), 1),
@@ -3397,6 +3453,7 @@ generate_decomposed_entities(conduit::Node &mesh,
             dst_values.set(DataType(src_values_dtype.id(), group_entities.size()));
             for(index_t ei = 0; ei < (index_t)group_entities.size(); ei++)
             {
+                // TODO: USE ACCESSORS
                 src_data.set_external(DataType::index_t(1),
                     (void*)&std::get<1>(group_entities[ei]));
                 dst_data.set_external(DataType(src_values_dtype.id(), 1),
@@ -4002,6 +4059,7 @@ void
 mesh::coordset::to_explicit(const conduit::Node& coordset,
                             conduit::Node& coordset_dest)
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     std::string type = coordset.fetch_existing("type").as_string();
 
     if(type == "uniform")
@@ -4017,6 +4075,7 @@ void
 mesh::coordset::uniform::to_rectilinear(const conduit::Node &coordset,
                                         conduit::Node &dest)
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     convert_coordset_to_rectilinear("uniform", coordset, dest);
 }
 
@@ -4026,6 +4085,7 @@ void
 mesh::coordset::uniform::to_explicit(const conduit::Node &coordset,
                                      conduit::Node &dest)
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     convert_coordset_to_explicit("uniform", coordset, dest);
 }
 
@@ -4035,6 +4095,7 @@ void
 mesh::coordset::rectilinear::to_explicit(const conduit::Node &coordset,
                                          conduit::Node &dest)
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     convert_coordset_to_explicit("rectilinear", coordset, dest);
 }
 
@@ -4606,6 +4667,7 @@ mesh::topology::unstructured::to_polygonal(const Node &topo,
                 {
                     for (index_t ii = 0; ii < embed_shape.indices; ii++)
                     {
+                        // TODO: USE ACCESSORS
                         index_t inner_data_off = data_off +
                           topo_shape.embedding[fi * embed_shape.indices + ii];
                         temp.set_external(topo_dtype,
@@ -4637,6 +4699,7 @@ mesh::topology::unstructured::to_polygonal(const Node &topo,
             temp.to_data_type(int_dtype.id(), dest["elements/connectivity"]);
 
             std::vector<int64> polyhedral_size_data(topo_elems, topo_shape.embed_count);
+
             temp.set_external(polyhedral_size_data);
             temp.to_data_type(int_dtype.id(), dest["elements/sizes"]);
 
@@ -4879,7 +4942,7 @@ mesh::topology::unstructured::generate_sides(const Node &topo,
             {
                 const Node &cset_axis = cset["values"][csys_axes[ai]];
                 index_t cset_length = cset_axis.dtype().number_of_elements();
-
+                // TODO: USE ACCESSORS
                 dst_data.set_external(DataType(float_dtype.id(), cset_length),
                     dst_axis.element_ptr(doffset));
                 cset_axis.to_data_type(float_dtype.id(), dst_data);
@@ -4967,6 +5030,7 @@ mesh::topology::unstructured::generate_sides(const Node &topo,
                     side_data_raw[2 + pi] = dim_coord_offsets[parent_dim] + parent_id;
                 }
 
+                // TODO: USE ACCESSORS?
                 misc_data.set_external(DataType(int_dtype.id(), sides_elem_degree),
                     dest_conn.element_ptr(sides_elem_degree * side_index));
                 side_data.to_data_type(int_dtype.id(), misc_data);
@@ -4981,6 +5045,7 @@ mesh::topology::unstructured::generate_sides(const Node &topo,
 
                 int64 side_num_elems = 1;
                 raw_data.set(side_num_elems);
+
                 misc_data.set_external(DataType(int_dtype.id(), 1),
                     d2smap["sizes"].element_ptr(d2s_elem_index++));
                 raw_data.to_data_type(int_dtype.id(), misc_data);
@@ -4991,6 +5056,7 @@ mesh::topology::unstructured::generate_sides(const Node &topo,
 
         int64 elem_num_sides = s2d_val_index - s2d_start_index;
         raw_data.set(elem_num_sides);
+        // TODO: USE ACCESSORS
         misc_data.set_external(DataType(int_dtype.id(), 1),
             s2dmap["sizes"].element_ptr(s2d_elem_index++));
         raw_data.to_data_type(int_dtype.id(), misc_data);
@@ -5730,7 +5796,7 @@ mesh::topology::unstructured::generate_corners(const Node &topo,
             const Node &cset = (di != 0) ? dim_cent_coords[di] : *coordset;
             const Node &cset_axis = cset["values"][csys_axes[ai]];
             index_t cset_length = cset_axis.dtype().number_of_elements();
-
+            // TODO: USE ACCESSORS?
             dst_data.set_external(DataType(float_dtype.id(), cset_length),
                 dst_axis.element_ptr(doffset));
             cset_axis.to_data_type(float_dtype.id(), dst_data);
@@ -5985,6 +6051,7 @@ mesh::topology::unstructured::generate_corners(const Node &topo,
 
     Node raw_data, info;
     {
+        // TODO: USE ACCESSORS?
         raw_data.set_external(
             DataType::int64(conn_data_raw.size()),
             conn_data_raw.data());
@@ -6158,12 +6225,12 @@ mesh::topology::shape_map::verify(const Node& shape_map,
     if (isEnum)
     {
       log::info(info, protocol, "has valid value "+ log::quote(child.name()) +
-      "(" + std::to_string(child.as_int32()) + ")");
+      "(" + std::to_string(child.to_int32()) + ")");
     }
     else
     {
       log::error(info, protocol, "has invalid value " + log::quote(child.name()) +
-        "(" + std::to_string(child.as_int32()) + ")");
+        "(" + std::to_string(child.to_int32()) + ")");
     }
     res &= isEnum;
   }

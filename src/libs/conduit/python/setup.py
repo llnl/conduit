@@ -25,7 +25,7 @@ def adjust_windows_args_paths():
 if platform.system() == 'Windows':
     adjust_windows_args_paths()
 
-CONDUIT_VERSION = '0.9.3'
+CONDUIT_VERSION = '0.9.4'
 
 setup (name = 'conduit',
        description = 'conduit',
@@ -41,9 +41,14 @@ setup (name = 'conduit',
                  'conduit.blueprint.mesh.examples',
                  'conduit.blueprint.table',
                  'conduit.blueprint.table.examples',
+                 'conduit.blueprint.mpi',
+                 'conduit.blueprint.mpi.mesh',
+                 'conduit.blueprint.mpi.mesh.examples',
                  'conduit.relay',
                  'conduit.relay.io',
                  'conduit.relay.io.blueprint',
                  'conduit.relay.io.silo',
                  'conduit.relay.mpi',
+                 'conduit.relay.mpi.io',
+                 'conduit.relay.mpi.io.blueprint',
                  'conduit.relay.web'])

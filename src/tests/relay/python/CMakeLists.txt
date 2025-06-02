@@ -13,7 +13,9 @@ set(PYTHON_MODULE_TESTS t_python_relay_smoke
 
 set(PYTHON_MODULE_RELAY_WEB_TESTS t_python_relay_web)
 
-set(PYTHON_MODULE_MPI_TESTS t_python_relay_mpi)
+set(PYTHON_MODULE_MPI_TESTS t_python_relay_mpi
+                            t_python_relay_mpi_io
+                            t_python_relay_mpi_io_blueprint)
 
 foreach(TEST ${PYTHON_MODULE_TESTS})
     add_python_test(TEST ${TEST}

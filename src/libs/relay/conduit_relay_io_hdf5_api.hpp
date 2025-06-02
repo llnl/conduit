@@ -75,7 +75,7 @@
 //-----------------------------------------------------------------------------
 ///  Note: HDF5 I/O is not implemented for Conduit Nodes in the List role.
 ///        We believe this will require a non-standard HDF5 convention, and
-///        we want to focus on the Object and Leave cases since they are
+///        we want to focus on the Object and Leaf cases since they are
 ///        compatible with HDF5's data model.
 //-----------------------------------------------------------------------------
 
