@@ -36,6 +36,7 @@ build_shared_libs="${build_shared_libs:=ON}"
 # tpl controls
 build_zlib="${build_zlib:=true}"
 build_hdf5="${build_hdf5:=true}"
+build_cgns="${build_cgns:=true}"
 
 # conduit options
 build_conduit="${build_conduit:=true}"
@@ -198,12 +199,23 @@ fi
 #################
 
 echo "**** Configuring HDF5 ${hdf5_version}"
+hdf_parallel_settings=""
+# check if mpi is enabled
+if [[ "${enable_mpi}" == "ON" ]]; then
+  echo "**** Enabling MPI support for HDF5"
+  hdf_parallel_settings=" -DHDF5_ENABLE_PARALLEL=ON"
+else
+  echo "**** Disabling MPI support for HDF5"
+  hdf_parallel_settings=" -DHDF5_ENABLE_PARALLEL=OFF"
+fi
+
 cmake -S ${hdf5_src_dir} -B ${hdf5_build_dir} ${cmake_compiler_settings} \
   -DCMAKE_VERBOSE_MAKEFILE:BOOL=${enable_verbose} \
   -DCMAKE_BUILD_TYPE=${build_config} \
   -DHDF5_ENABLE_Z_LIB_SUPPORT=ON \
   -DCMAKE_PREFIX_PATH=${zlib_install_dir} \
-  -DCMAKE_INSTALL_PREFIX=${hdf5_install_dir}
+  -DCMAKE_INSTALL_PREFIX=${hdf5_install_dir} \
+  ${hdf_parallel_settings}
 
 echo "**** Building HDF5 ${hdf5_version}"
 cmake --build ${hdf5_build_dir} --config ${build_config} -j${build_jobs}
@@ -214,6 +226,57 @@ fi
 else
   echo "**** Skipping HDF5 build, install found at: ${hdf5_install_dir}"
 fi # build_hdf5
+
+
+################
+# CGNS
+################
+
+cgns_version=4.4.0
+cgns_tarball=cgns-${cgns_version}.tar.gz
+cgns_install_dir=$(ospath ${install_dir}/cgns-${cgns_version}/)
+cgns_src_dir=$(ospath ${root_dir}/CGNS-${cgns_version})
+cgns_build_dir=$(ospath ${root_dir}/build/cgns-${cgns_version}/)
+
+# build only if install doesn't exist
+if [ ! -d ${cgns_install_dir} ]; then
+if ${build_cgns}; then
+if [ ! -d ${cgns_src_dir} ]; then
+  echo "**** Downloading ${cgns_tarball}"
+  curl -L https://github.com/CGNS/CGNS/archive/refs/tags/v${cgns_version}.tar.gz -o ${cgns_tarball}
+  tar -xzf ${cgns_tarball}
+fi
+
+
+cgns_parallel_settings=""
+# check if mpi is enabled
+if [[ "${enable_mpi}" == "ON" ]]; then
+  echo "**** Enabling MPI support for CGNS"
+  cgns_parallel_settings=" -DCGNS_ENABLE_PARALLEL=ON -DHDF5_NEED_MPI=ON"
+else
+  echo "**** Disabling MPI support for CGNS"
+  cgns_parallel_settings=" -DCGNS_ENABLE_PARALLEL=OFF -DHDF5_NEED_MPI=OFF"
+fi
+
+
+cmake -S ${cgns_src_dir} -B ${cgns_build_dir} ${cmake_compiler_settings} \
+  -DCMAKE_VERBOSE_MAKEFILE:BOOL=${enable_verbose} \
+  -DCMAKE_BUILD_TYPE=${build_config} \
+  -DCGNS_BUILD_SHARED=ON \
+  -DCMAKE_PREFIX_PATH=${hdf5_install_dir} \
+  -DCMAKE_INSTALL_PREFIX=${cgns_install_dir} \
+  -DCGNS_ENABLE_SCOPING=ON \
+  -DCGNS_ENABLE_64BIT=ON \
+  ${cgns_parallel_settings}
+
+echo "**** Building CGNS ${cgns_version}"
+cmake --build ${cgns_build_dir} --config ${build_config} -j${build_jobs}
+echo "**** Installing CGNS ${cgns_version}"
+cmake --install ${cgns_build_dir} --config ${build_config}
+
+fi # build_cgns
+fi # if cgns install exists, skip build
+
 
 ################
 # Conduit
@@ -264,6 +327,7 @@ echo 'set(ENABLE_FORTRAN ' ${enable_fortran} ' CACHE BOOL "")' >> ${root_dir}/co
 echo 'set(ENABLE_PYTHON ' ${enable_python} ' CACHE BOOL "")' >> ${root_dir}/conduit-config.cmake
 echo 'set(CONDUIT_DIR ' ${conduit_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
 echo 'set(HDF5_DIR ' ${hdf5_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+echo 'set(CGNS_DIR ' ${cgns_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
 echo 'set(ZLIB_DIR ' ${zlib_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
 
 # build only if install doesn't exist
