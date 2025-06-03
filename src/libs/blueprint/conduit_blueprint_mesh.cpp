@@ -2843,7 +2843,7 @@ group_domains_and_maps(conduit::Node &mesh, conduit::Node &s2dmap, conduit::Node
                           to generate derived domains.
   @param Q                A MatchQuery instance that helps in constructing the
                           derived adjset.
-  &param mic              A MaterialInfoCollection object use in quantizing nodes.
+  &param mic              A MeshInfoCollection object use in quantizing nodes.
  */
 static void
 generate_derived_entities(conduit::Node &mesh,
