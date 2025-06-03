@@ -2843,6 +2843,7 @@ group_domains_and_maps(conduit::Node &mesh, conduit::Node &s2dmap, conduit::Node
                           to generate derived domains.
   @param Q                A MatchQuery instance that helps in constructing the
                           derived adjset.
+  &param mic              A MaterialInfoCollection object use in quantizing nodes.
  */
 static void
 generate_derived_entities(conduit::Node &mesh,
@@ -2852,7 +2853,8 @@ generate_derived_entities(conduit::Node &mesh,
                           conduit::Node &s2dmap,
                           conduit::Node &d2smap,
                           GenDerivedFun generate_derived,
-                          conduit::blueprint::mesh::utils::query::MatchQuery &Q)
+                          conduit::blueprint::mesh::utils::query::MatchQuery &Q,
+                          conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic)
 {
     namespace topoutils = conduit::blueprint::mesh::utils::topology;
     using Entity = std::tuple<std::set<topoutils::Quantizer::QuantizedIndex>, index_t>;
@@ -2999,9 +3001,26 @@ generate_derived_entities(conduit::Node &mesh,
     }
     CONDUIT_ANNOTATE_MARK_END("dom_entity_neighbor_map.finish");
 
+    CONDUIT_ANNOTATE_MARK_BEGIN("mesh_info");
+    const index_t num_domains = static_cast<index_t>(doms_and_maps.size());
+    mic.begin();
+    for(index_t di = 0; di < num_domains; di++)
+    {
+        Node &domain = *std::get<0>(doms_and_maps[di]);
+        const index_t domain_id = domain["state/domain_id"].to_index_t();
+        const Node &dst_topo = domain["topologies"][dst_topo_name];
+
+        // Compute information about the dst_topo, store in mic.
+        topoutils::MeshInfo dst_info;
+        topoutils::compute_mesh_info(dst_topo, dst_info);
+        mic.add(domain_id, dst_info);
+    }
+    mic.end();
+    CONDUIT_ANNOTATE_MARK_END("mesh_info");
+
     // Finish building the adjset.
     CONDUIT_ANNOTATE_MARK_BEGIN("build");
-    for(index_t di = 0; di < (index_t)doms_and_maps.size(); di++)
+    for(index_t di = 0; di < num_domains; di++)
     {
         conduit::Node &domain = *std::get<0>(doms_and_maps[di]);
         const index_t domain_id = domain["state/domain_id"].to_index_t();
@@ -3014,10 +3033,8 @@ generate_derived_entities(conduit::Node &mesh,
 
         const Node &dst_topo = domain["topologies"][dst_topo_name];
 
-        // Compute information about the dst_topo and make a Quantizer with it.
-        topoutils::MeshInfo dst_info;
-        topoutils::compute_mesh_info(dst_topo, dst_info);
-        topoutils::Quantizer quantizer(dst_info);
+        // Make Quantizer from merged mesh info.
+        topoutils::Quantizer quantizer(mic.getMergedMeshInfo());
 
         conduit::Node &dst_adjset_groups = domain["adjsets"][dst_adjset_name]["groups"];
 
@@ -3146,7 +3163,8 @@ generate_decomposed_entities(conduit::Node &mesh,
                              GenDecomposedFun generate_decomposed,
                              IdDecomposedFun  identify_decomposed,
                              const std::vector<index_t> &decomposed_centroid_dims,
-                             conduit::blueprint::mesh::utils::query::PointQueryBase &query)
+                             conduit::blueprint::mesh::utils::query::PointQueryBase &query,
+                             conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic)
 {
     namespace topoutils = conduit::blueprint::mesh::utils::topology;
     using Entity = std::tuple<topoutils::Quantizer::QuantizedIndex, index_t>;
@@ -3337,6 +3355,22 @@ generate_decomposed_entities(conduit::Node &mesh,
     }
     CONDUIT_ANNOTATE_MARK_END("dom_entity_neighbor_map.finish");
 
+    CONDUIT_ANNOTATE_MARK_BEGIN("mesh_info");
+    mic.begin();
+    for(index_t di = 0; di < num_domains; di++)
+    {
+        Node &domain = *std::get<0>(doms_and_maps[di]);
+        const index_t domain_id = domain["state/domain_id"].to_index_t();
+        const Node &dst_topo = domain["topologies"][dst_topo_name];
+
+        // Compute information about the dst_topo, store in mic.
+        topoutils::MeshInfo dst_info;
+        topoutils::compute_mesh_info(dst_topo, dst_info);
+        mic.add(domain_id, dst_info);
+    }
+    mic.end();
+    CONDUIT_ANNOTATE_MARK_END("mesh_info");
+
     // Finish building the corner mesh adjset.
     CONDUIT_ANNOTATE_MARK_BEGIN("build");
     for(index_t di = 0; di < num_domains; di++)
@@ -3350,12 +3384,8 @@ generate_decomposed_entities(conduit::Node &mesh,
         const Node &src_adjset_groups = domain["adjsets"][src_adjset_name]["groups"];
         Node &dst_adjset_groups = domain["adjsets"][dst_adjset_name]["groups"];
 
-        const Node &dst_topo = domain["topologies"][dst_topo_name];
-
-        // Compute information about the dst_topo and make a Quantizer with it.
-        topoutils::MeshInfo dst_info;
-        topoutils::compute_mesh_info(dst_topo, dst_info);
-        topoutils::Quantizer quantizer(dst_info);
+        // Make Quantizer from merged mesh info.
+        topoutils::Quantizer quantizer(mic.getMergedMeshInfo());
 
         // Use Entity Interfaces to Construct Group Entity Lists //
 
@@ -3504,12 +3534,13 @@ mesh::generate_points(conduit::Node &mesh,
                       const std::string &dst_topo_name,
                       conduit::Node &s2dmap,
                       conduit::Node &d2smap,
-                      conduit::blueprint::mesh::utils::query::MatchQuery &query)
+                      conduit::blueprint::mesh::utils::query::MatchQuery &query,
+                      conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic)
 {
     verify_generate_mesh(mesh, src_adjset_name);
     generate_derived_entities(
         mesh, src_adjset_name, dst_adjset_name, dst_topo_name, s2dmap, d2smap,
-        conduit::blueprint::mesh::topology::unstructured::generate_points, query);
+        conduit::blueprint::mesh::topology::unstructured::generate_points, query, mic);
 }
 
 //-----------------------------------------------------------------------------
@@ -3524,9 +3555,10 @@ mesh::generate_points(conduit::Node &mesh,
 {
     verify_generate_mesh(mesh, src_adjset_name);
     conduit::blueprint::mesh::utils::query::MatchQuery query(mesh);
+    conduit::blueprint::mesh::utils::topology::MeshInfoCollection mic;
     generate_derived_entities(
         mesh, src_adjset_name, dst_adjset_name, dst_topo_name, s2dmap, d2smap,
-        conduit::blueprint::mesh::topology::unstructured::generate_points, query);
+        conduit::blueprint::mesh::topology::unstructured::generate_points, query, mic);
 }
 
 //-----------------------------------------------------------------------------
@@ -3537,12 +3569,13 @@ mesh::generate_lines(conduit::Node &mesh,
                      const std::string &dst_topo_name,
                      conduit::Node &s2dmap,
                      conduit::Node &d2smap,
-                     conduit::blueprint::mesh::utils::query::MatchQuery &query)
+                     conduit::blueprint::mesh::utils::query::MatchQuery &query,
+                     conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic)
 {
     verify_generate_mesh(mesh, src_adjset_name);
     generate_derived_entities(
         mesh, src_adjset_name, dst_adjset_name, dst_topo_name, s2dmap, d2smap,
-        conduit::blueprint::mesh::topology::unstructured::generate_lines, query);
+        conduit::blueprint::mesh::topology::unstructured::generate_lines, query, mic);
 }
 
 //-----------------------------------------------------------------------------
@@ -3557,9 +3590,11 @@ mesh::generate_lines(conduit::Node &mesh,
 {
     verify_generate_mesh(mesh, src_adjset_name);
     conduit::blueprint::mesh::utils::query::MatchQuery query(mesh);
+    conduit::blueprint::mesh::utils::topology::MeshInfoCollection mic;
+
     generate_derived_entities(
         mesh, src_adjset_name, dst_adjset_name, dst_topo_name, s2dmap, d2smap,
-        conduit::blueprint::mesh::topology::unstructured::generate_lines, query);
+        conduit::blueprint::mesh::topology::unstructured::generate_lines, query, mic);
 }
 
 
@@ -3571,12 +3606,13 @@ mesh::generate_faces(conduit::Node &mesh,
                      const std::string& dst_topo_name,
                      conduit::Node& s2dmap,
                      conduit::Node& d2smap,
-                     conduit::blueprint::mesh::utils::query::MatchQuery &query)
+                     conduit::blueprint::mesh::utils::query::MatchQuery &query,
+                     conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic)
 {
     verify_generate_mesh(mesh, src_adjset_name);
     generate_derived_entities(
         mesh, src_adjset_name, dst_adjset_name, dst_topo_name, s2dmap, d2smap,
-        conduit::blueprint::mesh::topology::unstructured::generate_faces, query);
+        conduit::blueprint::mesh::topology::unstructured::generate_faces, query, mic);
 }
 
 //-----------------------------------------------------------------------------
@@ -3591,9 +3627,11 @@ mesh::generate_faces(conduit::Node &mesh,
 {
     verify_generate_mesh(mesh, src_adjset_name);
     conduit::blueprint::mesh::utils::query::MatchQuery query(mesh);
+    conduit::blueprint::mesh::utils::topology::MeshInfoCollection mic;
+
     generate_derived_entities(
         mesh, src_adjset_name, dst_adjset_name, dst_topo_name, s2dmap, d2smap,
-        conduit::blueprint::mesh::topology::unstructured::generate_faces, query);
+        conduit::blueprint::mesh::topology::unstructured::generate_faces, query, mic);
 }
 
 //-----------------------------------------------------------------------------
@@ -3604,7 +3642,9 @@ mesh::generate_centroids(conduit::Node& mesh,
                          const std::string& dst_topo_name,
                          const std::string& dst_cset_name,
                          conduit::Node& s2dmap,
-                         conduit::Node& d2smap)
+                         conduit::Node& d2smap,
+                         conduit::blueprint::mesh::utils::query::PointQueryBase &query,
+                         conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic)
 {
     const static auto identify_centroid = []
         (const bputils::TopologyMetadata &/*topo_data*/, const index_t ei, const index_t /*di*/)
@@ -3622,14 +3662,30 @@ mesh::generate_centroids(conduit::Node& mesh,
     const std::vector<index_t> centroid_dims = calculate_decomposed_dims(
         mesh, src_adjset_name, calculate_centroid_dims);
 
-    conduit::blueprint::mesh::utils::query::PointQueryBase query(mesh);
-
     generate_decomposed_entities(
         mesh, src_adjset_name, dst_adjset_name, dst_topo_name, dst_cset_name, s2dmap, d2smap,
         conduit::blueprint::mesh::topology::unstructured::generate_centroids, identify_centroid, centroid_dims,
-        query);
+        query, mic);
 }
 
+//-----------------------------------------------------------------------------
+//[[deprecated]]
+void
+mesh::generate_centroids(conduit::Node& mesh,
+                         const std::string& src_adjset_name,
+                         const std::string& dst_adjset_name,
+                         const std::string& dst_topo_name,
+                         const std::string& dst_cset_name,
+                         conduit::Node& s2dmap,
+                         conduit::Node& d2smap)
+{
+    conduit::blueprint::mesh::utils::query::PointQueryBase query(mesh);
+    conduit::blueprint::mesh::utils::topology::MeshInfoCollection mic;
+
+    generate_centroids(
+        mesh, src_adjset_name, dst_adjset_name, dst_topo_name, dst_cset_name, s2dmap, d2smap,
+        query, mic);
+}
 
 //-----------------------------------------------------------------------------
 void
@@ -3639,7 +3695,9 @@ mesh::generate_sides(conduit::Node& mesh,
                      const std::string& dst_topo_name,
                      const std::string& dst_cset_name,
                      conduit::Node& s2dmap,
-                     conduit::Node& d2smap)
+                     conduit::Node& d2smap,
+                     conduit::blueprint::mesh::utils::query::PointQueryBase &query,
+                     conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic)
 {
     const static auto identify_side = []
         (const bputils::TopologyMetadata &topo_data, const index_t ei, const index_t di)
@@ -3674,12 +3732,29 @@ mesh::generate_sides(conduit::Node& mesh,
     const std::vector<index_t> side_dims = calculate_decomposed_dims(
         mesh, src_adjset_name, calculate_side_dims);
 
-    conduit::blueprint::mesh::utils::query::PointQueryBase query(mesh);
-
     generate_decomposed_entities(
         mesh, src_adjset_name, dst_adjset_name, dst_topo_name, dst_cset_name, s2dmap, d2smap,
         conduit::blueprint::mesh::topology::unstructured::generate_sides, identify_side, side_dims,
-        query);
+        query, mic);
+}
+
+//-----------------------------------------------------------------------------
+//[[deprecated]]
+void
+mesh::generate_sides(conduit::Node& mesh,
+                     const std::string& src_adjset_name,
+                     const std::string& dst_adjset_name,
+                     const std::string& dst_topo_name,
+                     const std::string& dst_cset_name,
+                     conduit::Node& s2dmap,
+                     conduit::Node& d2smap)
+{
+    conduit::blueprint::mesh::utils::query::PointQueryBase query(mesh);
+    conduit::blueprint::mesh::utils::topology::MeshInfoCollection mic;
+
+    generate_sides(
+        mesh, src_adjset_name, dst_adjset_name, dst_topo_name, dst_cset_name, s2dmap, d2smap,
+        query, mic);
 }
 
 //-----------------------------------------------------------------------------
@@ -3691,7 +3766,8 @@ mesh::generate_corners(conduit::Node& mesh,
                        const std::string& dst_cset_name,
                        conduit::Node& s2dmap,
                        conduit::Node& d2smap,
-                       conduit::blueprint::mesh::utils::query::PointQueryBase &query)
+                       conduit::blueprint::mesh::utils::query::PointQueryBase &query,
+                       conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic)
 {
     const static auto identify_corner = []
         (const bputils::TopologyMetadata &topo_data, const index_t ei, const index_t di)
@@ -3725,11 +3801,11 @@ mesh::generate_corners(conduit::Node& mesh,
     generate_decomposed_entities(
         mesh, src_adjset_name, dst_adjset_name, dst_topo_name, dst_cset_name, s2dmap, d2smap,
         conduit::blueprint::mesh::topology::unstructured::generate_corners, identify_corner, corner_dims,
-        query);
+        query, mic);
 }
 
 //-----------------------------------------------------------------------------
-// NOTE: compatibility method.
+//[[deprecated]]
 void
 mesh::generate_corners(conduit::Node& mesh,
                        const std::string& src_adjset_name,
@@ -3742,8 +3818,10 @@ mesh::generate_corners(conduit::Node& mesh,
     // Q: Should we use PointQuery instead so it actually checks for non-existent points?
     //    The PointQueryBase will preserve prior behavior.
     conduit::blueprint::mesh::utils::query::PointQueryBase query(mesh);
+    conduit::blueprint::mesh::utils::topology::MeshInfoCollection mic;
+
     generate_corners(mesh, src_adjset_name, dst_adjset_name, dst_topo_name, dst_cset_name,
-                     s2dmap, d2smap, query);
+                     s2dmap, d2smap, query, mic);
 }
 
 //-----------------------------------------------------------------------------

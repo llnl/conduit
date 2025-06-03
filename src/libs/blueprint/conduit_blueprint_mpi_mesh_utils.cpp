@@ -55,6 +55,76 @@ namespace mesh
 namespace utils
 {
 
+topology::MeshInfoCollection::MeshInfoCollection(MPI_Comm comm) :
+    conduit::blueprint::mesh::utils::topology::MeshInfoCollection(), m_comm(comm)
+{
+}
+
+void topology::MeshInfoCollection::end()
+{
+    CONDUIT_ANNOTATE_MARK_SCOPE("MeshInfoCollection::end()");
+
+    const auto numLocalMeshInfo = static_cast<index_t>(meshInfos.size());
+    const index_t numValuesPerMeshInfo = 9;
+
+    // Encode local mesh info into an array.
+    Node n_localMeshInfo;
+    n_localMeshInfo.set(conduit::DataType::float64(numLocalMeshInfo * numValuesPerMeshInfo));
+    float64 *ptr = n_localMeshInfo.value();
+    for(auto it = meshInfos.begin(); it != meshInfos.end(); it++)
+    {
+        *ptr++ = it->first;
+        *ptr++ = it->second.minExtents[0];
+        *ptr++ = it->second.minExtents[1];
+        *ptr++ = it->second.minExtents[2];
+        *ptr++ = it->second.maxExtents[0];
+        *ptr++ = it->second.maxExtents[1];
+        *ptr++ = it->second.maxExtents[2];
+        *ptr++ = it->second.minEdgeLength;
+        *ptr++ = it->second.maxEdgeLength;
+    }
+
+    // Make sure all ranks get the info.
+    Node n_globalMeshInfo;
+    conduit::relay::mpi::all_gather(n_localMeshInfo, n_globalMeshInfo, m_comm);
+
+    // Decode the infos and store them.
+    bool first = true;
+    mergedMeshInfo = conduit::blueprint::mesh::utils::topology::MeshInfo();
+    for(index_t i = 0; i < n_globalMeshInfo.number_of_children(); i++)
+    {
+        const Node &n_meshInfo = n_globalMeshInfo[i];
+        const index_t numMeshInfo = n_meshInfo.dtype().number_of_elements() / numValuesPerMeshInfo;
+        const float64 *ptr2 = n_meshInfo.value();
+        for(index_t j = 0; j < numMeshInfo; j++)
+        {
+           conduit::blueprint::mesh::utils::topology::MeshInfo info;
+           index_t domainId = static_cast<index_t>(ptr2[0]);
+           info.minExtents[0] = ptr2[1];
+           info.minExtents[1] = ptr2[2];
+           info.minExtents[2] = ptr2[3];
+           info.maxExtents[0] = ptr2[4];
+           info.maxExtents[1] = ptr2[5];
+           info.maxExtents[2] = ptr2[6];
+           info.minEdgeLength = ptr2[7];
+           info.maxEdgeLength = ptr2[8];
+
+           add(domainId, info);
+           if(first)
+           {
+               first = false;
+               mergedMeshInfo = info;
+           }
+           else
+           {
+               mergedMeshInfo = merge(mergedMeshInfo, info);
+           }
+
+           ptr2 += numValuesPerMeshInfo;
+        }
+    }
+}
+
 //-----------------------------------------------------------------------------
 // -- begin conduit::blueprint::mpi::mesh::utils::query --
 //-----------------------------------------------------------------------------

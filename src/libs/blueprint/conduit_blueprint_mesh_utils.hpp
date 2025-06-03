@@ -584,6 +584,67 @@ namespace topology
      */
     std::ostream &operator << (std::ostream &os, const MeshInfo &obj);
 
+    /**
+     * @brief This structure manages a collection of MeshInfo objects.
+     */
+    class CONDUIT_BLUEPRINT_API MeshInfoCollection
+    {
+    public:
+        /// Constructor.
+        MeshInfoCollection();
+
+        /// Destructor
+        virtual ~MeshInfoCollection() = default;
+
+        /**
+         * @brief Clear the domain information.
+         */
+        void clear();
+
+        /**
+         * @brief This method is called before adding domains.
+         */
+        void begin();
+
+        /**
+         * @brief Add a domain's information to the collection.
+         *
+         * @param domainId The domain id for the mesh info.
+         * @param info     The mesh info to add.
+         */
+        void add(index_t domainId, const MeshInfo &info);
+
+        /**
+         * @brief This method is called once all local domains have been added.
+         */
+        virtual void end();
+
+        /**
+         * @brief Get the info for a domain.
+         * @param domainId The id for the domain info to retrieve. It must have
+         *                 been added.
+         * @return A reference to the domain's mesh info.
+         */
+        const MeshInfo &getMeshInfo(index_t domainId) const;
+
+        /**
+         * @brief Get the merged info for all domains.
+         * @return A reference to the merged mesh info.
+         */
+        const MeshInfo &getMergedMeshInfo() const;
+
+        /**
+         * @brief Merge 2 MeshInfo objects into one.
+         * @param a The first object to merge.
+         * @param b The second object to merge.
+         * @return The merged mesh info for a, b.
+         */
+        static MeshInfo merge(const MeshInfo &a, const MeshInfo &b);
+    protected:
+        std::map<index_t, MeshInfo> meshInfos;
+        MeshInfo mergedMeshInfo;
+    };
+
     //-------------------------------------------------------------------------
     /**
      * @brief Quantize a mesh node into an index by binning the points in a regular

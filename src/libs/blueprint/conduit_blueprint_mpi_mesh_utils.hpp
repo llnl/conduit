@@ -56,6 +56,36 @@ namespace utils
 {
 
 //-----------------------------------------------------------------------------
+// -- begin conduit::blueprint::mpi::mesh::utils::topology --
+//-----------------------------------------------------------------------------
+namespace topology
+{
+    /**
+     * @brief This structure manages a collection of MeshInfo objects in parallel.
+     */
+    class CONDUIT_BLUEPRINT_API MeshInfoCollection : public
+        conduit::blueprint::mesh::utils::topology::MeshInfoCollection
+    {
+    public:
+        /// Constructor.
+        MeshInfoCollection(MPI_Comm comm);
+
+        /// Destructor
+        virtual ~MeshInfoCollection() = default;
+
+        /**
+         * @brief This method is called once all local domains have been added.
+         */
+        virtual void end() override;
+    protected:
+        MPI_Comm m_comm;
+    };
+}
+//-----------------------------------------------------------------------------
+// -- end conduit::blueprint::mpi::mesh::utils::topology --
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
 // -- begin conduit::blueprint::mpi::mesh::utils::query --
 //-----------------------------------------------------------------------------
 namespace query

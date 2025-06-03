@@ -2366,7 +2366,7 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
             info.maxExtents[comp] = std::max(info.maxExtents[comp], v0);
         }
 
-        if(lenSquared > 0.)
+        if(lenSquared > CONDUIT_EPSILON)
         {
             info.minEdgeLength = std::min(info.minEdgeLength, lenSquared);
             info.maxEdgeLength = std::max(info.maxEdgeLength, lenSquared);
@@ -2431,6 +2431,80 @@ std::ostream &operator << (std::ostream &os, const MeshInfo &obj)
     return os;
 }
 } // end topology namespace
+
+//-----------------------------------------------------------------------------
+topology::MeshInfoCollection::MeshInfoCollection() : meshInfos(), mergedMeshInfo()
+{
+}
+
+void
+topology::MeshInfoCollection::clear()
+{
+    meshInfos.clear();
+    mergedMeshInfo = MeshInfo();
+}
+
+void
+topology::MeshInfoCollection::begin()
+{
+    clear();
+}
+
+void
+topology::MeshInfoCollection::add(index_t domainId, const MeshInfo &info)
+{
+    meshInfos[domainId] = info;
+}
+
+void
+topology::MeshInfoCollection::end()
+{
+    bool first = true;
+    for(auto it = meshInfos.begin(); it != meshInfos.end(); it++)
+    {
+        if(first)
+        {
+            first = false;
+            mergedMeshInfo = it->second;
+        }
+        else
+        {
+            mergedMeshInfo = merge(mergedMeshInfo, it->second);
+        }
+    }
+}
+
+const topology::MeshInfo &
+topology::MeshInfoCollection::getMeshInfo(index_t domainId) const
+{
+    const auto it = meshInfos.find(domainId);
+    if(it == meshInfos.end())
+    {
+        CONDUIT_ERROR("MeshInfo for domain " << domainId << " was not found.");
+    }
+    return it->second;
+}
+
+const topology::MeshInfo &
+topology::MeshInfoCollection::getMergedMeshInfo() const
+{
+    return mergedMeshInfo;
+}
+
+topology::MeshInfo
+topology::MeshInfoCollection::merge(const topology::MeshInfo &a, const topology::MeshInfo &b)
+{
+    MeshInfo info;
+    info.minExtents[0] = std::min(a.minExtents[0], b.minExtents[0]);
+    info.minExtents[1] = std::min(a.minExtents[1], b.minExtents[1]);
+    info.minExtents[2] = std::min(a.minExtents[2], b.minExtents[2]);
+    info.maxExtents[0] = std::max(a.maxExtents[0], b.maxExtents[0]);
+    info.maxExtents[1] = std::max(a.maxExtents[1], b.maxExtents[1]);
+    info.maxExtents[2] = std::max(a.maxExtents[2], b.maxExtents[2]);
+    info.minEdgeLength = std::min(a.minEdgeLength, b.minEdgeLength);
+    info.maxEdgeLength = std::max(a.maxEdgeLength, b.maxEdgeLength);
+    return info;
+}
 
 //-----------------------------------------------------------------------------
 topology::Quantizer::Quantizer(const topology::MeshInfo &info) : meshInfo(info)

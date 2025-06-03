@@ -2632,13 +2632,15 @@ generate_points(conduit::Node &mesh,
                 MPI_Comm comm)
 {
     conduit::blueprint::mpi::mesh::utils::query::MatchQuery query(mesh, comm);
+    conduit::blueprint::mpi::mesh::utils::topology::MeshInfoCollection mic(comm);
     conduit::blueprint::mesh::generate_points(mesh,
                                               src_adjset_name,
                                               dst_adjset_name,
                                               dst_topo_name,
                                               s2dmap,
                                               d2smap,
-                                              query);
+                                              query,
+                                              mic);
 }
 
 
@@ -2653,13 +2655,15 @@ generate_lines(conduit::Node &mesh,
                MPI_Comm comm)
 {
     conduit::blueprint::mpi::mesh::utils::query::MatchQuery query(mesh, comm);
+    conduit::blueprint::mpi::mesh::utils::topology::MeshInfoCollection mic(comm);
     conduit::blueprint::mesh::generate_lines(mesh,
                                              src_adjset_name,
                                              dst_adjset_name,
                                              dst_topo_name,
                                              s2dmap,
                                              d2smap,
-                                             query);
+                                             query,
+                                             mic);
 }
 
 
@@ -2674,13 +2678,15 @@ generate_faces(conduit::Node &mesh,
                MPI_Comm comm)
 {
     conduit::blueprint::mpi::mesh::utils::query::MatchQuery query(mesh, comm);
+    conduit::blueprint::mpi::mesh::utils::topology::MeshInfoCollection mic(comm);
     conduit::blueprint::mesh::generate_faces(mesh,
                                              src_adjset_name,
                                              dst_adjset_name,
                                              dst_topo_name,
                                              s2dmap,
                                              d2smap,
-                                             query);
+                                             query,
+                                             mic);
 }
 
 
@@ -2693,15 +2699,20 @@ generate_centroids(conduit::Node& mesh,
                    const std::string& dst_cset_name,
                    conduit::Node& s2dmap,
                    conduit::Node& d2smap,
-                   MPI_Comm /*comm*/)
+                   MPI_Comm comm)
 {
+    conduit::blueprint::mpi::mesh::utils::query::PointQuery Q(mesh, comm);
+    conduit::blueprint::mpi::mesh::utils::topology::MeshInfoCollection mic(comm);
+
     conduit::blueprint::mesh::generate_centroids(mesh,
                                                  src_adjset_name,
                                                  dst_adjset_name,
                                                  dst_topo_name,
                                                  dst_cset_name,
                                                  s2dmap,
-                                                 d2smap);
+                                                 d2smap,
+                                                 Q,
+                                                 mic);
 }
 
 
@@ -2714,15 +2725,20 @@ generate_sides(conduit::Node& mesh,
                const std::string& dst_cset_name,
                conduit::Node& s2dmap,
                conduit::Node& d2smap,
-               MPI_Comm /*comm*/)
+               MPI_Comm comm)
 {
+    conduit::blueprint::mpi::mesh::utils::query::PointQuery Q(mesh, comm);
+    conduit::blueprint::mpi::mesh::utils::topology::MeshInfoCollection mic(comm);
+
     conduit::blueprint::mesh::generate_sides(mesh,
                                              src_adjset_name,
                                              dst_adjset_name,
                                              dst_topo_name,
                                              dst_cset_name,
                                              s2dmap,
-                                             d2smap);
+                                             d2smap,
+                                             Q,
+                                             mic);
 
 }
 
@@ -2741,6 +2757,7 @@ generate_corners(conduit::Node& mesh,
     // points actually exist in a neighbor domain. We can pass NullPointQuery
     // to get the old behavior.
     conduit::blueprint::mpi::mesh::utils::query::PointQuery Q(mesh, comm);
+    conduit::blueprint::mpi::mesh::utils::topology::MeshInfoCollection mic(comm);
 
     conduit::blueprint::mesh::generate_corners(mesh,
                                                src_adjset_name,
@@ -2749,7 +2766,8 @@ generate_corners(conduit::Node& mesh,
                                                dst_cset_name,
                                                s2dmap,
                                                d2smap,
-                                               Q);
+                                               Q,
+                                               mic);
 }
 
 //-------------------------------------------------------------------------
