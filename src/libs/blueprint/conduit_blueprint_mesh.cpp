@@ -3066,8 +3066,7 @@ generate_derived_entities(conduit::Node &mesh,
 
             // NOTE(JRC): Inserting with this method allows this algorithm to sort new
             // elements as they're generated, rather than as a separate process at the
-            // end (slight optimization overall). PointTuple and ffloat64's less than
-            // operator determines the insertion location.
+            // end (slight optimization overall).
             auto &group_entities = group_entity_map[entity_neighbors];
             auto entity_itr = std::upper_bound(group_entities.begin(), group_entities.end(), entity);
             group_entities.insert(entity_itr, entity);
@@ -3418,8 +3417,7 @@ generate_decomposed_entities(conduit::Node &mesh,
 
             // NOTE(JRC): Inserting with this method allows this algorithm to sort new
             // elements as they're generated, rather than as a separate process at the
-            // end (slight optimization overall). PointTuple and ffloat64's less than
-            // operator determines the insertion location.
+            // end (slight optimization overall).
             auto &group_entities = group_entity_map[entity_neighbors];
             auto entity_itr = std::upper_bound(group_entities.begin(), group_entities.end(), entity);
             group_entities.insert(entity_itr, entity);
