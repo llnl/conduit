@@ -145,6 +145,15 @@ printUsage(const char *program)
 }
 
 //---------------------------------------------------------------------------
+static void conduit_debug_err_handler(const std::string &s1, const std::string &s2, int i1)
+{
+    std::cout << "s1=" << s1 << ", s2=" << s2 << ", i1=" << i1 << std::endl;
+    // This is on purpose.
+    while(1)
+      ;
+}
+
+//---------------------------------------------------------------------------
 int
 main(int argc, char *argv[])
 {
@@ -185,6 +194,10 @@ main(int argc, char *argv[])
         {
             protocol = argv[i+1];
             i++;
+        }
+        else if(strcmp(argv[i], "-handler") == 0)
+        {
+            conduit::utils::set_error_handler(conduit_debug_err_handler);
         }
     }
 
