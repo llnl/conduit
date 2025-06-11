@@ -2349,6 +2349,33 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
     }
     info.minEdgeLength = std::numeric_limits<double>::max();
     info.maxEdgeLength = std::numeric_limits<double>::lowest();
+    info.minCoordDistance = std::numeric_limits<double>::max();
+    info.maxCoordDistance = std::numeric_limits<double>::lowest();
+
+    // Compute coord distances.
+    CONDUIT_ANNOTATE_MARK_BEGIN("coordDistance");
+    const auto nnodes = coords[0].number_of_elements();
+    const index_t numComps = static_cast<index_t>(coords.size());
+    for(int i = 0; i < nnodes; i++)
+    {
+        for(int j = i + 1; j < nnodes; j++)
+        {
+            double distSquared = 0.;
+            for(index_t comp = 0; comp < numComps; comp++)
+            {
+                const double delta = coords[comp][i] - coords[comp][j];
+                distSquared += delta * delta;
+            }
+            if(distSquared > CONDUIT_EPSILON)
+            {
+                info.minCoordDistance = std::min(info.minCoordDistance, distSquared);
+                info.maxCoordDistance = std::max(info.maxCoordDistance, distSquared);
+            }
+        }
+    }
+    info.minCoordDistance = (info.minCoordDistance > 0.) ? sqrt(info.minCoordDistance) : 1.;
+    info.maxCoordDistance = (info.maxCoordDistance > 0.) ? sqrt(info.maxCoordDistance) : 1.;
+    CONDUIT_ANNOTATE_MARK_END("coordDistance");
 
     // This lambda computes edge information for the edge between p0, p1.
     auto computeEdgeInfo = [&](index_t p0, index_t p1)
@@ -2362,8 +2389,8 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
             const auto dValue = v0 - v1;
             lenSquared += dValue * dValue;
 
-            info.minExtents[comp] = std::min(info.minExtents[comp], v0);
-            info.maxExtents[comp] = std::max(info.maxExtents[comp], v0);
+            info.minExtents[comp] = std::min(info.minExtents[comp], std::min(v0, v1));
+            info.maxExtents[comp] = std::max(info.maxExtents[comp], std::max(v0, v1));
         }
 
         if(lenSquared > CONDUIT_EPSILON)
@@ -2375,6 +2402,7 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
 
     // Iterate over all of the elements in the topology and compute the edge info
     // for each element.
+    CONDUIT_ANNOTATE_MARK_BEGIN("edgeLength");
     iterate_elements(n_topo, [&](const entity &e)
     {
         if(e.shape.is_polyhedral())
@@ -2411,12 +2439,21 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
                               e.element_ids[(i + 1) % nIds]);
             }
         }
+        else if(e.shape.dim == 1)
+        {
+            computeEdgeInfo(e.element_ids[0], e.element_ids[1]);
+        }
+        else if(e.shape.dim == 0)
+        {
+            computeEdgeInfo(e.element_ids[0], e.element_ids[0]);
+        }
     });
 
     // If we had edges then the min,max edge lengths will be greater than zero.
     // Turn them from len squared to len by taking the square root.
     info.minEdgeLength = (info.minEdgeLength > 0.) ? sqrt(info.minEdgeLength) : 1.;
     info.maxEdgeLength = (info.maxEdgeLength > 0.) ? sqrt(info.maxEdgeLength) : 1.;
+    CONDUIT_ANNOTATE_MARK_END("edgeLength");
 }
 
 //-----------------------------------------------------------------------------
@@ -2427,7 +2464,9 @@ std::ostream &operator << (std::ostream &os, const MeshInfo &obj)
     os << "{minExtents={" << obj.minExtents[0] << ", " << obj.minExtents[1] << ", " << obj.minExtents[2] << "}, "
        << "maxExtents={" << obj.maxExtents[0] << ", " << obj.maxExtents[1] << ", " << obj.maxExtents[2] << "}, "
        << "minEdgeLength=" << obj.minEdgeLength << ", "
-       << "maxEdgeLength=" << obj.maxEdgeLength << "}";
+       << "maxEdgeLength=" << obj.maxEdgeLength << ", "
+       << "minCoordDistance=" << obj.minCoordDistance << ", "
+       << "maxCoordDistance=" << obj.maxCoordDistance << "}";
     return os;
 }
 } // end topology namespace
@@ -2503,23 +2542,38 @@ topology::MeshInfoCollection::merge(const topology::MeshInfo &a, const topology:
     info.maxExtents[2] = std::max(a.maxExtents[2], b.maxExtents[2]);
     info.minEdgeLength = std::min(a.minEdgeLength, b.minEdgeLength);
     info.maxEdgeLength = std::max(a.maxEdgeLength, b.maxEdgeLength);
+    info.minCoordDistance = std::min(a.minCoordDistance, b.minCoordDistance);
+    info.maxCoordDistance = std::max(a.maxCoordDistance, b.maxCoordDistance);
     return info;
 }
 
 //-----------------------------------------------------------------------------
 topology::Quantizer::Quantizer(const topology::MeshInfo &info) : meshInfo(info)
 {
+#if 1
     // Set some values derived from the MeshInfo.
-    QX = std::max(uint64_t{1}, static_cast<uint64_t>(ceil((meshInfo.maxExtents[0] - meshInfo.minExtents[0]) / meshInfo.minEdgeLength)));
-    QY = std::max(uint64_t{1}, static_cast<uint64_t>(ceil((meshInfo.maxExtents[1] - meshInfo.minExtents[1]) / meshInfo.minEdgeLength)));
+    QX = 1 + std::max(uint64_t{1}, static_cast<uint64_t>(ceil((meshInfo.maxExtents[0] - meshInfo.minExtents[0]) / meshInfo.minCoordDistance)));
+    QY = 1 + std::max(uint64_t{1}, static_cast<uint64_t>(ceil((meshInfo.maxExtents[1] - meshInfo.minExtents[1]) / meshInfo.minCoordDistance)));
     QXQY = QX * QY;
+#else
+    // Set some values derived from the MeshInfo.
+    QX = 1 + std::max(uint64_t{1}, static_cast<uint64_t>(ceil((meshInfo.maxExtents[0] - meshInfo.minExtents[0]) / meshInfo.minEdgeLength)));
+    QY = 1 + std::max(uint64_t{1}, static_cast<uint64_t>(ceil((meshInfo.maxExtents[1] - meshInfo.minExtents[1]) / meshInfo.minEdgeLength)));
+    QXQY = QX * QY;
+#endif
 }
 
 topology::Quantizer::QuantizedIndex
 topology::Quantizer::quantize(float64 value, index_t component) const
 {
     CONDUIT_ASSERT(component >= 0 && component < 3, "Valid components are 0,1,2");
-    return static_cast<QuantizedIndex>((value - meshInfo.minExtents[component]) / meshInfo.minEdgeLength);
+#if 1
+    const auto de = meshInfo.minCoordDistance / 2.;
+    return static_cast<QuantizedIndex>((value - meshInfo.minExtents[component] + de) / meshInfo.minCoordDistance);
+#else
+    const auto de = meshInfo.minEdgeLength / 2.;
+    return static_cast<QuantizedIndex>((value - meshInfo.minExtents[component] + de) / meshInfo.minEdgeLength);
+#endif
 }
 
 topology::Quantizer::QuantizedIndex
@@ -3664,8 +3718,11 @@ foreach_adjset_mesh_pair_impl(conduit::Node &mesh, const std::string &adjsetName
                 }
             }
 
-            // Incorporate input from the supplied function.
-            retval &= func(groupName, d0, mesh[0], d1, mesh[1]);
+            // Incorporate input from the supplied function. We need to have 2 meshes.
+            if(mi == 2)
+            {
+                retval &= func(groupName, d0, mesh[0], d1, mesh[1]);
+            }
         }
     }
 
@@ -3805,20 +3862,25 @@ adjset::compare_pointwise(conduit::Node &mesh, const std::string &adjsetName, co
     auto compareMesh =
         [&](const std::string &groupName, int dom1, conduit::Node &mesh1, int dom2, conduit::Node &mesh2)
     {
-        const conduit::Node cs1 = mesh1["coordsets"][0];
-        const conduit::Node cs2 = mesh2["coordsets"][0];
-
-        // Make sure the coordsets are not different.
-        conduit::Node infodiff;
-        bool different = cs1.diff(cs2, infodiff, eps);
-
-        // Add some diagnostic info.
-        if(different)
+        bool retval = false;
+        if(mesh1.has_path("coordsets") && mesh2.has_path("coordsets"))
         {
-            logDifferences(infodiff, groupName, dom1, mesh1, dom2, mesh2);
-        }
+            const conduit::Node cs1 = mesh1["coordsets"][0];
+            const conduit::Node cs2 = mesh2["coordsets"][0];
 
-        return different ? false : true;
+            // Make sure the coordsets are not different.
+            conduit::Node infodiff;
+            const bool different = cs1.diff(cs2, infodiff, eps);
+
+            // Add some diagnostic info.
+            if(different)
+            {
+                logDifferences(infodiff, groupName, dom1, mesh1, dom2, mesh2);
+            }
+
+            retval = !different;
+        }
+        return retval;
     };
 
     return foreach_adjset_mesh_pair(mesh, adjsetName, compareMesh);

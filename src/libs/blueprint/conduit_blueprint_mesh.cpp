@@ -2857,7 +2857,11 @@ generate_derived_entities(conduit::Node &mesh,
                           conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic)
 {
     namespace topoutils = conduit::blueprint::mesh::utils::topology;
+#if 1
+    using Entity = std::tuple<topoutils::Quantizer::QuantizedIndex, index_t>;
+#else
     using Entity = std::tuple<std::set<topoutils::Quantizer::QuantizedIndex>, index_t>;
+#endif
     using EntityVector = std::vector<Entity>;
 
     CONDUIT_ANNOTATE_MARK_FUNCTION;
@@ -3049,7 +3053,47 @@ generate_derived_entities(conduit::Node &mesh,
 
             // Get point ids used in entity ei in dst_topo
             const std::vector<index_t> entity_pidxs = bputils::topology::unstructured::points(dst_topo, ei);
+#if 1
+std::cout << "Entity " << ei << ", neighbors={";
+for(const auto &value : entity_neighbors)
+{
+   std::cout << value << ", ";
+}
+std::cout << "}, pidxs={";
+for(const index_t &entity_pidx : entity_pidxs)
+{
+   std::cout << entity_pidx << ", ";
+}
+std::cout << "}";
 
+            // Average the entity points to form a point for sorting.
+            std::vector<float64> avg_coords;
+            const float64 w = 1. / static_cast<float64>(entity_pidxs.size());
+            for(const index_t &entity_pidx : entity_pidxs)
+            {
+                // Get the points for entity_pidx. NOTE: src_cset is same as new dst_topo's coordset.
+                const std::vector<float64> point_coords = bputils::coordset::_explicit::coords(src_cset, entity_pidx);
+
+                if(avg_coords.empty())
+                {
+                   avg_coords.resize(point_coords.size(), 0.);
+                }
+
+                for(size_t comp = 0; comp < point_coords.size(); comp++)
+                {
+                    avg_coords[comp] += w * point_coords[comp];
+                }
+            }
+
+            const auto q = quantizer.quantize(avg_coords);
+
+            // Make entity
+            Entity entity;
+            std::get<0>(entity) = q;
+            std::get<1>(entity) = ei;
+std::cout << ", avg_coords={" << avg_coords[0] << ", " << avg_coords[1] << "}, q=" << q
+          << "\n";
+#else
             // Make entity
             Entity entity;
             auto &entity_points = std::get<0>(entity);
@@ -3063,6 +3107,7 @@ generate_derived_entities(conduit::Node &mesh,
                 entity_points.emplace(quantizer.quantize(point_coords));
             }
             std::get<1>(entity) = ei;
+#endif
 
             // NOTE(JRC): Inserting with this method allows this algorithm to sort new
             // elements as they're generated, rather than as a separate process at the
@@ -3368,6 +3413,7 @@ generate_decomposed_entities(conduit::Node &mesh,
         mic.add(domain_id, dst_info);
     }
     mic.end();
+    std::cout << mic.getMergedMeshInfo() << std::endl;
     CONDUIT_ANNOTATE_MARK_END("mesh_info");
 
     // Finish building the corner mesh adjset.

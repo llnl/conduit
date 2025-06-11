@@ -63,9 +63,9 @@ topology::MeshInfoCollection::MeshInfoCollection(MPI_Comm comm) :
 void topology::MeshInfoCollection::end()
 {
     CONDUIT_ANNOTATE_MARK_SCOPE("MeshInfoCollection::end()");
-
+    using MeshInfo = conduit::blueprint::mesh::utils::topology::MeshInfo;
     const auto numLocalMeshInfo = static_cast<index_t>(meshInfos.size());
-    const index_t numValuesPerMeshInfo = 9;
+    const index_t numValuesPerMeshInfo = 1 + static_cast<index_t>(sizeof(MeshInfo) / sizeof(float64));
 
     // Encode local mesh info into an array.
     Node n_localMeshInfo;
@@ -82,6 +82,8 @@ void topology::MeshInfoCollection::end()
         *ptr++ = it->second.maxExtents[2];
         *ptr++ = it->second.minEdgeLength;
         *ptr++ = it->second.maxEdgeLength;
+        *ptr++ = it->second.minCoordDistance;
+        *ptr++ = it->second.maxCoordDistance;
     }
 
     // Make sure all ranks get the info.
@@ -90,7 +92,7 @@ void topology::MeshInfoCollection::end()
 
     // Decode the infos and store them.
     bool first = true;
-    mergedMeshInfo = conduit::blueprint::mesh::utils::topology::MeshInfo();
+    mergedMeshInfo = MeshInfo();
     for(index_t i = 0; i < n_globalMeshInfo.number_of_children(); i++)
     {
         const Node &n_meshInfo = n_globalMeshInfo[i];
@@ -98,7 +100,7 @@ void topology::MeshInfoCollection::end()
         const float64 *ptr2 = n_meshInfo.value();
         for(index_t j = 0; j < numMeshInfo; j++)
         {
-           conduit::blueprint::mesh::utils::topology::MeshInfo info;
+           MeshInfo info;
            index_t domainId = static_cast<index_t>(ptr2[0]);
            info.minExtents[0] = ptr2[1];
            info.minExtents[1] = ptr2[2];
@@ -108,6 +110,8 @@ void topology::MeshInfoCollection::end()
            info.maxExtents[2] = ptr2[6];
            info.minEdgeLength = ptr2[7];
            info.maxEdgeLength = ptr2[8];
+           info.minCoordDistance = ptr2[9];
+           info.maxCoordDistance = ptr2[10];
 
            add(domainId, info);
            if(first)

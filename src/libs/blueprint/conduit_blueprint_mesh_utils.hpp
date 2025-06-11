@@ -564,6 +564,8 @@ namespace topology
         float64 maxExtents[3];
         float64 minEdgeLength;
         float64 maxEdgeLength;
+        float64 minCoordDistance; // min length that is not zero.
+        float64 maxCoordDistance;
     };
 
     /**
