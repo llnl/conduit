@@ -3080,7 +3080,7 @@ generate_derived_entities(conduit::Node &mesh,
 
             // Get point ids used in entity ei in dst_topo
             const std::vector<index_t> entity_pidxs = bputils::topology::unstructured::points(dst_topo, ei);
-
+#if 0
 std::cout << "Entity " << ei << ", neighbors={";
 for(const auto &value : entity_neighbors)
 {
@@ -3092,7 +3092,7 @@ for(const index_t &entity_pidx : entity_pidxs)
    std::cout << entity_pidx << ", ";
 }
 std::cout << "}";
-
+#endif
             // Average the entity points to form a point for sorting.
             const auto avg_coords = average_coords(src_cset, entity_pidxs);
             const auto q = quantizer.quantize(avg_coords);
@@ -3101,9 +3101,10 @@ std::cout << "}";
             Entity entity;
             std::get<0>(entity) = q;
             std::get<1>(entity) = ei;
+#if 0
 std::cout << ", avg_coords={" << avg_coords[0] << ", " << avg_coords[1] << "}, q=" << q
           << "\n";
-
+#endif
             // NOTE(JRC): Inserting with this method allows this algorithm to sort new
             // elements as they're generated, rather than as a separate process at the
             // end (slight optimization overall).
@@ -3408,7 +3409,9 @@ generate_decomposed_entities(conduit::Node &mesh,
         mic.add(domain_id, dst_info);
     }
     mic.end();
+#if 0
     std::cout << mic.getMergedMeshInfo() << std::endl;
+#endif
     CONDUIT_ANNOTATE_MARK_END("mesh_info");
 
     // Finish building the corner mesh adjset.

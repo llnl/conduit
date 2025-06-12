@@ -627,10 +627,17 @@ struct MeshBuilder
 
         for(const auto dom : m_selectedDomains)
         {
+            if(m_selectedDomains.size() > 1)
+            {
             char domainName[128];
             snprintf(domainName, 128, "domain_%07d", dom);
             conduit::Node &n_domain = n_mesh[domainName];
             buildDomain(dom, n_domain);
+            }
+            else
+            {
+                buildDomain(dom, n_mesh);
+            }
         }
     }
 
@@ -667,15 +674,24 @@ struct MeshBuilder
 #undef PT_F
 #undef PT_G
 #undef PT_H
+#if 0
+        constexpr int s1 = 3;
+        constexpr int s2 = 4;
+        constexpr int s3 = 5;
+#else
+        constexpr int s1 = 15;
+        constexpr int s2 = 10;
+        constexpr int s3 = 40;
+#endif
         const int domainDims[4][2] = {
             // Domain 0
-            {15 * m_resolution, 10 * m_resolution},
+            {s1 * m_resolution, s2 * m_resolution},
             // Domain 1
-            {10 * m_resolution, 40 * m_resolution},
+            {s2 * m_resolution, s3 * m_resolution},
             // Domain 2
-            {15 * m_resolution, 40 * m_resolution},
+            {s1 * m_resolution, s3 * m_resolution},
             // Domain 3
-            {10 * m_resolution, 40 * m_resolution}
+            {s2 * m_resolution, s3 * m_resolution}
         };
 
         // Rotate the points for this domain.
@@ -683,9 +699,9 @@ struct MeshBuilder
         for(int i =0 ; i < 4; i++)
         {
             domainPoints[i][0] = cos(m_angle) * origDomainPts[dom][i][0] +
-                                 sin(m_angle) * origDomainPts[dom][i][1] +
+                                 cos(m_angle + M_PI/2) * origDomainPts[dom][i][1] +
                                  perturbation();
-            domainPoints[i][1] = cos(m_angle + M_PI/2) * origDomainPts[dom][i][0] +
+            domainPoints[i][1] = sin(m_angle) * origDomainPts[dom][i][0] +
                                  sin(m_angle + M_PI/2) * origDomainPts[dom][i][1] +
                                  perturbation();
         }
@@ -731,9 +747,10 @@ struct MeshBuilder
                 conn.push_back(j * NX + i + 1);
                 conn.push_back((j+1) * NX + i + 1);
                 conn.push_back((j+1) * NX + i);
+
+                offsets.push_back(sizes.size() * 4);
+                sizes.push_back(4);
             }
-            offsets.push_back(sizes.size() * 4);
-            sizes.push_back(4);
         }
 
         n_domain["topologies/mesh/type"] = "unstructured";

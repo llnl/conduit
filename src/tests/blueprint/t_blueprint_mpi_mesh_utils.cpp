@@ -10,6 +10,7 @@
 
 #include "conduit.hpp"
 #include "conduit_blueprint.hpp"
+#include "conduit_blueprint_mesh.hpp"
 #include "conduit_blueprint_mpi_mesh.hpp"
 #include "conduit_blueprint_mpi_mesh_utils.hpp"
 #include "conduit_relay.hpp"
@@ -29,6 +30,15 @@
 using namespace conduit;
 using namespace conduit::utils;
 using namespace generate;
+
+
+void printNode(const conduit::Node &n)
+{
+    conduit::Node opts;
+    opts["num_children_threshold"] = 1000000;
+    opts["num_elements_threshold"] = 1000000;
+    std::cout << n.to_summary_string(opts) << std::endl;
+}
 
 //---------------------------------------------------------------------------
 /**
@@ -356,18 +366,12 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_sorting_2d)
             B.m_angle = angle;
             B.m_resolution = res;
             B.build(n_mesh);
+#if 0
             in_rank_order(MPI_COMM_WORLD, [&](int r)
             {
-               n_mesh.print();
+                printNode(n_mesh);
             });
-
-            // Save the mesh
-            std::stringstream ss;
-            ss << "test_" << res << "_" << a;
-            std::string filename(ss.str());
-            conduit::relay::mpi::io::blueprint::save_mesh(n_mesh, filename, "hdf5", MPI_COMM_WORLD);
-            std::cout << "Saved mesh to " << filename << std::endl;
-
+#endif
             // Check the adjset
             conduit::Node info;
             info.reset();
@@ -395,14 +399,7 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_sorting_2d)
                                                            s2dmap,
                                                            d2smap,
                                                            MPI_COMM_WORLD);
-#if 0
-            // Save the mesh
-            std::stringstream ss2;
-            ss2 << "testlines_" << res << "_" << a;
-            filename = ss2.str();
-            conduit::relay::mpi::io::blueprint::save_mesh(n_mesh, filename, "hdf5", MPI_COMM_WORLD);
-            std::cout << "Saved mesh to " << filename << std::endl;
-#endif
+
             // Build the corner mesh.
             s2dmap.reset();
             d2smap.reset();
@@ -414,22 +411,27 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_sorting_2d)
                                                             s2dmap,
                                                             d2smap,
                                                             MPI_COMM_WORLD);
-
-            // Test that the adjsets are good.
-            const std::vector<std::string> adjsetNames{{//"mesh_adjset",
-                                                        "lines_adjset",
-                                                        "corners_adjset"}};
-            for(const auto &adjsetName : adjsetNames)
+#if 0
+            // Save the mesh
+            std::stringstream ss;
+            ss << "test_" << res << "_" << a;
+            std::string filename(ss.str());
+            conduit::relay::mpi::io::blueprint::save_mesh(n_mesh, filename, "hdf5", MPI_COMM_WORLD);
+            std::cout << "Saved mesh to " << filename << std::endl;
+#endif
+            // Test that the vertex-associated adjsets are good.
+            const char *adjsetNames[] = {"mesh_adjset", "corners_adjset"};
+            for(int ni = 0; ni < 2; ni++)
             {
                 conduit::Node info;
                 info.reset();
                 bool eq = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(
-                              n_mesh, adjsetName, info, MPI_COMM_WORLD);
+                              n_mesh, adjsetNames[ni], info, MPI_COMM_WORLD);
                 in_rank_order(MPI_COMM_WORLD, [&](int r)
                 {
-                    if(eq)
+                    if(!eq)
                     {
-                        std::cout << rank << ": " << adjsetName
+                        std::cout << rank << ": " << adjsetNames[ni]
                                   << ", res=" << res
                                   << ", angle=" << angle
                                   << ", eq=" << eq << std::endl;
@@ -438,6 +440,8 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_sorting_2d)
                 });
                 EXPECT_TRUE(eq);
             }
+
+            // TODO: test the lines adjset since it is element-associated.
         }
     }
 }
