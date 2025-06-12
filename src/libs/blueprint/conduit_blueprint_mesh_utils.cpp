@@ -24,6 +24,7 @@
 //-----------------------------------------------------------------------------
 // conduit includes
 //-----------------------------------------------------------------------------
+#include "conduit_fmt/conduit_fmt.h"
 #include "conduit_blueprint_mesh.hpp"
 #include "conduit_blueprint_o2mrelation.hpp"
 #include "conduit_blueprint_o2mrelation_iterator.hpp"
@@ -2681,7 +2682,7 @@ topology::Quantizer::quantize(const topology::Quantizer::Coordinate &coord) cons
     //         where the Z component gets stored in the 0th tuple value and
     //         the XY contributions get added in the 1st tuple value.
 #ifndef NDEBUG
-    CONDUIT_ASSERT(node.size() <= 3, "Node has invalid number of components");
+    CONDUIT_ASSERT(coord.size() <= 3, "Node has invalid number of components");
 #endif
     QuantizedValue q = 0;
     QuantizedIndex qIndex = 0;
@@ -3359,6 +3360,7 @@ bool adjset::is_canonical(const Node &adjset)
 bool
 adjset::validate(const conduit::Node &doms,
                  const std::string &adjsetName,
+                 const conduit::Node &options,
                  conduit::Node &info)
 {
     auto to_string = [](const conduit::Node &n) -> std::string
@@ -3369,8 +3371,16 @@ adjset::validate(const conduit::Node &doms,
         return s;
     };
 
+    // Set values from options.
+    double tolerance = conduit::blueprint::mesh::utils::query::PointQueryBase::DEFAULT_POINT_TOLERANCE;
+    if(options.has_path("tolerance"))
+    {
+        tolerance = options["tolerance"].to_float64();
+    }
+
     // Create serial queries.
     query::PointQuery PQ(doms);
+    PQ.setPointTolerance(tolerance);
     query::MatchQuery MQ(doms);
 
     // We need to figure out the association, topologyName, and coordsetName.
@@ -3509,22 +3519,29 @@ adjset::validate(const conduit::Node &doms,
             }
         }
 
-        // Detect any non-bidirectional interfaces.
         retval = true;
-        for(auto it = bidirectional.begin(); it != bidirectional.end(); it++)
+
+        // NOTE: We can only make this check in serial because when this method is
+        //       called in parallel, we do not have all of the domains on the same
+        //       rank.
+        if(checkMultiDomain)
         {
-            if(!it->second)
+            // Detect any non-bidirectional interfaces.
+            for(auto it = bidirectional.begin(); it != bidirectional.end(); it++)
             {
-                retval = false;
+                if(!it->second)
+                {
+                    retval = false;
 
-                auto domain_id = it->first.first;
-                auto neighbor_id = it->first.second;
-                std::stringstream ss;
-                ss << "Domain " << domain_id << " adjset " << adjsetName
-                   << " does not contain a group that references domain " << neighbor_id << ".";
+                    auto domain_id = it->first.first;
+                    auto neighbor_id = it->first.second;
+                    std::stringstream ss;
+                    ss << "Domain " << domain_id << " adjset " << adjsetName
+                       << " does not contain a group that references domain " << neighbor_id << ".";
 
-                conduit::Node &vn = info[adjsetName].append();
-                vn.set(ss.str());
+                    conduit::Node &vn = info[adjsetName].append();
+                    vn.set(ss.str());
+                }
             }
         }
 
@@ -3547,6 +3564,10 @@ adjset::validate(const conduit::Node &doms,
             {
                 retval = false;
                 std::string domainName(domains[domIdx]->name());
+                if(domainName.empty())
+                {
+                    domainName = conduit_fmt::format("domain_{:05}", domain_id);
+                }
                 conduit::Node &vn = info[domainName][adjsetName][groupName].append();
 
                 std::stringstream ss;
@@ -3873,9 +3894,15 @@ foreach_adjset_mesh_pair(conduit::Node &mesh, const std::string &adjsetName, Fun
 
 //-----------------------------------------------------------------------------
 bool
-adjset::compare_pointwise(conduit::Node &mesh, const std::string &adjsetName, conduit::Node &info)
+adjset::compare_pointwise(conduit::Node &mesh, const std::string &adjsetName,
+    const conduit::Node &options, conduit::Node &info)
 {
-    const double eps = 1.e-8;
+    // Set values from options.
+    double tolerance = conduit::blueprint::mesh::utils::query::PointQueryBase::DEFAULT_POINT_TOLERANCE;
+    if(options.has_path("tolerance"))
+    {
+        tolerance = options["tolerance"].to_float64();
+    }
 
     // Figures out a coordset axis path within a diff hierarchy.
     auto coordPath = [&](const std::string &axisName)
@@ -3943,7 +3970,7 @@ adjset::compare_pointwise(conduit::Node &mesh, const std::string &adjsetName, co
                     bool nodeDiffers = false;
                     for(int d = 0; d < ncomps; d++)
                     {
-                        nodeDiffers |= (coords[d][idx] > eps);
+                        nodeDiffers |= (coords[d][idx] > tolerance);
                     }
 
                     if(nodeDiffers)
@@ -3982,7 +4009,7 @@ adjset::compare_pointwise(conduit::Node &mesh, const std::string &adjsetName, co
 
             // Make sure the coordsets are not different.
             conduit::Node infodiff;
-            const bool different = cs1.diff(cs2, infodiff, eps);
+            const bool different = cs1.diff(cs2, infodiff, tolerance);
 
             // Add some diagnostic info.
             if(different)
@@ -4041,6 +4068,7 @@ namespace query
 {
 
 const int PointQueryBase::NotFound = -1;
+const double PointQueryBase::DEFAULT_POINT_TOLERANCE = 1.e-8;
 
 //---------------------------------------------------------------------------
 PointQueryBase::PointQueryBase(const conduit::Node &mesh) : m_mesh(mesh),
@@ -4123,7 +4151,6 @@ const int PointQuery::SEARCH_THRESHOLD = 25 * 25 * 25;
 //---------------------------------------------------------------------------
 PointQuery::PointQuery(const conduit::Node &mesh) : PointQueryBase(mesh)
 {
-    constexpr double DEFAULT_POINT_TOLERANCE = 1.e-9;
     setPointTolerance(DEFAULT_POINT_TOLERANCE);
 }
 

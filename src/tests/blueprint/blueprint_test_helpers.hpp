@@ -629,10 +629,10 @@ struct MeshBuilder
         {
             if(m_selectedDomains.size() > 1)
             {
-            char domainName[128];
-            snprintf(domainName, 128, "domain_%07d", dom);
-            conduit::Node &n_domain = n_mesh[domainName];
-            buildDomain(dom, n_domain);
+                char domainName[128];
+                snprintf(domainName, 128, "domain_%07d", dom);
+                conduit::Node &n_domain = n_mesh[domainName];
+                buildDomain(dom, n_domain);
             }
             else
             {
@@ -648,6 +648,7 @@ struct MeshBuilder
      */
     void buildDomain(int dom, conduit::Node &n_domain)
     {
+        // Domain corner points
 #define PT_A {0., 0.}
 #define PT_B {70., 0.}
 #define PT_C {70., 50.}
@@ -674,15 +675,10 @@ struct MeshBuilder
 #undef PT_F
 #undef PT_G
 #undef PT_H
-#if 0
-        constexpr int s1 = 3;
-        constexpr int s2 = 4;
-        constexpr int s3 = 5;
-#else
+        // Domain dimensions
         constexpr int s1 = 15;
         constexpr int s2 = 10;
         constexpr int s3 = 40;
-#endif
         const int domainDims[4][2] = {
             // Domain 0
             {s1 * m_resolution, s2 * m_resolution},
@@ -694,19 +690,17 @@ struct MeshBuilder
             {s2 * m_resolution, s3 * m_resolution}
         };
 
-        // Rotate the points for this domain.
+        // Rotate the corner points for this domain.
         double domainPoints[4][2];
         for(int i =0 ; i < 4; i++)
         {
             domainPoints[i][0] = cos(m_angle) * origDomainPts[dom][i][0] +
-                                 cos(m_angle + M_PI/2) * origDomainPts[dom][i][1] +
-                                 perturbation();
+                                 cos(m_angle + M_PI/2) * origDomainPts[dom][i][1];
             domainPoints[i][1] = sin(m_angle) * origDomainPts[dom][i][0] +
-                                 sin(m_angle + M_PI/2) * origDomainPts[dom][i][1] +
-                                 perturbation();
+                                 sin(m_angle + M_PI/2) * origDomainPts[dom][i][1];
         }
 
-        // Make the coordset.
+        // Make the coordset by sampling points within the domain.
         std::vector<double> xc, yc;
         const int NX = domainDims[dom][0];
         const int NY = domainDims[dom][1];
@@ -723,8 +717,10 @@ struct MeshBuilder
                 double Bx = (1. - v) * domainPoints[1][0] + v * domainPoints[2][0];
                 double By = (1. - v) * domainPoints[1][1] + v * domainPoints[2][1];
 
-                double x = (1. - u) * Ax + u * Bx;
-                double y = (1. - u) * Ay + u * By;
+                // Make the x,y point and perturb it some so points along domain
+                // boundaries are a little different.
+                double x = ((1. - u) * Ax + u * Bx) + perturbation();
+                double y = ((1. - u) * Ay + u * By) + perturbation();
                 xc.push_back(x);
                 yc.push_back(y);
             }
@@ -854,7 +850,7 @@ struct MeshBuilder
     double perturbation() const
     {
         double value = 0.;
-#if 0//!defined(_WIN32)
+#if 0 //!defined(_WIN32)
         const double eps = 3. * CONDUIT_EPSILON / 2.;
         value = drand48() * 2. * eps - eps;
 #endif

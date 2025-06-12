@@ -164,10 +164,10 @@ TEST(conduit_blueprint_mesh_utils, shapetype)
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_utils, adjset_validate_element_0d)
 {
-    conduit::Node root, info;
+    conduit::Node root, opts, info;
     create_2_domain_0d_mesh(root, 0, 1);
     save_mesh(root, "adjset_validate_element_0d");
-    bool res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", info);
+    bool res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", opts, info);
     EXPECT_TRUE(res);
 
     // Now, adjust the adjsets so they are wrong on both domains.
@@ -175,7 +175,7 @@ TEST(conduit_blueprint_mesh_utils, adjset_validate_element_0d)
     root["domain1/adjsets/main_adjset/groups/domain0_1/values"].set(std::vector<int>{2});
     info.reset();
     save_mesh(root, "adjset_validate_element_0d_bad");
-    res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", info);
+    res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", opts, info);
     EXPECT_FALSE(res);
     //info.print();
 
@@ -201,18 +201,18 @@ TEST(conduit_blueprint_mesh_utils, adjset_validate_element_0d)
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_utils, adjset_validate_element_1d)
 {
-    conduit::Node root, info;
+    conduit::Node root, opts, info;
     create_2_domain_1d_mesh(root, 0, 1);
     save_mesh(root, "adjset_validate_element_1d");
-    bool res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", info);
+    bool res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", opts, info);
     EXPECT_TRUE(res);
 
     // Now, adjust the adjsets so they are wrong on both domains.
     root["domain0/adjsets/main_adjset/groups/domain0_1/values"].set(std::vector<int>{0});
     root["domain1/adjsets/main_adjset/groups/domain0_1/values"].set(std::vector<int>{1});
     info.reset();
-    save_mesh(root, "adjset_validate_element_1d_bad");
-    res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", info);
+    save_mesh(root, "adjset_validate_element_1d_bad");  
+    res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", opts, info);
     EXPECT_FALSE(res);
     //info.print();
 
@@ -238,10 +238,10 @@ TEST(conduit_blueprint_mesh_utils, adjset_validate_element_1d)
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_utils, adjset_validate_element_2d)
 {
-    conduit::Node root, info;
+    conduit::Node root, opts, info;
     create_2_domain_2d_mesh(root, 0, 1);
     save_mesh(root, "adjset_validate_element_2d");
-    bool res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", info);
+    bool res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", opts, info);
     EXPECT_TRUE(res);
     //info.print();
 
@@ -249,7 +249,7 @@ TEST(conduit_blueprint_mesh_utils, adjset_validate_element_2d)
     root["domain1/adjsets/main_adjset/groups/domain0_1/values"].set(std::vector<int>{0,2,4});
     info.reset();
     save_mesh(root, "adjset_validate_element_2d_bad");
-    res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", info);
+    res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", opts, info);
     EXPECT_FALSE(res);
     //info.print();
 
@@ -267,10 +267,10 @@ TEST(conduit_blueprint_mesh_utils, adjset_validate_element_2d)
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_utils, adjset_validate_element_3d)
 {
-    conduit::Node root, info;
+    conduit::Node root, opts, info;
     create_2_domain_3d_mesh(root, 0, 1);
     save_mesh(root, "adjset_validate_element_3d");
-    bool res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", info);
+    bool res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", opts, info);
     EXPECT_TRUE(res);
 
     // Now, adjust the adjsets so they are wrong on both domains.
@@ -278,7 +278,7 @@ TEST(conduit_blueprint_mesh_utils, adjset_validate_element_3d)
     root["domain1/adjsets/main_adjset/groups/domain0_1/values"].set(std::vector<int>{2});
     info.reset();
     save_mesh(root, "adjset_validate_element_3d_bad");
-    res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", info);
+    res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", opts, info);
     EXPECT_FALSE(res);
     //info.print();
 
@@ -304,7 +304,7 @@ TEST(conduit_blueprint_mesh_utils, adjset_validate_element_3d)
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_utils, adjset_validate_vertex_3d)
 {
-    conduit::Node root, info;
+    conduit::Node root, opts, info;
     create_2_domain_3d_mesh(root, 0, 1);
     // Add adjsets
     conduit::Node &d0_adjset = root["domain0/adjsets/main_adjset"];
@@ -326,7 +326,7 @@ TEST(conduit_blueprint_mesh_utils, adjset_validate_vertex_3d)
     EXPECT_TRUE(conduit::blueprint::mesh::adjset::verify(d1_adjset, info));
 
     save_mesh(root, "adjset_validate_vertex_3d");
-    bool res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", info);
+    bool res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", opts, info);
     EXPECT_TRUE(res);
 
     // Now, adjust the adjsets so they are wrong on both domains.
@@ -334,7 +334,7 @@ TEST(conduit_blueprint_mesh_utils, adjset_validate_vertex_3d)
     d1_01["values"].set(std::vector<int>{0,1,2,4,5,6,8,9,10,12,13,14,/*wrong*/3,7,11,15});
     info.reset();
     save_mesh(root, "adjset_validate_vertex_3d_bad");
-    res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", info);
+    res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", opts, info);
     //info.print();
     EXPECT_FALSE(res);
 
@@ -677,7 +677,8 @@ TEST(conduit_blueprint_mesh_utils, adjset_compare_pointwise_2d)
     }
 
     // Check that we can still run compare_pointwise - it will convert internally.
-    bool eq = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, "pt_adjset", info);
+    conduit::Node opts;
+    bool eq = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, "pt_adjset", opts, info);
     if(!eq)
         info.print();
     EXPECT_TRUE(eq);
@@ -698,14 +699,14 @@ TEST(conduit_blueprint_mesh_utils, adjset_compare_pointwise_2d)
         conduit::blueprint::mesh::utils::adjset::canonicalize(adjset);
     }
     info.reset();
-    eq = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, "pt_adjset", info);
+    eq = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, "pt_adjset", opts, info);
     if(!eq)
        info.print();
     EXPECT_TRUE(eq);
 
     // Test that the fails_pointwise adjset actually fails.
     info.reset();
-    eq = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, "fails_pointwise", info);
+    eq = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, "fails_pointwise", opts, info);
     //if(!eq)
     //   info.print();
     EXPECT_FALSE(eq);
@@ -713,7 +714,7 @@ TEST(conduit_blueprint_mesh_utils, adjset_compare_pointwise_2d)
 
     // Test that the notevenclose adjset actually fails.
     info.reset();
-    eq = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, "notevenclose", info);
+    eq = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, "notevenclose", opts, info);
     //if(!eq)
     //   info.print();
     EXPECT_TRUE(info.number_of_children() > 0);

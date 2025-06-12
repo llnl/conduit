@@ -185,15 +185,17 @@ namespace adjset
 
      @param doms A node containing the domains. There must be multiple domains.
      @param adjsetName The name of the adjset in all domains. It must exist.
+     @param options An options node. Include "tolerance" to set the point tolerance.
      @param[out] info A node that contains any errors.
      @param comm The MPI communicator to use.
 
      @return True if the adjsets in all domains contained no errors; False if
              there were errors.
      */
-    bool CONDUIT_BLUEPRINT_API validate(const Node &doms,
+    bool CONDUIT_BLUEPRINT_API validate(const conduit::Node &doms,
                                         const std::string &adjsetName,
-                                        Node &info,
+                                        const conduit::Node &options,
+                                        conduit::Node &info,
                                         MPI_Comm comm);
 
     /**
@@ -204,6 +206,7 @@ namespace adjset
 
      @param mesh A node that contains one or more mesh domains.
      @param adjsetName The name of the adjset to check. This must be a pairwise adjset.
+     @param options An options node. Include "tolerance" to set the point tolerance.
      @param[out] info Information about the failed adjset comparison.
      @param comm The MPI communicator to use.
 
@@ -212,6 +215,7 @@ namespace adjset
      */
      bool CONDUIT_BLUEPRINT_API compare_pointwise(conduit::Node &mesh,
                                                   const std::string &adjsetName,
+                                                  const conduit::Node &options,
                                                   conduit::Node &info,
                                                   MPI_Comm comm);
 }

@@ -241,8 +241,8 @@ test_tiled_adjsets(const int dims[3], const std::string &testName)
 #endif
 
             // Check that its adjset points are the same along the edges.
-            conduit::Node info;
-            bool same = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(mesh, "mesh_adjset", info, MPI_COMM_WORLD);
+            conduit::Node opts, info;
+            bool same = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(mesh, "mesh_adjset", opts, info, MPI_COMM_WORLD);
             in_rank_order(MPI_COMM_WORLD, [&](int rank) {
                 if(!same)
                 {
@@ -259,7 +259,8 @@ test_tiled_adjsets(const int dims[3], const std::string &testName)
             EXPECT_TRUE(same);
 
             // Check that its adjset points are the same along the edges.
-            same = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(mesh, "corner_pairwise_adjset", info, MPI_COMM_WORLD);
+            info.reset();
+            same = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(mesh, "corner_pairwise_adjset", opts, info, MPI_COMM_WORLD);
             in_rank_order(MPI_COMM_WORLD, [&](int rank) {
                 if(!same)
                 {
@@ -334,8 +335,8 @@ TEST(conduit_blueprint_mpi_mesh_tiled, three_dimensional_12)
 #endif
 
         // Check that its adjset points are the same along the edges.
-        conduit::Node info;
-        bool same = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(mesh, "corner_pairwise_adjset", info, MPI_COMM_WORLD);
+        conduit::Node opts, info;
+        bool same = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(mesh, "corner_pairwise_adjset", opts, info, MPI_COMM_WORLD);
         in_rank_order(MPI_COMM_WORLD, [&](int rank) {
             if(!same)
             {
@@ -410,8 +411,8 @@ translate:
     EXPECT_EQ(selectedDomains[rank].size(), conduit::blueprint::mesh::domains(mesh).size());
 
     // Make sure that the adjset is compares pointwise.
-    conduit::Node info;
-    bool same = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(mesh, "main_adjset", info, MPI_COMM_WORLD);
+    conduit::Node popts, info;
+    bool same = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(mesh, "main_adjset", popts, info, MPI_COMM_WORLD);
     in_rank_order(MPI_COMM_WORLD, [&](int rank)
     {
         if(!same)

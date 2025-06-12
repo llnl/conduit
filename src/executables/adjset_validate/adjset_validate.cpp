@@ -158,6 +158,7 @@ int
 main(int argc, char *argv[])
 {
     std::string input, output, protocol;
+    double tolerance = conduit::blueprint::mesh::utils::query::PointQueryBase::DEFAULT_POINT_TOLERANCE;
 
     // Set default protocol. Use HDF5 if present.
     conduit::Node props;
@@ -195,6 +196,11 @@ main(int argc, char *argv[])
             protocol = argv[i+1];
             i++;
         }
+        else if(strcmp(argv[i], "-tolerance") == 0 && (i+1) < argc)
+        {
+            tolerance = atof(argv[i+1]);
+            i++;
+        }
         else if(strcmp(argv[i], "-handler") == 0)
         {
             conduit::utils::set_error_handler(conduit_debug_err_handler);
@@ -229,14 +235,18 @@ main(int argc, char *argv[])
             if(adjsets[i]->has_path("association"))
                 association = adjsets[i]->fetch_existing("association").as_string();
 
-            conduit::Node info;
-            bool res = conduit::blueprint::mesh::utils::adjset::validate(root, adjsetName, info);
+            conduit::Node info, opts;
+            opts["tolerance"] = tolerance;
+
+            bool res = conduit::blueprint::mesh::utils::adjset::validate(root, adjsetName, opts, info);
             if(res)
             {
                 // If the adjset is vertex associated then compare the points in
                 // it to make sure that they are the same on each side of the boundary.
                 if(association == "vertex")
-                    res = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, adjsetName, info);
+                {
+                    res = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, adjsetName, opts, info);
+                }
 
                 if(res)
                 {
