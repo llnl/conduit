@@ -82,8 +82,8 @@ void topology::MeshInfoCollection::end()
         *ptr++ = it->second.maxExtents[2];
         *ptr++ = it->second.minEdgeLength;
         *ptr++ = it->second.maxEdgeLength;
-        *ptr++ = it->second.minCoordDistance;
-        *ptr++ = it->second.maxCoordDistance;
+        *ptr++ = it->second.minDiagonalLength;
+        *ptr++ = it->second.maxDiagonalLength;
     }
 
     // Make sure all ranks get the info.
@@ -110,8 +110,8 @@ void topology::MeshInfoCollection::end()
            info.maxExtents[2] = ptr2[6];
            info.minEdgeLength = ptr2[7];
            info.maxEdgeLength = ptr2[8];
-           info.minCoordDistance = ptr2[9];
-           info.maxCoordDistance = ptr2[10];
+           info.minDiagonalLength = ptr2[9];
+           info.maxDiagonalLength = ptr2[10];
 
            add(domainId, info);
            if(first)

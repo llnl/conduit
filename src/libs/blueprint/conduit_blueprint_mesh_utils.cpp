@@ -2349,35 +2349,10 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
     }
     info.minEdgeLength = std::numeric_limits<double>::max();
     info.maxEdgeLength = std::numeric_limits<double>::lowest();
-    info.minCoordDistance = std::numeric_limits<double>::max();
-    info.maxCoordDistance = std::numeric_limits<double>::lowest();
+    info.minDiagonalLength = std::numeric_limits<double>::max();
+    info.maxDiagonalLength = std::numeric_limits<double>::lowest();
 
-    // Compute coord distances.
-    CONDUIT_ANNOTATE_MARK_BEGIN("coordDistance");
-    const auto nnodes = coords[0].number_of_elements();
-    const index_t numComps = static_cast<index_t>(coords.size());
-    for(int i = 0; i < nnodes; i++)
-    {
-        for(int j = i + 1; j < nnodes; j++)
-        {
-            double distSquared = 0.;
-            for(index_t comp = 0; comp < numComps; comp++)
-            {
-                const double delta = coords[comp][i] - coords[comp][j];
-                distSquared += delta * delta;
-            }
-            if(distSquared > CONDUIT_EPSILON)
-            {
-                info.minCoordDistance = std::min(info.minCoordDistance, distSquared);
-                info.maxCoordDistance = std::max(info.maxCoordDistance, distSquared);
-            }
-        }
-    }
-    info.minCoordDistance = (info.minCoordDistance > 0.) ? sqrt(info.minCoordDistance) : 1.;
-    info.maxCoordDistance = (info.maxCoordDistance > 0.) ? sqrt(info.maxCoordDistance) : 1.;
-    CONDUIT_ANNOTATE_MARK_END("coordDistance");
-
-    // This lambda computes edge information for the edge between p0, p1.
+    // This lambda computes length information between p0, p1.
     auto computeEdgeInfo = [&](index_t p0, index_t p1)
     {
         double lenSquared = 0.;
@@ -2400,11 +2375,101 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
         }
     };
 
+    auto diagLength = [&](index_t p0, index_t p1)
+    {
+        double lenSquared = 0.;
+        for(size_t comp = 0; comp < coords.size(); comp++)
+        {
+            const auto &acc = coords[comp];
+            const auto v0 = acc[p0];
+            const auto v1 = acc[p1];
+            const auto dValue = v0 - v1;
+            lenSquared += dValue * dValue;
+        }
+
+        if(lenSquared > CONDUIT_EPSILON)
+        {
+            info.minDiagonalLength = std::min(info.minDiagonalLength, lenSquared);
+            info.maxDiagonalLength = std::max(info.maxDiagonalLength, lenSquared);
+        }
+    };
+
+    // This lambda computes diagonal information in a polygon.
+    auto polygonDiagInfo = [&](const std::vector<index_t> &ids)
+    {
+        // Walk around the shape
+        const index_t n = static_cast<index_t>(ids.size());
+        const index_t m = n - 2;
+        const index_t p = n - 3;
+        for(index_t i = 0; i < m; i++)
+        {
+            for(index_t j = 0; j < p; j++)
+            {
+                const index_t jj = (j + 2) % n;
+                if(i < jj)
+                {
+                    const index_t p0 = ids[i];
+                    const index_t p1 = ids[jj];
+                    diagLength(p0, p1);
+                }
+            }
+        }
+    };
+
+    // This lambda computes diagonal information in a 3D zoo element
+    auto shapeDiagInfo = [&](const std::vector<index_t> &ids)
+    {
+        switch(ids.size())
+        {
+        default:
+            break;
+        case 5: // pyramid
+            diagLength(ids[0], ids[2]);
+            diagLength(ids[1], ids[3]);
+            break;
+        case 6: // wedge
+            diagLength(ids[0], ids[5]);
+            diagLength(ids[2], ids[3]);
+            diagLength(ids[2], ids[4]);
+            diagLength(ids[1], ids[5]);
+            diagLength(ids[0], ids[4]);
+            diagLength(ids[1], ids[3]);
+            break;
+        case 8: // hex
+            // interior diags
+            diagLength(ids[0], ids[6]);
+            diagLength(ids[1], ids[7]);
+            diagLength(ids[2], ids[4]);
+            diagLength(ids[3], ids[5]);
+            // face diags
+            diagLength(ids[4], ids[6]);
+            diagLength(ids[5], ids[7]);
+
+            diagLength(ids[2], ids[5]);
+            diagLength(ids[1], ids[6]);
+
+            diagLength(ids[0], ids[2]);
+            diagLength(ids[1], ids[3]);
+
+            diagLength(ids[0], ids[7]);
+            diagLength(ids[3], ids[4]);
+
+            diagLength(ids[0], ids[5]);
+            diagLength(ids[1], ids[4]);
+
+            diagLength(ids[2], ids[7]);
+            diagLength(ids[3], ids[6]);
+            break;
+        }
+    };
+
     // Iterate over all of the elements in the topology and compute the edge info
     // for each element.
     CONDUIT_ANNOTATE_MARK_BEGIN("edgeLength");
     iterate_elements(n_topo, [&](const entity &e)
     {
+        // NOTE: For shapes where we do not compute the diagonal info, we just
+        //       use the edge info as "good enough".
         if(e.shape.is_polyhedral())
         {
             for(size_t f = 0; f < e.subelement_ids.size(); f++)
@@ -2429,14 +2494,22 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
                                     e.element_ids[faceIds[(i + 1) % nIds]]);
                 }
             }
+            // Compute diagonal info.
+            shapeDiagInfo(e.element_ids);
         }
         else if(e.shape.dim == 2)
         {
             const index_t nIds = static_cast<index_t>(e.element_ids.size());
             for(index_t i = 0; i < nIds; i++)
             {
-              computeEdgeInfo(e.element_ids[i],
-                              e.element_ids[(i + 1) % nIds]);
+                computeEdgeInfo(e.element_ids[i],
+                                e.element_ids[(i + 1) % nIds]);
+            }
+
+            // Compute diagonal info.
+            if(nIds >= 4)
+            {
+               polygonDiagInfo(e.element_ids);
             }
         }
         else if(e.shape.dim == 1)
@@ -2453,6 +2526,26 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
     // Turn them from len squared to len by taking the square root.
     info.minEdgeLength = (info.minEdgeLength > 0.) ? sqrt(info.minEdgeLength) : 1.;
     info.maxEdgeLength = (info.maxEdgeLength > 0.) ? sqrt(info.maxEdgeLength) : 1.;
+
+    // Initialize the diagonal lengths.
+    if(info.minDiagonalLength == std::numeric_limits<double>::max())
+    {
+       // The value has not been set. Use minEdgeLength.
+       info.minDiagonalLength = info.minEdgeLength;
+    }
+    else
+    {
+       info.minDiagonalLength = sqrt(info.minDiagonalLength);
+    }
+    if(info.maxDiagonalLength == std::numeric_limits<double>::lowest())
+    {
+       // The value has not been set. Use maxEdgeLength.
+       info.maxDiagonalLength = info.maxEdgeLength;
+    }
+    else
+    {
+       info.maxDiagonalLength = sqrt(info.maxDiagonalLength);
+    }
     CONDUIT_ANNOTATE_MARK_END("edgeLength");
 }
 
@@ -2465,8 +2558,8 @@ std::ostream &operator << (std::ostream &os, const MeshInfo &obj)
        << "maxExtents={" << obj.maxExtents[0] << ", " << obj.maxExtents[1] << ", " << obj.maxExtents[2] << "}, "
        << "minEdgeLength=" << obj.minEdgeLength << ", "
        << "maxEdgeLength=" << obj.maxEdgeLength << ", "
-       << "minCoordDistance=" << obj.minCoordDistance << ", "
-       << "maxCoordDistance=" << obj.maxCoordDistance << "}";
+       << "minDiagonalLength=" << obj.minDiagonalLength << ", "
+       << "maxDiagonalLength=" << obj.maxDiagonalLength << "}";
     return os;
 }
 } // end topology namespace
@@ -2542,58 +2635,77 @@ topology::MeshInfoCollection::merge(const topology::MeshInfo &a, const topology:
     info.maxExtents[2] = std::max(a.maxExtents[2], b.maxExtents[2]);
     info.minEdgeLength = std::min(a.minEdgeLength, b.minEdgeLength);
     info.maxEdgeLength = std::max(a.maxEdgeLength, b.maxEdgeLength);
-    info.minCoordDistance = std::min(a.minCoordDistance, b.minCoordDistance);
-    info.maxCoordDistance = std::max(a.maxCoordDistance, b.maxCoordDistance);
+    info.minDiagonalLength = std::min(a.minDiagonalLength, b.minDiagonalLength);
+    info.maxDiagonalLength = std::max(a.maxDiagonalLength, b.maxDiagonalLength);
     return info;
 }
 
 //-----------------------------------------------------------------------------
+template <typename T>
+inline bool will_multiply_overflow(T a, T b)
+{
+    if (a == 0 || b == 0)
+        return false;
+    return b > (std::numeric_limits<T>::max() / a);
+}
+
 topology::Quantizer::Quantizer(const topology::MeshInfo &info) : meshInfo(info)
 {
-#if 1
+    // Take the smaller of the lengths.
+    length = static_cast<FloatValue>(std::min(meshInfo.minDiagonalLength, meshInfo.minEdgeLength));
+    offset = length / 2.;
+
     // Set some values derived from the MeshInfo.
-    QX = 1 + std::max(uint64_t{1}, static_cast<uint64_t>(ceil((meshInfo.maxExtents[0] - meshInfo.minExtents[0]) / meshInfo.minCoordDistance)));
-    QY = 1 + std::max(uint64_t{1}, static_cast<uint64_t>(ceil((meshInfo.maxExtents[1] - meshInfo.minExtents[1]) / meshInfo.minCoordDistance)));
+    QX = 1 + std::max(QuantizedValue{1}, static_cast<QuantizedValue>(ceil((meshInfo.maxExtents[0] - meshInfo.minExtents[0]) / length)));
+    QY = 1 + std::max(QuantizedValue{1}, static_cast<QuantizedValue>(ceil((meshInfo.maxExtents[1] - meshInfo.minExtents[1]) / length)));
     QXQY = QX * QY;
-#else
-    // Set some values derived from the MeshInfo.
-    QX = 1 + std::max(uint64_t{1}, static_cast<uint64_t>(ceil((meshInfo.maxExtents[0] - meshInfo.minExtents[0]) / meshInfo.minEdgeLength)));
-    QY = 1 + std::max(uint64_t{1}, static_cast<uint64_t>(ceil((meshInfo.maxExtents[1] - meshInfo.minExtents[1]) / meshInfo.minEdgeLength)));
-    QXQY = QX * QY;
-#endif
 }
 
-topology::Quantizer::QuantizedIndex
-topology::Quantizer::quantize(float64 value, index_t component) const
+topology::Quantizer::QuantizedValue
+topology::Quantizer::quantize(topology::Quantizer::FloatValue value, index_t component) const
 {
+#ifndef NDEBUG
     CONDUIT_ASSERT(component >= 0 && component < 3, "Valid components are 0,1,2");
-#if 1
-    const auto de = meshInfo.minCoordDistance / 2.;
-    return static_cast<QuantizedIndex>((value - meshInfo.minExtents[component] + de) / meshInfo.minCoordDistance);
-#else
-    const auto de = meshInfo.minEdgeLength / 2.;
-    return static_cast<QuantizedIndex>((value - meshInfo.minExtents[component] + de) / meshInfo.minEdgeLength);
 #endif
+    return static_cast<QuantizedValue>((value - static_cast<FloatValue>(meshInfo.minExtents[component]) + offset) / length);
 }
 
 topology::Quantizer::QuantizedIndex
-topology::Quantizer::quantize(const std::vector<float64> &node) const
+topology::Quantizer::quantize(const topology::Quantizer::Coordinate &coord) const
 {
+    // NOTE: We check some of the multiplications with CONDUIT_ASSERT in case
+    //       they will overflow when computing indices.
+    //
+    // FUTURE: If meshes get so large that computing an index overflows uint64_t
+    //         then QuantizedIndex could become std::tuple<uint64_t,uint64_t>
+    //         where the Z component gets stored in the 0th tuple value and
+    //         the XY contributions get added in the 1st tuple value.
+#ifndef NDEBUG
     CONDUIT_ASSERT(node.size() <= 3, "Node has invalid number of components");
+#endif
+    QuantizedValue q = 0;
     QuantizedIndex qIndex = 0;
-    switch(node.size())
+    switch(coord.size())
     {
     default:
         CONDUIT_ERROR("Unsupported number of components.");
         break;
     case 3:
-        qIndex += QXQY * quantize(node[2], 2);
+        q = quantize(coord[2], 2);
+#ifndef NDEBUG
+        CONDUIT_ASSERT(!will_multiply_overflow(QXQY, q), "Quantizer overflow");
+#endif
+        qIndex += QXQY * q;
         // Falls through
     case 2:
-        qIndex += QX * quantize(node[1], 1);
+        q = quantize(coord[1], 1);
+#ifndef NDEBUG
+        CONDUIT_ASSERT(!will_multiply_overflow(QX, q), "Quantizer overflow");
+#endif
+        qIndex += QX * q;
         // Falls through
     case 1:
-        qIndex += quantize(node[0], 0);
+        qIndex += quantize(coord[0], 0);
         break;
     }
     return qIndex;

@@ -555,17 +555,17 @@ namespace topology
     //-------------------------------------------------------------------------
     /**
      * @brief Compute information about a mesh; its coordinate extents and edge
-     *        lengths. It is implemented as a struct in case other quantities are
-     *        added in the future.
+     *        lengths. It is implemented as a struct so other quantities can be
+     *        added as the need arises.
      */
     struct CONDUIT_BLUEPRINT_API MeshInfo
     {
-        float64 minExtents[3];
-        float64 maxExtents[3];
-        float64 minEdgeLength;
-        float64 maxEdgeLength;
-        float64 minCoordDistance; // min length that is not zero.
-        float64 maxCoordDistance;
+        float64 minExtents[3];     // Min coordinate extents
+        float64 maxExtents[3];     // Max coordinate extents
+        float64 minEdgeLength;     // Min zone edge length
+        float64 maxEdgeLength;     // Max zone edge length
+        float64 minDiagonalLength; // Min zone diagonal length
+        float64 maxDiagonalLength; // Max zone diagonal length
     };
 
     /**
@@ -651,10 +651,14 @@ namespace topology
     /**
      * @brief Quantize a mesh node into an index by binning the points in a regular
      *        grid determined using MeshInfo.
+     *
      */
     struct CONDUIT_BLUEPRINT_API Quantizer
     {
-        using QuantizedIndex = uint64_t;
+        using QuantizedValue = uint64_t;
+        using QuantizedIndex = QuantizedValue;
+        using FloatValue = float64;
+        using Coordinate = std::vector<FloatValue>;
 
         /// Constructor.
         Quantizer(const MeshInfo &info);
@@ -668,22 +672,24 @@ namespace topology
          *
          * @return A quantized index along the dimension.
          */
-        QuantizedIndex quantize(float64 value, index_t dim) const;
+        QuantizedValue quantize(FloatValue value, index_t dim) const;
 
         /**
          * @brief Convert the input node into a quantized index in the binned
          *        spatial mesh, implied by the MeshInfo.
          *
-         * @param node A vector containing a point with 1-3 components.
+         * @param coord A vector containing a coordinate with 1-3 components.
          *
          * @return A quantized node index that can identify the node.
          */
-        QuantizedIndex quantize(const std::vector<float64> &node) const;
+        QuantizedIndex quantize(const Coordinate &coord) const;
 
-        MeshInfo meshInfo;
-        QuantizedIndex QX;
-        QuantizedIndex QY;
-        QuantizedIndex QXQY;
+        MeshInfo       meshInfo;
+        FloatValue     length;
+        FloatValue     offset;
+        QuantizedValue QX;
+        QuantizedValue QY;
+        QuantizedValue QXQY;
     };
 
     //-------------------------------------------------------------------------

@@ -2811,6 +2811,37 @@ group_domains_and_maps(conduit::Node &mesh, conduit::Node &s2dmap, conduit::Node
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 
+/**
+ * \brief Average a set of coordinates in a coordset.
+ *
+ * \param cset The input coordset, which needs to be explicit.
+ * \param coordIds A container with the coord ids that will be averaged.
+ *
+ * \return A vector containing the averaged coordinate.
+ */
+template <typename CoordIdContainer>
+std::vector<float64> average_coords(const Node &cset, const CoordIdContainer &coordIds)
+{
+    std::vector<float64> avg_coords;
+    const float64 w = coordIds.empty() ? 1. : (1. / static_cast<float64>(coordIds.size()));
+    for(const index_t &id : coordIds)
+    {
+        // Get the points for entity_pidx.
+        const std::vector<float64> point_coords = bputils::coordset::_explicit::coords(cset, id);
+
+        if(avg_coords.empty())
+        {
+            avg_coords.resize(point_coords.size(), 0.);
+        }
+
+        for(size_t comp = 0; comp < point_coords.size(); comp++)
+        {
+            avg_coords[comp] += w * point_coords[comp];
+        }
+    }
+    return avg_coords;
+}
+
 //-----------------------------------------------------------------------------
 /**
  @brief Used to generate derived entities from the source mesh. The main work
@@ -2857,11 +2888,7 @@ generate_derived_entities(conduit::Node &mesh,
                           conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic)
 {
     namespace topoutils = conduit::blueprint::mesh::utils::topology;
-#if 1
     using Entity = std::tuple<topoutils::Quantizer::QuantizedIndex, index_t>;
-#else
-    using Entity = std::tuple<std::set<topoutils::Quantizer::QuantizedIndex>, index_t>;
-#endif
     using EntityVector = std::vector<Entity>;
 
     CONDUIT_ANNOTATE_MARK_FUNCTION;
@@ -3053,7 +3080,7 @@ generate_derived_entities(conduit::Node &mesh,
 
             // Get point ids used in entity ei in dst_topo
             const std::vector<index_t> entity_pidxs = bputils::topology::unstructured::points(dst_topo, ei);
-#if 1
+
 std::cout << "Entity " << ei << ", neighbors={";
 for(const auto &value : entity_neighbors)
 {
@@ -3067,24 +3094,7 @@ for(const index_t &entity_pidx : entity_pidxs)
 std::cout << "}";
 
             // Average the entity points to form a point for sorting.
-            std::vector<float64> avg_coords;
-            const float64 w = 1. / static_cast<float64>(entity_pidxs.size());
-            for(const index_t &entity_pidx : entity_pidxs)
-            {
-                // Get the points for entity_pidx. NOTE: src_cset is same as new dst_topo's coordset.
-                const std::vector<float64> point_coords = bputils::coordset::_explicit::coords(src_cset, entity_pidx);
-
-                if(avg_coords.empty())
-                {
-                   avg_coords.resize(point_coords.size(), 0.);
-                }
-
-                for(size_t comp = 0; comp < point_coords.size(); comp++)
-                {
-                    avg_coords[comp] += w * point_coords[comp];
-                }
-            }
-
+            const auto avg_coords = average_coords(src_cset, entity_pidxs);
             const auto q = quantizer.quantize(avg_coords);
 
             // Make entity
@@ -3093,21 +3103,6 @@ std::cout << "}";
             std::get<1>(entity) = ei;
 std::cout << ", avg_coords={" << avg_coords[0] << ", " << avg_coords[1] << "}, q=" << q
           << "\n";
-#else
-            // Make entity
-            Entity entity;
-            auto &entity_points = std::get<0>(entity);
-            for(const index_t &entity_pidx : entity_pidxs)
-            {
-                // Get the points for entity_pidx. NOTE: src_cset is same as new dst_topo's coordset.
-                const std::vector<float64> point_coords = bputils::coordset::_explicit::coords(
-                    src_cset, entity_pidx);
-
-                // Add a quantized point id to the entity points
-                entity_points.emplace(quantizer.quantize(point_coords));
-            }
-            std::get<1>(entity) = ei;
-#endif
 
             // NOTE(JRC): Inserting with this method allows this algorithm to sort new
             // elements as they're generated, rather than as a separate process at the
