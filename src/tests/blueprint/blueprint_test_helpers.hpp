@@ -20,6 +20,8 @@
 #include <conduit_blueprint_table.hpp>
 #include <conduit_log.hpp>
 
+#include <cmath>
+#include <cstdlib>
 #include <gtest/gtest.h>
 
 //-----------------------------------------------------------------------------
@@ -134,7 +136,7 @@ compare_to_baseline(const conduit::Node &test,
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// -- begin parition --
+// -- begin partition --
 //-----------------------------------------------------------------------------
 namespace partition
 {
@@ -246,7 +248,7 @@ make_field_selection_example(conduit::Node &output, int mask)
 
 }
 //-----------------------------------------------------------------------------
-// -- end parition --
+// -- end partition --
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
@@ -606,6 +608,246 @@ top: [7,8,9,10]
 
     n_tile.parse(yaml);
 }
+
+/**
+ * @brief Build a 4 domain mesh for adjset testing. The mesh can be scaled and rotated.
+ */
+struct MeshBuilder
+{
+    /**
+     * @brief Build a mesh
+     * @param[out] n_mesh The node in which the mesh will be built.
+     */
+    void build(conduit::Node &n_mesh)
+    {
+        if(m_selectedDomains.empty())
+        {
+            m_selectedDomains = std::vector<int>{{0, 1, 2, 3}};
+        }
+
+        for(const auto dom : m_selectedDomains)
+        {
+            char domainName[128];
+            snprintf(domainName, 128, "domain_%07d", dom);
+            conduit::Node &n_domain = n_mesh[domainName];
+            buildDomain(dom, n_domain);
+        }
+    }
+
+    /**
+     * @brief Build a single domain.
+     * @param dom The domain number to build (0,1,2,3)
+     * @param[out] n_domain The node in which the domain will be built.
+     */
+    void buildDomain(int dom, conduit::Node &n_domain)
+    {
+#define PT_A {0., 0.}
+#define PT_B {70., 0.}
+#define PT_C {70., 50.}
+#define PT_D {0., 50.}
+#define PT_E {-300., 0.}
+#define PT_F {-120., 180.}
+#define PT_G {120., 300.}
+#define PT_H {180., 0.}
+        const double origDomainPts[4][4][2] = {
+           // Domain 0
+           {PT_A, PT_B, PT_C, PT_D},
+           // Domain 1
+           {PT_A, PT_D, PT_F, PT_E},
+           // Domain 2
+           {PT_D, PT_C, PT_G, PT_F},
+           // Domain 3
+           {PT_C, PT_B, PT_H, PT_G}
+        };
+#undef PT_A
+#undef PT_B
+#undef PT_C
+#undef PT_D
+#undef PT_E
+#undef PT_F
+#undef PT_G
+#undef PT_H
+        const int domainDims[4][2] = {
+            // Domain 0
+            {15 * m_resolution, 10 * m_resolution},
+            // Domain 1
+            {10 * m_resolution, 40 * m_resolution},
+            // Domain 2
+            {15 * m_resolution, 40 * m_resolution},
+            // Domain 3
+            {10 * m_resolution, 40 * m_resolution}
+        };
+
+        // Rotate the points for this domain.
+        double domainPoints[4][2];
+        for(int i =0 ; i < 4; i++)
+        {
+            domainPoints[i][0] = cos(m_angle) * origDomainPts[dom][i][0] +
+                                 sin(m_angle) * origDomainPts[dom][i][1] +
+                                 perturbation();
+            domainPoints[i][1] = cos(m_angle + M_PI/2) * origDomainPts[dom][i][0] +
+                                 sin(m_angle + M_PI/2) * origDomainPts[dom][i][1] +
+                                 perturbation();
+        }
+
+        // Make the coordset.
+        std::vector<double> xc, yc;
+        const int NX = domainDims[dom][0];
+        const int NY = domainDims[dom][1];
+        for(int j = 0; j < NY; j++)
+        {
+            double v = static_cast<double>(j) / static_cast<double>(NY - 1);
+            for(int i = 0; i < NX; i++)
+            {
+                double u = static_cast<double>(i) / static_cast<double>(NX - 1);
+
+                double Ax = (1. - v) * domainPoints[0][0] + v * domainPoints[3][0];
+                double Ay = (1. - v) * domainPoints[0][1] + v * domainPoints[3][1];
+
+                double Bx = (1. - v) * domainPoints[1][0] + v * domainPoints[2][0];
+                double By = (1. - v) * domainPoints[1][1] + v * domainPoints[2][1];
+
+                double x = (1. - u) * Ax + u * Bx;
+                double y = (1. - u) * Ay + u * By;
+                xc.push_back(x);
+                yc.push_back(y);
+            }
+        }
+
+        n_domain["state/domain_id"] = dom;
+        n_domain["coordsets/coords/type"] = "explicit";
+        n_domain["coordsets/coords/values/x"].set(xc);
+        n_domain["coordsets/coords/values/y"].set(yc);
+
+        // Make connectivity
+        std::vector<int> conn, sizes, offsets;
+        const int CX = NX - 1;
+        const int CY = NY - 1;
+        for(int j = 0; j < CY; j++)
+        {
+            for(int i = 0; i < CX; i++)
+            {
+                conn.push_back(j * NX + i);
+                conn.push_back(j * NX + i + 1);
+                conn.push_back((j+1) * NX + i + 1);
+                conn.push_back((j+1) * NX + i);
+            }
+            offsets.push_back(sizes.size() * 4);
+            sizes.push_back(4);
+        }
+
+        n_domain["topologies/mesh/type"] = "unstructured";
+        n_domain["topologies/mesh/coordset"] = "coords";
+        n_domain["topologies/mesh/elements/shape"] = "quad";
+        n_domain["topologies/mesh/elements/connectivity"].set(conn);
+        n_domain["topologies/mesh/elements/sizes"].set(sizes);
+        n_domain["topologies/mesh/elements/offsets"].set(offsets);
+
+        // Make adjsets.
+        n_domain["adjsets/mesh_adjset/topology"] = "mesh";
+        n_domain["adjsets/mesh_adjset/association"] = "vertex";
+        int i, j;
+        if(dom == 0)
+        {
+            std::vector<int> a01;
+            i = 0;
+            for(j = 0; j < domainDims[0][1]; j++)
+               a01.push_back(j * domainDims[0][0] + i);
+            n_domain["adjsets/mesh_adjset/groups/group_0_1/neighbors"] = 1;
+            n_domain["adjsets/mesh_adjset/groups/group_0_1/values"].set(a01);
+
+            std::vector<int> a02;
+            j = domainDims[0][1] - 1;
+            for(i = 0; i < domainDims[0][0]; i++)
+               a02.push_back(j * domainDims[0][0] + i);
+            n_domain["adjsets/mesh_adjset/groups/group_0_2/neighbors"] = 2;
+            n_domain["adjsets/mesh_adjset/groups/group_0_2/values"].set(a02);
+
+            std::vector<int> a03;
+            i = domainDims[0][0] - 1;
+            for(j = 0; j < domainDims[0][1]; j++)
+               a03.push_back(j * domainDims[0][0] + i);
+            n_domain["adjsets/mesh_adjset/groups/group_0_3/neighbors"] = 3;
+            n_domain["adjsets/mesh_adjset/groups/group_0_3/values"].set(a03);
+
+        }
+        else if(dom == 1)
+        {
+            std::vector<int> a01;
+            j = 0;
+            for(i = 0; i < domainDims[1][0]; i++)
+               a01.push_back(j * domainDims[1][0] + i);
+            n_domain["adjsets/mesh_adjset/groups/group_0_1/neighbors"] = 0;
+            n_domain["adjsets/mesh_adjset/groups/group_0_1/values"].set(a01);
+
+            std::vector<int> a12;
+            i = domainDims[1][0] - 1;
+            for(j = 0; j < domainDims[1][1]; j++)
+               a12.push_back(j * domainDims[1][0] + i);
+            n_domain["adjsets/mesh_adjset/groups/group_1_2/neighbors"] = 2;
+            n_domain["adjsets/mesh_adjset/groups/group_1_2/values"].set(a12);
+
+        }
+        else if(dom == 2)
+        {
+            std::vector<int> a02;
+            j = 0;
+            for(i = 0; i < domainDims[2][0]; i++)
+               a02.push_back(j * domainDims[2][0] + i);
+            n_domain["adjsets/mesh_adjset/groups/group_0_2/neighbors"] = 0;
+            n_domain["adjsets/mesh_adjset/groups/group_0_2/values"].set(a02);
+
+            std::vector<int> a12;
+            i = 0;
+            for(j = 0; j < domainDims[2][1]; j++)
+               a12.push_back(j * domainDims[2][0] + i);
+            n_domain["adjsets/mesh_adjset/groups/group_1_2/neighbors"] = 1;
+            n_domain["adjsets/mesh_adjset/groups/group_1_2/values"].set(a12);
+
+            std::vector<int> a23;
+            i = domainDims[2][0] - 1;
+            for(j = 0; j < domainDims[2][1]; j++)
+               a23.push_back(j * domainDims[2][0] + i);
+            n_domain["adjsets/mesh_adjset/groups/group_2_3/neighbors"] = 3;
+            n_domain["adjsets/mesh_adjset/groups/group_2_3/values"].set(a23);
+        }
+        else if(dom == 3)
+        {
+            // NOTE: This edge matches domain 0's right edge. There is a difference in orientation!
+            std::vector<int> a03;
+            j = 0;
+            for(i = domainDims[3][0] - 1; i >= 0; i--)
+               a03.push_back(j * domainDims[3][0] + i);
+            n_domain["adjsets/mesh_adjset/groups/group_0_3/neighbors"] = 0;
+            n_domain["adjsets/mesh_adjset/groups/group_0_3/values"].set(a03);
+
+            std::vector<int> a23;
+            i = 0;
+            for(j = 0; j < domainDims[3][1]; j++)
+               a23.push_back(j * domainDims[3][0] + i);
+            n_domain["adjsets/mesh_adjset/groups/group_2_3/neighbors"] = 2;
+            n_domain["adjsets/mesh_adjset/groups/group_2_3/values"].set(a23);
+        }
+    }
+
+    /**
+     * @brief Return a value that is +- (3/2)*CONDUIT_EPSILON
+     * @return A perturbation value.
+     */
+    double perturbation() const
+    {
+        double value = 0.;
+#if 0//!defined(_WIN32)
+        const double eps = 3. * CONDUIT_EPSILON / 2.;
+        value = drand48() * 2. * eps - eps;
+#endif
+        return value;
+    }
+
+    int m_resolution {1};
+    double m_angle {0.};
+    std::vector<int> m_selectedDomains;
+};
 
 }
 //-----------------------------------------------------------------------------
