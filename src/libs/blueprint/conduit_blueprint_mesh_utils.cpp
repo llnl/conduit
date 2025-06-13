@@ -94,12 +94,12 @@ ShapeType::ShapeType(const conduit::Node &topology)
 {
     init(-1);
 
-    const std::string type = topology["type"].as_string();
-    if(type == "unstructured" && topology["elements"].has_child("shape"))
+    const std::string topoType = topology["type"].as_string();
+    if(topoType == "unstructured" && topology["elements"].has_child("shape"))
     {
         init(topology["elements/shape"].as_string());
     }
-    else if(type == "points")
+    else if(topoType == "points")
     {
         // handle points separately.
         init("point");
@@ -1888,8 +1888,8 @@ struct HilbertCmp
    const double *points;
    double mid;
 
-   HilbertCmp(int coord, bool dir, const double *points, double mid)
-      : coord(coord), dir(dir), points(points), mid(mid) {}
+   HilbertCmp(int _coord, bool _dir, const double *_points, double _mid)
+      : coord(_coord), dir(_dir), points(_points), mid(_mid) {}
 
    bool operator()(int i) const
    {
