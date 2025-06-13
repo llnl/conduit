@@ -5607,7 +5607,7 @@ namespace detail
                     volume_ratio = volumes_info["ratio"].value();
                 }
 
-                int field_out_size = vert_assoc ? new_num_points : new_num_shapes;
+                const auto field_out_size = vert_assoc ? new_num_points : new_num_shapes;
 
                 // If we are volume dependent or vertex associated, we do not care what 
                 // the original type of the fields was. We are going to make brand new 

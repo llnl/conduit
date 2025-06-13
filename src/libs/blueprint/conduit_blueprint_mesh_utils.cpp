@@ -4029,9 +4029,9 @@ adjset::compare_pointwise(conduit::Node &mesh, const std::string &adjsetName,
 void
 adjset::to_topo(conduit::Node &mesh, const std::string &adjsetName, conduit::Node &out)
 {
-    auto moveMesh = [&](const std::string &groupName, int dom, conduit::Node &mesh, conduit::Node &n_out)
+    auto moveMesh = [&](const std::string &groupName, int dom, conduit::Node &n_mesh, conduit::Node &n_out)
     {
-        if(mesh.has_path("coordsets") && mesh.has_path("topologies"))
+        if(n_mesh.has_path("coordsets") && n_mesh.has_path("topologies"))
         {
             // Copy the mesh into out node in a way that preserves its name.
             std::stringstream ss;
@@ -4041,9 +4041,9 @@ adjset::to_topo(conduit::Node &mesh, const std::string &adjsetName, conduit::Nod
             conduit::Node &coordsets = n_out["coordsets"];
             conduit::Node &topologies = n_out["topologies"];
             conduit::Node &cset = coordsets[meshName+"_coords"];
-            cset.move(mesh["coordsets"][0]);
+            cset.move(n_mesh["coordsets"][0]);
             conduit::Node &topo = topologies[meshName];
-            topo.move(mesh["topologies"][0]);
+            topo.move(n_mesh["topologies"][0]);
             topo["coordset"] = meshName + "_coords";
         }
     };
