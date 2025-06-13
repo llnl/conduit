@@ -850,7 +850,9 @@ struct MeshBuilder
     double perturbation() const
     {
         double value = 0.;
-#if 0 //!defined(_WIN32)
+#if defined(_WIN32)
+        value = static_cast<double>(std::rand()) / RAND_MAX;
+#else
         const double eps = 3. * CONDUIT_EPSILON / 2.;
         value = drand48() * 2. * eps - eps;
 #endif

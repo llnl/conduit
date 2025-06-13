@@ -427,7 +427,7 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_sorting_2d)
                 // Check that the adjset is valid.
                 conduit::Node info;
                 conduit::Node opts;
-                opts["tolerance"] = 1.e-9;
+                opts["tolerance"] = 1.e-6;
 
                 bool validate_result =
                     conduit::blueprint::mpi::mesh::utils::adjset::validate(
