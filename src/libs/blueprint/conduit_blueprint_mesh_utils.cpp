@@ -4029,7 +4029,7 @@ adjset::compare_pointwise(conduit::Node &mesh, const std::string &adjsetName,
 void
 adjset::to_topo(conduit::Node &mesh, const std::string &adjsetName, conduit::Node &out)
 {
-    auto moveMesh = [&](const std::string &groupName, int dom, conduit::Node &mesh, conduit::Node &out)
+    auto moveMesh = [&](const std::string &groupName, int dom, conduit::Node &mesh, conduit::Node &n_out)
     {
         if(mesh.has_path("coordsets") && mesh.has_path("topologies"))
         {
@@ -4038,8 +4038,8 @@ adjset::to_topo(conduit::Node &mesh, const std::string &adjsetName, conduit::Nod
             ss << adjsetName << "_" << dom << "_" << groupName;
             std::string meshName(ss.str());
 
-            conduit::Node &coordsets = out["coordsets"];
-            conduit::Node &topologies = out["topologies"];
+            conduit::Node &coordsets = n_out["coordsets"];
+            conduit::Node &topologies = n_out["topologies"];
             conduit::Node &cset = coordsets[meshName+"_coords"];
             cset.move(mesh["coordsets"][0]);
             conduit::Node &topo = topologies[meshName];

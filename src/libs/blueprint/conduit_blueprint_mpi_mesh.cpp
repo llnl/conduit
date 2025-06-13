@@ -407,9 +407,9 @@ void to_polygonal(const Node &n,
         return oss.str();
     };
 
-    const static auto is_domain_local = [] (const conduit::Node &root, const std::string &name)
+    const static auto is_domain_local = [] (const conduit::Node &root, const std::string &key)
     {
-        return ::conduit::blueprint::mesh::is_multi_domain(root) && root.has_child(name);
+        return ::conduit::blueprint::mesh::is_multi_domain(root) && root.has_child(key);
     };
 
     // Implementation //
@@ -569,16 +569,16 @@ void to_polygonal(const Node &n,
                                 }
                                 const index_t nbr_rank = group["rank"].to_index_t();
                                 MPI_Send(&xbuffer[0],
-                                         xbuffer.size(),
+                                         static_cast<int>(xbuffer.size()),
                                          MPI_DOUBLE,
-                                         nbr_rank,
-                                         domain_id,
+                                         static_cast<int>(nbr_rank),
+                                         static_cast<int>(domain_id),
                                          comm);
                                 MPI_Send(&ybuffer[0],
-                                         ybuffer.size(),
+                                         static_cast<int>(ybuffer.size()),
                                          MPI_DOUBLE,
-                                         nbr_rank,
-                                         domain_id,
+                                         static_cast<int>(nbr_rank),
+                                         static_cast<int>(domain_id),
                                          comm);
                             }
                             else if (si == 1 && nbr_size > ref_size)
@@ -601,17 +601,17 @@ void to_polygonal(const Node &n,
 
                                     index_t nbr_rank = group["rank"].to_index_t();
                                     MPI_Recv(&xbuffer[0],
-                                             xbuffer.size(),
+                                             static_cast<int>(xbuffer.size()),
                                              MPI_DOUBLE,
-                                             nbr_rank,
-                                             nbr_id,
+                                             static_cast<int>(nbr_rank),
+                                             static_cast<int>(nbr_id),
                                              comm,
                                              MPI_STATUS_IGNORE);
                                     MPI_Recv(&ybuffer[0],
-                                             ybuffer.size(),
+                                             static_cast<int>(ybuffer.size()),
                                              MPI_DOUBLE,
-                                             nbr_rank,
-                                             nbr_id,
+                                             static_cast<int>(nbr_rank),
+                                             static_cast<int>(nbr_id),
                                              comm,
                                              MPI_STATUS_IGNORE);
 
@@ -2028,9 +2028,9 @@ void to_polyhedral(const Node &n,
                     //Holds neighbor elem offsets
                     std::vector<index_t>& nbrs = eitr->second;
                     size_t num_nbrs = nbrs.size();
-                    for (size_t n = 0; n < num_nbrs; ++n)
+                    for (size_t ni = 0; ni < num_nbrs; ++ni)
                     {
-                        index_t nbr_elem = nbrs[n];
+                        index_t nbr_elem = nbrs[ni];
 
                         //nbr_face is subelem offset for the face of
                         //nbr_elem touching the boundary
