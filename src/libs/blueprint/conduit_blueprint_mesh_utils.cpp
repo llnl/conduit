@@ -4145,7 +4145,7 @@ PointQueryBase::queryDomainIds() const
 //---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
 
-// NOTE: The exect threshold could be platform-specific. This is in the ballpark.
+// NOTE: The exact threshold could be platform-specific. This is in the ballpark.
 const int PointQuery::SEARCH_THRESHOLD = 25 * 25 * 25;
 
 //---------------------------------------------------------------------------
@@ -4158,7 +4158,7 @@ PointQuery::PointQuery(const conduit::Node &mesh) : PointQueryBase(mesh)
 void
 PointQuery::setPointTolerance(double tolerance)
 {
-    m_pointTolerance = tolerance;
+    m_pointTolerance = std::max(tolerance, std::numeric_limits<double>::epsilon());
 }
 
 //---------------------------------------------------------------------------
