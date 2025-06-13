@@ -3772,7 +3772,7 @@ foreach_adjset_mesh_pair_impl(conduit::Node &mesh, const std::string &adjsetName
             std::string groupName(ss.str());
 
             // There are up to 2 meshes for the shared boundary.
-            conduit::Node mesh[2];
+            conduit::Node boundaries[2];
             int mi = 0;
             for(size_t dom = 0; dom < domains.size(); dom++)
             {
@@ -3836,12 +3836,12 @@ foreach_adjset_mesh_pair_impl(conduit::Node &mesh, const std::string &adjsetName
                     }
 
                     // Make the local point mesh.
-                    B.execute(mesh[mi], shapeType);
+                    B.execute(boundaries[mi], shapeType);
 
                     // Add the adjset values as a field.
                     if(association == "vertex")
                     {
-                        conduit::Node &n_field = mesh[mi]["fields/vertex_ids"];
+                        conduit::Node &n_field = boundaries[mi]["fields/vertex_ids"];
                         n_field["topology"] = topoName;
                         n_field["association"] = association;
                         n_field["values"].set_external(n_values);
@@ -3854,7 +3854,7 @@ foreach_adjset_mesh_pair_impl(conduit::Node &mesh, const std::string &adjsetName
             // Incorporate input from the supplied function. We need to have 2 meshes.
             if(mi == 2)
             {
-                retval &= func(groupName, d0, mesh[0], d1, mesh[1]);
+                retval &= func(groupName, d0, boundaries[0], d1, boundaries[1]);
             }
         }
     }
