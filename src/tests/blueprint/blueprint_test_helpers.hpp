@@ -853,9 +853,10 @@ struct MeshBuilder
 #if defined(_WIN32)
         value = static_cast<double>(std::rand()) / RAND_MAX;
 #else
-        const double eps = 3. * CONDUIT_EPSILON / 2.;
-        value = drand48() * 2. * eps - eps;
+        value = drand48();
 #endif
+        const double eps = 3. * CONDUIT_EPSILON / 2.;
+        value = value * 2. * eps - eps;
         return value;
     }
 
