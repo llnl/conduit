@@ -788,7 +788,6 @@ compare_pointwise_impl(conduit::Node &mesh, const std::string &adjsetName,
 
                     // Get the group values and add them as points to the topo builder
                     // so we pull out a point mesh.
-                    std::string key("adjsets/" + adjsetName + "/groups/" + groupName + "/values");
                     const Node &n_values = domain.fetch_existing(key);
                     const auto values = n_values.as_index_t_accessor();
                     bputils::topology::TopologyBuilder B(topo);
