@@ -163,7 +163,6 @@ private:
     Indexable coords[NDIMS];             //!< Coordinate arrays
     size_t coordlen;                     //!< Length of a coordinate array.
     CoordinateType pointTolerance;       //!< Distance to a point before it is same.
-    CoordinateType pointTolerance2;      //!< pointTolerance^2.
 };
 
 //---------------------------------------------------------------------------
@@ -205,7 +204,6 @@ void kdtree<Indexable, CoordinateType, NDIMS>::setPointTolerance(CoordinateType 
 {
     // Prevent use of tolerance values that are below the type's epsilon
     pointTolerance = std::max(tolerance, std::numeric_limits<CoordinateType>::epsilon());
-    pointTolerance2 = pointTolerance * pointTolerance;
 }
 
 //---------------------------------------------------------------------------
@@ -301,7 +299,6 @@ void kdtree<Indexable, CoordinateType, NDIMS>::print(std::ostream &os) const
 
     os << "coordlen: " << coordlen << std::endl;
     os << "pointTolerance: " << pointTolerance << std::endl;
-    os << "pointTolerance2: " << pointTolerance2 << std::endl;
 }
 
 //---------------------------------------------------------------------------
@@ -457,13 +454,13 @@ template <typename Indexable, typename CoordinateType, int NDIMS>
 bool
 kdtree<Indexable, CoordinateType, NDIMS>::pointEqual(const kdtree<Indexable, CoordinateType, NDIMS>::PointType &pt, conduit::index_t ptIdx) const
 {
-    CoordinateType dist2 = 0.;
+    bool eq = true;
     for(int i = 0; i < dims(); i++)
     {
         CoordinateType delta = pt[i] - coords[i][ptIdx];
-        dist2 += delta * delta;
+        eq &= (std::fabs(delta) < pointTolerance);
     }
-    return dist2 < pointTolerance2;
+    return eq;
 }
 
 //---------------------------------------------------------------------------
@@ -482,14 +479,16 @@ void kdtree<Indexable, CoordinateType, NDIMS>::calculateExtents()
     }
 
     // Expand the box a little. Note that we have a minimum expansion to account
-    // for when a dimension has all the same values.
+    // for when a dimension has all the same values. Expand the box with a little
+    // asymmetrically so if we're given data that is symmetric, we do not end up
+    // splitting right at 0.
     const CoordinateType minExpansion = DEFAULT_POINT_TOLERANCE * 200.;
     for(int i = 0; i < dims(); i++)
     {
         CoordinateType side = std::max(box[i][1] - box[i][0], minExpansion);
         CoordinateType d = side / static_cast<CoordinateType>(200.);
         box[i][0] -= d;
-        box[i][1] += d;
+        box[i][1] += 1.1 * d;
     }
 }
 
