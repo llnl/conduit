@@ -460,12 +460,12 @@ MatchQuery::execute()
                    m_comm);
 
     // Look up a rank that owns a domain.
-    auto domain_to_rank = [=](const std::vector<int> &allqueries, int d) -> int
+    auto domain_to_rank = [=](const std::vector<int> &allq, int d) -> int
     {
-        for(size_t i = 0; i < allqueries.size(); i += ntuple_values)
+        for(size_t i = 0; i < allq.size(); i += ntuple_values)
         {
-            int owner = allqueries[i];
-            int domain = allqueries[i + 1];
+            int owner = allq[i];
+            int domain = allq[i + 1];
             //int query_domain = allqueries[i + 2];
             if(domain == d)
                 return owner;
@@ -631,13 +631,13 @@ adjset::validate(const conduit::Node &doms,
         return s;
     };
 
-    auto agree = [](bool res, MPI_Comm comm) -> bool
+    auto agree = [](bool res, MPI_Comm acomm) -> bool
     {
         int size = 1;
-        MPI_Comm_size(comm, &size);
+        MPI_Comm_size(acomm, &size);
         int val = res ? 1 : 0;
         int globalval = 0;
-        MPI_Allreduce(&val, &globalval, 1, MPI_INT, MPI_SUM, comm);
+        MPI_Allreduce(&val, &globalval, 1, MPI_INT, MPI_SUM, acomm);
         return globalval == size;
     };
 

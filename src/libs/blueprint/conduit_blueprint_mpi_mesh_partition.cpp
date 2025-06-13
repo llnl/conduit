@@ -329,9 +329,6 @@ ParallelPartitioner::map_chunks(const std::vector<Partitioner::Chunk> &chunks,
                                 std::vector<int> &dest_domain,
                                 std::vector<int> &_offsets)
 {
-    int size;
-    MPI_Comm_size(comm, &size);
-
     // Gather number of chunks on each rank.
     auto nlocal_chunks = static_cast<int>(chunks.size());
     std::vector<int> nglobal_chunks(size, 0);

@@ -56,7 +56,7 @@ class CONDUIT_BLUEPRINT_API ParallelMeshFlattener
     : public blueprint::mesh::MeshFlattener
 {
 public:
-    ParallelMeshFlattener(MPI_Comm comm);
+    ParallelMeshFlattener(MPI_Comm _comm);
     virtual ~ParallelMeshFlattener();
 
     virtual bool set_options(const Node &opts) override;
