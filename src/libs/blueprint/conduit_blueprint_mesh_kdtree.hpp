@@ -135,8 +135,8 @@ private:
     /// Represents a box in the tree hierarchy.
     struct BoxInfo
     {
-        int childOffset;    // Offset into boxes array where this box's 2 children start.
-                            // -1 if there are no children.
+        conduit::index_t childOffset; // Offset into boxes array where this box's 2 children start.
+                                      // -1 if there are no children.
         int splitDimension; // The dimension along which this box is split.
         RangeType range;    // The slice of the index array that belongs to this box.
 #ifdef CONDUIT_DEBUG_KDTREE
@@ -482,11 +482,12 @@ void kdtree<Indexable, CoordinateType, NDIMS>::calculateExtents()
     // for when a dimension has all the same values. Expand the box with a little
     // asymmetrically so if we're given data that is symmetric, we do not end up
     // splitting right at 0.
-    const CoordinateType minExpansion = DEFAULT_POINT_TOLERANCE * 200.;
+    constexpr CoordinateType s = static_cast<CoordinateType>(200.);
+    const CoordinateType minExpansion = DEFAULT_POINT_TOLERANCE * s;
     for(int i = 0; i < dims(); i++)
     {
         CoordinateType side = std::max(box[i][1] - box[i][0], minExpansion);
-        CoordinateType d = side / static_cast<CoordinateType>(200.);
+        CoordinateType d = side / s;
         box[i][0] -= d;
         box[i][1] += 1.1 * d;
     }

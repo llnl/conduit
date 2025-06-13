@@ -1685,17 +1685,17 @@ calculate_unstructured_centroids(const conduit::Node &topo,
     Node &dest_elem_conn = dest["elements/connectivity"];
     if(dest_elem_conn.dtype().is_int64())
     {
-        auto dest = dest_elem_conn.as_int64_ptr();
+        auto conn = dest_elem_conn.as_int64_ptr();
         auto n = static_cast<int64>(topo_num_elems);
         for(int64 i = 0; i < n; i++)
-            dest[i] = i;
+            conn[i] = i;
     }
     else if(dest_elem_conn.dtype().is_int32())
     {
-        auto dest = dest_elem_conn.as_int32_ptr();
+        auto conn = dest_elem_conn.as_int32_ptr();
         auto n = static_cast<int32>(topo_num_elems);
         for(int32 i = 0; i < n; i++)
-            dest[i] = i;
+            conn[i] = i;
     }
     else
     {
@@ -3760,10 +3760,10 @@ mesh::generate_sides(conduit::Node& mesh,
     {
         std::vector<index_t> side_dims;
 
-        side_dims.push_back(0);
+        side_dims.push_back(index_t{0});
         if(topo_shape.dim == 3)
         {
-            side_dims.push_back(2);
+            side_dims.push_back(index_t{2});
         }
 
         return side_dims;
