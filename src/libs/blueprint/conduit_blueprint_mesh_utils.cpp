@@ -3758,7 +3758,7 @@ foreach_adjset_mesh_pair_impl(conduit::Node &mesh, const std::string &adjsetName
 
     // Determine total number of domains.
     std::vector<Node *> domains = conduit::blueprint::mesh::domains(mesh);
-    int maxDomains = domains.size();
+    const int maxDomains = static_cast<int>(domains.size());
 
     // Iterate over each of the possible adjset relationships. Not all of these
     // will have adjset groups.

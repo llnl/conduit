@@ -2918,7 +2918,7 @@ generate_derived_entities(conduit::Node &mesh,
 
     CONDUIT_ANNOTATE_MARK_BEGIN("dom_entity_neighbor_map.start");
     Node src_data, dst_data;
-    std::vector<std::tuple<int,int,int,uint64>> query_guide;
+    std::vector<std::tuple<int,int,index_t,size_t>> query_guide;
     std::map<int,std::map<index_t, std::set<index_t>>> dom_entity_neighbor_map;
     for(index_t di = 0; di < (index_t)doms_and_maps.size(); di++)
     {
@@ -2993,11 +2993,11 @@ generate_derived_entities(conduit::Node &mesh,
                     if(entity_in_neighbor)
                     {
                         // Add the entity to the query for consideration.
-                        uint64 qid = Q.add(domain_id, ni, entity_pidxs);
+                        const auto eid = Q.add(domain_id, ni, entity_pidxs);
 
                         // Add the candidate entity to the match query, which
                         // will help resolve things across domains.
-                        query_guide.push_back(std::make_tuple(domain_id, ni, ei, qid));
+                        query_guide.push_back(std::make_tuple(static_cast<int>(domain_id), static_cast<int>(ni), ei, eid));
                     }
                 }
             }
@@ -3014,10 +3014,10 @@ generate_derived_entities(conduit::Node &mesh,
     CONDUIT_ANNOTATE_MARK_BEGIN("dom_entity_neighbor_map.finish");
     for(const auto &obj : query_guide)
     {
-        int domain_id = std::get<0>(obj);
-        int ni = std::get<1>(obj);
-        int ei = std::get<2>(obj);
-        uint64 eid = std::get<3>(obj);
+        const auto domain_id = std::get<0>(obj);
+        const auto ni = std::get<1>(obj);
+        const auto ei = std::get<2>(obj);
+        const auto eid = std::get<3>(obj);
         if(Q.exists(domain_id, ni, eid))
         {
             auto &entity_neighbor_map = dom_entity_neighbor_map[domain_id];

@@ -73,7 +73,7 @@ void topology::MeshInfoCollection::end()
     float64 *ptr = n_localMeshInfo.value();
     for(auto it = meshInfos.begin(); it != meshInfos.end(); it++)
     {
-        *ptr++ = it->first;
+        *ptr++ = static_cast<float64>(it->first);
         *ptr++ = it->second.minExtents[0];
         *ptr++ = it->second.minExtents[1];
         *ptr++ = it->second.minExtents[2];
@@ -172,7 +172,7 @@ PointQuery::execute(const std::string &coordsetName)
     {
         queries.push_back(rank);              // the rank asking the question
         queries.push_back(it->first);         // the domain
-        queries.push_back(it->second.size()); // the number of points.
+        queries.push_back(static_cast<int>(it->second.size())); // the number of points.
     }
 
     // Let all ranks know the sizes of the queries vectors.
