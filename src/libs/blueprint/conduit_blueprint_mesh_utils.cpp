@@ -4674,8 +4674,8 @@ void CONDUIT_BLUEPRINT_API lerp_one(const Node& A,
             "Requested n is " << n);
     }
 
-    const int Asize = A.dtype().number_of_elements();
-    const int Bsize = B.dtype().number_of_elements();
+    const int Asize = static_cast<int>(A.dtype().number_of_elements());
+    const int Bsize = static_cast<int>(B.dtype().number_of_elements());
     if (Asize < 1 || Bsize != Asize)
     {
         CONDUIT_ERROR("Linear interpolation requires same number of components "
