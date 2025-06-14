@@ -16,6 +16,11 @@
 #include "conduit_relay.hpp"
 #include "conduit_relay_mpi_io_blueprint.hpp"
 #include "conduit_log.hpp"
+#if defined(CONDUIT_BLUEPRINT_MPI_PARMETIS_ENABLED)
+  #include "conduit_blueprint_mpi_mesh_partition.hpp"
+  #include "conduit_blueprint_mpi_mesh_parmetis.hpp"
+  #pragma message "Building parmetis support into testing."
+#endif
 
 #include "blueprint_test_helpers.hpp"
 #include "blueprint_mpi_test_helpers.hpp"
@@ -303,7 +308,7 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_compare_pointwise_2d)
     }
     info.reset();
     eq = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(root, "pt_adjset", opts, info, MPI_COMM_WORLD);
-    in_rank_order(MPI_COMM_WORLD, [&](int r)
+    in_rank_order(MPI_COMM_WORLD, [&](int /*r*/)
     {
         if(!eq)
         {
@@ -316,7 +321,7 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_compare_pointwise_2d)
     // Test that the fails_pointwise adjset actually fails.
     info.reset();
     eq = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(root, "fails_pointwise", opts, info, MPI_COMM_WORLD);
-    in_rank_order(MPI_COMM_WORLD, [&](int r)
+    in_rank_order(MPI_COMM_WORLD, [&](int /*r*/)
     {
         if(eq)
         {
@@ -329,7 +334,7 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_compare_pointwise_2d)
     // Test that the notevenclose adjset actually fails.
     info.reset();
     eq = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(root, "notevenclose", opts, info, MPI_COMM_WORLD);
-    in_rank_order(MPI_COMM_WORLD, [&](int r)
+    in_rank_order(MPI_COMM_WORLD, [&](int /*r*/)
     {
         if(eq)
         {
@@ -341,6 +346,222 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_compare_pointwise_2d)
 }
 
 //-----------------------------------------------------------------------------
+class SortTester
+{
+    MPI_Comm comm;
+    int rank{0}, size{1};
+public:
+    static const int NUM_DOMAINS = 4;
+
+    SortTester(MPI_Comm c) : comm(c)
+    {
+        MPI_Comm_rank(comm, &rank);
+        MPI_Comm_size(comm, &size);
+    }
+
+    void test(int res, int a, double angle)
+    {
+        conduit::Node n_mesh;
+        build(res, angle, n_mesh);
+
+        std::vector<std::string> adjsetNames;
+        adjsetNames.push_back("mesh_adjset");
+        adjsetNames.push_back("corners_adjset");
+        adjsetNames.push_back("lines_adjset");
+
+#if defined(CONDUIT_BLUEPRINT_MPI_PARMETIS_ENABLED)
+        buildPartitions(n_mesh);
+        adjsetNames.push_back("part_mesh_adjset");
+        adjsetNames.push_back("part_mesh_corners_adjset");
+#endif
+        // NOTE: Do this step after partitioning because there is a bug in
+        //       adjset-creation in the partitioner where it seems to try
+        //       and operate on ALL adjsets in the mesh instead of just the
+        //       adjsets relevant to the topology. To replicate, move the
+        //       call to buildDerived before buildPartitions.
+        buildDerived(n_mesh);
+
+        save(res, a, n_mesh);
+
+        // Validate adjsets.
+        validate(res, a, angle, n_mesh, adjsetNames);
+    }
+
+    void build(int res, double angle, conduit::Node &n_mesh)
+    {
+        MeshBuilder B;
+        // Assign domains to ranks.
+        for(int d = 0; d < NUM_DOMAINS; d++)
+        {
+            if(d % size == rank)
+            {
+                B.m_selectedDomains.push_back(d);
+            }
+        }
+
+        // Build the mesh.
+        B.m_angle = angle;
+        B.m_resolution = res;
+        B.build(n_mesh);
+#if 0
+        in_rank_order(comm, [&](int /*r*/)
+        {
+            printNode(n_mesh);
+        });
+#endif
+    }
+
+    void buildDerived(conduit::Node &n_mesh)
+    {
+        // Build the lines mesh.
+        conduit::Node s2dmap, d2smap;
+        conduit::blueprint::mpi::mesh::generate_lines(n_mesh,
+                                                      "mesh_adjset",
+                                                      "lines_adjset",
+                                                      "lines",
+                                                       s2dmap,
+                                                       d2smap,
+                                                       comm);
+
+        // Build the corner mesh.
+        s2dmap.reset();
+        d2smap.reset();
+        conduit::blueprint::mpi::mesh::generate_corners(n_mesh,
+                                                        "mesh_adjset",
+                                                        "corners_adjset",
+                                                        "corners",
+                                                        "corners_coords",
+                                                        s2dmap,
+                                                        d2smap,
+                                                        comm);
+    }
+
+#if defined(CONDUIT_BLUEPRINT_MPI_PARMETIS_ENABLED)
+    // Build a partitioned mesh and the corner mesh for that mesh.
+    void buildPartitions(conduit::Node &n_mesh)
+    {
+        // Make a partition field on the mesh topology.
+        conduit::Node opts;
+        opts["topology"] = "mesh";
+        opts["partitions"] = NUM_DOMAINS;
+        opts["adjset"] = "mesh_adjset";
+        conduit::blueprint::mpi::mesh::generate_partition_field(n_mesh, opts, comm);
+
+        // Rename the field.
+        std::string partitionField("partition");
+        conduit::Node &n_fields = n_mesh["fields"];
+        n_fields.rename_child("parmetis_result", partitionField);
+
+        // Repartition the mesh.
+        conduit::Node n_part, partopts;
+        partopts["mapping"] = 0;
+        conduit::Node &sel1 = partopts["selections"].append();
+        sel1["type"] = "field";
+        sel1["domain_id"] = "any";
+        sel1["field"] = partitionField;
+        sel1["topology"] = "mesh";
+        sel1["destination_ranks"].set(conduit::DataType::int32(size));
+        auto ranks = sel1["destination_ranks"].as_int32_ptr();
+        for (int i = 0; i < size; i++)
+            ranks[i] = i;
+        conduit::blueprint::mpi::mesh::partition(n_mesh, partopts, n_part, comm);
+
+        // Move the mesh into the n_mesh node, renaming as needed.
+        n_mesh["coordsets/part_coords"].move(n_part["coordsets/coords"]);
+        n_mesh["topologies/part_mesh"].move(n_part["topologies/mesh"]);
+        n_mesh["topologies/part_mesh/coordset"] = "part_coords";
+        n_mesh["adjsets/part_mesh_adjset"].move(n_part["adjsets/mesh_adjset"]);
+        n_mesh["adjsets/part_mesh_adjset/topology"] = "part_mesh";
+
+        // Generate corners for the part_mesh
+        conduit::Node s2dmap, d2smap;
+        conduit::blueprint::mpi::mesh::generate_corners(n_mesh,
+                                                        "part_mesh_adjset",
+                                                        "part_mesh_corners_adjset",
+                                                        "part_mesh_corners",
+                                                        "part_mesh_corners_coords",
+                                                        s2dmap,
+                                                        d2smap,
+                                                        comm);
+    }
+#endif
+
+    void save(int res, int a, const conduit::Node &n_mesh)
+    {
+#if 0
+  #if defined(CONDUIT_RELAY_IO_HDF5_ENABLED)
+        // Save the mesh
+        std::stringstream ss;
+        ss << "test_" << res << "_" << a;
+        std::string filename(ss.str());
+        conduit::relay::mpi::io::blueprint::save_mesh(n_mesh, filename, "hdf5", comm);
+        std::cout << "Saved mesh to " << filename << std::endl;
+  #endif
+#endif
+    }
+
+    void validate(int res, int a, double angle, conduit::Node &n_mesh, const std::vector<std::string> &adjsetNames)
+    {
+        // Test adjsets.
+        for(const auto &adjsetName : adjsetNames)
+        {
+            // Check that the adjset is valid.
+            conduit::Node info;
+            conduit::Node opts;
+            opts["tolerance"] = 1.e-6;
+
+            bool validate_result =
+                conduit::blueprint::mpi::mesh::utils::adjset::validate(
+                    n_mesh, adjsetName, opts, info, comm);
+
+            EXPECT_TRUE(validate_result);
+            if(validate_result)
+            {
+                // If the adjset is vertex-associated then compare_pointwise.
+                std::string association = adjset_centering(n_mesh, adjsetName);
+                if(association == "vertex")
+                {
+                   info.reset();
+                   bool cpw_result =
+                       conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(
+                           n_mesh, adjsetName, opts, info, comm);
+                   EXPECT_TRUE(cpw_result);
+                   in_rank_order(comm, [&](int /*r*/)
+                   {
+                       if(!cpw_result && info.has_path("valid") && info["valid"].as_string() == "false")
+                       {
+                           std::cout << rank << ": compare_pointwise: " << adjsetName
+                                     << ", res=" << res
+                                     << ", a=" << a
+                                     << ", angle=" << angle
+                                     << ", cpw_result=" << cpw_result << std::endl;
+                           printNode(info);
+                       }
+                   });
+                }
+            }
+            else
+            {
+                in_rank_order(comm, [&](int /*r*/)
+                {
+                    if(!validate_result && info.has_path("valid") && info["valid"].as_string() == "false")
+                    {
+                        std::cout << rank << ": validate: " << adjsetName
+                                  << ", res=" << res
+                                  << ", a=" << a
+                                  << ", angle=" << angle
+                                  << ", validate_result=" << validate_result
+                                  << std::endl;
+                        printNode(info);
+                    }
+                });
+            }
+        }
+    }
+};
+
+
+//---------------------------------------------------------------------------
 TEST(conduit_blueprint_mpi_mesh_utils, adjset_sorting_2d)
 {
     int rank = 0, size = 1;
@@ -348,7 +569,6 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_sorting_2d)
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     EXPECT_TRUE(size <= 4);
 
-    const int NUM_DOMAINS = 4;
     const int NUM_ANGLES = 17;
     const double a0 = 0.;
     const double a1 = 2. * M_PI;
@@ -368,114 +588,8 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_sorting_2d)
                 std::cout << "Resolution: " << res << ", angle: " << angle << std::endl;
             }
 
-            MeshBuilder B;
-            // Assign domains to ranks.
-            for(int d = 0; d < NUM_DOMAINS; d++)
-            {
-                if(d % size == rank)
-                {
-                    B.m_selectedDomains.push_back(d);
-                }
-            }
-
-            // Build the mesh.
-            conduit::Node n_mesh;
-            B.m_angle = angle;
-            B.m_resolution = res;
-            B.build(n_mesh);
-#if 0
-            in_rank_order(MPI_COMM_WORLD, [&](int r)
-            {
-                printNode(n_mesh);
-            });
-#endif
-
-            // Build the lines mesh.
-            conduit::Node s2dmap, d2smap;
-            conduit::blueprint::mpi::mesh::generate_lines(n_mesh,
-                                                          "mesh_adjset",
-                                                          "lines_adjset",
-                                                          "lines",
-                                                           s2dmap,
-                                                           d2smap,
-                                                           MPI_COMM_WORLD);
-
-            // Build the corner mesh.
-            s2dmap.reset();
-            d2smap.reset();
-            conduit::blueprint::mpi::mesh::generate_corners(n_mesh,
-                                                            "mesh_adjset",
-                                                            "corners_adjset",
-                                                            "corners",
-                                                            "corners_coords",
-                                                            s2dmap,
-                                                            d2smap,
-                                                            MPI_COMM_WORLD);
-#if 0
-            // Save the mesh
-            std::stringstream ss;
-            ss << "test_" << res << "_" << a;
-            std::string filename(ss.str());
-            conduit::relay::mpi::io::blueprint::save_mesh(n_mesh, filename, "hdf5", MPI_COMM_WORLD);
-            std::cout << "Saved mesh to " << filename << std::endl;
-#endif
-
-            // Test adjsets.
-            const char *adjsetNames[] = {"mesh_adjset", "corners_adjset", "lines_adjset"};
-            for(int ni = 0; ni < 3; ni++)
-            {
-                // Check that the adjset is valid.
-                conduit::Node info;
-                conduit::Node opts;
-                opts["tolerance"] = 1.e-6;
-
-                bool validate_result =
-                    conduit::blueprint::mpi::mesh::utils::adjset::validate(
-                        n_mesh, adjsetNames[ni], opts, info, MPI_COMM_WORLD);
-
-                EXPECT_TRUE(validate_result);
-                if(validate_result)
-                {
-                    // If the adjset is vertex-associated then compare_pointwise.
-                    std::string association = adjset_centering(n_mesh, adjsetNames[ni]);
-                    if(association == "vertex")
-                    {
-                       info.reset();
-                       bool cpw_result =
-                           conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(
-                               n_mesh, adjsetNames[ni], opts, info, MPI_COMM_WORLD);
-                       EXPECT_TRUE(cpw_result);
-                       in_rank_order(MPI_COMM_WORLD, [&](int r)
-                       {
-                           if(!cpw_result && info.has_path("valid") && info["valid"].as_string() == "false")
-                           {
-                               std::cout << rank << ": compare_pointwise: " << adjsetNames[ni]
-                                         << ", res=" << res
-                                         << ", a=" << a
-                                         << ", angle=" << angle
-                                         << ", cpw_result=" << cpw_result << std::endl;
-                               printNode(info);
-                           }
-                       });
-                    }
-                }
-                else
-                {
-                    in_rank_order(MPI_COMM_WORLD, [&](int r)
-                    {
-                        if(!validate_result && info.has_path("valid") && info["valid"].as_string() == "false")
-                        {
-                            std::cout << rank << ": validate: " << adjsetNames[ni]
-                                      << ", res=" << res
-                                      << ", a=" << a
-                                      << ", angle=" << angle
-                                      << ", validate_result=" << validate_result
-                                      << std::endl;
-                            printNode(info);
-                        }
-                    });
-                }
-            } // end for
+            SortTester st(MPI_COMM_WORLD);
+            st.test(res, a, angle);
         }
     }
 }

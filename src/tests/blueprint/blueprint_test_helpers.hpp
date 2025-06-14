@@ -650,13 +650,13 @@ struct MeshBuilder
     {
         // Domain corner points
 #define PT_A {0., 0.}
-#define PT_B {70., 0.}
-#define PT_C {70., 50.}
-#define PT_D {0., 50.}
-#define PT_E {-300., 0.}
-#define PT_F {-120., 180.}
-#define PT_G {120., 300.}
-#define PT_H {180., 0.}
+#define PT_B {60., 0.}
+#define PT_C {60., 20.}
+#define PT_D {0., 20.}
+#define PT_E {-100., 0.}
+#define PT_F {-72.2364, 69.1513}
+#define PT_G {70.7107, 70.7107}
+#define PT_H {100., 0.}
         const double origDomainPts[4][4][2] = {
            // Domain 0
            {PT_A, PT_B, PT_C, PT_D},

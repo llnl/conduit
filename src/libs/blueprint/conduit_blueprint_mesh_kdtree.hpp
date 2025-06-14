@@ -489,7 +489,7 @@ void kdtree<Indexable, CoordinateType, NDIMS>::calculateExtents()
         CoordinateType side = std::max(box[i][1] - box[i][0], minExpansion);
         CoordinateType d = side / s;
         box[i][0] -= d;
-        box[i][1] += CoordinateType{1.1} * d;
+        box[i][1] += static_cast<CoordinateType>(1.1) * d;
     }
 }
 
