@@ -503,6 +503,7 @@ public:
     void validate(int res, int a, double angle, conduit::Node &n_mesh, const std::vector<std::string> &adjsetNames)
     {
         // Test adjsets.
+        conduit::Node results;
         for(const auto &adjsetName : adjsetNames)
         {
             // Check that the adjset is valid.
@@ -514,7 +515,9 @@ public:
                 conduit::blueprint::mpi::mesh::utils::adjset::validate(
                     n_mesh, adjsetName, opts, info, comm);
 
+            results[adjsetName]["validate"] = validate_result;
             EXPECT_TRUE(validate_result);
+
             if(validate_result)
             {
                 // If the adjset is vertex-associated then compare_pointwise.
@@ -525,7 +528,10 @@ public:
                    bool cpw_result =
                        conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(
                            n_mesh, adjsetName, opts, info, comm);
+
+                   results[adjsetName]["compare_pointwise"] = cpw_result;
                    EXPECT_TRUE(cpw_result);
+
                    in_rank_order(comm, [&](int /*r*/)
                    {
                        if(!cpw_result && info.has_path("valid") && info["valid"].as_string() == "false")
@@ -556,6 +562,11 @@ public:
                     }
                 });
             }
+        }
+
+        if(rank == 0)
+        {
+            printNode(results);
         }
     }
 };
