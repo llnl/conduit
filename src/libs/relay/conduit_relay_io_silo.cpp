@@ -4492,9 +4492,6 @@ read_mesh(const std::string &root_file_path,
           Node &mesh
           CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
 {
-    // TODO we should try to close files every loop iteration? Or something
-
-
     int par_rank = 0;
 #if CONDUIT_RELAY_IO_MPI_ENABLED
     par_rank = relay::mpi::rank(mpi_comm);
@@ -5020,15 +5017,23 @@ read_mesh(const std::string &root_file_path,
     }
 
     // clean up open files
-    for (auto &file_info : file_map)
+    for (auto file_map_itr = file_map.begin(); file_map_itr != file_map.end(); )
     {
         // if this file is open
-        if (nullptr != file_info.second)
+        if (nullptr != file_map_itr->second)
         {
             // close the file
-            CONDUIT_ASSERT(0 == DBClose(file_info.second),
-                           "Error closing Silo file " << file_info.first);
-            file_info.second = nullptr;
+            CONDUIT_ASSERT(0 == DBClose(file_map_itr->second),
+                           "Error closing Silo file " << file_map_itr->first);
+            file_map_itr->second = nullptr;
+        }
+        if (file_map_itr->second == nullptr)
+        {
+            file_map_itr = file_map.erase(file_map_itr);
+        }
+        else
+        {
+            file_map_itr ++;
         }
     }
 }
