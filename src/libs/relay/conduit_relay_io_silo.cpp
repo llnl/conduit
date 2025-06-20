@@ -627,14 +627,14 @@ create_silo_tree_path_generator(DBfile *root_file,
 
 //-----------------------------------------------------------------------------
 // populates a map of field/matset/specset names to path name generators for them
-std::map<std::string, std::unique_ptr<SiloTreePathGenerator>>
+void
 populate_path_gen_map(DBfile *root_file,
                       const int num_domains,
                       const Node &mesh_index,
                       const std::string item, // "vars", "matsets", "specsets"
-                      const std::string what_kind_of_paths)
+                      const std::string what_kind_of_paths,
+                      std::map<std::string, std::unique_ptr<SiloTreePathGenerator>> &path_gen_map)
 {
-    std::map<std::string, std::unique_ptr<SiloTreePathGenerator>> path_gen_map;
     if (mesh_index.has_child(item))
     {
         auto item_itr = mesh_index[item].children();
@@ -649,7 +649,6 @@ populate_path_gen_map(DBfile *root_file,
                                                                  what_kind_of_paths));
         }
     }
-    return path_gen_map;
 }
 
 //-----------------------------------------------------------------------------
@@ -4627,25 +4626,27 @@ read_mesh(const std::string &root_file_path,
                                                                       num_domains,
                                                                       mesh_index,
                                                                       "mesh_paths");
-    // TODO pass in maps b/c I don't believe in RVO
-    std::map<std::string, std::unique_ptr<SiloNameGenerator>> mat_path_gen = 
-        detail::name_generator_tools::populate_path_gen_map(file_map.at(root_file_path),
-                                                            num_domains,
-                                                            mesh_index,
-                                                            "matsets",
-                                                            "matset_paths");
-    std::map<std::string, std::unique_ptr<SiloNameGenerator>> spec_path_gen = 
-        detail::name_generator_tools::populate_path_gen_map(file_map.at(root_file_path),
-                                                            num_domains,
-                                                            mesh_index,
-                                                            "specsets",
-                                                            "specset_paths");
-    std::map<std::string, std::unique_ptr<SiloNameGenerator>> var_path_gen = 
-        detail::name_generator_tools::populate_path_gen_map(file_map.at(root_file_path),
-                                                            num_domains,
-                                                            mesh_index,
-                                                            "vars",
-                                                            "var_paths");
+    std::map<std::string, std::unique_ptr<SiloNameGenerator>> mat_path_gen;
+    std::map<std::string, std::unique_ptr<SiloNameGenerator>> spec_path_gen;
+    std::map<std::string, std::unique_ptr<SiloNameGenerator>> var_path_gen;
+    detail::name_generator_tools::populate_path_gen_map(file_map.at(root_file_path),
+                                                        num_domains,
+                                                        mesh_index,
+                                                        "matsets",
+                                                        "matset_paths",
+                                                        mat_path_gen);
+    detail::name_generator_tools::populate_path_gen_map(file_map.at(root_file_path),
+                                                        num_domains,
+                                                        mesh_index,
+                                                        "specsets",
+                                                        "specset_paths",
+                                                        spec_path_gen);
+    detail::name_generator_tools::populate_path_gen_map(file_map.at(root_file_path),
+                                                        num_domains,
+                                                        mesh_index,
+                                                        "vars",
+                                                        "var_paths",
+                                                        var_path_gen);
 
     std::string root_file_name, relative_dir;
     utils::rsplit_file_path(root_file_path, root_file_name, relative_dir);
