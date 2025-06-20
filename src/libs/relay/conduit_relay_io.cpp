@@ -27,6 +27,10 @@
 #include "conduit_relay_io_silo.hpp"
 #endif
 
+#ifdef CONDUIT_RELAY_IO_CGNS_ENABLED
+#include "conduit_relay_io_cgns.hpp"
+#endif
+
 #ifdef CONDUIT_RELAY_IO_ADIOS_ENABLED
 #include "conduit_relay_io_adios.hpp"
 #endif
@@ -324,6 +328,9 @@ save(const Node &node,
      const std::string &protocol_,
      const Node &options)
 {
+    std::cout << "save: " << path << " protocol: " << protocol_ << std::endl;
+    std::cout << "options: " << std::endl;
+    options.print();
     // we expect options to unused if all 3rd party i/o options are disabled
     // avoid warning using CONDUIT_UNUSED macro.
     CONDUIT_UNUSED(options);
@@ -397,6 +404,16 @@ save(const Node &node,
         silo_write(node,path);
 #else
         CONDUIT_ERROR("conduit_relay lacks Silo support: " <<
+                      "Failed to save conduit node to path " << path);
+#endif
+    }
+    else if( protocol == "blueprint/mesh/cgns")
+    {
+#ifdef CONDUIT_RELAY_IO_CGNS_ENABLED
+        // Node 
+        cgns_write(node,path);
+#else
+        CONDUIT_ERROR("conduit_relay lacks CGNS support: " <<
                       "Failed to save conduit node to path " << path);
 #endif
     }

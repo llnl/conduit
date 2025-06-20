@@ -205,7 +205,7 @@ if(HDF5_FOUND)
 endif()
 
 if(CGNS_FOUND)
-    list(APPEND conduit_relay_deps CGNS::pcgns_shared)
+    list(APPEND conduit_relay_deps CGNS::cgns_shared)
 endif()
 
 if(H5ZZFP_FOUND)
