@@ -540,9 +540,7 @@ public:
         // namescheme case
         if (nullptr != file_namescheme)
         {
-            std::cout << "before get name 1" << std::endl;
             const char *file_res = DBGetName(file_namescheme, idx);
-            std::cout << "after get name 1" << std::endl;
             if (nullptr != file_res)
             {
                 res += (std::string(file_res) + ":");
@@ -551,9 +549,7 @@ public:
 
         if (nullptr != block_namescheme)
         {
-            std::cout << "before get name 2" << std::endl;
             const char *block_res = DBGetName(block_namescheme, idx);
-            std::cout << "after get name 2" << std::endl;
             if (nullptr != block_res)
             {
                 res += std::string(block_res);
@@ -595,39 +591,37 @@ create_silo_tree_path_generator(DBfile *root_file,
                                 const std::string &what_kind_of_paths)
 {
     return std::make_unique<SiloTreePathGenerator>(
-        SiloTreePathGenerator(
-            // silo database file
-            root_file,
-            
-            // objpath - we are at the root of the root file
-            ".",
-            
-            // number of blocks
-            num_domains,
-            
-            // mesh paths
-            std::move(get_paths(n_item, what_kind_of_paths, num_domains)),
-            
-            // file namescheme
-            n_item.has_path("namescheme/file") ? 
-                n_item["namescheme"]["file"].as_string() : 
-                std::string(""),
-            
-            // block namescheme
-            n_item.has_path("namescheme/block") ? 
-                n_item["namescheme"]["block"].as_string() : 
-                std::string(""),
-            
-            // number of elements in the empty list
-            n_item.has_path("namescheme/empty_list") ?
-                n_item["namescheme"]["empty_list"].dtype().number_of_elements() :
-                0,
-            
-            // pointer to the empty list
-            n_item.has_path("namescheme/empty_list") ?
-                n_item["namescheme"]["empty_list"].as_index_t_ptr() :
-                nullptr
-            )
+        // silo database file
+        root_file,
+        
+        // objpath - we are at the root of the root file
+        ".",
+        
+        // number of blocks
+        num_domains,
+        
+        // mesh paths
+        std::move(get_paths(n_item, what_kind_of_paths, num_domains)),
+        
+        // file namescheme
+        n_item.has_path("namescheme/file") ? 
+            n_item["namescheme"]["file"].as_string() : 
+            std::string(""),
+        
+        // block namescheme
+        n_item.has_path("namescheme/block") ? 
+            n_item["namescheme"]["block"].as_string() : 
+            std::string(""),
+        
+        // number of elements in the empty list
+        n_item.has_path("namescheme/empty_list") ?
+            n_item["namescheme"]["empty_list"].dtype().number_of_elements() :
+            0,
+        
+        // pointer to the empty list
+        n_item.has_path("namescheme/empty_list") ?
+            n_item["namescheme"]["empty_list"].as_index_t_ptr() :
+            nullptr
         );
 }
 
