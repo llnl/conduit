@@ -584,13 +584,13 @@ get_paths(const Node &silo_index_path,
 
 //-----------------------------------------------------------------------------
 // creates silo tree path generators
-std::unique_ptr<SiloTreePathGenerator>
+SiloTreePathGenerator*
 create_silo_tree_path_generator(DBfile *root_file,
                                 const int num_domains,
                                 const Node &n_item,
                                 const std::string &what_kind_of_paths)
 {
-    return std::make_unique<SiloTreePathGenerator>(
+    return new SiloTreePathGenerator(
         // silo database file
         root_file,
         
@@ -633,7 +633,7 @@ populate_path_gen_map(DBfile *root_file,
                       const Node &mesh_index,
                       const std::string item, // "vars", "matsets", "specsets"
                       const std::string what_kind_of_paths,
-                      std::map<std::string, std::unique_ptr<SiloTreePathGenerator>> &path_gen_map)
+                      std::map<std::string, SiloTreePathGenerator*> &path_gen_map)
 {
     if (mesh_index.has_child(item))
     {
@@ -4618,14 +4618,14 @@ read_mesh(const std::string &root_file_path,
     //
     // Create name generators for the mesh and each variable, matset, specset
     //
-    std::unique_ptr<SiloNameGenerator> mesh_path_gen = 
+    SiloNameGenerator *mesh_path_gen = 
         detail::name_generator_tools::create_silo_tree_path_generator(file_map.at(root_file_path),
                                                                       num_domains,
                                                                       mesh_index,
                                                                       "mesh_paths");
-    std::map<std::string, std::unique_ptr<SiloNameGenerator>> mat_path_gen;
-    std::map<std::string, std::unique_ptr<SiloNameGenerator>> spec_path_gen;
-    std::map<std::string, std::unique_ptr<SiloNameGenerator>> var_path_gen;
+    std::map<std::string, SiloNameGenerator*> mat_path_gen;
+    std::map<std::string, SiloNameGenerator*> spec_path_gen;
+    std::map<std::string, SiloNameGenerator*> var_path_gen;
     detail::name_generator_tools::populate_path_gen_map(file_map.at(root_file_path),
                                                         num_domains,
                                                         mesh_index,
@@ -5015,6 +5015,25 @@ read_mesh(const std::string &root_file_path,
             }
         }
     }
+
+    delete mesh_path_gen;
+    mesh_path_gen = nullptr;
+
+    for (auto& pair : mat_path_gen)
+    {
+        delete pair.second;
+    }
+    mat_path_gen.clear();
+    for (auto& pair : spec_path_gen)
+    {
+        delete pair.second;
+    }
+    spec_path_gen.clear();
+    for (auto& pair : var_path_gen)
+    {
+        delete pair.second;
+    }
+    var_path_gen.clear();
 
     // clean up open files
     for (auto file_map_itr = file_map.begin(); file_map_itr != file_map.end(); )
