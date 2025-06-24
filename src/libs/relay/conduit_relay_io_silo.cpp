@@ -593,7 +593,7 @@ create_silo_tree_path_generator(DBfile *root_file,
         num_domains,
         
         // mesh paths
-        paths,
+        std::move(paths),
         
         // file namescheme
         n_item.has_path("namescheme/file") ? 
