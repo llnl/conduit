@@ -561,28 +561,6 @@ public:
 };
 
 //-----------------------------------------------------------------------------
-// fetches the paths from part of the root silo index
-std::vector<std::string> 
-get_paths(const Node &silo_index_path,
-          const std::string &path_string,
-          const int num_domains)
-{
-    std::vector<std::string> paths;
-    if (silo_index_path.has_child(path_string))
-    {
-        // Preallocate memory to avoid repeated reallocations
-        paths.reserve(num_domains);
-        for (int block_id = 0; block_id < num_domains; block_id ++)
-        {
-            //                mesh_index   ["mesh_paths"][domain#]
-            paths.push_back(silo_index_path[path_string][block_id].as_string());
-        }
-    }
-    // leverage RVO
-    return paths;
-}
-
-//-----------------------------------------------------------------------------
 // creates silo tree path generators
 SiloTreePathGenerator*
 create_silo_tree_path_generator(DBfile *root_file,
@@ -590,6 +568,20 @@ create_silo_tree_path_generator(DBfile *root_file,
                                 const Node &n_item,
                                 const std::string &what_kind_of_paths)
 {
+    // fetch the paths from part of the root silo index
+    std::vector<std::string> paths;
+    if (n_item.has_child(what_kind_of_paths))
+    {
+        // Preallocate memory to avoid repeated reallocations
+        paths.reserve(num_domains);
+        for (int block_id = 0; block_id < num_domains; block_id ++)
+        {
+            //                mesh_index   ["mesh_paths"][domain#]
+            paths.push_back(n_item[what_kind_of_paths][block_id].as_string());
+        }
+    }
+
+    // create our tree path generator
     return new SiloTreePathGenerator(
         // silo database file
         root_file,
@@ -601,7 +593,7 @@ create_silo_tree_path_generator(DBfile *root_file,
         num_domains,
         
         // mesh paths
-        std::move(get_paths(n_item, what_kind_of_paths, num_domains)),
+        paths,
         
         // file namescheme
         n_item.has_path("namescheme/file") ? 
