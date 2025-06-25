@@ -509,7 +509,7 @@ public:
             // Check that the adjset is valid.
             conduit::Node info;
             conduit::Node opts;
-            opts["tolerance"] = 1.e-6;
+            opts["tolerance"] = 1.e-8;
 
             bool validate_result =
                 conduit::blueprint::mpi::mesh::utils::adjset::validate(

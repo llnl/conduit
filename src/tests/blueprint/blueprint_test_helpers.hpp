@@ -641,40 +641,62 @@ struct MeshBuilder
         }
     }
 
+    double lerp(double a, double b, double t) const
+    {
+        return a + t * (b - a);
+    }
+
+    void transform(double x0, double y0, double &x1, double &y1) const
+    {
+        x1 = cos(m_angle) * x0 + cos(m_angle + M_PI/2) * y0;
+        y1 = sin(m_angle) * x0 + sin(m_angle + M_PI/2) * y0;
+    }
+
+    void makePoint(int domainId, double u, double v, double pt[2]) const
+    {
+        static const double P[][4][2] = {
+          // Domain 0
+          {{0., 0.}, {20., 0.}, {40., 0.}, {60., 0.}},
+          {{0., 20.}, {20., 20.}, {40., 20.}, {60., 20.}},
+          // Domain 1
+          {{0., 0.}, {0., 6. + 2. / 3.}, {0., 13. + 1. / 3.}, {0., 20.}},
+          {{-100., 0.}, {-100., 26.24}, {-89.27, 52.15}, {-70.71, 70.71}},
+          // Domain 2
+          {{0., 20.}, {20., 20.}, {40., 20.}, {60., 20.}},
+          {{-70.71, 70.71}, {-32.80, 108.62}, {32.80, 108.62}, {70.71, 70.71}},
+          // Domain 3
+          {{60., 20.}, {60., 13. + 1. / 3.}, {60., 6. + 2. / 3.}, {60., 0.}},
+          {{70.71, 70.71}, {89.27, 52.15}, {100., 26.24}, {100., 0.}}
+        };
+
+        // Interpolate between start/end curves using v.
+        double cPts[4][2];
+        for(int i = 0; i < 4; i++)
+        {
+            cPts[i][0] = lerp(P[domainId * 2][i][0], P[domainId * 2 + 1][i][0], v);
+            cPts[i][1] = lerp(P[domainId * 2][i][1], P[domainId * 2 + 1][i][1], v);
+        }
+
+        // Evaluate interpolated curve in u to make (x0,y0)
+        const double u2 = u * u;
+        const double u3 = u2 * u;
+        const double omu = 1. - u;
+        const double omu2 = omu * omu;
+        const double omu3 = omu2 * omu;
+        const double x0 = (omu3 * cPts[0][0]) + (3. * omu2 * u * cPts[1][0]) + (3. * omu * u2 * cPts[2][0]) + (u3 * cPts[3][0]);
+        const double y0 = (omu3 * cPts[0][1]) + (3. * omu2 * u * cPts[1][1]) + (3. * omu * u2 * cPts[2][1]) + (u3 * cPts[3][1]);
+
+        // Transform (x0,y0) and store in pt.
+        transform(x0, y0, pt[0], pt[1]);
+    }
+
     /**
      * @brief Build a single domain.
      * @param dom The domain number to build (0,1,2,3)
      * @param[out] n_domain The node in which the domain will be built.
      */
-    void buildDomain(int dom, conduit::Node &n_domain)
+    void buildDomain(int dom, conduit::Node &n_domain) const
     {
-        // Domain corner points
-#define PT_A {0., 0.}
-#define PT_B {60., 0.}
-#define PT_C {60., 20.}
-#define PT_D {0., 20.}
-#define PT_E {-100., 0.}
-#define PT_F {-72.2364, 69.1513}
-#define PT_G {70.7107, 70.7107}
-#define PT_H {100., 0.}
-        const double origDomainPts[4][4][2] = {
-           // Domain 0
-           {PT_A, PT_B, PT_C, PT_D},
-           // Domain 1
-           {PT_A, PT_D, PT_F, PT_E},
-           // Domain 2
-           {PT_D, PT_C, PT_G, PT_F},
-           // Domain 3
-           {PT_C, PT_B, PT_H, PT_G}
-        };
-#undef PT_A
-#undef PT_B
-#undef PT_C
-#undef PT_D
-#undef PT_E
-#undef PT_F
-#undef PT_G
-#undef PT_H
         // Domain dimensions
         constexpr int s1 = 15;
         constexpr int s2 = 10;
@@ -690,39 +712,25 @@ struct MeshBuilder
             {s2 * m_resolution, s3 * m_resolution}
         };
 
-        // Rotate the corner points for this domain.
-        double domainPoints[4][2];
-        for(int i =0 ; i < 4; i++)
-        {
-            domainPoints[i][0] = cos(m_angle) * origDomainPts[dom][i][0] +
-                                 cos(m_angle + M_PI/2) * origDomainPts[dom][i][1];
-            domainPoints[i][1] = sin(m_angle) * origDomainPts[dom][i][0] +
-                                 sin(m_angle + M_PI/2) * origDomainPts[dom][i][1];
-        }
-
         // Make the coordset by sampling points within the domain.
         std::vector<double> xc, yc;
         const int NX = domainDims[dom][0];
         const int NY = domainDims[dom][1];
         for(int j = 0; j < NY; j++)
         {
-            double v = static_cast<double>(j) / static_cast<double>(NY - 1);
+            const double v = static_cast<double>(j) / static_cast<double>(NY - 1);
             for(int i = 0; i < NX; i++)
             {
-                double u = static_cast<double>(i) / static_cast<double>(NX - 1);
+                const double u = static_cast<double>(i) / static_cast<double>(NX - 1);
 
-                double Ax = (1. - v) * domainPoints[0][0] + v * domainPoints[3][0];
-                double Ay = (1. - v) * domainPoints[0][1] + v * domainPoints[3][1];
+                // Make the x,y point
+                double pt[2];
+                makePoint(dom, u, v, pt);
 
-                double Bx = (1. - v) * domainPoints[1][0] + v * domainPoints[2][0];
-                double By = (1. - v) * domainPoints[1][1] + v * domainPoints[2][1];
-
-                // Make the x,y point and perturb it some so points along domain
-                // boundaries are a little different.
-                double x = ((1. - u) * Ax + u * Bx) + perturbation();
-                double y = ((1. - u) * Ay + u * By) + perturbation();
-                xc.push_back(x);
-                yc.push_back(y);
+                // Perturb the point so points along domain boundaries are a
+                // little different.
+                xc.push_back(pt[0] + perturbation());
+                yc.push_back(pt[1] + perturbation());
             }
         }
 
