@@ -373,6 +373,7 @@ public:
         buildPartitions(n_mesh);
         adjsetNames.push_back("part_mesh_adjset");
         adjsetNames.push_back("part_mesh_corners_adjset");
+        adjsetNames.push_back("part_lines_adjset");
 #endif
         // NOTE: Do this step after partitioning because there is a bug in
         //       adjset-creation in the partitioner where it seems to try
@@ -449,8 +450,12 @@ public:
 
         // Rename the field.
         std::string partitionField("partition");
-        conduit::Node &n_fields = n_mesh["fields"];
-        n_fields.rename_child("parmetis_result", partitionField);
+        auto domains = conduit::blueprint::mesh::domains(n_mesh);
+        for(auto &dom_ptr : domains)
+        {
+            conduit::Node &n_fields = dom_ptr->fetch_existing("fields");
+            n_fields.rename_child("parmetis_result", partitionField);
+        }
 
         // Repartition the mesh.
         conduit::Node n_part, partopts;
@@ -462,16 +467,23 @@ public:
         sel1["topology"] = "mesh";
         sel1["destination_ranks"].set(conduit::DataType::int32(size));
         auto ranks = sel1["destination_ranks"].as_int32_ptr();
-        for (int i = 0; i < size; i++)
-            ranks[i] = i;
+        for (int i = 0; i < NUM_DOMAINS; i++)
+            ranks[i] = i % size;
         conduit::blueprint::mpi::mesh::partition(n_mesh, partopts, n_part, comm);
 
-        // Move the mesh into the n_mesh node, renaming as needed.
-        n_mesh["coordsets/part_coords"].move(n_part["coordsets/coords"]);
-        n_mesh["topologies/part_mesh"].move(n_part["topologies/mesh"]);
-        n_mesh["topologies/part_mesh/coordset"] = "part_coords";
-        n_mesh["adjsets/part_mesh_adjset"].move(n_part["adjsets/mesh_adjset"]);
-        n_mesh["adjsets/part_mesh_adjset/topology"] = "part_mesh";
+        // Move the partitiond mesh into the n_mesh node, renaming as needed.
+        auto part_domains = conduit::blueprint::mesh::domains(n_part);
+        for(size_t i = 0; i < domains.size(); i++)
+        {
+            conduit::Node &n_dest = *domains[i];
+            conduit::Node &n_src = *part_domains[i];
+
+            n_dest["coordsets/part_coords"].move(n_src["coordsets/coords"]);
+            n_dest["topologies/part_mesh"].move(n_src["topologies/mesh"]);
+            n_dest["topologies/part_mesh/coordset"] = "part_coords";
+            n_dest["adjsets/part_mesh_adjset"].move(n_src["adjsets/mesh_adjset"]);
+            n_dest["adjsets/part_mesh_adjset/topology"] = "part_mesh";
+        }
 
         // Generate corners for the part_mesh
         conduit::Node s2dmap, d2smap;
@@ -483,6 +495,16 @@ public:
                                                         s2dmap,
                                                         d2smap,
                                                         comm);
+
+        // Build the lines for the part_mesh.
+        s2dmap.reset(); d2smap.reset();
+        conduit::blueprint::mpi::mesh::generate_lines(n_mesh,
+                                                      "part_mesh_adjset",
+                                                      "part_lines_adjset",
+                                                      "part_lines",
+                                                      s2dmap,
+                                                      d2smap,
+                                                      comm);
     }
 #endif
 
