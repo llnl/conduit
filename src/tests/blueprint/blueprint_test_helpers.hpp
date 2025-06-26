@@ -20,8 +20,10 @@
 #include <conduit_blueprint_table.hpp>
 #include <conduit_log.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <numeric>
 #include <gtest/gtest.h>
 
 //-----------------------------------------------------------------------------
@@ -641,6 +643,30 @@ struct MeshBuilder
         }
     }
 
+    template <typename T>
+    std::vector<T> permute(const std::vector<T> &vec) const
+    {
+        std::vector<int> indices;
+        indices.resize(vec.size());
+        std::iota(indices.begin(), indices.end(), 0);
+
+        std::vector<double> key;
+        key.reserve(vec.size());
+        for(size_t i = 0; i < vec.size(); i++)
+            key.push_back(random_number_01());
+
+        std::sort(indices.begin(), indices.end(), [&](int a, int b) {
+            return key[a] < key[b];
+        });
+
+        std::vector<T> pvalues;
+        pvalues.reserve(vec.size());
+        for(size_t i = 0; i < vec.size(); i++)
+            pvalues.push_back(vec[indices[i]]);
+
+        return pvalues;
+    }
+
     double lerp(double a, double b, double t) const
     {
         return a + t * (b - a);
@@ -712,26 +738,49 @@ struct MeshBuilder
             {s2 * m_resolution, s3 * m_resolution}
         };
 
-        // Make the coordset by sampling points within the domain.
-        std::vector<double> xc, yc;
+        // Make node indices. We'll add nodes in this order.
         const int NX = domainDims[dom][0];
         const int NY = domainDims[dom][1];
-        for(int j = 0; j < NY; j++)
+        std::vector<int> nodeIJ, nodeIds;
+        nodeIJ.resize(NX * NY);
+        std::iota(nodeIJ.begin(), nodeIJ.end(), 0);
+        if(m_permute)
         {
-            const double v = static_cast<double>(j) / static_cast<double>(NY - 1);
-            for(int i = 0; i < NX; i++)
+            // Scramble the node indices so we add nodes in a different order
+            nodeIJ = permute(nodeIJ);
+
+            // Make nodeIds map for logical I,J indices to actual.
+            nodeIds.resize(NX * NY);
+            for(size_t i = 0; i < nodeIJ.size(); i++)
             {
-                const double u = static_cast<double>(i) / static_cast<double>(NX - 1);
-
-                // Make the x,y point
-                double pt[2];
-                makePoint(dom, u, v, pt);
-
-                // Perturb the point so points along domain boundaries are a
-                // little different.
-                xc.push_back(pt[0] + perturbation());
-                yc.push_back(pt[1] + perturbation());
+                nodeIds[nodeIJ[i]] = i;
             }
+        }
+        else
+        {
+            nodeIds = nodeIJ;
+        }
+
+        // Make the coordset by sampling points within the domain.
+        std::vector<double> xc, yc;
+        for(size_t idx = 0; idx < nodeIJ.size(); idx++)
+        {
+            // Get i,j for node index.
+            const int j = nodeIJ[idx] / NX;
+            const int i = nodeIJ[idx] % NX;
+
+            // Get u,v
+            const double v = static_cast<double>(j) / static_cast<double>(NY - 1);
+            const double u = static_cast<double>(i) / static_cast<double>(NX - 1);
+
+            // Make the x,y point
+            double pt[2];
+            makePoint(dom, u, v, pt);
+
+            // Perturb the point so points along domain boundaries are a
+            // little different.
+            xc.push_back(pt[0] + perturbation());
+            yc.push_back(pt[1] + perturbation());
         }
 
         n_domain["state/domain_id"] = dom;
@@ -739,22 +788,33 @@ struct MeshBuilder
         n_domain["coordsets/coords/values/x"].set(xc);
         n_domain["coordsets/coords/values/y"].set(yc);
 
-        // Make connectivity
-        std::vector<int> conn, sizes, offsets;
+        // Make zone indices. We'll add zones in this order.
         const int CX = NX - 1;
         const int CY = NY - 1;
-        for(int j = 0; j < CY; j++)
+        std::vector<int> zoneIds;
+        zoneIds.resize(CX * CY);
+        std::iota(zoneIds.begin(), zoneIds.end(), 0);
+        if(m_permute)
         {
-            for(int i = 0; i < CX; i++)
-            {
-                conn.push_back(j * NX + i);
-                conn.push_back(j * NX + i + 1);
-                conn.push_back((j+1) * NX + i + 1);
-                conn.push_back((j+1) * NX + i);
+            // Scramble the zone indices so we add zones in a different order
+            zoneIds = permute(zoneIds);
+        }
 
-                offsets.push_back(sizes.size() * 4);
-                sizes.push_back(4);
-            }
+        // Make connectivity
+        std::vector<int> conn, sizes, offsets;
+        for(size_t idx = 0; idx < zoneIds.size(); idx++)
+        {
+            // Get i,j for zone index.
+            const int j = zoneIds[idx] / CX;
+            const int i = zoneIds[idx] % CX;
+
+            conn.push_back(nodeIds[j * NX + i]);
+            conn.push_back(nodeIds[j * NX + i + 1]);
+            conn.push_back(nodeIds[(j+1) * NX + i + 1]);
+            conn.push_back(nodeIds[(j+1) * NX + i]);
+
+            offsets.push_back(sizes.size() * 4);
+            sizes.push_back(4);
         }
 
         n_domain["topologies/mesh/type"] = "unstructured";
@@ -773,21 +833,21 @@ struct MeshBuilder
             std::vector<int> a01;
             i = 0;
             for(j = 0; j < domainDims[0][1]; j++)
-               a01.push_back(j * domainDims[0][0] + i);
+               a01.push_back(nodeIds[j * domainDims[0][0] + i]);
             n_domain["adjsets/mesh_adjset/groups/group_0_1/neighbors"] = 1;
             n_domain["adjsets/mesh_adjset/groups/group_0_1/values"].set(a01);
 
             std::vector<int> a02;
             j = domainDims[0][1] - 1;
             for(i = 0; i < domainDims[0][0]; i++)
-               a02.push_back(j * domainDims[0][0] + i);
+               a02.push_back(nodeIds[j * domainDims[0][0] + i]);
             n_domain["adjsets/mesh_adjset/groups/group_0_2/neighbors"] = 2;
             n_domain["adjsets/mesh_adjset/groups/group_0_2/values"].set(a02);
 
             std::vector<int> a03;
             i = domainDims[0][0] - 1;
             for(j = 0; j < domainDims[0][1]; j++)
-               a03.push_back(j * domainDims[0][0] + i);
+               a03.push_back(nodeIds[j * domainDims[0][0] + i]);
             n_domain["adjsets/mesh_adjset/groups/group_0_3/neighbors"] = 3;
             n_domain["adjsets/mesh_adjset/groups/group_0_3/values"].set(a03);
 
@@ -797,14 +857,14 @@ struct MeshBuilder
             std::vector<int> a01;
             j = 0;
             for(i = 0; i < domainDims[1][0]; i++)
-               a01.push_back(j * domainDims[1][0] + i);
+               a01.push_back(nodeIds[j * domainDims[1][0] + i]);
             n_domain["adjsets/mesh_adjset/groups/group_0_1/neighbors"] = 0;
             n_domain["adjsets/mesh_adjset/groups/group_0_1/values"].set(a01);
 
             std::vector<int> a12;
             i = domainDims[1][0] - 1;
             for(j = 0; j < domainDims[1][1]; j++)
-               a12.push_back(j * domainDims[1][0] + i);
+               a12.push_back(nodeIds[j * domainDims[1][0] + i]);
             n_domain["adjsets/mesh_adjset/groups/group_1_2/neighbors"] = 2;
             n_domain["adjsets/mesh_adjset/groups/group_1_2/values"].set(a12);
 
@@ -814,21 +874,21 @@ struct MeshBuilder
             std::vector<int> a02;
             j = 0;
             for(i = 0; i < domainDims[2][0]; i++)
-               a02.push_back(j * domainDims[2][0] + i);
+               a02.push_back(nodeIds[j * domainDims[2][0] + i]);
             n_domain["adjsets/mesh_adjset/groups/group_0_2/neighbors"] = 0;
             n_domain["adjsets/mesh_adjset/groups/group_0_2/values"].set(a02);
 
             std::vector<int> a12;
             i = 0;
             for(j = 0; j < domainDims[2][1]; j++)
-               a12.push_back(j * domainDims[2][0] + i);
+               a12.push_back(nodeIds[j * domainDims[2][0] + i]);
             n_domain["adjsets/mesh_adjset/groups/group_1_2/neighbors"] = 1;
             n_domain["adjsets/mesh_adjset/groups/group_1_2/values"].set(a12);
 
             std::vector<int> a23;
             i = domainDims[2][0] - 1;
             for(j = 0; j < domainDims[2][1]; j++)
-               a23.push_back(j * domainDims[2][0] + i);
+               a23.push_back(nodeIds[j * domainDims[2][0] + i]);
             n_domain["adjsets/mesh_adjset/groups/group_2_3/neighbors"] = 3;
             n_domain["adjsets/mesh_adjset/groups/group_2_3/values"].set(a23);
         }
@@ -838,17 +898,26 @@ struct MeshBuilder
             std::vector<int> a03;
             j = 0;
             for(i = domainDims[3][0] - 1; i >= 0; i--)
-               a03.push_back(j * domainDims[3][0] + i);
+               a03.push_back(nodeIds[j * domainDims[3][0] + i]);
             n_domain["adjsets/mesh_adjset/groups/group_0_3/neighbors"] = 0;
             n_domain["adjsets/mesh_adjset/groups/group_0_3/values"].set(a03);
 
             std::vector<int> a23;
             i = 0;
             for(j = 0; j < domainDims[3][1]; j++)
-               a23.push_back(j * domainDims[3][0] + i);
+               a23.push_back(nodeIds[j * domainDims[3][0] + i]);
             n_domain["adjsets/mesh_adjset/groups/group_2_3/neighbors"] = 2;
             n_domain["adjsets/mesh_adjset/groups/group_2_3/values"].set(a23);
         }
+    }
+
+    double random_number_01() const
+    {
+#if defined(_WIN32)
+        return static_cast<double>(std::rand()) / RAND_MAX;
+#else
+        return drand48();
+#endif
     }
 
     /**
@@ -857,12 +926,7 @@ struct MeshBuilder
      */
     double perturbation() const
     {
-        double value = 0.;
-#if defined(_WIN32)
-        value = static_cast<double>(std::rand()) / RAND_MAX;
-#else
-        value = drand48();
-#endif
+        double value = random_number_01();
         const double eps = 3. * CONDUIT_EPSILON / 2.;
         value = value * 2. * eps - eps;
         return value;
@@ -871,6 +935,7 @@ struct MeshBuilder
     int m_resolution {1};
     double m_angle {0.};
     std::vector<int> m_selectedDomains;
+    bool m_permute {false};
 };
 
 }

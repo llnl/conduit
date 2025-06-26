@@ -359,10 +359,10 @@ public:
         MPI_Comm_size(comm, &size);
     }
 
-    void test(int res, int a, double angle)
+    void test(int res, int a, double angle, int permute)
     {
         conduit::Node n_mesh;
-        build(res, angle, n_mesh);
+        build(res, angle, permute, n_mesh);
 
         std::vector<std::string> adjsetNames;
         adjsetNames.push_back("mesh_adjset");
@@ -382,13 +382,13 @@ public:
         //       call to buildDerived before buildPartitions.
         buildDerived(n_mesh);
 
-        save(res, a, n_mesh);
+        save(res, a, permute, n_mesh);
 
         // Validate adjsets.
         validate(res, a, angle, n_mesh, adjsetNames);
     }
 
-    void build(int res, double angle, conduit::Node &n_mesh)
+    void build(int res, double angle, int permute, conduit::Node &n_mesh)
     {
         MeshBuilder B;
         // Assign domains to ranks.
@@ -403,6 +403,7 @@ public:
         // Build the mesh.
         B.m_angle = angle;
         B.m_resolution = res;
+        B.m_permute = permute > 0; // Permute node/zone order
         B.build(n_mesh);
 #if 0
         in_rank_order(comm, [&](int /*r*/)
@@ -508,13 +509,13 @@ public:
     }
 #endif
 
-    void save(int res, int a, const conduit::Node &n_mesh)
+    void save(int res, int a, int permute, const conduit::Node &n_mesh)
     {
 #if 0
   #if defined(CONDUIT_RELAY_IO_HDF5_ENABLED)
         // Save the mesh
         std::stringstream ss;
-        ss << "test_" << res << "_" << a;
+        ss << (permute ? "test_p_" : "test_") << res << "_" << a;
         std::string filename(ss.str());
         conduit::relay::mpi::io::blueprint::save_mesh(n_mesh, filename, "hdf5", comm);
         std::cout << "Saved mesh to " << filename << std::endl;
@@ -616,13 +617,19 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_sorting_2d)
             double ta = static_cast<double>(a) / static_cast<double>(NUM_ANGLES - 1);
             double angle = a0 + ta * (a1 - a0);
 
-            if(rank == 0)
+            for(int permute = 0; permute < 2; permute++)
             {
-                std::cout << "Resolution: " << res << ", angle: " << angle << std::endl;
-            }
+                if(rank == 0)
+                {
+                    std::cout << "Resolution: " << res
+                              << ", angle: " << angle
+                              << ", permute: " << permute
+                              << std::endl;
+                }
 
-            SortTester st(MPI_COMM_WORLD);
-            st.test(res, a, angle);
+                SortTester st(MPI_COMM_WORLD);
+                st.test(res, a, angle, permute);
+            }
         }
     }
 }
