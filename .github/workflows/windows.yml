@@ -7,7 +7,7 @@ on:
 jobs:
   build_windows_msvc_base:
     name: MSVC 2019 Default Release
-    runs-on: windows-latest
+    runs-on: windows-2025
     steps:
     - name: Setup MPI
       uses: mpi4py/setup-mpi@v1
@@ -27,7 +27,7 @@ jobs:
 
   build_windows_msvc_base_cpp14:
     name: MSVC 2019 C++14 Release
-    runs-on: windows-latest
+    runs-on: windows-2025
     steps:
     - name: Setup MPI
       uses: mpi4py/setup-mpi@v1
