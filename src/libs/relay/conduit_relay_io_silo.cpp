@@ -433,12 +433,12 @@ public:
     SiloTreePathGenerator(DBfile                    *dbfile,
                           char const                *objpath,
                           int                        nblocks_,
-                          std::vector<std::string> &&names_list_,
+                          std::vector<std::string>   names_list_,
                           std::string              &&file_namescheme_,
                           std::string              &&block_namescheme_,
                           int                        empty_count_,
                           const index_t             *empty_list_) : 
-        nblocks(nblocks_), names_list(std::move(names_list_)),
+        nblocks(nblocks_), names_list(std::move(names_list_)), // we use move to avoid copying
         file_namescheme(0), block_namescheme(0),
         empty_count(empty_count_), empty_list(empty_list_)
     {
@@ -593,7 +593,7 @@ create_silo_tree_path_generator(DBfile *root_file,
         num_domains,
         
         // mesh paths
-        std::move(paths),
+        std::move(paths), // we are done with paths so we can move to avoid copying
         
         // file namescheme
         n_item.has_path("namescheme/file") ? 
