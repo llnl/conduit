@@ -135,6 +135,8 @@ void topology::MeshInfoCollection::end()
 namespace query
 {
 
+const double PointQuery::DEFAULT_POINT_TOLERANCE = 1.e-8;
+
 //---------------------------------------------------------------------------
 PointQuery::PointQuery(const conduit::Node &mesh, MPI_Comm comm) :
     conduit::blueprint::mesh::utils::query::PointQuery(mesh), m_comm(comm)

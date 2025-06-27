@@ -99,6 +99,8 @@ class CONDUIT_BLUEPRINT_API PointQuery :
     public conduit::blueprint::mesh::utils::query::PointQuery
 {
 public:
+    static const double DEFAULT_POINT_TOLERANCE;
+
     /**
      @brief Constructor
 

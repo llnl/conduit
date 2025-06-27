@@ -801,8 +801,8 @@ namespace query
 class CONDUIT_BLUEPRINT_API PointQueryBase
 {
 public:
-    CONDUIT_BLUEPRINT_API static const int NotFound;
-    CONDUIT_BLUEPRINT_API static const double DEFAULT_POINT_TOLERANCE;
+    static const int NotFound;
+    static const double DEFAULT_POINT_TOLERANCE;
 
     /**
      @brief Constructor
