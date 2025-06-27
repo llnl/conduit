@@ -646,7 +646,7 @@ adjset::validate(const conduit::Node &doms,
     bool retval = false;
 
     // Set values from options.
-    double tolerance = conduit::blueprint::mesh::utils::query::PointQueryBase::DEFAULT_POINT_TOLERANCE;
+    double tolerance = conduit::blueprint::mpi::mesh::utils::query::PointQuery::DEFAULT_POINT_TOLERANCE;
     if(options.has_path("tolerance"))
     {
         tolerance = options["tolerance"].to_float64();
