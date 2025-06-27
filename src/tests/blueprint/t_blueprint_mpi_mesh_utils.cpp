@@ -604,8 +604,9 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_sorting_2d)
     EXPECT_TRUE(size <= 4);
 
     const int NUM_ANGLES = 17;
+    const double pi = 3.141592653589793;
     const double a0 = 0.;
-    const double a1 = 2. * M_PI;
+    const double a1 = 2. * pi;
     const std::vector<int> resolutions{{1,2,3}};
 
     // Build the mesh for various resolutions and angles to make sure the adjset
