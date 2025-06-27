@@ -430,18 +430,35 @@ private:
     const index_t           *empty_list;
 
 public:
-    SiloTreePathGenerator(DBfile                    *dbfile,
-                          char const                *objpath,
-                          int                        nblocks_,
-                          std::vector<std::string> &&names_list_,
-                          std::string              &&file_namescheme_,
-                          std::string              &&block_namescheme_,
-                          int                        empty_count_,
-                          const index_t             *empty_list_) : 
-        nblocks(nblocks_), names_list(std::move(names_list_)),
-        file_namescheme(0), block_namescheme(0),
-        empty_count(empty_count_), empty_list(empty_list_)
+    SiloTreePathGenerator(DBfile *dbfile,
+                          const int num_domains,
+                          const Node &n_item,
+                          const std::string &what_kind_of_paths) :
+        nblocks(num_domains), file_namescheme(0), block_namescheme(0)
     {
+        // fetch the paths from part of the root silo index
+        if (n_item.has_child(what_kind_of_paths))
+        {
+            // Preallocate memory to avoid repeated reallocations
+            names_list.reserve(num_domains);
+            for (int block_id = 0; block_id < num_domains; block_id ++)
+            {
+                //                mesh_index   ["mesh_paths"][domain#]
+                names_list.push_back(n_item[what_kind_of_paths][block_id].as_string());
+            }
+        }
+
+        if (n_item.has_path("namescheme/empty_list"))
+        {
+            empty_count = n_item["namescheme"]["empty_list"].dtype().number_of_elements();
+            empty_list = n_item["namescheme"]["empty_list"].as_index_t_ptr();
+        }
+        else
+        {
+            empty_count = 0;
+            empty_list = nullptr;
+        }
+
         // if we have an empty object
         if (0 == nblocks)
         {
@@ -454,32 +471,24 @@ public:
             return;
         }
 
-        // we need to create nameschemes.
-        if (! file_namescheme_.empty())
+        // create nameschemes
+        if (n_item.has_path("namescheme/file"))
         {
             file_namescheme = 
                 DBMakeNamescheme(
-                    file_namescheme_.c_str(), 
+                    n_item["namescheme"]["file"].as_char8_str(), 
                     0, 
                     dbfile,
-                    objpath ? 
-                        (strlen(objpath) ? 
-                                objpath : 
-                                0) : 
-                        0);
+                    ".");
         }
-        if (! block_namescheme_.empty())
+        if (n_item.has_path("namescheme/block"))
         {
             block_namescheme = 
                 DBMakeNamescheme(
-                    block_namescheme_.c_str(),
-                    0,
+                    n_item["namescheme"]["block"].as_char8_str(), 
+                    0, 
                     dbfile,
-                    objpath ? 
-                        (strlen(objpath) ? 
-                            objpath : 
-                            0) : 
-                        0);
+                    ".");
         }
     }
 
@@ -561,71 +570,6 @@ public:
 };
 
 //-----------------------------------------------------------------------------
-// fetches the paths from part of the root silo index
-std::vector<std::string> 
-get_paths(const Node &silo_index_path,
-          const std::string &path_string,
-          const int num_domains)
-{
-    std::vector<std::string> paths;
-    if (silo_index_path.has_child(path_string))
-    {
-        // Preallocate memory to avoid repeated reallocations
-        paths.reserve(num_domains);
-        for (int block_id = 0; block_id < num_domains; block_id ++)
-        {
-            //                mesh_index   ["mesh_paths"][domain#]
-            paths.push_back(silo_index_path[path_string][block_id].as_string());
-        }
-    }
-    // leverage RVO
-    return paths;
-}
-
-//-----------------------------------------------------------------------------
-// creates silo tree path generators
-SiloTreePathGenerator*
-create_silo_tree_path_generator(DBfile *root_file,
-                                const int num_domains,
-                                const Node &n_item,
-                                const std::string &what_kind_of_paths)
-{
-    return new SiloTreePathGenerator(
-        // silo database file
-        root_file,
-        
-        // objpath - we are at the root of the root file
-        ".",
-        
-        // number of blocks
-        num_domains,
-        
-        // mesh paths
-        std::move(get_paths(n_item, what_kind_of_paths, num_domains)),
-        
-        // file namescheme
-        n_item.has_path("namescheme/file") ? 
-            n_item["namescheme"]["file"].as_string() : 
-            std::string(""),
-        
-        // block namescheme
-        n_item.has_path("namescheme/block") ? 
-            n_item["namescheme"]["block"].as_string() : 
-            std::string(""),
-        
-        // number of elements in the empty list
-        n_item.has_path("namescheme/empty_list") ?
-            n_item["namescheme"]["empty_list"].dtype().number_of_elements() :
-            0,
-        
-        // pointer to the empty list
-        n_item.has_path("namescheme/empty_list") ?
-            n_item["namescheme"]["empty_list"].as_index_t_ptr() :
-            nullptr
-        );
-}
-
-//-----------------------------------------------------------------------------
 // populates a map of field/matset/specset names to path name generators for them
 void
 populate_path_gen_map(DBfile *root_file,
@@ -643,10 +587,10 @@ populate_path_gen_map(DBfile *root_file,
             const Node &n_item = item_itr.next();
             const std::string item_name = item_itr.name();
             path_gen_map.emplace(item_name,
-                                 create_silo_tree_path_generator(root_file,
-                                                                 num_domains,
-                                                                 n_item,
-                                                                 what_kind_of_paths));
+                                 new SiloTreePathGenerator(root_file,
+                                                           num_domains,
+                                                           n_item,
+                                                           what_kind_of_paths));
         }
     }
 }
@@ -4618,11 +4562,10 @@ read_mesh(const std::string &root_file_path,
     //
     // Create name generators for the mesh and each variable, matset, specset
     //
-    SiloNameGenerator *mesh_path_gen = 
-        detail::name_generator_tools::create_silo_tree_path_generator(file_map.at(root_file_path),
-                                                                      num_domains,
-                                                                      mesh_index,
-                                                                      "mesh_paths");
+    SiloNameGenerator *mesh_path_gen = new SiloNameGenerator(file_map.at(root_file_path),
+                                                             num_domains,
+                                                             mesh_index,
+                                                             "mesh_paths");
     std::map<std::string, SiloNameGenerator*> mat_path_gen;
     std::map<std::string, SiloNameGenerator*> spec_path_gen;
     std::map<std::string, SiloNameGenerator*> var_path_gen;
