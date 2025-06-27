@@ -7,7 +7,7 @@ on:
 jobs:
   build_windows_msvc_base:
     name: MSVC 2019 Default Release
-    runs-on: windows-2025
+    runs-on: windows-latest
     steps:
     - name: Setup MPI
       uses: mpi4py/setup-mpi@v1
@@ -27,7 +27,7 @@ jobs:
 
   build_windows_msvc_base_cpp14:
     name: MSVC 2019 C++14 Release
-    runs-on: windows-2025
+    runs-on: windows-latest
     steps:
     - name: Setup MPI
       uses: mpi4py/setup-mpi@v1
@@ -48,7 +48,7 @@ jobs:
 
   build_windows_msvc_base_cpp17:
     name: MSVC 2022 C++17 Release
-    runs-on: windows-2022
+    runs-on: windows-latest
     steps:
     - name: Setup MPI
       uses: mpi4py/setup-mpi@v1
@@ -101,6 +101,13 @@ jobs:
     name: Clang Base Debug
     runs-on: windows-latest
     steps:
+    - name: Install LLVM Clang 19 on Windows
+      shell: powershell
+      run: |
+             $ErrorActionPreference = "Stop"
+             Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/releases/download/llvmorg-19.1.7/LLVM-19.1.7-win64.exe" -OutFile "llvm.exe"
+             Start-Process -FilePath .\llvm.exe -ArgumentList "/S", "/D=C:\LLVM" -Wait
+             echo "C:\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
     - name: Setup Python Env
       run: python3 -m pip install --upgrade pip numpy
     - uses: actions/checkout@v4
