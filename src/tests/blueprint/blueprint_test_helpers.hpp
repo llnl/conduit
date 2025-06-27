@@ -674,8 +674,9 @@ struct MeshBuilder
 
     void transform(double x0, double y0, double &x1, double &y1) const
     {
-        x1 = cos(m_angle) * x0 + cos(m_angle + M_PI/2) * y0;
-        y1 = sin(m_angle) * x0 + sin(m_angle + M_PI/2) * y0;
+        const double pi = 3.141592653589793;
+        x1 = cos(m_angle) * x0 + cos(m_angle + pi/2.) * y0;
+        y1 = sin(m_angle) * x0 + sin(m_angle + pi/2.) * y0;
     }
 
     void makePoint(int domainId, double u, double v, double pt[2]) const
