@@ -4067,8 +4067,8 @@ adjset::to_topo(conduit::Node &mesh, const std::string &adjsetName, conduit::Nod
 namespace query
 {
 
-CONDUIT_BLUEPRINT_API const int PointQueryBase::NotFound = -1;
-CONDUIT_BLUEPRINT_API const double PointQueryBase::DEFAULT_POINT_TOLERANCE = 1.e-8;
+const int PointQueryBase::NotFound = -1;
+const double PointQueryBase::DEFAULT_POINT_TOLERANCE = 1.e-8;
 
 //---------------------------------------------------------------------------
 PointQueryBase::PointQueryBase(const conduit::Node &mesh) : m_mesh(mesh),
