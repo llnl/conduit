@@ -12,7 +12,7 @@ jobs:
     - name: Setup MPI
       uses: mpi4py/setup-mpi@v1
     - name: Setup Python Env
-      run: python3 -m pip install --upgrade pip numpy mpi4py
+      run: python3 -m pip install --upgrade pip numpy mpi4py wheel
     - uses: actions/checkout@v2
       with: 
         submodules: 'recursive'
@@ -32,7 +32,7 @@ jobs:
     - name: Setup MPI
       uses: mpi4py/setup-mpi@v1
     - name: Setup Python Env
-      run: python3 -m pip install --upgrade pip numpy mpi4py
+      run: python3 -m pip install --upgrade pip numpy mpi4py wheel
     - uses: actions/checkout@v4
       with: 
         submodules: 'recursive'
@@ -53,7 +53,7 @@ jobs:
     - name: Setup MPI
       uses: mpi4py/setup-mpi@v1
     - name: Setup Python Env
-      run: python3 -m pip install --upgrade pip numpy mpi4py
+      run: python3 -m pip install --upgrade pip numpy mpi4py wheel
     - uses: actions/checkout@v4
       with: 
         submodules: 'recursive'
@@ -83,7 +83,7 @@ jobs:
     - name: Setup MPI
       uses: mpi4py/setup-mpi@v1
     - name: Setup Python Env
-      run: python3 -m pip install --upgrade pip numpy mpi4py
+      run: python3 -m pip install --upgrade pip numpy mpi4py wheel
     - uses: actions/checkout@v4
       with: 
         submodules: 'recursive'
