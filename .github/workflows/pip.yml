@@ -25,6 +25,7 @@ jobs:
                                     python3-venv \
                                     python3-numpy \
                                     python3-mpi4py \
+                                    python3-wheel \
                                     perl \
                                     git \
                                     git-lfs \
@@ -80,6 +81,7 @@ jobs:
                                     python3-venv \
                                     python3-numpy \
                                     python3-mpi4py \
+                                    python3-wheel \
                                     perl \
                                     git \
                                     git-lfs \

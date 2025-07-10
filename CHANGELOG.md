@@ -8,23 +8,28 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 ### Added
 
+#### Blueprint
+- Added support for unstructured topologies with `mixed` shape type in the `conduit::blueprint::mesh::partition()` and `conduit::blueprint::mesh::utils::topology::iterate_elements()` functions. They work with mixed shape types, including polyhedra.
+- Added `conduit::blueprint::mesh::utils::topology::compute_mesh_info()` function to compute basic information about a mesh such as extents and edge lengths.
+- Added `conduit::blueprint::mesh::utils::topology::Quantizer` class to compute a quantized index for a point.
+
 #### Relay
 - Added namescheme read and write support to the Relay Silo/Overlink Reader/Writer.
 - Added support for block types or unified types to the Relay Silo/Overlink Reader/Writer.
 
 ### Changed
 
+#### General
+- Updates to spack uberenv recipes for macOS 15.5.
+
+#### Blueprint
+- The `conduit::blueprint::mesh::topology::dims()` function was changed so it will return the maximum topological dimension of the shape types from the `shape_map` for a `mixed` shape.
+- Enhanced the `conduit::blueprint::mesh::examples::tiled()` function so it can accept mesh tiles containing `mixed` shape types for generating 2D tiled output.
+- Adjacency set construction was altered so points are sorted spatially using the `Quantizer` class.
+
 ### Fixed
 #### Relay
 - Fixed an issue with the Overlink Writer preventing it from correctly writing out data in the n files to m domains case.
-- Added support for unstructured topologies with `mixed` shape type in the `conduit::blueprint::mesh::partition()` and `conduit::blueprint::mesh::utils::topology::iterate_elements()` functions. They work with mixed shape types, including polyhedra.
-- Enhanced the `conduit::blueprint::mesh::examples::tiled()` function so it can accept mesh tiles containing `mixed` shape types for generating 2D tiled output.
-- Added `conduit::blueprint::mesh::utils::topology::compute_mesh_info()` function to compute basic information about a mesh such as extents and edge lengths.
-- Added `conduit::blueprint::mesh::utils::topology::Quantizer` class to compute a quantized index for a point.
-
-### Changed
-- The `conduit::blueprint::mesh::topology::dims()` function was changed so it will return the maximum topological dimension of the shape types from the `shape_map` for a `mixed` shape.
-- Adjacency set construction was altered so points are sorted spatially using the `Quantizer` class.
 
 
 ## [0.9.4] - Released 2025-04-03
