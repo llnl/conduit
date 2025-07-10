@@ -175,18 +175,24 @@ adjset_topology(const conduit::Node &n_mesh, const std::string &adjsetName)
 /**
  * @brief Test whether an adjset's topology contains lines.
  *
- * @param n_mesh The mesh we're testing.
+ * @param n_mesh The mesh we're testing. It might have multiple domains!
  * @param adjsetName The name of the adjset that identifies the topology.
  *
  * @return True if the topology contains lines, false otherwise.
  */
-bool is_line_topology(const conduit::Node &n_topo)
+bool is_line_topology(const conduit::Node &n_mesh, const std::string &adjsetName)
 {
     bool is_line = false;
-    const std::string type = n_topo.fetch_existing("type").as_string();
-    if(type == "unstructured")
+    auto domains = conduit::blueprint::mesh::domains(n_mesh);
+    for(const auto &dom : domains)
     {
-        is_line = n_topo.fetch_existing("elements/shape").as_string() == "line";
+        const conduit::Node &n_topo = adjset_topology(*dom, adjsetName);
+        const std::string type = n_topo.fetch_existing("type").as_string();
+        if(type == "unstructured")
+        {
+            is_line = n_topo.fetch_existing("elements/shape").as_string() == "line";
+            break;
+        }
     }
     return is_line;
 }
@@ -287,7 +293,7 @@ main(int argc, char *argv[])
                 // midpoints. This allows us to check that the lines are in same order.
                 //
                 if(association == "vertex" ||
-                   (association == "element" && is_line_topology(adjset_topology(root, adjsetName))))
+                   (association == "element" && is_line_topology(root, adjsetName)))
                 {
                     res = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, adjsetName, opts, info);
                 }
