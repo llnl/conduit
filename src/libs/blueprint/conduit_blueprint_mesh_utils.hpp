@@ -546,9 +546,9 @@ namespace topology
      *               point mesh.
      * @param[out] n_output The output node containing the new mesh.
      */
-    void extract_pointmesh(const conduit::Node &n_topo,
-                           const conduit::Node &n_ids,
-                           conduit::Node &n_output);
+    void CONDUIT_BLUEPRINT_API extract_pointmesh(const conduit::Node &n_topo,
+                                                 const conduit::Node &n_ids,
+                                                 conduit::Node &n_output);
 
     //-------------------------------------------------------------------------
     /**
