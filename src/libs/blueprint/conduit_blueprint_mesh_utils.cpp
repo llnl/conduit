@@ -2188,6 +2188,67 @@ topology::TopologyBuilder::clear()
 }
 
 //---------------------------------------------------------------------------
+void
+topology::extract_pointmesh(const Node &n_topo, const Node &n_ids, Node &n_output)
+{
+    const auto coordsetName = n_topo.fetch_existing("coordset").as_string();
+    const Node *n_src_coordset = conduit::blueprint::mesh::utils::find_reference_node(n_topo, "coordset");
+    CONDUIT_ASSERT(n_src_coordset != nullptr, "Source coordset not found");
+
+    const auto axisNames = conduit::blueprint::mesh::utils::coordset::axes(*n_src_coordset);
+    const auto nComps = axisNames.size();
+
+    const auto ids = n_ids.as_index_t_accessor();
+    const auto nIds = ids.number_of_elements();
+
+    // Allocate outputs.
+    Node &n_dest_coordset = n_output["coordsets/" + coordsetName];
+    n_dest_coordset["type"] = "explicit";
+    double_accessor src_coords[3];
+    double *dest_coords[3] = {nullptr, nullptr, nullptr};
+    for(size_t comp = 0; comp < axisNames.size(); comp++)
+    {
+        src_coords[comp] = n_src_coordset->fetch_existing("values/" + axisNames[comp]).as_double_accessor();
+
+        Node &n_comp = n_dest_coordset["values"][axisNames[comp]];
+        n_comp.set(conduit::DataType::float64(nIds));
+        dest_coords[comp] = n_comp.as_float64_ptr();
+    }
+    Node &n_dest_topo = n_output["topologies/" + n_topo.name()];
+    n_dest_topo["type"] = "unstructured";
+    n_dest_topo["coordset"] = coordsetName;
+    n_dest_topo["elements/shape"] = "point";
+    n_dest_topo["elements/connectivity"].set(DataType::index_t(nIds));
+    n_dest_topo["elements/sizes"].set(DataType::index_t(nIds));
+    n_dest_topo["elements/offsets"].set(DataType::index_t(nIds));
+    index_t *dest_conn = n_dest_topo["elements/connectivity"].as_index_t_ptr();
+    index_t *dest_sizes = n_dest_topo["elements/sizes"].as_index_t_ptr();
+    index_t *dest_offsets = n_dest_topo["elements/offsets"].as_index_t_ptr();
+
+    // Fill in topo and coordset data.
+    for(index_t i = 0; i < nIds; i++)
+    {
+        dest_conn[i] = i;
+        dest_sizes[i] = 1;
+        dest_offsets[i] = i;
+
+        // Make the average coordinate.
+        const bool unique = false;
+        const auto ptids = topology::unstructured::points(n_topo, ids[i], unique);
+        for(size_t comp = 0; comp < nComps; comp++)
+        {
+            double *coord = dest_coords[comp];
+            coord[i] = 0.;
+            for(const auto &ptid : ptids)
+            {
+                coord[i] += src_coords[comp][ptid];
+            }
+            coord[i] /= static_cast<double>(ptids.size());
+        }
+    }
+}
+
+//---------------------------------------------------------------------------
 template <typename Body>
 static void topology_iterate_elements(const conduit::Node &topo, Body &&body)
 {
@@ -2555,14 +2616,21 @@ namespace topology
 {
 std::ostream &operator << (std::ostream &os, const MeshInfo &obj)
 {
-    os << "{minExtents={" << obj.minExtents[0] << ", " << obj.minExtents[1] << ", " << obj.minExtents[2] << "}, "
-       << "maxExtents={" << obj.maxExtents[0] << ", " << obj.maxExtents[1] << ", " << obj.maxExtents[2] << "}, "
-       << "minEdgeLength=" << obj.minEdgeLength << ", "
-       << "maxEdgeLength=" << obj.maxEdgeLength << ", "
-       << "minDiagonalLength=" << obj.minDiagonalLength << ", "
-       << "maxDiagonalLength=" << obj.maxDiagonalLength << "}";
+    os << "{minExtents: {" << obj.minExtents[0] << ", " << obj.minExtents[1] << ", " << obj.minExtents[2] << "}, "
+       << "maxExtents: {" << obj.maxExtents[0] << ", " << obj.maxExtents[1] << ", " << obj.maxExtents[2] << "}, "
+       << "minEdgeLength: " << obj.minEdgeLength << ", "
+       << "maxEdgeLength: " << obj.maxEdgeLength << ", "
+       << "minDiagonalLength: " << obj.minDiagonalLength << ", "
+       << "maxDiagonalLength: " << obj.maxDiagonalLength << "}";
     return os;
 }
+
+std::ostream &operator << (std::ostream &os, const MeshInfoCollection &obj)
+{
+    obj.print(os);
+    return os;
+}
+
 } // end topology namespace
 
 //-----------------------------------------------------------------------------
@@ -2641,6 +2709,17 @@ topology::MeshInfoCollection::merge(const topology::MeshInfo &a, const topology:
     return info;
 }
 
+void
+topology::MeshInfoCollection::print(std::ostream &os) const
+{
+    os << "meshInfos:\n";
+    for(auto it = meshInfos.begin(); it != meshInfos.end(); it++)
+    {
+       os << "\t" << it->first << ": " << it->second << std::endl;
+    }
+    os << "mergedMeshInfo: " << mergedMeshInfo << std::endl;
+}
+
 //-----------------------------------------------------------------------------
 template <typename T>
 inline bool will_multiply_overflow(T a, T b)
@@ -2711,6 +2790,23 @@ topology::Quantizer::quantize(const topology::Quantizer::Coordinate &coord) cons
     }
     return qIndex;
 }
+
+namespace topology
+{
+std::ostream &
+operator << (std::ostream &os, const Quantizer &obj)
+{
+    os << "{meshInfo: " << obj.meshInfo
+      << ", length: " << obj.length
+      << ", offset: " << obj.offset
+      << ", QX: " << obj.QX
+      << ", QY: " << obj.QY
+      << ", QXQY: " << obj.QXQY
+      << "}";
+    return os;
+}
+
+} // end namespace topology
 
 //-----------------------------------------------------------------------------
 void
@@ -3749,9 +3845,10 @@ void adjset::remove(conduit::Node &doms,
 }
 
 //-----------------------------------------------------------------------------
-template <typename Func>
+template <typename ExtractFunc, typename CompareFunc>
 bool
-foreach_adjset_mesh_pair_impl(conduit::Node &mesh, const std::string &adjsetName, Func &&func)
+foreach_adjset_mesh_pair_impl(conduit::Node &mesh, const std::string &adjsetName,
+    ExtractFunc &&extractFunc, CompareFunc &&compareFunc)
 {
     namespace bputils = conduit::blueprint::mesh::utils;
     bool retval = true;
@@ -3784,59 +3881,17 @@ foreach_adjset_mesh_pair_impl(conduit::Node &mesh, const std::string &adjsetName
                 std::string key(akey + "/groups/" + groupName + "/values");
                 if(domain.has_path(key))
                 {
-                    const Node &adj = domain[akey];
+                    const Node &n_adjset = domain[akey];
+                    const std::string association = n_adjset["association"].as_string();
 
                     // Get the topology that the adjset wants.
-                    std::string topoName = adj.fetch_existing("topology").as_string();
+                    std::string topoName = n_adjset.fetch_existing("topology").as_string();
                     const Node &topo = domain.fetch_existing("topologies/" + topoName);
 
                     // Get the group values and add them as points to the topo builder
                     // so we pull out a point mesh.
                     const Node &n_values = domain.fetch_existing(key);
-                    const auto values = n_values.as_index_t_accessor();
-                    bputils::topology::TopologyBuilder B(topo);
-
-                    std::string association = adj["association"].as_string();
-                    std::string shapeType;
-                    if(association == "vertex")
-                    {
-                        shapeType = "point";
-                        for(index_t i = 0; i < values.number_of_elements(); i++)
-                        {
-                            index_t ptid = values[i];
-                            B.add(&ptid, 1);
-                        }
-                    }
-                    else if(association == "element")
-                    {
-                        size_t minSides = 0, maxSides = 0;
-                        for(index_t i = 0; i < values.number_of_elements(); i++)
-                        {
-                            index_t ei = values[i];
-                            // Get the element points in their original order.
-                            const bool unique = false;
-                            const auto ptids = conduit::blueprint::mesh::utils::topology::unstructured::points(topo, ei, unique);
-                            B.add(&ptids[0], ptids.size());
-
-                            minSides = (i == 0) ? ptids.size() : std::min(minSides, ptids.size());
-                            maxSides = (i == 0) ? ptids.size() : std::max(maxSides, ptids.size());
-                        }
-
-                        if(minSides == maxSides)
-                        {
-                            if(minSides == 2)
-                                shapeType = "line";
-                            else if(minSides == 3)
-                                shapeType = "tri";
-                            else if(minSides == 4)
-                                shapeType = "quad";
-                        }
-                        if(shapeType.empty())
-                            shapeType = "polygon";
-                    }
-
-                    // Make the local point mesh.
-                    B.execute(boundaries[mi], shapeType);
+                    extractFunc(topo, n_adjset, n_values, boundaries[mi]);
 
                     // Add the adjset values as a field.
                     if(association == "vertex")
@@ -3854,7 +3909,7 @@ foreach_adjset_mesh_pair_impl(conduit::Node &mesh, const std::string &adjsetName
             // Incorporate input from the supplied function. We need to have 2 meshes.
             if(mi == 2)
             {
-                retval &= func(groupName, d0, boundaries[0], d1, boundaries[1]);
+                retval &= compareFunc(groupName, d0, boundaries[0], d1, boundaries[1]);
             }
         }
     }
@@ -3863,9 +3918,10 @@ foreach_adjset_mesh_pair_impl(conduit::Node &mesh, const std::string &adjsetName
 }
 
 //-----------------------------------------------------------------------------
-template <typename Func>
+template <typename ExtractFunc, typename CompareFunc>
 bool
-foreach_adjset_mesh_pair(conduit::Node &mesh, const std::string &adjsetName, Func &&func)
+foreach_adjset_mesh_pair(conduit::Node &mesh, const std::string &adjsetName,
+    ExtractFunc &&extractFunc, CompareFunc &&compareFunc)
 {
     bool retval = true;
     const std::string tempAdjsetName("__" + adjsetName + "__");
@@ -3876,7 +3932,7 @@ foreach_adjset_mesh_pair(conduit::Node &mesh, const std::string &adjsetName, Fun
         adjset::to_pairwise_canonical(mesh, adjsetName, tempAdjsetName);
 
         // Call the real implementation on the temporary adjset.
-        retval = foreach_adjset_mesh_pair_impl(mesh, tempAdjsetName, func);
+        retval = foreach_adjset_mesh_pair_impl(mesh, tempAdjsetName, extractFunc, compareFunc);
 
         // Remove the adjset that was added.
         adjset::remove(mesh, tempAdjsetName);
@@ -3998,6 +4054,37 @@ adjset::compare_pointwise(conduit::Node &mesh, const std::string &adjsetName,
         }
     };
 
+    auto extractMesh =
+        [](const conduit::Node &n_topo,
+           const conduit::Node &n_adjset,
+           const conduit::Node &n_values, // values for an adjset group.
+           conduit::Node &n_output)
+    {
+        const std::string association = n_adjset["association"].as_string();
+
+        if(association == "element" &&
+           n_topo.fetch_existing("type").as_string() == "unstructured" &&
+           n_topo.fetch_existing("elements/shape").as_string() == "line")
+        {
+            // Special case - treat element adjsets for line meshes as points so
+            // we can compare them in point order.
+            topology::extract_pointmesh(n_topo, n_values, n_output);
+        }
+        else
+        {
+            topology::TopologyBuilder B(n_topo);
+            const auto ids = n_values.as_index_t_accessor();
+            for(index_t i = 0; i < ids.number_of_elements(); i++)
+            {
+                index_t ptid = ids[i];
+                B.add(&ptid, 1);
+            }
+
+            // Make the local point mesh.
+            B.execute(n_output, "point");
+         }
+    };
+
     auto compareMesh =
         [&](const std::string &groupName, int dom1, conduit::Node &mesh1, int dom2, conduit::Node &mesh2)
     {
@@ -4022,7 +4109,7 @@ adjset::compare_pointwise(conduit::Node &mesh, const std::string &adjsetName,
         return retval;
     };
 
-    return foreach_adjset_mesh_pair(mesh, adjsetName, compareMesh);
+    return foreach_adjset_mesh_pair(mesh, adjsetName, extractMesh, compareMesh);
 }
 
 //-----------------------------------------------------------------------------
@@ -4048,13 +4135,68 @@ adjset::to_topo(conduit::Node &mesh, const std::string &adjsetName, conduit::Nod
         }
     };
 
-    foreach_adjset_mesh_pair(mesh, adjsetName,
+    auto extractMesh =
+        [](const conduit::Node &n_topo,
+           const conduit::Node &n_adjset,
+           const conduit::Node &n_values,
+           conduit::Node &n_output)
+    {
+        const std::string association = n_adjset["association"].as_string();
+
+        const auto values = n_values.as_index_t_accessor();
+        topology::TopologyBuilder B(n_topo);
+        std::string shapeType;
+        if(association == "vertex")
+        {
+            shapeType = "point";
+            for(index_t i = 0; i < values.number_of_elements(); i++)
+            {
+                index_t ptid = values[i];
+                B.add(&ptid, 1);
+            }
+        }
+        else if(association == "element")
+        {
+            size_t minSides = 0, maxSides = 0;
+            for(index_t i = 0; i < values.number_of_elements(); i++)
+            {
+                index_t ei = values[i];
+                // Get the element points in their original order.
+                const bool unique = false;
+                const auto ptids = topology::unstructured::points(n_topo, ei, unique);
+                B.add(&ptids[0], ptids.size());
+
+                minSides = (i == 0) ? ptids.size() : std::min(minSides, ptids.size());
+                maxSides = (i == 0) ? ptids.size() : std::max(maxSides, ptids.size());
+            }
+
+            if(minSides == maxSides)
+            {
+                if(minSides == 2)
+                    shapeType = "line";
+                else if(minSides == 3)
+                    shapeType = "tri";
+                else if(minSides == 4)
+                    shapeType = "quad";
+            }
+            if(shapeType.empty())
+                shapeType = "polygon";
+        }
+
+        // Make the local point mesh.
+        B.execute(n_output, shapeType);
+    };
+
+    // This compareMesh moves the meshes into the output node.
+    auto compareMesh =
         [&](const std::string &groupName, int dom1, conduit::Node &mesh1, int dom2, conduit::Node &mesh2)
     {
         moveMesh(groupName, dom1, mesh1, out);
         moveMesh(groupName, dom2, mesh2, out);
         return true;
-    });
+    };
+
+    foreach_adjset_mesh_pair(mesh, adjsetName, extractMesh, compareMesh);
 }
 
 //-----------------------------------------------------------------------------

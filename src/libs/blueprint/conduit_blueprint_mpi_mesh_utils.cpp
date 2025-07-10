@@ -722,6 +722,32 @@ adjset::validate(const conduit::Node &doms,
 }
 
 //-----------------------------------------------------------------------------
+static void
+adjset_extract_pointmesh(const conduit::Node &n_topo, const conduit::Node &n_ids, conduit::Node &n_output)
+{
+    namespace bputils = conduit::blueprint::mesh::utils;
+
+    if(n_topo.fetch_existing("type").as_string() == "unstructured" &&
+       n_topo.fetch_existing("elements/shape").as_string() == "line")
+    {
+        bputils::topology::extract_pointmesh(n_topo, n_ids, n_output);
+    }
+    else
+    {
+        bputils::topology::TopologyBuilder B(n_topo);
+        const auto ids = n_ids.as_index_t_accessor();
+        for(index_t i = 0; i < ids.number_of_elements(); i++)
+        {
+            index_t ptid = ids[i];
+            B.add(&ptid, 1);
+        }
+
+        // Make the local point mesh.
+        B.execute(n_output, "point");
+    }
+}
+
+//-----------------------------------------------------------------------------
 static bool
 compare_pointwise_impl(conduit::Node &mesh, const std::string &adjsetName,
     const conduit::Node &options, conduit::Node &info, MPI_Comm comm)
@@ -791,16 +817,7 @@ compare_pointwise_impl(conduit::Node &mesh, const std::string &adjsetName,
                     // Get the group values and add them as points to the topo builder
                     // so we pull out a point mesh.
                     const Node &n_values = domain.fetch_existing(key);
-                    const auto values = n_values.as_index_t_accessor();
-                    bputils::topology::TopologyBuilder B(topo);
-                    for(index_t i = 0; i < values.number_of_elements(); i++)
-                    {
-                        index_t ptid = values[i];
-                        B.add(&ptid, 1);
-                    }
-
-                    // Make the local point mesh.
-                    B.execute(localMesh[mi], "point");
+                    adjset_extract_pointmesh(topo, n_values, localMesh[mi]);
 
                     // Get the neighbor for this group
                     std::string nkey("adjsets/" + adjsetName + "/groups/" + groupName + "/neighbors");

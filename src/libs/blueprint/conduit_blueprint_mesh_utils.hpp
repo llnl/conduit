@@ -536,6 +536,20 @@ namespace topology
         std::vector<index_t>       topo_sizes;
     };
 
+    /**
+     * @brief Extract a point mesh from the topology using a list of ids. If the
+     *        topology is not points then points in an element are averaged to
+     *        make a point.
+     *
+     * @param n_topo The topology being sampled.
+     * @param n_ids  A node containing a list of element ids to pull out as a
+     *               point mesh.
+     * @param[out] n_output The output node containing the new mesh.
+     */
+    void extract_pointmesh(const conduit::Node &n_topo,
+                           const conduit::Node &n_ids,
+                           conduit::Node &n_output);
+
     //-------------------------------------------------------------------------
     /**
      @brief Determines whether topo2 elements exist in topo1. First the topo2
@@ -642,10 +656,26 @@ namespace topology
          * @return The merged mesh info for a, b.
          */
         static MeshInfo merge(const MeshInfo &a, const MeshInfo &b);
+
+        /**
+         * @brief Print the object.
+         * @param os The stream to use for printing.
+         */
+        void print(std::ostream &os) const;
     protected:
         std::map<index_t, MeshInfo> meshInfos;
         MeshInfo mergedMeshInfo;
     };
+
+    /**
+     * @brief Output stream operator for MeshInfoCollection
+     *
+     * @param os The output stream to use.
+     * @param obj The MeshInfoCollection object to write.
+     *
+     * @return The output stream reference.
+     */
+    std::ostream &operator << (std::ostream &os, const MeshInfoCollection &obj);
 
     //-------------------------------------------------------------------------
     /**
@@ -691,6 +721,16 @@ namespace topology
         QuantizedValue QY;
         QuantizedValue QXQY;
     };
+
+    /**
+     * @brief Output stream operator for Quantizer
+     *
+     * @param os The output stream to use.
+     * @param obj The Quantizer object to write.
+     *
+     * @return The output stream reference.
+     */
+    std::ostream &operator << (std::ostream &os, const Quantizer &obj);
 
     //-------------------------------------------------------------------------
     // -- begin conduit::blueprint::mesh::utils::topology::unstructured --

@@ -22,9 +22,11 @@
 #include <deque>
 #include <cmath>
 #include <cstring>
+#include <iostream>
 #include <limits>
 #include <memory>
 #include <set>
+#include <sstream>
 #include <iterator>
 
 //-----------------------------------------------------------------------------
@@ -2843,6 +2845,21 @@ std::vector<float64> average_coords(const Node &cset, const CoordIdContainer &co
 }
 
 //-----------------------------------------------------------------------------
+template <typename ContainerType>
+inline void printContainer(std::ostream &os, const ContainerType &container)
+{
+    os << "{";
+    int i = 0;
+    for(auto it = container.begin(); it != container.end(); i++, it++)
+    {
+        if(i > 0)
+           os << ", ";
+        os << *it;
+    }
+    os << "}";
+}
+
+//-----------------------------------------------------------------------------
 /**
  @brief Used to generate derived entities from the source mesh. The main work
         is done by the \a generate_derived function. The bulk of this function
@@ -3047,6 +3064,12 @@ generate_derived_entities(conduit::Node &mesh,
         mic.add(domain_id, dst_info);
     }
     mic.end();
+    topoutils::MeshInfo gMeshInfo(mic.getMergedMeshInfo());
+    // Since we're averaging entity coordinates below for spatial sorting,
+    // reduce the distances by half. This makes more bins in the quantizer
+    // to reduce the likelihood that averaged points map the same bin.
+    gMeshInfo.minEdgeLength /= 2.;
+    gMeshInfo.minDiagonalLength /= 2.;
     CONDUIT_ANNOTATE_MARK_END("mesh_info");
 
     // Finish building the adjset.
@@ -3065,12 +3088,22 @@ generate_derived_entities(conduit::Node &mesh,
         const Node &dst_topo = domain["topologies"][dst_topo_name];
 
         // Make Quantizer from merged mesh info.
-        topoutils::Quantizer quantizer(mic.getMergedMeshInfo());
+        topoutils::Quantizer quantizer(gMeshInfo);
 
         conduit::Node &dst_adjset_groups = domain["adjsets"][dst_adjset_name]["groups"];
 
+        // Uncomment the following line to generate files for debugging.
+//#define CONDUIT_DEBUG_DERIVED_ENTITIES
+#ifdef CONDUIT_DEBUG_DERIVED_ENTITIES
+        std::stringstream ss;
+        ss << dst_adjset_name << "." << domain_id << ".txt";
+        std::string filename(ss.str());
+        std::ofstream ofs;
+        ofs.open(filename.c_str());
+        ofs << mic << std::endl;
+        ofs << "Quantizer: " << quantizer << std::endl;
+#endif
         // Use Entity Interfaces to Construct Group Entity Lists //
-
         std::map<std::set<index_t>, EntityVector> group_entity_map;
         const auto &entity_neighbor_map = dom_entity_neighbor_map[domain_id];
         for(const auto &entity_neighbor_pair : entity_neighbor_map)
@@ -3080,19 +3113,7 @@ generate_derived_entities(conduit::Node &mesh,
 
             // Get point ids used in entity ei in dst_topo
             const std::vector<index_t> entity_pidxs = bputils::topology::unstructured::points(dst_topo, ei);
-#if 0
-std::cout << "Entity " << ei << ", neighbors={";
-for(const auto &value : entity_neighbors)
-{
-   std::cout << value << ", ";
-}
-std::cout << "}, pidxs={";
-for(const index_t &entity_pidx : entity_pidxs)
-{
-   std::cout << entity_pidx << ", ";
-}
-std::cout << "}";
-#endif
+
             // Average the entity points to form a point for sorting.
             const auto avg_coords = average_coords(src_cset, entity_pidxs);
             const auto q = quantizer.quantize(avg_coords);
@@ -3101,14 +3122,36 @@ std::cout << "}";
             Entity entity;
             std::get<0>(entity) = q;
             std::get<1>(entity) = ei;
-#if 0
-std::cout << ", avg_coords={" << avg_coords[0] << ", " << avg_coords[1] << "}, q=" << q
-          << "\n";
+
+            auto &group_entities = group_entity_map[entity_neighbors];
+
+#ifdef CONDUIT_DEBUG_DERIVED_ENTITIES
+            // Print entity information to the log.
+            ofs << "Entity " << ei << ", neighbors=";
+            printContainer(ofs, entity_neighbors);
+            ofs << ", pidxs=";
+            printContainer(ofs, entity_pidxs);
+            ofs << ", avg_coords=";
+            printContainer(ofs, avg_coords);
+            ofs << ", q=" << q << "\n";
+
+            // See whether the entity already exists in the group_entities. If
+            // so, this is BAD as it means that more than one entity had the
+            // same quantized index.
+            for(size_t i = 0; i < group_entities.size(); i++)
+            {
+              if(std::get<0>(group_entities[i]) == q)
+              {
+                ofs << "ERROR: entity " << std::get<1>(group_entities[i])
+                    << " with q=" << q << " already found at index " << i
+                    << std::endl;
+                break;
+              }
+            }
 #endif
             // NOTE(JRC): Inserting with this method allows this algorithm to sort new
             // elements as they're generated, rather than as a separate process at the
             // end (slight optimization overall).
-            auto &group_entities = group_entity_map[entity_neighbors];
             auto entity_itr = std::upper_bound(group_entities.begin(), group_entities.end(), entity);
             group_entities.insert(entity_itr, entity);
         }
@@ -3152,7 +3195,6 @@ std::cout << ", avg_coords={" << avg_coords[0] << ", " << avg_coords[1] << "}, q
             {
                 neighbors.set(ni++, *nitr);
             }
-
             dst_values.set(DataType(src_values_dtype.id(), group_entities.size()));
             auto values = dst_values.as_index_t_accessor();
             for(index_t ei = 0; ei < (index_t)group_entities.size(); ei++)
@@ -3161,6 +3203,9 @@ std::cout << ", avg_coords={" << avg_coords[0] << ", " << avg_coords[1] << "}, q
                 values.set(ei, nodeid);
             }
         }
+#ifdef CONDUIT_DEBUG_DERIVED_ENTITIES
+        ofs.close();
+#endif
     }
     CONDUIT_ANNOTATE_MARK_END("build");
 }

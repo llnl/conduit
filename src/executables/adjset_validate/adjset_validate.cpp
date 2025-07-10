@@ -154,6 +154,44 @@ static void conduit_debug_err_handler(const std::string &s1, const std::string &
 }
 
 //---------------------------------------------------------------------------
+/**
+ * @brief Get the topology node for the specified adjset
+ *
+ * @param n_mesh The mesh node.
+ * @param adjsetName The name of the adjset that identifies the topology.
+ *
+ * @return A reference to the topology. If it does not exist, Conduit will
+ *         throw an exception.
+ */
+const conduit::Node &
+adjset_topology(const conduit::Node &n_mesh, const std::string &adjsetName)
+{
+    const conduit::Node &n_adjset = n_mesh.fetch_existing("adjsets/" + adjsetName);
+    const std::string topoName = n_adjset.fetch_existing("topology").as_string();
+    return n_mesh.fetch_existing("topologies/" + topoName);
+}
+
+//---------------------------------------------------------------------------
+/**
+ * @brief Test whether an adjset's topology contains lines.
+ *
+ * @param n_mesh The mesh we're testing.
+ * @param adjsetName The name of the adjset that identifies the topology.
+ *
+ * @return True if the topology contains lines, false otherwise.
+ */
+bool is_line_topology(const conduit::Node &n_topo)
+{
+    bool is_line = false;
+    const std::string type = n_topo.fetch_existing("type").as_string();
+    if(type == "unstructured")
+    {
+        is_line = n_topo.fetch_existing("elements/shape").as_string() == "line";
+    }
+    return is_line;
+}
+
+//---------------------------------------------------------------------------
 int
 main(int argc, char *argv[])
 {
@@ -243,7 +281,13 @@ main(int argc, char *argv[])
             {
                 // If the adjset is vertex associated then compare the points in
                 // it to make sure that they are the same on each side of the boundary.
-                if(association == "vertex")
+                //
+                // We can do this also for element associated adjsets that contain lines
+                // since in that case compare_pointwise will make points at the line segment
+                // midpoints. This allows us to check that the lines are in same order.
+                //
+                if(association == "vertex" ||
+                   (association == "element" && is_line_topology(adjset_topology(root, adjsetName))))
                 {
                     res = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, adjsetName, opts, info);
                 }

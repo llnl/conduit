@@ -545,7 +545,8 @@ public:
             {
                 // If the adjset is vertex-associated then compare_pointwise.
                 std::string association = adjset_centering(n_mesh, adjsetName);
-                if(association == "vertex")
+                if(association == "vertex" ||
+                   (association == "element" && adjsetName.find("line") != std::string::npos))
                 {
                    info.reset();
                    bool cpw_result =
