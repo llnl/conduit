@@ -3454,9 +3454,6 @@ generate_decomposed_entities(conduit::Node &mesh,
         mic.add(domain_id, dst_info);
     }
     mic.end();
-#if 0
-    std::cout << mic.getMergedMeshInfo() << std::endl;
-#endif
     CONDUIT_ANNOTATE_MARK_END("mesh_info");
 
     // Finish building the corner mesh adjset.
