@@ -453,6 +453,12 @@ generate(const std::string &example_name,
         // sensible defaults if passed an empty Node for the first argument.
         bent_multi_grid(opts, res);
     }
+    else if (example_name == "amr_bent_multi_grid")
+    {
+        // amr_bent_multi_grid has its own defaults generator, which gives
+        // sensible defaults if passed an empty Node for the first argument.
+        amr_bent_multi_grid(opts, res);
+    }
     else
     {
         // ERROR UNSUPPORTED!

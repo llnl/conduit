@@ -276,11 +276,22 @@ namespace examples
     ///  - integral children npts_x, npts_y, optionally npts_z
     ///  - integral child domain_id
     ///  - numerical array children corner_xs, corner_ys, optionally corner_zs
+    ///  - optionally, integral children nest_child_id and nest_ratio
     ///
     /// Taken together, the corner_xs, corner_ys, and optionally corner_zs
     /// represent the points at the corners of that domain.
+    ///
+    /// If nest_child_id and nest_ratio are present in a domain spec,
+    /// bent_multi_grid makes a refined domain nested within the domain.
     void CONDUIT_BLUEPRINT_API bent_multi_grid(const conduit::Node& spec,
-                                        conduit::Node& res);
+                                               conduit::Node& res);
+
+    /// Generates a multidomain grid of examples.  If spec is an empty node,
+    /// makes a default spec that includes enhanced and reduced connectivity
+    /// as well as a nested domain, then calls bent_multi_grid.  If spec
+    /// is not empty, directly calls bent_multi_grid.
+    void CONDUIT_BLUEPRINT_API amr_bent_multi_grid(const conduit::Node& spec,
+                                                   conduit::Node& res);
 
     /// Generates a braid-like example mesh that covers elements defined in a
     /// rectilinear grid.  Currently hexs are supported for 3D meshes and quads
