@@ -3628,7 +3628,6 @@ mesh::generate_points(conduit::Node &mesh,
 }
 
 //-----------------------------------------------------------------------------
-//[[deprecated]]
 void
 mesh::generate_points(conduit::Node &mesh,
                       const std::string &src_adjset_name,
@@ -3663,7 +3662,6 @@ mesh::generate_lines(conduit::Node &mesh,
 }
 
 //-----------------------------------------------------------------------------
-//[[deprecated]]
 void
 mesh::generate_lines(conduit::Node &mesh,
                      const std::string &src_adjset_name,
@@ -3700,7 +3698,6 @@ mesh::generate_faces(conduit::Node &mesh,
 }
 
 //-----------------------------------------------------------------------------
-//[[deprecated]]
 void
 mesh::generate_faces(conduit::Node &mesh,
                      const std::string& src_adjset_name,
@@ -3753,7 +3750,6 @@ mesh::generate_centroids(conduit::Node& mesh,
 }
 
 //-----------------------------------------------------------------------------
-//[[deprecated]]
 void
 mesh::generate_centroids(conduit::Node& mesh,
                          const std::string& src_adjset_name,
@@ -3823,7 +3819,6 @@ mesh::generate_sides(conduit::Node& mesh,
 }
 
 //-----------------------------------------------------------------------------
-//[[deprecated]]
 void
 mesh::generate_sides(conduit::Node& mesh,
                      const std::string& src_adjset_name,
@@ -3889,7 +3884,6 @@ mesh::generate_corners(conduit::Node& mesh,
 }
 
 //-----------------------------------------------------------------------------
-//[[deprecated]]
 void
 mesh::generate_corners(conduit::Node& mesh,
                        const std::string& src_adjset_name,

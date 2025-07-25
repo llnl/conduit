@@ -198,7 +198,6 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_validate_element_2d)
     save_mesh(root, "adjset_validate_element_2d_bad");
     res = validate(root, "main_adjset", opts, info);
     EXPECT_FALSE(res);
-    //printNode(info);
 
     if(rank == 1 || size == 1)
     {
@@ -235,7 +234,6 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_validate_element_3d)
     save_mesh(root, "adjset_validate_element_3d_bad");
     res = validate(root, "main_adjset", opts, info);
     EXPECT_FALSE(res);
-    //printNode(info);
 
     if(rank == 0 || size == 1)
     {
@@ -405,12 +403,6 @@ public:
         B.m_resolution = res;
         B.m_permute = permute > 0; // Permute node/zone order
         B.build(n_mesh);
-#if 0
-        in_rank_order(comm, [&](int /*r*/)
-        {
-            printNode(n_mesh);
-        });
-#endif
     }
 
     void buildDerived(conduit::Node &n_mesh)

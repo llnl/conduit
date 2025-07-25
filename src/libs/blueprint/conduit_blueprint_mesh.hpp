@@ -260,7 +260,6 @@ void CONDUIT_BLUEPRINT_API generate_points(conduit::Node &mesh,
                                            conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic);
 
 //-------------------------------------------------------------------------
-//[[deprecated]]
 void CONDUIT_BLUEPRINT_API generate_points(conduit::Node &mesh,
                                            const std::string& src_adjset_name,
                                            const std::string& dst_adjset_name,
@@ -279,7 +278,6 @@ void CONDUIT_BLUEPRINT_API generate_lines(conduit::Node &mesh,
                                           conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic);
 
 //-------------------------------------------------------------------------
-//[[deprecated]]
 void CONDUIT_BLUEPRINT_API generate_lines(conduit::Node &mesh,
                                           const std::string& src_adjset_name,
                                           const std::string& dst_adjset_name,
@@ -298,7 +296,6 @@ void CONDUIT_BLUEPRINT_API generate_faces(conduit::Node &mesh,
                                           conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic);
 
 //-------------------------------------------------------------------------
-//[[deprecated]]
 void CONDUIT_BLUEPRINT_API generate_faces(conduit::Node &mesh,
                                           const std::string& src_adjset_name,
                                           const std::string& dst_adjset_name,
@@ -318,7 +315,6 @@ void CONDUIT_BLUEPRINT_API generate_centroids(conduit::Node& mesh,
                                               conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic);
 
 //-------------------------------------------------------------------------
-//[[deprecated]]
 void CONDUIT_BLUEPRINT_API generate_centroids(conduit::Node& mesh,
                                               const std::string& src_adjset_name,
                                               const std::string& dst_adjset_name,
@@ -339,7 +335,6 @@ void CONDUIT_BLUEPRINT_API generate_sides(conduit::Node& mesh,
                                           conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic);
 
 //-------------------------------------------------------------------------
-//[[deprecated]]
 void CONDUIT_BLUEPRINT_API generate_sides(conduit::Node& mesh,
                                           const std::string& src_adjset_name,
                                           const std::string& dst_adjset_name,
@@ -360,7 +355,6 @@ void CONDUIT_BLUEPRINT_API generate_corners(conduit::Node& mesh,
                                             conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic);
 
 //-------------------------------------------------------------------------
-//[[deprecated]]
 void CONDUIT_BLUEPRINT_API generate_corners(conduit::Node& mesh,
                                             const std::string& src_adjset_name,
                                             const std::string& dst_adjset_name,
