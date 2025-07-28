@@ -596,6 +596,14 @@ generate_default_options(const std::string &example_name,
         opts["ny"]          = 100;
         opts["radius"]      = 0.25;
     }
+    else if (example_name == "bent_multi_grid")
+    {
+        // bent_multi_grid provides its own default args
+    }
+    else if (example_name == "amr_bent_multi_grid")
+    {
+        // amr_bent_multi_grid provides its own default args
+    }
     else
     {
         // ERROR UNSUPPORTED!

@@ -2716,7 +2716,7 @@ nest_quads(const Node& spec, Node& parent, Node& res)
         [nest_ratio](Node* n, std::string windowname,
             int domain_id, std::string domain_type,
             int dims_i, int dims_j) {
-                Node& nset = (*n)["nestsets/nestset/nest"];
+                Node& nset = (*n)["nestsets/nestset"];
                 nset["association"] = "element";
                 nset["topology"] = "mesh"; // match what braid_bent_hexs does
                 Node& window = nset["windows"][windowname];
@@ -3845,7 +3845,7 @@ void bent_multi_grid_defaults(conduit::Node& spec)
         std::initializer_list<double> corner_xs,
         std::initializer_list<double> corner_ys)
         {
-            conduit::Node dom = spec[label];
+            conduit::Node& dom = spec[label];
             dom["npts_x"] = npts_x;
             dom["npts_y"] = npts_y;
             dom["domain_id"] = domain_id;
@@ -3973,7 +3973,10 @@ void CONDUIT_BLUEPRINT_API bent_multi_grid(const conduit::Node& spec,
             if (dom_node.has_child("nest_child_id"))
             {
                 int child_id = dom_node["nest_child_id"].as_int();
-                std::string nest_name = "domain_" + child_id;
+                std::ostringstream oss;
+                // Match the naming style used by bent_braid(), which is domain0, domain1, etc.
+                oss << "domain" << child_id;
+                const std::string nest_name = oss.str();
                 if (last_dim == 2)
                 {
                     nest_quads(dom_node, res[doms_it.name()], res[nest_name]);
