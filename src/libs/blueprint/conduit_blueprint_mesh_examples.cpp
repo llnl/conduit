@@ -2629,7 +2629,7 @@ braid_hexs(index_t npts_x,
 
 //---------------------------------------------------------------------------//
 void
-braid_bent_hexs(const Node& spec, Node& res)
+braid_bent_hexs(const Node &spec, Node &res)
 {
     res.reset();
 
@@ -2650,10 +2650,10 @@ braid_bent_hexs(const Node& spec, Node& res)
     braid_init_example_state(res);
     res["state/domain_id"] = domain_id;
     braid_init_explicit_lerp_coordset(npts_x,
-        npts_y,
-        npts_z,
-        res["coordsets/coords"],
-        x, y, z);
+                                      npts_y,
+                                      npts_z,
+                                      res["coordsets/coords"],
+                                      x, y, z);
 
     res["topologies/mesh/type"] = "structured";
     res["topologies/mesh/coordset"] = "coords";
@@ -2661,27 +2661,27 @@ braid_bent_hexs(const Node& spec, Node& res)
     res["topologies/mesh/elements/dims/j"] = (int32)nele_y;
     res["topologies/mesh/elements/dims/k"] = (int32)nele_z;
 
-    Node& fields = res["fields"];
+    Node &fields = res["fields"];
 
     braid_init_example_point_scalar_field(npts_x,
-        npts_y,
-        npts_z,
-        fields["braid"]);
+                                          npts_y,
+                                          npts_z,
+                                          fields["braid"]);
 
     braid_init_example_element_scalar_field(nele_x,
-        nele_y,
-        nele_z,
-        fields["radial"]);
+                                            nele_y,
+                                            nele_z,
+                                            fields["radial"]);
 
     braid_init_example_point_vector_field(npts_x,
-        npts_y,
-        npts_z,
-        fields["vel"]);
+                                          npts_y,
+                                          npts_z,
+                                          fields["vel"]);
 }
 
 //---------------------------------------------------------------------------//
 void
-nest_quads(const Node& spec, Node& parent, Node& res)
+nest_quads(const Node &spec, Node& parent, Node &res)
 {
     // spec must contain details about nesting, like this:
     //   nest_child_id: 13
@@ -2756,7 +2756,7 @@ nest_quads(const Node& spec, Node& parent, Node& res)
 
 //---------------------------------------------------------------------------//
 void
-nest_hexs(const Node& spec, Node& parent, Node& res)
+nest_hexs(const Node &spec, Node &parent, Node &res)
 {
     // spec must contain details about nesting, like this:
     //   nest_child_id: 13
@@ -2787,10 +2787,10 @@ nest_hexs(const Node& spec, Node& parent, Node& res)
         [nest_ratio](Node* n, std::string windowname,
             int domain_id, std::string domain_type,
             int dims_i, int dims_j, int dims_k) {
-                Node& nset = (*n)["nestsets/nestset"];
+                Node &nset = (*n)["nestsets/nestset"];
                 nset["association"] = "element";
                 nset["topology"] = "mesh"; // match what braid_bent_hexs does
-                Node& window = nset["windows"][windowname];
+                Node &window = nset["windows"][windowname];
                 window["domain_id"] = domain_id;
                 window["domain_type"] = domain_type;
                 window["origin/i"] = 0;
@@ -3836,7 +3836,7 @@ strided_structured(Node &desc, // shape of requested data arrays
 
 
 //---------------------------------------------------------------------------//
-void bent_multi_grid_defaults(conduit::Node& spec)
+void bent_multi_grid_defaults(conduit::Node &spec)
 {
     // Provide defaults for bent_multi_grid so a user can call that function
     // without having to remember what goes in spec
@@ -3845,7 +3845,7 @@ void bent_multi_grid_defaults(conduit::Node& spec)
         std::initializer_list<double> corner_xs,
         std::initializer_list<double> corner_ys)
         {
-            conduit::Node& dom = spec[label];
+            conduit::Node &dom = spec[label];
             dom["npts_x"] = npts_x;
             dom["npts_y"] = npts_y;
             dom["domain_id"] = domain_id;
@@ -3863,8 +3863,8 @@ void bent_multi_grid_defaults(conduit::Node& spec)
     fill_domain(2, 2, 5, "domain5", { 4, 5, 5, 4 }, { 2, 3, 3, 2 });
 }
 
-void CONDUIT_BLUEPRINT_API bent_multi_grid(const conduit::Node& spec,
-    conduit::Node& res)
+void CONDUIT_BLUEPRINT_API bent_multi_grid(const conduit::Node &spec,
+                                           conduit::Node &res)
 {
     int last_dim = 0;
 
@@ -3990,8 +3990,8 @@ void CONDUIT_BLUEPRINT_API bent_multi_grid(const conduit::Node& spec,
     }
 }
 
-void CONDUIT_BLUEPRINT_API amr_bent_multi_grid(const conduit::Node& spec,
-                                                   conduit::Node& res)
+void CONDUIT_BLUEPRINT_API amr_bent_multi_grid(const conduit::Node &spec,
+                                               conduit::Node &res)
 {
     if (spec.dtype().is_empty())
     {
