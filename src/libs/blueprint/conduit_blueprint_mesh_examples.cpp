@@ -2681,7 +2681,7 @@ braid_bent_hexs(const Node &spec, Node &res)
 
 //---------------------------------------------------------------------------//
 void
-nest_quads(const Node &spec, Node& parent, Node &res)
+nest_quads(const Node &spec, Node &parent, Node &res)
 {
     // spec must contain details about nesting, like this:
     //   nest_child_id: 13
