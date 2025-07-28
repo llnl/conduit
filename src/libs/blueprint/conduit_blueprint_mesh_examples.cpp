@@ -2787,7 +2787,7 @@ nest_hexs(const Node& spec, Node& parent, Node& res)
         [nest_ratio](Node* n, std::string windowname,
             int domain_id, std::string domain_type,
             int dims_i, int dims_j, int dims_k) {
-                Node& nset = (*n)["nestsets/nestset/nest"];
+                Node& nset = (*n)["nestsets/nestset"];
                 nset["association"] = "element";
                 nset["topology"] = "mesh"; // match what braid_bent_hexs does
                 Node& window = nset["windows"][windowname];
