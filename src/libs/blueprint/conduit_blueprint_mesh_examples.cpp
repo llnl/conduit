@@ -2681,6 +2681,29 @@ braid_bent_hexs(const Node &spec, Node &res)
 
 //---------------------------------------------------------------------------//
 void
+setup_nestset(Node &n, const std::string &windowname, int domain_id,
+              const std::string &domain_type,
+              int dims_i, int dims_j, int dims_k, int nest_ratio)
+{
+    Node &nset = n["nestsets/nestset"];
+    nset["association"] = "element";
+    nset["topology"] = "mesh"; // match what braid_bent_hexs does
+    Node &window = nset["windows"][windowname];
+    window["domain_id"] = domain_id;
+    window["domain_type"] = domain_type;
+    window["origin/i"] = 0;
+    window["origin/j"] = 0;
+    if (dims_k > 0) { window["origin/k"] = 0; }
+    window["dims/i"] = dims_i;
+    window["dims/j"] = dims_j;
+    if (dims_k > 0) { window["dims/k"] = dims_j; }
+    window["ratio/i"] = nest_ratio;
+    window["ratio/j"] = nest_ratio;
+    if (dims_k > 0) { window["ratio/k"] = nest_ratio; }
+}
+
+//---------------------------------------------------------------------------//
+void
 nest_quads(const Node &spec, Node &parent, Node &res)
 {
     // spec must contain details about nesting, like this:
@@ -2689,14 +2712,7 @@ nest_quads(const Node &spec, Node &parent, Node &res)
     // res gets filled with a new domain refined from parent, including a nestset
     // parent node gets a nestset tying it to res
 
-    // Basically, call braid_bent_quads, then do the nestset.
-    // spec must contain details about nesting, like this:
-    //   nest_child_id: 13
-    //   nest_ratio: 3
-    // res gets filled with a new domain refined from parent, including a nestset
-    // parent node gets a nestset tying it to res
-
-    // Basically, call braid_bent_hexs, then do the nestset.
+    // Call braid_bent_quads, then make the nestset.
     const int32 nest_parent_id = parent["state/domain_id"].as_int32();
     const int32 nest_child_id = spec["nest_child_id"].as_int32();
     const int32 nest_ratio = spec["nest_ratio"].as_int32();
@@ -2712,37 +2728,19 @@ nest_quads(const Node &spec, Node &parent, Node &res)
 
     braid_bent_quads(child_spec, res);
 
-    const auto setup_nestset =
-        [nest_ratio](Node* n, std::string windowname,
-            int domain_id, std::string domain_type,
-            int dims_i, int dims_j) {
-                Node& nset = (*n)["nestsets/nestset"];
-                nset["association"] = "element";
-                nset["topology"] = "mesh"; // match what braid_bent_hexs does
-                Node& window = nset["windows"][windowname];
-                window["domain_id"] = domain_id;
-                window["domain_type"] = domain_type;
-                window["origin/i"] = 0;
-                window["origin/j"] = 0;
-                window["dims/i"] = dims_i;
-                window["dims/j"] = dims_j;
-                window["ratio/i"] = nest_ratio;
-                window["ratio/j"] = nest_ratio;
-        };
-
     // Set up child nestset
     std::ostringstream oss;
     oss << "window_" << nest_child_id << "_" << nest_parent_id;
     const std::string child_wname = oss.str();
-    setup_nestset(&res, child_wname, nest_parent_id, "parent",
-                  child_npts_x - 1, child_npts_y - 1);
+    setup_nestset(res, child_wname, nest_parent_id, "parent",
+                  child_npts_x - 1, child_npts_y - 1, 0, nest_ratio);
 
     // Set up parent nestset
     std::ostringstream pss;
     pss << "window_" << nest_parent_id << "_" << nest_child_id;
     const std::string parent_wname = pss.str();
-    setup_nestset(&parent, parent_wname, nest_child_id, "child",
-                  parent_npts_x - 1, parent_npts_y - 1);
+    setup_nestset(parent, parent_wname, nest_child_id, "child",
+                  parent_npts_x - 1, parent_npts_y - 1, 0, nest_ratio);
 
     // Ensure nest level exists for parent, set for child.
     if (!parent.has_path("state/level_id"))
@@ -2764,7 +2762,7 @@ nest_hexs(const Node &spec, Node &parent, Node &res)
     // res gets filled with a new domain refined from parent, including a nestset
     // parent node gets a nestset tying it to res
 
-    // Basically, call braid_bent_hexs, then do the nestset.
+    // Call braid_bent_hexs, then make the nestset.
     const int32 nest_parent_id = parent["state/domain_id"].as_int32();
     const int32 nest_child_id = spec["nest_child_id"].as_int32();
     const int32 nest_ratio = spec["nest_ratio"].as_int32();
@@ -2783,40 +2781,21 @@ nest_hexs(const Node &spec, Node &parent, Node &res)
 
     braid_bent_hexs(child_spec, res);
 
-    const auto setup_nestset =
-        [nest_ratio](Node* n, std::string windowname,
-            int domain_id, std::string domain_type,
-            int dims_i, int dims_j, int dims_k) {
-                Node &nset = (*n)["nestsets/nestset"];
-                nset["association"] = "element";
-                nset["topology"] = "mesh"; // match what braid_bent_hexs does
-                Node &window = nset["windows"][windowname];
-                window["domain_id"] = domain_id;
-                window["domain_type"] = domain_type;
-                window["origin/i"] = 0;
-                window["origin/j"] = 0;
-                window["origin/k"] = 0;
-                window["dims/i"] = dims_i;
-                window["dims/j"] = dims_j;
-                window["dims/k"] = dims_k;
-                window["ratio/i"] = nest_ratio;
-                window["ratio/j"] = nest_ratio;
-                window["ratio/k"] = nest_ratio;
-        };
-
     // Set up child nestset
     std::ostringstream oss;
     oss << "window_" << nest_child_id << "_" << nest_parent_id;
     const std::string child_wname = oss.str();
-    setup_nestset(&res, child_wname, nest_parent_id, "parent",
-                  child_npts_x - 1, child_npts_y - 1, child_npts_z - 1);
+    setup_nestset(res, child_wname, nest_parent_id, "parent",
+                  child_npts_x - 1, child_npts_y - 1, child_npts_z - 1,
+                  nest_ratio);
 
     // Set up parent nestset
     std::ostringstream pss;
     pss << "window_" << nest_parent_id << "_" << nest_child_id;
     const std::string parent_wname = pss.str();
-    setup_nestset(&parent, parent_wname, nest_child_id, "child",
-                  parent_npts_x - 1, parent_npts_y - 1, parent_npts_z - 1);
+    setup_nestset(parent, parent_wname, nest_child_id, "child",
+                  parent_npts_x - 1, parent_npts_y - 1, parent_npts_z - 1,
+                  nest_ratio);
 
     // Ensure nest level exists for parent, set for child.
     if (!parent.has_path("state/level_id"))
@@ -3990,7 +3969,7 @@ void CONDUIT_BLUEPRINT_API bent_multi_grid(const conduit::Node &spec,
     }
 }
 
-void CONDUIT_BLUEPRINT_API amr_bent_multi_grid(const conduit::Node &spec,
+void CONDUIT_BLUEPRINT_API bent_multi_grid_amr(const conduit::Node &spec,
                                                conduit::Node &res)
 {
     if (spec.dtype().is_empty())

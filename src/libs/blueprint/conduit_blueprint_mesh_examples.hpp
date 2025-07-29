@@ -290,7 +290,7 @@ namespace examples
     /// makes a default spec that includes enhanced and reduced connectivity
     /// as well as a nested domain, then calls bent_multi_grid.  If spec
     /// is not empty, directly calls bent_multi_grid.
-    void CONDUIT_BLUEPRINT_API amr_bent_multi_grid(const conduit::Node& spec,
+    void CONDUIT_BLUEPRINT_API bent_multi_grid_amr(const conduit::Node& spec,
                                                    conduit::Node& res);
 
     /// Generates a braid-like example mesh that covers elements defined in a

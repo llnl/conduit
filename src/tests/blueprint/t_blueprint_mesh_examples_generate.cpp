@@ -78,7 +78,7 @@ TEST(conduit_blueprint_mesh_examples_generate, gen_driver_all_examples)
                                               "tiled",
                                               "venn",
                                               "bent_multi_grid",
-                                              "amr_bent_multi_grid" };
+                                              "bent_multi_grid_amr" };
 
     for(const std::string &example_name : example_names)
     {

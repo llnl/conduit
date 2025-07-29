@@ -9,7 +9,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Added
 
 #### Blueprint
-- Added `amr_bent_multi_grid` example mesh.  This enhances the `bent_multi_grid` example to allow a user to specify, in one of the domains, a nested domain with its ID and refinement ratio.  This will allow example AMR meshes.
+- Added `bent_multi_grid_amr` example mesh.  This enhances the `bent_multi_grid` example to allow a user to specify, in one of the domains, a nested domain with its ID and refinement ratio.  This will allow example AMR meshes.
 
 #### Relay
 - Added namescheme read and write support to the Relay Silo/Overlink Reader/Writer.
