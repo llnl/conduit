@@ -76,7 +76,9 @@ TEST(conduit_blueprint_mesh_examples_generate, gen_driver_all_examples)
                                               "related_boundary",
                                               "rz_cylinder",
                                               "tiled",
-                                              "venn"};
+                                              "venn",
+                                              "bent_multi_grid",
+                                              "bent_multi_grid_amr" };
 
     for(const std::string &example_name : example_names)
     {
