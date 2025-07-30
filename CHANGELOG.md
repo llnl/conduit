@@ -12,6 +12,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Added support for unstructured topologies with `mixed` shape type in the `conduit::blueprint::mesh::partition()` and `conduit::blueprint::mesh::utils::topology::iterate_elements()` functions. They work with mixed shape types, including polyhedra.
 - Added `conduit::blueprint::mesh::utils::topology::compute_mesh_info()` function to compute basic information about a mesh such as extents and edge lengths.
 - Added `conduit::blueprint::mesh::utils::topology::Quantizer` class to compute a quantized index for a point.
+- Added `bent_multi_grid_amr` example mesh.  This enhances the `bent_multi_grid` example to allow a user to specify, in one of the domains, a nested domain with its ID and refinement ratio.  This will allow example AMR meshes.
 
 #### Relay
 - Added namescheme read and write support to the Relay Silo/Overlink Reader/Writer.
