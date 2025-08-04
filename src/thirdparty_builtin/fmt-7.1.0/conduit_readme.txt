@@ -9,4 +9,6 @@ Added header (fmt/conduit_fmt.h) to simplify header only use
 
 Changed the default namespace from fmt to conduit_fmt to avoid potential symbol collisions
 
+Fixed deprecated syntax by removing a space after operator"", thereby avoiding compile warnings
+
 License: MIT
