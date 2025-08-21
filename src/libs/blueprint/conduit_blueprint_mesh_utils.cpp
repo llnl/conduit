@@ -3456,8 +3456,8 @@ bool adjset::is_canonical(const Node &adjset)
 bool
 adjset::validate(const conduit::Node &doms,
                  const std::string &adjsetName,
-                 const conduit::Node &options,
-                 conduit::Node &info)
+                 conduit::Node &info,
+                 const conduit::Node &options)
 {
     auto to_string = [](const conduit::Node &n) -> std::string
     {
@@ -3951,7 +3951,7 @@ foreach_adjset_mesh_pair(conduit::Node &mesh, const std::string &adjsetName,
 //-----------------------------------------------------------------------------
 bool
 adjset::compare_pointwise(conduit::Node &mesh, const std::string &adjsetName,
-    const conduit::Node &options, conduit::Node &info)
+    conduit::Node &info, const conduit::Node &options)
 {
     // Set values from options.
     double tolerance = conduit::blueprint::mesh::utils::query::PointQueryBase::DEFAULT_POINT_TOLERANCE;

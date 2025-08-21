@@ -282,7 +282,7 @@ main(int argc, char *argv[])
             conduit::Node info, opts;
             opts["tolerance"] = tolerance;
 
-            bool res = conduit::blueprint::mesh::utils::adjset::validate(root, adjsetName, opts, info);
+            bool res = conduit::blueprint::mesh::utils::adjset::validate(root, adjsetName, info, opts);
             if(res)
             {
                 // If the adjset is vertex associated then compare the points in
@@ -295,7 +295,7 @@ main(int argc, char *argv[])
                 if(association == "vertex" ||
                    (association == "element" && is_line_topology(root, adjsetName)))
                 {
-                    res = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, adjsetName, opts, info);
+                    res = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, adjsetName, info, opts);
                 }
 
                 if(res)

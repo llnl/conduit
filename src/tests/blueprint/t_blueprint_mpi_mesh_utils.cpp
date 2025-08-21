@@ -74,11 +74,11 @@ void save_mesh(const conduit::Node &root, const std::string &filebase)
 //---------------------------------------------------------------------------
 bool validate(const conduit::Node &root,
               const std::string &adjsetName,
-              const conduit::Node &opts,
               conduit::Node &info)
 {
+    // Use default opts and comm (by not passing them)
     return conduit::blueprint::mpi::mesh::utils::adjset::validate(root,
-               adjsetName, opts, info, MPI_COMM_WORLD);
+               adjsetName, info);
 }
 
 //-----------------------------------------------------------------------------
@@ -91,7 +91,7 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_validate_element_0d)
     conduit::Node root, opts, info;
     create_2_domain_0d_mesh(root, rank, size);
     save_mesh(root, "adjset_validate_element_0d");
-    bool res = validate(root, "main_adjset", opts, info);
+    bool res = validate(root, "main_adjset", info);
     EXPECT_TRUE(res);
 
     // Now, adjust the adjsets so they are wrong on both domains.
@@ -101,7 +101,7 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_validate_element_0d)
         root["domain1/adjsets/main_adjset/groups/domain0_1/values"].set(std::vector<int>{2});
     info.reset();
     save_mesh(root, "adjset_validate_element_0d_bad");
-    res = validate(root, "main_adjset", opts, info);
+    res = validate(root, "main_adjset", info);
     EXPECT_FALSE(res);
     //printNode(info);
 
@@ -136,10 +136,10 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_validate_element_1d)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    conduit::Node root, opts, info;
+    conduit::Node root, info;
     create_2_domain_1d_mesh(root, rank, size);
     save_mesh(root, "adjset_validate_element_1d");
-    bool res = validate(root, "main_adjset", opts, info);
+    bool res = validate(root, "main_adjset", info);
     EXPECT_TRUE(res);
 
     // Now, adjust the adjsets so they are wrong on both domains.
@@ -149,7 +149,7 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_validate_element_1d)
         root["domain1/adjsets/main_adjset/groups/domain0_1/values"].set(std::vector<int>{1});
     info.reset();
     save_mesh(root, "adjset_validate_element_1d_bad");
-    res = validate(root, "main_adjset", opts, info);
+    res = validate(root, "main_adjset", info);
     EXPECT_FALSE(res);
     //printNode(info);
 
@@ -184,10 +184,10 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_validate_element_2d)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    conduit::Node root, opts, info;
+    conduit::Node root, info;
     create_2_domain_2d_mesh(root, rank, size);
     save_mesh(root, "adjset_validate_element_2d");
-    bool res = validate(root, "main_adjset", opts, info);
+    bool res = validate(root, "main_adjset", info);
     EXPECT_TRUE(res);
     printNode(info);
 
@@ -196,7 +196,7 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_validate_element_2d)
         root["domain1/adjsets/main_adjset/groups/domain0_1/values"].set(std::vector<int>{0,2,4});
     info.reset();
     save_mesh(root, "adjset_validate_element_2d_bad");
-    res = validate(root, "main_adjset", opts, info);
+    res = validate(root, "main_adjset", info);
     EXPECT_FALSE(res);
 
     if(rank == 1 || size == 1)
@@ -219,10 +219,10 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_validate_element_3d)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    conduit::Node root, opts, info;
+    conduit::Node root, info;
     create_2_domain_3d_mesh(root, rank, size);
     save_mesh(root, "adjset_validate_element_3d");
-    bool res = validate(root, "main_adjset", opts, info);
+    bool res = validate(root, "main_adjset", info);
     EXPECT_TRUE(res);
 
     // Now, adjust the adjsets so they are wrong on both domains.
@@ -232,7 +232,7 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_validate_element_3d)
         root["domain1/adjsets/main_adjset/groups/domain0_1/values"].set(std::vector<int>{2});
     info.reset();
     save_mesh(root, "adjset_validate_element_3d_bad");
-    res = validate(root, "main_adjset", opts, info);
+    res = validate(root, "main_adjset", info);
     EXPECT_FALSE(res);
 
     if(rank == 0 || size == 1)
@@ -285,8 +285,7 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_compare_pointwise_2d)
     }
 
     // Check that we can still run compare_pointwise - it will convert internally.
-    conduit::Node opts;
-    bool eq = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(root, "pt_adjset", opts, info, MPI_COMM_WORLD);
+    bool eq = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(root, "pt_adjset", info);
     EXPECT_TRUE(eq);
 
     // Make sure the extra adjset was removed.
@@ -305,7 +304,7 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_compare_pointwise_2d)
         conduit::blueprint::mesh::utils::adjset::canonicalize(adjset);
     }
     info.reset();
-    eq = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(root, "pt_adjset", opts, info, MPI_COMM_WORLD);
+    eq = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(root, "pt_adjset", info);
     in_rank_order(MPI_COMM_WORLD, [&](int /*r*/)
     {
         if(!eq)
@@ -318,7 +317,7 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_compare_pointwise_2d)
 
     // Test that the fails_pointwise adjset actually fails.
     info.reset();
-    eq = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(root, "fails_pointwise", opts, info, MPI_COMM_WORLD);
+    eq = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(root, "fails_pointwise", info);
     in_rank_order(MPI_COMM_WORLD, [&](int /*r*/)
     {
         if(eq)
@@ -331,7 +330,7 @@ TEST(conduit_blueprint_mpi_mesh_utils, adjset_compare_pointwise_2d)
 
     // Test that the notevenclose adjset actually fails.
     info.reset();
-    eq = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(root, "notevenclose", opts, info, MPI_COMM_WORLD);
+    eq = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(root, "notevenclose", info);
     in_rank_order(MPI_COMM_WORLD, [&](int /*r*/)
     {
         if(eq)

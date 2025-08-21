@@ -621,8 +621,8 @@ MatchQuery::execute()
 bool
 adjset::validate(const conduit::Node &doms,
                  const std::string &adjsetName,
-                 const conduit::Node &options,
                  conduit::Node &info,
+                 const conduit::Node &options,
                  MPI_Comm comm)
 {
     auto to_string = [](const conduit::Node &n) -> std::string
@@ -750,7 +750,7 @@ adjset_extract_pointmesh(const conduit::Node &n_topo, const conduit::Node &n_ids
 //-----------------------------------------------------------------------------
 static bool
 compare_pointwise_impl(conduit::Node &mesh, const std::string &adjsetName,
-    const conduit::Node &options, conduit::Node &info, MPI_Comm comm)
+    conduit::Node &info, const conduit::Node &options, MPI_Comm comm)
 {
     namespace bputils = conduit::blueprint::mesh::utils;
     std::vector<Node *> domains = conduit::blueprint::mesh::domains(mesh);
@@ -862,7 +862,7 @@ compare_pointwise_impl(conduit::Node &mesh, const std::string &adjsetName,
 //-----------------------------------------------------------------------------
 bool
 adjset::compare_pointwise(conduit::Node &mesh, const std::string &adjsetName,
-    const conduit::Node &options, conduit::Node &info, MPI_Comm comm)
+    conduit::Node &info, const conduit::Node &options, MPI_Comm comm)
 {
     bool retval = true;
     const std::string tempAdjsetName("__" + adjsetName + "__");
@@ -873,7 +873,7 @@ adjset::compare_pointwise(conduit::Node &mesh, const std::string &adjsetName,
         conduit::blueprint::mesh::utils::adjset::to_pairwise_canonical(mesh, adjsetName, tempAdjsetName);
 
         // Call the real implementation on the temporary adjset.
-        retval = compare_pointwise_impl(mesh, tempAdjsetName, options, info, comm);
+        retval = compare_pointwise_impl(mesh, tempAdjsetName, info, options, comm);
 
         // Remove the adjset that was added.
         conduit::blueprint::mesh::utils::adjset::remove(mesh, tempAdjsetName);
