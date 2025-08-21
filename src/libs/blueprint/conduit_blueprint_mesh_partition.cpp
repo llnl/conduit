@@ -3009,16 +3009,16 @@ Partitioner::get_vertex_ids_for_element_ids(const conduit::Node &n_topo,
  
                     for(size_t i = 0; i < element_ids.size(); i++)
                     {
-                        const auto size = sizes[element_ids[i]];
-                        const auto offset = offsets[element_ids[i]];
-                        const auto shape = shapes[element_ids[i]];
-                        if(shape == phShape)
+                        const auto zsize = sizes[element_ids[i]];
+                        const auto zoffset = offsets[element_ids[i]];
+                        const auto zshape = shapes[element_ids[i]];
+                        if(zshape == phShape)
                         {
                             // The connectivity for this zone contains face ids.
                             // Loop over face definitions and select face nodes.
-                            for(index_t j = 0; j < size; j++)
+                            for(index_t j = 0; j < zsize; j++)
                             {
-                                const auto faceIndex = conn[offset + j];
+                                const auto faceIndex = conn[zoffset + j];
                                 const auto faceSize = se_sizes[faceIndex];
                                 const auto faceOffset = se_offsets[faceIndex];
                                 for(index_t k = 0; k < faceSize; k++)
@@ -3030,9 +3030,9 @@ Partitioner::get_vertex_ids_for_element_ids(const conduit::Node &n_topo,
                         else
                         {
                             // The connectivity contains nodes.
-                            for(index_t j = 0; j < size; j++)
+                            for(index_t j = 0; j < zsize; j++)
                             {
-                                vertex_ids.insert(conn[offset + j]);
+                                vertex_ids.insert(conn[zoffset + j]);
                             }
                         }
                     }
@@ -3042,11 +3042,11 @@ Partitioner::get_vertex_ids_for_element_ids(const conduit::Node &n_topo,
                     // no subelements.
                     for(size_t i = 0; i < element_ids.size(); i++)
                     {
-                        const auto size = sizes[element_ids[i]];
-                        const auto offset = offsets[element_ids[i]];
-                        for(index_t j = 0; j < size; j++)
+                        const auto zsize = sizes[element_ids[i]];
+                        const auto zoffset = offsets[element_ids[i]];
+                        for(index_t j = 0; j < zsize; j++)
                         {
-                            vertex_ids.insert(conn[offset + j]);
+                            vertex_ids.insert(conn[zoffset + j]);
                         }
                     }
                 }
@@ -3818,20 +3818,20 @@ Partitioner::unstructured_topo_from_mixed(const conduit::Node &n_topo,
         for(index_t i = 0; i < newNumZones; i++)
         {
             const auto elemId = element_ids[i];
-            const auto size = sizes[elemId];
-            const auto offset = offsets[elemId];
-            const auto shape = shapes[elemId];
-            selectedShapes.insert(shape);
+            const auto zsize = sizes[elemId];
+            const auto zoffset = offsets[elemId];
+            const auto zshape = shapes[elemId];
+            selectedShapes.insert(zshape);
 
-            new_sizes.push_back(size);
-            new_offsets.push_back(new_conn.size());
-            new_shapes.push_back(shape);
+            new_sizes.push_back(zsize);
+            new_offsets.push_back(static_cast<index_t>(new_conn.size()));
+            new_shapes.push_back(zshape);
 
-            if(shape == phShape)
+            if(zshape == phShape)
             {
-                for(index_t fi = 0; fi < size; fi++)
+                for(index_t fi = 0; fi < zsize; fi++)
                 {
-                    const index_t oldFaceId = conn[offset + fi];
+                    const index_t oldFaceId = conn[zoffset + fi];
                     index_t newFaceId = -1;
                     const auto it = oldFace2newFace.find(oldFaceId);
                     if(it == oldFace2newFace.end())
@@ -3861,9 +3861,9 @@ Partitioner::unstructured_topo_from_mixed(const conduit::Node &n_topo,
             else
             {
                 // Copy and map node ids
-                for(index_t j = 0; j < size; j++)
+                for(index_t j = 0; j < zsize; j++)
                 {
-                   new_conn.push_back(old2new[conn[offset + j]]);
+                   new_conn.push_back(old2new[conn[zoffset + j]]);
                 }
             }
         }
@@ -3910,22 +3910,22 @@ Partitioner::unstructured_topo_from_mixed(const conduit::Node &n_topo,
         for(index_t i = 0; i < newNumZones; i++)
         {
             const auto elemId = element_ids[i];
-            const auto size = sizes[elemId];
-            const auto offset = offsets[elemId];
-            const auto shape = shapes[elemId];
+            const auto zsize = sizes[elemId];
+            const auto zoffset = offsets[elemId];
+            const auto zshape = shapes[elemId];
 
-            new_sizes[i] = size;
+            new_sizes[i] = zsize;
             new_offsets[i] = newOffset;
-            new_shapes[i] = shape;
-            selectedShapes.insert(shape);
+            new_shapes[i] = zshape;
+            selectedShapes.insert(zshape);
 
             // Copy and map node ids
-            for(index_t j = 0; j < size; j++)
+            for(index_t j = 0; j < zsize; j++)
             {
-                new_conn[newOffset + j] = old2new[conn[offset + j]];
+                new_conn[newOffset + j] = old2new[conn[zoffset + j]];
             }
 
-            newOffset += size;
+            newOffset += zsize;
         }
     }
 
@@ -4365,11 +4365,11 @@ Partitioner::build_interdomain_adjsets(const std::vector<int>& chunk_offsets,
             }
             // 5. We now have adjsets for each chunk. Insert them into the adjset
             //    nodes for each corresponding chunk.
-            for (const auto& adjset : new_adjsets)
+            for (const auto& curAdjset : new_adjsets)
             {
                 // Get local chunk id
-                index_t chunk_id = adjset.first.first - chunk_offset;
-                index_t chunk_nbr = adjset.first.second;
+                index_t chunk_id = curAdjset.first.first - chunk_offset;
+                index_t chunk_nbr = curAdjset.first.second;
                 if (!adjset_data[chunk_id] || !adjset_data[chunk_id]->has_child(adjset_name))
                 {
                     continue;
@@ -4377,7 +4377,7 @@ Partitioner::build_interdomain_adjsets(const std::vector<int>& chunk_offsets,
                 Node& adjset_groups = adjset_data[chunk_id]->fetch(adjset_name + "/groups");
                 Node& new_set = adjset_groups.append();
                 new_set["neighbors"].set(chunk_nbr);
-                new_set["values"].set(adjset.second);
+                new_set["values"].set(curAdjset.second);
                 // If we are not the only chunk in the local adjset, the values
                 // are relative to the original domain - flag for remap.
                 if (dom_2_chunks.find(&domain)->second.size() > 1)
@@ -4936,7 +4936,7 @@ Partitioner::communicate_chunks(const std::vector<Partitioner::Chunk> &chunks,
     {
         chunks_to_assemble.push_back(Chunk(chunks[i].mesh, false));
         chunks_to_assemble_domains.push_back(dest_domain[i]);
-        chunks_to_assemble_gids.push_back(i);
+        chunks_to_assemble_gids.push_back(static_cast<int>(i));
     }
 }
 
@@ -5275,9 +5275,9 @@ public:
     kdtree() = default;
     ~kdtree()
     {
-        const auto lambda = [](node *node, unsigned int)
+        const auto lambda = [](node *n, unsigned int)
         {
-            delete node;
+            delete n;
         };
         if(root) { traverse_lrn(lambda, root); }
     }
@@ -5563,19 +5563,19 @@ private:
     }
 
     template<typename Func>
-    void traverse_lnr(Func &&func, node *node, unsigned int depth = 0)
+    void traverse_lnr(Func &&func, node *n, unsigned int depth = 0)
     {
-        if(node->left) { traverse_lnr(func, node->left, depth + 1); }
-        func(node, depth);
-        if(node->right) { traverse_lnr(func, node->right, depth + 1); }
+        if(n->left) { traverse_lnr(func, n->left, depth + 1); }
+        func(n, depth);
+        if(n->right) { traverse_lnr(func, n->right, depth + 1); }
     }
 
     template<typename Func>
-    void traverse_lrn(Func &&func, node *node, unsigned int depth = 0)
+    void traverse_lrn(Func &&func, node *n, unsigned int depth = 0)
     {
-        if(node->left) { traverse_lrn(func, node->left, depth + 1); }
-        if(node->right) { traverse_lrn(func, node->right, depth + 1); }
-        func(node, depth);
+        if(n->left) { traverse_lrn(func, n->left, depth + 1); }
+        if(n->right) { traverse_lrn(func, n->right, depth + 1); }
+        func(n, depth);
     }
 
     // Keep track of tree performance
@@ -7932,7 +7932,6 @@ private:
     bool combine_implicit_impl(const std::vector<const Node *> &n_meshes,
             Node &output) const
     {
-        using vec = blueprint::mesh::coordset::utils::vec3;
         using bounding_box = blueprint::mesh::coordset::utils::bounding_box<vec>;
         using combine_implicit_data_t = std::pair<const Node *, bounding_box>;
 

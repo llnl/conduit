@@ -3790,23 +3790,23 @@ TopDownTiler::addAdjset(const Block &selectedBlock,
                 // Use the offset to define a block that includes the current
                 // index and the offset zone. Count how many of the zones in that
                 // block are either self or a neighbor.
-                int nk = 1 + ((offset[2] < 0) ? (-offset[2]) : offset[2]);
-                int nj = 1 + ((offset[1] < 0) ? (-offset[1]) : offset[1]);
-                int ni = 1 + ((offset[0] < 0) ? (-offset[0]) : offset[0]);
+                conduit::index_t nk = 1 + ((offset[2] < 0) ? (-offset[2]) : offset[2]);
+                conduit::index_t nj = 1 + ((offset[1] < 0) ? (-offset[1]) : offset[1]);
+                conduit::index_t ni = 1 + ((offset[0] < 0) ? (-offset[0]) : offset[0]);
 
-                int n = nk * nj * ni;
-                int count = 0;
-                for(int kk = 0; kk < nk; kk++)
-                for(int jj = 0; jj < nj; jj++)
-                for(int ii = 0; ii < ni; ii++)
+                conduit::index_t n = nk * nj * ni;
+                conduit::index_t count = 0;
+                for(conduit::index_t kk = 0; kk < nk; kk++)
+                for(conduit::index_t jj = 0; jj < nj; jj++)
+                for(conduit::index_t ii = 0; ii < ni; ii++)
                 {
                     // Get the zone that is next to this one in the offset direction.
                     const auto local = LogicalIndex{{index[0] - b.start[0] + ii * offset[0],
                                                      index[1] - b.start[1] + jj * offset[1],
                                                      index[2] - b.start[2] + kk * offset[2]}};
-                    const auto index = b.IJKToIndex(local);
+                    const auto zi = b.IJKToIndex(local);
                     // Check whether there is a neighbor in the offset direction.
-                    conduit::index_t id = b.image[index];
+                    conduit::index_t id = b.image[zi];
                     if(id > Block::InvalidDomainId)
                     {
                         count++;

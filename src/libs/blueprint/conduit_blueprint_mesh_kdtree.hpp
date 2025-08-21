@@ -135,8 +135,8 @@ private:
     /// Represents a box in the tree hierarchy.
     struct BoxInfo
     {
-        int childOffset;    // Offset into boxes array where this box's 2 children start.
-                            // -1 if there are no children.
+        conduit::index_t childOffset; // Offset into boxes array where this box's 2 children start.
+                                      // -1 if there are no children.
         int splitDimension; // The dimension along which this box is split.
         RangeType range;    // The slice of the index array that belongs to this box.
 #ifdef CONDUIT_DEBUG_KDTREE
@@ -163,7 +163,6 @@ private:
     Indexable coords[NDIMS];             //!< Coordinate arrays
     size_t coordlen;                     //!< Length of a coordinate array.
     CoordinateType pointTolerance;       //!< Distance to a point before it is same.
-    CoordinateType pointTolerance2;      //!< pointTolerance^2.
 };
 
 //---------------------------------------------------------------------------
@@ -203,8 +202,8 @@ kdtree<Indexable, CoordinateType, NDIMS>::kdtree() : boxes(), index()
 template <typename Indexable, typename CoordinateType, int NDIMS>
 void kdtree<Indexable, CoordinateType, NDIMS>::setPointTolerance(CoordinateType tolerance)
 {
-    pointTolerance = tolerance;
-    pointTolerance2 = pointTolerance * pointTolerance;
+    // Prevent use of tolerance values that are below the type's epsilon
+    pointTolerance = std::max(tolerance, std::numeric_limits<CoordinateType>::epsilon());
 }
 
 //---------------------------------------------------------------------------
@@ -236,6 +235,25 @@ void kdtree<Indexable, CoordinateType, NDIMS>::printBox(std::ostream &os,
     }
     os << "]";
 }
+
+//-----------------------------------------------------------------------------
+// -- begin conduit::blueprint::mesh::utils::detail --
+//-----------------------------------------------------------------------------
+namespace detail
+{
+// Helpers for printing.
+template <typename T>
+const void *get_pointer(const T *obj) { return static_cast<const void *>(obj); }
+
+template <typename T>
+const void *get_pointer(const conduit::DataArray<T> &obj) { return static_cast<const void *>(obj.element_ptr(0)); }
+
+template <typename T>
+const void *get_pointer(const conduit::DataAccessor<T> &obj) { return static_cast<const void *>(obj.element_ptr(0)); }
+}
+//-----------------------------------------------------------------------------
+// -- end conduit::blueprint::mesh::utils::detail --
+//-----------------------------------------------------------------------------
 
 //---------------------------------------------------------------------------
 template <typename Indexable, typename CoordinateType, int NDIMS>
@@ -275,13 +293,12 @@ void kdtree<Indexable, CoordinateType, NDIMS>::print(std::ostream &os) const
     for(int i = 0; i < dims(); i++)
     {
         if(i > 0) os << ", ";
-        os << (void*)coords[i];
+        os << detail::get_pointer(coords[i]);
     }
-    os << std::endl;
+    os << "]" << std::endl;
 
     os << "coordlen: " << coordlen << std::endl;
     os << "pointTolerance: " << pointTolerance << std::endl;
-    os << "pointTolerance2: " << pointTolerance2 << std::endl;
 }
 
 //---------------------------------------------------------------------------
@@ -419,7 +436,7 @@ kdtree<Indexable, CoordinateType, NDIMS>::findPoint(const kdtree<Indexable, Coor
             }
         }
 #ifdef CONDUIT_DEBUG_KDTREE
-        std::cout << "    Point " << ((found != NotFound) ? "found" : "not found") << std::endl;
+        std::cout << "    Point index: " << foundIndex << std::endl;
 #endif
 
     }
@@ -437,13 +454,13 @@ template <typename Indexable, typename CoordinateType, int NDIMS>
 bool
 kdtree<Indexable, CoordinateType, NDIMS>::pointEqual(const kdtree<Indexable, CoordinateType, NDIMS>::PointType &pt, conduit::index_t ptIdx) const
 {
-    CoordinateType dist2 = 0.;
+    bool eq = true;
     for(int i = 0; i < dims(); i++)
     {
         CoordinateType delta = pt[i] - coords[i][ptIdx];
-        dist2 += delta * delta;
+        eq &= (std::fabs(delta) < pointTolerance);
     }
-    return dist2 < pointTolerance2;
+    return eq;
 }
 
 //---------------------------------------------------------------------------
@@ -453,7 +470,7 @@ void kdtree<Indexable, CoordinateType, NDIMS>::calculateExtents()
     for(int i = 0; i < dims(); i++)
     {
         box[i][0] = std::numeric_limits<CoordinateType>::max();
-        box[i][1] = std::numeric_limits<CoordinateType>::min();
+        box[i][1] = std::numeric_limits<CoordinateType>::lowest();
         for(size_t j = 0; j < coordlen; j++)
         {
             box[i][0] = std::min(box[i][0], coords[i][j]);
@@ -462,14 +479,17 @@ void kdtree<Indexable, CoordinateType, NDIMS>::calculateExtents()
     }
 
     // Expand the box a little. Note that we have a minimum expansion to account
-    // for when a dimension has all the same values.
-    const CoordinateType minExpansion = DEFAULT_POINT_TOLERANCE * 200.;
+    // for when a dimension has all the same values. Expand the box with a little
+    // asymmetrically so if we're given data that is symmetric, we do not end up
+    // splitting right at 0.
+    constexpr CoordinateType s = static_cast<CoordinateType>(200.);
+    const CoordinateType minExpansion = DEFAULT_POINT_TOLERANCE * s;
     for(int i = 0; i < dims(); i++)
     {
         CoordinateType side = std::max(box[i][1] - box[i][0], minExpansion);
-        CoordinateType d = side / static_cast<CoordinateType>(200.);
+        CoordinateType d = side / s;
         box[i][0] -= d;
-        box[i][1] += d;
+        box[i][1] += static_cast<CoordinateType>(1.1) * d;
     }
 }
 

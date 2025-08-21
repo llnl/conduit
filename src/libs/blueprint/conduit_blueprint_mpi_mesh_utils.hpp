@@ -56,6 +56,36 @@ namespace utils
 {
 
 //-----------------------------------------------------------------------------
+// -- begin conduit::blueprint::mpi::mesh::utils::topology --
+//-----------------------------------------------------------------------------
+namespace topology
+{
+    /**
+     * @brief This structure manages a collection of MeshInfo objects in parallel.
+     */
+    class CONDUIT_BLUEPRINT_API MeshInfoCollection : public
+        conduit::blueprint::mesh::utils::topology::MeshInfoCollection
+    {
+    public:
+        /// Constructor.
+        MeshInfoCollection(MPI_Comm comm);
+
+        /// Destructor
+        virtual ~MeshInfoCollection() = default;
+
+        /**
+         * @brief This method is called once all local domains have been added.
+         */
+        virtual void end() override;
+    protected:
+        MPI_Comm m_comm;
+    };
+}
+//-----------------------------------------------------------------------------
+// -- end conduit::blueprint::mpi::mesh::utils::topology --
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
 // -- begin conduit::blueprint::mpi::mesh::utils::query --
 //-----------------------------------------------------------------------------
 namespace query
@@ -69,6 +99,8 @@ class CONDUIT_BLUEPRINT_API PointQuery :
     public conduit::blueprint::mesh::utils::query::PointQuery
 {
 public:
+    static const double DEFAULT_POINT_TOLERANCE;
+
     /**
      @brief Constructor
 
@@ -156,15 +188,17 @@ namespace adjset
      @param doms A node containing the domains. There must be multiple domains.
      @param adjsetName The name of the adjset in all domains. It must exist.
      @param[out] info A node that contains any errors.
+     @param options An options node. Include "tolerance" to set the point tolerance.
      @param comm The MPI communicator to use.
 
      @return True if the adjsets in all domains contained no errors; False if
              there were errors.
      */
-    bool CONDUIT_BLUEPRINT_API validate(const Node &doms,
+    bool CONDUIT_BLUEPRINT_API validate(const conduit::Node &doms,
                                         const std::string &adjsetName,
-                                        Node &info,
-                                        MPI_Comm comm);
+                                        conduit::Node &info,
+                                        const conduit::Node &options = conduit::Node(),
+                                        MPI_Comm comm = MPI_COMM_WORLD);
 
     /**
      @brief Traverse the adjset groups and make sure that the points are the same
@@ -175,6 +209,7 @@ namespace adjset
      @param mesh A node that contains one or more mesh domains.
      @param adjsetName The name of the adjset to check. This must be a pairwise adjset.
      @param[out] info Information about the failed adjset comparison.
+     @param options An options node. Include "tolerance" to set the point tolerance.
      @param comm The MPI communicator to use.
 
      @return True if the adjset are the same pointwise across each interface;
@@ -183,7 +218,8 @@ namespace adjset
      bool CONDUIT_BLUEPRINT_API compare_pointwise(conduit::Node &mesh,
                                                   const std::string &adjsetName,
                                                   conduit::Node &info,
-                                                  MPI_Comm comm);
+                                                  const conduit::Node &options = conduit::Node(),
+                                                  MPI_Comm comm = MPI_COMM_WORLD);
 }
 //-----------------------------------------------------------------------------
 // -- end conduit::blueprint::mpi::mesh::utils::adjset --
