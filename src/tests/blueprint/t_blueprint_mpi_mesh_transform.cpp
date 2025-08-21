@@ -927,9 +927,9 @@ TEST(conduit_blueprint_mesh_examples, generate_corners_wonky)
     }
     test_adjset_points(mesh, "corner_pairwise_adjset");
 
-    conduit::Node info, opts;
+    conduit::Node info;
     bool same_pointwise = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(
-                              mesh, "corner_pairwise_adjset", opts, info, MPI_COMM_WORLD);
+                              mesh, "corner_pairwise_adjset", info);
     EXPECT_TRUE(same_pointwise);
 }
 

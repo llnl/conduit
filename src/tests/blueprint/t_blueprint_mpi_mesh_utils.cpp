@@ -542,7 +542,7 @@ public:
                    info.reset();
                    bool cpw_result =
                        conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(
-                           n_mesh, adjsetName, opts, info, comm);
+                           n_mesh, adjsetName, info, opts, comm);
 
                    results[adjsetName]["compare_pointwise"] = cpw_result;
                    EXPECT_TRUE(cpw_result);
