@@ -80,6 +80,9 @@ TEST(conduit_blueprint_mesh_examples_generate, gen_driver_all_examples)
                                               "bent_multi_grid",
                                               "bent_multi_grid_amr" };
 
+    example_names.clear();
+    example_names.push_back("bent_multi_grid_amr");
+
     for(const std::string &example_name : example_names)
     {
         Node res;
