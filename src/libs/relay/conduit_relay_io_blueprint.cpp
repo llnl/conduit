@@ -625,6 +625,10 @@ identify_protocol(const std::string &path)
         {
             io_type = "json";
         }
+        if(file_name_true_ext == "yaml")
+        {
+            io_type = "yaml";
+        }
         else if(file_name_true_ext == "_hdf5" || file_name_true_ext == "_h5")
         {
             io_type = "hdf5";

@@ -17,16 +17,22 @@ using namespace conduit::relay;
 
 
 //-----------------------------------------------------------------------------
+std::vector<std::string>
+basic_handle_io_protocols()
+{
+    return std::vector<std::string> {"conduit_bin",
+                                     "json",
+                                     "conduit_json",
+                                     "conduit_base64_json",
+                                     "yaml",
+                                     "conduit_base64_yaml"};
+}
+
+//-----------------------------------------------------------------------------
 TEST(conduit_relay_io_handle, test_active_protos)
 {
     std::string tfile_base = "tout_conduit_relay_io_handle.";
-    std::vector<std::string> protocols;
-
-    protocols.push_back("conduit_bin");
-    protocols.push_back("json");
-    protocols.push_back("conduit_json");
-    protocols.push_back("conduit_base64_json");
-    protocols.push_back("yaml");
+    std::vector<std::string> protocols = basic_handle_io_protocols();
 
     Node n_about;
     io::about(n_about);
@@ -165,11 +171,7 @@ TEST(conduit_relay_io_handle, test_is_open)
 // {
 //
 //     std::string tfile_base = "tout_conduit_relay_io_handle_subpath.";
-//     std::vector<std::string> protocols;
-//
-//     protocols.push_back("conduit_bin");
-//     protocols.push_back("conduit_json");
-//     protocols.push_back("conduit_base64_json");
+//     std::vector<std::string> protocols = basic_handle_io_protocols();
 //
 //     Node n_about;
 //     io::about(n_about);
@@ -256,13 +258,7 @@ TEST(conduit_relay_io_handle, test_exceptions)
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_handle, leading_slash_reads)
 {
-    std::vector<std::string> protocols;
-
-    protocols.push_back("conduit_bin");
-    protocols.push_back("json");
-    protocols.push_back("conduit_json");
-    protocols.push_back("conduit_base64_json");
-    protocols.push_back("yaml");
+    std::vector<std::string> protocols  = basic_handle_io_protocols();
 
     Node n_about;
     io::about(n_about);
@@ -330,13 +326,7 @@ TEST(conduit_relay_io_handle, test_mode)
     n["c"] = c_val;
     n["d/here"] = here_val;
 
-    std::vector<std::string> protocols;
-
-    protocols.push_back("conduit_bin");
-    protocols.push_back("json");
-    protocols.push_back("conduit_json");
-    protocols.push_back("conduit_base64_json");
-    protocols.push_back("yaml");
+    std::vector<std::string> protocols = basic_handle_io_protocols();
 
     Node n_about;
     io::about(n_about);
@@ -896,13 +886,7 @@ TEST(conduit_relay_io_handle, test_ref_path_error_msg)
 TEST(conduit_relay_io_handle, test_flush_basic)
 {
     std::string tfile_base = "tout_conduit_relay_io_handle_flush.";
-    std::vector<std::string> protocols;
-
-    protocols.push_back("conduit_bin");
-    protocols.push_back("json");
-    protocols.push_back("conduit_json");
-    protocols.push_back("conduit_base64_json");
-    protocols.push_back("yaml");
+    std::vector<std::string> protocols = basic_handle_io_protocols();
 
     for (std::vector<std::string>::const_iterator itr = protocols.begin();
              itr < protocols.end(); ++itr)

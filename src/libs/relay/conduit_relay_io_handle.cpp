@@ -330,7 +330,8 @@ IOHandle::HandleInterface::create(const std::string &path,
        protocol == "json" ||
        protocol == "conduit_json" ||
        protocol == "conduit_base64_json" ||
-       protocol == "yaml" )
+       protocol == "yaml" ||
+       protocol == "conduit_base64_yaml")
     {
         res = new BasicHandle(path, protocol, options);
     }
@@ -540,7 +541,9 @@ BasicHandle::write(const Node &node,
 {
     CONDUIT_UNUSED(opts);
     // note: wrong mode errors are handled before dispatch to interface
-
+    // future: can add opt to support update external, along with flush
+    //         will provide lower memory usage for those careful
+    m_dirty = true;
     m_node[path].update(node);
 }
 
