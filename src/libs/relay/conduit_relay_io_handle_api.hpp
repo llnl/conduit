@@ -70,7 +70,7 @@ public:
     void list_child_names(const std::string &path,
                           std::vector<std::string> &res);
 
-    /// flush i/o handle, semantic vary between concrete implementations
+    /// flush i/o handle, semantics vary between concrete implementations
     void flush();
 
     // TODO: options variants for read and write above? with update of
