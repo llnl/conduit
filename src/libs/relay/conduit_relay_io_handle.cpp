@@ -833,7 +833,7 @@ HDF5Handle::flush()
 {
     if(m_h5_id >= 0)
     {
-        hdf5_close_file(m_h5_id);
+        hdf5_flush_file(m_h5_id);
     }
 }
 
