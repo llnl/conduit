@@ -70,6 +70,9 @@ public:
     void list_child_names(const std::string &path,
                           std::vector<std::string> &res);
 
+    /// flush i/o handle, semantic vary between concrete implementations
+    void flush();
+
     // TODO: options variants for read and write above? with update of
     // above options with passed?
 
@@ -122,6 +125,7 @@ public:
         virtual void list_child_names(std::vector<std::string> &res) = 0;
         virtual void list_child_names(const std::string &path,
                               std::vector<std::string> &res) = 0;
+        virtual void flush() = 0;
         virtual void remove(const std::string &path) = 0;
         virtual bool has_path(const std::string &path) = 0;
         virtual void close() = 0;

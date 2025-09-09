@@ -3524,6 +3524,15 @@ hdf5_close_file(hid_t hdf5_id)
 }
 
 
+//-----------------------------------------------------------------------------
+void
+hdf5_flush_file(hid_t hdf5_id)
+{
+    // flush the hdf5 file
+    CONDUIT_CHECK_HDF5_ERROR(H5Fflush(hdf5_id,H5F_SCOPE_LOCAL),
+                             "Error flushing HDF5 file handle: " << hdf5_id);
+}
+
 
 //---------------------------------------------------------------------------//
 void

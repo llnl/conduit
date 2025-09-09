@@ -15,6 +15,9 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Added `bent_multi_grid_amr` example mesh.  This enhances the `bent_multi_grid` example to allow a user to specify, in one of the domains, a nested domain with its ID and refinement ratio.  This will allow example AMR meshes.
 
 #### Relay
+- Added `flush` method to `relay::IOHandle` interface. Semantics differ between concrete implementations.
+- Added `flush` support to `relay::BasicIOHandle`, allows write to file system without closing the handle.
+- Added `flush` support to `relay::HDF5Handle`, if hdf5 file handle is open, invokes `H5Fflush()` with `H5F_SCOPE_LOCAL`.
 - Added namescheme read and write support to the Relay Silo/Overlink Reader/Writer.
 - Added support for block types or unified types to the Relay Silo/Overlink Reader/Writer.
 
