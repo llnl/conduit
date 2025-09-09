@@ -568,6 +568,25 @@ PyRelay_IOHandle_remove(PyRelay_IOHandle *self,
 
 //-----------------------------------------------------------------------------
 static PyObject *
+PyRelay_IOHandle_flush(PyRelay_IOHandle *self)
+{
+    try
+    {
+        self->handle->flush();
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
+
+    Py_RETURN_NONE; 
+}
+
+
+//-----------------------------------------------------------------------------
+static PyObject *
 PyRelay_IOHandle_close(PyRelay_IOHandle *self)
 {
     try
@@ -618,6 +637,10 @@ static PyMethodDef PyRelay_IOHandle_METHODS[] = {
      (PyCFunction)PyRelay_IOHandle_has_path,
      METH_VARARGS | METH_KEYWORDS,
      "Checks if a path exists"},
+     {"flush",
+      (PyCFunction)PyRelay_IOHandle_flush,
+       METH_NOARGS,
+      "Flush an active Relay IO Handle"},
     {"close",
      (PyCFunction)PyRelay_IOHandle_close,
       METH_NOARGS,

@@ -91,6 +91,12 @@ hid_t CONDUIT_RELAY_API hdf5_create_file(const std::string &file_path);
 void CONDUIT_RELAY_API hdf5_close_file(hid_t hdf5_id);
 
 //-----------------------------------------------------------------------------
+/// Flush hdf5 file handle
+//-----------------------------------------------------------------------------
+void CONDUIT_RELAY_API hdf5_flush_file(hid_t hdf5_id);
+
+
+//-----------------------------------------------------------------------------
 /// Save node data to a given path.
 ///
 /// Save Semantics: Existing file will be overwritten
