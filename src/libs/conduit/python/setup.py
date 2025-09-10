@@ -25,7 +25,7 @@ def adjust_windows_args_paths():
 if platform.system() == 'Windows':
     adjust_windows_args_paths()
 
-CONDUIT_VERSION = '0.9.4'
+CONDUIT_VERSION = '0.9.5'
 
 setup (name = 'conduit',
        description = 'conduit',

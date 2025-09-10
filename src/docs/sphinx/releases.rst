@@ -12,6 +12,60 @@ https://github.com/LLNL/conduit/releases
 
 .. note:: Conduit uses `BLT <https://github.com/LLNL/blt>`__ as its core CMake build system. We leverage BLT as a git submodule, however github does not include submodule contents in its automatically created source tarballs. To avoid confusion, starting with v0.3.0 we provide our own source tarballs that include BLT. 
 
+v0.9.5
+---------------------------------
+
+* Released 2025-09-10
+* `Source Tarball <https://github.com/LLNL/conduit/releases/download/v0.9.5/conduit-v0.9.5-src-with-blt.tar.gz>`__
+
+Highlights
+++++++++++++++++++++++++++++++++++++
+
+(Extracted from Conduit's :download:`Changelog <../../../CHANGELOG.md>`)
+
+
+Added
+~~~~~
+
+
+* **Blueprint**
+
+ * Added support for unstructured topologies with ``mixed`` shape type in the ``conduit::blueprint::mesh::partition()`` and ``conduit::blueprint::mesh::utils::topology::iterate_elements()`` functions. They work with mixed shape types, including polyhedra.
+ * Added ``conduit::blueprint::mesh::utils::topology::compute_mesh_info()`` function to compute basic information about a mesh such as extents and edge lengths.
+ * Added ``conduit::blueprint::mesh::utils::topology::Quantizer`` class to compute a quantized index for a point.
+ * Added ``bent_multi_grid_amr`` example mesh.  This enhances the ``bent_multi_grid`` example to allow a user to specify, in one of the domains, a nested domain with its ID and refinement ratio.  This will allow example AMR meshes.
+
+* **Relay**
+
+ * Added ``flush`` method to ``relay::IOHandle`` interface. Semantics differ between concrete implementations.
+ * Added ``flush`` support to ``relay::BasicIOHandle``, allows write to file system without closing the handle.
+ * Added ``flush`` support to ``relay::HDF5Handle``, if hdf5 file handle is open, invokes ``H5Fflush()`` with ``H5F_SCOPE_LOCAL``.
+ * Added namescheme read and write support to the Relay Silo/Overlink Reader/Writer.
+ * Added support for block types or unified types to the Relay Silo/Overlink Reader/Writer.
+
+Changed
+~~~~~~~
+
+
+* **General**
+
+ * Updates to spack uberenv recipes for macOS 15.5.
+
+* **Blueprint**
+
+ * The ``conduit::blueprint::mesh::topology::dims()`` function was changed so it will return the maximum topological dimension of the shape types from the ``shape_map`` for a ``mixed`` shape.
+ * Enhanced the ``conduit::blueprint::mesh::examples::tiled()`` function so it can accept mesh tiles containing ``mixed`` shape types for generating 2D tiled output.
+ * Adjacency set construction was altered so points are sorted spatially using the ``Quantizer`` class.
+
+Fixed
+~~~~~
+
+
+* **Relay**
+
+ * Fixed an issue with the Overlink Writer preventing it from correctly writing out data in the n files to m domains case.
+
+
 v0.9.4
 ---------------------------------
 
