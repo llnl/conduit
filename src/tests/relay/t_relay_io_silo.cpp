@@ -1215,7 +1215,7 @@ TEST(conduit_relay_io_silo, unstructured_points)
 ///      silo_type: "default", "pdb", "hdf5", "unknown"
 ///            when the file we are writing to exists, "default" ==> "unknown"
 ///            else,                                   "default" ==> "hdf5"
-///         note: these are additional silo_type options that we could add 
+///         note: these are additional silo_type options that we could add
 ///         support for in the future:
 ///           "hdf5_sec2", "hdf5_stdio", "hdf5_mpio", "hdf5_mpiposix", "taurus"
 ///
@@ -2893,9 +2893,11 @@ TEST(conduit_relay_io_silo, round_trip_save_option_overlink6)
 /// opts:
 ///      mesh_name: "{name}"
 ///          provide explicit mesh name, for cases where silo data includes
-///           more than one mesh.
+///          more than one mesh.
+///          We only allow reading of a single mesh to keep these options on
+///          par with the relay io blueprint options.
 ///
-///      matset_style: "default", "multi_buffer_full", "sparse_by_element", 
+///      matset_style: "default", "multi_buffer_full", "sparse_by_element",
 ///            "multi_buffer_by_material"
 ///            "default"   ==> "sparse_by_element"
 
