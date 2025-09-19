@@ -1037,7 +1037,7 @@ To conform, the ``state`` entry must be an *Object* and can have the following o
 
 
 Mesh Index Protocol
-~~~~~~~~~~~~~~~~~~~~
+++++++++++++++++++++++++
 
 It is common for Blueprint data files to represent meshes that have been partitioned and must later be treated as a whole. Blueprint root files contain an index that facilitates reading in many individual Blueprint files. Blueprint root files contain metadata about the overall contents of individual files as well as hints for constructing filenames that make up the whole Blueprint dataset. An analysis tool can load the root file and know which individual files comprise the dataset and information about the data contained therein. While Blueprint provides high level functions for saving and loading files, some of which automatically create the root file, it is sometimes necessary to know the structure.
 
