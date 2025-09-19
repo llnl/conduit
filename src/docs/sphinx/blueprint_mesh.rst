@@ -754,7 +754,7 @@ Thus, to conform to protocol, each entry under the ``fields`` section must be an
  * Material-Independent Fields:
 
    * fields/field/association: "vertex" | "element"
-   * fields/field/grid_function: (mfem-style finite element collection name) (replaces "association")
+   * fields/field/basis: (mfem-style finite element collection name) (replaces "association")
    * fields/field/volume_dependent: "true" | "false"
    * fields/field/topology: "topo"
    * fields/field/values: (mcarray)
@@ -764,7 +764,7 @@ Thus, to conform to protocol, each entry under the ``fields`` section must be an
  * Material-Dependent Fields:
 
    * fields/field/association: "vertex" | "element"
-   * fields/field/grid_function: (mfem-style finite element collection name) (replaces "association")
+   * fields/field/basis: (mfem-style finite element collection name) (replaces "association")
    * fields/field/volume_dependent: "true" | "false"
    * fields/field/matset: "matset"
    * fields/field/matset_values: (mcarray)
@@ -772,7 +772,7 @@ Thus, to conform to protocol, each entry under the ``fields`` section must be an
  * Mixed Fields:
 
    * fields/field/association: "vertex" | "element"
-   * fields/field/grid_function: (mfem-style finite element collection name) (replaces "association")
+   * fields/field/basis: (mfem-style finite element collection name) (replaces "association")
    * fields/field/volume_dependent: "true" | "false"
    * fields/field/topology: "topo"
    * fields/field/values: (mcarray)
