@@ -3961,18 +3961,25 @@ void CONDUIT_BLUEPRINT_API bent_multi_grid(const conduit::Node &spec,
                 const std::string nest_name = oss.str();
                 if (last_dim == 2)
                 {
-                    nest_quads(dom_node, res[doms_it.name()], res[nest_name]);
+                    nest_quads(dom_node, res[doms_it.name()], nested_doms[nest_name]);
                 }
                 else
                 {
-                    nest_hexs(dom_node, res[doms_it.name()], res[nest_name]);
+                    nest_hexs(dom_node, res[doms_it.name()], nested_doms[nest_name]);
                 }
-                nested_doms[nest_name].set_external(res[nest_name]);
             }
         }
 
         // Tie adjacent refined domains together with adjsets.
         braid_init_example_adjset(nested_doms);
+
+        // Now store the new domains back into the result.
+        NodeConstIterator nested_doms_it = nested_doms.children();
+        while (nested_doms_it.has_next())
+        {
+            const Node& ndom_node = nested_doms_it.next();
+            res[nested_doms_it.name()] = ndom_node;
+        }
     }
 }
 
