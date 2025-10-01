@@ -4422,7 +4422,7 @@ read_root_silo_index(const std::string &root_file_path,
 /// opts:
 ///      mesh_name: "{name}"
 ///          provide explicit mesh name, for cases where silo data includes
-///           more than one mesh.
+///          more than one mesh.
 ///          We only allow reading of a single mesh to keep these options on
 ///          par with the relay io blueprint options.
 ///
@@ -5025,7 +5025,9 @@ void load_mesh(const std::string &root_file_path,
 /// opts:
 ///      mesh_name: "{name}"
 ///          provide explicit mesh name, for cases where silo data includes
-///           more than one mesh.
+///          more than one mesh.
+///          We only allow reading of a single mesh to keep these options on
+///          par with the relay io blueprint options.
 ///
 ///      matset_style: "default", "multi_buffer_full", "sparse_by_element",
 ///            "multi_buffer_by_material"
@@ -9645,10 +9647,19 @@ void CONDUIT_RELAY_API save_mesh(const Node &mesh,
 ///
 ///      ovl_topo_name: (used if present, default ==> "")
 ///
+///      nameschemes: "default", "yes", "no"
+///            "default" ==> "no"
+///
+///      unified_types: "default", "yes", "no"
+///            "default" ==> "yes"
+///            prefer single mesh/var types versus writing an entire array
+///            of types. "yes" will prefer this if possible, "no" will 
+///            always write the entire array.
+///
 ///      number_of_files:  {# of files}
 ///            when "multi_file" or "overlink":
-///                 <= 0, use # of files ==> # of domains
-///                  > 0, # of files ==> number_of_files
+///                 <= 0, use # of files == # of domains
+///                  > 0, # of files == number_of_files
 ///
 /// Note:
 ///  In the non-overlink case...
@@ -9660,7 +9671,7 @@ void CONDUIT_RELAY_API save_mesh(const Node &mesh,
 ///      where data is stored.
 ///   3) ovl_topo_name is ignored if provided.
 ///  In the overlink case...
-///   1) We have made ther choice to output only one topology as a multimesh.
+///   1) We have made the choice to output only ONE topology as a multimesh.
 ///   2) mesh_name is ignored if provided and changed to "MMESH"
 ///   3) ovl_topo_name is the name of the topo we are outputting. If it is not
 ///      provided, we choose the first topology in the blueprint.

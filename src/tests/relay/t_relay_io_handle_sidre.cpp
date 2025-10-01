@@ -135,6 +135,11 @@ TEST(conduit_relay_io_handle, test_sidre_basic)
         h.read("my_arrays",n_read);
         // n_read.print();
         EXPECT_FALSE(n["my_arrays"].diff(n_read,n_info));
+
+        // flush is a no op for read only sidre handles
+        // but still want to test it in case folks call it generically
+        h.flush();
+
         h.close();
     }
 }

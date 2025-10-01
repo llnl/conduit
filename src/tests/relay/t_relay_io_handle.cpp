@@ -17,16 +17,22 @@ using namespace conduit::relay;
 
 
 //-----------------------------------------------------------------------------
+std::vector<std::string>
+basic_handle_io_protocols()
+{
+    return std::vector<std::string> {"conduit_bin",
+                                     "json",
+                                     "conduit_json",
+                                     "conduit_base64_json",
+                                     "yaml",
+                                     "conduit_base64_yaml"};
+}
+
+//-----------------------------------------------------------------------------
 TEST(conduit_relay_io_handle, test_active_protos)
 {
     std::string tfile_base = "tout_conduit_relay_io_handle.";
-    std::vector<std::string> protocols;
-
-    protocols.push_back("conduit_bin");
-    protocols.push_back("json");
-    protocols.push_back("conduit_json");
-    protocols.push_back("conduit_base64_json");
-    protocols.push_back("yaml");
+    std::vector<std::string> protocols = basic_handle_io_protocols();
 
     Node n_about;
     io::about(n_about);
@@ -60,6 +66,8 @@ TEST(conduit_relay_io_handle, test_active_protos)
         io::IOHandle h;
         h.open(test_file_name);
         h.write(n);
+        // test flush (not always needed in practice, but we want to test all cases )
+        h.flush();
 
         EXPECT_TRUE(h.has_path("d/here"));
         h.list_child_names(cnames);
@@ -163,11 +171,7 @@ TEST(conduit_relay_io_handle, test_is_open)
 // {
 //
 //     std::string tfile_base = "tout_conduit_relay_io_handle_subpath.";
-//     std::vector<std::string> protocols;
-//
-//     protocols.push_back("conduit_bin");
-//     protocols.push_back("conduit_json");
-//     protocols.push_back("conduit_base64_json");
+//     std::vector<std::string> protocols = basic_handle_io_protocols();
 //
 //     Node n_about;
 //     io::about(n_about);
@@ -254,13 +258,7 @@ TEST(conduit_relay_io_handle, test_exceptions)
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_handle, leading_slash_reads)
 {
-    std::vector<std::string> protocols;
-
-    protocols.push_back("conduit_bin");
-    protocols.push_back("json");
-    protocols.push_back("conduit_json");
-    protocols.push_back("conduit_base64_json");
-    protocols.push_back("yaml");
+    std::vector<std::string> protocols  = basic_handle_io_protocols();
 
     Node n_about;
     io::about(n_about);
@@ -328,13 +326,7 @@ TEST(conduit_relay_io_handle, test_mode)
     n["c"] = c_val;
     n["d/here"] = here_val;
 
-    std::vector<std::string> protocols;
-
-    protocols.push_back("conduit_bin");
-    protocols.push_back("json");
-    protocols.push_back("conduit_json");
-    protocols.push_back("conduit_base64_json");
-    protocols.push_back("yaml");
+    std::vector<std::string> protocols = basic_handle_io_protocols();
 
     Node n_about;
     io::about(n_about);
@@ -888,4 +880,56 @@ TEST(conduit_relay_io_handle, test_ref_path_error_msg)
         EXPECT_EQ(count,1);
     }
 
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_relay_io_handle, test_flush_basic)
+{
+    std::string tfile_base = "tout_conduit_relay_io_handle_flush.";
+    std::vector<std::string> protocols = basic_handle_io_protocols();
+
+    for (std::vector<std::string>::const_iterator itr = protocols.begin();
+             itr < protocols.end(); ++itr)
+    {
+        std::string protocol = *itr;
+        CONDUIT_INFO("Testing Relay IO Handle flush with protocol: "
+                     << protocol );
+        std::string test_file_name = tfile_base + protocol;
+
+        utils::remove_path_if_exists(test_file_name);
+
+        int64 a_val = 20;
+        int64 b_val = 8;
+        int64 c_val = 13;
+        int64 here_val = 10;
+
+        Node n;
+        n["a"] = a_val;
+        n["b"] = b_val;
+        n["c"] = c_val;
+        n["d/here"] = here_val;
+
+        io::IOHandle h;
+        h.open(test_file_name);
+        h.write(n);
+
+        // this will flush to file system
+        h.flush();
+
+        Node n2;
+        io::IOHandle h2;
+
+        // use read only b/c of the nature of this test
+        Node opts_ronly;
+        opts_ronly["mode"] = "r";
+        h2.open(test_file_name,opts_ronly);
+        h2.read(n2);
+        EXPECT_EQ(n2["a"].as_int64(),a_val);
+        EXPECT_EQ(n2["b"].as_int64(),b_val);
+        EXPECT_EQ(n2["c"].as_int64(),c_val);
+        EXPECT_EQ(n2["d/here"].as_int64(),here_val);
+        h2.close();
+        // close orig
+        h.close();
+    }
 }

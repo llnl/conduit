@@ -471,6 +471,15 @@ SidreIOHandle::has_path(const std::string &path)
 
 //-----------------------------------------------------------------------------
 void
+SidreIOHandle::flush()
+{
+    // Sidre IO Handle currently only supports read only use cases
+    // flush is a no-op
+}
+
+
+//-----------------------------------------------------------------------------
+void
 SidreIOHandle::close()
 {
     m_open = false;
