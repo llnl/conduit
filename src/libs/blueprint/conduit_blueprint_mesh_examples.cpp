@@ -1082,6 +1082,8 @@ braid_init_example_adjset(Node &mesh)
     typedef std::map< point, std::map<index_t, index_t> > point_doms_map;
     typedef std::map<std::set<index_t>, std::vector<std::vector<index_t> > > group_idx_map;
 
+    if (mesh.dtype().is_empty()) { return; }
+
     const std::string dim_names[3] = {"x", "y", "z"};
     const index_t dim_count = blueprint::mesh::coordset::dims(
         mesh.child(0).fetch("coordsets").child(0));
@@ -3946,6 +3948,7 @@ void CONDUIT_BLUEPRINT_API bent_multi_grid(const conduit::Node &spec,
 
         // Now refine selected domains.
         doms_it.to_front();
+        conduit::Node nested_doms;
         while (doms_it.has_next())
         {
             const Node& dom_node = doms_it.next();
@@ -3958,13 +3961,24 @@ void CONDUIT_BLUEPRINT_API bent_multi_grid(const conduit::Node &spec,
                 const std::string nest_name = oss.str();
                 if (last_dim == 2)
                 {
-                    nest_quads(dom_node, res[doms_it.name()], res[nest_name]);
+                    nest_quads(dom_node, res[doms_it.name()], nested_doms[nest_name]);
                 }
                 else
                 {
-                    nest_hexs(dom_node, res[doms_it.name()], res[nest_name]);
+                    nest_hexs(dom_node, res[doms_it.name()], nested_doms[nest_name]);
                 }
             }
+        }
+
+        // Tie adjacent refined domains together with adjsets.
+        braid_init_example_adjset(nested_doms);
+
+        // Now store the new domains back into the result.
+        NodeConstIterator nested_doms_it = nested_doms.children();
+        while (nested_doms_it.has_next())
+        {
+            const Node& ndom_node = nested_doms_it.next();
+            res[nested_doms_it.name()] = ndom_node;
         }
     }
 }
@@ -3978,6 +3992,10 @@ void CONDUIT_BLUEPRINT_API bent_multi_grid_amr(const conduit::Node &spec,
         bent_multi_grid_defaults(default_spec);
         default_spec["domain0/nest_child_id"] = 6;
         default_spec["domain0/nest_ratio"] = 3;
+        default_spec["domain1/nest_child_id"] = 7;
+        default_spec["domain1/nest_ratio"] = 3;
+        default_spec["domain5/nest_child_id"] = 8;
+        default_spec["domain5/nest_ratio"] = 3;
         bent_multi_grid(default_spec, res);
     }
     else
