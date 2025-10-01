@@ -4,6 +4,13 @@ Notable changes to Conduit are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project aspires to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+
+#### Blueprint
+- Finished `bent_multi_grid_amr` mesh by adding adjacency sets between spatially adjacent domains at the same level of refinement.
+
 ## [0.9.5] - Released 2025-09-10
 
 ### Added
