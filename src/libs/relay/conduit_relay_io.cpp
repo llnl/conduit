@@ -52,6 +52,26 @@ namespace relay
 namespace io
 {
 
+namespace detail
+{
+
+//---------------------------------------------------------------------------//
+bool
+check_basic_protocol(const std::string &protocol)
+{
+    if(protocol == "conduit_bin" ||
+       protocol == "json" ||
+       protocol == "conduit_json" ||
+       protocol == "conduit_base64_json" ||
+       protocol == "yaml" ||
+       protocol == "conduit_base64_yaml" )
+    {
+        return true;
+    }
+    return false;
+}
+
+}// end detail namesapce
 
 
 //---------------------------------------------------------------------------//
@@ -77,6 +97,7 @@ about(Node &n)
 
     // yaml io
     io_protos["yaml"] = "enabled";
+    io_protos["conduit_base64_yaml"] = "enabled";
 
     // standard binary io
     io_protos["conduit_bin"] = "enabled";
@@ -330,11 +351,7 @@ save(const Node &node,
     }
 
     // support conduit::Node's basic save cases
-    if(protocol == "conduit_bin" ||
-       protocol == "json" ||
-       protocol == "conduit_json" ||
-       protocol == "conduit_base64_json" ||
-       protocol == "yaml" )
+    if( detail::check_basic_protocol(protocol) )
     {
         // check for ":" split
         std::string file_path;
@@ -450,11 +467,7 @@ save_merged(const Node &node,
     }
 
     // support conduit::Node's basic save cases
-    if(protocol == "conduit_bin" ||
-       protocol == "json" ||
-       protocol == "conduit_json" ||
-       protocol == "conduit_base64_json" ||
-       protocol == "yaml" )
+    if( detail::check_basic_protocol(protocol) )
     {
         // check for ":" split
         std::string file_path;
@@ -573,11 +586,7 @@ load(const std::string &path,
     }
 
     // support conduit::Node's basic load cases
-    if(protocol == "conduit_bin" ||
-       protocol == "json" ||
-       protocol == "conduit_json" ||
-       protocol == "conduit_base64_json" ||
-       protocol == "yaml" )
+    if( detail::check_basic_protocol(protocol) )
     {
         // check for ":" split
         std::string file_path;
@@ -737,11 +746,7 @@ load_merged(const std::string &path,
     }
 
     // support conduit::Node's basic load cases
-    if(protocol == "conduit_bin" ||
-       protocol == "json" ||
-       protocol == "conduit_json" ||
-       protocol == "conduit_base64_json" ||
-       protocol == "yaml" )
+    if( detail::check_basic_protocol(protocol) )
     {
         // check for ":" split
         std::string file_path;

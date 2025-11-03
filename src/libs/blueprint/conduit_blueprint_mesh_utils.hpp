@@ -98,7 +98,7 @@ static const std::vector<std::string> TOPO_SHAPES = {"point", "line", "tri", "qu
 // "f" is for face
 // "c" is for cell
 static const std::vector<std::string> TOPO_SHAPE_IDS = {/*point*/ "p", /*line*/ "l", /*tri*/ "f", /*quad*/ "f", 
-    /*tet*/ "c", /*hex*/ "c", /*wedge*/ "c", /*pyramid*/ "c", /*polygonal*/ "f", /*polyhedral*/ "c"};
+    /*tet*/ "c", /*hex*/ "c", /*wedge*/ "c", /*pyramid*/ "c", /*polygonal*/ "f", /*polyhedral*/ "c", /*mixed*/ "c"};
 
 // The dimensions for each element in TOPO_SHAPES
 static const std::vector<index_t> TOPO_SHAPE_DIMS = {/*point*/ 0, /*line*/ 1, /*tri*/ 2, /*quad*/ 2, 
@@ -164,7 +164,7 @@ static const std::vector<const index_t*> TOPO_SHAPE_EMBEDDINGS = {
     &TOPO_TRI_EMBEDDING[0][0], &TOPO_QUAD_EMBEDDING[0][0],
     &TOPO_TET_EMBEDDING[0][0], &TOPO_HEX_EMBEDDING[0][0],
     &TOPO_WEDGE_EMBEDDING[0][0], &TOPO_PYRAMID_EMBEDDING[0][0],
-    nullptr, nullptr};
+    /*polygonal*/ nullptr, /*polyhedral*/ nullptr, /*mixed*/ nullptr};
 
 //-----------------------------------------------------------------------------
 /// blueprint mesh utility structures
@@ -536,6 +536,20 @@ namespace topology
         std::vector<index_t>       topo_sizes;
     };
 
+    /**
+     * @brief Extract a point mesh from the topology using a list of ids. If the
+     *        topology is not points then points in an element are averaged to
+     *        make a point.
+     *
+     * @param n_topo The topology being sampled.
+     * @param n_ids  A node containing a list of element ids to pull out as a
+     *               point mesh.
+     * @param[out] n_output The output node containing the new mesh.
+     */
+    void CONDUIT_BLUEPRINT_API extract_pointmesh(const conduit::Node &n_topo,
+                                                 const conduit::Node &n_ids,
+                                                 conduit::Node &n_output);
+
     //-------------------------------------------------------------------------
     /**
      @brief Determines whether topo2 elements exist in topo1. First the topo2
@@ -551,6 +565,172 @@ namespace topology
      */
     std::vector<int> CONDUIT_BLUEPRINT_API search(const conduit::Node &topo1,
                                                   const conduit::Node &topo2);
+
+    //-------------------------------------------------------------------------
+    /**
+     * @brief Compute information about a mesh; its coordinate extents and edge
+     *        lengths. It is implemented as a struct so other quantities can be
+     *        added as the need arises.
+     */
+    struct CONDUIT_BLUEPRINT_API MeshInfo
+    {
+        float64 minExtents[3];     // Min coordinate extents
+        float64 maxExtents[3];     // Max coordinate extents
+        float64 minEdgeLength;     // Min zone edge length
+        float64 maxEdgeLength;     // Max zone edge length
+        float64 minDiagonalLength; // Min zone diagonal length
+        float64 maxDiagonalLength; // Max zone diagonal length
+    };
+
+    /**
+     * @brief Compute the mesh information.
+     *
+     * @param n_topo A topology to use for computing the mesh information.
+     * @param[out] info A struct that contains the mesh information.
+     */
+    void CONDUIT_BLUEPRINT_API compute_mesh_info(const conduit::Node &n_topo, MeshInfo &info);
+
+    /**
+     * @brief Output stream operator for MeshInfo
+     *
+     * @param os The output stream to use.
+     * @param obj The MeshInfo object to write.
+     *
+     * @return The output stream reference.
+     */
+    std::ostream &operator << (std::ostream &os, const MeshInfo &obj);
+
+    /**
+     * @brief This structure manages a collection of MeshInfo objects.
+     */
+    class CONDUIT_BLUEPRINT_API MeshInfoCollection
+    {
+    public:
+        /// Constructor.
+        MeshInfoCollection();
+
+        /// Destructor
+        virtual ~MeshInfoCollection() = default;
+
+        /**
+         * @brief Clear the domain information.
+         */
+        void clear();
+
+        /**
+         * @brief This method is called before adding domains.
+         */
+        void begin();
+
+        /**
+         * @brief Add a domain's information to the collection.
+         *
+         * @param domainId The domain id for the mesh info.
+         * @param info     The mesh info to add.
+         */
+        void add(index_t domainId, const MeshInfo &info);
+
+        /**
+         * @brief This method is called once all local domains have been added.
+         */
+        virtual void end();
+
+        /**
+         * @brief Get the info for a domain.
+         * @param domainId The id for the domain info to retrieve. It must have
+         *                 been added.
+         * @return A reference to the domain's mesh info.
+         */
+        const MeshInfo &getMeshInfo(index_t domainId) const;
+
+        /**
+         * @brief Get the merged info for all domains.
+         * @return A reference to the merged mesh info.
+         */
+        const MeshInfo &getMergedMeshInfo() const;
+
+        /**
+         * @brief Merge 2 MeshInfo objects into one.
+         * @param a The first object to merge.
+         * @param b The second object to merge.
+         * @return The merged mesh info for a, b.
+         */
+        static MeshInfo merge(const MeshInfo &a, const MeshInfo &b);
+
+        /**
+         * @brief Print the object.
+         * @param os The stream to use for printing.
+         */
+        void print(std::ostream &os) const;
+    protected:
+        std::map<index_t, MeshInfo> meshInfos;
+        MeshInfo mergedMeshInfo;
+    };
+
+    /**
+     * @brief Output stream operator for MeshInfoCollection
+     *
+     * @param os The output stream to use.
+     * @param obj The MeshInfoCollection object to write.
+     *
+     * @return The output stream reference.
+     */
+    std::ostream &operator << (std::ostream &os, const MeshInfoCollection &obj);
+
+    //-------------------------------------------------------------------------
+    /**
+     * @brief Quantize a mesh node into an index by binning the points in a regular
+     *        grid determined using MeshInfo.
+     *
+     */
+    struct CONDUIT_BLUEPRINT_API Quantizer
+    {
+        using QuantizedValue = uint64_t;
+        using QuantizedIndex = QuantizedValue;
+        using FloatValue = float64;
+        using Coordinate = std::vector<FloatValue>;
+
+        /// Constructor.
+        Quantizer(const MeshInfo &info);
+
+        /**
+         * @brief Quantize a single value using the binned spatial mesh, implied
+         *        by the MeshInfo.
+         *
+         * @param value The value to be quantized.
+         * @param dim The mesh dimension index (0,1,2) to be used for quantization.
+         *
+         * @return A quantized index along the dimension.
+         */
+        QuantizedValue quantize(FloatValue value, index_t dim) const;
+
+        /**
+         * @brief Convert the input node into a quantized index in the binned
+         *        spatial mesh, implied by the MeshInfo.
+         *
+         * @param coord A vector containing a coordinate with 1-3 components.
+         *
+         * @return A quantized node index that can identify the node.
+         */
+        QuantizedIndex quantize(const Coordinate &coord) const;
+
+        MeshInfo       meshInfo;
+        FloatValue     length;
+        FloatValue     offset;
+        QuantizedValue QX;
+        QuantizedValue QY;
+        QuantizedValue QXQY;
+    };
+
+    /**
+     * @brief Output stream operator for Quantizer
+     *
+     * @param os The output stream to use.
+     * @param obj The Quantizer object to write.
+     *
+     * @return The output stream reference.
+     */
+    std::ostream &operator << (std::ostream &os, const Quantizer &obj);
 
     //-------------------------------------------------------------------------
     // -- begin conduit::blueprint::mesh::utils::topology::unstructured --
@@ -662,6 +842,7 @@ class CONDUIT_BLUEPRINT_API PointQueryBase
 {
 public:
     static const int NotFound;
+    static const double DEFAULT_POINT_TOLERANCE;
 
     /**
      @brief Constructor
@@ -985,13 +1166,15 @@ namespace adjset
      @param doms A node containing the domains. There must be multiple domains.
      @param adjsetName The name of the adjset in all domains. It must exist.
      @param[out] info A node that contains any errors.
+     @param options An options node. Include "tolerance" to set the point tolerance.
 
      @return True if the adjsets in all domains contained no errors; False if
              there were errors.
      */
-    bool CONDUIT_BLUEPRINT_API validate(const Node &doms,
+    bool CONDUIT_BLUEPRINT_API validate(const conduit::Node &doms,
                                         const std::string &adjsetName,
-                                        Node &info);
+                                        conduit::Node &info,
+                                        const conduit::Node &options = conduit::Node());
 
     //-------------------------------------------------------------------------
     /**
@@ -1040,13 +1223,15 @@ namespace adjset
      @param mesh A node that contains one or more mesh domains.
      @param adjsetName The name of the adjset to check. This must be a pairwise adjset.
      @param[out] info Information about the failed adjset comparison.
+     @param options An options node. Include "tolerance" to set the point tolerance.
 
      @return True if the adjset are the same pointwise across each interface;
              False otherwise.
      */
      bool CONDUIT_BLUEPRINT_API compare_pointwise(conduit::Node &mesh,
                                                   const std::string &adjsetName,
-                                                  conduit::Node &info);
+                                                  conduit::Node &info,
+                                                  const conduit::Node &options = conduit::Node());
 
      /**
       @brief Converts adjsets for domain boundary pairs into meshes in

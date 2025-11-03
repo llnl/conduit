@@ -366,7 +366,7 @@ Node::load(const std::string &ibase,
         {
             CONDUIT_ERROR("<Node::load> (using protocol = "
                           << proto << ") "
-                          << "failed to open: \"`" << ibase << "\"");
+                          << "failed to open: \"" << ibase << "\"");
         }
         std::string data((std::istreambuf_iterator<char>(ifile)),
                           std::istreambuf_iterator<char>());
@@ -1498,7 +1498,7 @@ Node::set_int8_vector(const std::vector<int8> &data)
 {
     init(DataType::int8(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(int8)*data.size());
 }
 
@@ -1515,7 +1515,7 @@ Node::set_int16_vector(const std::vector<int16> &data)
 {
     init(DataType::int16(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(int16)*data.size());
 }
 
@@ -1532,7 +1532,7 @@ Node::set_int32_vector(const std::vector<int32> &data)
 {
     init(DataType::int32(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(int32)*data.size());
 }
 
@@ -1549,7 +1549,7 @@ Node::set_int64_vector(const std::vector<int64> &data)
 {
     init(DataType::int64(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(int64)*data.size());
 }
 
@@ -1570,7 +1570,7 @@ Node::set_uint8_vector(const std::vector<uint8> &data)
 {
     init(DataType::uint8(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(uint8)*data.size());
 }
 
@@ -1587,7 +1587,7 @@ Node::set_uint16_vector(const std::vector<uint16> &data)
 {
     init(DataType::uint16(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(uint16)*data.size());
 }
 
@@ -1604,7 +1604,7 @@ Node::set_uint32_vector(const std::vector<uint32> &data)
 {
     init(DataType::uint32(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(uint32)*data.size());
 }
 
@@ -1621,7 +1621,7 @@ Node::set_uint64_vector(const std::vector<uint64> &data)
 {
     init(DataType::uint64(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(uint64)*data.size());
 }
 
@@ -1642,7 +1642,7 @@ Node::set_float32_vector(const std::vector<float32> &data)
 {
     init(DataType::float32(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(float32)*data.size());
 }
 
@@ -1660,7 +1660,7 @@ Node::set_float64_vector(const std::vector<float64> &data)
 {
     init(DataType::float64(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(float64)*data.size());
 }
 
@@ -1682,7 +1682,7 @@ Node::set(const std::vector<char> &data)
 {
     init(DataType::c_char(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(char)*data.size());
 }
 
@@ -1694,7 +1694,7 @@ Node::set(const std::vector<signed char> &data)
 {
     init(DataType::c_char(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(signed char)*data.size());
 }
 
@@ -1704,7 +1704,7 @@ Node::set(const std::vector<unsigned char> &data)
 {
     init(DataType::c_unsigned_char(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(unsigned char)*data.size());
 }
 //-----------------------------------------------------------------------------
@@ -1719,7 +1719,7 @@ Node::set(const std::vector<short> &data)
 {
     init(DataType::c_short(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(short)*data.size());
 }
 
@@ -1729,7 +1729,7 @@ Node::set(const std::vector<unsigned short> &data)
 {
     init(DataType::c_unsigned_short(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(unsigned short)*data.size());
 }
 //-----------------------------------------------------------------------------
@@ -1744,7 +1744,7 @@ Node::set(const std::vector<int> &data)
 {
     init(DataType::c_int(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(int)*data.size());
 }
 
@@ -1754,7 +1754,7 @@ Node::set(const std::vector<unsigned int> &data)
 {
     init(DataType::c_unsigned_int(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(unsigned int)*data.size());
 }
 //-----------------------------------------------------------------------------
@@ -1769,7 +1769,7 @@ Node::set(const std::vector<long> &data)
 {
     init(DataType::c_long(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(long)*data.size());
 }
 
@@ -1779,7 +1779,7 @@ Node::set(const std::vector<unsigned long> &data)
 {
     init(DataType::c_unsigned_long(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(unsigned long)*data.size());
 }
 //-----------------------------------------------------------------------------
@@ -1794,7 +1794,7 @@ Node::set(const std::vector<long long> &data)
 {
     init(DataType::c_long_long(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(long long)*data.size());
 }
 
@@ -1804,7 +1804,7 @@ Node::set(const std::vector<unsigned long long> &data)
 {
     init(DataType::c_unsigned_long_long(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(unsigned long long)*data.size());
 }
 //-----------------------------------------------------------------------------
@@ -1819,7 +1819,7 @@ Node::set(const std::vector<float> &data)
 {
     init(DataType::c_float(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(float)*data.size());
 }
 //-----------------------------------------------------------------------------
@@ -1834,7 +1834,7 @@ Node::set(const std::vector<double> &data)
 {
     init(DataType::c_double(data.size()));
     utils::conduit_memcpy(element_ptr(0),
-                          &data[0],
+                          data.data(),
                           sizeof(double)*data.size());
 }
 //-----------------------------------------------------------------------------
@@ -5611,7 +5611,7 @@ Node::set_external_int8_vector(std::vector<int8> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::int8(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 
 //---------------------------------------------------------------------------//
@@ -5629,7 +5629,7 @@ Node::set_external_int16_vector(std::vector<int16> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::int16(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 
 //---------------------------------------------------------------------------//
@@ -5647,7 +5647,7 @@ Node::set_external_int32_vector(std::vector<int32> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::int32(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 
 //---------------------------------------------------------------------------//
@@ -5665,7 +5665,7 @@ Node::set_external_int64_vector(std::vector<int64> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::int64(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 
 //---------------------------------------------------------------------------//
@@ -5687,7 +5687,7 @@ Node::set_external_uint8_vector(std::vector<uint8> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::uint8(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 
 //---------------------------------------------------------------------------//
@@ -5705,7 +5705,7 @@ Node::set_external_uint16_vector(std::vector<uint16> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::uint16(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 
 //---------------------------------------------------------------------------//
@@ -5723,7 +5723,7 @@ Node::set_external_uint32_vector(std::vector<uint32> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::uint32(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 
 //---------------------------------------------------------------------------//
@@ -5741,7 +5741,7 @@ Node::set_external_uint64_vector(std::vector<uint64> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::uint64(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 
 //---------------------------------------------------------------------------//
@@ -5763,7 +5763,7 @@ Node::set_external_float32_vector(std::vector<float32> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::float32(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 
 //---------------------------------------------------------------------------//
@@ -5781,7 +5781,7 @@ Node::set_external_float64_vector(std::vector<float64> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::float64(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 
 //---------------------------------------------------------------------------//
@@ -5803,7 +5803,7 @@ Node::set_external(const std::vector<char> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::c_char(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 
 //-----------------------------------------------------------------------------
@@ -5816,7 +5816,7 @@ Node::set_external(const std::vector<signed char> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::c_signed_char(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 
 //-----------------------------------------------------------------------------
@@ -5827,7 +5827,7 @@ Node::set_external(const std::vector<unsigned char> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::c_unsigned_char(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 //-----------------------------------------------------------------------------
 #endif // end use char check
@@ -5843,7 +5843,7 @@ Node::set_external(const std::vector<short> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::c_short(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 
 //-----------------------------------------------------------------------------
@@ -5854,7 +5854,7 @@ Node::set_external(const std::vector<unsigned short> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::c_unsigned_short(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 //-----------------------------------------------------------------------------
 #endif // end use short check
@@ -5870,7 +5870,7 @@ Node::set_external(const std::vector<int> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::c_int(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 
 //-----------------------------------------------------------------------------
@@ -5881,7 +5881,7 @@ Node::set_external(const std::vector<unsigned int> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::c_unsigned_int(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 //-----------------------------------------------------------------------------
 #endif // end use int check
@@ -5897,7 +5897,7 @@ Node::set_external(const std::vector<long> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::c_long(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 
 //-----------------------------------------------------------------------------
@@ -5908,7 +5908,7 @@ Node::set_external(const std::vector<unsigned long> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::c_unsigned_long(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 //-----------------------------------------------------------------------------
 #endif // end use long check
@@ -5924,7 +5924,7 @@ Node::set_external(const std::vector<long long> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::c_long_long(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 
 //-----------------------------------------------------------------------------
@@ -5935,7 +5935,7 @@ Node::set_external(const std::vector<unsigned long long> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::c_unsigned_long_long(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 //-----------------------------------------------------------------------------
 #endif // end use long long check
@@ -5952,7 +5952,7 @@ Node::set_external(const std::vector<float> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::c_float(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 //-----------------------------------------------------------------------------
 #endif // end use float check
@@ -5968,7 +5968,7 @@ Node::set_external(const std::vector<double> &data)
     index_t data_num_ele = (index_t)data.size();
     m_schema->set(DataType::c_double(data_num_ele));
     if(data_num_ele > 0)
-        m_data  = (void*)&data[0];
+        m_data  = (void*)data.data();
 }
 //-----------------------------------------------------------------------------
 #endif // end use double check
@@ -8424,7 +8424,7 @@ void
 Node::serialize(std::vector<uint8> &data) const
 {
     data = std::vector<uint8>((size_t)total_bytes_compact(),0);
-    serialize(&data[0],0);
+    serialize(data.data(),0);
 }
 
 //---------------------------------------------------------------------------//
@@ -18432,7 +18432,7 @@ Node::reset_allocator()
 
 //-----------------------------------------------------------------------------
 index_t
-Node::allocator()
+Node::allocator() const
 {
   return m_allocator_id;
 }

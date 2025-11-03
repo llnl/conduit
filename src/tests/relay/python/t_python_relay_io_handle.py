@@ -26,7 +26,8 @@ class Test_Relay_IO_Handle(unittest.TestCase):
                   "json",
                   "conduit_json",
                   "conduit_base64_json",
-                  "yaml"]
+                  "yaml",
+                  "conduit_base64_yaml"]
         
         # only test hdf5 if relay was built with hdf5 support
         if relay.io.about()["protocols/hdf5"] == "enabled":
@@ -74,6 +75,47 @@ class Test_Relay_IO_Handle(unittest.TestCase):
             h2.read(n_val,"c");
             self.assertTrue(n_val.value() == 12)
             h2.close()
+
+    def test_io_handle_flush(self):
+        tbase = "tout_python_relay_io_handle_flush."
+        protos = ["conduit_bin",
+                  "json",
+                  "conduit_json",
+                  "conduit_base64_json",
+                  "yaml",
+                  "conduit_base64_yaml"]
+ 
+        # only test hdf5 if relay was built with hdf5 support
+        if relay.io.about()["protocols/hdf5"] == "enabled":
+            protos.append("hdf5")
+        for proto in protos:
+            test_file = tbase + proto
+            if os.path.isfile(test_file):
+                os.remove(test_file)
+            
+            n = conduit.Node();
+            n["a"] = int64(20);
+            n["b"] = int64(8);
+            n["c"] = int64(12);
+            n["d/here"] = int64(10);
+
+            h = conduit.relay.io.IOHandle();
+            h.open(test_file)
+            h.write(n)
+            h.flush()
+
+            n2 = conduit.Node()
+            h2 = conduit.relay.io.IOHandle();
+            ronly_opts = conduit.Node()
+            ronly_opts["mode"] = "r"
+            h2.open(test_file,options=ronly_opts);
+            h2.read(n2);
+            self.assertTrue(n2["a"] == 20)
+            self.assertTrue(n2["b"] == 8)
+            self.assertTrue(n2["c"] == 12)
+            self.assertTrue(n2["d/here"] == 10)
+            h2.close()
+            h.close();
 
     def test_io_handle_exceptions(self):
             h = conduit.relay.io.IOHandle()

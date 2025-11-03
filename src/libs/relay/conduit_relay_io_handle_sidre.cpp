@@ -471,6 +471,15 @@ SidreIOHandle::has_path(const std::string &path)
 
 //-----------------------------------------------------------------------------
 void
+SidreIOHandle::flush()
+{
+    // Sidre IO Handle currently only supports read only use cases
+    // flush is a no-op
+}
+
+
+//-----------------------------------------------------------------------------
+void
 SidreIOHandle::close()
 {
     m_open = false;
@@ -590,8 +599,8 @@ SidreIOHandle::generate_file_path(int tree_id) const
 {
     // TODO: Map for tree_ids to file_ids?
     int file_id = generate_file_id_for_tree(tree_id);
-    return utils::join_path(root_file_directory(),
-                            expand_pattern(m_file_pattern,file_id));
+    return utils::join_file_path(root_file_directory(),
+                                 expand_pattern(m_file_pattern,file_id));
 }
 
 //-------------------------------------------------------------------//

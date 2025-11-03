@@ -11,6 +11,8 @@
 #include "conduit_relay.hpp"
 #include "conduit_relay_io_hdf5.hpp"
 #include "hdf5.h"
+#include <math.h>
+#include <stdlib.h>
 #include <iostream>
 #include "gtest/gtest.h"
 
@@ -330,7 +332,7 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_read_2D_array)
     EXPECT_EQ(rnelts, n_out.dtype().number_of_elements());
 
     float64_array val_out = n_out.value();
-    
+
     index_t offset = ncols * rrowoff;
     index_t linear_idx = 0;
     for (index_t j = 0; j < rnrows; j++)
@@ -2267,7 +2269,7 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_error_writing_incompat_leaf)
     Node n;
     n["thing"].set(42);
     bool err_occured = false;
- 
+
     std::string test_file_name = "tout_imcompat.hdf5:/";
     try
     {
@@ -2291,7 +2293,7 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_error_writing_leaf_to_root)
     Node n;
     n.set(42);
     bool err_occured = false;
- 
+
     std::string test_file_name = "tout_cant_write_to_root.hdf5:/";
     try
     {
@@ -2308,3 +2310,124 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_error_writing_leaf_to_root)
 
     EXPECT_TRUE(err_occured);
 }
+
+
+//-----------------------------------------------------------------------------
+void gen_sin_double_data(size_t len, 
+                         double noise,
+                         double amp,
+                         Node &data)
+{
+    const double pi_value = 3.14159265358979323846;
+    data.set(DataType::c_double(len));
+    double_array vals = data.value();
+    srand(0xDeadBeef);
+    for (index_t i = 0; i < len; i++)
+    {
+        double x = 2 * pi_value * (double) i / (double) (len-1);
+        double n = noise * ((double) rand() / ((double)(1<<31)-1) - 0.5);
+        vals[i] = (double) (amp * (1 + sin(x)) + n);
+    }
+}
+
+//-----------------------------------------------------------------------------
+void gen_sin_int_data(size_t len, 
+                      double noise,
+                      double amp,
+                      Node &data)
+{
+    const double pi_value = 3.14159265358979323846;
+    data.set(DataType::c_int(len));
+    int_array vals = data.value();
+    srand(0xDeadBeef);
+    for (index_t i = 0; i < len; i++)
+    {
+        double x = 2 * pi_value * (double) i / (double) (len-1);
+        double n = noise * ((double) rand() / ((double)(1<<31)-1) - 0.5);
+        vals[i] = (int) (amp * (1 + sin(x)) + n);
+    }
+}
+
+//-----------------------------------------------------------------------------
+void gen_zfp_test_data(Node &data)
+{
+    hsize_t len = 1024;
+    double noise = 0.001;
+    double amp = 17.7;
+
+    gen_sin_double_data(len,noise,amp,data["vals_sin_double"]);
+    gen_sin_int_data(len,noise,amp,data["vals_sin_int"]);
+
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_zfp_1d)
+{
+    // get objects in flight already
+    int DO_NO_HARM = check_h5_open_ids();
+
+    Node rl_about;
+    relay::io::about(rl_about["io"]);
+    CONDUIT_INFO("hdf5 options:" << rl_about["io/options/hdf5"].to_yaml());
+
+    if(!rl_about["io/options/hdf5"].has_path("chunking/compression/zfp"))
+    {
+        CONDUIT_INFO("zfp support not built, skipping test");
+        return;
+    }
+
+    Node n_src;
+    gen_zfp_test_data(n_src);
+
+    std::string tout_fbase = "tout_relay_io_hdf5_h5zzfp";
+    io::save(n_src,tout_fbase + "_uncomp.hdf5");
+
+    // chunking threshold
+    index_t cthreshold = 1024;
+
+    Node opts;
+    // turn of compact_storage so we can test very small
+    // arrays if we need to
+    opts["hdf5/compact_storage/enabled"] = "false";
+    opts["hdf5/chunking/threshold"]  = cthreshold*4-1;
+    opts["hdf5/chunking/chunk_size"] = cthreshold*4;
+
+    std::cout << "=====================================" << std::endl;
+    std::cout << "zfp rate mode comparison" << std::endl;
+    std::cout << "=====================================" << std::endl;
+
+    opts["hdf5/chunking/compression/method"] = "zfp";
+    opts["hdf5/chunking/compression/zfp/mode"] = "rate";
+    opts["hdf5/chunking/compression/zfp/rate"] = 32.0;
+    io::save(n_src,tout_fbase + "_comp_rate.hdf5", "hdf5", opts);
+
+    // make sure we can load back zfp ver
+    Node n_load, info;
+    io::load(tout_fbase + "_comp_rate.hdf5", n_load);
+    std::cout << "[orig]" << std::endl;
+    n_src.print();
+    std::cout << "[roundtrip]" << std::endl;
+    n_load.print();
+    std::cout << "[diff]" << std::endl;
+    n_load.diff(n_src,info);
+    info.print();
+
+    double_array vsd_diff = info["children/diff/vals_sin_double/value"].value();
+    int_array vsi_diff = info["children/diff/vals_sin_int/value"].value();
+
+    std::cout << "min/max of Diffs" << std::endl;
+    std::cout << " vals_sin_double: " << vsd_diff.min() << " " << vsd_diff.max() << std::endl;
+    std::cout << " vals_sin_int: "    << vsi_diff.min() << " " << vsi_diff.max() << std::endl;
+
+    // expect double diff to be less than 2e-8
+    EXPECT_TRUE(vsd_diff.max() < 2e-8);
+    // expect int diff to be in between -2 and 0
+    EXPECT_TRUE( (-2 <= vsi_diff.max()) && (vsi_diff.max() <=0) );
+
+    // NOTE: This fails with 2 leaked objects
+    // make sure we aren't leaking
+    // EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
+
+}
+
+

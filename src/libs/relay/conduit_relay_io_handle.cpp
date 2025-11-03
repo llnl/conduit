@@ -98,11 +98,15 @@ public:
 
     bool has_path(const std::string &path);
 
+    /// invokes save of in-memory node to file system
+    void flush();
+
     void close();
 
 private:
     Node m_node;
     bool m_open;
+    bool m_dirty; // set to true after any write
 
 };
 
@@ -146,6 +150,9 @@ public:
     void list_child_names(std::vector<std::string> &res);
     void list_child_names(const std::string &path,
                           std::vector<std::string> &res);
+
+    /// if hdf5 file handle is open, invokes H5Fflush() with H5F_SCOPE_LOCAL
+    void flush();
 
     bool has_path(const std::string &path);
 
@@ -323,7 +330,8 @@ IOHandle::HandleInterface::create(const std::string &path,
        protocol == "json" ||
        protocol == "conduit_json" ||
        protocol == "conduit_base64_json" ||
-       protocol == "yaml" )
+       protocol == "yaml" ||
+       protocol == "conduit_base64_yaml")
     {
         res = new BasicHandle(path, protocol, options);
     }
@@ -387,7 +395,8 @@ BasicHandle::BasicHandle(const std::string &path,
                          const Node &options)
 : HandleInterface(path,protocol,options),
   m_node(),
-  m_open(false)
+  m_open(false),
+  m_dirty(false)
 {
     // empty
 }
@@ -508,7 +517,9 @@ BasicHandle::write(const Node &node,
 {
     CONDUIT_UNUSED(opts);
     // note: wrong mode errors are handled before dispatch to interface
-
+    // future: can add opt to support update external, along with flush
+    //         will provide lower memory usage for those careful
+    m_dirty = true;
     m_node.update(node);
 }
 
@@ -530,7 +541,9 @@ BasicHandle::write(const Node &node,
 {
     CONDUIT_UNUSED(opts);
     // note: wrong mode errors are handled before dispatch to interface
-
+    // future: can add opt to support update external, along with flush
+    //         will provide lower memory usage for those careful
+    m_dirty = true;
     m_node[path].update(node);
 }
 
@@ -575,15 +588,26 @@ BasicHandle::has_path(const std::string &path)
 
 //-----------------------------------------------------------------------------
 void
-BasicHandle::close()
+BasicHandle::flush()
 {
-    if(m_open && !open_mode_read_only() )
+    if(m_open && !open_mode_read_only() && m_dirty)
     {
         // here is where it actually gets realized on disk
         io::save(m_node,
                  path(),
                  protocol(),
                  options());
+        m_dirty = false;
+    }
+}
+
+//-----------------------------------------------------------------------------
+void
+BasicHandle::close()
+{
+    if(m_open)
+    {
+        flush();
         m_node.reset();
         m_open = false;
     }
@@ -803,6 +827,15 @@ HDF5Handle::has_path(const std::string &path)
     return hdf5_has_path(m_h5_id,path);
 }
 
+//-----------------------------------------------------------------------------
+void
+HDF5Handle::flush()
+{
+    if(m_h5_id >= 0)
+    {
+        hdf5_flush_file(m_h5_id);
+    }
+}
 
 //-----------------------------------------------------------------------------
 void
@@ -1119,6 +1152,20 @@ IOHandle::has_path(const std::string &path)
     }
 
     return false;
+}
+
+//-----------------------------------------------------------------------------
+void
+IOHandle::flush()
+{
+    if(m_handle != NULL)
+    {
+        m_handle->flush();
+    }
+    else
+    {
+        CONDUIT_ERROR("Invalid or closed handle.");
+    }
 }
 
 //-----------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-name: pip setup
+name: pip_setup
 
 on:
   pull_request:
@@ -7,38 +7,49 @@ on:
 jobs:
   build_pip_basic:
     name: Ubuntu pip setup.py
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - name: Install Deps
       run: |
            sudo apt-get update
-           sudo apt-get install binutils \
-                                gcc \
-                                g++ \
-                                gfortran \
-                                python3 \
-                                perl \
-                                git \
-                                git-lfs \
-                                curl \
-                                wget \
-                                tar \
-                                unzip \
-                                build-essential \
-                                libncurses-dev \
-                                libssl-dev \
-                                libblas-dev \
-                                liblapack-dev \
-                                zlib1g-dev \
-                                libgdbm-dev \
-                                libreadline-dev \
-                                libsqlite3-dev \
-                                libbz2-dev \
-                                mpich \
-                                libmpich-dev \
-                                libhdf5-dev 
-    - name: Setup Python Env
-      run: python3 -m pip install --upgrade pip numpy mpi4py
+           sudo DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata
+           sudo apt-get install -y  binutils \
+                                    cmake \
+                                    gcc \
+                                    g++ \
+                                    gfortran \
+                                    python3 \
+                                    python3-dev \
+                                    python-is-python3 \
+                                    python3-pip \
+                                    python3-venv \
+                                    python3-numpy \
+                                    python3-mpi4py \
+                                    python3-wheel \
+                                    perl \
+                                    git \
+                                    git-lfs \
+                                    curl \
+                                    wget \
+                                    tar \
+                                    unzip \
+                                    file \
+                                    build-essential \
+                                    libncurses-dev \
+                                    libssl-dev \
+                                    libblas-dev \
+                                    liblapack-dev \
+                                    liblapacke-dev \
+                                    zlib1g-dev \
+                                    libgdbm-dev \
+                                    libreadline-dev \
+                                    libsqlite3-dev \
+                                    libbz2-dev \
+                                    openmpi-bin \
+                                    openmpi-common \
+                                    libopenmpi-dev \
+                                    libhdf5-dev \
+                                    vim
     - uses: actions/checkout@v4
       with:
         submodules: 'recursive'
@@ -50,5 +61,62 @@ jobs:
         python3 -c "import conduit.relay;print(conduit.relay.io.about())"
         python3 -c "import conduit.relay.mpi;print(conduit.relay.mpi.about())"
 
+  build_pip_using_host_config:
+    name: Ubuntu pip setup.py using host config
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Install Deps
+      run: |
+           sudo apt-get update
+           sudo DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata
+           sudo apt-get install -y  binutils \
+                                    cmake \
+                                    gcc \
+                                    g++ \
+                                    gfortran \
+                                    python3 \
+                                    python3-dev \
+                                    python-is-python3 \
+                                    python3-pip \
+                                    python3-venv \
+                                    python3-numpy \
+                                    python3-mpi4py \
+                                    python3-wheel \
+                                    perl \
+                                    git \
+                                    git-lfs \
+                                    curl \
+                                    wget \
+                                    tar \
+                                    unzip \
+                                    file \
+                                    build-essential \
+                                    libncurses-dev \
+                                    libssl-dev \
+                                    libblas-dev \
+                                    liblapack-dev \
+                                    liblapacke-dev \
+                                    zlib1g-dev \
+                                    libgdbm-dev \
+                                    libreadline-dev \
+                                    libsqlite3-dev \
+                                    libbz2-dev \
+                                    openmpi-bin \
+                                    openmpi-common \
+                                    libopenmpi-dev \
+                                    libhdf5-dev \
+                                    vim
 
-
+    - uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+    - name: Build & Test
+      run: |
+        echo 'set(ENABLE_MPI "ON" CACHE BOOL "")'  >  conduit-config.cmake
+        echo 'set(HDF5_DIR "/usr/" CACHE PATH "")' >> conduit-config.cmake
+        cat conduit-config.cmake
+        env HOST_CONFIG=`pwd`/conduit-config.cmake pip install -v .
+        rm -rf build
+        python3 -c "import conduit;print(conduit.about());"
+        python3 -c "import conduit.relay;print(conduit.relay.io.about())"
+        python3 -c "import conduit.relay.mpi;print(conduit.relay.mpi.about())"

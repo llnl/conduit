@@ -16,3 +16,5 @@ Testing/
 .vscode/launch.json
 scripts/azemu/AZEMU-LAUNCH*.sh
 scripts/azemu/AZEMU-SCRIPT*.sh
+scripts/gactemu/GACTEMU-LAUNCH*.sh
+scripts/gactemu/GACTEMU-SCRIPT*.sh

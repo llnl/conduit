@@ -960,7 +960,9 @@ fill_corner_point(Node& n,
         }
     }
 
-    if (x != nullptr && (dims == 1 || y != nullptr && (dims == 2 || z != nullptr)))
+    if ((x != nullptr) &&
+        (dims == 1 || y != nullptr) &&
+        (dims == 2 || z != nullptr))
     {
         an[0] = x[idx];
         if (dims > 1)
@@ -995,15 +997,12 @@ braid_init_explicit_lerp_coordset(index_t npts_x,
 {
     coords["type"] = "explicit";
 
-    index_t npts = npts_x;
     index_t dims = 1;
     if (npts_y > 0)
     {
-        npts *= npts_y;
         dims = 2;
         if (npts_z > 1)
         {
-            npts *= npts_z;
             dims = 3;
         }
     }
@@ -1082,6 +1081,8 @@ braid_init_example_adjset(Node &mesh)
 {
     typedef std::map< point, std::map<index_t, index_t> > point_doms_map;
     typedef std::map<std::set<index_t>, std::vector<std::vector<index_t> > > group_idx_map;
+
+    if (mesh.dtype().is_empty()) { return; }
 
     const std::string dim_names[3] = {"x", "y", "z"};
     const index_t dim_count = blueprint::mesh::coordset::dims(
@@ -1179,7 +1180,7 @@ braid_init_example_adjset(Node &mesh)
     // where the set of domains comprising that border is the key and the value is
     // a vector (one for each domain) of vectors (the indices of the border points
     // in that domain).
-    // 
+    //
     // In the map value, the order of domains (the outer vector) is determined by
     // the iterator over the key (the set of owning domains).  The main point is
     // that the order of the inner vectors (the points in that domain) is consistent.
@@ -1789,7 +1790,6 @@ braid_bent_quads(const Node & spec, Node &res)
 
     int32 nele_x = (int32)(npts_x - 1);
     int32 nele_y = (int32)(npts_y - 1);
-    int32 nele = nele_x * nele_y;
 
     braid_init_example_state(res);
     res["state/domain_id"] = domain_id;
@@ -2631,7 +2631,7 @@ braid_hexs(index_t npts_x,
 
 //---------------------------------------------------------------------------//
 void
-braid_bent_hexs(const Node & spec, Node &res)
+braid_bent_hexs(const Node &spec, Node &res)
 {
     res.reset();
 
@@ -2648,7 +2648,6 @@ braid_bent_hexs(const Node & spec, Node &res)
     int32 nele_x = (int32)(npts_x - 1);
     int32 nele_y = (int32)(npts_y - 1);
     int32 nele_z = (int32)(npts_z - 1);
-    int32 nele = nele_x * nele_y * nele_z;
 
     braid_init_example_state(res);
     res["state/domain_id"] = domain_id;
@@ -2680,6 +2679,134 @@ braid_bent_hexs(const Node & spec, Node &res)
                                           npts_y,
                                           npts_z,
                                           fields["vel"]);
+}
+
+//---------------------------------------------------------------------------//
+void
+setup_nestset(Node &n, const std::string &windowname, int domain_id,
+              const std::string &domain_type,
+              int dims_i, int dims_j, int dims_k, int nest_ratio)
+{
+    Node &nset = n["nestsets/nestset"];
+    nset["association"] = "element";
+    nset["topology"] = "mesh"; // match what braid_bent_hexs does
+    Node &window = nset["windows"][windowname];
+    window["domain_id"] = domain_id;
+    window["domain_type"] = domain_type;
+    window["origin/i"] = 0;
+    window["origin/j"] = 0;
+    if (dims_k > 0) { window["origin/k"] = 0; }
+    window["dims/i"] = dims_i;
+    window["dims/j"] = dims_j;
+    if (dims_k > 0) { window["dims/k"] = dims_j; }
+    window["ratio/i"] = nest_ratio;
+    window["ratio/j"] = nest_ratio;
+    if (dims_k > 0) { window["ratio/k"] = nest_ratio; }
+}
+
+//---------------------------------------------------------------------------//
+void
+nest_quads(const Node &spec, Node &parent, Node &res)
+{
+    // spec must contain details about nesting, like this:
+    //   nest_child_id: 13
+    //   nest_ratio: 3
+    // res gets filled with a new domain refined from parent, including a nestset
+    // parent node gets a nestset tying it to res
+
+    // Call braid_bent_quads, then make the nestset.
+    const int32 nest_parent_id = parent["state/domain_id"].as_int32();
+    const int32 nest_child_id = spec["nest_child_id"].as_int32();
+    const int32 nest_ratio = spec["nest_ratio"].as_int32();
+    const int32 parent_npts_x = spec["npts_x"].as_int32();
+    const int32 parent_npts_y = spec["npts_y"].as_int32();
+    const int32 child_npts_x = nest_ratio * (parent_npts_x - 1) + 1;
+    const int32 child_npts_y = nest_ratio * (parent_npts_y - 1) + 1;
+
+    Node child_spec = spec; // we can now change child_spec without changing spec
+    child_spec["domain_id"] = nest_child_id;
+    child_spec["npts_x"] = child_npts_x;
+    child_spec["npts_y"] = child_npts_y;
+
+    braid_bent_quads(child_spec, res);
+
+    // Set up child nestset
+    std::ostringstream oss;
+    oss << "window_" << nest_child_id << "_" << nest_parent_id;
+    const std::string child_wname = oss.str();
+    setup_nestset(res, child_wname, nest_parent_id, "parent",
+                  child_npts_x - 1, child_npts_y - 1, 0, nest_ratio);
+
+    // Set up parent nestset
+    std::ostringstream pss;
+    pss << "window_" << nest_parent_id << "_" << nest_child_id;
+    const std::string parent_wname = pss.str();
+    setup_nestset(parent, parent_wname, nest_child_id, "child",
+                  parent_npts_x - 1, parent_npts_y - 1, 0, nest_ratio);
+
+    // Ensure nest level exists for parent, set for child.
+    if (!parent.has_path("state/level_id"))
+    {
+        int32 level_id = 0;
+        parent["state/level_id"] = level_id;
+    }
+    const int32 parent_level_id = parent["state/level_id"].as_int32();
+    res["state/level_id"] = parent_level_id + 1;
+}
+
+//---------------------------------------------------------------------------//
+void
+nest_hexs(const Node &spec, Node &parent, Node &res)
+{
+    // spec must contain details about nesting, like this:
+    //   nest_child_id: 13
+    //   nest_ratio: 3
+    // res gets filled with a new domain refined from parent, including a nestset
+    // parent node gets a nestset tying it to res
+
+    // Call braid_bent_hexs, then make the nestset.
+    const int32 nest_parent_id = parent["state/domain_id"].as_int32();
+    const int32 nest_child_id = spec["nest_child_id"].as_int32();
+    const int32 nest_ratio = spec["nest_ratio"].as_int32();
+    const int32 parent_npts_x = spec["npts_x"].as_int32();
+    const int32 parent_npts_y = spec["npts_y"].as_int32();
+    const int32 parent_npts_z = spec["npts_z"].as_int32();
+    const int32 child_npts_x = nest_ratio * (parent_npts_x - 1) + 1;
+    const int32 child_npts_y = nest_ratio * (parent_npts_y - 1) + 1;
+    const int32 child_npts_z = nest_ratio * (parent_npts_z - 1) + 1;
+
+    Node child_spec = spec; // we can now change child_spec without changing spec
+    child_spec["domain_id"] = nest_child_id;
+    child_spec["npts_x"] = child_npts_x;
+    child_spec["npts_y"] = child_npts_y;
+    child_spec["npts_z"] = child_npts_z;
+
+    braid_bent_hexs(child_spec, res);
+
+    // Set up child nestset
+    std::ostringstream oss;
+    oss << "window_" << nest_child_id << "_" << nest_parent_id;
+    const std::string child_wname = oss.str();
+    setup_nestset(res, child_wname, nest_parent_id, "parent",
+                  child_npts_x - 1, child_npts_y - 1, child_npts_z - 1,
+                  nest_ratio);
+
+    // Set up parent nestset
+    std::ostringstream pss;
+    pss << "window_" << nest_parent_id << "_" << nest_child_id;
+    const std::string parent_wname = pss.str();
+    setup_nestset(parent, parent_wname, nest_child_id, "child",
+                  parent_npts_x - 1, parent_npts_y - 1, parent_npts_z - 1,
+                  nest_ratio);
+
+    // Ensure nest level exists for parent, set for child.
+    if (!parent.has_path("state/level_id"))
+    {
+        int32 level_id = 0;
+        parent["state/level_id"] = level_id;
+    }
+    const int32 parent_level_id = parent["state/level_id"].as_int32();
+    res["state/level_id"] = parent_level_id + 1;
 }
 
 //---------------------------------------------------------------------------//
@@ -3690,7 +3817,7 @@ strided_structured(Node &desc, // shape of requested data arrays
 
 
 //---------------------------------------------------------------------------//
-void bent_multi_grid_defaults(conduit::Node& spec)
+void bent_multi_grid_defaults(conduit::Node &spec)
 {
     // Provide defaults for bent_multi_grid so a user can call that function
     // without having to remember what goes in spec
@@ -3699,7 +3826,7 @@ void bent_multi_grid_defaults(conduit::Node& spec)
         std::initializer_list<double> corner_xs,
         std::initializer_list<double> corner_ys)
         {
-            conduit::Node dom = spec[label];
+            conduit::Node &dom = spec[label];
             dom["npts_x"] = npts_x;
             dom["npts_y"] = npts_y;
             dom["domain_id"] = domain_id;
@@ -3717,9 +3844,11 @@ void bent_multi_grid_defaults(conduit::Node& spec)
     fill_domain(2, 2, 5, "domain5", { 4, 5, 5, 4 }, { 2, 3, 3, 2 });
 }
 
-void CONDUIT_BLUEPRINT_API bent_multi_grid(const conduit::Node& spec,
-    conduit::Node& res)
+void CONDUIT_BLUEPRINT_API bent_multi_grid(const conduit::Node &spec,
+                                           conduit::Node &res)
 {
+    int last_dim = 0;
+
     if (spec.dtype().is_empty())
     {
         conduit::Node default_spec;
@@ -3745,12 +3874,18 @@ void CONDUIT_BLUEPRINT_API bent_multi_grid(const conduit::Node& spec,
             bool has_npts_z = ver_node.has_child("npts_z");
             bool has_domain_id = ver_node.has_child("domain_id");
 
+            // Check for nest set information.
+            bool has_nest_child_id = ver_node.has_child("nest_child_id");
+            bool has_nest_ratio = ver_node.has_child("nest_ratio");
+            // Need both nest_child_id and nest_ratio, or neither.
+            bool nest_ok = (has_nest_child_id == has_nest_ratio);
+
+            bool dims_ok = false;
             int dims = 0;
             if (has_corner_xs && has_corner_ys && has_npts_x && has_npts_y) { dims = 2; }
             if (dims == 2 && has_corner_zs && has_npts_z) { dims = 3; }
 
-            bool children_ok = (dims == 2 || dims == 3) && has_domain_id;
-            bool dims_ok = false;
+            bool children_ok = (dims == 2 || dims == 3) && has_domain_id && nest_ok;
 
             if (children_ok)
             {
@@ -3768,20 +3903,32 @@ void CONDUIT_BLUEPRINT_API bent_multi_grid(const conduit::Node& spec,
                     int npts_z = ver_node["npts_z"].as_int32();
                     dims_ok = dims_ok && npts_z >= 2;
                 }
+
+                // If the nesting specification child nodes are present,
+                // make sure they're integral.
+                if (has_nest_child_id && has_nest_ratio)
+                {
+                    nest_ok = ver_node["nest_child_id"].dtype().is_int() &&
+                        ver_node["nest_ratio"].dtype().is_int();
+                }
             }
 
-            if (!(children_ok && dims_ok))
+            if (!(children_ok && dims_ok && nest_ok))
             {
                 // error: some domain doesn't have the right children.
                 CONDUIT_ERROR("blueprint::mesh::examples::bent_multi_grid requires each domain in spec " << std::endl <<
                     "to have floating-point children corner_xs, corner_ys each with length > 3." << std::endl <<
                     "For a 3D mesh, each domain must have corner_xs, corner_ys, corner_zs each" << std::endl <<
                     "with length > 7.  Each domain must also have an integral domain_id and integral" << std::endl <<
-                    "npts_x, npts_y, and optionally npts_z.  Values provided : " << std::endl <<
+                    "npts_x, npts_y, and optionally npts_z." << std::endl <<
+                    "To specify a nesting domain, the parent domain must have integral children" << std::endl <<
+                    "nest_child_id and nest_ratio." << std::endl << "Values provided : " << std::endl <<
                     ver_node.to_yaml() << std::endl);
             }
 
+            last_dim = dims;
             dom_dimensions.push_back(dims);
+            // TODO: report error if all dimensions are not equal
         }
 
         // For each child node in spec,
@@ -3796,10 +3943,66 @@ void CONDUIT_BLUEPRINT_API bent_multi_grid(const conduit::Node& spec,
             bent_braid(dom_node, res[doms_it.name()]);
         }
 
+        // Tie adjacent domains together with adjsets.
         braid_init_example_adjset(res);
+
+        // Now refine selected domains.
+        doms_it.to_front();
+        conduit::Node nested_doms;
+        while (doms_it.has_next())
+        {
+            const Node& dom_node = doms_it.next();
+            if (dom_node.has_child("nest_child_id"))
+            {
+                int child_id = dom_node["nest_child_id"].as_int();
+                std::ostringstream oss;
+                // Match the naming style used by bent_braid(), which is domain0, domain1, etc.
+                oss << "domain" << child_id;
+                const std::string nest_name = oss.str();
+                if (last_dim == 2)
+                {
+                    nest_quads(dom_node, res[doms_it.name()], nested_doms[nest_name]);
+                }
+                else
+                {
+                    nest_hexs(dom_node, res[doms_it.name()], nested_doms[nest_name]);
+                }
+            }
+        }
+
+        // Tie adjacent refined domains together with adjsets.
+        braid_init_example_adjset(nested_doms);
+
+        // Now store the new domains back into the result.
+        NodeConstIterator nested_doms_it = nested_doms.children();
+        while (nested_doms_it.has_next())
+        {
+            const Node& ndom_node = nested_doms_it.next();
+            res[nested_doms_it.name()] = ndom_node;
+        }
     }
 }
 
+void CONDUIT_BLUEPRINT_API bent_multi_grid_amr(const conduit::Node &spec,
+                                               conduit::Node &res)
+{
+    if (spec.dtype().is_empty())
+    {
+        conduit::Node default_spec;
+        bent_multi_grid_defaults(default_spec);
+        default_spec["domain0/nest_child_id"] = 6;
+        default_spec["domain0/nest_ratio"] = 3;
+        default_spec["domain1/nest_child_id"] = 7;
+        default_spec["domain1/nest_ratio"] = 3;
+        default_spec["domain5/nest_child_id"] = 8;
+        default_spec["domain5/nest_ratio"] = 3;
+        bent_multi_grid(default_spec, res);
+    }
+    else
+    {
+        bent_multi_grid(spec, res);
+    }
+}
 
 //---------------------------------------------------------------------------//
 void

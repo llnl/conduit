@@ -54,6 +54,8 @@ jobs:
             enable_fortran=OFF \
             enable_tests=OFF \
             enable_verbose=OFF \
+            build_silo=false \
+            build_zfp=false \
             build_conduit=false \
             build_jobs=4 \
             prefix=tpls \

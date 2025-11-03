@@ -55,11 +55,87 @@ namespace mesh
 namespace utils
 {
 
+topology::MeshInfoCollection::MeshInfoCollection(MPI_Comm comm) :
+    conduit::blueprint::mesh::utils::topology::MeshInfoCollection(), m_comm(comm)
+{
+}
+
+void topology::MeshInfoCollection::end()
+{
+    CONDUIT_ANNOTATE_MARK_SCOPE("MeshInfoCollection::end()");
+    using MeshInfo = conduit::blueprint::mesh::utils::topology::MeshInfo;
+    const auto numLocalMeshInfo = static_cast<index_t>(meshInfos.size());
+    const index_t numValuesPerMeshInfo = 1 + static_cast<index_t>(sizeof(MeshInfo) / sizeof(float64));
+
+    // Encode local mesh info into an array.
+    Node n_localMeshInfo;
+    n_localMeshInfo.set(conduit::DataType::float64(numLocalMeshInfo * numValuesPerMeshInfo));
+    float64 *ptr = n_localMeshInfo.value();
+    for(auto it = meshInfos.begin(); it != meshInfos.end(); it++)
+    {
+        *ptr++ = static_cast<float64>(it->first);
+        *ptr++ = it->second.minExtents[0];
+        *ptr++ = it->second.minExtents[1];
+        *ptr++ = it->second.minExtents[2];
+        *ptr++ = it->second.maxExtents[0];
+        *ptr++ = it->second.maxExtents[1];
+        *ptr++ = it->second.maxExtents[2];
+        *ptr++ = it->second.minEdgeLength;
+        *ptr++ = it->second.maxEdgeLength;
+        *ptr++ = it->second.minDiagonalLength;
+        *ptr++ = it->second.maxDiagonalLength;
+    }
+
+    // Make sure all ranks get the info.
+    Node n_globalMeshInfo;
+    conduit::relay::mpi::all_gather(n_localMeshInfo, n_globalMeshInfo, m_comm);
+
+    // Decode the infos and store them.
+    bool first = true;
+    mergedMeshInfo = MeshInfo();
+    for(index_t i = 0; i < n_globalMeshInfo.number_of_children(); i++)
+    {
+        const Node &n_meshInfo = n_globalMeshInfo[i];
+        const index_t numMeshInfo = n_meshInfo.dtype().number_of_elements() / numValuesPerMeshInfo;
+        const float64 *ptr2 = n_meshInfo.value();
+        for(index_t j = 0; j < numMeshInfo; j++)
+        {
+           MeshInfo info;
+           index_t domainId = static_cast<index_t>(ptr2[0]);
+           info.minExtents[0] = ptr2[1];
+           info.minExtents[1] = ptr2[2];
+           info.minExtents[2] = ptr2[3];
+           info.maxExtents[0] = ptr2[4];
+           info.maxExtents[1] = ptr2[5];
+           info.maxExtents[2] = ptr2[6];
+           info.minEdgeLength = ptr2[7];
+           info.maxEdgeLength = ptr2[8];
+           info.minDiagonalLength = ptr2[9];
+           info.maxDiagonalLength = ptr2[10];
+
+           add(domainId, info);
+           if(first)
+           {
+               first = false;
+               mergedMeshInfo = info;
+           }
+           else
+           {
+               mergedMeshInfo = merge(mergedMeshInfo, info);
+           }
+
+           ptr2 += numValuesPerMeshInfo;
+        }
+    }
+}
+
 //-----------------------------------------------------------------------------
 // -- begin conduit::blueprint::mpi::mesh::utils::query --
 //-----------------------------------------------------------------------------
 namespace query
 {
+
+const double PointQuery::DEFAULT_POINT_TOLERANCE = 1.e-8;
 
 //---------------------------------------------------------------------------
 PointQuery::PointQuery(const conduit::Node &mesh, MPI_Comm comm) :
@@ -98,7 +174,7 @@ PointQuery::execute(const std::string &coordsetName)
     {
         queries.push_back(rank);              // the rank asking the question
         queries.push_back(it->first);         // the domain
-        queries.push_back(it->second.size()); // the number of points.
+        queries.push_back(static_cast<int>(it->second.size())); // the number of points.
     }
 
     // Let all ranks know the sizes of the queries vectors.
@@ -386,12 +462,12 @@ MatchQuery::execute()
                    m_comm);
 
     // Look up a rank that owns a domain.
-    auto domain_to_rank = [=](const std::vector<int> &allqueries, int d) -> int
+    auto domain_to_rank = [=](const std::vector<int> &allq, int d) -> int
     {
-        for(size_t i = 0; i < allqueries.size(); i += ntuple_values)
+        for(size_t i = 0; i < allq.size(); i += ntuple_values)
         {
-            int owner = allqueries[i];
-            int domain = allqueries[i + 1];
+            int owner = allq[i];
+            int domain = allq[i + 1];
             //int query_domain = allqueries[i + 2];
             if(domain == d)
                 return owner;
@@ -543,9 +619,10 @@ MatchQuery::execute()
 //-----------------------------------------------------------------------------
 
 bool
-adjset::validate(const Node &doms,
+adjset::validate(const conduit::Node &doms,
                  const std::string &adjsetName,
-                 Node &info,
+                 conduit::Node &info,
+                 const conduit::Node &options,
                  MPI_Comm comm)
 {
     auto to_string = [](const conduit::Node &n) -> std::string
@@ -556,17 +633,24 @@ adjset::validate(const Node &doms,
         return s;
     };
 
-    auto agree = [](bool res, MPI_Comm comm) -> bool
+    auto agree = [](bool res, MPI_Comm acomm) -> bool
     {
         int size = 1;
-        MPI_Comm_size(comm, &size);
+        MPI_Comm_size(acomm, &size);
         int val = res ? 1 : 0;
         int globalval = 0;
-        MPI_Allreduce(&val, &globalval, 1, MPI_INT, MPI_SUM, comm);
+        MPI_Allreduce(&val, &globalval, 1, MPI_INT, MPI_SUM, acomm);
         return globalval == size;
     };
 
     bool retval = false;
+
+    // Set values from options.
+    double tolerance = conduit::blueprint::mpi::mesh::utils::query::PointQuery::DEFAULT_POINT_TOLERANCE;
+    if(options.has_path("tolerance"))
+    {
+        tolerance = options["tolerance"].to_float64();
+    }
 
     // Get the domains.
     auto domains = conduit::blueprint::mesh::domains(doms);
@@ -623,6 +707,7 @@ adjset::validate(const Node &doms,
 
     // Make parallel queries and do the validation.
     conduit::blueprint::mpi::mesh::utils::query::PointQuery PQ(doms, comm);
+    PQ.setPointTolerance(tolerance);
     conduit::blueprint::mpi::mesh::utils::query::MatchQuery MQ(doms, comm);
 
     // Do the validation.
@@ -637,12 +722,45 @@ adjset::validate(const Node &doms,
 }
 
 //-----------------------------------------------------------------------------
+static void
+adjset_extract_pointmesh(const conduit::Node &n_topo, const conduit::Node &n_ids, conduit::Node &n_output)
+{
+    namespace bputils = conduit::blueprint::mesh::utils;
+
+    if(n_topo.fetch_existing("type").as_string() == "unstructured" &&
+       n_topo.fetch_existing("elements/shape").as_string() == "line")
+    {
+        bputils::topology::extract_pointmesh(n_topo, n_ids, n_output);
+    }
+    else
+    {
+        bputils::topology::TopologyBuilder B(n_topo);
+        const auto ids = n_ids.as_index_t_accessor();
+        for(index_t i = 0; i < ids.number_of_elements(); i++)
+        {
+            index_t ptid = ids[i];
+            B.add(&ptid, 1);
+        }
+
+        // Make the local point mesh.
+        B.execute(n_output, "point");
+    }
+}
+
+//-----------------------------------------------------------------------------
 static bool
 compare_pointwise_impl(conduit::Node &mesh, const std::string &adjsetName,
-    conduit::Node &info, MPI_Comm comm)
+    conduit::Node &info, const conduit::Node &options, MPI_Comm comm)
 {
     namespace bputils = conduit::blueprint::mesh::utils;
     std::vector<Node *> domains = conduit::blueprint::mesh::domains(mesh);
+
+    // Set values from options.
+    double tolerance = conduit::blueprint::mpi::mesh::utils::query::PointQuery::DEFAULT_POINT_TOLERANCE;
+    if(options.has_path("tolerance"))
+    {
+        tolerance = options["tolerance"].to_float64();
+    }
 
     // Determine total number of domains.
     conduit::Node nd_local, nd_total;
@@ -698,18 +816,8 @@ compare_pointwise_impl(conduit::Node &mesh, const std::string &adjsetName,
 
                     // Get the group values and add them as points to the topo builder
                     // so we pull out a point mesh.
-                    std::string key("adjsets/" + adjsetName + "/groups/" + groupName + "/values");
                     const Node &n_values = domain.fetch_existing(key);
-                    const auto values = n_values.as_index_t_accessor();
-                    bputils::topology::TopologyBuilder B(topo);
-                    for(index_t i = 0; i < values.number_of_elements(); i++)
-                    {
-                        index_t ptid = values[i];
-                        B.add(&ptid, 1);
-                    }
-
-                    // Make the local point mesh.
-                    B.execute(localMesh[mi], "point");
+                    adjset_extract_pointmesh(topo, n_values, localMesh[mi]);
 
                     // Get the neighbor for this group
                     std::string nkey("adjsets/" + adjsetName + "/groups/" + groupName + "/neighbors");
@@ -732,7 +840,7 @@ compare_pointwise_impl(conduit::Node &mesh, const std::string &adjsetName,
             different = 0;
             for(int i = 0; i < mi; i++)
             {
-                bool d = localMesh[i].diff(remoteMesh[i], info, 1.e-8);
+                bool d = localMesh[i].diff(remoteMesh[i], info, tolerance);
                 different = different.to_int() + (d ? 1 : 0);
 
                 // Add some diagnostic info.
@@ -754,7 +862,7 @@ compare_pointwise_impl(conduit::Node &mesh, const std::string &adjsetName,
 //-----------------------------------------------------------------------------
 bool
 adjset::compare_pointwise(conduit::Node &mesh, const std::string &adjsetName,
-    conduit::Node &info, MPI_Comm comm)
+    conduit::Node &info, const conduit::Node &options, MPI_Comm comm)
 {
     bool retval = true;
     const std::string tempAdjsetName("__" + adjsetName + "__");
@@ -765,7 +873,7 @@ adjset::compare_pointwise(conduit::Node &mesh, const std::string &adjsetName,
         conduit::blueprint::mesh::utils::adjset::to_pairwise_canonical(mesh, adjsetName, tempAdjsetName);
 
         // Call the real implementation on the temporary adjset.
-        retval = compare_pointwise_impl(mesh, tempAdjsetName, info, comm);
+        retval = compare_pointwise_impl(mesh, tempAdjsetName, info, options, comm);
 
         // Remove the adjset that was added.
         conduit::blueprint::mesh::utils::adjset::remove(mesh, tempAdjsetName);

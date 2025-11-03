@@ -13,6 +13,8 @@ SET(conduit_py_python_sources  py_src/__init__.py
                                py_src/relay/io/__init__.py
                                py_src/relay/io/blueprint/__init__.py
                                py_src/relay/mpi/__init__.py
+                               py_src/relay/mpi/io/__init__.py
+                               py_src/relay/mpi/io/blueprint/__init__.py
                                py_src/relay/web/__init__.py
                                # blueprint
                                py_src/blueprint/__init__.py
@@ -21,7 +23,10 @@ SET(conduit_py_python_sources  py_src/__init__.py
                                py_src/blueprint/mesh/__init__.py
                                py_src/blueprint/mesh/examples/__init__.py
                                py_src/blueprint/table/__init__.py
-                               py_src/blueprint/table/examples/__init__.py)
+                               py_src/blueprint/table/examples/__init__.py
+                               py_src/blueprint/mpi/__init__.py
+                               py_src/blueprint/mpi/mesh/__init__.py
+                               py_src/blueprint/mpi/mesh/examples/__init__.py)
 
 
 

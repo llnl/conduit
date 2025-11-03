@@ -211,7 +211,7 @@ TEST(conduit_blueprint_mesh_utils, adjset_validate_element_1d)
     root["domain0/adjsets/main_adjset/groups/domain0_1/values"].set(std::vector<int>{0});
     root["domain1/adjsets/main_adjset/groups/domain0_1/values"].set(std::vector<int>{1});
     info.reset();
-    save_mesh(root, "adjset_validate_element_1d_bad");
+    save_mesh(root, "adjset_validate_element_1d_bad");  
     res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", info);
     EXPECT_FALSE(res);
     //info.print();
@@ -709,12 +709,14 @@ TEST(conduit_blueprint_mesh_utils, adjset_compare_pointwise_2d)
     //if(!eq)
     //   info.print();
     EXPECT_FALSE(eq);
+    EXPECT_TRUE(info.number_of_children() > 0);
 
     // Test that the notevenclose adjset actually fails.
     info.reset();
     eq = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, "notevenclose", info);
     //if(!eq)
     //   info.print();
+    EXPECT_TRUE(info.number_of_children() > 0);
     EXPECT_FALSE(eq);
 }
 
@@ -1197,4 +1199,126 @@ TEST(conduit_blueprint_mesh_utils, lerp_3d_cube)
 
         verify_lerp_result(expcube, cube);
     }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_utils, mesh_info)
+{
+    namespace topoutils = conduit::blueprint::mesh::utils::topology;
+    conduit::Node root;
+    const char *yaml = R"(
+coordsets:
+  coords:
+    type: explicit
+    values:
+      x: [0.,0.1, 0.3, 0.6, 1.,  0.,0.1, 0.3, 0.6, 1.,  0., 0.1, 0.3, 0.6, 1.]
+      y: [0., 0., 0., 0., 0.,  1., 1., 1., 1., 1.,  2.5, 2.5, 2.5, 2.5, 2.5]
+topologies:
+  main:
+    type: unstructured
+    coordset: coords
+    elements:
+      shape: quad
+      connectivity: [0,1,6,5, 1,2,7,6, 2,3,8,7, 3,4,9,8, 5,6,11,10, 6,7,12,11, 7,8,13,12, 8,9,14,13]
+      sizes: [4,4,4,4,4,4]
+      offsets: [0,4,8,12,16,20]
+)";
+    root.parse(yaml);
+
+    topoutils::MeshInfo info;
+    topoutils::compute_mesh_info(root.fetch_existing("topologies/main"), info);
+
+    const double eps = 1.e-12;
+    EXPECT_NEAR(info.minExtents[0], 0., eps);
+    EXPECT_NEAR(info.minExtents[1], 0., eps);
+    EXPECT_NEAR(info.minExtents[2], 0., eps);
+    EXPECT_NEAR(info.maxExtents[0], 1., eps);
+    EXPECT_NEAR(info.maxExtents[1], 2.5, eps);
+    EXPECT_NEAR(info.maxExtents[2], 0., eps);
+    EXPECT_NEAR(info.minEdgeLength, 0.1, eps);
+    EXPECT_NEAR(info.maxEdgeLength, 1.5, eps);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_utils, mesh_info_3d)
+{
+    namespace topoutils = conduit::blueprint::mesh::utils::topology;
+    conduit::Node root;
+    const char *yaml = R"(
+coordsets:
+  coords:
+    type: explicit
+    values:
+      x: [0.,0.1, 0.3, 0.,0.1, 0.3, 0.,0.1, 0.3,  0.,0.1, 0.3, 0.,0.1, 0.3, 0.,0.1, 0.3]
+      y: [1., 1., 1.,  2., 2., 2., 4., 4., 4.,  1., 1., 1.,  2., 2., 2., 4., 4., 4.]
+      z: [2., 2., 2.,  2., 2., 2., 2., 2., 2.,  6., 6., 6.,  6., 6., 6., 6., 6., 6.]
+topologies:
+  main:
+    type: unstructured
+    coordset: coords
+    elements:
+      shape: hex
+      connectivity: [0,1,4,3,9,10,13,12, 1,2,5,4,10,11,14,13, 3,4,7,6,12,13,16,15, 4,5,8,7,13,14,17,16]
+      sizes: [4,4,4,4]
+      offsets: [0,6,12,18]
+)";
+    root.parse(yaml);
+
+    topoutils::MeshInfo info;
+    topoutils::compute_mesh_info(root.fetch_existing("topologies/main"), info);
+
+    const double eps = 1.e-12;
+    EXPECT_NEAR(info.minExtents[0], 0., eps);
+    EXPECT_NEAR(info.minExtents[1], 1., eps);
+    EXPECT_NEAR(info.minExtents[2], 2., eps);
+    EXPECT_NEAR(info.maxExtents[0], 0.3, eps);
+    EXPECT_NEAR(info.maxExtents[1], 4., eps);
+    EXPECT_NEAR(info.maxExtents[2], 6., eps);
+    EXPECT_NEAR(info.minEdgeLength, 0.1, eps);
+    EXPECT_NEAR(info.maxEdgeLength, 4., eps);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_utils, mesh_info_ph)
+{
+    namespace topoutils = conduit::blueprint::mesh::utils::topology;
+    conduit::Node root;
+    const char *yaml = R"(
+coordsets:
+  coords:
+    type: explicit
+    values:
+      x: [0.,0.1, 0.3, 0.,0.1, 0.3, 0.,0.1, 0.3,  0.,0.1, 0.3, 0.,0.1, 0.3, 0.,0.1, 0.3]
+      y: [1., 1., 1.,  2., 2., 2., 4., 4., 4.,  1., 1., 1.,  2., 2., 2., 4., 4., 4.]
+      z: [2., 2., 2.,  2., 2., 2., 2., 2., 2.,  6., 6., 6.,  6., 6., 6., 6., 6., 6.]
+topologies:
+  main:
+    type: unstructured
+    coordset: coords
+    elements:
+      shape: polyhedral
+      connectivity: [0,1,2,3,4,5, 1,6,7,8,9,10, 11,12,3,13,14,15, 12,16,8,17,18,19]
+      sizes: [6,6,6,6]
+      offsets: [0,6,12,18]
+    subelements:
+      shape: polygonal
+      #              0         1          2         3          4        5           6          7          8          9        10           11         12         13         14       15           16         17         18       19
+      connectivity: [0,9,12,3, 1,4,13,10, 0,1,10,9, 3,12,13,4, 0,3,4,1, 9,10,13,12, 2,5,14,11, 1,2,11,10, 5,4,13,14, 1,4,5,2, 10,11,14,13, 3,12,15,6, 4,7,16,13, 6,15,16,7, 3,6,7,4, 12,13,16,15, 5,8,17,14, 7,16,17,8, 4,7,8,5, 13,14,17,16]
+      sizes: [4,4,4,4,4, 4,4,4,4,4, 4,4,4,4,4, 4,4,4,4,4]
+      offsets: [0,4,8,12,16, 20,24,28,32,36, 40,44,48,52,56, 60,64,68,72,76]
+)";
+    root.parse(yaml);
+
+    topoutils::MeshInfo info;
+    topoutils::compute_mesh_info(root.fetch_existing("topologies/main"), info);
+
+    const double eps = 1.e-12;
+    EXPECT_NEAR(info.minExtents[0], 0., eps);
+    EXPECT_NEAR(info.minExtents[1], 1., eps);
+    EXPECT_NEAR(info.minExtents[2], 2., eps);
+    EXPECT_NEAR(info.maxExtents[0], 0.3, eps);
+    EXPECT_NEAR(info.maxExtents[1], 4., eps);
+    EXPECT_NEAR(info.maxExtents[2], 6., eps);
+    EXPECT_NEAR(info.minEdgeLength, 0.1, eps);
+    EXPECT_NEAR(info.maxEdgeLength, 4., eps);
 }

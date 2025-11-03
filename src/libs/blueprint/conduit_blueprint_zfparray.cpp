@@ -67,32 +67,70 @@ bool verify(const conduit::Node &n,
     }
 
     // ensure header
-    if(!n.has_child(ZFP_HEADER_FIELD_NAME))
+    if(!n.has_child(ZFP_HEADER_FIELD))
     {
         log::error(info, proto_name, "Node does not have zfparray header child");
         res = false;
     }
     else
     {
-        const Node &n_header = n.fetch_existing(ZFP_HEADER_FIELD_NAME);
+        const Node &n_header = n.fetch_existing(ZFP_HEADER_FIELD);
 
         // compressed-array headers consist of uint8 words
-        if(!n_header.dtype().is_uint8()) {
+        if(!n_header.dtype().is_uint8())
+        {
             log::error(info, proto_name, "ZFP header node's dtype is invalid");
             res = false;
         }
     }
 
-    if(!n.has_child(ZFP_COMPRESSED_DATA_FIELD_NAME))
+    // ensure header dims
+    if(!n.has_child(ZFP_HEADER_DIM_FIELD))
+    {
+        log::error(info, proto_name, "Node does not have zfparray header dims child");
+        res = false;
+    }
+    else
+    {
+        const Node &n_header = n.fetch_existing(ZFP_HEADER_DIM_FIELD);
+
+        // compressed-array headers consist of uint8 words
+        if(!n_header.dtype().is_integer())
+        {
+            log::error(info, proto_name, "ZFP header dims node must be an integer");
+            res = false;
+        }
+    }
+    
+    // ensure header scalar_type
+    if(!n.has_child(ZFP_HEADER_SCALAR_TYPE_FIELD))
+    {
+        log::error(info, proto_name, "Node does not have zfparray header scalar type child");
+        res = false;
+    }
+    else
+    {
+        const Node &n_header = n.fetch_existing(ZFP_HEADER_SCALAR_TYPE_FIELD);
+
+        // compressed-array headers consist of uint8 words
+        if(!n_header.dtype().is_integer())
+        {
+            log::error(info, proto_name, "ZFP header scalar type node must be an integer");
+            res = false;
+        }
+    }
+
+    if(!n.has_child(ZFP_COMPRESSED_DATA_FIELD))
     {
         log::error(info, proto_name, "Node does not have zfparray compressed-data child");
         res = false;
     }
     else
     {
-        const Node &compressed_data = n.fetch_existing(ZFP_COMPRESSED_DATA_FIELD_NAME);
+        const Node &compressed_data = n.fetch_existing(ZFP_COMPRESSED_DATA_FIELD);
 
-        if(!compressed_data.dtype().is_unsigned_integer()) {
+        if(!compressed_data.dtype().is_unsigned_integer())
+        {
             log::error(info, proto_name, "ZFP compressed-data node's dtype is incompatible with the compiled ZFP bitstream word size");
             res = false;
         }

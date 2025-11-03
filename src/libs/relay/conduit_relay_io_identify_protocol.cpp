@@ -145,7 +145,11 @@ identify_file_type(const std::string &path,
     char buff[257];
     std::memset(buff,0,257);
     std::ifstream ifs;
-    ifs.open(path.c_str());
+    // we need to open with std::ios::binary mode
+    //  the hdf5 magic number includes a windows style
+    //  new line. ifstream::read, even when given a size
+    //  will stop at the new line
+    ifs.open(path.c_str(),std::ios::binary);
     if(ifs.is_open())
     {
         ifs.read((char *)buff,256);

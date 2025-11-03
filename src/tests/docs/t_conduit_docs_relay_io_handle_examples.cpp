@@ -21,9 +21,9 @@ using namespace conduit;
 std::string
 relay_test_data_path(const std::string &test_fname)
 {
-    std::string res = utils::join_path(CONDUIT_T_SRC_DIR,"relay");
-    res = utils::join_path(res,"data");
-    return utils::join_path(res,test_fname);
+    std::string res = utils::join_file_path(CONDUIT_T_SRC_DIR,"relay");
+    res = utils::join_file_path(res,"data");
+    return utils::join_file_path(res,test_fname);
 }
 
 //-----------------------------------------------------------------------------
@@ -51,7 +51,7 @@ TEST(conduit_docs, relay_io_handle_1)
     {
         Node nread;
         h.read("a/data",nread);
-        std::cout << "\nValue at \"a/data\" = " 
+        std::cout << "\nValue at \"a/data\" = "
                   << nread.to_float64()
                   << std::endl;
     }
@@ -60,14 +60,14 @@ TEST(conduit_docs, relay_io_handle_1)
     if( h.has_path("a/more_data") )
     {
         h.remove("a/more_data");
-        std::cout << "\nRemoved \"a/more_data\"" 
+        std::cout << "\nRemoved \"a/more_data\""
                   << std::endl;
     }
 
     // verify the data was removed
     if( !h.has_path("a/more_data") )
     {
-        std::cout << "\nPath \"a/more_data\" is no more" 
+        std::cout << "\nPath \"a/more_data\" is no more"
                   << std::endl;
     }
 
@@ -90,7 +90,7 @@ TEST(conduit_docs, relay_io_handle_1)
     {
         std::cout << "\"" << *itr << "\" ";
     }
-    
+
     std::cout << std::endl;
 
     Node nread;
@@ -115,7 +115,7 @@ TEST(conduit_docs, relay_io_handle_sidre_1)
         CONDUIT_INFO("HDF5 disabled, skipping relay_io_handle_sidre_1");
         return;
     }
-    
+
     BEGIN_EXAMPLE("relay_io_handle_example_sidre_1");
     // this example reads a sample hdf5 sidre style file
 
@@ -129,7 +129,7 @@ TEST(conduit_docs, relay_io_handle_sidre_1)
     // find the names of the children at the root
     std::vector<std::string> cld_names;
     h.list_child_names(cld_names);
-    
+
     // print the names
     std::cout << "\nChildren at root: ";
     std::vector<std::string>::const_iterator itr;
@@ -139,7 +139,7 @@ TEST(conduit_docs, relay_io_handle_sidre_1)
     {
         std::cout << "\"" << *itr << "\" ";
     }
-    
+
     Node nread;
     // read the entire contents
     h.read(nread);

@@ -23,9 +23,9 @@ using namespace conduit::relay;
 std::string
 relay_test_data_path(const std::string &test_fname)
 {
-    std::string res = utils::join_path(CONDUIT_T_SRC_DIR,"relay");
-    res = utils::join_path(res,"data");
-    return utils::join_path(res,test_fname);
+    std::string res = utils::join_file_path(CONDUIT_T_SRC_DIR,"relay");
+    res = utils::join_file_path(res,"data");
+    return utils::join_file_path(res,test_fname);
 }
 
 //-----------------------------------------------------------------------------
@@ -135,6 +135,11 @@ TEST(conduit_relay_io_handle, test_sidre_basic)
         h.read("my_arrays",n_read);
         // n_read.print();
         EXPECT_FALSE(n["my_arrays"].diff(n_read,n_info));
+
+        // flush is a no op for read only sidre handles
+        // but still want to test it in case folks call it generically
+        h.flush();
+
         h.close();
     }
 }
@@ -199,7 +204,7 @@ TEST(conduit_relay_io_handle, test_sidre_with_root)
     std::vector<std::string> tchld;
     h.list_child_names("root",tchld);
     EXPECT_TRUE(tchld.size() > 0 );
-    
+
     // children found
     std::cout << "root children " << std::endl;
     for(int i=0;i< tchld.size();i++)
@@ -305,7 +310,7 @@ TEST(conduit_relay_io_handle, test_sidre_read_mesh_bp)
     opts["file_style"] = "root_only";
     opts["suffix"] = "none";
     opts["number_of_files"] = 1;
-    
+
     std::string tout = "tout_sidre_mesh_then_save";
     utils::remove_path_if_exists(tout);
     relay::io::blueprint::write_mesh(mesh, tout,"hdf5",opts);

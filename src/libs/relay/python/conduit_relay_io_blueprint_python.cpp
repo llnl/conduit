@@ -428,7 +428,7 @@ relay_io_blueprint_python_clear(PyObject *m)
 static struct PyModuleDef relay_io_blueprint_python_module_def = 
 {
         PyModuleDef_HEAD_INIT,
-        "relay_io_python_blueprint",
+        "relay_io_blueprint_python",
         NULL,
         sizeof(struct module_state),
         relay_io_blueprint_python_funcs,

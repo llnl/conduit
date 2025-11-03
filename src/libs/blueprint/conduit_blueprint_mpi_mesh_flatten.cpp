@@ -78,8 +78,8 @@ namespace mesh
 
 
 //-----------------------------------------------------------------------------
-ParallelMeshFlattener::ParallelMeshFlattener(MPI_Comm comm)
-    : MeshFlattener(), comm(comm)
+ParallelMeshFlattener::ParallelMeshFlattener(MPI_Comm _comm)
+    : MeshFlattener(), comm(_comm)
 {
     // Invoke MeshFlattener to set defaults
     root = 0;
@@ -282,9 +282,9 @@ ParallelMeshFlattener::build_local_field_info(
             field_ncomps[i] = ncomps;
             field_assocs[i] = assoc_to_index_t(field->child("association").as_string());
             field_dtypes[i] = determine_element_dtype(values);
-            for(index_t i = 0; i < ncomps; i++)
+            for(index_t c = 0; c < ncomps; c++)
             {
-                my_fields["comp_names"].append().set(values[i].name());
+                my_fields["comp_names"].append().set(values[c].name());
             }
         }
     }
