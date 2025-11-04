@@ -74,7 +74,7 @@ void CONDUIT_BLUEPRINT_API generate_index(const conduit::Node &mesh,
 void CONDUIT_BLUEPRINT_API to_polygonal(const conduit::Node &n,
                                         conduit::Node &dest,
                                         const std::string& name,
-                                        const std::vector<std::string>& vfields,
+                                        const std::vector<std::string>& vtxfields,
                                         MPI_Comm comm);
 
 void CONDUIT_BLUEPRINT_API to_polyhedral(const conduit::Node &n,
@@ -85,7 +85,7 @@ void CONDUIT_BLUEPRINT_API to_polyhedral(const conduit::Node &n,
 void CONDUIT_BLUEPRINT_API to_polytopal(const conduit::Node &n,
                                         conduit::Node &dest,
                                         const std::string& name,
-                                        const std::vector<std::string>& vfields,
+                                        const std::vector<std::string>& vtxfields,
                                         MPI_Comm comm);
 
 

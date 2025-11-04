@@ -477,8 +477,8 @@ void to_polygonal(const Node &n,
                 {
                     if (in_fields.has_child(vname))
                     {
-                        const Node &in_vfield = in_fields[vname];
-                        in_vtxfields[vname] = &in_vfield;
+                        const Node &in_vtxfield = in_fields[vname];
+                        in_vtxfields[vname] = &in_vtxfield;
                     }
                 }
             }
@@ -497,8 +497,8 @@ void to_polygonal(const Node &n,
                 {
                     if (out_fields.has_child(vname))
                     {
-                        Node &out_vfield = out_fields[vname];
-                        out_vtxfields[vname] = &out_vfield;
+                        Node &out_vtxfield = out_fields[vname];
+                        out_vtxfields[vname] = &out_vtxfield;
                     }
                 }
             }
