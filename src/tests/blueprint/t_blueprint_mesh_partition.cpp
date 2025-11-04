@@ -16,6 +16,7 @@
 #include "conduit_blueprint_mesh_utils_iterate_elements.hpp"
 #include "conduit_relay.hpp"
 #include "conduit_log.hpp"
+#include "conduit_fmt/conduit_fmt.h"
 
 #include <math.h>
 #include <array>
@@ -100,7 +101,7 @@ test_logical_selection_2d(const std::string &topo, const std::string &base)
     input["state/cycle"].set(i100);
     input["state/domain_id"].set((int)0);
 
-    // With no options (turn mapping off though because otherwise we add 
+    // With no options (turn mapping off though because otherwise we add
     // the original vertex and element fields), test that output==input
     const char *opt0 =
 "mapping: 0";
@@ -238,7 +239,7 @@ test_logical_selection_3d(const std::string &topo, const std::string &base)
     input["state/cycle"].set(i100);
     input["state/domain_id"].set((int)0);
 
-    // With no options (turn mapping off though because otherwise we add 
+    // With no options (turn mapping off though because otherwise we add
     // the original vertex and element fields), test that output==input
     const char *opt0 =
 "mapping: 0";
@@ -1077,6 +1078,7 @@ TEST(conduit_blueprint_mesh_combine, recombine_braid)
 
         // Compare combined mesh to baselines
         const std::string filename = baseline_file("recombine_braid_" + case_name);
+        save_visit("recombine_braid_" + case_name + "_combined", combine);
     #ifdef GENERATE_BASELINES
         make_baseline(filename, combine);
     #else
@@ -1338,7 +1340,7 @@ TEST(conduit_blueprint_mesh_combine, uniform)
         const std::string case_name = (is3d) ? "3d" : "2d";
         const std::string base_file_name = "combine_uniform_" + case_name;
         std::cout << "-------- Start case " << case_name << " --------" << std::endl;
-        
+
         // 0
         domains.emplace_back();
         basic("uniform", 11, 6, nz, domains.back());
@@ -1435,7 +1437,7 @@ TEST(conduit_blueprint_mesh_combine, uniform)
         for(conduit::index_t i = 0; i < static_cast<conduit::index_t>(domains.size()); i++)
         {
             domains[i]["state/domain_id"] = i;
-            mesh0[(i < 10) 
+            mesh0[(i < 10)
                 ? ("domain_0000" + std::to_string(i))
                 : ("domain_000" + std::to_string(i))] = domains[i];
         }
@@ -1476,7 +1478,7 @@ TEST(conduit_blueprint_mesh_combine, uniform)
                     domains[i]["coordsets/coords/origin/z"] = 1;
                 }
             }
-            mesh1[(i < 10) 
+            mesh1[(i < 10)
                 ? ("domain_0000" + std::to_string(i))
                 : ("domain_000" + std::to_string(i))] = domains[i];
         }
@@ -1663,7 +1665,7 @@ void create_structured_domain(conduit::Node &out, const int domain_id,
                     coords[idx+1] = origin[1] + temp[reorder[1]];
                     coords[idx+2] = origin[2] + temp[reorder[2]];
                     vfield[id] = id;
-                    
+
                     const double dx = coords[idx]   - g_origin[0];
                     const double dy = coords[idx+1] - g_origin[1];
                     const double dz = coords[idx+2] - g_origin[2];
@@ -1694,7 +1696,7 @@ void create_structured_domain(conduit::Node &out, const int domain_id,
                 coords[idx]   = origin[0] + temp[reorder[0]];
                 coords[idx+1] = origin[1] + temp[reorder[1]];
                 vfield[id] = id;
-                
+
                 const double dx = coords[idx]   - g_origin[0];
                 const double dy = coords[idx+1] - g_origin[1];
                 dist[id] = std::sqrt(dx*dx + dy*dy);
@@ -1720,7 +1722,7 @@ void create_grain_case(conduit::Node &out)
     // For all domains
     const int dims[3] = {3, 4, 2};
     const double g_origin[3] = {0., 0., 0.};
-    
+
     // Cases
     const int origin_x[8] = {0,    1,   0,    1,   0,   1,     0,   1};
     const int origin_y[8] = {0,    0,   1,    1,   0,   0,     1,   1};
@@ -1775,7 +1777,7 @@ TEST(blueprint_mesh_combine, structured)
         const std::string case_name = (is3d) ? "3d" : "2d";
         const std::string file_name = base_name + "_" + case_name;
         conduit::Node braid;
-        conduit::blueprint::mesh::examples::braid("structured", 11, 11, 
+        conduit::blueprint::mesh::examples::braid("structured", 11, 11,
             (is3d) ? 11 : 1, braid);
         save_visit("Braid" + case_name + "Structured", braid);
 
@@ -1964,7 +1966,7 @@ TEST(blueprint_mesh_combine, structured)
         create_grain_case(grain);
 
         save_visit("combine_structured_grain_3d_input", grain);
-        
+
         conduit::Node opts; opts["target"] = 1;
         conduit::Node output;
         conduit::blueprint::mesh::partition(grain, opts, output);
@@ -2076,6 +2078,11 @@ diff_to_silo(const conduit::Node &baseline, const conduit::Node &matset,
 
     conduit::Node test_silo;
     conduit::blueprint::mesh::matset::to_silo(matset["matsets/matset"], test_silo);
+
+    base_silo.remove_child("buffer_style");
+    base_silo.remove_child("dominance");
+    test_silo.remove_child("buffer_style");
+    test_silo.remove_child("dominance");
 
     info.reset();
     return base_silo.diff(test_silo, info, CONDUIT_EPSILON, true);
@@ -2606,7 +2613,7 @@ TEST(conduit_blueprint_mesh_partition, threshold_example)
 
     // lets threshold the boundary mesh, remove any interior to the problem
     // elements
-    
+
     // step 1: create a selection description of the zones we want to keep
 
     // loop over all domains
@@ -2624,14 +2631,14 @@ TEST(conduit_blueprint_mesh_partition, threshold_example)
         std::vector<int64> ele_ids_to_keep;
         for(index_t i=0; i< bndry_vals.number_of_elements(); i++)
         {
-            // this is our criteria to "keep" and element 
+            // this is our criteria to "keep" and element
             if(bndry_vals[i] == 1)
             {
                 ele_ids_to_keep.push_back(i);
             }
         }
 
-        // add selection description 
+        // add selection description
         Node &d_sel = opts["selections"].append();
         d_sel["type"] = "explicit";
         d_sel["domain_id"] = domain_id;
@@ -2953,8 +2960,7 @@ TEST(conduit_blueprint_mesh_partition, partition_single_group)
     conduit::Node mesh;
     for(int d = 0; d < 3; d++)
     {
-        char name[32];
-        sprintf(name, "domain_%05d", d);
+        std::string name = conduit_fmt::format("domain_{:05}",d);
         conduit::Node &dom = mesh[name];
         const int nnodes = dims[d][0] * dims[d][1];
 
@@ -2976,7 +2982,7 @@ TEST(conduit_blueprint_mesh_partition, partition_single_group)
         dom["fields/single_group/values/group0"].set(conduit::DataType::int32(nnodes));
         int *sg = dom["fields/single_group/values/group0"].as_int_ptr();
         std::iota(sg, sg + nnodes, 0);
-    }  
+    }
 
     // Repartition the mesh from 3 domains into 2 domains.
     conduit::Node part, options;
@@ -2992,4 +2998,141 @@ TEST(conduit_blueprint_mesh_partition, partition_single_group)
         EXPECT_TRUE(dom.has_path("fields/single_group/values/group0"));
         EXPECT_EQ(dom.fetch_existing("fields/single_group/values").number_of_children(), 1);
     }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_partition, mixed2d)
+{
+    const std::string base("mixed2d");
+
+    // Make a "mixed" tile.
+    conduit::Node n_tile;
+    generate::create_mixed_tile(n_tile);
+
+    // Make sure the dimensions are 2.
+    EXPECT_EQ(conduit::blueprint::mesh::topology::dims(n_tile["topologies/tile"]), 2);
+
+    // Verify the tile.
+    conduit::Node info;
+    const bool v = conduit::blueprint::mesh::verify(n_tile, info);
+    EXPECT_TRUE(v);
+    if(!v)
+    {
+        info.print();
+    }
+
+    //conduit::relay::io::save(n_tile, "tile.yaml", "yaml");
+    //conduit::relay::io::blueprint::save_mesh(n_tile, "tile", "hdf5");
+
+    // Make 1 tiled domain
+    conduit::Node n_options;
+    //n_options["numDomains"] = 4;
+    n_options["tile"].set_external(n_tile);
+    n_options["meshname"] = "mesh";
+    conduit::Node n_mesh;
+    conduit::blueprint::mesh::examples::tiled(10,10,0, n_mesh, n_options);
+
+    //conduit::relay::io::save(n_mesh, "tilemesh.yaml", "yaml");
+    //conduit::relay::io::blueprint::save_mesh(n_mesh, "tilemesh", "hdf5");
+
+    // Partition the 1 domain into 4 parts.
+    std::cout << "Split 1 into 4" << std::endl;
+    conduit::Node n_part, n_part_opts;
+    n_part_opts["target"] = 4;
+    conduit::blueprint::mesh::partition(n_mesh, n_part_opts, n_part);
+
+    //conduit::relay::io::save(n_part, "part.yaml", "yaml");
+    //conduit::relay::io::blueprint::save_mesh(n_part, "part", "hdf5");
+    std::string b00 = baseline_file(base + "_00");
+#ifdef GENERATE_BASELINES
+    make_baseline(b00, n_part);
+#else
+    EXPECT_EQ(compare_baseline(b00, n_part), true);
+#endif
+
+    // Partition the 4 domains into 1 part.
+    std::cout << "Combine 4 into 1" << std::endl;
+    conduit::Node n_unpart;
+    n_part_opts["target"] = 1;
+    conduit::blueprint::mesh::partition(n_part, n_part_opts, n_unpart);
+
+    //conduit::relay::io::save(n_unpart, "unpart.yaml", "yaml");
+    //conduit::relay::io::blueprint::save_mesh(n_unpart, "unpart", "hdf5");
+    std::string b01 = baseline_file(base + "_01");
+#ifdef GENERATE_BASELINES
+    make_baseline(b01, n_unpart);
+#else
+    EXPECT_EQ(compare_baseline(b01, n_unpart), true);
+#endif
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_partition, mixed3d)
+{
+    const std::string base("mixed3d");
+
+    // Make 1 tiled domain
+    conduit::Node n_mesh;
+    conduit::blueprint::mesh::examples::braid("mixed", 5,5,5, n_mesh);
+    conduit::Node info;
+    const bool v = conduit::blueprint::mesh::verify(n_mesh, info);
+    EXPECT_TRUE(v);
+    if(!v)
+    {
+        info.print();
+    }
+
+    //conduit::relay::io::save(n_mesh, "mixed3d.yaml", "yaml");
+    //conduit::relay::io::blueprint::save_mesh(n_mesh, "mixed3d", "hdf5");
+
+    // Partition the 1 domain into 2 parts.
+    std::cout << "Split 1 into 2" << std::endl;
+    conduit::Node n_part, n_part_opts;
+    n_part_opts["target"] = 2;
+    conduit::blueprint::mesh::partition(n_mesh, n_part_opts, n_part);
+
+    // Verify the tile.
+    for(int dom = 0; dom < 2; dom++)
+    {
+        conduit::Node info;
+        const bool v = conduit::blueprint::mesh::verify(n_part[dom], info);
+        EXPECT_TRUE(v);
+        if(!v)
+        {
+            info.print();
+        }
+    }
+
+    //conduit::relay::io::save(n_part, "part.yaml", "yaml");
+    //conduit::relay::io::blueprint::save_mesh(n_part, "part", "hdf5");
+    std::string b00 = baseline_file(base + "_00");
+#ifdef GENERATE_BASELINES
+    make_baseline(b00, n_part);
+#else
+    EXPECT_EQ(compare_baseline(b00, n_part), true);
+#endif
+
+    // Partition the 2 domains into 1 part.
+    std::cout << "Combine 2 into 1" << std::endl;
+    conduit::Node n_unpart;
+    n_part_opts["target"] = 1;
+    conduit::blueprint::mesh::partition(n_part, n_part_opts, n_unpart);
+
+    // Make sure the mesh is good.
+    info.reset();
+    const bool v2 = conduit::blueprint::mesh::verify(n_unpart, info);
+    EXPECT_TRUE(v2);
+    if(!v2)
+    {
+        info.print();
+    }
+
+    //conduit::relay::io::save(n_unpart, "unpart.yaml", "yaml");
+    //conduit::relay::io::blueprint::save_mesh(n_unpart, "unpart", "hdf5");
+    std::string b01 = baseline_file(base + "_01");
+#ifdef GENERATE_BASELINES
+    make_baseline(b01, n_unpart);
+#else
+    EXPECT_EQ(compare_baseline(b01, n_unpart), true);
+#endif
 }

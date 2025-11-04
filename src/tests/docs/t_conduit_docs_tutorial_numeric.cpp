@@ -100,6 +100,70 @@ TEST(conduit_tutorial, numeric_strided_data_array)
 }
 
 //-----------------------------------------------------------------------------
+TEST(conduit_tutorial, numeric_data_accessor_start)
+{ 
+    BEGIN_EXAMPLE("numeric_data_accessor");
+}
+
+// _conduit_tutorial_cpp_numeric_data_accessor_start
+//-----------------------------------------------------------------------------
+void takes_float64_accessor(float64_accessor vals)
+{
+    std::cout << "Some stats:\n\t min: " << vals.min() <<
+                 "\n\t max: " << vals.max() <<
+                 "\n\t sum: " << vals.sum() <<
+                 "\n\t mean: " << vals.mean() <<
+                 std::endl;
+    for(int i = 0; i < vals.number_of_elements(); i++)
+    {
+        std::cout << "vals[" << i << "] = " <<  vals[i] << std::endl;
+    }
+}
+
+//-----------------------------------------------------------------------------
+void process_doubles_with_accessor(Node & n)
+{
+    float64_accessor vals = n.value();
+    vals.print();
+    takes_float64_accessor(vals);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_tutorial, numeric_data_accessor)
+{
+    int64 i_vals[4] = {100,200,300,400};
+
+    Node n;
+    n.set(i_vals,2, // # of elements
+                 0, // offset in bytes
+                 sizeof(int64)*2); // stride in bytes
+
+    // Process values as float64, even though they're integers
+    std::cout << "int64 case: " << std::endl;
+    process_doubles_with_accessor(n);
+
+
+    float64 dvals[6] = {1.1,2.2,3.3,4.4,5.5,6.6};
+
+    Node dn;
+    dn.set(dvals,3, // # of elements
+                 8, // offset in bytes
+                 sizeof(float64)*2); // stride in bytes
+
+    // Process values as float64
+    std::cout << "float64 case: " << std::endl;
+    process_doubles_with_accessor(dn);
+}
+// _conduit_tutorial_cpp_numeric_data_accessor_end
+
+
+//-----------------------------------------------------------------------------
+TEST(conduit_tutorial, numeric_data_accessor_end)
+{
+    END_EXAMPLE("numeric_data_accessor");
+}
+
+//-----------------------------------------------------------------------------
 TEST(conduit_tutorial, numeric_double_conversion_start)
 {
     BEGIN_EXAMPLE("numeric_double_conversion");

@@ -23,6 +23,7 @@ set(BLUEPRINT_TESTS t_blueprint_smoke
                     t_blueprint_mesh_generate
                     t_blueprint_mesh_generate_map_fields
                     t_blueprint_mesh_examples
+                    t_blueprint_mesh_examples_generate
                     t_blueprint_mesh_flatten
                     t_blueprint_mesh_matset_xforms
                     t_blueprint_mesh_topology_metadata

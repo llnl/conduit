@@ -29,7 +29,7 @@ endif()
 # Use CMake's FindHDF5 module to locate hdf5 and setup hdf5
 find_package(HDF5 REQUIRED)
 
-# FindHDF5/find_package sets HDF5_DIR to it's installed CMake info if it exists
+# FindHDF5/find_package sets HDF5_DIR to its installed CMake info if it exists
 # we want to keep HDF5_DIR as the root dir of the install to be 
 # consistent with other packages
 
@@ -287,27 +287,31 @@ endif()
 message(STATUS "HDF5 Thirdparty Include Flags: ${hdf5_tpl_inc_flags}")
 message(STATUS "HDF5 Thirdparty Link Flags: ${hdf5_tpl_lnk_flags}")
 
+if(ZLIB_FOUND)
+    set(hdf5_zlib_target ZLIB::ZLIB)
+endif()
+
 # if newer style hdf5 imported targets exist, use these
 if(TARGET hdf5::hdf5-shared AND BUILD_SHARED_LIBS)
     # reg shared ver of imported lib target
     message(STATUS "HDF5 using hdf5::hdf5-shared target")
     blt_register_library(NAME hdf5
-                         LIBRARIES hdf5::hdf5-shared)
+                         LIBRARIES hdf5::hdf5-shared ${hdf5_zlib_target})
 elseif(TARGET hdf5::hdf5-static)
     # reg static ver of imported lib target
     message(STATUS "HDF5 using hdf5::hdf5-static target")
     blt_register_library(NAME hdf5
-                         LIBRARIES hdf5::hdf5-static)
+                         LIBRARIES hdf5::hdf5-static ${hdf5_zlib_target})
 elseif(TARGET hdf5-shared AND BUILD_SHARED_LIBS)
     # reg shared ver of imported lib target
     message(STATUS "HDF5 using hdf5-shared target")
     blt_register_library(NAME hdf5
-                         LIBRARIES hdf5-shared)
+                         LIBRARIES hdf5-shared ${hdf5_zlib_target})
 elseif(TARGET hdf5-static)
     # reg static ver of imported lib target
      message(STATUS "HDF5 using hdf5-static target")
      blt_register_library(NAME hdf5
-                          LIBRARIES hdf5-static)
+                          LIBRARIES hdf5-static ${hdf5_zlib_target})
 elseif(TARGET hdf5)
     # legacy hdf5 CMake build system support creates an hdf5 target we use directly
     message(STATUS "HDF5 using hdf5 target")
@@ -324,4 +328,9 @@ else()
                          INCLUDES  ${HDF5_INCLUDE_DIRS}
                          LIBRARIES ${HDF5_LIBRARIES}
                          LINK_FLAGS ${hdf5_tpl_lnk_flags})
+endif()
+
+if(CONDUIT_ENABLE_TESTS AND WIN32 AND BUILD_SHARED_LIBS)
+    # if we are running tests with dlls, we need path to dlls
+    list(APPEND CONDUIT_TPL_DLL_PATHS ${HDF5_DIR}/bin/)
 endif()

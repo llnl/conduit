@@ -237,6 +237,65 @@ number_of_domains(const conduit::Node &n,
     return global_num_domains;
 }
 
+//-----------------------------------------------------------------------------
+void
+state(const conduit::Node &mesh,
+      conduit::Node &state,
+      MPI_Comm comm)
+{
+    state.reset();
+    ::conduit::blueprint::mesh::state(mesh, state);
+
+    int local = std::numeric_limits<int>::max();
+    const int par_rank = relay::mpi::rank(comm);
+    if (state.number_of_children() > 0)
+    {
+        local = par_rank;
+    }
+
+    Node n_local, n_reduced;
+    n_local = local;
+    relay::mpi::min_all_reduce(n_local,
+                               n_reduced,
+                               comm);
+
+    int global = n_reduced.as_int();
+    if (global == std::numeric_limits<int>::max())
+    {
+        // no state
+        return;
+    }
+
+    // min rank that has state
+    relay::mpi::broadcast_using_schema(state, global, comm);
+}
+
+//-------------------------------------------------------------------------
+index_t
+cycle(const conduit::Node &mesh, MPI_Comm comm)
+{
+    Node state;
+    ::conduit::blueprint::mpi::mesh::state(mesh, state, comm);
+    if (state.has_child("cycle"))
+    {
+        return state["cycle"].to_index_t();
+    }
+    return std::numeric_limits<int>::max();
+}
+
+//-------------------------------------------------------------------------
+float64
+time(const conduit::Node &mesh, MPI_Comm comm)
+{
+    Node state;
+    ::conduit::blueprint::mpi::mesh::state(mesh, state, comm);
+    if (state.has_child("time"))
+    {
+        return state["time"].to_float64();
+    }
+    return std::numeric_limits<int>::max();
+}
+
 //-------------------------------------------------------------------------
 void to_polytopal(const Node &n,
                   Node &dest,
@@ -350,9 +409,9 @@ void to_polygonal(const Node &n,
         return oss.str();
     };
 
-    const static auto is_domain_local = [] (const conduit::Node &root, const std::string &name)
+    const static auto is_domain_local = [] (const conduit::Node &root, const std::string &key)
     {
-        return ::conduit::blueprint::mesh::is_multi_domain(root) && root.has_child(name);
+        return ::conduit::blueprint::mesh::is_multi_domain(root) && root.has_child(key);
     };
 
     // Implementation //
@@ -663,16 +722,16 @@ void to_polygonal(const Node &n,
 
                                 const index_t nbr_rank = group["rank"].to_index_t();
                                 MPI_Send(&xbuffer[0],
-                                         xbuffer.size(),
+                                         static_cast<int>(xbuffer.size()),
                                          MPI_DOUBLE,
-                                         nbr_rank,
-                                         domain_id,
+                                         static_cast<int>(nbr_rank),
+                                         static_cast<int>(domain_id),
                                          comm);
                                 MPI_Send(&ybuffer[0],
-                                         ybuffer.size(),
+                                         static_cast<int>(ybuffer.size()),
                                          MPI_DOUBLE,
-                                         nbr_rank,
-                                         domain_id,
+                                         static_cast<int>(nbr_rank),
+                                         static_cast<int>(domain_id),
                                          comm);
                                 for (const auto& vnode: in_vtxfields)
                                 {
@@ -707,17 +766,17 @@ void to_polygonal(const Node &n,
                    
                                     index_t nbr_rank = group["rank"].to_index_t();
                                     MPI_Recv(&xbuffer[0],
-                                             xbuffer.size(),
+                                             static_cast<int>(xbuffer.size()),
                                              MPI_DOUBLE,
-                                             nbr_rank,
-                                             nbr_id,
+                                             static_cast<int>(nbr_rank),
+                                             static_cast<int>(nbr_id),
                                              comm,
                                              MPI_STATUS_IGNORE);
                                     MPI_Recv(&ybuffer[0],
-                                             ybuffer.size(),
+                                             static_cast<int>(ybuffer.size()),
                                              MPI_DOUBLE,
-                                             nbr_rank,
-                                             nbr_id,
+                                             static_cast<int>(nbr_rank),
+                                             static_cast<int>(nbr_id),
                                              comm,
                                              MPI_STATUS_IGNORE);
 
@@ -2321,9 +2380,9 @@ void to_polyhedral(const Node &n,
                     //Holds neighbor elem offsets
                     std::vector<index_t>& nbrs = eitr->second;
                     size_t num_nbrs = nbrs.size();
-                    for (size_t n = 0; n < num_nbrs; ++n)
+                    for (size_t ni = 0; ni < num_nbrs; ++ni)
                     {
-                        index_t nbr_elem = nbrs[n];
+                        index_t nbr_elem = nbrs[ni];
 
                         //nbr_face is subelem offset for the face of
                         //nbr_elem touching the boundary
@@ -2925,13 +2984,15 @@ generate_points(conduit::Node &mesh,
                 MPI_Comm comm)
 {
     conduit::blueprint::mpi::mesh::utils::query::MatchQuery query(mesh, comm);
+    conduit::blueprint::mpi::mesh::utils::topology::MeshInfoCollection mic(comm);
     conduit::blueprint::mesh::generate_points(mesh,
                                               src_adjset_name,
                                               dst_adjset_name,
                                               dst_topo_name,
                                               s2dmap,
                                               d2smap,
-                                              query);
+                                              query,
+                                              mic);
 }
 
 
@@ -2946,13 +3007,15 @@ generate_lines(conduit::Node &mesh,
                MPI_Comm comm)
 {
     conduit::blueprint::mpi::mesh::utils::query::MatchQuery query(mesh, comm);
+    conduit::blueprint::mpi::mesh::utils::topology::MeshInfoCollection mic(comm);
     conduit::blueprint::mesh::generate_lines(mesh,
                                              src_adjset_name,
                                              dst_adjset_name,
                                              dst_topo_name,
                                              s2dmap,
                                              d2smap,
-                                             query);
+                                             query,
+                                             mic);
 }
 
 
@@ -2967,13 +3030,15 @@ generate_faces(conduit::Node &mesh,
                MPI_Comm comm)
 {
     conduit::blueprint::mpi::mesh::utils::query::MatchQuery query(mesh, comm);
+    conduit::blueprint::mpi::mesh::utils::topology::MeshInfoCollection mic(comm);
     conduit::blueprint::mesh::generate_faces(mesh,
                                              src_adjset_name,
                                              dst_adjset_name,
                                              dst_topo_name,
                                              s2dmap,
                                              d2smap,
-                                             query);
+                                             query,
+                                             mic);
 }
 
 
@@ -2986,15 +3051,20 @@ generate_centroids(conduit::Node& mesh,
                    const std::string& dst_cset_name,
                    conduit::Node& s2dmap,
                    conduit::Node& d2smap,
-                   MPI_Comm /*comm*/)
+                   MPI_Comm comm)
 {
+    conduit::blueprint::mpi::mesh::utils::query::PointQuery Q(mesh, comm);
+    conduit::blueprint::mpi::mesh::utils::topology::MeshInfoCollection mic(comm);
+
     conduit::blueprint::mesh::generate_centroids(mesh,
                                                  src_adjset_name,
                                                  dst_adjset_name,
                                                  dst_topo_name,
                                                  dst_cset_name,
                                                  s2dmap,
-                                                 d2smap);
+                                                 d2smap,
+                                                 Q,
+                                                 mic);
 }
 
 
@@ -3007,15 +3077,20 @@ generate_sides(conduit::Node& mesh,
                const std::string& dst_cset_name,
                conduit::Node& s2dmap,
                conduit::Node& d2smap,
-               MPI_Comm /*comm*/)
+               MPI_Comm comm)
 {
+    conduit::blueprint::mpi::mesh::utils::query::PointQuery Q(mesh, comm);
+    conduit::blueprint::mpi::mesh::utils::topology::MeshInfoCollection mic(comm);
+
     conduit::blueprint::mesh::generate_sides(mesh,
                                              src_adjset_name,
                                              dst_adjset_name,
                                              dst_topo_name,
                                              dst_cset_name,
                                              s2dmap,
-                                             d2smap);
+                                             d2smap,
+                                             Q,
+                                             mic);
 
 }
 
@@ -3034,6 +3109,7 @@ generate_corners(conduit::Node& mesh,
     // points actually exist in a neighbor domain. We can pass NullPointQuery
     // to get the old behavior.
     conduit::blueprint::mpi::mesh::utils::query::PointQuery Q(mesh, comm);
+    conduit::blueprint::mpi::mesh::utils::topology::MeshInfoCollection mic(comm);
 
     conduit::blueprint::mesh::generate_corners(mesh,
                                                src_adjset_name,
@@ -3042,7 +3118,8 @@ generate_corners(conduit::Node& mesh,
                                                dst_cset_name,
                                                s2dmap,
                                                d2smap,
-                                               Q);
+                                               Q,
+                                               mic);
 }
 
 //-------------------------------------------------------------------------

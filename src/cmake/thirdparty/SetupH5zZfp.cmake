@@ -51,3 +51,7 @@ blt_register_library(NAME h5zzfp
                      INCLUDES ${H5ZZFP_INCLUDE_DIR}
                      LIBRARIES ${H5ZZFP_LIBRARIES})
 
+if(CONDUIT_ENABLE_TESTS AND WIN32 AND BUILD_SHARED_LIBS)
+    # if we are running tests with dlls, we need path to dlls
+    list(APPEND CONDUIT_TPL_DLL_PATHS ${H5ZZFP_DIR}/bin/)
+endif()

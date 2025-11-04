@@ -365,7 +365,7 @@ class Test_Conduit_Node(unittest.TestCase):
         print(n)
         self.assertEqual(n.value(),"my string!")
         # test numpy string
-        nps = np.string_("my numpy string!")
+        nps = np.bytes_("my numpy string!")
         n.set(nps)
         print(n)
         print(repr(n))
@@ -546,8 +546,23 @@ class Test_Conduit_Node(unittest.TestCase):
         n['vs'].set_external(v[:,0,0])
         n['vs_expected'] = np.array(v[:,0,0],np.float64)
 
-
-
+    def test_access_to_strided_leaf(self):
+        # this test demonsrates that strided leaves
+        # are properly exposed via the numpy array views
+        # we return 
+        s = Schema()
+        s["a"] = DataType.float64(4)
+        s["b"] = DataType.float64(2,0,16)
+        n = Node()
+        n.set(s)
+        v_a = n.fetch("a").value()
+        v_a[0] = 1.0
+        v_a[2] = 2.0
+        print(n)
+        v_b = n.fetch("b").value()
+        self.assertEqual(v_b[0],1.0)
+        self.assertEqual(v_b[1],2.0)
+    
     def test_describe(self):
         n = Node()
         n["a"] = [1,2,3,4,5];

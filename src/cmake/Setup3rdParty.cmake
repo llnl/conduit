@@ -12,6 +12,9 @@
 #  gtest, fruit, and mpi
 ################################
 
+# clear DLL runtime path
+set(CONDUIT_TPL_DLL_PATHS)
+
 ################################
 # Threads support
 ################################
@@ -23,13 +26,20 @@ if(UNIX AND NOT APPLE)
     endif()
 endif()
 
-
 ################################
-# Setup includes for RapidJSON
+# Setup and build json parsing
+#   yyjson or rapidjson
 ################################
-include(cmake/thirdparty/SetupRapidJSON.cmake)
-message(STATUS "Using RapidJSON Include: ${RAPIDJSON_INCLUDE_DIR}")
-include_directories(${RAPIDJSON_INCLUDE_DIR})
+if(ENABLE_YYJSON)
+    message(STATUS "Using yyjson for JSON parsing")
+    add_subdirectory(thirdparty_builtin/yyjson)
+    include_directories(thirdparty_builtin/yyjson/)
+    set(CONDUIT_USE_YYJSON TRUE)
+else() # rapidjson
+    include(cmake/thirdparty/SetupRapidJSON.cmake)
+    message(STATUS "Using RapidJSON Include: ${RAPIDJSON_INCLUDE_DIR}")
+    include_directories(${RAPIDJSON_INCLUDE_DIR})
+endif()
 
 ################################
 # Setup and build libb64

@@ -12,7 +12,7 @@
 
 #include <iostream>
 #include "gtest/gtest.h"
-#include "rapidjson/document.h"
+
 using namespace conduit;
 
 // TODO(JRC): Figure out if there's any better way to facilitate these conversions

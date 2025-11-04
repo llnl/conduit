@@ -23,6 +23,8 @@
 #include "conduit_blueprint_mesh_examples_polystar.hpp"
 #include "conduit_blueprint_mesh_examples_rz_cylinder.hpp"
 #include "conduit_blueprint_mesh_examples_tiled.hpp"
+#include "conduit_blueprint_mesh_examples_gyre.hpp"
+#include "conduit_blueprint_mesh_examples_generate.hpp"
 
 //-----------------------------------------------------------------------------
 // -- begin conduit::--
@@ -48,6 +50,7 @@ namespace mesh
 //-----------------------------------------------------------------------------
 namespace examples
 {
+
     /// Generates a uniform grid with a scalar field that assigns a unique,
     /// monotonically increasing value to each element.
     void CONDUIT_BLUEPRINT_API basic(const std::string &mesh_type,
@@ -266,6 +269,36 @@ namespace examples
                                      conduit::index_t dy,
                                      conduit::index_t dz,
                                      conduit::Node &res);
+
+    /// Generates a multidomain grid of examples.  spec is a list or object
+    /// specifying one or more domains.  Each child of spec represents a domain
+    /// in either two or three dimensions.  Each child has
+    ///  - integral children npts_x, npts_y, optionally npts_z
+    ///  - integral child domain_id
+    ///  - numerical array children corner_xs, corner_ys, optionally corner_zs
+    ///  - optionally, integral children nest_child_id and nest_ratio
+    ///
+    /// Taken together, the corner_xs, corner_ys, and optionally corner_zs
+    /// represent the points at the corners of that domain.
+    ///
+    /// If nest_child_id and nest_ratio are present in a domain spec,
+    /// bent_multi_grid makes a refined domain nested within the domain.
+    void CONDUIT_BLUEPRINT_API bent_multi_grid(const conduit::Node& spec,
+                                               conduit::Node& res);
+
+    /// Generates a multidomain grid of examples.  If spec is an empty node,
+    /// makes a default spec that includes enhanced and reduced connectivity
+    /// as well as a nested domain, then calls bent_multi_grid.  If spec
+    /// is not empty, directly calls bent_multi_grid.
+    void CONDUIT_BLUEPRINT_API bent_multi_grid_amr(const conduit::Node& spec,
+                                                   conduit::Node& res);
+
+    /// Generates a braid-like example mesh that covers elements defined in a
+    /// rectilinear grid.  Currently hexs are supported for 3D meshes and quads
+    /// are supported for 2D meshes.  Specify a mesh as outlined in the docs
+    /// for bent_multi_grid().
+    void CONDUIT_BLUEPRINT_API bent_braid(const conduit::Node& spec,
+                                          conduit::Node& res);
 
     /// Generates a braid-like example mesh that covers elements defined in a
     /// rectilinear grid. The element type (e.g. triangles, quads, their 3D

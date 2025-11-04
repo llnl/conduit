@@ -165,18 +165,6 @@ TEST(conduit_blueprint_mesh_examples, mesh_2d)
                                      npts_z,
                                      dsets["quads"]);
 
-    blueprint::mesh::examples::braid("quads_and_tris",
-                                     npts_x,
-                                     npts_y,
-                                     npts_z,
-                                     dsets["quads_and_tris"]);
-
-    blueprint::mesh::examples::braid("quads_and_tris_offsets",
-                                     npts_x,
-                                     npts_y,
-                                     npts_z,
-                                     dsets["quads_and_tris_offsets"]);
-
     blueprint::mesh::examples::braid("points",
                                      npts_x,
                                      npts_y,
@@ -204,12 +192,6 @@ TEST(conduit_blueprint_mesh_examples, mesh_2d)
         CONDUIT_INFO(info.to_yaml());
     }
 
-    // TODO: Add VisIt support for rendering mixed element and implicit point
-    // meshes so they don't have to be removed before outputting mesh data.
-    dsets.remove("quads_and_tris");
-    dsets.remove("quads_and_tris_offsets");
-    dsets.remove("mixed_2d");
-
     braid_save_helper(dsets,"braid_2d_examples");
 #if defined (CONDUIT_RELAY_IO_SILO_ENABLED)
     if(silo_enabled)
@@ -228,7 +210,7 @@ TEST(conduit_blueprint_mesh_examples, mesh_2d)
             //   std::string topo_shape = shape_block->fetch("shape").as_string();
             // which does not exist for indexed_stream meshes.
             // The silo writer needs to be updated for this case.
-            if( name == "quads_and_tris" || name == "quads_and_tris_offsets" || name == "mixed_2d")
+            if(name == "mixed_2d")
             {
                 CONDUIT_INFO("\tNOTE: skipping output to SILO -- ")
                 CONDUIT_INFO("feature is unavailable for mixed element meshes")
@@ -306,12 +288,6 @@ TEST(conduit_blueprint_mesh_examples, mesh_3d)
                                      npts_z,
                                      dsets["hexs"]);
 
-    blueprint::mesh::examples::braid("hexs_and_tets",
-                                     npts_x,
-                                     npts_y,
-                                     npts_z,
-                                     dsets["hexs_and_tets"]);
-
     blueprint::mesh::examples::braid("mixed",
                                      npts_x,
                                      npts_y,
@@ -339,11 +315,6 @@ TEST(conduit_blueprint_mesh_examples, mesh_3d)
         CONDUIT_INFO(info.to_yaml());
     }
 
-    // TODO: Add VisIt support for rendering mixed element and implicit point
-    // meshes so they don't have to be removed before outputting mesh data.
-    dsets.remove("hexs_and_tets");
-    dsets.remove("mixed");
-
     braid_save_helper(dsets,"braid_3d_examples");
 #if defined (CONDUIT_RELAY_IO_SILO_ENABLED)
     if(silo_enabled)
@@ -355,14 +326,14 @@ TEST(conduit_blueprint_mesh_examples, mesh_3d)
             const Node &mesh = itr.next();
             std::string name = itr.name();
 
-            // Skip output of silo mesh for mixed mesh of hexs and tets for now.
+            // Skip output of silo mesh for mixed mesh for now.
             // The silo output is not yet defined and it throws an exception
             // in conduit_silo.cpp::silo_write_ucd_zonelist()
             // in the following line that is looking for the 'shape' node:
             //              std::string topo_shape = shape_block->fetch("shape").as_string();
             // which does not exist for indexed_stream meshes.
             // The silo writer needs to be updated for this case.
-            if(name == "hexs_and_tets" || name == "mixed")
+            if (name == "mixed")
             {
                 CONDUIT_INFO("\tNOTE: skipping output to SILO -- ")
                 CONDUIT_INFO("feature is unavailable for mixed element meshes")
@@ -374,6 +345,167 @@ TEST(conduit_blueprint_mesh_examples, mesh_3d)
     }
 #endif
 }
+
+
+//-----------------------------------------------------------------------------
+void add_domain_node(Node& spec, const char* dom_name, int domain_id,
+    int npts_x, int npts_y, int npts_z,
+    Node& x, Node& y, Node& z)
+{
+    Node& dom = spec[dom_name];
+    dom["npts_x"] = npts_x;
+    dom["npts_y"] = npts_y;
+    if (npts_z > 0)
+    {
+        dom["npts_z"] = npts_z;
+    }
+    dom["corner_xs"].set(x);
+    dom["corner_ys"].set(y);
+    if (z.dtype().number_of_elements() > 0)
+    {
+        dom["corner_zs"].set(z);
+    }
+    dom["domain_id"] = domain_id;
+}
+
+TEST(conduit_blueprint_mesh_examples, mesh_2D_enh_red_connectivity)
+{
+    Node io_protos;
+    relay::io::about(io_protos["io"]);
+
+    bool silo_enabled = io_protos["io/protocols/conduit_silo"].as_string() == "enabled";
+    bool hdf5_enabled = io_protos["io/protocols/hdf5"].as_string() == "enabled";
+
+    // we are using one node to hold group of example meshes purely out of convenience
+    Node dsets;
+    Node empty_z;
+
+    {
+        Node spec;
+
+        Node d0x; d0x = { 0., 4., 4., 0. };
+        Node d0y; d0y = { 0., 0., 4., 4. };
+        add_domain_node(spec, "domain0", 0, 4, 5, 0, d0x, d0y, empty_z);
+
+        Node d1x; d1x = { 4., 6., 6., 4. };
+        Node d1y; d1y = { 0., 0., 7., 4. };
+        add_domain_node(spec, "domain1", 1, 4, 5, 0, d1x, d1y, empty_z);
+
+        Node d2x; d2x = { 0., 4., 6., 0. };
+        Node d2y; d2y = { 4., 4., 7., 7. };
+        add_domain_node(spec, "domain2", 2, 4, 4, 0, d2x, d2y, empty_z);
+
+        Node d3x; d3x = { 0., 6., 6., 0. };
+        Node d3y; d3y = { 7., 7., 10., 10. };
+        add_domain_node(spec, "domain3", 3, 4, 5, 0, d3x, d3y, empty_z);
+
+        Node d4x; d4x = { 6., 10., 10., 6. };
+        Node d4y; d4y = { 0., 0., 7., 7.};
+        add_domain_node(spec, "domain4", 4, 4, 5, 0, d4x, d4y, empty_z);
+
+        Node d5x; d5x = { 6., 10., 10., 6. };
+        Node d5y; d5y = { 7., 7., 10., 10. };
+        add_domain_node(spec, "domain5", 5, 4, 5, 0, d5x, d5y, empty_z);
+
+        blueprint::mesh::examples::bent_multi_grid(spec, dsets["bentgrid_2d_visitghost"]);
+    }
+
+    Node info;
+    NodeConstIterator itr = dsets.children();
+    while (itr.has_next())
+    {
+        const Node& mesh = itr.next();
+        std::string meshname = itr.name();
+        EXPECT_TRUE(blueprint::mesh::verify(mesh, info));
+        test_save_mesh_helper(mesh, meshname);
+    }
+}
+
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_examples, mesh_3D_enh_red_connectivity)
+{
+    Node io_protos;
+    relay::io::about(io_protos["io"]);
+
+    bool silo_enabled = io_protos["io/protocols/conduit_silo"].as_string() == "enabled";
+    bool hdf5_enabled = io_protos["io/protocols/hdf5"].as_string() == "enabled";
+
+    // we are using one node to hold group of example meshes purely out of convenience
+    Node dsets;
+
+    {
+        Node spec;
+
+        Node d0x; d0x = { 0., 4., 4., 0., 0., 4., 4., 0. };
+        Node d0y; d0y = { 0., 0., 4., 4., 0., 0., 4., 4. };
+        Node d0z; d0z = { 0., 0., 0., 0., 3., 3., 3., 3. };
+        add_domain_node(spec, "domain0", 0, 4, 5, 4, d0x, d0y, d0z);
+
+        Node d1x; d1x = { 4., 6., 6., 4., 4., 6., 6., 4. };
+        Node d1y; d1y = { 0., 0., 7., 4., 0., 0., 7., 4. };
+        Node d1z; d1z = { 0., 0., 0., 0., 3., 7., 7., 3. };
+        add_domain_node(spec, "domain1", 1, 4, 5, 4, d1x, d1y, d1z);
+
+        Node d2x; d2x = { 0., 4., 6., 0., 0., 4., 6., 0. };
+        Node d2y; d2y = { 4., 4., 7., 7., 4., 4., 7., 7. };
+        Node d2z; d2z = { 0., 0., 0., 0., 3., 3., 7., 7. };
+        add_domain_node(spec, "domain2", 2, 4, 4, 4, d2x, d2y, d2z);
+
+        Node d3x; d3x = { 0., 6., 6., 0., 0., 6., 6., 0. };
+        Node d3y; d3y = { 7., 7., 10., 10., 7., 7., 10., 10. };
+        Node d3z; d3z = { 0., 0., 0., 0., 7., 7., 7., 7. };
+        add_domain_node(spec, "domain3", 3, 4, 5, 4, d3x, d3y, d3z);
+
+        Node d4x; d4x = { 6., 10., 10., 6., 6., 10., 10., 6. };
+        Node d4y; d4y = { 0., 0., 7., 7., 0., 0., 7., 7. };
+        Node d4z; d4z = { 0., 0., 0., 0., 7., 7., 7., 7. };
+        add_domain_node(spec, "domain4", 4, 4, 5, 4, d4x, d4y, d4z);
+
+        Node d5x; d5x = { 6., 10., 10., 6., 6., 10., 10., 6. };
+        Node d5y; d5y = { 7., 7., 10., 10., 7., 7., 10., 10. };
+        Node d5z; d5z = { 0., 0., 0., 0., 7., 7., 7., 7. };
+        add_domain_node(spec, "domain5", 5, 4, 5, 4, d5x, d5y, d5z);
+
+        Node d6x; d6x = { 0., 4., 4., 0., 0., 6., 6., 0. };
+        Node d6y; d6y = { 0., 0., 4., 4., 0., 0., 7., 7. };
+        Node d6z; d6z = { 3., 3., 3., 3., 7., 7., 7., 7. };
+        add_domain_node(spec, "domain6", 6, 4, 5, 4, d6x, d6y, d6z);
+
+        Node d7x; d7x = { 0., 6., 6., 0., 0., 6., 6., 0. };
+        Node d7y; d7y = { 0., 0., 7., 7., 0., 0., 7., 7.};
+        Node d7z; d7z = { 7., 7., 7., 7., 10., 10., 10., 10. };
+        add_domain_node(spec, "domain7", 7, 4, 5, 2, d7x, d7y, d7z);
+
+        Node d8x; d8x = { 6., 10., 10., 6., 6., 10., 10., 6. };
+        Node d8y; d8y = { 0., 0., 7., 7., 0., 0., 7., 7. };
+        Node d8z; d8z = { 7., 7., 7., 7., 10., 10., 10., 10. };
+        add_domain_node(spec, "domain8", 8, 4, 5, 2, d8x, d8y, d8z);
+
+        Node d9x; d9x = { 0., 6., 6., 0., 0., 6., 6., 0. };
+        Node d9y; d9y = { 7., 7., 10., 10., 7., 7., 10., 10. };
+        Node d9z; d9z = { 7., 7., 7., 7., 10., 10., 10., 10. };
+        add_domain_node(spec, "domain9", 9, 4, 5, 2, d9x, d9y, d9z);
+
+        Node d10x; d10x = { 6., 10., 10., 6., 6., 10., 10., 6. };
+        Node d10y; d10y = { 7., 7., 10., 10., 7., 7., 10., 10. };
+        Node d10z; d10z = { 7., 7., 7., 7., 10., 10., 10., 10. };
+        add_domain_node(spec, "domain10", 10, 4, 5, 2, d10x, d10y, d10z);
+
+        blueprint::mesh::examples::bent_multi_grid(spec, dsets["bentgrid_3d_visitghost"]);
+    }
+
+    Node info;
+    NodeConstIterator itr = dsets.children();
+    while (itr.has_next())
+    {
+        const Node& mesh = itr.next();
+        std::string meshname = itr.name();
+        EXPECT_TRUE(blueprint::mesh::verify(mesh, info));
+        test_save_mesh_helper(mesh, meshname);
+    }
+}
+
 
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_examples, braid_too_small_npts)
@@ -504,6 +636,8 @@ TEST(conduit_blueprint_mesh_examples, strided_structured_2d)
     test_save_mesh_helper(res, "strided_structured_2d_pad");
 }
 
+
+//-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_examples, strided_structured_3d)
 {
     Node res;
@@ -662,6 +796,346 @@ TEST(conduit_blueprint_mesh_examples, strided_structured_colmajor)
     CONDUIT_INFO(info.to_yaml());
 
     test_save_mesh_helper(res, "strided_structured_colmajor");
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_examples, mixed_mesh_simple_2d)
+{
+    Node data, verify_info;
+
+    //
+    // Create example mesh.
+    //
+
+    // create simple mixed 2d mesh with triangles and quads
+    /*
+    3     *-------*-------*       (8, 9, 10)
+         / \     / \     / \
+        / d \ e / f \ g / h \
+       /     \ /     \ /     \
+    1  *------*-------*------*    (4, 5, 6, 7)
+       |   a  |   b   |  c   |
+    0  *------*-------*------*
+       0      1       2      3
+    */
+
+    data["coordsets/coords/type"] = "explicit";
+    data["coordsets/coords/values/x"].set(DataType::float64(11));
+    data["coordsets/coords/values/y"].set(DataType::float64(11));
+
+    data["coordsets/coords/values/x"] = { 0.0, 1.0, 2.0, 3.0,
+                                          0.0, 1.0, 2.0, 3.0,
+                                          0.5, 1.5, 2.5 };
+    data["coordsets/coords/values/y"] = { 0.0, 0.0, 0.0, 0.0,
+                                          1.0, 1.0, 1.0, 1.0,
+                                          3.0, 3.0, 3.0};
+
+    data["topologies/topo/type"] = "unstructured";
+    data["topologies/topo/coordset"] = "coords";
+    data["topologies/topo/elements/shape"] = "mixed";
+    data["topologies/topo/elements/shape_map/tri"]  = 5;
+    data["topologies/topo/elements/shape_map/quad"] = 9;
+    data["topologies/topo/elements/shapes"] = { 9, 9, 9,
+                                                5, 5, 5, 5, 5};
+    data["topologies/topo/elements/sizes"] =  { 4, 4, 4,
+                                                3, 3, 3, 3, 3};
+    data["topologies/topo/elements/offsets"] =  {0, 4, 8,
+                                                 12, 15, 18, 21, 24};
+
+    data["topologies/topo/elements/connectivity"] =  {0, 1, 5, 4,
+                                                      1, 2, 6, 5,
+                                                      2, 3, 7, 6,
+                                                      4, 5, 8,
+                                                      8, 5, 9,
+                                                      5, 6, 9,
+                                                      9, 6, 10,
+                                                      6, 7, 10};
+
+    data["fields/ele_id/topology"] = "topo";
+    data["fields/ele_id/association"] = "element";
+    data["fields/ele_id/values"] = { 0, 1, 2,
+                                     3, 4, 5, 6, 7};
+
+    // also add a points topo to help with debugging
+
+    data["topologies/pts/type"] = "points";
+    data["topologies/pts/coordset"] = "coords";
+    data["fields/pts_id/topology"] = "pts";
+    data["fields/pts_id/association"] = "element";
+    data["fields/pts_id/values"] = { 0, 1, 2, 3,
+                                     4, 5, 6, 7, 
+                                     8, 9, 10};
+
+    //data.print();
+
+    EXPECT_TRUE(blueprint::mesh::verify(data, verify_info));
+    CONDUIT_INFO(verify_info.to_yaml());
+
+    test_save_mesh_helper(data, "mixed_mesh_simple_2d");
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_examples, mixed_mesh_polygonal_2d)
+{
+    Node data, verify_info;
+
+    //
+    // Create example mesh.
+    //
+
+    // create simple mixed 2d mesh with triangles, quads, and a polygon
+    /*
+    3     *-------*-------*       (8, 9, 10)
+         / \     /         \
+        / d \ e /     f     \
+       /     \ /   ---*---   \
+    1  *------*---/   |   \--*    (4, 5, 6, 7)
+       |   a  |   b   |  c   |
+    0  *------*-------*------*
+       0      1       2      3
+    */
+
+    data["coordsets/coords/type"] = "explicit";
+    data["coordsets/coords/values/x"].set(DataType::float64(11));
+    data["coordsets/coords/values/y"].set(DataType::float64(11));
+
+    data["coordsets/coords/values/x"] = { 0.0, 1.0, 2.0, 3.0,
+                                          0.0, 1.0, 2.0, 3.0,
+                                          0.5, 1.5, 2.5 };
+    data["coordsets/coords/values/y"] = { 0.0, 0.0, 0.0, 0.0,
+                                          1.0, 1.0, 1.5, 1.0,
+                                          3.0, 3.0, 3.0};
+
+    data["topologies/topo/type"] = "unstructured";
+    data["topologies/topo/coordset"] = "coords";
+    data["topologies/topo/elements/shape"] = "mixed";
+    data["topologies/topo/elements/shape_map/tri"]  = 5;
+    data["topologies/topo/elements/shape_map/quad"] = 9;
+    data["topologies/topo/elements/shape_map/polygonal"] = 7;
+    data["topologies/topo/elements/shapes"] = { 9, 9, 9,
+                                                5, 5,
+                                                7};
+    data["topologies/topo/elements/sizes"] =  { 4, 4, 4,
+                                                3, 3,
+                                                5};
+    data["topologies/topo/elements/offsets"] =  {0, 4, 8,
+                                                 12, 15,
+                                                 18};
+
+    data["topologies/topo/elements/connectivity"] =  {0, 1, 5, 4,
+                                                      1, 2, 6, 5,
+                                                      2, 3, 7, 6,
+                                                      4, 5, 8,
+                                                      8, 5, 9,
+                                                      5, 6, 7, 10, 9};
+
+    data["fields/ele_id/topology"] = "topo";
+    data["fields/ele_id/association"] = "element";
+    data["fields/ele_id/values"] = { 0, 1, 2,
+                                     3, 4,
+                                     5};
+
+    // also add a points topo to help with debugging
+
+    data["topologies/pts/type"] = "points";
+    data["topologies/pts/coordset"] = "coords";
+    data["fields/pts_id/topology"] = "pts";
+    data["fields/pts_id/association"] = "element";
+    data["fields/pts_id/values"] = { 0, 1, 2, 3,
+                                     4, 5, 6, 7, 
+                                     8, 9, 10};
+
+    //data.print();
+
+    EXPECT_TRUE(blueprint::mesh::verify(data, verify_info));
+    CONDUIT_INFO(verify_info.to_yaml());
+
+    test_save_mesh_helper(data, "mixed_mesh_polygonal_2d");
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_examples, mixed_mesh_simple_3d)
+{
+    Node data, verify_info;
+
+    //
+    // Create example mesh.
+    //
+
+    // create simple mixed 3d mesh with hexs and pyramids
+    /*
+            *       *      * ( x: 0.5, 1.5, 2.5). 16, 17, 18
+                             ( y:   2,   2,   2)
+                             ( z: 0.5, 0.5, 0.5)
+   1    *------*-------*------*  (12, 13, 14, 15) (back upper)
+  z    /      /.      /.     /|
+ 0  1 *------*-------*------* |  (8, 9, 10, 11) (front upper)
+    y |   a  |   b   |  c   | / 
+    0 *------*-------*------*    (4, 5, 6, 7) (back lower)
+      0      1       2      3
+    */
+
+    data["coordsets/coords/type"] = "explicit";
+    data["coordsets/coords/values/x"] = { 0.0, 1.0, 2.0, 3.0,
+                                          0.0, 1.0, 2.0, 3.0,
+                                          0.0, 1.0, 2.0, 3.0,
+                                          0.0, 1.0, 2.0, 3.0,
+                                          0.5, 1.5, 2.5};
+
+    data["coordsets/coords/values/y"] = { 0.0, 0.0, 0.0, 0.0,
+                                          0.0, 0.0, 0.0, 0.0,
+                                          1.0, 1.0, 1.0, 1.0,
+                                          1.0, 1.0, 1.0, 1.0,
+                                          2.0, 2.0, 2.0};
+
+    data["coordsets/coords/values/z"] = { 0.0, 0.0, 0.0, 0.0,
+                                          1.0, 1.0, 1.0, 1.0,
+                                          0.0, 0.0, 0.0, 0.0,
+                                          1.0, 1.0, 1.0, 1.0,
+                                          0.5, 0.5, 0.5};
+
+
+    data["topologies/topo/type"] = "unstructured";
+    data["topologies/topo/coordset"] = "coords";
+    data["topologies/topo/elements/shape"] = "mixed";
+    data["topologies/topo/elements/shape_map/hex"]  = 12;
+    data["topologies/topo/elements/shape_map/pyramid"]  = 14;
+    data["topologies/topo/elements/shapes"] =  { 12, 12, 12, 14, 14, 14 };
+    data["topologies/topo/elements/sizes"] =   { 8, 8, 8, 5, 5, 5};
+    data["topologies/topo/elements/offsets"] = { 0, 8, 16,
+                                                 24, 29, 34};
+
+    data["topologies/topo/elements/connectivity"] =  {  0,  1,  5,  4,  8,  9, 13, 12,
+                                                        1,  2,  6,  5,  9, 10, 14, 13,
+                                                        2,  3,  7,  6, 10, 11, 15, 14,
+                                                        8,  9, 13, 12, 16,
+                                                        9, 10, 14, 13, 17,
+                                                       10, 11, 15, 14, 18
+                                                    };
+
+    data["fields/ele_id/topology"] = "topo";
+    data["fields/ele_id/association"] = "element";
+    data["fields/ele_id/values"] = { 0, 1, 2, 3, 4, 5};
+
+    // also add a points topo to help with debugging
+
+    data["topologies/pts/type"] = "points";
+    data["topologies/pts/coordset"] = "coords";
+    data["fields/pts_id/topology"] = "pts";
+    data["fields/pts_id/association"] = "element";
+    data["fields/pts_id/values"] = {  0,  1,  2,  3,
+                                      4,  5,  6,  7,
+                                      8,  9, 10, 11,
+                                     12, 13, 14, 15,
+                                     16, 17, 18};
+
+    //data.print();
+
+    EXPECT_TRUE(blueprint::mesh::verify(data, verify_info));
+    CONDUIT_INFO(verify_info.to_yaml());
+
+    test_save_mesh_helper(data, "mixed_mesh_simple_3d");
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_examples, mixed_mesh_polyhedral_3d)
+{
+    Node data, verify_info;
+
+    // TODO we should explore why this looks wrong in VisIt. I think
+    // generate_sides is the culprit. https://github.com/LLNL/conduit/issues/1289
+
+    //
+    // Create example mesh.
+    //
+
+    // create mixed 3d mesh with hexs and pyramids and concave polyhedra
+    /*
+            *       *      * ( x: 0.5, 1.5, 2.5). 16, 17, 18
+                             ( y:   2,   2,   2)
+                             ( z: 0.5, 0.5, 0.5)
+   1    *------*-------*------*  (12, 13, 14, 15) (back upper)
+  z    /      /.      /.     /|
+ 0  1 *------*-------*------* |  (8, 9, 10, 11) (front upper)
+    y |   a  |   b   |  c   | / 
+    0 *------*-------*------*    (4, 5, 6, 7) (back lower)
+      0      1       2      3
+    */
+
+    data["coordsets/coords/type"] = "explicit";
+    data["coordsets/coords/values/x"] = { 0.75, 1.0, 2.0, 3.0,
+                                          0.75, 1.0, 2.0, 3.0,
+                                          0.0, 1.0, 2.0, 3.0,
+                                          0.0, 1.0, 2.0, 3.0,
+                                          0.5, 1.5, 2.5};
+
+    data["coordsets/coords/values/y"] = { 0.75, 0.0, 0.0, 0.0,
+                                          0.75, 0.0, 0.0, 0.0,
+                                          1.0, 1.0, 1.0, 1.0,
+                                          1.0, 1.0, 1.0, 1.0,
+                                          2.0, 2.0, 2.0};
+
+    data["coordsets/coords/values/z"] = { 0.0, 0.0, 0.0, 0.0,
+                                          1.0, 1.0, 1.0, 1.0,
+                                          0.0, 0.0, 0.0, 0.0,
+                                          1.0, 1.0, 1.0, 1.0,
+                                          0.5, 0.5, 0.5};
+
+
+    data["topologies/topo/type"] = "unstructured";
+    data["topologies/topo/coordset"] = "coords";
+    data["topologies/topo/elements/shape"] = "mixed";
+    data["topologies/topo/elements/shape_map/hex"]  = 12;
+    data["topologies/topo/elements/shape_map/pyramid"]  = 14;
+    data["topologies/topo/elements/shape_map/polyhedral"]  = 42;
+    data["topologies/topo/elements/shapes"] =  { 42, 12, 12, 14, 14, 14 };
+    data["topologies/topo/elements/sizes"] =   { 6, 8, 8, 5, 5, 5};
+    data["topologies/topo/elements/offsets"] = { 0, 6, 14,
+                                                 22, 27, 32};
+
+    data["topologies/topo/elements/connectivity"] =  {  0,  1,  2,  3,  4,  5,
+                                                        1,  2,  6,  5,  9, 10, 14, 13,
+                                                        2,  3,  7,  6, 10, 11, 15, 14,
+                                                        8,  9, 13, 12, 16,
+                                                        9, 10, 14, 13, 17,
+                                                       10, 11, 15, 14, 18
+                                                    };
+
+    data["topologies/topo/subelements/shape"] = "mixed";
+    data["topologies/topo/subelements/shape_map/quad"]  = 9;
+    data["topologies/topo/subelements/shapes"] =  { 9, 9, 9, 9, 9, 9 };
+
+    data["topologies/topo/subelements/sizes"] = {4, 4, 4, 4, 4, 4};
+    data["topologies/topo/subelements/offsets"] = {0, 4, 8, 12, 16, 20};
+    data["topologies/topo/subelements/connectivity"] = {0, 1, 5, 4,  
+                                                        0, 8, 9, 1,
+                                                        1, 9, 13, 5,
+                                                        5, 13, 12, 4,
+                                                        4, 12, 8, 0,
+                                                        9, 8, 12, 13};
+
+    data["fields/ele_id/topology"] = "topo";
+    data["fields/ele_id/association"] = "element";
+    data["fields/ele_id/values"] = { 0, 1, 2, 3, 4, 5};
+
+    // also add a points topo to help with debugging
+
+    data["topologies/pts/type"] = "points";
+    data["topologies/pts/coordset"] = "coords";
+    data["fields/pts_id/topology"] = "pts";
+    data["fields/pts_id/association"] = "element";
+    data["fields/pts_id/values"] = {  0,  1,  2,  3,
+                                      4,  5,  6,  7,
+                                      8,  9, 10, 11,
+                                     12, 13, 14, 15,
+                                     16, 17, 18};
+
+    //data.print();
+
+    EXPECT_TRUE(blueprint::mesh::verify(data, verify_info));
+    CONDUIT_INFO(verify_info.to_yaml());
+
+    test_save_mesh_helper(data, "mixed_mesh_polyhedral_3d");
 }
 
 //-----------------------------------------------------------------------------
@@ -832,21 +1306,28 @@ TEST(conduit_blueprint_mesh_examples, check_gen_index_state_prop)
 
 
 //-----------------------------------------------------------------------------
-void venn_test_small_yaml(const std::string &venn_type)
+void venn_test_small_yaml(const std::string &venn_type, const bool specsets)
 {
     // provide small example save to yaml for folks to look at
-    const int nx = 4, ny = 4;
+    const int nx = 2, ny = 2;
     const double radius = 0.25;
 
     Node res, info, n_idx;
-    blueprint::mesh::examples::venn(venn_type, nx, ny, radius, res);
+    if (specsets)
+    {
+        blueprint::mesh::examples::venn_specsets(venn_type, nx, ny, radius, res);
+    }
+    else
+    {
+        blueprint::mesh::examples::venn(venn_type, nx, ny, radius, res);
+    }
 
     EXPECT_TRUE(blueprint::mesh::verify(res, info));
     info.print();
     blueprint::mesh::generate_index(res,"",1,n_idx);
     EXPECT_TRUE(blueprint::verify("mesh/index",n_idx,info));
 
-    std::string ofbase= "venn_small_example_" + venn_type;
+    std::string ofbase = "venn_" + std::string(specsets ? "specsets_" : "") + "small_example_" + venn_type;
 
     // save yaml and hdf5 versions
     relay::io::blueprint::save_mesh(res,
@@ -867,23 +1348,28 @@ void venn_test_small_yaml(const std::string &venn_type)
 }
 
 //-----------------------------------------------------------------------------
-void venn_test(const std::string &venn_type)
+void venn_test(const std::string &venn_type, const bool specsets)
 {
     const int nx = 100, ny = 100;
     const double radius = 0.25;
 
     Node res, info;
-    blueprint::mesh::examples::venn(venn_type, nx, ny, radius, res);
+    if (specsets)
+    {
+        blueprint::mesh::examples::venn_specsets(venn_type, nx, ny, radius, res);
+    }
+    else
+    {
+        blueprint::mesh::examples::venn(venn_type, nx, ny, radius, res);
+    }
 
     EXPECT_TRUE(blueprint::mesh::verify(res, info));
     utils::log::remove_valid(info);
     CONDUIT_INFO(info.to_yaml());
     CONDUIT_INFO(res.schema().to_json());
 
-    std::string ofbase = "venn_example_" + venn_type;
+    std::string ofbase = "venn_" + std::string(specsets ? "specsets_" : "") + "example_" + venn_type;
     std::cout << "[Saving " << ofbase << "]" << std::endl;
-
-    std::string ofile_root= "venn_small_example_" + venn_type;
 
     // save yaml and hdf5 versions
     relay::io::blueprint::save_mesh(res,
@@ -921,25 +1407,31 @@ void venn_test(const std::string &venn_type)
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_examples, venn_full)
 {
-    venn_test("full");
-    venn_test_small_yaml("full");
+    venn_test("full", false);
+    venn_test("full", true);
+    venn_test_small_yaml("full", false);
+    venn_test_small_yaml("full", true);
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_examples, venn_sparse_by_material)
 {
-    venn_test("sparse_by_material");
-    venn_test_small_yaml("sparse_by_material");
+    venn_test("sparse_by_material", false);
+    venn_test("sparse_by_material", true);
+    venn_test_small_yaml("sparse_by_material", false);
+    venn_test_small_yaml("sparse_by_material", true);
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_examples, venn_sparse_by_element)
 {
-    venn_test("sparse_by_element");
-    venn_test_small_yaml("sparse_by_element");
+    venn_test("sparse_by_element", false);
+    venn_test("sparse_by_element", true);
+    venn_test_small_yaml("sparse_by_element", false);
+    venn_test_small_yaml("sparse_by_element", true);
 }
 
-
+//-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_examples, mesh_julia_nestset_simple)
 {
 
@@ -1419,6 +1911,26 @@ TEST(conduit_blueprint_mesh_examples, polychain)
     CONDUIT_INFO(info.to_yaml());
 
     test_save_mesh_helper(res,"polychain_example");
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_examples, gyre)
+{
+
+    index_t nsteps = 5;
+    float64 t = 0.0;
+    float64 dt = 1.0;
+    Node res;
+    for(index_t i=0; i < nsteps; i++)
+    {
+        blueprint::mesh::examples::gyre(25,25,2,t,res);
+        Node info;
+        EXPECT_TRUE(blueprint::mesh::verify(res,info));
+        t+= dt;
+        std::string ofbase = conduit_fmt::format("gyre_{:04d}",i);
+        test_save_mesh_helper(res,ofbase);
+    }
+
 }
 
 

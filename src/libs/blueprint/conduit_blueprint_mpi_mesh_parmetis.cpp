@@ -375,7 +375,7 @@ void generate_global_element_and_vertex_ids(conduit::Node &mesh,
 
     if (adjset_name != "")
     {
-        const int TAG_SHARED_NODE_SYNC = 175000000;
+        const int TAG_SHARED_NODE_SYNC = 175;
         // map of groups -> global vtx ids
         std::map<std::set<uint64>, std::vector<uint64>> groups_2_vids;
         // map of rank -> sends to/recvs from that rank of global vtx ids for
@@ -464,7 +464,7 @@ void generate_global_element_and_vertex_ids(conduit::Node &mesh,
             for (const std::set<uint64>& group : recv_groups)
             {
                 index_t domid = *(group.begin());
-                const int tag = conduit::relay::mpi::safe_tag(TAG_SHARED_NODE_SYNC + domid * 100 + group_idx);
+                const int tag = conduit::relay::mpi::safe_tag(TAG_SHARED_NODE_SYNC + domid * 100 + group_idx, comm);
                 async_recvs.push_back(MPI_Request{});
                 group_idx++;
                 std::vector<uint64>& recvbuf = groups_2_vids[group];
@@ -484,7 +484,7 @@ void generate_global_element_and_vertex_ids(conduit::Node &mesh,
             for (const std::set<uint64>& group : send_groups)
             {
                 index_t domid = *(group.begin());
-                const int tag = conduit::relay::mpi::safe_tag(TAG_SHARED_NODE_SYNC + domid * 100 + group_idx);
+                const int tag = conduit::relay::mpi::safe_tag(TAG_SHARED_NODE_SYNC + domid * 100 + group_idx, comm);
                 async_sends.push_back(MPI_Request{});
                 group_idx++;
                 std::vector<uint64>& sendbuf = groups_2_vids[group];

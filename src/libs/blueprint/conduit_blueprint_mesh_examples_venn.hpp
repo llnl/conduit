@@ -57,6 +57,21 @@ namespace examples
                                     float64 radius,
                                     Node &res);
 
+    /// Generates a rectilinear grid with fields that
+    /// are computed from 3 overlapping circles.
+    ///
+    /// matset_type options:
+    ///   full -> non sparse volume fractions and matset values
+    ///   sparse_by_material ->  sparse (material dominant) volume fractions
+    ///                          and matset values
+    ///   sparse_by_element  ->  sparse (element dominant)
+    ///                          volume fractions and matset values
+    void CONDUIT_BLUEPRINT_API venn_specsets(const std::string &matset_type,
+                                             index_t nx,
+                                             index_t ny,
+                                             float64 radius,
+                                             Node &res);
+
 }
 //-----------------------------------------------------------------------------
 // -- end conduit::blueprint::mesh::examples --

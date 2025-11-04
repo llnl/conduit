@@ -159,6 +159,10 @@ if(OPENMP_FOUND)
     list(APPEND conduit_thirdparty_libs ${conduit_blt_openmp_deps})
 endif()
 
+if(ENABLE_YYJSON)
+    list(APPEND conduit_sources $<TARGET_OBJECTS:conduit_yyjson>)
+endif()
+
 #
 # Setup the conduit lib
 #

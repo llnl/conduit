@@ -21,6 +21,10 @@ PackageLicenseDeclared: BSD-3-Clause
 PackageName: libb64
 PackageHomePage: http://libb64.sourceforge.net/
 
+PackageName: yyjson
+PackageHomePage: https://github.com/ibireme/yyjson
+PackageLicenseDeclared: MIT
+
 PackageName: rapidjson
 PackageHomePage: http://rapidjson.org/
 PackageLicenseDeclared: MIT

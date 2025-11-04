@@ -1,0 +1,9 @@
+# h5literate related
+leak:H5G__compact_build_table
+# h5literate related
+leak:H5MM_xstrdup
+# mpi related
+leak:PMPI_Init
+leak:libmpi.so
+leak:libfabric.so
+

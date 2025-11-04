@@ -24,12 +24,15 @@
 //-----------------------------------------------------------------------------
 // conduit includes
 //-----------------------------------------------------------------------------
+#include "conduit_fmt/conduit_fmt.h"
 #include "conduit_blueprint_mesh.hpp"
 #include "conduit_blueprint_o2mrelation.hpp"
 #include "conduit_blueprint_o2mrelation_iterator.hpp"
 #include "conduit_blueprint_mesh_utils.hpp"
+#include "conduit_blueprint_mesh_utils_iterate_elements.hpp"
 #include "conduit_execution.hpp"
 #include "conduit_annotations.hpp"
+#include "conduit_utils.hpp"
 #include "conduit_blueprint_mesh_kdtree.hpp"
 
 // access one-to-many index types
@@ -91,12 +94,12 @@ ShapeType::ShapeType(const conduit::Node &topology)
 {
     init(-1);
 
-    const std::string type = topology["type"].as_string();
-    if(type == "unstructured" && topology["elements"].has_child("shape"))
+    const std::string topoType = topology["type"].as_string();
+    if(topoType == "unstructured" && topology["elements"].has_child("shape"))
     {
         init(topology["elements/shape"].as_string());
     }
-    else if(type == "points")
+    else if(topoType == "points")
     {
         // handle points separately.
         init("point");
@@ -1673,6 +1676,17 @@ topology::dims(const Node &n)
     {
         ShapeType shape(n);
         topology_dims = (index_t)shape.dim;
+
+        if(topology_dims == -1 && n.has_path("elements/shape_map"))
+        {
+          // We appear to have a mixed shape.
+          const Node &n_shape_map = n.fetch_existing("elements/shape_map");
+          for(index_t i = 0; i < n_shape_map.number_of_children(); i++)
+          {
+            ShapeType shape2(n_shape_map[i].name());
+            topology_dims = std::max(topology_dims, static_cast<index_t>(shape2.dim));
+          }
+        }
     }
 
     return topology_dims;
@@ -1932,8 +1946,8 @@ struct HilbertCmp
    const double *points;
    double mid;
 
-   HilbertCmp(int coord, bool dir, const double *points, double mid)
-      : coord(coord), dir(dir), points(points), mid(mid) {}
+   HilbertCmp(int _coord, bool _dir, const double *_points, double _mid)
+      : coord(_coord), dir(_dir), points(_points), mid(_mid) {}
 
    bool operator()(int i) const
    {
@@ -2232,6 +2246,67 @@ topology::TopologyBuilder::clear()
 }
 
 //---------------------------------------------------------------------------
+void
+topology::extract_pointmesh(const Node &n_topo, const Node &n_ids, Node &n_output)
+{
+    const auto coordsetName = n_topo.fetch_existing("coordset").as_string();
+    const Node *n_src_coordset = conduit::blueprint::mesh::utils::find_reference_node(n_topo, "coordset");
+    CONDUIT_ASSERT(n_src_coordset != nullptr, "Source coordset not found");
+
+    const auto axisNames = conduit::blueprint::mesh::utils::coordset::axes(*n_src_coordset);
+    const auto nComps = axisNames.size();
+
+    const auto ids = n_ids.as_index_t_accessor();
+    const auto nIds = ids.number_of_elements();
+
+    // Allocate outputs.
+    Node &n_dest_coordset = n_output["coordsets/" + coordsetName];
+    n_dest_coordset["type"] = "explicit";
+    double_accessor src_coords[3];
+    double *dest_coords[3] = {nullptr, nullptr, nullptr};
+    for(size_t comp = 0; comp < axisNames.size(); comp++)
+    {
+        src_coords[comp] = n_src_coordset->fetch_existing("values/" + axisNames[comp]).as_double_accessor();
+
+        Node &n_comp = n_dest_coordset["values"][axisNames[comp]];
+        n_comp.set(conduit::DataType::float64(nIds));
+        dest_coords[comp] = n_comp.as_float64_ptr();
+    }
+    Node &n_dest_topo = n_output["topologies/" + n_topo.name()];
+    n_dest_topo["type"] = "unstructured";
+    n_dest_topo["coordset"] = coordsetName;
+    n_dest_topo["elements/shape"] = "point";
+    n_dest_topo["elements/connectivity"].set(DataType::index_t(nIds));
+    n_dest_topo["elements/sizes"].set(DataType::index_t(nIds));
+    n_dest_topo["elements/offsets"].set(DataType::index_t(nIds));
+    index_t *dest_conn = n_dest_topo["elements/connectivity"].as_index_t_ptr();
+    index_t *dest_sizes = n_dest_topo["elements/sizes"].as_index_t_ptr();
+    index_t *dest_offsets = n_dest_topo["elements/offsets"].as_index_t_ptr();
+
+    // Fill in topo and coordset data.
+    for(index_t i = 0; i < nIds; i++)
+    {
+        dest_conn[i] = i;
+        dest_sizes[i] = 1;
+        dest_offsets[i] = i;
+
+        // Make the average coordinate.
+        const bool unique = false;
+        const auto ptids = topology::unstructured::points(n_topo, ids[i], unique);
+        for(size_t comp = 0; comp < nComps; comp++)
+        {
+            double *coord = dest_coords[comp];
+            coord[i] = 0.;
+            for(const auto &ptid : ptids)
+            {
+                coord[i] += src_coords[comp][ptid];
+            }
+            coord[i] /= static_cast<double>(ptids.size());
+        }
+    }
+}
+
+//---------------------------------------------------------------------------
 template <typename Body>
 static void topology_iterate_elements(const conduit::Node &topo, Body &&body)
 {
@@ -2360,6 +2435,436 @@ topology::search(const conduit::Node &topo1, const conduit::Node &topo2)
 
     return exists;
 }
+
+//-----------------------------------------------------------------------------
+void
+topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &info)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+
+    // Get the coordset
+    const Node *n_coordset_ptr = find_reference_node(n_topo, "coordset");
+    if(n_coordset_ptr == nullptr)
+    {
+       CONDUIT_ERROR("Unable to get coordset for topology.");
+    }
+    const Node &n_coordset = *n_coordset_ptr;
+    if(n_coordset.fetch_existing("type").as_string() != "explicit")
+    {
+       CONDUIT_ERROR("Requires explicit coordset");
+    }
+
+    // Make coordset accessors for the components.
+    std::vector<double_accessor> coords;
+    for(const auto &axisName : conduit::blueprint::mesh::utils::coordset::axes(n_coordset))
+    {
+       coords.push_back(n_coordset.fetch_existing("values/" + axisName).as_double_accessor());
+    }
+
+    // Initialize the mesh information.
+    for(size_t i = 0; i < 3; i++)
+    {
+      info.minExtents[i] = (i < coords.size()) ? std::numeric_limits<double>::max() : 0.;
+      info.maxExtents[i] = (i < coords.size()) ? std::numeric_limits<double>::lowest() : 0.;
+    }
+    info.minEdgeLength = std::numeric_limits<double>::max();
+    info.maxEdgeLength = std::numeric_limits<double>::lowest();
+    info.minDiagonalLength = std::numeric_limits<double>::max();
+    info.maxDiagonalLength = std::numeric_limits<double>::lowest();
+
+    // This lambda computes length information between p0, p1.
+    auto computeEdgeInfo = [&](index_t p0, index_t p1)
+    {
+        double lenSquared = 0.;
+        for(size_t comp = 0; comp < coords.size(); comp++)
+        {
+            const auto &acc = coords[comp];
+            const auto v0 = acc[p0];
+            const auto v1 = acc[p1];
+            const auto dValue = v0 - v1;
+            lenSquared += dValue * dValue;
+
+            info.minExtents[comp] = std::min(info.minExtents[comp], std::min(v0, v1));
+            info.maxExtents[comp] = std::max(info.maxExtents[comp], std::max(v0, v1));
+        }
+
+        if(lenSquared > CONDUIT_EPSILON)
+        {
+            info.minEdgeLength = std::min(info.minEdgeLength, lenSquared);
+            info.maxEdgeLength = std::max(info.maxEdgeLength, lenSquared);
+        }
+    };
+
+    auto diagLength = [&](index_t p0, index_t p1)
+    {
+        double lenSquared = 0.;
+        for(size_t comp = 0; comp < coords.size(); comp++)
+        {
+            const auto &acc = coords[comp];
+            const auto v0 = acc[p0];
+            const auto v1 = acc[p1];
+            const auto dValue = v0 - v1;
+            lenSquared += dValue * dValue;
+        }
+
+        if(lenSquared > CONDUIT_EPSILON)
+        {
+            info.minDiagonalLength = std::min(info.minDiagonalLength, lenSquared);
+            info.maxDiagonalLength = std::max(info.maxDiagonalLength, lenSquared);
+        }
+    };
+
+    // This lambda computes diagonal information in a polygon.
+    auto polygonDiagInfo = [&](const std::vector<index_t> &ids)
+    {
+        // Walk around the shape
+        const index_t n = static_cast<index_t>(ids.size());
+        const index_t m = n - 2;
+        const index_t p = n - 3;
+        for(index_t i = 0; i < m; i++)
+        {
+            for(index_t j = 0; j < p; j++)
+            {
+                const index_t jj = (j + 2) % n;
+                if(i < jj)
+                {
+                    const index_t p0 = ids[i];
+                    const index_t p1 = ids[jj];
+                    diagLength(p0, p1);
+                }
+            }
+        }
+    };
+
+    // This lambda computes diagonal information in a 3D zoo element
+    auto shapeDiagInfo = [&](const std::vector<index_t> &ids)
+    {
+        switch(ids.size())
+        {
+        default:
+            break;
+        case 5: // pyramid
+            diagLength(ids[0], ids[2]);
+            diagLength(ids[1], ids[3]);
+            break;
+        case 6: // wedge
+            diagLength(ids[0], ids[5]);
+            diagLength(ids[2], ids[3]);
+            diagLength(ids[2], ids[4]);
+            diagLength(ids[1], ids[5]);
+            diagLength(ids[0], ids[4]);
+            diagLength(ids[1], ids[3]);
+            break;
+        case 8: // hex
+            // interior diags
+            diagLength(ids[0], ids[6]);
+            diagLength(ids[1], ids[7]);
+            diagLength(ids[2], ids[4]);
+            diagLength(ids[3], ids[5]);
+            // face diags
+            diagLength(ids[4], ids[6]);
+            diagLength(ids[5], ids[7]);
+
+            diagLength(ids[2], ids[5]);
+            diagLength(ids[1], ids[6]);
+
+            diagLength(ids[0], ids[2]);
+            diagLength(ids[1], ids[3]);
+
+            diagLength(ids[0], ids[7]);
+            diagLength(ids[3], ids[4]);
+
+            diagLength(ids[0], ids[5]);
+            diagLength(ids[1], ids[4]);
+
+            diagLength(ids[2], ids[7]);
+            diagLength(ids[3], ids[6]);
+            break;
+        }
+    };
+
+    // Iterate over all of the elements in the topology and compute the edge info
+    // for each element.
+    CONDUIT_ANNOTATE_MARK_BEGIN("edgeLength");
+    iterate_elements(n_topo, [&](const entity &e)
+    {
+        // NOTE: For shapes where we do not compute the diagonal info, we just
+        //       use the edge info as "good enough".
+        if(e.shape.is_polyhedral())
+        {
+            for(size_t f = 0; f < e.subelement_ids.size(); f++)
+            {
+                const auto &faceIds = e.subelement_ids[f];
+                index_t nIds = faceIds.size();
+                for(index_t i = 0; i < nIds; i++)
+                {
+                    computeEdgeInfo(faceIds[i], faceIds[(i + 1) % nIds]);
+                }
+            }
+        }
+        else if(e.shape.dim == 3)
+        {
+            for(index_t f = 0; f < e.shape.num_faces(); f++)
+            {
+                index_t nIds;
+                const auto *faceIds = e.shape.get_face(f, nIds);
+                for(index_t i = 0; i < nIds; i++)
+                {
+                    computeEdgeInfo(e.element_ids[faceIds[i]],
+                                    e.element_ids[faceIds[(i + 1) % nIds]]);
+                }
+            }
+            // Compute diagonal info.
+            shapeDiagInfo(e.element_ids);
+        }
+        else if(e.shape.dim == 2)
+        {
+            const index_t nIds = static_cast<index_t>(e.element_ids.size());
+            for(index_t i = 0; i < nIds; i++)
+            {
+                computeEdgeInfo(e.element_ids[i],
+                                e.element_ids[(i + 1) % nIds]);
+            }
+
+            // Compute diagonal info.
+            if(nIds >= 4)
+            {
+               polygonDiagInfo(e.element_ids);
+            }
+        }
+        else if(e.shape.dim == 1)
+        {
+            computeEdgeInfo(e.element_ids[0], e.element_ids[1]);
+        }
+        else if(e.shape.dim == 0)
+        {
+            computeEdgeInfo(e.element_ids[0], e.element_ids[0]);
+        }
+    });
+
+    // If we had edges then the min,max edge lengths will be greater than zero.
+    // Turn them from len squared to len by taking the square root.
+    info.minEdgeLength = (info.minEdgeLength > 0.) ? sqrt(info.minEdgeLength) : 1.;
+    info.maxEdgeLength = (info.maxEdgeLength > 0.) ? sqrt(info.maxEdgeLength) : 1.;
+
+    // Initialize the diagonal lengths.
+    if(info.minDiagonalLength == std::numeric_limits<double>::max())
+    {
+       // The value has not been set. Use minEdgeLength.
+       info.minDiagonalLength = info.minEdgeLength;
+    }
+    else
+    {
+       info.minDiagonalLength = sqrt(info.minDiagonalLength);
+    }
+    if(info.maxDiagonalLength == std::numeric_limits<double>::lowest())
+    {
+       // The value has not been set. Use maxEdgeLength.
+       info.maxDiagonalLength = info.maxEdgeLength;
+    }
+    else
+    {
+       info.maxDiagonalLength = sqrt(info.maxDiagonalLength);
+    }
+    CONDUIT_ANNOTATE_MARK_END("edgeLength");
+}
+
+//-----------------------------------------------------------------------------
+namespace topology
+{
+std::ostream &operator << (std::ostream &os, const MeshInfo &obj)
+{
+    os << "{minExtents: {" << obj.minExtents[0] << ", " << obj.minExtents[1] << ", " << obj.minExtents[2] << "}, "
+       << "maxExtents: {" << obj.maxExtents[0] << ", " << obj.maxExtents[1] << ", " << obj.maxExtents[2] << "}, "
+       << "minEdgeLength: " << obj.minEdgeLength << ", "
+       << "maxEdgeLength: " << obj.maxEdgeLength << ", "
+       << "minDiagonalLength: " << obj.minDiagonalLength << ", "
+       << "maxDiagonalLength: " << obj.maxDiagonalLength << "}";
+    return os;
+}
+
+std::ostream &operator << (std::ostream &os, const MeshInfoCollection &obj)
+{
+    obj.print(os);
+    return os;
+}
+
+} // end topology namespace
+
+//-----------------------------------------------------------------------------
+topology::MeshInfoCollection::MeshInfoCollection() : meshInfos(), mergedMeshInfo()
+{
+}
+
+void
+topology::MeshInfoCollection::clear()
+{
+    meshInfos.clear();
+    mergedMeshInfo = MeshInfo();
+}
+
+void
+topology::MeshInfoCollection::begin()
+{
+    clear();
+}
+
+void
+topology::MeshInfoCollection::add(index_t domainId, const MeshInfo &info)
+{
+    meshInfos[domainId] = info;
+}
+
+void
+topology::MeshInfoCollection::end()
+{
+    bool first = true;
+    for(auto it = meshInfos.begin(); it != meshInfos.end(); it++)
+    {
+        if(first)
+        {
+            first = false;
+            mergedMeshInfo = it->second;
+        }
+        else
+        {
+            mergedMeshInfo = merge(mergedMeshInfo, it->second);
+        }
+    }
+}
+
+const topology::MeshInfo &
+topology::MeshInfoCollection::getMeshInfo(index_t domainId) const
+{
+    const auto it = meshInfos.find(domainId);
+    if(it == meshInfos.end())
+    {
+        CONDUIT_ERROR("MeshInfo for domain " << domainId << " was not found.");
+    }
+    return it->second;
+}
+
+const topology::MeshInfo &
+topology::MeshInfoCollection::getMergedMeshInfo() const
+{
+    return mergedMeshInfo;
+}
+
+topology::MeshInfo
+topology::MeshInfoCollection::merge(const topology::MeshInfo &a, const topology::MeshInfo &b)
+{
+    MeshInfo info;
+    info.minExtents[0] = std::min(a.minExtents[0], b.minExtents[0]);
+    info.minExtents[1] = std::min(a.minExtents[1], b.minExtents[1]);
+    info.minExtents[2] = std::min(a.minExtents[2], b.minExtents[2]);
+    info.maxExtents[0] = std::max(a.maxExtents[0], b.maxExtents[0]);
+    info.maxExtents[1] = std::max(a.maxExtents[1], b.maxExtents[1]);
+    info.maxExtents[2] = std::max(a.maxExtents[2], b.maxExtents[2]);
+    info.minEdgeLength = std::min(a.minEdgeLength, b.minEdgeLength);
+    info.maxEdgeLength = std::max(a.maxEdgeLength, b.maxEdgeLength);
+    info.minDiagonalLength = std::min(a.minDiagonalLength, b.minDiagonalLength);
+    info.maxDiagonalLength = std::max(a.maxDiagonalLength, b.maxDiagonalLength);
+    return info;
+}
+
+void
+topology::MeshInfoCollection::print(std::ostream &os) const
+{
+    os << "meshInfos:\n";
+    for(auto it = meshInfos.begin(); it != meshInfos.end(); it++)
+    {
+       os << "\t" << it->first << ": " << it->second << std::endl;
+    }
+    os << "mergedMeshInfo: " << mergedMeshInfo << std::endl;
+}
+
+//-----------------------------------------------------------------------------
+template <typename T>
+inline bool will_multiply_overflow(T a, T b)
+{
+    if (a == 0 || b == 0)
+        return false;
+    return b > (std::numeric_limits<T>::max() / a);
+}
+
+topology::Quantizer::Quantizer(const topology::MeshInfo &info) : meshInfo(info)
+{
+    // Take the smaller of the lengths.
+    length = static_cast<FloatValue>(std::min(meshInfo.minDiagonalLength, meshInfo.minEdgeLength));
+    offset = length / 2.;
+
+    // Set some values derived from the MeshInfo.
+    QX = 1 + std::max(QuantizedValue{1}, static_cast<QuantizedValue>(ceil((meshInfo.maxExtents[0] - meshInfo.minExtents[0]) / length)));
+    QY = 1 + std::max(QuantizedValue{1}, static_cast<QuantizedValue>(ceil((meshInfo.maxExtents[1] - meshInfo.minExtents[1]) / length)));
+    QXQY = QX * QY;
+}
+
+topology::Quantizer::QuantizedValue
+topology::Quantizer::quantize(topology::Quantizer::FloatValue value, index_t component) const
+{
+#ifndef NDEBUG
+    CONDUIT_ASSERT(component >= 0 && component < 3, "Valid components are 0,1,2");
+#endif
+    return static_cast<QuantizedValue>((value - static_cast<FloatValue>(meshInfo.minExtents[component]) + offset) / length);
+}
+
+topology::Quantizer::QuantizedIndex
+topology::Quantizer::quantize(const topology::Quantizer::Coordinate &coord) const
+{
+    // NOTE: We check some of the multiplications with CONDUIT_ASSERT in case
+    //       they will overflow when computing indices.
+    //
+    // FUTURE: If meshes get so large that computing an index overflows uint64_t
+    //         then QuantizedIndex could become std::tuple<uint64_t,uint64_t>
+    //         where the Z component gets stored in the 0th tuple value and
+    //         the XY contributions get added in the 1st tuple value.
+#ifndef NDEBUG
+    CONDUIT_ASSERT(coord.size() <= 3, "Node has invalid number of components");
+#endif
+    QuantizedValue q = 0;
+    QuantizedIndex qIndex = 0;
+    switch(coord.size())
+    {
+    default:
+        CONDUIT_ERROR("Unsupported number of components.");
+        break;
+    case 3:
+        q = quantize(coord[2], 2);
+#ifndef NDEBUG
+        CONDUIT_ASSERT(!will_multiply_overflow(QXQY, q), "Quantizer overflow");
+#endif
+        qIndex += QXQY * q;
+        // Falls through
+    case 2:
+        q = quantize(coord[1], 1);
+#ifndef NDEBUG
+        CONDUIT_ASSERT(!will_multiply_overflow(QX, q), "Quantizer overflow");
+#endif
+        qIndex += QX * q;
+        // Falls through
+    case 1:
+        qIndex += quantize(coord[0], 0);
+        break;
+    }
+    return qIndex;
+}
+
+namespace topology
+{
+std::ostream &
+operator << (std::ostream &os, const Quantizer &obj)
+{
+    os << "{meshInfo: " << obj.meshInfo
+      << ", length: " << obj.length
+      << ", offset: " << obj.offset
+      << ", QX: " << obj.QX
+      << ", QY: " << obj.QY
+      << ", QXQY: " << obj.QXQY
+      << "}";
+    return os;
+}
+
+} // end namespace topology
 
 //-----------------------------------------------------------------------------
 void
@@ -3009,7 +3514,8 @@ bool adjset::is_canonical(const Node &adjset)
 bool
 adjset::validate(const conduit::Node &doms,
                  const std::string &adjsetName,
-                 conduit::Node &info)
+                 conduit::Node &info,
+                 const conduit::Node &options)
 {
     auto to_string = [](const conduit::Node &n) -> std::string
     {
@@ -3019,8 +3525,16 @@ adjset::validate(const conduit::Node &doms,
         return s;
     };
 
+    // Set values from options.
+    double tolerance = conduit::blueprint::mesh::utils::query::PointQueryBase::DEFAULT_POINT_TOLERANCE;
+    if(options.has_path("tolerance"))
+    {
+        tolerance = options["tolerance"].to_float64();
+    }
+
     // Create serial queries.
     query::PointQuery PQ(doms);
+    PQ.setPointTolerance(tolerance);
     query::MatchQuery MQ(doms);
 
     // We need to figure out the association, topologyName, and coordsetName.
@@ -3044,6 +3558,22 @@ adjset::validate(const conduit::Node &doms,
     return adjset::validate(doms,
                             adjsetName, association, topologyName, coordsetName,
                             info, PQ, MQ, checkMultiDomain);
+}
+
+//---------------------------------------------------------------------------
+template <typename StreamType, typename ContainerType>
+void print_point(StreamType &s, const ContainerType &container)
+{
+     s << "(";
+     for(size_t i = 0; i < container.size(); i++)
+     {
+         if(i > 0)
+         {
+             s << ", ";
+         }
+         s << container[i];
+     }
+     s << ")";
 }
 
 //---------------------------------------------------------------------------
@@ -3143,22 +3673,29 @@ adjset::validate(const conduit::Node &doms,
             }
         }
 
-        // Detect any non-bidirectional interfaces.
         retval = true;
-        for(auto it = bidirectional.begin(); it != bidirectional.end(); it++)
+
+        // NOTE: We can only make this check in serial because when this method is
+        //       called in parallel, we do not have all of the domains on the same
+        //       rank.
+        if(checkMultiDomain)
         {
-            if(!it->second)
+            // Detect any non-bidirectional interfaces.
+            for(auto it = bidirectional.begin(); it != bidirectional.end(); it++)
             {
-                retval = false;
+                if(!it->second)
+                {
+                    retval = false;
 
-                auto domain_id = it->first.first;
-                auto neighbor_id = it->first.second;
-                std::stringstream ss;
-                ss << "Domain " << domain_id << " adjset " << adjsetName
-                   << " does not contain a group that references domain " << neighbor_id << ".";
+                    auto domain_id = it->first.first;
+                    auto neighbor_id = it->first.second;
+                    std::stringstream ss;
+                    ss << "Domain " << domain_id << " adjset " << adjsetName
+                       << " does not contain a group that references domain " << neighbor_id << ".";
 
-                conduit::Node &vn = info[adjsetName].append();
-                vn.set(ss.str());
+                    conduit::Node &vn = info[adjsetName].append();
+                    vn.set(ss.str());
+                }
             }
         }
 
@@ -3168,11 +3705,11 @@ adjset::validate(const conduit::Node &doms,
         // Iterate over the query results to flag any problems.
         for(const auto &obj : query_guide)
         {
-            index_t domain_id = std::get<0>(obj);
-            index_t ptid = std::get<1>(obj);
-            index_t nbr = std::get<2>(obj);
-            index_t idx = std::get<3>(obj);
-            size_t domIdx = std::get<4>(obj);
+            const index_t domain_id = std::get<0>(obj);
+            const index_t ptid = std::get<1>(obj);
+            const index_t nbr = std::get<2>(obj);
+            const index_t idx = std::get<3>(obj);
+            const size_t domIdx = std::get<4>(obj);
             const std::string &groupName = std::get<5>(obj);
             const std::vector<double> &coord = std::get<6>(obj);
 
@@ -3181,14 +3718,18 @@ adjset::validate(const conduit::Node &doms,
             {
                 retval = false;
                 std::string domainName(domains[domIdx]->name());
+                if(domainName.empty())
+                {
+                    domainName = conduit_fmt::format("domain_{:05}", domain_id);
+                }
                 conduit::Node &vn = info[domainName][adjsetName][groupName].append();
 
                 std::stringstream ss;
                 ss << "Domain " << domain_id << " adjset " << adjsetName
                    << " group " << groupName
-                   << ": vertex " << ptid
-                   << " (" << coord[0] << ", " << coord[1]
-                   << ", " << coord[2] << ") at index " << ptid
+                   << ": vertex " << ptid << " ";
+                print_point(ss, coord);
+                ss << " at index " << idx
                    << " could not be located in neighbor domain "
                    << nbr << ".";
 
@@ -3362,15 +3903,17 @@ void adjset::remove(conduit::Node &doms,
 }
 
 //-----------------------------------------------------------------------------
-template <typename Func>
+template <typename ExtractFunc, typename CompareFunc>
 bool
-foreach_adjset_mesh_pair_impl(conduit::Node &mesh, const std::string &adjsetName, Func &&func)
+foreach_adjset_mesh_pair_impl(conduit::Node &mesh, const std::string &adjsetName,
+    ExtractFunc &&extractFunc, CompareFunc &&compareFunc)
 {
     namespace bputils = conduit::blueprint::mesh::utils;
+    bool retval = true;
 
     // Determine total number of domains.
     std::vector<Node *> domains = conduit::blueprint::mesh::domains(mesh);
-    int maxDomains = domains.size();
+    const int maxDomains = static_cast<int>(domains.size());
 
     // Iterate over each of the possible adjset relationships. Not all of these
     // will have adjset groups.
@@ -3384,7 +3927,7 @@ foreach_adjset_mesh_pair_impl(conduit::Node &mesh, const std::string &adjsetName
             std::string groupName(ss.str());
 
             // There are up to 2 meshes for the shared boundary.
-            conduit::Node mesh[2];
+            conduit::Node boundaries[2];
             int mi = 0;
             for(size_t dom = 0; dom < domains.size(); dom++)
             {
@@ -3396,78 +3939,47 @@ foreach_adjset_mesh_pair_impl(conduit::Node &mesh, const std::string &adjsetName
                 std::string key(akey + "/groups/" + groupName + "/values");
                 if(domain.has_path(key))
                 {
-                    const Node &adj = domain[akey];
+                    const Node &n_adjset = domain[akey];
+                    const std::string association = n_adjset["association"].as_string();
 
                     // Get the topology that the adjset wants.
-                    std::string topoName = adj.fetch_existing("topology").as_string();
+                    std::string topoName = n_adjset.fetch_existing("topology").as_string();
                     const Node &topo = domain.fetch_existing("topologies/" + topoName);
 
                     // Get the group values and add them as points to the topo builder
                     // so we pull out a point mesh.
                     const Node &n_values = domain.fetch_existing(key);
-                    const auto values = n_values.as_index_t_accessor();
-                    bputils::topology::TopologyBuilder B(topo);
+                    extractFunc(topo, n_adjset, n_values, boundaries[mi]);
 
-                    std::string association = adj["association"].as_string();
-                    std::string shapeType;
+                    // Add the adjset values as a field.
                     if(association == "vertex")
                     {
-                        shapeType = "point";
-                        for(index_t i = 0; i < values.number_of_elements(); i++)
-                        {
-                            index_t ptid = values[i];
-                            B.add(&ptid, 1);
-                        }
+                        conduit::Node &n_field = boundaries[mi]["fields/vertex_ids"];
+                        n_field["topology"] = topoName;
+                        n_field["association"] = association;
+                        n_field["values"].set_external(n_values);
                     }
-                    else if(association == "element")
-                    {
-                        size_t minSides = 0, maxSides = 0;
-                        for(index_t i = 0; i < values.number_of_elements(); i++)
-                        {
-                            index_t ei = values[i];
-                            // Get the element points in their original order.
-                            const bool unique = false;
-                            const auto ptids = conduit::blueprint::mesh::utils::topology::unstructured::points(topo, ei, unique);
-                            B.add(&ptids[0], ptids.size());
-
-                            minSides = (i == 0) ? ptids.size() : std::min(minSides, ptids.size());
-                            maxSides = (i == 0) ? ptids.size() : std::max(maxSides, ptids.size());
-                        }
-
-                        if(minSides == maxSides)
-                        {
-                            if(minSides == 2)
-                                shapeType = "line";
-                            else if(minSides == 3)
-                                shapeType = "tri";
-                            else if(minSides == 4)
-                                shapeType = "quad";
-                        }
-                        if(shapeType.empty())
-                            shapeType = "polygon";
-                    }
-
-                    // Make the local point mesh.
-                    B.execute(mesh[mi], shapeType);
 
                     mi++;
                 }
             }
 
-            // Make sure the nodes are not different.
-            bool keepGoing = func(groupName, d0, mesh[0], d1, mesh[1]);
-            if(!keepGoing)
-                return false;
+            // Incorporate input from the supplied function. We need to have 2 meshes.
+            if(mi == 2)
+            {
+                retval &= compareFunc(groupName, d0, boundaries[0], d1, boundaries[1]);
+            }
         }
     }
 
-    return true;
+    return retval;
 }
 
 //-----------------------------------------------------------------------------
-template <typename Func>
+template <typename ExtractFunc, typename CompareFunc>
 bool
-foreach_adjset_mesh_pair(conduit::Node &mesh, const std::string &adjsetName, Func &&func)
+foreach_adjset_mesh_pair(conduit::Node &mesh, const std::string &adjsetName,
+    ExtractFunc &&extractFunc, CompareFunc &&compareFunc)
 {
     bool retval = true;
     const std::string tempAdjsetName("__" + adjsetName + "__");
@@ -3478,7 +3990,7 @@ foreach_adjset_mesh_pair(conduit::Node &mesh, const std::string &adjsetName, Fun
         adjset::to_pairwise_canonical(mesh, adjsetName, tempAdjsetName);
 
         // Call the real implementation on the temporary adjset.
-        retval = foreach_adjset_mesh_pair_impl(mesh, tempAdjsetName, func);
+        retval = foreach_adjset_mesh_pair_impl(mesh, tempAdjsetName, extractFunc, compareFunc);
 
         // Remove the adjset that was added.
         adjset::remove(mesh, tempAdjsetName);
@@ -3496,58 +4008,253 @@ foreach_adjset_mesh_pair(conduit::Node &mesh, const std::string &adjsetName, Fun
 
 //-----------------------------------------------------------------------------
 bool
-adjset::compare_pointwise(conduit::Node &mesh, const std::string &adjsetName, conduit::Node &info)
+adjset::compare_pointwise(conduit::Node &mesh, const std::string &adjsetName,
+    conduit::Node &info, const conduit::Node &options)
 {
-    auto compareMesh =
-        [&](const std::string &groupName, int /*dom1*/, conduit::Node &mesh1, int /*dom2*/, conduit::Node &mesh2)
+    // Set values from options.
+    double tolerance = conduit::blueprint::mesh::utils::query::PointQueryBase::DEFAULT_POINT_TOLERANCE;
+    if(options.has_path("tolerance"))
     {
-        // Make sure the nodes are not different.
-        const double eps = 1.e-8;
-        bool different = mesh1.diff(mesh2, info, eps);
+        tolerance = options["tolerance"].to_float64();
+    }
 
-        // Add some diagnostic info.
-        if(different)
-        {
-            info["adjset"] = adjsetName;
-            info["group"] = groupName;
-        }
-
-        return different ? false : true;
+    // Figures out a coordset axis path within a diff hierarchy.
+    auto coordPath = [&](const std::string &axisName)
+    {
+        std::stringstream ss;
+        ss << "/children/diff/values/children/diff/" << axisName;
+        return ss.str();
     };
 
-    return foreach_adjset_mesh_pair(mesh, adjsetName, compareMesh);
+    // If there are infodiff differences in the coordset, add information about differences.
+    auto logDifferences = [&](const conduit::Node &infodiff,
+                              const std::string &groupName,
+                              int dom1,
+                              const conduit::Node &mesh1,
+                              int dom2,
+                              const conduit::Node &/*mesh2*/)
+    {
+        // We know that the way this is called, there is 1 coordset and 1 topology.
+        const conduit::Node &n_coordset = mesh1["coordsets"][0];
+        const std::string coordsetName = n_coordset.name();
+
+        // Check to see whether any of the coordinate diff arrays are different.
+        const auto axisNames = conduit::blueprint::mesh::utils::coordset::axes(n_coordset);
+        bool coordinatesDiffer = false;
+        for(size_t i = 0; i < axisNames.size(); i++)
+        {
+            const auto validPath = coordPath(axisNames[i]) + "/valid";
+            coordinatesDiffer |= infodiff.has_path(validPath) ?
+                (infodiff.fetch_existing(validPath).as_string() == "false") : false;
+        }
+
+        if(coordinatesDiffer)
+        {
+            // Get the diff coordinate values in accessors.
+            double_accessor coords[3];
+            int ncomps = 0;
+            for(size_t i = 0; i < axisNames.size(); i++)
+            {
+                const auto valuePath = coordPath(axisNames[i]) + "/value";
+                if(infodiff.has_path(valuePath))
+                {
+                    coords[i] = infodiff.fetch_existing(valuePath).as_double_accessor();
+                    ncomps++;
+                }
+            }
+
+            if(ncomps == static_cast<int>(axisNames.size()))
+            {
+                const index_t domain_id = dom1;
+                const index_t nbr = dom2;
+
+                // Get the original mesh's vertex ids from a field.
+                const auto vertex_ids = mesh1.fetch_existing("fields/vertex_ids/values").as_index_t_accessor();
+
+                // Make a node in which to stash the differences.
+                std::stringstream dss;
+                dss << domain_id;
+                std::string domainName = dss.str();
+                conduit::Node &n_info_group = info[domainName][adjsetName][groupName];
+
+                // For each node that differs, add information to info.
+                const index_t nnodes = coords[0].number_of_elements();
+                for(index_t idx = 0; idx < nnodes; idx++)
+                {
+                    bool nodeDiffers = false;
+                    for(int d = 0; d < ncomps; d++)
+                    {
+                        nodeDiffers |= (coords[d][idx] > tolerance);
+                    }
+
+                    if(nodeDiffers)
+                    {
+                        const index_t ptid = vertex_ids[idx];
+                        const auto coord = coordset::_explicit::coords(n_coordset, idx);
+
+                        conduit::Node &vn = n_info_group.append();
+                        std::stringstream ss;
+                        ss << "Domain " << domain_id << " adjset " << adjsetName
+                           << " group " << groupName
+                           << ": vertex " << ptid << " ";
+                        print_point(ss, coord);
+                        ss << " at index " << idx
+                           << " could not be located in neighbor domain "
+                           << dom2 << ".";
+
+                        vn["message"].set(ss.str());
+                        vn["vertex"] = ptid;
+                        vn["neighbor"] = nbr;
+                        vn["coordinate"] = coord;
+                    }
+                }
+            }
+        }
+    };
+
+    auto extractMesh =
+        [](const conduit::Node &n_topo,
+           const conduit::Node &n_adjset,
+           const conduit::Node &n_values, // values for an adjset group.
+           conduit::Node &n_output)
+    {
+        const std::string association = n_adjset["association"].as_string();
+
+        if(association == "element" &&
+           n_topo.fetch_existing("type").as_string() == "unstructured" &&
+           n_topo.fetch_existing("elements/shape").as_string() == "line")
+        {
+            // Special case - treat element adjsets for line meshes as points so
+            // we can compare them in point order.
+            topology::extract_pointmesh(n_topo, n_values, n_output);
+        }
+        else
+        {
+            topology::TopologyBuilder B(n_topo);
+            const auto ids = n_values.as_index_t_accessor();
+            for(index_t i = 0; i < ids.number_of_elements(); i++)
+            {
+                index_t ptid = ids[i];
+                B.add(&ptid, 1);
+            }
+
+            // Make the local point mesh.
+            B.execute(n_output, "point");
+         }
+    };
+
+    auto compareMesh =
+        [&](const std::string &groupName, int dom1, conduit::Node &mesh1, int dom2, conduit::Node &mesh2)
+    {
+        bool retval = false;
+        if(mesh1.has_path("coordsets") && mesh2.has_path("coordsets"))
+        {
+            const conduit::Node cs1 = mesh1["coordsets"][0];
+            const conduit::Node cs2 = mesh2["coordsets"][0];
+
+            // Make sure the coordsets are not different.
+            conduit::Node infodiff;
+            const bool different = cs1.diff(cs2, infodiff, tolerance);
+
+            // Add some diagnostic info.
+            if(different)
+            {
+                logDifferences(infodiff, groupName, dom1, mesh1, dom2, mesh2);
+            }
+
+            retval = !different;
+        }
+        return retval;
+    };
+
+    return foreach_adjset_mesh_pair(mesh, adjsetName, extractMesh, compareMesh);
 }
 
 //-----------------------------------------------------------------------------
 void
 adjset::to_topo(conduit::Node &mesh, const std::string &adjsetName, conduit::Node &out)
 {
-    auto moveMesh = [&](const std::string &groupName, int dom, conduit::Node &mesh, conduit::Node &out)
+    auto moveMesh = [&](const std::string &groupName, int dom, conduit::Node &n_mesh, conduit::Node &n_out)
     {
-        if(mesh.has_path("coordsets") && mesh.has_path("topologies"))
+        if(n_mesh.has_path("coordsets") && n_mesh.has_path("topologies"))
         {
             // Copy the mesh into out node in a way that preserves its name.
             std::stringstream ss;
             ss << adjsetName << "_" << dom << "_" << groupName;
             std::string meshName(ss.str());
 
-            conduit::Node &coordsets = out["coordsets"];
-            conduit::Node &topologies = out["topologies"];
+            conduit::Node &coordsets = n_out["coordsets"];
+            conduit::Node &topologies = n_out["topologies"];
             conduit::Node &cset = coordsets[meshName+"_coords"];
-            cset.move(mesh["coordsets"][0]);
+            cset.move(n_mesh["coordsets"][0]);
             conduit::Node &topo = topologies[meshName];
-            topo.move(mesh["topologies"][0]);
+            topo.move(n_mesh["topologies"][0]);
             topo["coordset"] = meshName + "_coords";
         }
     };
 
-    foreach_adjset_mesh_pair(mesh, adjsetName,
+    auto extractMesh =
+        [](const conduit::Node &n_topo,
+           const conduit::Node &n_adjset,
+           const conduit::Node &n_values,
+           conduit::Node &n_output)
+    {
+        const std::string association = n_adjset["association"].as_string();
+
+        const auto values = n_values.as_index_t_accessor();
+        topology::TopologyBuilder B(n_topo);
+        std::string shapeType;
+        if(association == "vertex")
+        {
+            shapeType = "point";
+            for(index_t i = 0; i < values.number_of_elements(); i++)
+            {
+                index_t ptid = values[i];
+                B.add(&ptid, 1);
+            }
+        }
+        else if(association == "element")
+        {
+            size_t minSides = 0, maxSides = 0;
+            for(index_t i = 0; i < values.number_of_elements(); i++)
+            {
+                index_t ei = values[i];
+                // Get the element points in their original order.
+                const bool unique = false;
+                const auto ptids = topology::unstructured::points(n_topo, ei, unique);
+                B.add(&ptids[0], ptids.size());
+
+                minSides = (i == 0) ? ptids.size() : std::min(minSides, ptids.size());
+                maxSides = (i == 0) ? ptids.size() : std::max(maxSides, ptids.size());
+            }
+
+            if(minSides == maxSides)
+            {
+                if(minSides == 2)
+                    shapeType = "line";
+                else if(minSides == 3)
+                    shapeType = "tri";
+                else if(minSides == 4)
+                    shapeType = "quad";
+            }
+            if(shapeType.empty())
+                shapeType = "polygon";
+        }
+
+        // Make the local point mesh.
+        B.execute(n_output, shapeType);
+    };
+
+    // This compareMesh moves the meshes into the output node.
+    auto compareMesh =
         [&](const std::string &groupName, int dom1, conduit::Node &mesh1, int dom2, conduit::Node &mesh2)
     {
         moveMesh(groupName, dom1, mesh1, out);
         moveMesh(groupName, dom2, mesh2, out);
         return true;
-    });
+    };
+
+    foreach_adjset_mesh_pair(mesh, adjsetName, extractMesh, compareMesh);
 }
 
 //-----------------------------------------------------------------------------
@@ -3561,6 +4268,7 @@ namespace query
 {
 
 const int PointQueryBase::NotFound = -1;
+const double PointQueryBase::DEFAULT_POINT_TOLERANCE = 1.e-8;
 
 //---------------------------------------------------------------------------
 PointQueryBase::PointQueryBase(const conduit::Node &mesh) : m_mesh(mesh),
@@ -3637,13 +4345,12 @@ PointQueryBase::queryDomainIds() const
 //---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
 
-// NOTE: The exect threshold could be platform-specific. This is in the ballpark.
+// NOTE: The exact threshold could be platform-specific. This is in the ballpark.
 const int PointQuery::SEARCH_THRESHOLD = 25 * 25 * 25;
 
 //---------------------------------------------------------------------------
 PointQuery::PointQuery(const conduit::Node &mesh) : PointQueryBase(mesh)
 {
-    constexpr double DEFAULT_POINT_TOLERANCE = 1.e-9;
     setPointTolerance(DEFAULT_POINT_TOLERANCE);
 }
 
@@ -3651,7 +4358,7 @@ PointQuery::PointQuery(const conduit::Node &mesh) : PointQueryBase(mesh)
 void
 PointQuery::setPointTolerance(double tolerance)
 {
-    m_pointTolerance = tolerance;
+    m_pointTolerance = std::max(tolerance, std::numeric_limits<double>::epsilon());
 }
 
 //---------------------------------------------------------------------------
@@ -4153,6 +4860,130 @@ MatchQuery::results(int dom, int query_dom) const
 //-----------------------------------------------------------------------------
 // -- end conduit::blueprint::mesh::utils::query --
 //-----------------------------------------------------------------------------
+
+void CONDUIT_BLUEPRINT_API lerp_one(const Node& A,
+                                    const Node& B,
+                                    int n,
+                                    Node& out,
+                                    int base,
+                                    bool allocate)
+{
+    if (n < 0)
+    {
+        CONDUIT_ERROR("Linear interpolation requires output of at least one point.  "
+            "Requested n is " << n);
+    }
+
+    const int Asize = static_cast<int>(A.dtype().number_of_elements());
+    const int Bsize = static_cast<int>(B.dtype().number_of_elements());
+    if (Asize < 1 || Bsize != Asize)
+    {
+        CONDUIT_ERROR("Linear interpolation requires same number of components "
+            "(greater than zero) in points A and B.  A has " << Asize <<
+            " and B has " << Bsize << " components.");
+    }
+    const int component_count = Asize;
+
+    if (allocate)
+    {
+        out.reset();
+        for (int c = 0; c < component_count; ++c)
+        {
+            out.append();
+        }
+    }
+    else if (out.number_of_children() != component_count)
+    {
+        CONDUIT_ERROR("Attempted to linearly interpolate A (" << Asize <<
+            " components) and B (" << Bsize << " components) storing the result "
+            "into a Node with " << out.number_of_children() << " children.  "
+            "Please make sure this matches the component count or pass "
+            "allocate == true.");
+    }
+
+    const float64* A_ptr = A.value();
+    const float64* B_ptr = B.value();
+    NodeIterator comp_itr = out.children();
+    for (int c = 0; c < component_count; ++c)
+    {
+        Node& comp = comp_itr.next();
+        if (allocate) {
+            comp.reset();   // do we need this?
+            comp.set(DataType::float64(n)); 
+        }
+        float64* comp_ptr = comp.value();
+        double delta = 0.;
+        if (n > 1)
+        {
+            delta = (B_ptr[c] - A_ptr[c]) / (n - 1);
+        }
+
+        comp_ptr[base] = A_ptr[c];
+        for (int i = 1; i < n; ++i)
+        {
+            comp_ptr[base + i] = comp_ptr[base + i - 1] + delta;
+        }
+    }
+}
+
+void CONDUIT_BLUEPRINT_API lerp(const Node& As,
+                                const Node& Bs,
+                                int n,
+                                Node& out)
+{
+    if (As.dtype().is_number() && Bs.dtype().is_number())
+    {
+        lerp_one(As, Bs, n, out);
+    }
+    else
+    {
+        const int dims = As.number_of_children();
+        if (dims < 1 || Bs.number_of_children() != dims)
+        {
+            CONDUIT_ERROR("Linear interpolation requires same dimensionality "
+                "(greater than zero) in point lists As and Bs.  As has dimension " <<
+                dims << " and Bs has dimension " << Bs.number_of_children() << ".");
+        }
+
+        const int num_segments = As.child(0).dtype().number_of_elements();
+        if (num_segments < 1 || Bs.child(0).dtype().number_of_elements() != num_segments)
+        {
+            CONDUIT_ERROR("Linear interpolation requires same number of points "
+                "(greater than zero) in point lists As and Bs.  As has " << num_segments <<
+                " and Bs has " << Bs.child(0).dtype().number_of_elements() << " points.");
+        }
+
+        out.reset();
+        for (int c = 0; c < dims; ++c)
+        {
+            Node& comp = out.append();
+            comp.set(DataType::float64(num_segments * n));
+        }
+
+        int offset = 0;
+        for (int p = 0; p < num_segments; ++p)
+        {
+            Node tempa;
+            tempa.set(DataType::float64(dims));
+            double* ptempa = tempa.value();
+            Node tempb;
+            tempb.set(DataType::float64(dims));
+            double* ptempb = tempb.value();
+
+            for (int d = 0; d < dims; ++d)
+            {
+                const double_array pAcomp = As.child(d).as_double_array();
+                const double_array pBcomp = Bs.child(d).as_double_array();
+
+                ptempa[d] = pAcomp[p];
+                ptempb[d] = pBcomp[p];
+            }
+            lerp_one(tempa, tempb, n, out, offset, false);
+
+            offset += n;
+        }
+    }
+}
 
 }
 //-----------------------------------------------------------------------------

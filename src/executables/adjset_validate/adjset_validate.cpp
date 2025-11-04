@@ -74,8 +74,10 @@ addPointMesh(const std::string &adjsetName, const conduit::Node &info, conduit::
                     {
                         auto da = err["coordinate"].as_double_accessor();
                         cx.push_back(da[0]);
-                        cy.push_back(da[1]);
-                        cz.push_back(da[2]);
+                        if(da.number_of_elements() > 1)
+                            cy.push_back(da[1]);
+                        if(da.number_of_elements() > 2)
+                            cz.push_back(da[2]);
 
                         domain.push_back(static_cast<int>(domainId));
                         vertex.push_back(err["vertex"].to_int());
@@ -94,8 +96,10 @@ addPointMesh(const std::string &adjsetName, const conduit::Node &info, conduit::
         conduit::Node &coordset = n["coordsets/" + coordsetName];
         coordset["type"] = "explicit";
         coordset["values/x"].set(cx);
-        coordset["values/y"].set(cy);
-        coordset["values/z"].set(cz);
+        if(!cy.empty())
+            coordset["values/y"].set(cy);
+        if(!cz.empty())
+            coordset["values/z"].set(cz);
 
         // Add topo
         std::string topoName(adjsetName);
@@ -141,10 +145,64 @@ printUsage(const char *program)
 }
 
 //---------------------------------------------------------------------------
+static void conduit_debug_err_handler(const std::string &s1, const std::string &s2, int i1)
+{
+    std::cout << "s1=" << s1 << ", s2=" << s2 << ", i1=" << i1 << std::endl;
+    // This is on purpose.
+    while(1)
+      ;
+}
+
+//---------------------------------------------------------------------------
+/**
+ * @brief Get the topology node for the specified adjset
+ *
+ * @param n_mesh The mesh node.
+ * @param adjsetName The name of the adjset that identifies the topology.
+ *
+ * @return A reference to the topology. If it does not exist, Conduit will
+ *         throw an exception.
+ */
+const conduit::Node &
+adjset_topology(const conduit::Node &n_mesh, const std::string &adjsetName)
+{
+    const conduit::Node &n_adjset = n_mesh.fetch_existing("adjsets/" + adjsetName);
+    const std::string topoName = n_adjset.fetch_existing("topology").as_string();
+    return n_mesh.fetch_existing("topologies/" + topoName);
+}
+
+//---------------------------------------------------------------------------
+/**
+ * @brief Test whether an adjset's topology contains lines.
+ *
+ * @param n_mesh The mesh we're testing. It might have multiple domains!
+ * @param adjsetName The name of the adjset that identifies the topology.
+ *
+ * @return True if the topology contains lines, false otherwise.
+ */
+bool is_line_topology(const conduit::Node &n_mesh, const std::string &adjsetName)
+{
+    bool is_line = false;
+    auto domains = conduit::blueprint::mesh::domains(n_mesh);
+    for(const auto &dom : domains)
+    {
+        const conduit::Node &n_topo = adjset_topology(*dom, adjsetName);
+        const std::string type = n_topo.fetch_existing("type").as_string();
+        if(type == "unstructured")
+        {
+            is_line = n_topo.fetch_existing("elements/shape").as_string() == "line";
+            break;
+        }
+    }
+    return is_line;
+}
+
+//---------------------------------------------------------------------------
 int
 main(int argc, char *argv[])
 {
     std::string input, output, protocol;
+    double tolerance = conduit::blueprint::mesh::utils::query::PointQueryBase::DEFAULT_POINT_TOLERANCE;
 
     // Set default protocol. Use HDF5 if present.
     conduit::Node props;
@@ -182,6 +240,15 @@ main(int argc, char *argv[])
             protocol = argv[i+1];
             i++;
         }
+        else if(strcmp(argv[i], "-tolerance") == 0 && (i+1) < argc)
+        {
+            tolerance = atof(argv[i+1]);
+            i++;
+        }
+        else if(strcmp(argv[i], "-handler") == 0)
+        {
+            conduit::utils::set_error_handler(conduit_debug_err_handler);
+        }
     }
 
     if(input.empty())
@@ -212,14 +279,24 @@ main(int argc, char *argv[])
             if(adjsets[i]->has_path("association"))
                 association = adjsets[i]->fetch_existing("association").as_string();
 
-            conduit::Node info;
-            bool res = conduit::blueprint::mesh::utils::adjset::validate(root, adjsetName, info);
+            conduit::Node info, opts;
+            opts["tolerance"] = tolerance;
+
+            bool res = conduit::blueprint::mesh::utils::adjset::validate(root, adjsetName, info, opts);
             if(res)
             {
                 // If the adjset is vertex associated then compare the points in
                 // it to make sure that they are the same on each side of the boundary.
-                if(association == "vertex")
-                    res = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, adjsetName, info);
+                //
+                // We can do this also for element associated adjsets that contain lines
+                // since in that case compare_pointwise will make points at the line segment
+                // midpoints. This allows us to check that the lines are in same order.
+                //
+                if(association == "vertex" ||
+                   (association == "element" && is_line_topology(root, adjsetName)))
+                {
+                    res = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, adjsetName, info, opts);
+                }
 
                 if(res)
                 {
@@ -229,6 +306,9 @@ main(int argc, char *argv[])
                 {
                     std::cout << "Check " << association << " adjset " << adjsetName << "... FAIL: The adjset points have different orders" << std::endl;
                     info.print();
+                    // If we're outputting, make a point mesh of the differences.
+                    if(!output.empty())
+                        addPointMesh(adjsetName, info, pointMeshes);
                     err = true;
                 }
             }

@@ -180,7 +180,7 @@ Selection::length(const conduit::Node &/*n_mesh*/) const
 bool
 Selection::get_whole(const conduit::Node &n_mesh)
 {
-    // If we have not yet determined whether the selection appears whole, 
+    // If we have not yet determined whether the selection appears whole,
     // do it now.
     if(whole == WHOLE_UNDETERMINED)
         set_whole(determine_is_whole(n_mesh));
@@ -352,8 +352,8 @@ public:
     // Computes the number of cells in the selection.
     virtual index_t length(const conduit::Node &/*n_mesh*/) const override
     {
-        return cells_for_axis(0) * 
-               cells_for_axis(1) * 
+        return cells_for_axis(0) *
+               cells_for_axis(1) *
                cells_for_axis(2);
     }
 
@@ -490,7 +490,7 @@ SelectionLogical::applicable(const conduit::Node &n_mesh)
 
         bool is_uniform = n_coords["type"].as_string() == "uniform";
         bool is_rectilinear = n_coords["type"].as_string() == "rectilinear";
-        bool is_structured = n_coords["type"].as_string() == "explicit" && 
+        bool is_structured = n_coords["type"].as_string() == "explicit" &&
                              n_topo["type"].as_string() == "structured";
         if(is_uniform || is_rectilinear || is_structured)
         {
@@ -898,7 +898,7 @@ SelectionExplicit::get_element_ids(const conduit::Node &n_mesh,
     {
         const conduit::Node &n_topo = selected_topology(n_mesh);
         auto topolen = topology::length(n_topo);
-        
+
         auto n = ids_storage.dtype().number_of_elements();
         auto indices = get_indices();
         element_ids.reserve(n);
@@ -1752,7 +1752,7 @@ Partitioner::create_selection_all_elements(const conduit::Node &n_mesh) const
     // Does the topo+coordset combo look structured?
     bool is_uniform = n_coords["type"].as_string() == "uniform";
     bool is_rectilinear = n_coords["type"].as_string() == "rectilinear";
-    bool is_structured = n_coords["type"].as_string() == "explicit" && 
+    bool is_structured = n_coords["type"].as_string() == "explicit" &&
                          n_topo["type"].as_string() == "structured";
 
     if(is_uniform || is_rectilinear || is_structured)
@@ -1966,7 +1966,7 @@ Partitioner::initialize(const conduit::Node &n_mesh,
     {
         // We are likely using all domains on this rank and on all ranks,
         // so we need to sum the number of domains to arrive at the target.
-        // Or, we did not pass target and had valid selections. Or, we 
+        // Or, we did not pass target and had valid selections. Or, we
         // had an invalid target. In any case, we sum the number of valid
         // selections.
         target = count_targets();
@@ -2975,18 +2975,97 @@ Partitioner::get_vertex_ids_for_element_ids(const conduit::Node &n_topo,
                     vertex_ids.insert(stream[offsets[element_ids[i]] + j]);
             }
         }
+        else if(n_topo.fetch_existing("elements/shape").as_string() == "mixed")
+        {
+            const auto conn = n_topo["elements/connectivity"].as_index_t_accessor();
+            const auto shapes = n_topo.fetch_existing("elements/shapes").as_index_t_accessor();
+            const Node &n_shape_map = n_topo.fetch_existing("elements/shape_map");
+
+            if(n_topo.has_path("elements/sizes") && n_topo.has_path("elements/offsets"))
+            {
+                const auto sizes = n_topo.fetch_existing("elements/sizes").as_index_t_accessor();
+                const auto offsets = n_topo.fetch_existing("elements/offsets").as_index_t_accessor();
+
+                if(n_topo.has_path("subelements/connectivity") &&
+                   n_topo.has_path("subelements/sizes") &&
+                   n_topo.has_path("subelements/offsets"))
+                {
+                    // This input topology contains some polyhedra.
+                    const auto se_conn = n_topo.fetch_existing("subelements/connectivity").as_index_t_accessor();
+                    const auto se_sizes = n_topo.fetch_existing("subelements/sizes").as_index_t_accessor();
+                    const auto se_offsets = n_topo.fetch_existing("subelements/offsets").as_index_t_accessor();
+
+                    // Determine the value being used for polyhedra from the shape_map.
+                    index_t phShape = -1;
+                    for(index_t i = 0; i < n_shape_map.number_of_children(); i++)
+                    {
+                        const Node &n_shape = n_shape_map[i];
+                        if(n_shape.name() == "polyhedral")
+                        {
+                            phShape = n_shape.to_int();
+                            break;
+                        }
+                    }
+ 
+                    for(size_t i = 0; i < element_ids.size(); i++)
+                    {
+                        const auto zsize = sizes[element_ids[i]];
+                        const auto zoffset = offsets[element_ids[i]];
+                        const auto zshape = shapes[element_ids[i]];
+                        if(zshape == phShape)
+                        {
+                            // The connectivity for this zone contains face ids.
+                            // Loop over face definitions and select face nodes.
+                            for(index_t j = 0; j < zsize; j++)
+                            {
+                                const auto faceIndex = conn[zoffset + j];
+                                const auto faceSize = se_sizes[faceIndex];
+                                const auto faceOffset = se_offsets[faceIndex];
+                                for(index_t k = 0; k < faceSize; k++)
+                                {
+                                    vertex_ids.insert(se_conn[faceOffset + k]);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // The connectivity contains nodes.
+                            for(index_t j = 0; j < zsize; j++)
+                            {
+                                vertex_ids.insert(conn[zoffset + j]);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    // no subelements.
+                    for(size_t i = 0; i < element_ids.size(); i++)
+                    {
+                        const auto zsize = sizes[element_ids[i]];
+                        const auto zoffset = offsets[element_ids[i]];
+                        for(index_t j = 0; j < zsize; j++)
+                        {
+                            vertex_ids.insert(conn[zoffset + j]);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                CONDUIT_ERROR("Unstructured topologies with mixed elements require sizes and offsets.");
+            }
+        }
         else
         {
             // Shapes are single types one after the next in the connectivity.
-            conduit::Node n_indices;
-            as_index_t(n_topo["elements/connectivity"], n_indices);
-            auto iptr = as_index_t_array(n_indices);
+            const auto conn = n_topo["elements/connectivity"].as_index_t_accessor();
             auto nverts_in_shape = conduit::blueprint::mesh::utils::TOPO_SHAPE_INDEX_COUNTS[shape.id];
             for(size_t i = 0; i < element_ids.size(); i++)
             {
                 auto offset = element_ids[i] * nverts_in_shape;
                 for(index_t j = 0; j < nverts_in_shape; j++)
-                    vertex_ids.insert(iptr[offset + j]);
+                    vertex_ids.insert(conn[offset + j]);
             }
         }
     }
@@ -3075,9 +3154,10 @@ Partitioner::extract(size_t idx, const conduit::Node &n_mesh, std::vector<index_
 
             // Create a new coordset consisting of the selected vertex ids.
             create_new_explicit_coordset(n_coordset, vertex_ids, n_new_coordsets[csname]);
+            index_t originalCoordsetLength = conduit::blueprint::mesh::coordset::length(n_coordset);
 
             // Create a new topology consisting of the selected element ids.
-            create_new_unstructured_topo(n_topo, csname, 
+            create_new_unstructured_topo(n_topo, csname, originalCoordsetLength,
                 element_ids, vertex_ids, n_new_topos[n_topo.name()]);
         }
 
@@ -3275,6 +3355,7 @@ Partitioner::create_new_structured_topo(const conduit::Node &n_topo,
 void
 Partitioner::create_new_unstructured_topo(const conduit::Node &n_topo,
     const std::string &csname,
+    index_t originalCoordsetLength,
     const std::vector<index_t> &element_ids,
     const std::vector<index_t> &vertex_ids,
     conduit::Node &n_new_topo) const
@@ -3283,23 +3364,24 @@ Partitioner::create_new_unstructured_topo(const conduit::Node &n_topo,
     {
         conduit::Node n_uns, cdest; // what is cdest?
         conduit::blueprint::mesh::topology::uniform::to_unstructured(n_topo, n_uns, cdest);
-        unstructured_topo_from_unstructured(n_uns, csname, element_ids, vertex_ids, n_new_topo);
+        unstructured_topo_from_unstructured(n_uns, csname, originalCoordsetLength, element_ids, vertex_ids, n_new_topo);
     }
     else if(n_topo["type"].as_string() == "rectilinear")
     {
         conduit::Node n_uns, cdest; // what is cdest?
         conduit::blueprint::mesh::topology::rectilinear::to_unstructured(n_topo, n_uns, cdest);
-        unstructured_topo_from_unstructured(n_uns, csname, element_ids, vertex_ids, n_new_topo);
+        unstructured_topo_from_unstructured(n_uns, csname, originalCoordsetLength, element_ids, vertex_ids, n_new_topo);
     }
     else if(n_topo["type"].as_string() == "structured")
     {
         conduit::Node n_uns, cdest; // what is cdest?
         conduit::blueprint::mesh::topology::structured::to_unstructured(n_topo, n_uns, cdest);
-        unstructured_topo_from_unstructured(n_uns, csname, element_ids, vertex_ids, n_new_topo);
+        unstructured_topo_from_unstructured(n_uns, csname, originalCoordsetLength, element_ids, vertex_ids, n_new_topo);
     }
     else if(n_topo["type"].as_string() == "unstructured")
     {
-        unstructured_topo_from_unstructured(n_topo, csname, element_ids, vertex_ids, n_new_topo);
+        unstructured_topo_from_unstructured(n_topo, csname, originalCoordsetLength,
+                                            element_ids, vertex_ids, n_new_topo);
     }
 }
 
@@ -3307,6 +3389,7 @@ Partitioner::create_new_unstructured_topo(const conduit::Node &n_topo,
 void
 Partitioner::unstructured_topo_from_unstructured(const conduit::Node &n_topo,
     const std::string &csname,
+    index_t originalCoordsetLength,
     const std::vector<index_t> &element_ids,
     const std::vector<index_t> &vertex_ids,
     conduit::Node &n_new_topo) const
@@ -3316,296 +3399,37 @@ Partitioner::unstructured_topo_from_unstructured(const conduit::Node &n_topo,
 
     // vertex_ids contains the list of old vertex ids that our selection uses
     // from the old coordset. It can serve as a new to old map.
-    std::map<index_t,index_t> old2new;
+    std::vector<index_t> old2new(originalCoordsetLength, INVALID_NODE);
     for(size_t i = 0; i < vertex_ids.size(); i++)
+    {
         old2new[vertex_ids[i]] = static_cast<index_t>(i);
-
+    }
+#if 0
+    // Print the old2new map.
+    std::cout << "unstructured_topo_from_unstructured: old2new={";
+    for(size_t i = 0; i < vertex_ids.size(); i++)
+    {
+        std::cout << old2new[i] << ", ";
+    }
+    std::cout << "}\n";
+#endif
     conduit::blueprint::mesh::utils::ShapeType shape(n_topo);
     std::vector<index_t> new_conn;
     if(shape.is_polygonal())
     {
-        conduit::Node n_indices;
-        as_index_t(n_topo["elements/connectivity"], n_indices);
-        auto iptr = as_index_t_array(n_indices);
-
-        // Make sure we have offsets we can use.
-        conduit::Node n_offsets, n_sizes;
-#ifdef CONDUIT_INDEX_32
-        if(n_topo.has_path("elements/offsets"))
-            n_topo["elements/offsets"].to_unsigned_int_array(n_offsets);
-        else
-            conduit::blueprint::mesh::utils::topology::unstructured::generate_offsets(n_topo, n_offsets);
-        auto offsets = n_offsets.as_unsigned_int_array();
-#else
-        if(n_topo.has_path("elements/offsets"))
-            n_topo["elements/offsets"].to_unsigned_long_array(n_offsets);
-        else
-            conduit::blueprint::mesh::utils::topology::unstructured::generate_offsets(n_topo, n_offsets);
-        auto offsets = n_offsets.as_unsigned_long_array();
-#endif
-        n_topo["elements/sizes"].to_unsigned_int_array(n_sizes);
-        auto sizes = n_sizes.as_unsigned_int_array();
-
-        std::vector<index_t> new_offsets, new_sizes;
-        index_t next_offset = 0;
-        for(size_t i = 0; i < element_ids.size(); i++)
-        {
-            auto offset = offsets[element_ids[i]];
-            auto sz = sizes[element_ids[i]];
-            for(unsigned int ptid = 0; ptid < sz; ptid++)
-                new_conn.push_back(old2new[iptr[offset + ptid]]);
-            new_sizes.push_back(sz);
-            new_offsets.push_back(next_offset);
-            next_offset += sz;
-        }
-        n_new_topo["elements/shape"].set(n_topo["elements/shape"]);
-        n_new_topo["elements/connectivity"].set(new_conn);
-        n_new_topo["elements/sizes"] = new_sizes;
-        n_new_topo["elements/offsets"] = new_offsets;
+        unstructured_topo_from_polygonal(n_topo, element_ids, old2new, n_new_topo);
     }
     else if(shape.is_polyhedral())
     {
-        const auto conn = n_topo["elements/connectivity"].as_index_t_accessor();
-
-        // NOTE: I'm assuming that offsets are built already.
-        const auto offsets = n_topo["elements/offsets"].as_index_t_accessor();
-        const auto sizes = n_topo["elements/sizes"].as_index_t_accessor();
-
-        const auto se_conn = n_topo["subelements/connectivity"].as_index_t_accessor();
-        const auto se_offsets = n_topo["subelements/offsets"].as_index_t_accessor();
-        const auto se_sizes = n_topo["subelements/sizes"].as_index_t_accessor();
-
-        // Figure out the index of each face being used. The first use of a face
-        // will put 0 in faceOrientation, the second use will be 1.
-        const auto maxFace = conn.max() + 1;
-        const auto connlen = conn.number_of_elements();
-        std::vector<uint8> faceCount(maxFace, 0);
-        std::vector<uint8> faceOrientation(connlen, 0);
-        for(index_t i = 0; i < connlen; i++)
-        {
-            const auto faceId = conn[i];
-            faceOrientation[i] = faceCount[faceId]++;
-        }
-
-        std::map<index_t,index_t> old2new_faces;
-        std::vector<index_t> new_sizes, new_offsets, new_se_conn, new_se_sizes, new_se_offsets;
-
-        index_t new_offset = 0, new_se_offset = 0;
-        for(auto eid : element_ids)
-        {
-            const auto offset = offsets[eid];
-            const auto nfaces = sizes[eid];
-            for(index_t fi = 0; fi < nfaces; fi++)
-            {
-                const auto face_id = conn[offset + fi];
-                const auto it = old2new_faces.find(face_id);
-                if(it == old2new_faces.end())
-                {
-                    // We have not seen the face before. Add it.
-                    const auto new_face_id = static_cast<index_t>(old2new_faces.size());
-                    old2new_faces[face_id] = new_face_id;
-                    new_conn.push_back(new_face_id);
-
-                    const auto face_offset = se_offsets[face_id];
-                    const auto face_nverts = se_sizes[face_id];
-
-                    // Get the orientation for the face. If it is 0 then the source
-                    // PH element was the first to define the face so we can add it in
-                    // the same order as the new PH mesh should be the first to see it.
-                    // If orientation is not zero then the source PH mesh was not the
-                    // first to define it. We assume the face was defined relative to
-                    // a different element and we must flip vertex ordering to make the
-                    // normals point the right way.
-                    const auto orientation = faceOrientation[offset + fi];
-                    if(orientation == 0)
-                    {
-                        // Add vertices in normal order
-                        for(index_t vi = 0; vi < face_nverts; vi++)
-                        {
-                            const auto vid = se_conn[face_offset + vi];
-
-                            if(old2new.find(vid) == old2new.end())
-                                CONDUIT_ERROR("No vertex " << vid << " in old2new.");
-
-                            const auto nvid = old2new[vid];
-                            new_se_conn.push_back(nvid);
-                        }
-                    }
-                    else
-                    {
-                        // Add vertices in reverse order so the new face is
-                        // defined relative to this element.
-                        for(index_t vi = face_nverts-1; vi >= 0; vi--)
-                        {
-                            const auto vid = se_conn[face_offset + vi];
-
-                            if(old2new.find(vid) == old2new.end())
-                                CONDUIT_ERROR("No vertex " << vid << " in old2new.");
-
-                            const auto nvid = old2new[vid];
-                            new_se_conn.push_back(nvid);
-                        }
-                    }
-
-                    new_se_sizes.push_back(face_nverts);
-                    new_se_offsets.push_back(new_se_offset);
-                    new_se_offset += face_nverts;
-                }
-                else
-                {
-                    // We've seen the face before. Reference it.
-                    new_conn.push_back(it->second);
-                }
-            }
-
-            new_sizes.push_back(nfaces);
-            new_offsets.push_back(new_offset);
-            new_offset += nfaces;
-        }
-
-        n_new_topo["elements/sizes"].set(new_sizes);
-        n_new_topo["elements/offsets"].set(new_offsets);
-        n_new_topo["elements/shape"].set(n_topo["elements/shape"]);
-        n_new_topo["elements/connectivity"].set(new_conn);
-        n_new_topo["subelements/shape"].set(n_topo["subelements/shape"].as_string());
-        n_new_topo["subelements/connectivity"].set(new_se_conn);
-        n_new_topo["subelements/sizes"].set(new_se_sizes);
-        n_new_topo["subelements/offsets"].set(new_se_offsets);
+        unstructured_topo_from_polyhedral(n_topo, element_ids, old2new, n_new_topo);
     }
     else if(n_topo.has_path("elements/element_types"))
     {
-        const conduit::Node &n_element_types = n_topo["elements/element_types"];
-
-        // Determine the number of points for each stream id and shape.
-        std::map<int,int> stream_id_npts;
-        std::set<int> unique_shape_types;
-        std::map<std::string, int> shape_stream_id;
-        std::map<int, std::string> stream_id_shape;
-
-        for(index_t i = 0; i < n_element_types.number_of_children(); i++)
-        {
-            const conduit::Node &n = n_element_types[i];
-            auto stream_id = n["stream_id"].to_int();
-            std::string shape_str(n["shape"].as_string());
-            for(size_t j = 0; j < utils::TOPO_SHAPES.size(); j++)
-            {
-                if(shape_str == utils::TOPO_SHAPES[j])
-                {
-                    stream_id_npts[stream_id] = utils::TOPO_SHAPE_INDEX_COUNTS[j];
-                    unique_shape_types.insert(utils::TOPO_SHAPE_INDEX_COUNTS[j]);
-                    shape_stream_id[shape_str] = stream_id;
-                    stream_id_shape[stream_id] = shape_str;
-                    break;
-                }
-            }
-        }
-
-        if(unique_shape_types.size() > 1)
-        {
-            // Elements are different types.
-
-            conduit::Node n_stream_ids, n_element_counts, n_stream;
-            as_index_t(n_topo["elements/element_index/stream_ids"], n_stream_ids);
-            as_index_t(n_topo["elements/element_index/element_counts"], n_element_counts);
-            as_index_t(n_topo["elements/stream"], n_stream);
-            auto stream_ids = as_index_t_array(n_stream_ids);
-            auto element_counts = as_index_t_array(n_element_counts);
-            auto stream = as_index_t_array(n_stream);
-
-            // Compute some size,offsets into the stream to help
-            std::vector<index_t> stream_ids_expanded, offsets;
-            index_t offset = 0;
-            for(index_t j = 0; j < stream_ids.number_of_elements(); j++)
-            {
-                auto n = static_cast<index_t>(element_counts[j]);
-                auto npts = stream_id_npts[stream_ids[j]];
-                for(index_t i = 0; i < n; i++)
-                {
-                    stream_ids_expanded.push_back(stream_ids[j]);
-                    offsets.push_back(offset);
-                    offset += npts;
-                }
-            }
-
-            // Now, for each element, add its topology to the new stream.
-            int current_stream_id = -1;
-            index_t current_stream_count = 0;
-            std::vector<index_t> new_stream_ids, new_element_counts;
-            for(size_t i = 0; i < element_ids.size(); i++)
-            {
-                int sid = stream_ids_expanded[element_ids[i]];
-                auto npts = stream_id_npts[sid];
-
-                // Save the element's vertices into the new stream.
-                for(index_t j = 0; j < npts; j++)
-                {
-                    auto vid = stream[offsets[element_ids[i]] + j];
-                    new_conn.push_back(old2new[vid]);
-                }
-
-                if(current_stream_id == -1)
-                {
-                    current_stream_id = sid;
-                    current_stream_count = 1;
-                }
-                else if(current_stream_id != sid)
-                {
-                    new_stream_ids.push_back(current_stream_id);
-                    new_element_counts.push_back(current_stream_count);
-
-                    current_stream_id = sid;
-                    current_stream_count = 1;
-                }
-                else
-                {
-                    current_stream_count++;
-                }
-            }
-            if(current_stream_count > 0)
-            {
-                new_stream_ids.push_back(current_stream_id);
-                new_element_counts.push_back(current_stream_count);
-            }
-
-            n_new_topo["elements/element_types"].set(n_topo["elements/element_types"]);
-            n_new_topo["elements/element_index/stream_ids"].set(new_stream_ids);
-            n_new_topo["elements/element_index/element_counts"].set(new_element_counts);
-            n_new_topo["elements/stream"].set(new_conn);            
-        }
-        else
-        {
-            // All elements are actually a single type.
-            int nverts_in_shape = -1;
-            const conduit::Node &n_et = n_topo["elements/element_types"][0];
-            std::string shape_str(n_et["shape"].as_string());
-            for(size_t j = 0; j < utils::TOPO_SHAPES.size(); j++)
-            {
-                if(shape_str == utils::TOPO_SHAPES[j])
-                {
-                    nverts_in_shape = utils::TOPO_SHAPE_INDEX_COUNTS[j];
-                    break;
-                }
-            }
-            if(nverts_in_shape == -1)
-            {
-                CONDUIT_ERROR("Invalid shape");
-            }
-            else
-            {
-                conduit::Node n_indices;
-                as_index_t(n_topo["elements/stream"], n_indices);
-                auto iptr = as_index_t_array(n_indices);
-                for(size_t i = 0; i < element_ids.size(); i++)
-                {
-                    auto offset = element_ids[i] * nverts_in_shape;
-                    for(index_t j = 0; j < nverts_in_shape; j++)
-                        new_conn.push_back(old2new[iptr[offset + j]]);
-                }
-
-                n_new_topo["elements/shape"].set(n_topo["elements/shape"]);
-                n_new_topo["elements/connectivity"].set(new_conn);
-            }
-        }
+        unstructured_topo_from_stream(n_topo, element_ids, old2new, n_new_topo);
+    }
+    else if(n_topo.fetch_existing("elements/shape").as_string() == "mixed")
+    {
+        unstructured_topo_from_mixed(n_topo, element_ids, old2new, n_new_topo);
     }
     else
     {
@@ -3639,6 +3463,476 @@ Partitioner::unstructured_topo_from_unstructured(const conduit::Node &n_topo,
 
         n_new_topo["elements/shape"].set(n_topo["elements/shape"]);
         n_new_topo["elements/connectivity"].set(new_conn);
+    }
+}
+
+//---------------------------------------------------------------------------
+void
+Partitioner::unstructured_topo_from_polygonal(const conduit::Node &n_topo,
+    const std::vector<index_t> &element_ids,
+    const std::vector<index_t> &old2new,
+    conduit::Node &n_new_topo) const
+{
+    conduit::Node n_indices;
+    as_index_t(n_topo["elements/connectivity"], n_indices);
+    auto iptr = as_index_t_array(n_indices);
+
+    // Make sure we have offsets we can use.
+    conduit::Node n_offsets, n_sizes;
+#ifdef CONDUIT_INDEX_32
+    if(n_topo.has_path("elements/offsets"))
+        n_topo["elements/offsets"].to_unsigned_int_array(n_offsets);
+    else
+        conduit::blueprint::mesh::utils::topology::unstructured::generate_offsets(n_topo, n_offsets);
+    auto offsets = n_offsets.as_unsigned_int_array();
+#else
+    if(n_topo.has_path("elements/offsets"))
+        n_topo["elements/offsets"].to_unsigned_long_array(n_offsets);
+    else
+        conduit::blueprint::mesh::utils::topology::unstructured::generate_offsets(n_topo, n_offsets);
+    auto offsets = n_offsets.as_unsigned_long_array();
+#endif
+    n_topo["elements/sizes"].to_unsigned_int_array(n_sizes);
+    auto sizes = n_sizes.as_unsigned_int_array();
+
+    std::vector<index_t> new_conn, new_offsets, new_sizes;
+    index_t next_offset = 0;
+    for(size_t i = 0; i < element_ids.size(); i++)
+    {
+        auto offset = offsets[element_ids[i]];
+        auto sz = sizes[element_ids[i]];
+        for(unsigned int ptid = 0; ptid < sz; ptid++)
+            new_conn.push_back(old2new[iptr[offset + ptid]]);
+        new_sizes.push_back(sz);
+        new_offsets.push_back(next_offset);
+        next_offset += sz;
+    }
+    n_new_topo["elements/shape"].set(n_topo["elements/shape"]);
+    n_new_topo["elements/connectivity"].set(new_conn);
+    n_new_topo["elements/sizes"] = new_sizes;
+    n_new_topo["elements/offsets"] = new_offsets;
+}
+
+//---------------------------------------------------------------------------
+void
+Partitioner::unstructured_topo_from_polyhedral(const conduit::Node &n_topo,
+    const std::vector<index_t> &element_ids,
+    const std::vector<index_t> &old2new,
+    conduit::Node &n_new_topo) const
+{
+    const auto conn = n_topo["elements/connectivity"].as_index_t_accessor();
+
+    // NOTE: I'm assuming that offsets are built already.
+    const auto offsets = n_topo["elements/offsets"].as_index_t_accessor();
+    const auto sizes = n_topo["elements/sizes"].as_index_t_accessor();
+
+    const auto se_conn = n_topo["subelements/connectivity"].as_index_t_accessor();
+    const auto se_offsets = n_topo["subelements/offsets"].as_index_t_accessor();
+    const auto se_sizes = n_topo["subelements/sizes"].as_index_t_accessor();
+
+    // Figure out the index of each face being used. The first use of a face
+    // will put 0 in faceOrientation, the second use will be 1.
+    const auto maxFace = conn.max() + 1;
+    const auto connlen = conn.number_of_elements();
+    std::vector<uint8> faceCount(maxFace, 0);
+    std::vector<uint8> faceOrientation(connlen, 0);
+    for(index_t i = 0; i < connlen; i++)
+    {
+        const auto faceId = conn[i];
+        faceOrientation[i] = faceCount[faceId]++;
+    }
+
+    std::map<index_t,index_t> old2new_faces;
+    std::vector<index_t> new_conn, new_sizes, new_offsets, new_se_conn, new_se_sizes, new_se_offsets;
+
+    const index_t old2new_size = static_cast<index_t>(old2new.size());
+    index_t new_offset = 0, new_se_offset = 0;
+    for(auto eid : element_ids)
+    {
+        const auto offset = offsets[eid];
+        const auto nfaces = sizes[eid];
+        for(index_t fi = 0; fi < nfaces; fi++)
+        {
+            const auto face_id = conn[offset + fi];
+            const auto it = old2new_faces.find(face_id);
+            if(it == old2new_faces.end())
+            {
+                // We have not seen the face before. Add it.
+                const auto new_face_id = static_cast<index_t>(old2new_faces.size());
+                old2new_faces[face_id] = new_face_id;
+                new_conn.push_back(new_face_id);
+
+                const auto face_offset = se_offsets[face_id];
+                const auto face_nverts = se_sizes[face_id];
+
+                // Get the orientation for the face. If it is 0 then the source
+                // PH element was the first to define the face so we can add it in
+                // the same order as the new PH mesh should be the first to see it.
+                // If orientation is not zero then the source PH mesh was not the
+                // first to define it. We assume the face was defined relative to
+                // a different element and we must flip vertex ordering to make the
+                // normals point the right way.
+                const auto orientation = faceOrientation[offset + fi];
+                if(orientation == 0)
+                {
+                    // Add vertices in normal order
+                    for(index_t vi = 0; vi < face_nverts; vi++)
+                    {
+                        const auto vid = se_conn[face_offset + vi];
+
+                        if(vid >= old2new_size || old2new[vid] == INVALID_NODE)
+                        {
+                            CONDUIT_ERROR("No vertex " << vid << " in old2new.");
+                        }
+                        const auto nvid = old2new[vid];
+                        new_se_conn.push_back(nvid);
+                    }
+                }
+                else
+                {
+                    // Add vertices in reverse order so the new face is
+                    // defined relative to this element.
+                    for(index_t vi = face_nverts-1; vi >= 0; vi--)
+                    {
+                        const auto vid = se_conn[face_offset + vi];
+
+                        if(vid >= old2new_size || old2new[vid] == INVALID_NODE)
+                        {
+                            CONDUIT_ERROR("No vertex " << vid << " in old2new.");
+                        }
+
+                        const auto nvid = old2new[vid];
+                        new_se_conn.push_back(nvid);
+                    }
+                }
+
+                new_se_sizes.push_back(face_nverts);
+                new_se_offsets.push_back(new_se_offset);
+                new_se_offset += face_nverts;
+            }
+            else
+            {
+                // We've seen the face before. Reference it.
+                new_conn.push_back(it->second);
+            }
+        }
+
+        new_sizes.push_back(nfaces);
+        new_offsets.push_back(new_offset);
+        new_offset += nfaces;
+    }
+
+    n_new_topo["elements/sizes"].set(new_sizes);
+    n_new_topo["elements/offsets"].set(new_offsets);
+    n_new_topo["elements/shape"].set(n_topo["elements/shape"]);
+    n_new_topo["elements/connectivity"].set(new_conn);
+    n_new_topo["subelements/shape"].set(n_topo["subelements/shape"].as_string());
+    n_new_topo["subelements/connectivity"].set(new_se_conn);
+    n_new_topo["subelements/sizes"].set(new_se_sizes);
+    n_new_topo["subelements/offsets"].set(new_se_offsets);
+}
+
+//---------------------------------------------------------------------------
+void
+Partitioner::unstructured_topo_from_stream(const conduit::Node &n_topo,
+    const std::vector<index_t> &element_ids,
+    const std::vector<index_t> &old2new,
+    conduit::Node &n_new_topo) const
+{
+    const conduit::Node &n_element_types = n_topo["elements/element_types"];
+
+    // Determine the number of points for each stream id and shape.
+    std::map<int,int> stream_id_npts;
+    std::set<int> unique_shape_types;
+    std::map<std::string, int> shape_stream_id;
+    std::map<int, std::string> stream_id_shape;
+
+    for(index_t i = 0; i < n_element_types.number_of_children(); i++)
+    {
+        const conduit::Node &n = n_element_types[i];
+        auto stream_id = n["stream_id"].to_int();
+        std::string shape_str(n["shape"].as_string());
+        for(size_t j = 0; j < utils::TOPO_SHAPES.size(); j++)
+        {
+            if(shape_str == utils::TOPO_SHAPES[j])
+            {
+                stream_id_npts[stream_id] = utils::TOPO_SHAPE_INDEX_COUNTS[j];
+                unique_shape_types.insert(utils::TOPO_SHAPE_INDEX_COUNTS[j]);
+                shape_stream_id[shape_str] = stream_id;
+                stream_id_shape[stream_id] = shape_str;
+                break;
+            }
+        }
+    }
+
+    if(unique_shape_types.size() > 1)
+    {
+        // Elements are different types.
+
+        conduit::Node n_stream_ids, n_element_counts, n_stream;
+        as_index_t(n_topo["elements/element_index/stream_ids"], n_stream_ids);
+        as_index_t(n_topo["elements/element_index/element_counts"], n_element_counts);
+        as_index_t(n_topo["elements/stream"], n_stream);
+        auto stream_ids = as_index_t_array(n_stream_ids);
+        auto element_counts = as_index_t_array(n_element_counts);
+        auto stream = as_index_t_array(n_stream);
+
+        // Compute some size,offsets into the stream to help
+        std::vector<index_t> stream_ids_expanded, offsets;
+        index_t offset = 0;
+        for(index_t j = 0; j < stream_ids.number_of_elements(); j++)
+        {
+            auto n = static_cast<index_t>(element_counts[j]);
+            auto npts = stream_id_npts[stream_ids[j]];
+            for(index_t i = 0; i < n; i++)
+            {
+                stream_ids_expanded.push_back(stream_ids[j]);
+                offsets.push_back(offset);
+                offset += npts;
+            }
+        }
+
+        // Now, for each element, add its topology to the new stream.
+        int current_stream_id = -1;
+        index_t current_stream_count = 0;
+        std::vector<index_t> new_conn, new_stream_ids, new_element_counts;
+        for(size_t i = 0; i < element_ids.size(); i++)
+        {
+            int sid = stream_ids_expanded[element_ids[i]];
+            auto npts = stream_id_npts[sid];
+
+            // Save the element's vertices into the new stream.
+            for(index_t j = 0; j < npts; j++)
+            {
+                auto vid = stream[offsets[element_ids[i]] + j];
+                new_conn.push_back(old2new[vid]);
+            }
+
+            if(current_stream_id == -1)
+            {
+                current_stream_id = sid;
+                current_stream_count = 1;
+            }
+            else if(current_stream_id != sid)
+            {
+                new_stream_ids.push_back(current_stream_id);
+                new_element_counts.push_back(current_stream_count);
+
+                current_stream_id = sid;
+                current_stream_count = 1;
+            }
+            else
+            {
+                current_stream_count++;
+            }
+        }
+        if(current_stream_count > 0)
+        {
+            new_stream_ids.push_back(current_stream_id);
+            new_element_counts.push_back(current_stream_count);
+        }
+
+        n_new_topo["elements/element_types"].set(n_topo["elements/element_types"]);
+        n_new_topo["elements/element_index/stream_ids"].set(new_stream_ids);
+        n_new_topo["elements/element_index/element_counts"].set(new_element_counts);
+        n_new_topo["elements/stream"].set(new_conn);
+    }
+    else
+    {
+        // All elements are actually a single type.
+        int nverts_in_shape = -1;
+        const conduit::Node &n_et = n_topo["elements/element_types"][0];
+        std::string shape_str(n_et["shape"].as_string());
+        for(size_t j = 0; j < utils::TOPO_SHAPES.size(); j++)
+        {
+            if(shape_str == utils::TOPO_SHAPES[j])
+            {
+                nverts_in_shape = utils::TOPO_SHAPE_INDEX_COUNTS[j];
+                break;
+            }
+        }
+        if(nverts_in_shape == -1)
+        {
+            CONDUIT_ERROR("Invalid shape");
+        }
+        else
+        {
+            std::vector<index_t> new_conn;
+            const auto conn = n_topo["elements/stream"].as_index_t_accessor();
+            for(size_t i = 0; i < element_ids.size(); i++)
+            {
+                auto offset = element_ids[i] * nverts_in_shape;
+                for(index_t j = 0; j < nverts_in_shape; j++)
+                    new_conn.push_back(old2new[conn[offset + j]]);
+            }
+
+            n_new_topo["elements/shape"].set(n_topo["elements/shape"]);
+            n_new_topo["elements/connectivity"].set(new_conn);
+        }
+    }
+}
+
+//---------------------------------------------------------------------------
+void
+Partitioner::unstructured_topo_from_mixed(const conduit::Node &n_topo,
+    const std::vector<index_t> &element_ids,
+    const std::vector<index_t> &old2new,
+    conduit::Node &n_new_topo) const
+{
+    // Make map of shape value to name from the shape map.
+    const conduit::Node &n_shape_map = n_topo.fetch_existing("elements/shape_map");
+    std::map<int, std::string> value2shape;
+    bool hasPolyhedra = false;
+    index_t phShape = -1;
+    for(index_t i = 0; i < n_shape_map.number_of_children(); i++)
+    {
+        const conduit::Node &n_shape = n_shape_map[i];
+        value2shape[n_shape.to_int()] = n_shape.name();
+        if(n_shape.name() == "polyhedral")
+        {
+            hasPolyhedra = true;
+            phShape = n_shape.to_int();
+        }
+    }
+
+    // Get the topology data as accessors.
+    const auto conn = n_topo["elements/connectivity"].as_index_t_accessor();
+    const auto sizes = n_topo["elements/sizes"].as_index_t_accessor();
+    const auto offsets = n_topo["elements/offsets"].as_index_t_accessor();
+    const auto shapes = n_topo["elements/shapes"].as_index_t_accessor();
+
+    const auto newNumZones = static_cast<index_t>(element_ids.size());
+    std::set<int> selectedShapes;
+
+    // Populate the new topology.
+    if(hasPolyhedra)
+    {
+        const auto se_conn = n_topo["subelements/connectivity"].as_index_t_accessor();
+        const auto se_sizes = n_topo["subelements/sizes"].as_index_t_accessor();
+        const auto se_offsets = n_topo["subelements/offsets"].as_index_t_accessor();
+        const auto se_shapes = n_topo["subelements/shapes"].as_index_t_accessor();
+
+        std::vector<index_t> new_conn, new_sizes, new_offsets, new_shapes;
+        std::vector<index_t> new_se_conn, new_se_sizes, new_se_offsets, new_se_shapes;
+        std::map<index_t, index_t> oldFace2newFace;
+        for(index_t i = 0; i < newNumZones; i++)
+        {
+            const auto elemId = element_ids[i];
+            const auto zsize = sizes[elemId];
+            const auto zoffset = offsets[elemId];
+            const auto zshape = shapes[elemId];
+            selectedShapes.insert(zshape);
+
+            new_sizes.push_back(zsize);
+            new_offsets.push_back(static_cast<index_t>(new_conn.size()));
+            new_shapes.push_back(zshape);
+
+            if(zshape == phShape)
+            {
+                for(index_t fi = 0; fi < zsize; fi++)
+                {
+                    const index_t oldFaceId = conn[zoffset + fi];
+                    index_t newFaceId = -1;
+                    const auto it = oldFace2newFace.find(oldFaceId);
+                    if(it == oldFace2newFace.end())
+                    {
+                        // Make new face.
+                        const auto faceOffset = se_offsets[oldFaceId];
+                        const auto faceSize = se_sizes[oldFaceId];
+                        const auto faceShape = se_shapes[oldFaceId];
+
+                        newFaceId = static_cast<index_t>(new_se_sizes.size());
+                        new_se_sizes.push_back(faceSize);
+                        new_se_offsets.push_back(new_se_conn.size());
+                        new_se_shapes.push_back(faceShape);
+
+                        for(index_t index = 0; index < faceSize; index++)
+                        {
+                            new_se_conn.push_back(old2new[se_conn[faceOffset + index]]);
+                        }
+                    }
+                    else
+                    {
+                        newFaceId = it->second;
+                    }
+                    new_conn.push_back(newFaceId);
+                }
+            }
+            else
+            {
+                // Copy and map node ids
+                for(index_t j = 0; j < zsize; j++)
+                {
+                   new_conn.push_back(old2new[conn[zoffset + j]]);
+                }
+            }
+        }
+
+        n_new_topo["elements/shape"] = "mixed";
+        n_new_topo["elements/connectivity"].set(new_conn);
+        n_new_topo["elements/sizes"].set(new_sizes);
+        n_new_topo["elements/offsets"].set(new_offsets);
+        n_new_topo["elements/shapes"].set(new_shapes);
+        if(!new_se_sizes.empty())
+        {
+            n_new_topo["subelements/shape"] = "mixed";
+            n_new_topo["subelements/connectivity"].set(new_se_conn);
+            n_new_topo["subelements/sizes"].set(new_se_sizes);
+            n_new_topo["subelements/offsets"].set(new_se_offsets);
+            n_new_topo["subelements/shapes"].set(new_se_shapes);
+            if(n_topo.has_path("subelements/shape_map"))
+            {
+                n_new_topo["subelements/shape_map"].set(n_topo["subelements/shape_map"]);
+            }
+        }
+    }
+    else
+    {
+        // Figure out new connectivity size.
+        index_t newConnSize = 0;
+        for(index_t i = 0; i < newNumZones; i++)
+        {
+          newConnSize += sizes[element_ids[i]];
+        }
+
+        // Set up new arrays.
+        n_new_topo["elements/shape"] = "mixed";
+        n_new_topo["elements/connectivity"].set(DataType::index_t(newConnSize));
+        n_new_topo["elements/sizes"].set(DataType::index_t(newNumZones));
+        n_new_topo["elements/offsets"].set(DataType::index_t(newNumZones));
+        n_new_topo["elements/shapes"].set(DataType::index_t(newNumZones));
+        index_t *new_conn = n_new_topo["elements/connectivity"].as_index_t_ptr();
+        index_t *new_sizes = n_new_topo["elements/sizes"].as_index_t_ptr();
+        index_t *new_offsets = n_new_topo["elements/offsets"].as_index_t_ptr();
+        index_t *new_shapes = n_new_topo["elements/shapes"].as_index_t_ptr();
+
+        index_t newOffset = 0;
+        for(index_t i = 0; i < newNumZones; i++)
+        {
+            const auto elemId = element_ids[i];
+            const auto zsize = sizes[elemId];
+            const auto zoffset = offsets[elemId];
+            const auto zshape = shapes[elemId];
+
+            new_sizes[i] = zsize;
+            new_offsets[i] = newOffset;
+            new_shapes[i] = zshape;
+            selectedShapes.insert(zshape);
+
+            // Copy and map node ids
+            for(index_t j = 0; j < zsize; j++)
+            {
+                new_conn[newOffset + j] = old2new[conn[zoffset + j]];
+            }
+
+            newOffset += zsize;
+        }
+    }
+
+    // Build new shape map.
+    for(auto s : selectedShapes)
+    {
+        n_new_topo["elements/shape_map/" + value2shape[s]] = s;
     }
 }
 
@@ -4071,11 +4365,11 @@ Partitioner::build_interdomain_adjsets(const std::vector<int>& chunk_offsets,
             }
             // 5. We now have adjsets for each chunk. Insert them into the adjset
             //    nodes for each corresponding chunk.
-            for (const auto& adjset : new_adjsets)
+            for (const auto& curAdjset : new_adjsets)
             {
                 // Get local chunk id
-                index_t chunk_id = adjset.first.first - chunk_offset;
-                index_t chunk_nbr = adjset.first.second;
+                index_t chunk_id = curAdjset.first.first - chunk_offset;
+                index_t chunk_nbr = curAdjset.first.second;
                 if (!adjset_data[chunk_id] || !adjset_data[chunk_id]->has_child(adjset_name))
                 {
                     continue;
@@ -4083,7 +4377,7 @@ Partitioner::build_interdomain_adjsets(const std::vector<int>& chunk_offsets,
                 Node& adjset_groups = adjset_data[chunk_id]->fetch(adjset_name + "/groups");
                 Node& new_set = adjset_groups.append();
                 new_set["neighbors"].set(chunk_nbr);
-                new_set["values"].set(adjset.second);
+                new_set["values"].set(curAdjset.second);
                 // If we are not the only chunk in the local adjset, the values
                 // are relative to the original domain - flag for remap.
                 if (dom_2_chunks.find(&domain)->second.size() > 1)
@@ -4459,7 +4753,7 @@ Partitioner::starting_index(const std::vector<Partitioner::Chunk> &/*chunks*/)
 void
 Partitioner::map_chunks(const std::vector<Partitioner::Chunk> &chunks,
     std::vector<int> &dest_ranks,
-    std::vector<int> &dest_domain, 
+    std::vector<int> &dest_domain,
     std::vector<int> &offsets)
 {
     // All data for this rank begins at offset 0.
@@ -4642,7 +4936,7 @@ Partitioner::communicate_chunks(const std::vector<Partitioner::Chunk> &chunks,
     {
         chunks_to_assemble.push_back(Chunk(chunks[i].mesh, false));
         chunks_to_assemble_domains.push_back(dest_domain[i]);
-        chunks_to_assemble_gids.push_back(i);
+        chunks_to_assemble_gids.push_back(static_cast<int>(i));
     }
 }
 
@@ -4673,7 +4967,7 @@ namespace coordset
 class point_merge
 {
 public:
-    void execute(const std::vector<const conduit::Node *> &coordsets, 
+    void execute(const std::vector<const conduit::Node *> &coordsets,
                  double tolerance,
                  Node &output);
 
@@ -4981,9 +5275,9 @@ public:
     kdtree() = default;
     ~kdtree()
     {
-        const auto lambda = [](node *node, unsigned int)
+        const auto lambda = [](node *n, unsigned int)
         {
-            delete node;
+            delete n;
         };
         if(root) { traverse_lrn(lambda, root); }
     }
@@ -5269,19 +5563,19 @@ private:
     }
 
     template<typename Func>
-    void traverse_lnr(Func &&func, node *node, unsigned int depth = 0)
+    void traverse_lnr(Func &&func, node *n, unsigned int depth = 0)
     {
-        if(node->left) { traverse_lnr(func, node->left, depth + 1); }
-        func(node, depth);
-        if(node->right) { traverse_lnr(func, node->right, depth + 1); }
+        if(n->left) { traverse_lnr(func, n->left, depth + 1); }
+        func(n, depth);
+        if(n->right) { traverse_lnr(func, n->right, depth + 1); }
     }
 
     template<typename Func>
-    void traverse_lrn(Func &&func, node *node, unsigned int depth = 0)
+    void traverse_lrn(Func &&func, node *n, unsigned int depth = 0)
     {
-        if(node->left) { traverse_lrn(func, node->left, depth + 1); }
-        if(node->right) { traverse_lrn(func, node->right, depth + 1); }
-        func(node, depth);
+        if(n->left) { traverse_lrn(func, n->left, depth + 1); }
+        if(n->right) { traverse_lrn(func, n->right, depth + 1); }
+        func(n, depth);
     }
 
     // Keep track of tree performance
@@ -6203,26 +6497,6 @@ namespace topology
 {
 
 //-----------------------------------------------------------------------------
-template<typename Func>
-static void iterate_int_data(const conduit::Node &node, Func &&func)
-{
-    const auto dtype = node.dtype();
-    if (dtype.is_integer())
-    {
-        index_t_accessor int_data = node.as_index_t_accessor();
-        const index_t nele = int_data.number_of_elements();
-        for(index_t i = 0; i < nele; i++)
-        {
-            func(int_data[i]);
-        }
-    }
-    else
-    {
-        CONDUIT_ERROR("Tried to iterate " << dtype.name() << " as integer data!");
-    }
-}
-
-//-----------------------------------------------------------------------------
 static void
 build_unstructured_output(const std::vector<const Node*> &topologies,
                           const Node &pointmaps,
@@ -6234,10 +6508,18 @@ build_unstructured_output(const std::vector<const Node*> &topologies,
     output.reset();
     output["type"].set("unstructured");
     output["coordset"].set(cset_name);
-    std::vector<std::string>          shape_types;
-    std::vector<std::vector<index_t>> out_connectivity;
-    std::vector<std::vector<index_t>> out_elem_map;
+    std::set<index_t> shape_types;
+    std::vector<index_t> out_conn, out_shapes, out_sizes, out_offsets;
+    std::vector<index_t> se_conn, se_shapes, se_sizes, se_offsets;
+    std::vector<index_t> out_elem_map;
     const index_t ntopos = (index_t)topologies.size();
+    index_t offset = 0;
+    std::map<std::pair<index_t, index_t>, index_t> domFace2Face;
+    const conduit::blueprint::mesh::utils::ShapeType triShape("tri");
+    const conduit::blueprint::mesh::utils::ShapeType quadShape("quad");
+    const conduit::blueprint::mesh::utils::ShapeType polygonShape("polygonal");
+    index_t se_shape_bits = 0;
+
     for(index_t i = 0; i < ntopos; i++)
     {
         const Node *topo = topologies[i];
@@ -6256,56 +6538,124 @@ build_unstructured_output(const std::vector<const Node*> &topologies,
         }
         DataArray<index_t> pmap_da = pointmap->value();
 
-        iterate_elements(*topo, [&](const entity &e) {
-            // See if we already have a bucket for this shape in our output
-            const std::string &shape_string = e.shape.type;
-            // Find the index for this shape's bucket
-            const auto itr = std::find(shape_types.begin(), shape_types.end(), shape_string);
-            index_t idx = (index_t)(itr - shape_types.begin());
-            if(itr == shape_types.end())
+        iterate_elements(*topo, [&](const entity &e)
+        {
+            shape_types.insert(e.shape.id);
+            out_shapes.push_back(e.shape.id);
+            out_sizes.push_back(e.element_ids.size());
+            out_offsets.push_back(offset);
+
+            // Build element_map.
+            out_elem_map.push_back(i);
+            out_elem_map.push_back(e.entity_id);
+
+            if(e.subelement_ids.empty())
             {
-                idx = shape_types.size();
-                shape_types.push_back(shape_string);
-                out_connectivity.emplace_back();
-                out_elem_map.emplace_back();
+                // Non-PH elements.
+                for(const index_t id : e.element_ids)
+                {
+                    out_conn.push_back(pmap_da[id]);
+                }
+            }
+            else
+            {
+                // PH elements. e.element_ids stores face ids for domain i
+                for(size_t fi = 0; fi < e.element_ids.size(); fi++)
+                {
+                    // Look for face.
+                    const std::pair<index_t, index_t> domFace(i, e.element_ids[fi]);
+                    auto it = domFace2Face.find(domFace);
+                    index_t newFaceId = -1;
+
+                    if(it == domFace2Face.end())
+                    {
+                        // Define new face.
+                        newFaceId = domFace2Face.size();
+                        domFace2Face[domFace] = newFaceId;
+                        const auto &se_ids = e.subelement_ids[fi];
+
+                        se_offsets.push_back(se_conn.size());
+                        const index_t numSides = static_cast<index_t>(se_ids.size());
+                        se_sizes.push_back(numSides);
+                        const index_t faceShape = (numSides == 3) ? triShape.id :
+                            ((numSides == 4) ? quadShape.id : polygonShape.id);
+                        se_shapes.push_back(faceShape);
+                        se_shape_bits |= (1 << faceShape);
+
+                        for(auto id : se_ids)
+                        {
+                            se_conn.push_back(pmap_da[id]);
+                        }
+                    }
+                    else
+                    {
+                        // Reuse face.
+                        newFaceId = it->second;
+                    }
+
+                    out_conn.push_back(newFaceId);
+                }
             }
 
-            out_elem_map[idx].push_back(i);
-            out_elem_map[idx].push_back(e.entity_id);
-
-            // Translate the point ids using the pointmap.
-            std::vector<index_t> &out_conn = out_connectivity[idx];
-            for(const index_t id : e.element_ids)
-            {
-                out_conn.push_back(pmap_da[id]);
-            }
+            offset += e.element_ids.size();
         });
     }
 
     if(shape_types.size() == 1)
     {
-        output["element_map"].set(out_elem_map[0]);
-        output["elements/shape"].set(shape_types[0]);
-        output["elements/connectivity"].set(out_connectivity[0]);
+        conduit::blueprint::mesh::utils::ShapeType shape(*shape_types.begin());
+        output["elements/shape"] = shape.type;
+        output["elements/connectivity"].set(out_conn);
+        if(shape.is_polygonal())
+        {
+            output["elements/sizes"].set(out_sizes);
+            output["elements/offsets"].set(out_offsets);
+        }
+        else if(shape.is_polyhedral() && !se_conn.empty())
+        {
+            output["elements/sizes"].set(out_sizes);
+            output["elements/offsets"].set(out_offsets);
+
+            output["subelements/shape"] = "polygonal";
+            output["subelements/connectivity"].set(se_conn);
+            output["subelements/sizes"].set(se_sizes);
+            output["subelements/offsets"].set(se_offsets);
+            output["subelements/shapes"].set(se_shapes);
+        }
     }
     else if(shape_types.size() > 1)
     {
-        std::vector<index_t> elem_map;
-        const index_t nshapes = (index_t)shape_types.size();
-        for(index_t i = 0; i < nshapes; i++)
+        // Build mixed output.
+        output["elements/shape"] = "mixed";
+        for(auto s : shape_types)
         {
-            const std::string name = shape_types[i] + "s";
-            Node &bucket = output["elements"].add_child(name);
-            bucket["shape"].set(shape_types[i]);
-            bucket["connectivity"].set(out_connectivity[i]);
-            for(index_t id : out_elem_map[i])
-            {
-                elem_map.push_back(id);
-            }
-            std::vector<index_t>().swap(out_elem_map[i]);
+            conduit::blueprint::mesh::utils::ShapeType shape(s);
+            // Cast b/c VisIt requires int32 at the moment.
+            output["elements/shape_map"][shape.type] = static_cast<int>(s);
         }
-        output["element_map"].set(elem_map);
+        output["elements/connectivity"].set(out_conn);
+        output["elements/sizes"].set(out_sizes);
+        output["elements/offsets"].set(out_offsets);
+        output["elements/shapes"].set(out_shapes);
+
+        if(!se_conn.empty())
+        {
+            output["subelements/shape"] = "mixed";
+            output["subelements/connectivity"].set(se_conn);
+            output["subelements/sizes"].set(se_sizes);
+            output["subelements/offsets"].set(se_offsets);
+            output["subelements/shapes"].set(se_shapes);
+            // Make shape map.
+            // Cast b/c VisIt requires int32 at the moment.
+            if(se_shape_bits & (1 << triShape.id))
+                output["subelements/shape_map/tri"] = static_cast<int>(triShape.id);
+            if(se_shape_bits & (1 << quadShape.id))
+                output["subelements/shape_map/quad"] = static_cast<int>(quadShape.id);
+            if(se_shape_bits & (1 << polygonShape.id))
+                output["subelements/shape_map/polygonal"] = static_cast<int>(polygonShape.id);
+        }
     }
+    output["element_map"].set(out_elem_map);
 }
 
 //-----------------------------------------------------------------------------
@@ -6778,7 +7128,7 @@ public:
         }
 
         tolerance = merge_tolerance;
-        
+
         if(mode == CombineImplicitMode::Structured)
         {
             retval = combine_structured_impl(n_meshes, original_element_ids, original_vertex_ids, output);
@@ -7069,7 +7419,7 @@ private:
     /**
     @brief Inspects the given face ids and permutation id to determine
       how the two meshes will need to be oriented in the resulting combination.
-    
+
       The *order variables will hold a mapping from local_dims to global dims
       IE: (i,j,k) -> (k,j,i) would be represented as [2,1,0]
 
@@ -7077,8 +7427,8 @@ private:
       IE: (i,j,k) -> (-k,j,-i) would be represented as [1,0,1].
     */
     void
-    lookup_case(const index_t lhs_face, const index_t rhs_face, 
-        const index_t rhs_permutation, 
+    lookup_case(const index_t lhs_face, const index_t rhs_face,
+        const index_t rhs_permutation,
         index_t *lhs_order, int *lhs_reverse,
         index_t *rhs_order, int *rhs_reverse) const
     {
@@ -7143,7 +7493,7 @@ private:
             {
                 lhs_reverse[dim_lhs] = true;
             }
-            
+
             // Opposite applies for RHS
             if(rhs_matched_dim_value == 1)
             {
@@ -7177,7 +7527,7 @@ private:
             {
                 lhs_reverse[dim_lhs] = true;
             }
-            
+
             // Opposite applies for RHS
             if(rhs_matched_dim_value == 1)
             {
@@ -7195,9 +7545,9 @@ private:
         std::vector<vec> &out_bb) const
     {
         std::array<index_t, MAXDIM> dims;
-        mesh::utils::topology::logical_dims(n_mesh.fetch_existing(topo_path), 
+        mesh::utils::topology::logical_dims(n_mesh.fetch_existing(topo_path),
             dims.data(), MAXDIM);
-        
+
         // Want to work in vertex dims here
         for(index_t &d : dims) d += 1;
 
@@ -7277,8 +7627,8 @@ private:
         permuting the faces of rhs if necessary.
     */
     bool match_structured_faces(
-                const combine_structured_data_t &lhs, 
-                const combine_structured_data_t &rhs, 
+                const combine_structured_data_t &lhs,
+                const combine_structured_data_t &rhs,
                 index_t &lhs_face_id, index_t &rhs_face_id, index_t &perm) const
     {
         const double t2    = tolerance*tolerance;
@@ -7582,7 +7932,6 @@ private:
     bool combine_implicit_impl(const std::vector<const Node *> &n_meshes,
             Node &output) const
     {
-        using vec = blueprint::mesh::coordset::utils::vec3;
         using bounding_box = blueprint::mesh::coordset::utils::bounding_box<vec>;
         using combine_implicit_data_t = std::pair<const Node *, bounding_box>;
 
@@ -7793,7 +8142,7 @@ private:
                                 Schema s;
                                 for(index_t dj = 0; dj < dimension; dj++)
                                 {
-                                    s[axes[dj]].set(DataType(out_dtype.id(), dim_sizes[dj], offset, 
+                                    s[axes[dj]].set(DataType(out_dtype.id(), dim_sizes[dj], offset,
                                         out_dtype.element_bytes(), out_dtype.element_bytes(), out_dtype.endianness()));
                                     offset += out_dtype.element_bytes() * dim_sizes[dj];
                                 }
@@ -7865,8 +8214,8 @@ private:
     bool
     combine_structured_impl(
             const std::vector<const Node *> &n_meshes,
-            const std::string &original_element_ids,
-            const std::string &original_vertex_ids,
+            const std::string &/*original_element_ids*/,
+            const std::string &/*original_vertex_ids*/,
             Node &output) const
     {
         // Cannot use axis-aligned bounding boxes for structured grids
@@ -7908,7 +8257,7 @@ private:
                     ovid["topology"] = "mesh";
                     ovid["values"].set_external(mesh["coordsets/coords/pointmaps"]);
                 }
-                std::ofstream f_out("combine_structured_iteration." + 
+                std::ofstream f_out("combine_structured_iteration." +
                     ((iteration < 10) ? ("0000" + std::to_string(iteration)) : ("000" + std::to_string(iteration)))
                     + ".yaml");
                 temp.to_string_stream(f_out);
@@ -7935,7 +8284,7 @@ private:
                     index_t ej_face = 0;
                     index_t ej_permutation = 0;
                     bool match_found = match_structured_faces(
-                        meshes_and_bbs[ei], meshes_and_bbs[ej], 
+                        meshes_and_bbs[ei], meshes_and_bbs[ej],
                         ei_face, ej_face, ej_permutation);
 
                     if(match_found)
@@ -7959,7 +8308,7 @@ private:
                         }
 
                     #ifdef DEBUG_STRUCTURED_COMBINE
-                        std::cout << "Matched faces " << n_meshi->fetch_existing("id").to_index_t() << ":" << ei_face 
+                        std::cout << "Matched faces " << n_meshi->fetch_existing("id").to_index_t() << ":" << ei_face
                             << " to " << n_meshj->fetch_existing("id").to_index_t() << ":" << ej_face << ":"
                             << ej_permutation << std::endl;
                     #endif
@@ -8141,7 +8490,7 @@ private:
 
                         // Creates the "new_mesh" and handling orientation cases
                         combine_structured_submeshes(
-                            *n_lhs, *n_rhs, dims_lhs.data(), 
+                            *n_lhs, *n_rhs, dims_lhs.data(),
                             dims_rhs.data(), lhs_face, rhs_face, ej_permutation,
                             new_mesh);
 
@@ -8213,8 +8562,8 @@ private:
         std::array<index_t, MAXDIM> order_rhs{0,1,2};
         std::array<int, MAXDIM>     reverse_lhs{0,0,0};
         std::array<int, MAXDIM>     reverse_rhs{0,0,0};
-        lookup_case(face_lhs, face_rhs, perm_rhs, 
-            order_lhs.data(), reverse_lhs.data(), 
+        lookup_case(face_lhs, face_rhs, perm_rhs,
+            order_lhs.data(), reverse_lhs.data(),
             order_rhs.data(), reverse_rhs.data());
         std::array<index_t, MAXDIM> new_dims{1, 1, 1};
         for(index_t i = 0; i < dimension; i++)
@@ -8290,7 +8639,7 @@ private:
             // RHS will be tranformed to exist in LHS' ijk space
             std::array<index_t, MAXDIM> offsets{0,0,0};
             offsets[matched_dim] = dims_lhs[matched_dim] - 1;
-            map_structured_verts_elems(domain_lookup[1], new_dims.data(), 
+            map_structured_verts_elems(domain_lookup[1], new_dims.data(),
                 dims_rhs, order_rhs.data(), reverse_rhs.data(), offsets.data(),
                 orig_vert_domains, orig_vert_ids, elem_map);
         }
@@ -8318,7 +8667,7 @@ private:
                         DataType(n_vals_lhs[d].dtype().id(),1),
                         const_cast<void*>(n_vals_lhs[d].element_ptr(id)));
                     temp1.to_data_type(out_vals[d].dtype().id(), temp2);
-                    std::memcpy(out_vals[d].element_ptr(i), 
+                    std::memcpy(out_vals[d].element_ptr(i),
                         temp2.element_ptr(0),
                         temp2.dtype().element_bytes());
                 }
@@ -8338,7 +8687,7 @@ private:
                         DataType(n_vals_rhs[d].dtype().id(),1),
                         const_cast<void*>(n_vals_rhs[d].element_ptr(id)));
                     temp1.to_data_type(out_vals[d].dtype().id(), temp2);
-                    std::memcpy(out_vals[d].element_ptr(i), 
+                    std::memcpy(out_vals[d].element_ptr(i),
                         temp2.element_ptr(0),
                         temp2.dtype().element_bytes());
                 }
@@ -9478,8 +9827,8 @@ Partitioner::recommended_topology(const std::vector<const Node *> &inputs,
 
     // Redefine these here because the order matters
     static const std::array<std::string, 3> coordset_types = {
-        "uniform", 
-        "rectilinear", 
+        "uniform",
+        "rectilinear",
         "explicit"
     };
 
@@ -9570,7 +9919,7 @@ group_coordsets(const std::vector<const Node *> inputs)
             const Node *cset = csets->fetch_ptr(cset_name);
             if(!cset) { continue; }
 
-            auto itr = std::find_if(coordset_groups.begin(), coordset_groups.end(), 
+            auto itr = std::find_if(coordset_groups.begin(), coordset_groups.end(),
                 [&cset_name](const cset_group_t &a)
             {
                 return a.first == cset_name;
@@ -10460,7 +10809,7 @@ Partitioner::combine_as_unstructured(const std::string &topo_name,
         // Make sure we have the correct number of point maps
         if(pointmaps.number_of_children() != (index_t)working_topologies.size())
         {
-            CONDUIT_ERROR("Number of input pointmaps and number of input topologies do not match! " 
+            CONDUIT_ERROR("Number of input pointmaps and number of input topologies do not match! "
                 << pointmaps.number_of_children() << " != " << working_topologies.size());
             return;
         }

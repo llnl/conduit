@@ -32,5 +32,9 @@ from . import mcarray
 from . import mesh
 from . import table
 
-
+# mpi support is optional, so drive on if we can't import
+try:
+    from . import mpi
+except:
+    pass
 

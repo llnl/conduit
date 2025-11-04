@@ -25,7 +25,7 @@ FUNCTION(FIND_ADIOS COMPS FOUNDVAR INCVAR LIBVAR)
     # all the info about the ADIOS install
     include(${ADIOS_DIR}/etc/FindADIOS.cmake)
 
-    # FindADIOS sets ADIOS_DIR to it's installed CMake info if it exists
+    # FindADIOS sets ADIOS_DIR to its installed CMake info if it exists
     # we want to keep ADIOS_DIR as the root dir of the install to be 
     # consistent with other packages
 
@@ -151,3 +151,7 @@ MESSAGE(STATUS "  ADIOS_SEQ_LIB=${ADIOS_SEQ_LIB}")
 MESSAGE(STATUS "  ADIOSREAD_SEQ_INC=${ADIOSREAD_SEQ_INC}")
 MESSAGE(STATUS "  ADIOSREAD_SEQ_LIB=${ADIOSREAD_SEQ_LIB}")
 
+if(CONDUIT_ENABLE_TESTS AND WIN32 AND BUILD_SHARED_LIBS)
+    # if we are running tests with dlls, we need path to dlls
+    list(APPEND CONDUIT_TPL_DLL_PATHS ${ADIOS_DIR}/bin/)
+endif()

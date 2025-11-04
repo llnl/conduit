@@ -41,6 +41,9 @@ set(blueprint_headers
     conduit_blueprint_mesh_examples_polystar.hpp
     conduit_blueprint_mesh_examples_rz_cylinder.hpp
     conduit_blueprint_mesh_examples_tiled.hpp
+    conduit_blueprint_mesh_examples_gyre.hpp
+    conduit_blueprint_mesh_examples_generate.hpp
+    conduit_blueprint_mesh_flatten.hpp
     conduit_blueprint_mcarray.hpp
     conduit_blueprint_mcarray_examples.hpp
     conduit_blueprint_o2mrelation.hpp
@@ -84,6 +87,8 @@ set(blueprint_sources
     conduit_blueprint_mesh_examples_polystar.cpp
     conduit_blueprint_mesh_examples_rz_cylinder.cpp
     conduit_blueprint_mesh_examples_tiled.cpp
+    conduit_blueprint_mesh_examples_gyre.cpp
+    conduit_blueprint_mesh_examples_generate.cpp
     conduit_blueprint_mesh_flatten.cpp
     conduit_blueprint_mcarray.cpp
     conduit_blueprint_mcarray_examples.cpp
@@ -191,6 +196,7 @@ set(conduit_blueprint_mpi_sources
 set(conduit_blueprint_mpi_headers
     conduit_blueprint_mpi.hpp
     conduit_blueprint_mpi_mesh.hpp
+    conduit_blueprint_mpi_mesh_flatten.hpp
     conduit_blueprint_mpi_mesh_partition.hpp
     conduit_blueprint_mpi_mesh_examples.hpp
     conduit_blueprint_mpi_mesh_utils.hpp
@@ -234,6 +240,8 @@ add_compiled_library(NAME conduit_blueprint_mpi
 
 blt_add_target_compile_flags(TO conduit_blueprint_mpi FLAGS "-DCONDUIT_BLUEPRINT_MPI_ENABLED")
 
+# avoid mpi C++ apis + link dep of libmpi_cxx
+target_compile_definitions(conduit_blueprint_mpi PUBLIC ${CONDUIT_MPI_SKIP_MPICXX_DEFINES} )
 
 endif() # end if MPI_FOUND
 

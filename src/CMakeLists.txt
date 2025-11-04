@@ -20,9 +20,9 @@ endif()
 # Conduit
 ################################
 
-project(conduit VERSION "0.9.2")
+project(conduit VERSION "0.9.5")
 
-################################ 
+################################
 # Build Options
 ################################
 option(BUILD_SHARED_LIBS       "Build shared libraries"         ON)
@@ -32,6 +32,7 @@ option(ENABLE_UTILS            "Build Utilities"                ON)
 option(ENABLE_DOCS             "Build conduit documentation"    ON)
 option(ENABLE_RELAY_WEBSERVER  "Build Relay Web Server Support" ON)
 
+
 option(ENABLE_COVERAGE    "Build with coverage flags"   OFF)
 
 option(ENABLE_PYTHON      "Build Python Support"        OFF)
@@ -40,8 +41,10 @@ option(ENABLE_FORTRAN     "Build Fortran Support"       OFF)
 option(ENABLE_MPI         "Build MPI Support"           OFF)
 option(ENABLE_OPENMP      "Build OpenMP Support"        OFF)
 
-# Add another option that provides extra 
-# control over conduit tests for cases where 
+option(ENABLE_YYJSON      "Use yyjson for JSON Parsing" ON)
+
+# Add another option that provides extra
+# control over conduit tests for cases where
 # conduit is brought in as a submodule
 option(CONDUIT_ENABLE_TESTS "Build conduit tests" ON)
 
@@ -69,7 +72,7 @@ set(ENABLE_ALL_WARNINGS OFF CACHE BOOL "")
 ################################
 # Init BLT
 ################################
-# This also includes 
+# This also includes
 # Conduit's BLT defaults
 include(cmake/SetupBLT.cmake)
 

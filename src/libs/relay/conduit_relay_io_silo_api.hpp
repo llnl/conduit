@@ -14,6 +14,27 @@
 ///       Do not directly include this file!
 
 //-----------------------------------------------------------------------------
+/// Checks if the given path is a silo file.
+//-----------------------------------------------------------------------------
+bool CONDUIT_RELAY_API is_silo_file(const std::string &path);
+//-----------------------------------------------------------------------------
+/// Checks if the given path is a silo file using specific driver
+/// silo_driver options: {"hdf5"|"pdb"|"unknown"}
+//-----------------------------------------------------------------------------
+bool CONDUIT_RELAY_API is_silo_file(const std::string &path,
+                                    const std::string &silo_driver);
+
+//-----------------------------------------------------------------------------
+/// Opens a silo file and returns a silo file handle
+//-----------------------------------------------------------------------------
+CONDUIT_RELAY_API DBfile* silo_open_file_for_read(const std::string &path);
+
+//-----------------------------------------------------------------------------
+/// Close silo file handle
+//-----------------------------------------------------------------------------
+void CONDUIT_RELAY_API silo_close_file(DBfile *silo_handle);
+
+//-----------------------------------------------------------------------------
 void CONDUIT_RELAY_API silo_write(const Node &node,
                                   const std::string &path);
 
@@ -37,5 +58,6 @@ void CONDUIT_RELAY_API silo_write(const  Node &node,
 void CONDUIT_RELAY_API silo_read(DBfile *dbfile,
                                  const std::string &silo_obj_path,
                                  Node &node);
+
 
 #endif

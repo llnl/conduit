@@ -4,6 +4,40 @@
 
 set(UNIT_TEST_BASE_LIBS gtest_main gtest)
 
+
+#####################################################################
+if(CONDUIT_ENABLE_TESTS AND WIN32 AND BUILD_SHARED_LIBS)
+    # Copy DLLs into our bin dir so we can satisfy
+    # deps to run tests.
+    #
+    # Note: There are per target ways to do this, however
+    #       all of our many, many tests share these dlls so
+    #       I opted for a single copy step, instead of
+    #       trying to track and copy each test.
+    #
+    # Show TPL DLL Paths
+    message(STATUS "CONDUIT_TPL_DLL_PATHS: ${CONDUIT_TPL_DLL_PATHS}")
+    # glob and gather dlls from all TPL dirs
+    set(tpl_all_dlls)
+    foreach( tpl_dll_path in ${CONDUIT_TPL_DLL_PATHS})
+        file(GLOB tpl_glob_dlls ${tpl_dll_path}/*.dll)
+        foreach( tpl_dll ${tpl_glob_dlls})
+            list(APPEND tpl_all_dlls ${tpl_dll})
+        endforeach()
+    endforeach()
+    add_custom_target(tpl_dlls_dir ALL
+                      COMMAND ${CMAKE_COMMAND} -E make_directory
+                      ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
+    if(tpl_all_dlls)
+        add_custom_target(tpl_dlls ALL
+                          COMMAND ${CMAKE_COMMAND} -E copy
+                          ${tpl_all_dlls}
+                          ${CMAKE_BINARY_DIR}/bin/$<CONFIG>)
+        add_dependencies(tpl_dlls tpl_dlls_dir)
+    endif()
+endif()
+
+
 ##------------------------------------------------------------------------------
 ## - Builds and adds a test that uses gtest
 ##

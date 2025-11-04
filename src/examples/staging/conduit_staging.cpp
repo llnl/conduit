@@ -31,7 +31,7 @@ using std::endl;
 bool streaming_transport(const std::string &transport)
 {
     return (transport == "DATASPACES" ||
-            transport == "DIMES" || 
+            transport == "DIMES" ||
             transport == "FLEXPATH" ||
             transport == "ICEE");
 }
@@ -43,7 +43,7 @@ std::string write_verb(const std::string &transport)
 }
 
 //-----------------------------------------------------------------------------
-int 
+int
 producer(const Node &config, int nts, MPI_Comm comm)
 {
     const char *prefix = "producer: ";
@@ -130,7 +130,7 @@ consumer(const Node &config, int nts, MPI_Comm comm)
         }
 
         // TODO: query the number of domains, distribute among ranks,
-        // read each domain. For now, assume producer and consumer have 
+        // read each domain. For now, assume producer and consumer have
         // same number of ranks.
         int domain = rank;
 
@@ -154,7 +154,7 @@ consumer(const Node &config, int nts, MPI_Comm comm)
         }
 
         // Make an output filename and save.
-        sprintf(outpath, format.c_str(), ts, domain);
+        snprintf(outpath, 1024, format.c_str(), ts, domain);
         conduit::relay::mpi::io::save(in, outpath, MPI_COMM_WORLD);
 
         if(rank == 0)

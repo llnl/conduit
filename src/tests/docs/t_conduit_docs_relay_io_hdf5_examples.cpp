@@ -94,9 +94,12 @@ TEST(conduit_docs, relay_io_example_hdf5_interface_2)
     std::cout << io_about.to_yaml() << std::endl;
 
     Node &hdf5_opts = io_about["options/hdf5"];
-    // change the default chunking threshold to 
-    // a smaller number to enable compression for
-    // a small array
+    // change the default chunking threshold to a smaller number
+    // to enable compression for a small array
+    //
+    // Note: These control parameters apply to `bytes` written,
+    //       not the number of array elements written
+    //
     hdf5_opts["chunking/threshold"]  = 2000;
     hdf5_opts["chunking/chunk_size"] = 2000;
 

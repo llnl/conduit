@@ -198,6 +198,60 @@ class Test_Blueprint_Mesh(unittest.TestCase):
         self.assertTrue(blueprint.mesh.verify(n,info))
         self.assertFalse(self.has_empty_warning(info))
 
+    def test_examples_generate_default_opts(self):
+        opts = conduit.Node()
+        blueprint.mesh.examples.generate_default_options(opts)
+        print(opts)
+        enames = ["braid",
+                  "basic",
+                  "strided_structured",
+                  "grid",
+                  "spiral",
+                  "polytess",
+                  "polychain",
+                  "misc",
+                  "adjset_uniform",
+                  "gyre",
+                  "julia",
+                  "julia_nestsets_simple",
+                  "julia_nestsets_complex",
+                  "polystar",
+                  "related_boundary",
+                  "rz_cylinder",
+                  "tiled",
+                  "venn"]
+    
+        for ename in enames:
+            opts = conduit.Node()
+            blueprint.mesh.examples.generate_default_options(opts,ename)
+            print(ename)
+            print(opts)
+
+    def test_examples_generate(self):
+        enames = ["braid",
+                  "basic",
+                  "strided_structured",
+                  "grid",
+                  "spiral",
+                  "polytess",
+                  "polychain",
+                  "misc",
+                  "adjset_uniform",
+                  "gyre",
+                  "julia",
+                  "julia_nestsets_simple",
+                  "julia_nestsets_complex",
+                  "polystar",
+                  "related_boundary",
+                  "rz_cylinder",
+                  "tiled",
+                  "venn"]
+        for ename in enames:
+            n    = conduit.Node()
+            info = conduit.Node()
+            blueprint.mesh.examples.generate(ename,n)
+            self.assertTrue(blueprint.mesh.verify(n,info))
+
     def test_partition(self):
         def same(a, b):
             for i in range(len(a)):

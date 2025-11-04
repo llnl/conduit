@@ -18,13 +18,18 @@
 #include "conduit_relay_mpi_io_blueprint.hpp"
 #include "conduit_log.hpp"
 
+#include "conduit_fmt/conduit_fmt.h"
+
 #include "blueprint_test_helpers.hpp"
 #include "blueprint_mpi_test_helpers.hpp"
 
 #include <algorithm>
 #include <vector>
 #include <string>
+#include <sstream>
+
 #include <mpi.h>
+
 #include "gtest/gtest.h"
 
 using namespace conduit;
@@ -33,6 +38,9 @@ using namespace generate;
 
 // Uncomment if we want to write the data files.
 //#define CONDUIT_WRITE_TEST_DATA
+
+// Uncomment for more verbose test output during debugging.
+//#define CONDUIT_DEBUG_TEST
 
 //---------------------------------------------------------------------------
 #ifdef CONDUIT_WRITE_TEST_DATA
@@ -85,6 +93,9 @@ make_tiled(conduit::Node &mesh, const int dims[3], const int domains[3],
         offset += domains_per_rank[i];
 
     // Make domains.
+#ifdef CONDUIT_DEBUG_TEST
+    std::stringstream ss;
+#endif
     const double extents[] = {0., 1., 0., 1., 0., 1.};
     int domainIndex = 0;
     for(int k = 0; k < domains[2]; k++)
@@ -116,13 +127,17 @@ make_tiled(conduit::Node &mesh, const int dims[3], const int domains[3],
             opts["domains"].set(domains, 3);
             opts["reorder"] = reorder;
 
+#ifdef CONDUIT_DEBUG_TEST
+            ss << "Rank " << par_rank << " makes domain " << domainId
+               << ", ijk={" << domain[0] << ", " << domain[1] << ", " << domain[2] << "}"
+               << ", extents={" << domainExt[0] << ", " << domainExt[1]
+               << ", " << domainExt[2] << ", " << domainExt[3]
+               << ", " << domainExt[4] << ", " << domainExt[5] << "}"
+               << ", reorder=\"" << reorder << "\"\n";
+#endif
             if(ndoms > 1)
             {
-                char domainName[64];
-                if(!domainNumbering.empty())
-                    sprintf(domainName, "domain_%07d", domainNumbering[domainIndex]);
-                else
-                    sprintf(domainName, "domain_%07d", domainIndex);
+                std::string domainName = conduit_fmt::format("domain_{:07}",domainId);
                 conduit::Node &dom = mesh[domainName];
                 conduit::blueprint::mesh::examples::tiled(dims[0], dims[1], dims[2], dom, opts);
             }
@@ -132,6 +147,19 @@ make_tiled(conduit::Node &mesh, const int dims[3], const int domains[3],
             }
         }
     }
+
+#ifdef CONDUIT_DEBUG_TEST
+    // Print some build messages.
+    for(int rank = 0; rank < par_size; rank++)
+    {
+        MPI_Barrier(MPI_COMM_WORLD);
+        if(rank == par_rank)
+        {
+           std::cout << ss.str();
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -214,11 +242,11 @@ test_tiled_adjsets(const int dims[3], const std::string &testName)
 
             // Check that its adjset points are the same along the edges.
             conduit::Node info;
-            bool same = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(mesh, "mesh_adjset", info, MPI_COMM_WORLD);
+            bool same = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(mesh, "mesh_adjset", info);
             in_rank_order(MPI_COMM_WORLD, [&](int rank) {
                 if(!same)
                 {
-                    if(info.number_of_children() > 0)
+                    if(info.number_of_children() > 0 && info["valid"].as_string() == "false")
                     {
                         std::cout << "Rank " << rank << ": mesh_adjset was different."
                                   << " domainNumbering=" << domainNumbering
@@ -231,11 +259,12 @@ test_tiled_adjsets(const int dims[3], const std::string &testName)
             EXPECT_TRUE(same);
 
             // Check that its adjset points are the same along the edges.
-            same = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(mesh, "corner_pairwise_adjset", info, MPI_COMM_WORLD);
+            info.reset();
+            same = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(mesh, "corner_pairwise_adjset", info);
             in_rank_order(MPI_COMM_WORLD, [&](int rank) {
                 if(!same)
                 {
-                    if(info.number_of_children() > 0)
+                    if(info.number_of_children() > 0 && info["valid"].as_string() == "false")
                     {
                         std::cout << "Rank " << rank << ": corner_pairwise_adjset was different."
                                   << " domainNumbering=" << domainNumbering
@@ -307,7 +336,7 @@ TEST(conduit_blueprint_mpi_mesh_tiled, three_dimensional_12)
 
         // Check that its adjset points are the same along the edges.
         conduit::Node info;
-        bool same = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(mesh, "corner_pairwise_adjset", info, MPI_COMM_WORLD);
+        bool same = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(mesh, "corner_pairwise_adjset", info);
         in_rank_order(MPI_COMM_WORLD, [&](int rank) {
             if(!same)
             {
@@ -383,7 +412,7 @@ translate:
 
     // Make sure that the adjset is compares pointwise.
     conduit::Node info;
-    bool same = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(mesh, "main_adjset", info, MPI_COMM_WORLD);
+    bool same = conduit::blueprint::mpi::mesh::utils::adjset::compare_pointwise(mesh, "main_adjset", info);
     in_rank_order(MPI_COMM_WORLD, [&](int rank)
     {
         if(!same)

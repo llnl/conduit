@@ -238,18 +238,32 @@ FUNCTION(PYTHON_ADD_PIP_SETUP)
         string(REGEX REPLACE "/" "\\\\" abs_dest_path  ${abs_dest_path})
     endif()
 
+    # Use a timestamp file to track when the following pip
+    # command was last executed w.r.t. its dependencies.
+    set(stamp ${CMAKE_CURRENT_BINARY_DIR}/${args_NAME}.stamp)
+
     # NOTE: With pip, you can't directly control build dir with an arg
     # like we were able to do with distutils, you have to use TMPDIR
     # TODO: we might want to  explore this in the future
-    add_custom_command(OUTPUT  ${CMAKE_CURRENT_BINARY_DIR}/${args_NAME}_build
-            COMMAND ${PYTHON_EXECUTABLE} -m pip install . -V --upgrade
-            --disable-pip-version-check --no-warn-script-location
+    add_custom_command(OUTPUT ${stamp}
+            COMMAND ${PYTHON_EXECUTABLE} -m pip install . -V 
+            --no-cache-dir
+            --disable-pip-version-check
+            --no-index
+            --no-deps
+            --no-build-isolation
+            --no-warn-script-location
+            --upgrade
             --target "${abs_dest_path}"
+            COMMAND ${CMAKE_COMMAND} -E touch ${stamp}
             DEPENDS  ${args_PY_SETUP_FILE} ${args_PY_SOURCES}
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
-    add_custom_target(${args_NAME} ALL DEPENDS
-                      ${CMAKE_CURRENT_BINARY_DIR}/${args_NAME}_build)
+    # The above pip command wipes the --target directory,
+    # so any dependent modules need to be linked afterwards.
+    # Propagate this this dependency as a usage requirement.
+    add_library(${args_NAME} INTERFACE ${stamp})
+    set_property(TARGET ${args_NAME} APPEND PROPERTY INTERFACE_LINK_DEPENDS ${stamp})
 
     # also use pip for the install ...
     # if PYTHON_MODULE_INSTALL_PREFIX is set, install there
@@ -359,7 +373,7 @@ FUNCTION(PYTHON_ADD_COMPILED_MODULE)
     
     # win32, link to python
     if(WIN32)
-        target_link_libraries(${args_NAME} ${PYTHON_LIBRARIES})
+        target_link_libraries(${args_NAME} PRIVATE ${PYTHON_LIBRARIES})
     endif()
 
     # support installing the python module components to an
@@ -435,8 +449,8 @@ FUNCTION(PYTHON_ADD_HYBRID_MODULE)
                                SOURCES       ${args_SOURCES}
                                FOLDER        ${args_FOLDER})
 
-    # args_NAME depends on "${args_NAME}_py_setup"
-    add_dependencies( ${args_NAME} "${args_NAME}_py_setup")
+    # "${args_NAME}" depends on "${args_NAME}_py_setup"
+    target_link_libraries("${args_NAME}" PRIVATE "${args_NAME}_py_setup")
 
 ENDFUNCTION(PYTHON_ADD_HYBRID_MODULE)
 

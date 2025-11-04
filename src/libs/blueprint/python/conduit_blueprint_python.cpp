@@ -145,7 +145,7 @@ static PyMethodDef blueprint_python_funcs[] =
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_verify_doc_str},
     //-----------------------------------------------------------------------//
-    // end realy methods table
+    // end blueprint methods table
     //-----------------------------------------------------------------------//
     {NULL, NULL, METH_VARARGS, NULL}
 };

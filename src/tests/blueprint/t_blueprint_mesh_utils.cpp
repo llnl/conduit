@@ -211,7 +211,7 @@ TEST(conduit_blueprint_mesh_utils, adjset_validate_element_1d)
     root["domain0/adjsets/main_adjset/groups/domain0_1/values"].set(std::vector<int>{0});
     root["domain1/adjsets/main_adjset/groups/domain0_1/values"].set(std::vector<int>{1});
     info.reset();
-    save_mesh(root, "adjset_validate_element_1d_bad");
+    save_mesh(root, "adjset_validate_element_1d_bad");  
     res = conduit::blueprint::mesh::utils::adjset::validate(root, "main_adjset", info);
     EXPECT_FALSE(res);
     //info.print();
@@ -709,12 +709,14 @@ TEST(conduit_blueprint_mesh_utils, adjset_compare_pointwise_2d)
     //if(!eq)
     //   info.print();
     EXPECT_FALSE(eq);
+    EXPECT_TRUE(info.number_of_children() > 0);
 
     // Test that the notevenclose adjset actually fails.
     info.reset();
     eq = conduit::blueprint::mesh::utils::adjset::compare_pointwise(root, "notevenclose", info);
     //if(!eq)
     //   info.print();
+    EXPECT_TRUE(info.number_of_children() > 0);
     EXPECT_FALSE(eq);
 }
 
@@ -893,4 +895,430 @@ adjsets:
     EXPECT_FALSE(conduit::blueprint::mesh::utils::adjset::is_canonical(n["adjsets/out_of_order"]));
     EXPECT_TRUE( conduit::blueprint::mesh::utils::adjset::is_canonical(n["adjsets/multi"]));
     EXPECT_FALSE(conduit::blueprint::mesh::utils::adjset::is_canonical(n["adjsets/multi_out_of_order"]));
+}
+
+void verify_lerp_result(const conduit::Node& expected, const conduit::Node& res, double eps = 1.e-8);
+void verify_lerp_result(const conduit::Node& expected, const conduit::Node& res, double eps)
+{
+    // 1. Does number of components match?
+    ASSERT_EQ(expected.number_of_children(), res.number_of_children());
+
+    // 2. Does length of each result component match length of first expected component?
+    const int component_len = expected.child(0).dtype().number_of_elements();
+    conduit::NodeConstIterator rescomp = res.children();
+    while (rescomp.has_next()) {
+        const conduit::Node& comp = rescomp.next();
+        EXPECT_EQ(component_len, comp.dtype().number_of_elements());
+    }
+
+    // 3. For each component, does each value in res match the corresponding value in expected?
+    conduit::NodeConstIterator expcomp = expected.children();
+    rescomp = res.children();
+    while (expcomp.has_next() && rescomp.has_next()) {
+        float64_array rcomp = rescomp.next().as_float64_array();
+        float64_array ecomp = expcomp.next().as_float64_array();
+
+        for (int i = 0; i < component_len; ++i)
+        {
+            EXPECT_NEAR(ecomp[i], rcomp[i], eps);
+        }
+    }
+}
+
+void append_array(conduit::Node& n, std::initializer_list<double> data)
+{
+    conduit::Node& c = n.append();
+    c.set(data.begin(), data.size());
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_utils, lerp_1d)
+{
+    {
+        conduit::Node A; A.set({ 1. });
+        conduit::Node B; B.set({ 3. });
+        int n = 3;
+        conduit::Node res;
+
+        conduit::blueprint::mesh::utils::lerp(A, B, n, res);
+
+        conduit::Node expected;
+        append_array(expected, {1., 2., 3.} );
+
+        verify_lerp_result(expected, res);
+    }
+
+    {
+        conduit::Node A; A.set({ 1. });
+        conduit::Node B; B.set({ 3. });
+        int n = 6;
+        conduit::Node res;
+
+        conduit::blueprint::mesh::utils::lerp(A, B, n, res);
+
+        conduit::Node expected;
+        append_array(expected, {1., 1.4, 1.8, 2.2, 2.6, 3.} );
+
+        verify_lerp_result(expected, res);
+    }
+
+    {
+        conduit::Node A; A.set({ 2. });
+        conduit::Node B; B.set({ 0. });
+
+        conduit::Node res;
+        int n = 4;
+        conduit::blueprint::mesh::utils::lerp(A, B, n, res);
+
+        conduit::Node expected;
+        append_array(expected, {2., 1.3333333333, 0.6666666666, 0.} );
+
+        verify_lerp_result(expected, res);
+    }
+}
+
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_utils, lerp_2d)
+{
+    {
+        conduit::Node A; A.set({ 1., 0. });
+        conduit::Node B; B.set({ 3., 4. });
+        int n = 3;
+        conduit::Node res;
+
+        conduit::blueprint::mesh::utils::lerp(A, B, n, res);
+
+        conduit::Node expected;
+        append_array(expected, {1., 2., 3.} );
+        append_array(expected, {0., 2., 4.} );
+
+        verify_lerp_result(expected, res);
+    }
+
+    {
+        conduit::Node A; A.set({ 1., 0. });
+        conduit::Node B; B.set({ 3., 4. });
+        int n = 6;
+        conduit::Node res;
+
+        conduit::blueprint::mesh::utils::lerp(A, B, n, res);
+
+        conduit::Node expected;
+        append_array(expected, {1., 1.4, 1.8, 2.2, 2.6, 3.} );
+        append_array(expected, {0., 0.8, 1.6, 2.4, 3.2, 4.} );
+
+        verify_lerp_result(expected, res);
+    }
+
+    {
+        conduit::Node A; A.set({ 2., 1. });
+        conduit::Node B; B.set({ 0., -2. });
+
+        conduit::Node res;
+        int n = 4;
+        conduit::blueprint::mesh::utils::lerp(A, B, n, res);
+
+        conduit::Node expected;
+        append_array(expected, {2., 1.3333333333, 0.6666666666, 0.} );
+        append_array(expected, {1., 0., -1., -2.} );
+
+        verify_lerp_result(expected, res);
+    }
+}
+
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_utils, lerp_3d)
+{
+    {
+        conduit::Node A; A.set({ 1., 0., 0. });
+        conduit::Node B; B.set({ 3., 4., -1. });
+        int n = 3;
+        conduit::Node res;
+
+        conduit::blueprint::mesh::utils::lerp(A, B, n, res);
+
+        conduit::Node expected;
+        append_array(expected, {1., 2., 3.} );
+        append_array(expected, {0., 2., 4.} );
+        append_array(expected, {0., -0.5, -1.} );
+
+        verify_lerp_result(expected, res);
+    }
+
+    {
+        conduit::Node A; A.set({ 1., 0., 0. });
+        conduit::Node B; B.set({ 3., 4., -1. });
+        int n = 6;
+        conduit::Node res;
+
+        conduit::blueprint::mesh::utils::lerp(A, B, n, res);
+
+        conduit::Node expected;
+        append_array(expected, { 1., 1.4, 1.8, 2.2, 2.6, 3. });
+        append_array(expected, {0., 0.8, 1.6, 2.4, 3.2, 4.} );
+        append_array(expected, {0, -0.2, -0.4, -0.6, -0.8, -1.} );
+
+        verify_lerp_result(expected, res);
+    }
+
+    {
+        conduit::Node A; A.set({ 2., 1., 1. });
+        conduit::Node B; B.set({ 0., -2., 1. });
+        int n = 4;
+        conduit::Node res;
+
+        conduit::blueprint::mesh::utils::lerp(A, B, n, res);
+
+        conduit::Node expected;
+        append_array(expected, {2., 1.3333333333, 0.6666666666, 0.} );
+        append_array(expected, {1., 0., -1., -2.} );
+        append_array(expected, {1., 1., 1., 1.} );
+
+        verify_lerp_result(expected, res);
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_utils, lerp_3d_grid)
+{
+    {
+        conduit::Node A; A.set({ 0., 0., 0. });
+        conduit::Node B; B.set({ 2., 0., 0. });
+        conduit::Node C; C.set({ 0., 1., 0. });
+        conduit::Node D; D.set({ 2., 1., 0. });
+        int n = 3;
+        conduit::Node leftside;
+        conduit::blueprint::mesh::utils::lerp(A, C, n, leftside);
+        conduit::Node rightside;
+        conduit::blueprint::mesh::utils::lerp(B, D, n, rightside);
+        conduit::Node gridpoints;
+        int m = 4;
+        conduit::blueprint::mesh::utils::lerp(leftside, rightside, m, gridpoints);
+
+        conduit::Node expected;
+        append_array(expected, {0, .6666666666, 1.3333333333, 2, 0, .6666666666, 1.3333333333, 2, 0, .6666666666, 1.3333333333, 2} );
+        append_array(expected, {0, 0, 0, 0, .5, .5, .5, .5, 1, 1, 1, 1} );
+        append_array(expected, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} );
+
+        verify_lerp_result(expected, gridpoints);
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_utils, lerp_3d_cube)
+{
+    {
+        conduit::Node A; A.set({ 0., 0., 0. });
+        conduit::Node B; B.set({ 2., 0., 0. });
+        conduit::Node C; C.set({ 0., 1., 0. });
+        conduit::Node D; D.set({ 2., 1., 0. });
+        conduit::Node E; E.set({ 0., 0., 1. });
+        conduit::Node F; F.set({ 2., 0., 1. });
+        conduit::Node G; G.set({ 0., 1., 1. });
+        conduit::Node H; H.set({ 2., 1., 1. });
+
+        // First interpolate along z-dimension.  This results in "posts"
+        // at NW, NE, SW, SE corners.
+        int n = 3;
+        conduit::Node SW;
+        conduit::blueprint::mesh::utils::lerp(A, E, n, SW);
+        conduit::Node SE;
+        conduit::blueprint::mesh::utils::lerp(B, F, n, SE);
+        conduit::Node NW;
+        conduit::blueprint::mesh::utils::lerp(C, G, n, NW);
+        conduit::Node NE;
+        conduit::blueprint::mesh::utils::lerp(D, H, n, NE);
+
+        // Check each "post".
+        conduit::Node expSW;
+        append_array(expSW, {0, 0, 0} );
+        append_array(expSW, {0, 0, 0} );
+        append_array(expSW, {0, .5, 1} );
+
+        conduit::Node expSE;
+        append_array(expSE, {2, 2, 2} );
+        append_array(expSE, {0, 0, 0} );
+        append_array(expSE, {0, .5, 1} );
+
+        conduit::Node expNW;
+        append_array(expNW, {0, 0, 0} );
+        append_array(expNW, {1, 1, 1} );
+        append_array(expNW, {0, .5, 1} );
+
+        conduit::Node expNE;
+        append_array(expNE, {2, 2, 2} );
+        append_array(expNE, {1, 1, 1} );
+        append_array(expNE, {0, .5, 1} );
+
+        verify_lerp_result(expSW, SW);
+        verify_lerp_result(expSE, SE);
+        verify_lerp_result(expNW, NW);
+        verify_lerp_result(expNE, NE);
+
+        // Next interpolate along y-dimension.  This results in left
+        // and right grids.
+        int m = 5;
+        conduit::Node gridleft;
+        conduit::blueprint::mesh::utils::lerp(SW, NW, m, gridleft);
+        conduit::Node gridright;
+        conduit::blueprint::mesh::utils::lerp(SE, NE, m, gridright);
+
+        // Check the two "grids".
+        conduit::Node expgridleft;
+        append_array(expgridleft, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0} );
+        append_array(expgridleft, {0, .25, .5, .75, 1, 0, .25, .5, .75, 1, 0, .25, .5, .75, 1} );
+        append_array(expgridleft, {0, 0, 0, 0, 0, .5, .5, .5, .5, .5, 1, 1, 1, 1, 1} );
+
+        conduit::Node expgridright;
+        append_array(expgridright, {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2} );
+        append_array(expgridright, {0, .25, .5, .75, 1, 0, .25, .5, .75, 1, 0, .25, .5, .75, 1} );
+        append_array(expgridright, {0, 0, 0, 0, 0, .5, .5, .5, .5, .5, 1, 1, 1, 1, 1} );
+
+        verify_lerp_result(expgridleft, gridleft);
+        verify_lerp_result(expgridright, gridright);
+
+        // Finally interpolate along x-dimension.
+        int p = 4;
+        conduit::Node cube;
+        conduit::blueprint::mesh::utils::lerp(gridleft, gridright, p, cube);
+
+        conduit::Node expcube;
+        append_array(expcube, {0, .6666666666, 1.3333333333, 2, 0, .6666666666, 1.3333333333, 2, 0, .6666666666, 1.3333333333, 2,
+             0, .6666666666, 1.3333333333, 2, 0, .6666666666, 1.3333333333, 2, 0, .6666666666, 1.3333333333, 2,
+             0, .6666666666, 1.3333333333, 2, 0, .6666666666, 1.3333333333, 2, 0, .6666666666, 1.3333333333, 2,
+             0, .6666666666, 1.3333333333, 2, 0, .6666666666, 1.3333333333, 2, 0, .6666666666, 1.3333333333, 2,
+             0, .6666666666, 1.3333333333, 2, 0, .6666666666, 1.3333333333, 2, 0, .6666666666, 1.3333333333, 2} );
+        append_array(expcube, {0, 0, 0, 0, .25, .25, .25, .25, .5, .5, .5, .5, .75, .75, .75, .75, 1, 1, 1, 1,
+             0, 0, 0, 0, .25, .25, .25, .25, .5, .5, .5, .5, .75, .75, .75, .75, 1, 1, 1, 1,
+             0, 0, 0, 0, .25, .25, .25, .25, .5, .5, .5, .5, .75, .75, .75, .75, 1, 1, 1, 1} );
+        append_array(expcube, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+             .5, .5, .5, .5, .5, .5, .5, .5, .5, .5, .5, .5, .5, .5, .5, .5, .5, .5, .5, .5,
+             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1} );
+
+        verify_lerp_result(expcube, cube);
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_utils, mesh_info)
+{
+    namespace topoutils = conduit::blueprint::mesh::utils::topology;
+    conduit::Node root;
+    const char *yaml = R"(
+coordsets:
+  coords:
+    type: explicit
+    values:
+      x: [0.,0.1, 0.3, 0.6, 1.,  0.,0.1, 0.3, 0.6, 1.,  0., 0.1, 0.3, 0.6, 1.]
+      y: [0., 0., 0., 0., 0.,  1., 1., 1., 1., 1.,  2.5, 2.5, 2.5, 2.5, 2.5]
+topologies:
+  main:
+    type: unstructured
+    coordset: coords
+    elements:
+      shape: quad
+      connectivity: [0,1,6,5, 1,2,7,6, 2,3,8,7, 3,4,9,8, 5,6,11,10, 6,7,12,11, 7,8,13,12, 8,9,14,13]
+      sizes: [4,4,4,4,4,4]
+      offsets: [0,4,8,12,16,20]
+)";
+    root.parse(yaml);
+
+    topoutils::MeshInfo info;
+    topoutils::compute_mesh_info(root.fetch_existing("topologies/main"), info);
+
+    const double eps = 1.e-12;
+    EXPECT_NEAR(info.minExtents[0], 0., eps);
+    EXPECT_NEAR(info.minExtents[1], 0., eps);
+    EXPECT_NEAR(info.minExtents[2], 0., eps);
+    EXPECT_NEAR(info.maxExtents[0], 1., eps);
+    EXPECT_NEAR(info.maxExtents[1], 2.5, eps);
+    EXPECT_NEAR(info.maxExtents[2], 0., eps);
+    EXPECT_NEAR(info.minEdgeLength, 0.1, eps);
+    EXPECT_NEAR(info.maxEdgeLength, 1.5, eps);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_utils, mesh_info_3d)
+{
+    namespace topoutils = conduit::blueprint::mesh::utils::topology;
+    conduit::Node root;
+    const char *yaml = R"(
+coordsets:
+  coords:
+    type: explicit
+    values:
+      x: [0.,0.1, 0.3, 0.,0.1, 0.3, 0.,0.1, 0.3,  0.,0.1, 0.3, 0.,0.1, 0.3, 0.,0.1, 0.3]
+      y: [1., 1., 1.,  2., 2., 2., 4., 4., 4.,  1., 1., 1.,  2., 2., 2., 4., 4., 4.]
+      z: [2., 2., 2.,  2., 2., 2., 2., 2., 2.,  6., 6., 6.,  6., 6., 6., 6., 6., 6.]
+topologies:
+  main:
+    type: unstructured
+    coordset: coords
+    elements:
+      shape: hex
+      connectivity: [0,1,4,3,9,10,13,12, 1,2,5,4,10,11,14,13, 3,4,7,6,12,13,16,15, 4,5,8,7,13,14,17,16]
+      sizes: [4,4,4,4]
+      offsets: [0,6,12,18]
+)";
+    root.parse(yaml);
+
+    topoutils::MeshInfo info;
+    topoutils::compute_mesh_info(root.fetch_existing("topologies/main"), info);
+
+    const double eps = 1.e-12;
+    EXPECT_NEAR(info.minExtents[0], 0., eps);
+    EXPECT_NEAR(info.minExtents[1], 1., eps);
+    EXPECT_NEAR(info.minExtents[2], 2., eps);
+    EXPECT_NEAR(info.maxExtents[0], 0.3, eps);
+    EXPECT_NEAR(info.maxExtents[1], 4., eps);
+    EXPECT_NEAR(info.maxExtents[2], 6., eps);
+    EXPECT_NEAR(info.minEdgeLength, 0.1, eps);
+    EXPECT_NEAR(info.maxEdgeLength, 4., eps);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_utils, mesh_info_ph)
+{
+    namespace topoutils = conduit::blueprint::mesh::utils::topology;
+    conduit::Node root;
+    const char *yaml = R"(
+coordsets:
+  coords:
+    type: explicit
+    values:
+      x: [0.,0.1, 0.3, 0.,0.1, 0.3, 0.,0.1, 0.3,  0.,0.1, 0.3, 0.,0.1, 0.3, 0.,0.1, 0.3]
+      y: [1., 1., 1.,  2., 2., 2., 4., 4., 4.,  1., 1., 1.,  2., 2., 2., 4., 4., 4.]
+      z: [2., 2., 2.,  2., 2., 2., 2., 2., 2.,  6., 6., 6.,  6., 6., 6., 6., 6., 6.]
+topologies:
+  main:
+    type: unstructured
+    coordset: coords
+    elements:
+      shape: polyhedral
+      connectivity: [0,1,2,3,4,5, 1,6,7,8,9,10, 11,12,3,13,14,15, 12,16,8,17,18,19]
+      sizes: [6,6,6,6]
+      offsets: [0,6,12,18]
+    subelements:
+      shape: polygonal
+      #              0         1          2         3          4        5           6          7          8          9        10           11         12         13         14       15           16         17         18       19
+      connectivity: [0,9,12,3, 1,4,13,10, 0,1,10,9, 3,12,13,4, 0,3,4,1, 9,10,13,12, 2,5,14,11, 1,2,11,10, 5,4,13,14, 1,4,5,2, 10,11,14,13, 3,12,15,6, 4,7,16,13, 6,15,16,7, 3,6,7,4, 12,13,16,15, 5,8,17,14, 7,16,17,8, 4,7,8,5, 13,14,17,16]
+      sizes: [4,4,4,4,4, 4,4,4,4,4, 4,4,4,4,4, 4,4,4,4,4]
+      offsets: [0,4,8,12,16, 20,24,28,32,36, 40,44,48,52,56, 60,64,68,72,76]
+)";
+    root.parse(yaml);
+
+    topoutils::MeshInfo info;
+    topoutils::compute_mesh_info(root.fetch_existing("topologies/main"), info);
+
+    const double eps = 1.e-12;
+    EXPECT_NEAR(info.minExtents[0], 0., eps);
+    EXPECT_NEAR(info.minExtents[1], 1., eps);
+    EXPECT_NEAR(info.minExtents[2], 2., eps);
+    EXPECT_NEAR(info.maxExtents[0], 0.3, eps);
+    EXPECT_NEAR(info.maxExtents[1], 4., eps);
+    EXPECT_NEAR(info.maxExtents[2], 6., eps);
+    EXPECT_NEAR(info.minEdgeLength, 0.1, eps);
+    EXPECT_NEAR(info.maxEdgeLength, 4., eps);
 }

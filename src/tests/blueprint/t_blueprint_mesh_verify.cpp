@@ -1355,9 +1355,9 @@ TEST(conduit_blueprint_mesh_verify, specset_general)
             n["matset_values"].reset();
             n["matset_values"]["m1"].append().set(DataType::float64(5));
             n["matset_values"]["m1"].append().set(DataType::float64(5));
-            CHECK_MESH(verify_specset,n,info,true);
+            CHECK_MESH(verify_specset,n,info,false);
             n["matset_values"]["m2"].append().set(DataType::float64(5));
-            CHECK_MESH(verify_specset,n,info,true);
+            CHECK_MESH(verify_specset,n,info,false);
 
             n["matset_values"].reset();
             n["matset_values"]["m1"]["s1"].set(DataType::float64(5));
@@ -1374,14 +1374,14 @@ TEST(conduit_blueprint_mesh_verify, specset_general)
             n["matset_values"].reset();
             n["matset_values"]["m1"]["s1"].set(DataType::float64(5));
             n["matset_values"]["m1"]["s2"].set(DataType::float64(6));
-            CHECK_MESH(verify_specset,n,info,false);
+            CHECK_MESH(verify_specset,n,info,true);
 
             n["matset_values"].reset();
             n["matset_values"]["m1"]["s1"].set(DataType::float64(5));
             n["matset_values"]["m1"]["s2"].set(DataType::float64(5));
             CHECK_MESH(verify_specset,n,info,true);
             n["matset_values"]["m2"]["s3"].set(DataType::float64(6));
-            CHECK_MESH(verify_specset,n,info,false);
+            CHECK_MESH(verify_specset,n,info,true);
 
             n["matset_values"].reset();
             n["matset_values"].set(mfs);
@@ -1390,7 +1390,7 @@ TEST(conduit_blueprint_mesh_verify, specset_general)
     }
 }
 
-/// Mesh Field Tests ///
+// / Mesh Field Tests ///
 
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_verify, field_general)

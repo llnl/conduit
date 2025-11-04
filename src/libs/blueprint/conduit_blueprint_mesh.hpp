@@ -73,6 +73,14 @@ bool CONDUIT_BLUEPRINT_API is_multi_domain(const conduit::Node &mesh);
 //-------------------------------------------------------------------------
 index_t CONDUIT_BLUEPRINT_API number_of_domains(const conduit::Node &mesh);
 
+//-------------------------------------------------------------------------
+void CONDUIT_BLUEPRINT_API state(const conduit::Node &mesh, Node &state);
+
+//-------------------------------------------------------------------------
+index_t CONDUIT_BLUEPRINT_API cycle(const conduit::Node &mesh);
+
+//-------------------------------------------------------------------------
+float64 CONDUIT_BLUEPRINT_API time(const conduit::Node &mesh);
 
 //-----------------------------------------------------------------------------
 std::vector<conduit::Node *>       CONDUIT_BLUEPRINT_API domains(Node &mesh);
@@ -248,10 +256,10 @@ void CONDUIT_BLUEPRINT_API generate_points(conduit::Node &mesh,
                                            const std::string& dst_topo_name,
                                            conduit::Node& s2dmap,
                                            conduit::Node& d2smap,
-                                           conduit::blueprint::mesh::utils::query::MatchQuery &query);
+                                           conduit::blueprint::mesh::utils::query::MatchQuery &query,
+                                           conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic);
 
 //-------------------------------------------------------------------------
-//[[deprecated]]
 void CONDUIT_BLUEPRINT_API generate_points(conduit::Node &mesh,
                                            const std::string& src_adjset_name,
                                            const std::string& dst_adjset_name,
@@ -266,10 +274,10 @@ void CONDUIT_BLUEPRINT_API generate_lines(conduit::Node &mesh,
                                           const std::string& dst_topo_name,
                                           conduit::Node& s2dmap,
                                           conduit::Node& d2smap,
-                                          conduit::blueprint::mesh::utils::query::MatchQuery &query);
+                                          conduit::blueprint::mesh::utils::query::MatchQuery &query,
+                                          conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic);
 
 //-------------------------------------------------------------------------
-//[[deprecated]]
 void CONDUIT_BLUEPRINT_API generate_lines(conduit::Node &mesh,
                                           const std::string& src_adjset_name,
                                           const std::string& dst_adjset_name,
@@ -284,10 +292,10 @@ void CONDUIT_BLUEPRINT_API generate_faces(conduit::Node &mesh,
                                           const std::string& dst_topo_name,
                                           conduit::Node& s2dmap,
                                           conduit::Node& d2smap,
-                                          conduit::blueprint::mesh::utils::query::MatchQuery &query);
+                                          conduit::blueprint::mesh::utils::query::MatchQuery &query,
+                                          conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic);
 
 //-------------------------------------------------------------------------
-//[[deprecated]]
 void CONDUIT_BLUEPRINT_API generate_faces(conduit::Node &mesh,
                                           const std::string& src_adjset_name,
                                           const std::string& dst_adjset_name,
@@ -302,7 +310,29 @@ void CONDUIT_BLUEPRINT_API generate_centroids(conduit::Node& mesh,
                                               const std::string& dst_topo_name,
                                               const std::string& dst_cset_name,
                                               conduit::Node& s2dmap,
+                                              conduit::Node& d2smap,
+                                              conduit::blueprint::mesh::utils::query::PointQueryBase &query,
+                                              conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic);
+
+//-------------------------------------------------------------------------
+void CONDUIT_BLUEPRINT_API generate_centroids(conduit::Node& mesh,
+                                              const std::string& src_adjset_name,
+                                              const std::string& dst_adjset_name,
+                                              const std::string& dst_topo_name,
+                                              const std::string& dst_cset_name,
+                                              conduit::Node& s2dmap,
                                               conduit::Node& d2smap);
+
+//-------------------------------------------------------------------------
+void CONDUIT_BLUEPRINT_API generate_sides(conduit::Node& mesh,
+                                          const std::string& src_adjset_name,
+                                          const std::string& dst_adjset_name,
+                                          const std::string& dst_topo_name,
+                                          const std::string& dst_cset_name,
+                                          conduit::Node& s2dmap,
+                                          conduit::Node& d2smap,
+                                          conduit::blueprint::mesh::utils::query::PointQueryBase &query,
+                                          conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic);
 
 //-------------------------------------------------------------------------
 void CONDUIT_BLUEPRINT_API generate_sides(conduit::Node& mesh,
@@ -321,10 +351,10 @@ void CONDUIT_BLUEPRINT_API generate_corners(conduit::Node& mesh,
                                             const std::string& dst_cset_name,
                                             conduit::Node& s2dmap,
                                             conduit::Node& d2smap,
-                                            conduit::blueprint::mesh::utils::query::PointQueryBase &query);
+                                            conduit::blueprint::mesh::utils::query::PointQueryBase &query,
+                                            conduit::blueprint::mesh::utils::topology::MeshInfoCollection &mic);
 
 //-------------------------------------------------------------------------
-//[[deprecated]]
 void CONDUIT_BLUEPRINT_API generate_corners(conduit::Node& mesh,
                                             const std::string& src_adjset_name,
                                             const std::string& dst_adjset_name,
@@ -748,9 +778,9 @@ namespace matset
 
     //-------------------------------------------------------------------------
     // creates a unibuffer case with 1st index into elements
-    void CONDUIT_BLUEPRINT_API to_sparse_by_element(const conduit::Node &src_matset,
-                                                    conduit::Node &dest_matset,
-                                                    const float64 epsilon = CONDUIT_EPSILON);
+    void CONDUIT_BLUEPRINT_API to_uni_buffer_by_element(const conduit::Node &src_matset,
+                                                        conduit::Node &dest_matset,
+                                                        const float64 epsilon = CONDUIT_EPSILON);
 
     //-------------------------------------------------------------------------
     // covers both the sparse and non sparse case
@@ -768,6 +798,17 @@ namespace matset
     void CONDUIT_BLUEPRINT_API to_silo(const conduit::Node &matset,
                                        conduit::Node &dest,
                                        const float64 epsilon = CONDUIT_EPSILON);
+
+    //-------------------------------------------------------------------------
+    index_t CONDUIT_BLUEPRINT_API count_zones_from_matset(const conduit::Node &matset);
+    //-------------------------------------------------------------------------
+    bool CONDUIT_BLUEPRINT_API is_material_in_zone(const conduit::Node &matset,
+                                                   const std::string &matname,
+                                                   const index_t zone_id,
+                                                   const float64 epsilon = CONDUIT_EPSILON);
+    //-----------------------------------------------------------------------------
+    std::map<int, std::string> CONDUIT_BLUEPRINT_API create_reverse_material_map(
+        const conduit::Node &src_matset);
 
     //-------------------------------------------------------------------------
     // blueprint::mesh::matset::index protocol interface
@@ -806,11 +847,11 @@ namespace field
 
     //-------------------------------------------------------------------------
     // creates a unibuffer case with 1st index into elements
-    void CONDUIT_BLUEPRINT_API to_sparse_by_element(const conduit::Node &src_matset,
-                                                    const conduit::Node &src_field,
-                                                    const std::string &dest_matset_name,
-                                                    conduit::Node &dest_field,
-                                                    const float64 epsilon = CONDUIT_EPSILON);
+    void CONDUIT_BLUEPRINT_API to_uni_buffer_by_element(const conduit::Node &src_matset,
+                                                        const conduit::Node &src_field,
+                                                        const std::string &dest_matset_name,
+                                                        conduit::Node &dest_field,
+                                                        const float64 epsilon = CONDUIT_EPSILON);
 
     //-------------------------------------------------------------------------
     // covers both the sparse and non sparse case

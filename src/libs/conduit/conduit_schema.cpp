@@ -632,16 +632,12 @@ Schema::to_yaml_stream(std::ostream &os,
         for(size_t i=0; i <  nchildren;i++)
         {
             utils::indent(os,indent,depth,pad);
-            // we always need eoe
-            os << object_order()[i] << ": " << eoe;
+            os << object_order()[i] << ": ";
             children()[i]->to_yaml_stream(os,
                                           indent,
                                           depth+1,
                                           pad,
                                           eoe);
-
-
-
         }
     }
     else if(m_dtype.id() == DataType::LIST_ID)
@@ -661,9 +657,10 @@ Schema::to_yaml_stream(std::ostream &os,
     }
     else // assume leaf data type
     {
+        os << eoe;
         m_dtype.to_yaml_stream(os,
                                indent,
-                               depth+1,
+                               depth,
                                pad,
                                eoe);
     }
@@ -705,6 +702,7 @@ Schema::to_yaml_default() const
 //---------------------------------------------------------------------------//
 void
 Schema::save(const std::string &ofname,
+             const std::string &protocol,
              index_t indent,
              index_t depth,
              const std::string &pad,
@@ -712,7 +710,19 @@ Schema::save(const std::string &ofname,
 {
     // TODO: this is ineff, get base class rep correct?
     std::ostringstream oss;
-    to_json_stream(oss,indent,depth,pad,eoe);
+    if ("json" == protocol)
+    {
+        to_json_stream(oss,indent,depth,pad,eoe);
+    }
+    else if ("yaml" == protocol)
+    {
+        to_yaml_stream(oss,indent,depth,pad,eoe);
+    }
+    else
+    {
+        CONDUIT_ERROR("<Schema::save> unknown protocol: "
+                      << "\"" << protocol << "\"");
+    }
 
     std::ofstream ofile;
     ofile.open(ofname.c_str());

@@ -49,6 +49,7 @@ public:
 
     bool has_path(const std::string &path);
 
+    void flush();
     void close();
 
 

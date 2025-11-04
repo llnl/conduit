@@ -4,7 +4,7 @@
 
 //-----------------------------------------------------------------------------
 ///
-/// file: conduit_node.cpp
+/// file: t_conduit_node.cpp
 ///
 //-----------------------------------------------------------------------------
 
@@ -12,7 +12,6 @@
 
 #include <iostream>
 #include "gtest/gtest.h"
-#include "rapidjson/document.h"
 using namespace conduit;
 
 //-----------------------------------------------------------------------------
@@ -198,12 +197,13 @@ TEST(conduit_node, simple_schema)
 
     std::string res = n.schema().to_json();
     std::cout << res;
-    conduit_rapidjson::Document d;
-    d.Parse<0>(res.c_str());
-
-    EXPECT_TRUE(d.HasMember("a"));
-    EXPECT_TRUE(d.HasMember("b"));
-    EXPECT_TRUE(d.HasMember("c"));
+    // parse schema output to check for children
+    Node n_load;
+    n_load.parse(res,"json");
+    
+    EXPECT_TRUE(n_load.has_child("a"));
+    EXPECT_TRUE(n_load.has_child("b"));
+    EXPECT_TRUE(n_load.has_child("c"));
 }
 
 //-----------------------------------------------------------------------------
@@ -264,64 +264,96 @@ TEST(conduit_node, in_place)
 //-----------------------------------------------------------------------------
 TEST(conduit_node, remove_by_name)
 {
-    conduit::Generator g("{a:1,b:2,c:3}", "json");
-    conduit::Node n(g,true);
-    n.print();
-    EXPECT_TRUE(n.has_path("a"));
-    EXPECT_TRUE(n.has_path("b"));
-    EXPECT_TRUE(n.has_path("c"));
-    n.remove("a");
-    n.print();
-    EXPECT_FALSE(n.has_path("a"));
-    EXPECT_TRUE(n.has_path("b"));
-    EXPECT_TRUE(n.has_path("c"));
-    n.remove("c");
-    n.print();
-    EXPECT_FALSE(n.has_path("a"));
-    EXPECT_TRUE(n.has_path("b"));
-    EXPECT_FALSE(n.has_path("c"));
-    n.remove("b");
-    n.print();
-    EXPECT_FALSE(n.has_path("a"));
-    EXPECT_FALSE(n.has_path("b"));
-    EXPECT_FALSE(n.has_path("c"));
+    auto do_remove_by_name_test = [](Node &n)
+    {
+        n.print();
+        EXPECT_TRUE(n.has_path("a"));
+        EXPECT_TRUE(n.has_path("b"));
+        EXPECT_TRUE(n.has_path("c"));
+        n.remove("a");
+        n.print();
+        EXPECT_FALSE(n.has_path("a"));
+        EXPECT_TRUE(n.has_path("b"));
+        EXPECT_TRUE(n.has_path("c"));
+        n.remove("c");
+        n.print();
+        EXPECT_FALSE(n.has_path("a"));
+        EXPECT_TRUE(n.has_path("b"));
+        EXPECT_FALSE(n.has_path("c"));
+        n.remove("b");
+        n.print();
+        EXPECT_FALSE(n.has_path("a"));
+        EXPECT_FALSE(n.has_path("b"));
+        EXPECT_FALSE(n.has_path("c"));
+    };
+    // JSON
+    {
+        conduit::Generator g("{a:1,b:2,c:3}", "json");
+        conduit::Node n(g,true);
+        do_remove_by_name_test(n);
+    }
+    // YAML
+    {
+        conduit::Generator g("a: 1\nb: 2\nc: 3", "yaml");
+        conduit::Node n(g,true);
+        do_remove_by_name_test(n);
+    }
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_node, remove_by_index)
 {
-    conduit::Generator g("{a:1,b:2,c:3}", "json");
-    conduit::Node n(g,true);
-    n.print();
-    EXPECT_TRUE(n.has_path("a"));
-    EXPECT_TRUE(n.has_path("b"));
-    EXPECT_TRUE(n.has_path("c"));
-    n.remove(0);
-    n.print();
-    EXPECT_FALSE(n.has_path("a"));
-    EXPECT_TRUE(n.has_path("b"));
-    EXPECT_TRUE(n.has_path("c"));
-    n.remove(1);
-    n.print();
-    EXPECT_FALSE(n.has_path("a"));
-    EXPECT_TRUE(n.has_path("b"));
-    EXPECT_FALSE(n.has_path("c"));
-    n.remove(0);
-    n.print();
-    EXPECT_FALSE(n.has_path("a"));
-    EXPECT_FALSE(n.has_path("b"));
-    EXPECT_FALSE(n.has_path("c"));
-
-    conduit::Generator g2("[{dtype:int64, value: 10},{dtype:int64, value: 20},{dtype:int64, value: 30}]");
-    conduit::Node n2(g2,true);
-    n2.print();
-    n2.remove(1);
-    n2.print();
-    EXPECT_EQ(n2[0].to_uint64(), 10);
-    EXPECT_EQ(n2[1].to_uint64(), 30);
-    n2.remove(0);
-    n2.print();
-    EXPECT_EQ(n2[0].to_uint64(), 30);
+    auto do_remove_by_index_test1 = [](Node &n)
+    {
+        n.print();
+        EXPECT_TRUE(n.has_path("a"));
+        EXPECT_TRUE(n.has_path("b"));
+        EXPECT_TRUE(n.has_path("c"));
+        n.remove(0);
+        n.print();
+        EXPECT_FALSE(n.has_path("a"));
+        EXPECT_TRUE(n.has_path("b"));
+        EXPECT_TRUE(n.has_path("c"));
+        n.remove(1);
+        n.print();
+        EXPECT_FALSE(n.has_path("a"));
+        EXPECT_TRUE(n.has_path("b"));
+        EXPECT_FALSE(n.has_path("c"));
+        n.remove(0);
+        n.print();
+        EXPECT_FALSE(n.has_path("a"));
+        EXPECT_FALSE(n.has_path("b"));
+        EXPECT_FALSE(n.has_path("c"));
+    };
+    auto do_remove_by_index_test2 = [](Node &n2)
+    {
+        n2.print();
+        n2.remove(1);
+        n2.print();
+        EXPECT_EQ(n2[0].to_uint64(), 10);
+        EXPECT_EQ(n2[1].to_uint64(), 30);
+        n2.remove(0);
+        n2.print();
+        EXPECT_EQ(n2[0].to_uint64(), 30);
+    };
+    // JSON
+    {
+        conduit::Generator g("{a:1,b:2,c:3}", "json");
+        conduit::Node n(g,true);
+        do_remove_by_index_test1(n);
+        conduit::Generator g2("[{dtype:int64, value: 10},{dtype:int64, value: 20},{dtype:int64, value: 30}]");
+        conduit::Node n2(g2,true);
+        do_remove_by_index_test2(n2);        
+    }
+    // YAML
+    {
+        conduit::Generator g("a: 1\nb: 2\nc: 3", "yaml");
+        conduit::Node n(g,true);
+        do_remove_by_index_test1(n);
+        conduit::Generator g2("- \n  dtype: \"int64\"\n  value: 10\n- \n  dtype: \"int64\"\n  value: 20\n- \n  dtype: \"int64\"\n  value: 30", "conduit_yaml");
+        conduit::Node n2(g2,true);
+        do_remove_by_index_test2(n2);        
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -1061,26 +1093,25 @@ TEST(conduit_node, test_parse_all_protos)
     n["a/b/d"] = (float64) 42.2;
     n["a/b/e"] = " string !";
 
-    std::vector<std::string> txt_cases;
-    txt_cases.push_back(n.to_json("json"));
-    txt_cases.push_back(n.to_json("conduit_json"));
-    txt_cases.push_back(n.to_json("conduit_base64_json"));
-    txt_cases.push_back(n.to_yaml());
+    std::vector<std::pair<std::string, std::string>> txt_cases = {
+        std::make_pair("json",                  n.to_json()),
+        std::make_pair("json",                  n.to_json("json")),
+        std::make_pair("conduit_json",          n.to_json("conduit_json")),
+        std::make_pair("conduit_json_external", n.to_json("conduit_json_external")),
+        std::make_pair("conduit_base64_json",   n.to_json("conduit_base64_json")),
+        std::make_pair("yaml",                  n.to_yaml()),
+        std::make_pair("yaml",                  n.to_yaml("yaml")),
+        std::make_pair("conduit_yaml",          n.to_yaml("conduit_yaml")),
+        std::make_pair("conduit_yaml_external", n.to_yaml("conduit_yaml_external")),
+        std::make_pair("conduit_base64_yaml",   n.to_yaml("conduit_base64_yaml")),
+    };
 
-    Node n2, info;
-    n2.parse(txt_cases[0],"json");
-    EXPECT_FALSE(n.diff(n2,info));
-    info.print();
-
-    n2.parse(txt_cases[1],"conduit_json");
-    EXPECT_FALSE(n.diff(n2,info));
-
-    n2.parse(txt_cases[2],"conduit_base64_json");
-    EXPECT_FALSE(n.diff(n2,info));
-
-    n2.parse(txt_cases[3],"yaml");
-    EXPECT_FALSE(n.diff(n2,info));
-
+    for (const auto &parse_me : txt_cases)
+    {
+        Node n2, info;
+        n2.parse(parse_me.second,parse_me.first);
+        EXPECT_FALSE(n.diff(n2,info));
+    }
 }
 
 
@@ -1093,56 +1124,30 @@ TEST(conduit_node, to_string_and_parse_all_protos)
     n["a/b/d"] = (float64) 42.2;
     n["a/b/e"] = " string !";
 
-    std::ostringstream oss;
+    std::ostringstream yaml_oss, json_oss;
+    n.to_string_stream(yaml_oss);
+    n.to_string_stream(json_oss,"json");
 
-    std::vector<std::string> txt_cases;
-    txt_cases.push_back(n.to_string()); // yaml
-    txt_cases.push_back(n.to_string_default()); // yaml
+    std::vector<std::pair<std::string, std::string>> txt_cases = {
+        std::make_pair("yaml",                n.to_string()),
+        std::make_pair("yaml",                n.to_string_default()),
+        std::make_pair("yaml",                n.to_string("yaml")),
+        std::make_pair("yaml",                yaml_oss.str()),
+        std::make_pair("conduit_yaml",        n.to_string("conduit_yaml")),
+        std::make_pair("conduit_base64_yaml", n.to_string("conduit_base64_yaml")),
+        std::make_pair("json",                n.to_string("json")),
+        std::make_pair("json",                json_oss.str()),
+        std::make_pair("conduit_json",        n.to_string("conduit_json")),
+        std::make_pair("conduit_base64_json", n.to_string("conduit_base64_json")),
+    };
 
-    n.to_string_stream(oss);
-    txt_cases.push_back(oss.str()); // yaml
-
-    txt_cases.push_back(n.to_string("yaml"));
-
-    oss.str("");
-    n.to_string_stream(oss,"json");
-    txt_cases.push_back(oss.str()); // json
-
-    txt_cases.push_back(n.to_string("json"));
-    txt_cases.push_back(n.to_string("conduit_json"));
-    txt_cases.push_back(n.to_string("conduit_base64_json"));
-
-    Node n2, info;
-
-    n2.parse(txt_cases[0],"yaml");
-    EXPECT_FALSE(n.diff(n2,info));
-    info.print();
-
-    n2.parse(txt_cases[1],"yaml");
-    EXPECT_FALSE(n.diff(n2,info));
-    info.print();
-
-    n2.parse(txt_cases[2],"yaml");
-    EXPECT_FALSE(n.diff(n2,info));
-    info.print();
-
-    n2.parse(txt_cases[3],"yaml");
-    EXPECT_FALSE(n.diff(n2,info));
-    info.print();
-
-    n2.parse(txt_cases[4],"json");
-    EXPECT_FALSE(n.diff(n2,info));
-    info.print();
-
-    n2.parse(txt_cases[5],"json");
-    EXPECT_FALSE(n.diff(n2,info));
-    info.print();
-
-    n2.parse(txt_cases[6],"conduit_json");
-    EXPECT_FALSE(n.diff(n2,info));
-
-    n2.parse(txt_cases[7],"conduit_base64_json");
-    EXPECT_FALSE(n.diff(n2,info));
+    for (const auto &parse_me : txt_cases)
+    {
+        Node n2, info;
+        n2.parse(parse_me.second,parse_me.first);
+        EXPECT_FALSE(n.diff(n2,info));
+        info.print();
+    }
 }
 
 
@@ -1158,38 +1163,28 @@ TEST(conduit_node, to_string_and_indent_check_all_protos)
     const std::map<std::string, index_t> schema_key_depths =
         {{"a", 0}, {"b", 1}, {"c", 2}, {"d", 2}, {"e", 2}};
 
-    std::ostringstream oss;
+    std::ostringstream yaml_oss, json_oss;
+    n.to_string_stream(yaml_oss);
+    n.to_string_stream(json_oss, "json");
 
-    std::vector<std::string> txt_cases, txt_types;
-    txt_cases.push_back(n.to_string()); // yaml
-    txt_types.push_back("yaml");
-    txt_cases.push_back(n.to_string_default()); // yaml
-    txt_types.push_back("yaml");
-
-    n.to_string_stream(oss);
-    txt_cases.push_back(oss.str()); // yaml
-    txt_types.push_back("yaml");
-
-    txt_cases.push_back(n.to_string("yaml"));
-    txt_types.push_back("yaml");
-
-    oss.str("");
-    n.to_string_stream(oss,"json");
-    txt_cases.push_back(oss.str()); // json
-    txt_types.push_back("json");
-
-    txt_cases.push_back(n.to_string("json"));
-    txt_types.push_back("json");
-    txt_cases.push_back(n.to_string("conduit_json"));
-    txt_types.push_back("json");
-    // TODO: Eventually should test this case, but it's too different at present.
-    // txt_cases.push_back(n.to_string("conduit_base64_json"));
-    // txt_types.push_back("json");
+    std::vector<std::pair<std::string, std::string>> txt_cases = {
+        std::make_pair("yaml", n.to_string()),
+        std::make_pair("yaml", yaml_oss.str()),
+        std::make_pair("yaml", n.to_string_default()),
+        std::make_pair("yaml", n.to_string("conduit_yaml")),
+        std::make_pair("yaml", n.to_string("yaml")),
+        std::make_pair("json", json_oss.str()),
+        std::make_pair("json", n.to_string("json")),
+        std::make_pair("json", n.to_string("conduit_json")),
+    // TODO: Eventually should test these cases, but they're too different at present.
+        // std::make_pair("yaml", n.to_string("conduit_base64_yaml")),
+        // std::make_pair("json", n.to_string("conduit_base64_json")),
+    };
 
     for(index_t ti = 0; ti < (index_t)txt_cases.size(); ti++)
     {
-        const std::string& txt_case = txt_cases[ti];
-        const std::string& txt_type = txt_types[ti];
+        const std::string& txt_case = txt_cases[ti].second;
+        const std::string& txt_type = txt_cases[ti].first;
         std::vector<std::string> txt_lines;
         conduit::utils::split_string(txt_case, '\n', txt_lines);
 

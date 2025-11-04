@@ -32,7 +32,13 @@
     defined(CONDUIT_BLUEPRINT_TABLE_PYTHON_EXPORTS) || \
     defined(conduit_blueprint_table_python_EXPORTS) || \
     defined(CONDUIT_BLUEPRINT_TABLE_EXAMPLES_PYTHON_EXPORTS) || \
-    defined(conduit_blueprint_table_examples_python_EXPORTS)
+    defined(conduit_blueprint_table_examples_python_EXPORTS) || \
+    defined(CONDUIT_BLUEPRINT_MPI_PYTHON_EXPORTS) || \
+    defined(conduit_blueprint_mpi_python_EXPORTS) || \
+    defined(CONDUIT_BLUEPRINT_MPI_MESH_PYTHON_EXPORTS) || \
+    defined(conduit_blueprint_mpi_mesh_python_EXPORTS) || \
+    defined(CONDUIT_BLUEPRINT_MPI_MESH_EXAMPLES_PYTHON_EXPORTS) || \
+    defined(conduit_blueprint_mpi_mesh_examples_python_EXPORTS)
     /* define catch all def */
     #define CONDUIT_BLUEPRINT_PYTHON_EXPORTS_DEFINED 1
 #endif

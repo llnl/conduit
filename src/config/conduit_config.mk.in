@@ -65,6 +65,13 @@ CONDUIT_LINK_RPATH += $(if $(CONDUIT_PARMETIS_DIR), $(CONDUIT_PARMETIS_RPATH_FLA
 CONDUIT_LINK_RPATH += $(if $(CONDUIT_CALIPER_DIR), $(CONDUIT_CALIPER_RPATH_FLAGS_VALUE))
 CONDUIT_LINK_RPATH += $(if $(CONDUIT_ADIAK_DIR), $(CONDUIT_ADIAK_RPATH_FLAGS_VALUE))
 
+#################
+# Defines
+#################
+
+# defines to prevent mpi from using C++ apis and introducing link
+# dep of libmpi_cxx  (encountred when using openmpi as mpi)
+CONDUIT_MPI_DEFINES = -DMPICH_SKIP_MPICXX -DOMPI_SKIP_MPICXX -D_MPICC_H
 
 #################
 # Include Flags
@@ -85,6 +92,8 @@ CONDUIT_INCLUDE_FLAGS += $(if $(CONDUIT_HDF5_DIR),$(CONDUIT_HDF5_EXTRA_INCLUDE_F
 CONDUIT_INCLUDE_FLAGS += $(if $(CONDUIT_ZFP_DIR),-I$(CONDUIT_ZFP_DIR)/include)
 
 CONDUIT_INCLUDE_FLAGS += $(if $(CONDUIT_CALIPER_DIR),-I$(CONDUIT_CALIPER_DIR)/include)
+
+CONDUIT_INCLUDE_FLAGS += $(CONDUIT_MPI_DEFINES)
 
 # Note: parmetis headers are not exposed in our api
 

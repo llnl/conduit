@@ -279,7 +279,7 @@ protected:
                              offset, offset2, reverse, stype, body);
             }
         }
-        else if(shape == "polygonal")
+        else if(shape == "polygonal" || shape == "mixed")
         {
             // handle polygons
             const auto conn = n_conn.as_index_t_accessor();
@@ -291,7 +291,7 @@ protected:
             {
                 for(conduit::index_t i = 0; i < nelem; i++)
                 {
-                    auto esides = sizes[i];
+                    const auto esides = sizes[i];
                     idlist.reserve(esides);
                     for(conduit::index_t s = 0; s < esides; s++)
                         idlist[s] = offset + ptids[conn[start + esides - s] + offset2];
@@ -303,7 +303,7 @@ protected:
             {
                 for(conduit::index_t i = 0; i < nelem; i++)
                 {
-                    auto esides = sizes[i];
+                    const auto esides = sizes[i];
                     idlist.reserve(esides);
                     for(conduit::index_t s = 0; s < esides; s++)
                         idlist[s] = offset + ptids[conn[start + s] + offset2];
@@ -673,7 +673,7 @@ Tiler::generate(conduit::index_t nx, conduit::index_t ny, conduit::index_t nz,
     const conduit::Node &options)
 {
     std::vector<double> x, y, z;
-    std::vector<conduit::index_t> conn, sizes, bconn, bsizes, srcPointIds;
+    std::vector<conduit::index_t> conn, sizes, shapes, bconn, bsizes, srcPointIds;
     std::vector<int> btype;
 
     // Process any options.
@@ -777,6 +777,13 @@ Tiler::generate(conduit::index_t nx, conduit::index_t ny, conduit::index_t nz,
     shape2 = getTopology().fetch_existing("elements/shape").as_string();
     if(nz < 1)
     {
+        const bool hasShapes = getTopology().has_path("elements/shapes");
+        index_t_accessor shapeAccess;
+        if(hasShapes)
+        {
+            shapeAccess = getTopology().fetch_existing("elements/shapes").as_index_t_accessor();
+        }
+
         // Iterate over the tiles and add their quads.
         // TODO: reserve size for conn, sizes
         for(conduit::index_t j = 0; j < ny; j++)
@@ -784,12 +791,18 @@ Tiler::generate(conduit::index_t nx, conduit::index_t ny, conduit::index_t nz,
             for(conduit::index_t i = 0; i < nx; i++)
             {
                 Tile &current = tiles[(j*nx + i)];
+                int si = 0;
                 iterateFaces(current.getPointIds(), 0, 0, false, BoundaryBack,
                     [&](const conduit::index_t *ids, conduit::index_t npts, int)
                     {
                         for(conduit::index_t pi = 0; pi < npts; pi++)
                             conn.push_back(ids[pi]);
                         sizes.push_back(npts);
+
+                        if(hasShapes)
+                        {
+                          shapes.push_back(shapeAccess[si++]);
+                        }
                     });
             }
         }
@@ -857,7 +870,30 @@ Tiler::generate(conduit::index_t nx, conduit::index_t ny, conduit::index_t nz,
     tmp.to_data_type(indexDT.id(), topo["elements/connectivity"]);
     tmp.set_external(sizes.data(), sizes.size());
     tmp.to_data_type(indexDT.id(), topo["elements/sizes"]);
+    // 2D only for now.
+    if(!shapes.empty() && z.empty())
+    {
+      tmp.set_external(shapes.data(), shapes.size());
+      tmp.to_data_type(indexDT.id(), topo["elements/shapes"]);
 
+      // Make offsets
+      std::vector<index_t> offsets;
+      offsets.reserve(sizes.size());
+      index_t offset = 0;
+      for(auto s : sizes)
+      {
+        offsets.push_back(offset);
+        offset += s;
+      }
+      tmp.set_external(offsets.data(), offsets.size());
+      tmp.to_data_type(indexDT.id(), topo["elements/offsets"]);
+
+      // Copy shape_map.
+      if(getTopology().has_path("elements/shape_map"))
+      {
+        topo["elements/shape_map"].set((getTopology().fetch_existing("elements/shape_map")));
+      }
+    }
 #ifdef CONDUIT_TILER_DEBUG_FIELDS
     // Add fields to test the reordering.
     std::vector<conduit::index_t> nodeids, elemids;
@@ -3121,7 +3157,7 @@ TopDownTiler::generateDomain(IndexType nx, IndexType ny, IndexType nz, conduit::
     const Block &selectedBlock, IndexType domainId, const conduit::Node &options)
 {
     std::vector<double> x, y, z;
-    std::vector<conduit::index_t> conn, sizes, bconn, bsizes, srcPointIds;
+    std::vector<conduit::index_t> conn, sizes, shapes, bconn, bsizes, srcPointIds;
     std::vector<int> btype;
 
     // Process any options.
@@ -3262,12 +3298,24 @@ TopDownTiler::generateDomain(IndexType nx, IndexType ny, IndexType nz, conduit::
                 const std::vector<double> zvalues{0.};
                 addPoints(M, zvalues, current.getPointIds(), x, y, z, srcPointIds);
 
+                const bool hasShapes = getTopology().has_path("elements/shapes");
+                index_t_accessor shapeAccess;
+                if(hasShapes)
+                {
+                    shapeAccess = getTopology().fetch_existing("elements/shapes").as_index_t_accessor();
+                }
+                int si = 0;
                 iterateFaces(current.getPointIds(), 0, 0, false, BoundaryBack,
                     [&](const conduit::index_t *ids, conduit::index_t npts, int)
                     {
                         for(conduit::index_t pi = 0; pi < npts; pi++)
                             conn.push_back(ids[pi]);
                         sizes.push_back(npts);
+
+                        if(hasShapes)
+                        {
+                          shapes.push_back(shapeAccess[si++]);
+                        }
                     });
             }
         }
@@ -3295,7 +3343,29 @@ TopDownTiler::generateDomain(IndexType nx, IndexType ny, IndexType nz, conduit::
     tmp.to_data_type(indexDT.id(), topo["elements/connectivity"]);
     tmp.set_external(sizes.data(), sizes.size());
     tmp.to_data_type(indexDT.id(), topo["elements/sizes"]);
+    if(!threeD)
+    {
+      tmp.set_external(shapes.data(), shapes.size());
+      tmp.to_data_type(indexDT.id(), topo["elements/shapes"]);
 
+      // Make offsets
+      std::vector<index_t> offsets;
+      offsets.reserve(sizes.size());
+      index_t offset = 0;
+      for(auto s : sizes)
+      {
+        offsets.push_back(offset);
+        offset += s;
+      }
+      tmp.set_external(offsets.data(), offsets.size());
+      tmp.to_data_type(indexDT.id(), topo["elements/offsets"]);
+
+      // Copy shape_map.
+      if(getTopology().has_path("elements/shape_map"))
+      {
+        topo["elements/shape_map"].set((getTopology().fetch_existing("elements/shape_map")));
+      }
+    }
     res["state/domain_id"] = domainId;
 
     // -------------------
@@ -3720,23 +3790,23 @@ TopDownTiler::addAdjset(const Block &selectedBlock,
                 // Use the offset to define a block that includes the current
                 // index and the offset zone. Count how many of the zones in that
                 // block are either self or a neighbor.
-                int nk = 1 + ((offset[2] < 0) ? (-offset[2]) : offset[2]);
-                int nj = 1 + ((offset[1] < 0) ? (-offset[1]) : offset[1]);
-                int ni = 1 + ((offset[0] < 0) ? (-offset[0]) : offset[0]);
+                conduit::index_t nk = 1 + ((offset[2] < 0) ? (-offset[2]) : offset[2]);
+                conduit::index_t nj = 1 + ((offset[1] < 0) ? (-offset[1]) : offset[1]);
+                conduit::index_t ni = 1 + ((offset[0] < 0) ? (-offset[0]) : offset[0]);
 
-                int n = nk * nj * ni;
-                int count = 0;
-                for(int kk = 0; kk < nk; kk++)
-                for(int jj = 0; jj < nj; jj++)
-                for(int ii = 0; ii < ni; ii++)
+                conduit::index_t n = nk * nj * ni;
+                conduit::index_t count = 0;
+                for(conduit::index_t kk = 0; kk < nk; kk++)
+                for(conduit::index_t jj = 0; jj < nj; jj++)
+                for(conduit::index_t ii = 0; ii < ni; ii++)
                 {
                     // Get the zone that is next to this one in the offset direction.
                     const auto local = LogicalIndex{{index[0] - b.start[0] + ii * offset[0],
                                                      index[1] - b.start[1] + jj * offset[1],
                                                      index[2] - b.start[2] + kk * offset[2]}};
-                    const auto index = b.IJKToIndex(local);
+                    const auto zi = b.IJKToIndex(local);
                     // Check whether there is a neighbor in the offset direction.
-                    conduit::index_t id = b.image[index];
+                    conduit::index_t id = b.image[zi];
                     if(id > Block::InvalidDomainId)
                     {
                         count++;

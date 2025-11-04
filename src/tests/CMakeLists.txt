@@ -30,6 +30,8 @@ add_subdirectory("thirdparty")
 
 add_subdirectory("conduit")
 add_subdirectory("relay")
+# allow blueprint tests to share test headers in relay tests
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/relay")
 add_subdirectory("blueprint")
 add_subdirectory("docs")
 

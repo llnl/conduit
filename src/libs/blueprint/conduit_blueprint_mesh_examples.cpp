@@ -66,7 +66,6 @@ namespace examples
 //---------------------------------------------------------------------------//
 const float64 PI_VALUE = 3.14159265359;
 
-
 //---------------------------------------------------------------------------//
 struct point
 {
@@ -838,9 +837,9 @@ void braid_init_rectilinear_coordset(index_t npts_x,
 //---------------------------------------------------------------------------//
 void
 braid_init_explicit_coordset(index_t npts_x,
-                             index_t npts_y,
-                             index_t npts_z,
-                             Node &coords)
+    index_t npts_y,
+    index_t npts_z,
+    Node& coords)
 {
     coords["type"] = "explicit";
 
@@ -850,86 +849,86 @@ braid_init_explicit_coordset(index_t npts_x,
         npts *= npts_y;
     }
 
-    if(npts_z > 1)
+    if (npts_z > 1)
     {
         npts *= npts_z;
     }
 
     // also support interleaved
-    Node &coord_vals = coords["values"];
+    Node& coord_vals = coords["values"];
     coord_vals["x"].set(DataType::float64(npts));
     if (npts_y > 0)
     {
         coord_vals["y"].set(DataType::float64(npts));
     }
 
-    if(npts_z > 1)
+    if (npts_z > 1)
     {
         coord_vals["z"].set(DataType::float64(npts));
     }
 
-    float64 *x_vals = coord_vals["x"].value();
-    float64 *y_vals = NULL;
+    float64* x_vals = coord_vals["x"].value();
+    float64* y_vals = NULL;
     if (npts_y > 0)
     {
         y_vals = coord_vals["y"].value();
     }
 
-    float64 *z_vals = NULL;
+    float64* z_vals = NULL;
 
-    if(npts_z > 1)
+    if (npts_z > 1)
     {
         z_vals = coord_vals["z"].value();
     }
 
-    float64 dx = 20.0 / float64(npts_x-1);
-    float64 dy = 20.0 / float64(npts_y-1);
+    float64 dx = 20.0 / float64(npts_x - 1);
+    float64 dy = 20.0 / float64(npts_y - 1);
     if (npts_y > 0)
     {
-        dy = 20.0 / float64(npts_y-1);
+        dy = 20.0 / float64(npts_y - 1);
     }
 
     float64 dz = 0.0;
 
-    if(npts_z > 1)
+    if (npts_z > 1)
     {
-        dz = 20.0 / float64(npts_z-1);
+        dz = 20.0 / float64(npts_z - 1);
     }
 
     index_t idx = 0;
     // default to one loop iteration (2d case)
     index_t outer = 1;
     // expand loop iteration for 3d case
-    if(npts_z > 1)
+    if (npts_z > 1)
     {
         outer = npts_z;
     }
     // default to one loop iteration (1d case)
     index_t middle = 1;
     // expand loop iteration for 2d and 3d case
-    if(npts_y > 1)
+    if (npts_y > 1)
     {
         middle = npts_y;
     }
 
-    for(index_t k = 0; k < outer; k++)
+    for (index_t k = 0; k < outer; k++)
     {
         float64 cz = -10.0 + k * dz;
 
-        for(index_t j = 0; j < middle ; j++)
+        for (index_t j = 0; j < middle; j++)
         {
-            float64 cy =  -10.0 + j * dy;
+            float64 cy = -10.0 + j * dy;
 
-            for(index_t i = 0; i < npts_x ; i++)
+            for (index_t i = 0; i < npts_x; i++)
             {
                 x_vals[idx] = -10.0 + i * dx;
 
-                if(npts_y > 1)
+                if (npts_y > 1)
                 {
                     y_vals[idx] = cy;
                 }
 
-                if(npts_z > 1)
+                if (npts_z > 1)
                 {
                     z_vals[idx] = cz;
                 }
@@ -939,7 +938,140 @@ braid_init_explicit_coordset(index_t npts_x,
 
         }
     }
+}
 
+//---------------------------------------------------------------------------//
+
+void
+fill_corner_point(Node& n,
+    const double* x, const double* y, const double* z, int idx,
+    double dftx, double dfty, double dftz)
+{
+    int dims = n.dtype().number_of_elements();
+    double_array an = n.as_double_array();
+
+    an[0] = dftx;
+    if (dims > 1)
+    {
+        an[1] = dfty;
+        if (dims == 3)
+        {
+            an[2] = dftz;
+        }
+    }
+
+    if ((x != nullptr) &&
+        (dims == 1 || y != nullptr) &&
+        (dims == 2 || z != nullptr))
+    {
+        an[0] = x[idx];
+        if (dims > 1)
+        {
+            an[1] = y[idx];
+            if (dims == 3)
+            {
+                an[2] = z[idx];
+            }
+        }
+    }
+
+}
+
+void
+braid_init_explicit_lerp_coordset(index_t npts_x,
+                             index_t npts_y,
+                             index_t npts_z,
+                             Node &coords,
+                             const double* corner_xs = nullptr,
+                             const double* corner_ys = nullptr,
+                             const double* corner_zs = nullptr);
+
+void
+braid_init_explicit_lerp_coordset(index_t npts_x,
+                             index_t npts_y,
+                             index_t npts_z,
+                             Node &coords,
+                             const double* corner_xs,
+                             const double* corner_ys,
+                             const double* corner_zs)
+{
+    coords["type"] = "explicit";
+
+    index_t dims = 1;
+    if (npts_y > 0)
+    {
+        dims = 2;
+        if (npts_z > 1)
+        {
+            dims = 3;
+        }
+    }
+
+
+    // Extract corner points
+    Node A; A.set(DataType::float64(dims));
+    fill_corner_point(A, corner_xs, corner_ys, corner_zs, 0, -10, -10, -10);
+    Node B; B.set(DataType::float64(dims));
+    fill_corner_point(B, corner_xs, corner_ys, corner_zs, 1,  10, -10, -10);
+
+    // Set up result vectors
+    Node left, right, grid;
+
+    if (dims > 1)
+    {
+        Node C; C.set(DataType::float64(dims));
+        fill_corner_point(C, corner_xs, corner_ys, corner_zs, 2, 10, 10, -10);
+        Node D; D.set(DataType::float64(dims));
+        fill_corner_point(D, corner_xs, corner_ys, corner_zs, 3, -10, 10, -10);
+        if (dims > 2)
+        {
+            Node E; E.set(DataType::float64(dims));
+            fill_corner_point(E, corner_xs, corner_ys, corner_zs, 4, -10, -10, 10);
+            Node F; F.set(DataType::float64(dims));
+            fill_corner_point(F, corner_xs, corner_ys, corner_zs, 5, 10, -10, 10);
+            Node G; G.set(DataType::float64(dims));
+            fill_corner_point(G, corner_xs, corner_ys, corner_zs, 6, 10, 10, 10);
+            Node H; H.set(DataType::float64(dims));
+            fill_corner_point(H, corner_xs, corner_ys, corner_zs, 7, -10, 10, 10);
+            Node SW;
+            conduit::blueprint::mesh::utils::lerp(A, E, npts_z, SW);
+            Node SE;
+            conduit::blueprint::mesh::utils::lerp(B, F, npts_z, SE);
+            Node NE;
+            conduit::blueprint::mesh::utils::lerp(C, G, npts_z, NE);
+            Node NW;
+            conduit::blueprint::mesh::utils::lerp(D, H, npts_z, NW);
+
+
+            conduit::blueprint::mesh::utils::lerp(SW, NW, npts_y, left);
+            conduit::blueprint::mesh::utils::lerp(SE, NE, npts_y, right);
+        }
+        else
+        {
+            // dims == 2
+            conduit::blueprint::mesh::utils::lerp(A, D, npts_y, left);
+            conduit::blueprint::mesh::utils::lerp(B, C, npts_y, right);
+        }
+    }
+    else
+    {
+        left.set(A);
+        right.set(B);
+    }
+    conduit::blueprint::mesh::utils::lerp(left, right, npts_x, grid);
+
+    // also support interleaved
+    Node &coord_vals = coords["values"];
+
+    coord_vals["x"].set(grid[0]);
+    if (dims > 1)
+    {
+        coord_vals["y"].set(grid[1]);
+        if (dims > 2)
+        {
+            coord_vals["z"].set(grid[2]);
+        }
+    }
 }
 
 
@@ -949,6 +1081,8 @@ braid_init_example_adjset(Node &mesh)
 {
     typedef std::map< point, std::map<index_t, index_t> > point_doms_map;
     typedef std::map<std::set<index_t>, std::vector<std::vector<index_t> > > group_idx_map;
+
+    if (mesh.dtype().is_empty()) { return; }
 
     const std::string dim_names[3] = {"x", "y", "z"};
     const index_t dim_count = blueprint::mesh::coordset::dims(
@@ -1000,16 +1134,21 @@ braid_init_example_adjset(Node &mesh)
         }
     }
 
+    // Now mesh_point_doms_map has an entry (x, y, z) -> {dom -> i} for each point in ALL domains.
+
     group_idx_map groups_map;
     point_doms_map::const_iterator pm_itr;
     for(pm_itr = mesh_point_doms_map.begin();
         pm_itr != mesh_point_doms_map.end(); ++pm_itr)
     {
+        // The only points we're interested in are the ones with more than one
+        // value.  Those are the points that sit on the domain boundary.
         const std::map<index_t, index_t>& point_dom_idx_map = pm_itr->second;
         if(point_dom_idx_map.size() > 1)
         {
             std::set<index_t> point_group;
 
+            // Put all the the domains for this point into point_group
             std::map<index_t, index_t>::const_iterator pg_itr;
             for(pg_itr = point_dom_idx_map.begin();
                 pg_itr != point_dom_idx_map.end(); ++pg_itr)
@@ -1017,12 +1156,15 @@ braid_init_example_adjset(Node &mesh)
                 point_group.insert(pg_itr->first);
             }
 
+            // Get/create the vector-of-vector-of-index for this group (set of adjoining domains)
             std::vector<std::vector<index_t> >& group_indices = groups_map[point_group];
             if(group_indices.empty())
             {
                 group_indices.resize(point_group.size());
             }
 
+            // For each domain that contains this point, push that domain's point index back
+            // in that domain's vector.
             std::set<index_t>::const_iterator gd_itr;
             std::set<index_t>::size_type gi = 0;
             for(gd_itr = point_group.begin();
@@ -1033,6 +1175,16 @@ braid_init_example_adjset(Node &mesh)
             }
         }
     }
+
+    // Now groups_map has an entry for each border {dom} -> [ (domain) [i] ] ,
+    // where the set of domains comprising that border is the key and the value is
+    // a vector (one for each domain) of vectors (the indices of the border points
+    // in that domain).
+    //
+    // In the map value, the order of domains (the outer vector) is determined by
+    // the iterator over the key (the set of owning domains).  The main point is
+    // that the order of the inner vectors (the points in that domain) is consistent.
+    // That is, index k of all the inner vectors refers to the same physical point.
 
     group_idx_map::const_iterator gm_itr;
     index_t gid = 0;
@@ -1621,12 +1773,67 @@ braid_quads(index_t npts_x,
                                           fields["vel"]);
 }
 
+
+//---------------------------------------------------------------------------//
+void
+braid_bent_quads(const Node & spec, Node &res)
+{
+    res.reset();
+
+    const int32 npts_x = spec["npts_x"].as_int32();
+    const int32 npts_y = spec["npts_y"].as_int32();
+
+    const int32 domain_id = spec["domain_id"].as_int32();
+
+    const double* x = spec["corner_xs"].as_double_ptr();
+    const double* y = spec["corner_ys"].as_double_ptr();
+
+    int32 nele_x = (int32)(npts_x - 1);
+    int32 nele_y = (int32)(npts_y - 1);
+
+    braid_init_example_state(res);
+    res["state/domain_id"] = domain_id;
+    braid_init_explicit_lerp_coordset(npts_x,
+                                      npts_y,
+                                      1,
+                                      res["coordsets/coords"],
+                                      x, y, nullptr);
+
+    res["topologies/mesh/type"] = "structured";
+    res["topologies/mesh/coordset"] = "coords";
+    res["topologies/mesh/elements/dims/i"] = (int32)nele_x;
+    res["topologies/mesh/elements/dims/j"] = (int32)nele_y;
+
+
+    Node &fields = res["fields"];
+
+    braid_init_example_point_scalar_field(npts_x,
+                                          npts_y,
+                                          1,
+                                          fields["braid"]);
+
+    braid_init_example_element_scalar_field(nele_x,
+                                            nele_y,
+                                            0,
+                                            fields["radial"]);
+
+    braid_init_example_point_vector_field(npts_x,
+                                          npts_y,
+                                          1,
+                                          fields["vel"]);
+}
+
+
 //---------------------------------------------------------------------------//
 void
 braid_quads_and_tris(index_t npts_x,
-            index_t npts_y,
-            Node &res)
+                     index_t npts_y,
+                     Node &res)
 {
+    CONDUIT_INFO("This braid example is deprecated in favor of mixed_2d.")
+
+    // TODO remove in conduit 0.9.4
+
     res.reset();
 
     int32 nele_x = (int32)(npts_x - 1);
@@ -1675,7 +1882,6 @@ braid_quads_and_tris(index_t npts_x,
              ++ielem;
 
         } // END for all i
-
     } // END for all j
 
 
@@ -1744,12 +1950,16 @@ braid_quads_and_tris(index_t npts_x,
     //                                         fields["radial"]);
 }
 
+
 //---------------------------------------------------------------------------//
 void
 braid_quads_and_tris_offsets(index_t npts_x,
                              index_t npts_y,
                              Node &res)
 {
+    CONDUIT_INFO("This braid example is deprecated in favor of mixed_2d.")
+
+    // TODO remove in conduit 0.9.4
 
     res.reset();
 
@@ -2421,6 +2631,186 @@ braid_hexs(index_t npts_x,
 
 //---------------------------------------------------------------------------//
 void
+braid_bent_hexs(const Node &spec, Node &res)
+{
+    res.reset();
+
+    const int32 npts_x = spec["npts_x"].as_int32();
+    const int32 npts_y = spec["npts_y"].as_int32();
+    const int32 npts_z = spec["npts_z"].as_int32();
+
+    const int32 domain_id = spec["domain_id"].as_int32();
+
+    const double* x = spec["corner_xs"].as_double_ptr();
+    const double* y = spec["corner_ys"].as_double_ptr();
+    const double* z = spec["corner_zs"].as_double_ptr();
+
+    int32 nele_x = (int32)(npts_x - 1);
+    int32 nele_y = (int32)(npts_y - 1);
+    int32 nele_z = (int32)(npts_z - 1);
+
+    braid_init_example_state(res);
+    res["state/domain_id"] = domain_id;
+    braid_init_explicit_lerp_coordset(npts_x,
+                                      npts_y,
+                                      npts_z,
+                                      res["coordsets/coords"],
+                                      x, y, z);
+
+    res["topologies/mesh/type"] = "structured";
+    res["topologies/mesh/coordset"] = "coords";
+    res["topologies/mesh/elements/dims/i"] = (int32)nele_x;
+    res["topologies/mesh/elements/dims/j"] = (int32)nele_y;
+    res["topologies/mesh/elements/dims/k"] = (int32)nele_z;
+
+    Node &fields = res["fields"];
+
+    braid_init_example_point_scalar_field(npts_x,
+                                          npts_y,
+                                          npts_z,
+                                          fields["braid"]);
+
+    braid_init_example_element_scalar_field(nele_x,
+                                            nele_y,
+                                            nele_z,
+                                            fields["radial"]);
+
+    braid_init_example_point_vector_field(npts_x,
+                                          npts_y,
+                                          npts_z,
+                                          fields["vel"]);
+}
+
+//---------------------------------------------------------------------------//
+void
+setup_nestset(Node &n, const std::string &windowname, int domain_id,
+              const std::string &domain_type,
+              int dims_i, int dims_j, int dims_k, int nest_ratio)
+{
+    Node &nset = n["nestsets/nestset"];
+    nset["association"] = "element";
+    nset["topology"] = "mesh"; // match what braid_bent_hexs does
+    Node &window = nset["windows"][windowname];
+    window["domain_id"] = domain_id;
+    window["domain_type"] = domain_type;
+    window["origin/i"] = 0;
+    window["origin/j"] = 0;
+    if (dims_k > 0) { window["origin/k"] = 0; }
+    window["dims/i"] = dims_i;
+    window["dims/j"] = dims_j;
+    if (dims_k > 0) { window["dims/k"] = dims_j; }
+    window["ratio/i"] = nest_ratio;
+    window["ratio/j"] = nest_ratio;
+    if (dims_k > 0) { window["ratio/k"] = nest_ratio; }
+}
+
+//---------------------------------------------------------------------------//
+void
+nest_quads(const Node &spec, Node &parent, Node &res)
+{
+    // spec must contain details about nesting, like this:
+    //   nest_child_id: 13
+    //   nest_ratio: 3
+    // res gets filled with a new domain refined from parent, including a nestset
+    // parent node gets a nestset tying it to res
+
+    // Call braid_bent_quads, then make the nestset.
+    const int32 nest_parent_id = parent["state/domain_id"].as_int32();
+    const int32 nest_child_id = spec["nest_child_id"].as_int32();
+    const int32 nest_ratio = spec["nest_ratio"].as_int32();
+    const int32 parent_npts_x = spec["npts_x"].as_int32();
+    const int32 parent_npts_y = spec["npts_y"].as_int32();
+    const int32 child_npts_x = nest_ratio * (parent_npts_x - 1) + 1;
+    const int32 child_npts_y = nest_ratio * (parent_npts_y - 1) + 1;
+
+    Node child_spec = spec; // we can now change child_spec without changing spec
+    child_spec["domain_id"] = nest_child_id;
+    child_spec["npts_x"] = child_npts_x;
+    child_spec["npts_y"] = child_npts_y;
+
+    braid_bent_quads(child_spec, res);
+
+    // Set up child nestset
+    std::ostringstream oss;
+    oss << "window_" << nest_child_id << "_" << nest_parent_id;
+    const std::string child_wname = oss.str();
+    setup_nestset(res, child_wname, nest_parent_id, "parent",
+                  child_npts_x - 1, child_npts_y - 1, 0, nest_ratio);
+
+    // Set up parent nestset
+    std::ostringstream pss;
+    pss << "window_" << nest_parent_id << "_" << nest_child_id;
+    const std::string parent_wname = pss.str();
+    setup_nestset(parent, parent_wname, nest_child_id, "child",
+                  parent_npts_x - 1, parent_npts_y - 1, 0, nest_ratio);
+
+    // Ensure nest level exists for parent, set for child.
+    if (!parent.has_path("state/level_id"))
+    {
+        int32 level_id = 0;
+        parent["state/level_id"] = level_id;
+    }
+    const int32 parent_level_id = parent["state/level_id"].as_int32();
+    res["state/level_id"] = parent_level_id + 1;
+}
+
+//---------------------------------------------------------------------------//
+void
+nest_hexs(const Node &spec, Node &parent, Node &res)
+{
+    // spec must contain details about nesting, like this:
+    //   nest_child_id: 13
+    //   nest_ratio: 3
+    // res gets filled with a new domain refined from parent, including a nestset
+    // parent node gets a nestset tying it to res
+
+    // Call braid_bent_hexs, then make the nestset.
+    const int32 nest_parent_id = parent["state/domain_id"].as_int32();
+    const int32 nest_child_id = spec["nest_child_id"].as_int32();
+    const int32 nest_ratio = spec["nest_ratio"].as_int32();
+    const int32 parent_npts_x = spec["npts_x"].as_int32();
+    const int32 parent_npts_y = spec["npts_y"].as_int32();
+    const int32 parent_npts_z = spec["npts_z"].as_int32();
+    const int32 child_npts_x = nest_ratio * (parent_npts_x - 1) + 1;
+    const int32 child_npts_y = nest_ratio * (parent_npts_y - 1) + 1;
+    const int32 child_npts_z = nest_ratio * (parent_npts_z - 1) + 1;
+
+    Node child_spec = spec; // we can now change child_spec without changing spec
+    child_spec["domain_id"] = nest_child_id;
+    child_spec["npts_x"] = child_npts_x;
+    child_spec["npts_y"] = child_npts_y;
+    child_spec["npts_z"] = child_npts_z;
+
+    braid_bent_hexs(child_spec, res);
+
+    // Set up child nestset
+    std::ostringstream oss;
+    oss << "window_" << nest_child_id << "_" << nest_parent_id;
+    const std::string child_wname = oss.str();
+    setup_nestset(res, child_wname, nest_parent_id, "parent",
+                  child_npts_x - 1, child_npts_y - 1, child_npts_z - 1,
+                  nest_ratio);
+
+    // Set up parent nestset
+    std::ostringstream pss;
+    pss << "window_" << nest_parent_id << "_" << nest_child_id;
+    const std::string parent_wname = pss.str();
+    setup_nestset(parent, parent_wname, nest_child_id, "child",
+                  parent_npts_x - 1, parent_npts_y - 1, parent_npts_z - 1,
+                  nest_ratio);
+
+    // Ensure nest level exists for parent, set for child.
+    if (!parent.has_path("state/level_id"))
+    {
+        int32 level_id = 0;
+        parent["state/level_id"] = level_id;
+    }
+    const int32 parent_level_id = parent["state/level_id"].as_int32();
+    res["state/level_id"] = parent_level_id + 1;
+}
+
+//---------------------------------------------------------------------------//
+void
 braid_tets(index_t npts_x,
            index_t npts_y,
            index_t npts_z,
@@ -2650,6 +3040,9 @@ braid_hexs_and_tets(index_t npts_x,
                     index_t npts_z,
                     Node &res)
 {
+    CONDUIT_INFO("This braid example is deprecated in favor of mixed.")
+
+    // TODO remove in conduit 0.9.4
 
     // WARNING -- The code below is UNTESTED.
     //            The SILO writer is missing an implementation for
@@ -3422,6 +3815,195 @@ strided_structured(Node &desc, // shape of requested data arrays
 }
 
 
+
+//---------------------------------------------------------------------------//
+void bent_multi_grid_defaults(conduit::Node &spec)
+{
+    // Provide defaults for bent_multi_grid so a user can call that function
+    // without having to remember what goes in spec
+    auto fill_domain = [&spec] (int npts_x, int npts_y, int domain_id,
+        const char * label,
+        std::initializer_list<double> corner_xs,
+        std::initializer_list<double> corner_ys)
+        {
+            conduit::Node &dom = spec[label];
+            dom["npts_x"] = npts_x;
+            dom["npts_y"] = npts_y;
+            dom["domain_id"] = domain_id;
+            conduit::Node& c_xs = dom["corner_xs"];
+            c_xs.set(corner_xs.begin(), corner_xs.size());
+            conduit::Node& c_ys = dom["corner_ys"];
+            c_ys.set(corner_ys.begin(), corner_ys.size());
+        };
+
+    fill_domain(3, 4, 0, "domain0", { 0, 2, 2, 0 }, { 0, 0, 1, 1 });
+    fill_domain(3, 4, 1, "domain1", { 2, 4, 4, 2 }, { 0, 0, 2, 1 });
+    fill_domain(3, 3, 2, "domain2", { 0, 2, 4, 0 }, { 1, 1, 2, 2 });
+    fill_domain(3, 2, 3, "domain3", { 0, 4, 4, 0 }, { 2, 2, 3, 3 });
+    fill_domain(2, 4, 4, "domain4", { 4, 5, 5, 4 }, { 0, 0, 2, 2 });
+    fill_domain(2, 2, 5, "domain5", { 4, 5, 5, 4 }, { 2, 3, 3, 2 });
+}
+
+void CONDUIT_BLUEPRINT_API bent_multi_grid(const conduit::Node &spec,
+                                           conduit::Node &res)
+{
+    int last_dim = 0;
+
+    if (spec.dtype().is_empty())
+    {
+        conduit::Node default_spec;
+        bent_multi_grid_defaults(default_spec);
+        bent_multi_grid(default_spec, res);
+    }
+    else
+    {
+        // verify each child node in spec.
+        // 1. make sure each is dimensionally self-consistent
+        // 2. make sure dimensionality is equal among all domains
+        std::vector<int> dom_dimensions;
+        NodeConstIterator ver_it = spec.children();
+        while (ver_it.has_next())
+        {
+            const Node& ver_node = ver_it.next();
+            // Check for necessary domain information
+            bool has_corner_xs = ver_node.has_child("corner_xs");
+            bool has_corner_ys = ver_node.has_child("corner_ys");
+            bool has_corner_zs = ver_node.has_child("corner_zs");
+            bool has_npts_x = ver_node.has_child("npts_x");
+            bool has_npts_y = ver_node.has_child("npts_y");
+            bool has_npts_z = ver_node.has_child("npts_z");
+            bool has_domain_id = ver_node.has_child("domain_id");
+
+            // Check for nest set information.
+            bool has_nest_child_id = ver_node.has_child("nest_child_id");
+            bool has_nest_ratio = ver_node.has_child("nest_ratio");
+            // Need both nest_child_id and nest_ratio, or neither.
+            bool nest_ok = (has_nest_child_id == has_nest_ratio);
+
+            bool dims_ok = false;
+            int dims = 0;
+            if (has_corner_xs && has_corner_ys && has_npts_x && has_npts_y) { dims = 2; }
+            if (dims == 2 && has_corner_zs && has_npts_z) { dims = 3; }
+
+            bool children_ok = (dims == 2 || dims == 3) && has_domain_id && nest_ok;
+
+            if (children_ok)
+            {
+                dims_ok = ver_node["corner_xs"].as_float64_accessor().number_of_elements() > 3;
+                dims_ok = dims_ok && ver_node["corner_ys"].as_float64_accessor().number_of_elements() > 3;
+                int npts_x = ver_node["npts_x"].as_int32();
+                dims_ok = dims_ok && npts_x >= 2;
+                int npts_y = ver_node["npts_y"].as_int32();
+                dims_ok = dims_ok && npts_y >= 2;
+                if (dims > 2)
+                {
+                    dims_ok = dims_ok && ver_node["corner_xs"].as_float64_accessor().number_of_elements() > 7;
+                    dims_ok = dims_ok && ver_node["corner_ys"].as_float64_accessor().number_of_elements() > 7;
+                    dims_ok = dims_ok && ver_node["corner_zs"].as_float64_accessor().number_of_elements() > 7;
+                    int npts_z = ver_node["npts_z"].as_int32();
+                    dims_ok = dims_ok && npts_z >= 2;
+                }
+
+                // If the nesting specification child nodes are present,
+                // make sure they're integral.
+                if (has_nest_child_id && has_nest_ratio)
+                {
+                    nest_ok = ver_node["nest_child_id"].dtype().is_int() &&
+                        ver_node["nest_ratio"].dtype().is_int();
+                }
+            }
+
+            if (!(children_ok && dims_ok && nest_ok))
+            {
+                // error: some domain doesn't have the right children.
+                CONDUIT_ERROR("blueprint::mesh::examples::bent_multi_grid requires each domain in spec " << std::endl <<
+                    "to have floating-point children corner_xs, corner_ys each with length > 3." << std::endl <<
+                    "For a 3D mesh, each domain must have corner_xs, corner_ys, corner_zs each" << std::endl <<
+                    "with length > 7.  Each domain must also have an integral domain_id and integral" << std::endl <<
+                    "npts_x, npts_y, and optionally npts_z." << std::endl <<
+                    "To specify a nesting domain, the parent domain must have integral children" << std::endl <<
+                    "nest_child_id and nest_ratio." << std::endl << "Values provided : " << std::endl <<
+                    ver_node.to_yaml() << std::endl);
+            }
+
+            last_dim = dims;
+            dom_dimensions.push_back(dims);
+            // TODO: report error if all dimensions are not equal
+        }
+
+        // For each child node in spec,
+        // call braid()
+        NodeConstIterator doms_it = spec.children();
+        while (doms_it.has_next())
+        {
+            const Node& dom_node = doms_it.next();
+            // I need to construct a name and pass in res[thename], not just res.
+            std::string thename;
+            // If spec is a list, use a numerical value that we increment.  Otherwise, use the name of this particular child.
+            bent_braid(dom_node, res[doms_it.name()]);
+        }
+
+        // Tie adjacent domains together with adjsets.
+        braid_init_example_adjset(res);
+
+        // Now refine selected domains.
+        doms_it.to_front();
+        conduit::Node nested_doms;
+        while (doms_it.has_next())
+        {
+            const Node& dom_node = doms_it.next();
+            if (dom_node.has_child("nest_child_id"))
+            {
+                int child_id = dom_node["nest_child_id"].as_int();
+                std::ostringstream oss;
+                // Match the naming style used by bent_braid(), which is domain0, domain1, etc.
+                oss << "domain" << child_id;
+                const std::string nest_name = oss.str();
+                if (last_dim == 2)
+                {
+                    nest_quads(dom_node, res[doms_it.name()], nested_doms[nest_name]);
+                }
+                else
+                {
+                    nest_hexs(dom_node, res[doms_it.name()], nested_doms[nest_name]);
+                }
+            }
+        }
+
+        // Tie adjacent refined domains together with adjsets.
+        braid_init_example_adjset(nested_doms);
+
+        // Now store the new domains back into the result.
+        NodeConstIterator nested_doms_it = nested_doms.children();
+        while (nested_doms_it.has_next())
+        {
+            const Node& ndom_node = nested_doms_it.next();
+            res[nested_doms_it.name()] = ndom_node;
+        }
+    }
+}
+
+void CONDUIT_BLUEPRINT_API bent_multi_grid_amr(const conduit::Node &spec,
+                                               conduit::Node &res)
+{
+    if (spec.dtype().is_empty())
+    {
+        conduit::Node default_spec;
+        bent_multi_grid_defaults(default_spec);
+        default_spec["domain0/nest_child_id"] = 6;
+        default_spec["domain0/nest_ratio"] = 3;
+        default_spec["domain1/nest_child_id"] = 7;
+        default_spec["domain1/nest_ratio"] = 3;
+        default_spec["domain5/nest_child_id"] = 8;
+        default_spec["domain5/nest_ratio"] = 3;
+        bent_multi_grid(default_spec, res);
+    }
+    else
+    {
+        bent_multi_grid(spec, res);
+    }
+}
+
 //---------------------------------------------------------------------------//
 void
 grid(const std::string &mesh_type,
@@ -3520,6 +4102,22 @@ grid(const std::string &mesh_type,
     }
 
     braid_init_example_adjset(res);
+}
+
+
+//---------------------------------------------------------------------------//
+void
+bent_braid(const Node& spec,
+      Node &res)
+{
+    if(!spec.has_child("npts_z"))
+    {
+        braid_bent_quads(spec, res);
+    }
+    else
+    {
+        braid_bent_hexs(spec, res);
+    }
 }
 
 
@@ -3717,6 +4315,7 @@ braid(const std::string &mesh_type,
         CONDUIT_ERROR("unknown mesh_type = " << mesh_type);
     }
 }
+
 
 //---------------------------------------------------------------------------//
 void spiral(index_t ndoms,

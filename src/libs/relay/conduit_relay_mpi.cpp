@@ -9,11 +9,12 @@
 //-----------------------------------------------------------------------------
 
 #include "conduit_relay_mpi.hpp"
+#include <algorithm>
 #include <iostream>
 #include <limits>
 
 //-----------------------------------------------------------------------------
-/// The CONDUIT_CHECK_MPI_ERROR macro is used to check return values for 
+/// The CONDUIT_CHECK_MPI_ERROR macro is used to check return values for
 /// mpi calls.
 //-----------------------------------------------------------------------------
 #define CONDUIT_CHECK_MPI_ERROR( check_mpi_err_code )               \
@@ -23,8 +24,8 @@
         char check_mpi_err_str_buff[MPI_MAX_ERROR_STRING];          \
         int  check_mpi_err_str_len=0;                               \
         MPI_Error_string( check_mpi_err_code ,                      \
-                         check_mpi_err_str_buff,                    \
-                         &check_mpi_err_str_len);                   \
+                          check_mpi_err_str_buff,                   \
+                          &check_mpi_err_str_len);                  \
                                                                     \
         CONDUIT_ERROR("MPI call failed: \n"                         \
                       << " error code = "                           \
@@ -34,7 +35,6 @@
         return  check_mpi_err_code;                                 \
     }                                                               \
 }
-
 
 //-----------------------------------------------------------------------------
 // -- begin conduit:: --
@@ -80,11 +80,11 @@ conduit_dtype_to_mpi_dtype(const DataType &dt)
 {
     MPI_Datatype res = MPI_DATATYPE_NULL;
 
-    // can't use switch w/ case statements here b/c NATIVE_IDS may actually 
+    // can't use switch w/ case statements here b/c NATIVE_IDS may actually
     // be overloaded on some platforms (this happens on windows)
-    
+
     index_t dt_id = dt.id();
-    
+
     // signed integer types
     if(dt_id == CONDUIT_INT8_ID)
     {
@@ -139,7 +139,7 @@ conduit_dtype_to_mpi_dtype(const DataType &dt)
     {
         res = MPI_CHAR;
     }
-    
+
     return res;
 }
 
@@ -150,7 +150,7 @@ mpi_dtype_to_conduit_dtype_id(MPI_Datatype dt)
 {
     index_t res = DataType::EMPTY_ID;
 
-    // can't use switch w/ case statements here b/c in some 
+    // can't use switch w/ case statements here b/c in some
     // MPI implementations MPI_Datatype is a struct (or something more complex)
     // that won't compile when used in a switch statement.
 
@@ -212,7 +212,7 @@ mpi_dtype_to_conduit_dtype_id(MPI_Datatype dt)
         res = CONDUIT_NATIVE_LONG_LONG_ID;
     }
     #endif
-    // native c unsigned integer types 
+    // native c unsigned integer types
     else if(dt == MPI_BYTE)
     {
         res = CONDUIT_NATIVE_UNSIGNED_CHAR_ID;
@@ -227,65 +227,34 @@ mpi_dtype_to_conduit_dtype_id(MPI_Datatype dt)
     }
     else if(dt == MPI_UNSIGNED)
     {
-        res = CONDUIT_NATIVE_UNSIGNED_INT_ID; 
+        res = CONDUIT_NATIVE_UNSIGNED_INT_ID;
     }
     else if(dt == MPI_UNSIGNED_LONG)
     {
-        res = CONDUIT_NATIVE_UNSIGNED_LONG_ID; 
+        res = CONDUIT_NATIVE_UNSIGNED_LONG_ID;
     }
     #if defined(CONDUIT_HAS_LONG_LONG)
     else if(dt == MPI_UNSIGNED_LONG_LONG)
     {
-        res = CONDUIT_NATIVE_UNSIGNED_LONG_LONG_ID; 
+        res = CONDUIT_NATIVE_UNSIGNED_LONG_LONG_ID;
     }
     #endif
     // floating point types
     else if(dt == MPI_FLOAT)
     {
-        res = CONDUIT_NATIVE_FLOAT_ID; 
+        res = CONDUIT_NATIVE_FLOAT_ID;
     }
     else if(dt == MPI_DOUBLE)
     {
-        res = CONDUIT_NATIVE_DOUBLE_ID; 
+        res = CONDUIT_NATIVE_DOUBLE_ID;
     }
     #if defined(CONDUIT_USE_LONG_DOUBLE)
     else if(dt == MPI_LONG_DOUBLE)
     {
-        res = CONDUIT_NATIVE_LONG_DOUBLE_ID; 
+        res = CONDUIT_NATIVE_LONG_DOUBLE_ID;
     }
     #endif
     return res;
-}
-
-//---------------------------------------------------------------------------//
-/**
- @brief Checks whether the input tag is invalid.
-
- @param tag The MPI tag to check for validity.
- @return True if the tag is wildly incorrect (negative).
-
- @note Right now, this function only flags tags that are negative. Tags are
-       supposed to be less than or equal to MPI_TAG_UB too. This function does
-       not check for that - it's done by using safe_tag when tags are used.
- */
-bool invalid_tag(int tag)
-{
-    return tag < 0;
-}
-
-//---------------------------------------------------------------------------//
-/**
- @brief MPI tags can be in the range [0,MPI_TAG_UB]. The values are
-        implementation-dependent. If the tag is not in that range, return
-        MPI_TAG_UB so it is safe to use with MPI functions.
-
- @param tag The input tag.
-
- @return A tag value that is safe to use with MPI.
- */
-int safe_tag(int tag)
-{
-    return (tag < MPI_TAG_UB) ? ((tag >= 0) ? tag : MPI_TAG_UB) : MPI_TAG_UB;
 }
 
 //---------------------------------------------------------------------------//
@@ -343,8 +312,8 @@ private:
     }
 
     /// MPI calls this function to handle errors.
-    static void handler(MPI_Comm *comm,
-                        int      *errcode,
+    static void handler(MPI_Comm * /*comm*/,
+                        int      * /*errcode*/,
                         ...)
     {
 #if 0
@@ -357,7 +326,7 @@ private:
         va_end(argp);
 #endif
 
-        std::cout << "handler: comm=" << *comm << ", errcode=" << *errcode << std::endl;
+        //std::cout << "handler: comm=" << *comm << ", errcode=" << *errcode << std::endl;
 
 #if 0
         // We could try emitting a Conduit error.
@@ -383,11 +352,184 @@ private:
 };
 
 //---------------------------------------------------------------------------//
-int 
+/**
+ * @brief This class helps to determine MPI tag upper limits.
+ */
+class TagLimits
+{
+public:
+    /**
+     * @brief Return the tag upper limit.
+     *
+     * @param comm The MPI communicator.
+     *
+     * @return The tag upper limit.
+     *
+     * @note We probe to determine the value since query is not as reliable across MPI distributions.
+     */
+    static int upper_bound(MPI_Comm comm)
+    {
+      return probe(comm);
+    }
+
+private:
+    /**
+     * @brief Query MPI for the maximum tag value.
+     *
+     * @param comm The MPI communicator.
+     *
+     * @return The tag upper bound or -1 on error.
+     *
+     * @note This is how we are supposed to be able to ask for the max tag value.
+     *       However, this method does not seem reliable across MPIs and it is
+     *       possible for the query to return values that still do not work in
+     *       Isend/Irecv sometimes.
+     */
+    static int query(MPI_Comm comm)
+    {
+        bool ok = false;
+        int tag_ub = 0, flag = 0;
+        int mpi_error = MPI_Comm_get_attr(comm, MPI_TAG_UB, &tag_ub, &flag);
+        if(mpi_error == MPI_SUCCESS && flag != 0)
+        {
+            if(tag_ub > 0)
+            {
+                ok = true;
+            }
+        }
+        return ok ? tag_ub : -1;
+    }
+
+    /**
+     * @brief Probe MPI to determine the max tag value.
+     *
+     * @param comm The MPI communicator.
+     *
+     * @note MPI error handlers are installed that ignore problems, preventing the
+     *       program from dying if the default handler is set to abort on error. The
+     *       error handler is restored when leaving this function.
+     */
+    static int probe(MPI_Comm comm)
+    {
+        // Temporarily override MPI error handler with a more benign one.
+        HandleMPICommError err(comm);
+        int tag = probeTagUpperBound(0, std::numeric_limits<int>::max(), comm);
+        return tag;
+    }
+
+    /**
+     * @brief Probe a range of tag values to determine if the range is valid.
+     *
+     * @param low The low tag value
+     * @param high The high tag value
+     * @param comm The MPI communicator.
+     *
+     * @return The max tag value.
+     *
+     * @note The rank sends a message to itself using a tag value. The result of that
+     *       is used to narrow the range of tag values.
+     */
+    static int probeTagUpperBound(int low, int high, MPI_Comm comm)
+    {
+        int tag;
+        if((high - low) < 2)
+            tag = low;
+        else
+        {
+            int rank;
+            MPI_Comm_rank(comm, &rank);
+
+            tag = (low + high) / 2;
+
+            // Try sending with the current tag.
+            int srcBuff = 0;
+            MPI_Request requests[2];
+            int mpi_error = MPI_Isend(&srcBuff,
+                                      1,
+                                      MPI_INT,
+                                      rank,
+                                      tag,
+                                      comm,
+                                      &requests[0]);
+            if(mpi_error == MPI_SUCCESS)
+            {
+                // It worked.
+                // Issue the recv.
+                int destBuff = 0;
+                MPI_Irecv(&destBuff,
+                          1,
+                          MPI_INT,
+                          rank,
+                          tag,
+                          comm,
+                          &requests[1]);
+
+                MPI_Status statuses[2];
+                MPI_Waitall(2, requests, statuses);
+
+                tag = probeTagUpperBound(tag, high, comm);
+            }
+            else
+            {
+                tag = probeTagUpperBound(low, tag, comm);
+            }
+        }
+        return tag;
+    }
+};
+
+//---------------------------------------------------------------------------//
+/**
+ @brief Checks whether the input tag is invalid.
+
+ @param tag The MPI tag to check for validity.
+ @return True if the tag is wildly incorrect (negative).
+
+ @note Right now, this function only flags tags that are negative. Tags are
+       supposed to be less than or equal to MPI_TAG_UB too. This function does
+       not check for that - it's done by using safe_tag when tags are used.
+ */
+bool invalid_tag(int tag)
+{
+    return tag < 0;
+}
+
+//---------------------------------------------------------------------------//
+/**
+ @brief Return a tag value that is safe to use with MPI functions. The tag is
+        determined dynamically the first time the function is called. If the
+        input tag is greater than the max tag then the value is clamped.
+
+ @param tag The input tag.
+ @param comm The MPI communicator.
+
+ @return A tag value that is safe to use with MPI.
+ */
+int safe_tag(int tag, MPI_Comm comm)
+{
+    static constexpr int UPPER_BOUND_NOT_SET = -1;
+    static int tag_upper_bound = UPPER_BOUND_NOT_SET;
+    if(tag_upper_bound == UPPER_BOUND_NOT_SET)
+    {
+        // The first time through, determine the upper bound.
+        tag_upper_bound = TagLimits::upper_bound(comm);
+    }
+
+    int newtag = std::max(0, tag);
+    if(newtag > tag_upper_bound)
+    {
+        newtag = tag_upper_bound;
+    }
+
+    return newtag;
+}
+
+//---------------------------------------------------------------------------//
+int
 send_using_schema(const Node &node, int dest, int tag, MPI_Comm comm)
-{     
+{
     Schema s_data_compact;
-    
+
     // schema will only be valid if compact and contig
     if( node.is_compact() && node.is_contiguous())
     {
@@ -397,27 +539,27 @@ send_using_schema(const Node &node, int dest, int tag, MPI_Comm comm)
     {
         node.schema().compact_to(s_data_compact);
     }
-    
+
     std::string snd_schema_json = s_data_compact.to_json();
-        
+
     Schema s_msg;
     s_msg["schema_len"].set(DataType::int64());
     s_msg["schema"].set(DataType::char8_str(snd_schema_json.size()+1));
     s_msg["data"].set(s_data_compact);
-    
+
     // create a compact schema to use
     Schema s_msg_compact;
     s_msg.compact_to(s_msg_compact);
-    
+
     Node n_msg(s_msg_compact);
     // these sets won't realloc since schemas are compatible
     n_msg["schema_len"].set((int64)snd_schema_json.length());
     n_msg["schema"].set(snd_schema_json);
     n_msg["data"].update(node);
 
-    
+
     index_t msg_data_size = n_msg.total_bytes_compact();
-    
+
     if(!conduit::utils::value_fits<index_t,int>(msg_data_size))
     {
         CONDUIT_INFO("Warning size value (" << msg_data_size << ")"
@@ -441,18 +583,18 @@ send_using_schema(const Node &node, int dest, int tag, MPI_Comm comm)
 //---------------------------------------------------------------------------//
 int
 recv_using_schema(Node &node, int src, int tag, MPI_Comm comm)
-{  
+{
     MPI_Status status;
-    
+
     int mpi_error = MPI_Probe(src, tag, comm, &status);
-    
+
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
-    
+
     int buffer_size = 0;
     MPI_Get_count(&status, MPI_BYTE, &buffer_size);
 
     Node n_buffer(DataType::uint8(buffer_size));
-    
+
     mpi_error = MPI_Recv(n_buffer.data_ptr(),
                          buffer_size,
                          MPI_BYTE,
@@ -465,7 +607,7 @@ recv_using_schema(Node &node, int src, int tag, MPI_Comm comm)
 
     Node n_msg;
     // length of the schema is sent as a 64-bit signed int
-    // NOTE: we aren't using this value  ... 
+    // NOTE: we aren't using this value  ...
     n_msg["schema_len"].set_external((int64*)n_buff_ptr);
     n_buff_ptr +=8;
     // wrap the schema string
@@ -477,13 +619,13 @@ recv_using_schema(Node &node, int src, int tag, MPI_Comm comm)
 
     // advance by the schema length
     n_buff_ptr += n_msg["schema"].total_bytes_compact();
-    
+
     // apply the schema to the data
     n_msg["data"].set_external(rcv_schema,n_buff_ptr);
-    
+
     // copy out to our result node
     node.update(n_msg["data"]);
-    
+
     return mpi_error;
 }
 
@@ -491,18 +633,18 @@ recv_using_schema(Node &node, int src, int tag, MPI_Comm comm)
 // any source, any tag variant
 int
 recv_using_schema(Node &node, MPI_Comm comm)
-{  
+{
     MPI_Status status;
 
     int mpi_error = MPI_Probe(MPI_ANY_SOURCE, MPI_ANY_TAG, comm, &status);
-    
+
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
-    
+
     int buffer_size = 0;
     MPI_Get_count(&status, MPI_BYTE, &buffer_size);
 
     Node n_buffer(DataType::uint8(buffer_size));
-    
+
     mpi_error = MPI_Recv(n_buffer.data_ptr(),
                          buffer_size,
                          MPI_BYTE,
@@ -515,7 +657,7 @@ recv_using_schema(Node &node, MPI_Comm comm)
 
     Node n_msg;
     // length of the schema is sent as a 64-bit signed int
-    // NOTE: we aren't using this value  ... 
+    // NOTE: we aren't using this value  ...
     n_msg["schema_len"].set_external((int64*)n_buff_ptr);
     n_buff_ptr +=8;
     // wrap the schema string
@@ -527,27 +669,27 @@ recv_using_schema(Node &node, MPI_Comm comm)
 
     // advance by the schema length
     n_buff_ptr += n_msg["schema"].total_bytes_compact();
-    
+
     // apply the schema to the data
     n_msg["data"].set_external(rcv_schema,n_buff_ptr);
-    
+
     // copy out to our result node
     node.update(n_msg["data"]);
-    
+
     return mpi_error;
 }
 
 //---------------------------------------------------------------------------//
-int 
+int
 send(const Node &node, int dest, int tag, MPI_Comm comm)
-{ 
+{
     // assumes size and type are known on the other end
-    
+
     Node snd_compact;
 
     const void *snd_ptr = node.contiguous_data_ptr();;
     index_t    snd_size = node.total_bytes_compact();;
-    
+
     if( snd_ptr == NULL ||
         ! node.is_compact())
     {
@@ -577,7 +719,7 @@ send(const Node &node, int dest, int tag, MPI_Comm comm)
 //---------------------------------------------------------------------------//
 int
 recv(Node &node, int src, int tag, MPI_Comm comm)
-{  
+{
 
     MPI_Status status;
     Node rcv_compact;
@@ -615,7 +757,7 @@ recv(Node &node, int src, int tag, MPI_Comm comm)
                              &status);
 
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
-    
+
     if(cpy_out)
     {
         node.update(rcv_compact);
@@ -628,7 +770,7 @@ recv(Node &node, int src, int tag, MPI_Comm comm)
 // any source, any tag variant
 int
 recv(Node &node, MPI_Comm comm)
-{  
+{
 
     MPI_Status status;
     Node rcv_compact;
@@ -666,7 +808,7 @@ recv(Node &node, MPI_Comm comm)
                              &status);
 
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
-    
+
     if(cpy_out)
     {
         node.update(rcv_compact);
@@ -676,29 +818,29 @@ recv(Node &node, MPI_Comm comm)
 }
 
 //---------------------------------------------------------------------------//
-int 
+int
 reduce(const Node &snd_node,
        Node &rcv_node,
        MPI_Op mpi_op,
        int root,
-       MPI_Comm mpi_comm) 
+       MPI_Comm mpi_comm)
 {
     MPI_Datatype mpi_dtype = conduit_dtype_to_mpi_dtype(snd_node.dtype());
-    
+
     if(mpi_dtype == MPI_DATATYPE_NULL)
     {
         CONDUIT_ERROR("Unsupported send DataType for mpi::reduce"
                       << snd_node.dtype().name());
     }
-    
+
     void *snd_ptr = NULL;
     void *rcv_ptr = NULL;
-    
+
     Node snd_compact;
     Node rcv_compact;
-    
+
     //note: we don't have to ask for contig in this case, since
-    // we can only reduce leaf types 
+    // we can only reduce leaf types
     if(snd_node.is_compact())
     {
         snd_ptr = const_cast<void*>(snd_node.data_ptr());
@@ -710,12 +852,12 @@ reduce(const Node &snd_node,
     }
 
     bool cpy_out = false;
-    
+
     int rank = mpi::rank(mpi_comm);
-    
+
     if( rank == root )
     {
-        
+
         rcv_ptr = rcv_node.contiguous_data_ptr();
 
         // make sure `rcv_node` can hold data described by `snd_node`
@@ -728,7 +870,7 @@ reduce(const Node &snd_node,
 
             Schema s_snd_compact;
             snd_node.schema().compact_to(s_snd_compact);
-        
+
             rcv_compact.set_schema(s_snd_compact);
             rcv_ptr = rcv_compact.data_ptr();
         }
@@ -762,22 +904,22 @@ all_reduce(const Node &snd_node,
            MPI_Comm mpi_comm)
 {
     MPI_Datatype mpi_dtype = conduit_dtype_to_mpi_dtype(snd_node.dtype());
-    
+
     if(mpi_dtype == MPI_DATATYPE_NULL)
     {
         CONDUIT_ERROR("Unsupported send DataType for mpi::all_reduce"
                       << snd_node.dtype().name());
     }
 
-    
+
     void *snd_ptr = NULL;
     void *rcv_ptr = NULL;
-    
+
     Node snd_compact;
     Node rcv_compact;
-    
+
     //note: we don't have to ask for contig in this case, since
-    // we can only reduce leaf types 
+    // we can only reduce leaf types
     if(snd_node.is_compact())
     {
         snd_ptr = const_cast<void*>(snd_node.data_ptr());
@@ -789,8 +931,8 @@ all_reduce(const Node &snd_node,
     }
 
     bool cpy_out = false;
-    
-    
+
+
     rcv_ptr = rcv_node.contiguous_data_ptr();
 
     // make sure `rcv_node` can hold data described by `snd_node`
@@ -803,7 +945,7 @@ all_reduce(const Node &snd_node,
 
         Schema s_snd_compact;
         snd_node.schema().compact_to(s_snd_compact);
-        
+
         rcv_compact.set_schema(s_snd_compact);
         rcv_ptr = rcv_compact.data_ptr();
     }
@@ -818,12 +960,12 @@ all_reduce(const Node &snd_node,
                                   mpi_comm);
 
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
-    
+
     if(cpy_out)
     {
         rcv_node.update(rcv_compact);
     }
-    
+
 
     return mpi_error;
 }
@@ -831,11 +973,11 @@ all_reduce(const Node &snd_node,
 //-- reduce helpers -- //
 
 //---------------------------------------------------------------------------//
-int 
+int
 sum_reduce(const Node &snd_node,
            Node &rcv_node,
            int root,
-           MPI_Comm mpi_comm) 
+           MPI_Comm mpi_comm)
 {
     return reduce(snd_node,
                   rcv_node,
@@ -846,11 +988,11 @@ sum_reduce(const Node &snd_node,
 
 
 //---------------------------------------------------------------------------//
-int 
+int
 min_reduce(const Node &snd_node,
            Node &rcv_node,
            int root,
-           MPI_Comm mpi_comm) 
+           MPI_Comm mpi_comm)
 {
     return reduce(snd_node,
                   rcv_node,
@@ -862,11 +1004,11 @@ min_reduce(const Node &snd_node,
 
 
 //---------------------------------------------------------------------------//
-int 
+int
 max_reduce(const Node &snd_node,
            Node &rcv_node,
            int root,
-           MPI_Comm mpi_comm) 
+           MPI_Comm mpi_comm)
 {
     return reduce(snd_node,
                   rcv_node,
@@ -878,11 +1020,11 @@ max_reduce(const Node &snd_node,
 
 
 //---------------------------------------------------------------------------//
-int 
+int
 prod_reduce(const Node &snd_node,
             Node &rcv_node,
             int root,
-            MPI_Comm mpi_comm) 
+            MPI_Comm mpi_comm)
 {
     return reduce(snd_node,
                   rcv_node,
@@ -895,10 +1037,10 @@ prod_reduce(const Node &snd_node,
 
 //--- all reduce helpers -- /
 //---------------------------------------------------------------------------//
-int 
+int
 sum_all_reduce(const Node &snd_node,
                Node &rcv_node,
-               MPI_Comm mpi_comm) 
+               MPI_Comm mpi_comm)
 {
     return all_reduce(snd_node,
                       rcv_node,
@@ -908,10 +1050,10 @@ sum_all_reduce(const Node &snd_node,
 
 
 //---------------------------------------------------------------------------//
-int 
+int
 min_all_reduce(const Node &snd_node,
                Node &rcv_node,
-               MPI_Comm mpi_comm) 
+               MPI_Comm mpi_comm)
 {
     return all_reduce(snd_node,
                       rcv_node,
@@ -923,10 +1065,10 @@ min_all_reduce(const Node &snd_node,
 
 
 //---------------------------------------------------------------------------//
-int 
+int
 max_all_reduce(const Node &snd_node,
                Node &rcv_node,
-               MPI_Comm mpi_comm) 
+               MPI_Comm mpi_comm)
 {
     return all_reduce(snd_node,
                       rcv_node,
@@ -937,10 +1079,10 @@ max_all_reduce(const Node &snd_node,
 
 
 //---------------------------------------------------------------------------//
-int 
+int
 prod_all_reduce(const Node &snd_node,
                 Node &rcv_node,
-                MPI_Comm mpi_comm) 
+                MPI_Comm mpi_comm)
 {
     return all_reduce(snd_node,
                       rcv_node,
@@ -957,7 +1099,7 @@ isend(const Node &node,
       int dest,
       int tag,
       MPI_Comm mpi_comm,
-      Request *request) 
+      Request *request)
 {
     if(invalid_tag(tag))
     {
@@ -988,25 +1130,26 @@ isend(const Node &node,
                      "(" << std::numeric_limits<int>::max() << ")")
     }
 
-    int mpi_error =  MPI_Isend(const_cast<void*>(data_ptr), 
+    const int newtag = safe_tag(tag, mpi_comm);
+    int mpi_error =  MPI_Isend(const_cast<void*>(data_ptr),
                                static_cast<int>(data_size),
-                               MPI_BYTE, 
-                               dest, 
-                               safe_tag(tag),
+                               MPI_BYTE,
+                               dest,
+                               newtag,
                                mpi_comm,
                                &(request->m_request));
-                               
+
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
     return mpi_error;
 }
 
 //---------------------------------------------------------------------------//
-int 
+int
 irecv(Node &node,
       int src,
       int tag,
       MPI_Comm mpi_comm,
-      Request *request) 
+      Request *request)
 {
     if(invalid_tag(tag))
     {
@@ -1041,11 +1184,12 @@ irecv(Node &node,
                      "(" << std::numeric_limits<int>::max() << ")")
     }
 
+    const int newtag = safe_tag(tag, mpi_comm);
     int mpi_error =  MPI_Irecv(data_ptr,
                                static_cast<int>(data_size),
                                MPI_BYTE,
                                src,
-                               safe_tag(tag),
+                               newtag,
                                mpi_comm,
                                &(request->m_request));
 
@@ -1058,7 +1202,7 @@ irecv(Node &node,
 int
 irecv(Node &node,
       MPI_Comm mpi_comm,
-      Request *request) 
+      Request *request)
 {
     // if rcv is compact, we can write directly into recv
     // if it's not compact, we need a recv_buffer
@@ -1106,11 +1250,11 @@ irecv(Node &node,
 // wait handles both send and recv requests
 int
 wait(Request *request,
-     MPI_Status *status) 
+     MPI_Status *status)
 {
     int mpi_error = MPI_Wait(&(request->m_request), status);
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
-    
+
     // we need to update if m_rcv_ptr was used
     // this will only be non NULL in the recv copy out case,
     // sends will always be NULL
@@ -1128,7 +1272,7 @@ wait(Request *request,
 //---------------------------------------------------------------------------//
 int
 wait_send(Request *request,
-          MPI_Status *status) 
+          MPI_Status *status)
 {
     return wait(request,status);
 }
@@ -1136,14 +1280,14 @@ wait_send(Request *request,
 //---------------------------------------------------------------------------//
 int
 wait_recv(Request *request,
-          MPI_Status *status) 
+          MPI_Status *status)
 {
     return wait(request,status);
 }
 
 
 //---------------------------------------------------------------------------//
-// wait all handles mixed batches of sends and receives 
+// wait all handles mixed batches of sends and receives
 int
 wait_all(int count,
          Request requests[],
@@ -1177,14 +1321,14 @@ wait_all(int count,
 
      delete [] justrequests;
 
-     return mpi_error; 
+     return mpi_error;
 }
 
 //---------------------------------------------------------------------------//
 int
 wait_all_send(int count,
               Request requests[],
-              MPI_Status statuses[]) 
+              MPI_Status statuses[])
 {
     return wait_all(count,requests,statuses);
 }
@@ -1207,14 +1351,14 @@ gather(Node &send_node,
 {
     Node   n_snd_compact;
     Schema s_snd_compact;
-    
+
     send_node.schema().compact_to(s_snd_compact);
-    
+
     const void *snd_ptr = send_node.contiguous_data_ptr();
     index_t    snd_size = 0;
-    
-    
-    if(snd_ptr != NULL && 
+
+
+    if(snd_ptr != NULL &&
        send_node.is_compact() )
     {
         snd_ptr  = send_node.data_ptr();
@@ -1248,7 +1392,7 @@ gather(Node &send_node,
                                 static_cast<int>(snd_size), // local data len
                                 MPI_BYTE, // send chars
                                 recv_node.data_ptr(),  // rcv buffer
-                                static_cast<int>(snd_size), // data len 
+                                static_cast<int>(snd_size), // data len
                                 MPI_BYTE,  // rcv chars
                                 root,
                                 mpi_comm); // mpi com
@@ -1267,11 +1411,11 @@ all_gather(Node &send_node,
     Node   n_snd_compact;
     Schema s_snd_compact;
     send_node.schema().compact_to(s_snd_compact);
-    
+
     const void *snd_ptr  = send_node.contiguous_data_ptr();
     index_t     snd_size = send_node.total_bytes_compact();
 
-    
+
     if( snd_ptr == NULL ||
        !send_node.is_compact() )
     {
@@ -1281,10 +1425,10 @@ all_gather(Node &send_node,
     // TODO: copy out support w/o always reallocing?
     // TODO: what about common case of scatter w/ leaf types?
     //       instead of list_of, we would have a leaf of
-    //       of a given type w/ # of elements == # of ranks. 
-    
+    //       of a given type w/ # of elements == # of ranks.
+
     int mpi_size = mpi::size(mpi_comm);
-    
+
     recv_node.list_of(s_snd_compact,
                       mpi_size);
 
@@ -1299,7 +1443,7 @@ all_gather(Node &send_node,
                                    static_cast<int>(snd_size), // local data len
                                    MPI_BYTE, // send chars
                                    recv_node.data_ptr(),  // rcv buffer
-                                   static_cast<int>(snd_size), // data len 
+                                   static_cast<int>(snd_size), // data len
                                    MPI_BYTE,  // rcv chars
                                    mpi_comm); // mpi com
 
@@ -1314,7 +1458,7 @@ all_gather(Node &send_node,
 int
 gather_using_schema(Node &send_node,
                     Node &recv_node,
-                    int root, 
+                    int root,
                     MPI_Comm mpi_comm)
 {
     Node n_snd_compact;
@@ -1327,10 +1471,10 @@ gather_using_schema(Node &send_node,
 
     int schema_len = static_cast<int>(schema_str.length() + 1);
     int data_len   = static_cast<int>(n_snd_compact.total_bytes_compact());
-    
-    // to do the conduit gatherv, first need a gather to get the 
+
+    // to do the conduit gatherv, first need a gather to get the
     // schema and data buffer sizes
-    
+
     int snd_sizes[] = {schema_len, data_len};
 
     Node n_rcv_sizes;
@@ -1353,9 +1497,9 @@ gather_using_schema(Node &send_node,
                                 mpi_comm); // mpi com
 
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
-                                
+
     Node n_rcv_tmp;
-    
+
     int  *schema_rcv_counts = NULL;
     int  *schema_rcv_displs = NULL;
     char *schema_rcv_buff   = NULL;
@@ -1384,7 +1528,7 @@ gather_using_schema(Node &send_node,
         int schema_curr_displ = 0;
         int data_curr_displ   = 0;
         int i=0;
-        
+
         NodeIterator itr = n_rcv_sizes.children();
         while(itr.has_next())
         {
@@ -1392,18 +1536,18 @@ gather_using_schema(Node &send_node,
 
             int schema_curr_count = curr["schema_len"].value();
             int data_curr_count   = curr["data_len"].value();
-            
+
             schema_rcv_counts[i] = schema_curr_count;
             schema_rcv_displs[i] = schema_curr_displ;
             schema_curr_displ   += schema_curr_count;
-            
+
             data_rcv_counts[i] = data_curr_count;
             data_rcv_displs[i] = data_curr_displ;
             data_curr_displ   += data_curr_count;
-            
+
             i++;
         }
-        
+
         n_rcv_tmp["schemas/data"].set(DataType::c_char(schema_curr_displ));
         schema_rcv_buff = n_rcv_tmp["schemas/data"].value();
     }
@@ -1433,11 +1577,11 @@ gather_using_schema(Node &send_node,
             Schema &s = s_tmp.append();
             s.set(&schema_rcv_buff[schema_rcv_displs[i]]);
         }
-        
+
         s_tmp.compact_to(rcv_schema);
     }
 
-    
+
     if( m_rank == root )
     {
         // allocate data to hold the gather result
@@ -1445,7 +1589,7 @@ gather_using_schema(Node &send_node,
         recv_node.set(rcv_schema);
         data_rcv_buff = (char*)recv_node.data_ptr();
     }
-    
+
     mpi_error = MPI_Gatherv( n_snd_compact.data_ptr(),
                              data_len,
                              MPI_BYTE,
@@ -1476,10 +1620,10 @@ all_gather_using_schema(Node &send_node,
 
     int schema_len = static_cast<int>(schema_str.length() + 1);
     int data_len   = static_cast<int>(n_snd_compact.total_bytes_compact());
-    
-    // to do the conduit gatherv, first need a gather to get the 
+
+    // to do the conduit gatherv, first need a gather to get the
     // schema and data buffer sizes
-    
+
     int snd_sizes[] = {schema_len, data_len};
 
     Node n_rcv_sizes;
@@ -1498,9 +1642,9 @@ all_gather_using_schema(Node &send_node,
                                    mpi_comm); // mpi com
 
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
-                                
+
     Node n_rcv_tmp;
-    
+
     int  *schema_rcv_counts = NULL;
     int  *schema_rcv_displs = NULL;
     char *schema_rcv_buff   = NULL;
@@ -1526,29 +1670,29 @@ all_gather_using_schema(Node &send_node,
 
     int schema_curr_displ = 0;
     int data_curr_displ   = 0;
-    
+
     NodeIterator itr = n_rcv_sizes.children();
 
     index_t child_idx = 0;
-    
+
     while(itr.has_next())
     {
         Node &curr = itr.next();
 
         int schema_curr_count = curr["schema_len"].value();
         int data_curr_count   = curr["data_len"].value();
-        
+
         schema_rcv_counts[child_idx] = schema_curr_count;
         schema_rcv_displs[child_idx] = schema_curr_displ;
         schema_curr_displ   += schema_curr_count;
-        
+
         data_rcv_counts[child_idx] = data_curr_count;
         data_rcv_displs[child_idx] = data_curr_displ;
         data_curr_displ   += data_curr_count;
-        
+
         child_idx+=1;
     }
-    
+
     n_rcv_tmp["schemas/data"].set(DataType::c_char(schema_curr_displ));
     schema_rcv_buff = n_rcv_tmp["schemas/data"].value();
 
@@ -1573,14 +1717,14 @@ all_gather_using_schema(Node &send_node,
         Schema &s_new = s_tmp.append();
         s_new.set(&schema_rcv_buff[schema_rcv_displs[s_idx]]);
     }
-    
+
     // TODO can we support copy out w/out realloc
     s_tmp.compact_to(rcv_schema);
 
     // allocate data to hold the gather result
     recv_node.set(rcv_schema);
     data_rcv_buff = (char*)recv_node.data_ptr();
-    
+
     mpi_error = MPI_Allgatherv( n_snd_compact.data_ptr(),
                                 data_len,
                                 MPI_BYTE,
@@ -1610,7 +1754,7 @@ broadcast(Node &node,
 
     void    *bcast_data_ptr  = node.contiguous_data_ptr();
     index_t  bcast_data_size = node.total_bytes_compact();
-        
+
     // setup buffers on root for send
     if(rank == root)
     {
@@ -1620,7 +1764,7 @@ broadcast(Node &node,
             node.compact_to(bcast_buffer);
             bcast_data_ptr  = bcast_buffer.data_ptr();
         }
-    
+
     }
     else // rank != root,  setup buffers on non root for rcv
     {
@@ -1630,7 +1774,7 @@ broadcast(Node &node,
             Schema s_compact;
             node.schema().compact_to(s_compact);
             bcast_buffer.set_schema(s_compact);
-            
+
             bcast_data_ptr  = bcast_buffer.data_ptr();
             cpy_out = true;
         }
@@ -1681,12 +1825,12 @@ broadcast_using_schema(Node &node,
     // setup buffers for send
     if(rank == root)
     {
-        
+
         bcast_data_ptr  = node.contiguous_data_ptr();
         bcast_data_size = static_cast<int>(node.total_bytes_compact());
-        
+
         if(bcast_data_ptr != NULL &&
-           node.is_compact() && 
+           node.is_compact() &&
            node.is_contiguous())
         {
             bcast_buffers["schema"] = node.schema().to_json();
@@ -1695,13 +1839,13 @@ broadcast_using_schema(Node &node,
         {
             Node &bcast_data_compact = bcast_buffers["data"];
             node.compact_to(bcast_data_compact);
-            
+
             bcast_data_ptr  = bcast_data_compact.data_ptr();
             bcast_buffers["schema"] =  bcast_data_compact.schema().to_json();
         }
-     
 
-        
+
+
         bcast_schema_size = static_cast<int>(bcast_buffers["schema"].dtype().number_of_elements());
     }
 
@@ -1722,7 +1866,7 @@ broadcast_using_schema(Node &node,
         bcast_buffers["schema"].set(DataType::char8_str(bcast_schema_size));
     }
 
-    // broadcast the schema 
+    // broadcast the schema
     mpi_error = MPI_Bcast(bcast_buffers["schema"].data_ptr(),
                           bcast_schema_size,
                           MPI_CHAR,
@@ -1730,16 +1874,16 @@ broadcast_using_schema(Node &node,
                           comm);
 
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
-    
+
     bool cpy_out = false;
-    
-    // setup buffers for receive 
+
+    // setup buffers for receive
     if(rank != root)
     {
         Schema bcast_schema;
         Generator gen(bcast_buffers["schema"].as_char8_str());
         gen.walk(bcast_schema);
-        
+
         // only check compat for leaves
         // there are more zero copy cases possible here, but
         // we need a better way to identify them
@@ -1747,23 +1891,23 @@ broadcast_using_schema(Node &node,
         // have different named leaves
         if( !(node.dtype().is_empty() ||
               node.dtype().is_object() ||
-              node.dtype().is_list() ) && 
+              node.dtype().is_list() ) &&
             !(bcast_schema.dtype().is_empty() ||
               bcast_schema.dtype().is_object() ||
               bcast_schema.dtype().is_list() )
             // make sure `node` can hold data described by `bcast_schema`
             && node.schema().compatible(bcast_schema))
         {
-            
+
             bcast_data_ptr  = node.contiguous_data_ptr();
             bcast_data_size = static_cast<int>(node.total_bytes_compact());
-            
+
             if( bcast_data_ptr == NULL ||
                 ! node.is_compact() )
             {
                 Node &bcast_data_buffer = bcast_buffers["data"];
                 bcast_data_buffer.set_schema(bcast_schema);
-                
+
                 bcast_data_ptr  = bcast_data_buffer.data_ptr();
                 cpy_out = true;
             }
@@ -1776,7 +1920,7 @@ broadcast_using_schema(Node &node,
             bcast_data_size = static_cast<int>(node.total_bytes_compact());
         }
     }
-    
+
     mpi_error = MPI_Bcast(bcast_data_ptr,
                           bcast_data_size,
                           MPI_BYTE,
@@ -1793,6 +1937,67 @@ broadcast_using_schema(Node &node,
 
     return mpi_error;
 }
+
+//---------------------------------------------------------------------------//
+int
+memory_usage(Node &info,
+             MPI_Comm comm)
+{
+    info.reset();
+    int com_size = mpi::size(comm);
+
+    uint64 musage =conduit::utils::memory_usage();
+
+    void *musage_ptr = static_cast<void*>(&musage);
+
+    info.set(DataType::uint64(com_size));
+
+    // we want an array answer, not a list
+    // so we use mpi directly vs conduit all gather helper
+    MPI_Datatype mpi_dtype = conduit_dtype_to_mpi_dtype(info.dtype());
+
+    int mpi_error = MPI_Allgather( musage_ptr, // local data
+                                   1, // local data len
+                                   mpi_dtype, // send uint64
+                                   info.data_ptr(),  // rcv buffer
+                                   1, // data len
+                                   mpi_dtype,  // rcv uint64
+                                   comm); // mpi com
+
+    CONDUIT_CHECK_MPI_ERROR(mpi_error);
+
+    return mpi_error;
+}
+
+//---------------------------------------------------------------------------//
+int
+memory_stats(Node &info,
+             MPI_Comm comm)
+{
+    info.reset();
+
+    int com_size = mpi::size(comm);
+
+    Node snd,rcv;
+    snd = conduit::utils::memory_usage();
+
+    int mpi_error = mpi::all_reduce(snd, rcv, MPI_MIN, comm);
+    CONDUIT_CHECK_MPI_ERROR(mpi_error);
+    info["min"] = rcv;
+
+    mpi_error = mpi::all_reduce(snd, rcv, MPI_MAX, comm);
+    CONDUIT_CHECK_MPI_ERROR(mpi_error);
+    info["max"] = rcv;
+
+    mpi_error = mpi::all_reduce(snd, rcv, MPI_SUM, comm);
+    CONDUIT_CHECK_MPI_ERROR(mpi_error);
+    info["sum"] = rcv.to_uint64();
+    info["mean"] = (rcv.to_uint64() / static_cast<uint64>(com_size));
+
+    return mpi_error;
+}
+
+
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -1880,19 +2085,52 @@ communicate_using_schema::add_irecv(Node &node, int src, int tag)
     work.free[0] = false; // Don't need to free it.
     work.node[1] = nullptr;
     work.free[1] = false;
-    operations.push_back(work);    
+    operations.push_back(work);
 }
 
 //-----------------------------------------------------------------------------
 int
 communicate_using_schema::execute()
 {
+    // Uncomment this to install an MPI_Comm error handler.
+    // HandleMPICommError errHandler(comm);
+
+    // Get the currently installed warning and error handlers.
+    conduit::utils::conduit_warning_handler onWarning = conduit::utils::warning_handler();
+    conduit::utils::conduit_error_handler onError = conduit::utils::error_handler();
+
+    // Install the default exception-throwing handlers.
+    conduit::utils::set_warning_handler(conduit::utils::default_warning_handler);
+    conduit::utils::set_error_handler(conduit::utils::default_error_handler);
+
+    int retval = 0;
+    try
+    {
+        retval = execute_internal();
+
+        // Restore warning/error handlers.
+        conduit::utils::set_warning_handler(onWarning);
+        conduit::utils::set_error_handler(onError);
+    }
+    catch(conduit::Error &e)
+    {
+        // Restore warning/error handlers.
+        conduit::utils::set_warning_handler(onWarning);
+        conduit::utils::set_error_handler(onError);
+
+        // Rethrow the exception.
+        throw e;
+    }
+    return retval;
+}
+
+//-----------------------------------------------------------------------------
+int
+communicate_using_schema::execute_internal()
+{
     int mpi_error = 0;
     std::vector<MPI_Request> requests(operations.size());
     std::vector<MPI_Status>  statuses(operations.size());
-
-    // Uncomment this to install an MPI_Comm error handler.
-    // HandleMPICommError errHandler(comm);
 
     int rank, size;
     MPI_Comm_rank(comm, &rank);
@@ -1924,18 +2162,18 @@ communicate_using_schema::execute()
             {
                 node.schema().compact_to(s_data_compact);
             }
-    
+
             std::string snd_schema_json = s_data_compact.to_json();
-        
+
             Schema s_msg;
             s_msg["schema_len"].set(DataType::int64());
             s_msg["schema"].set(DataType::char8_str(snd_schema_json.size()+1));
             s_msg["data"].set(s_data_compact);
-    
+
             // create a compact schema to use
             Schema s_msg_compact;
             s_msg.compact_to(s_msg_compact);
-    
+
             operations[i].node[1] = new Node(s_msg_compact);
             operations[i].free[1] = true;
             Node &n_msg = *operations[i].node[1];
@@ -1946,6 +2184,7 @@ communicate_using_schema::execute()
 
             // Send the serialized node data.
             index_t msg_data_size = operations[i].node[1]->total_bytes_compact();
+            const int newtag = safe_tag(operations[i].tag, comm);
             if(logging)
             {
                 log << "    MPI_Isend("
@@ -1953,22 +2192,22 @@ communicate_using_schema::execute()
                     << msg_data_size << ", "
                     << "MPI_BYTE, "
                     << operations[i].rank << ", "
-                    << safe_tag(operations[i].tag) << ", "
+                    << newtag << ", "
                     << "comm, &requests[" << i << "]);" << std::endl;
             }
-            
+
             if(!conduit::utils::value_fits<index_t,int>(msg_data_size))
             {
                 CONDUIT_INFO("Warning size value (" << msg_data_size << ")"
                              " exceeds the size of MPI_Isend max value "
                              "(" << std::numeric_limits<int>::max() << ")")
             }
-            
+
             mpi_error = MPI_Isend(const_cast<void*>(operations[i].node[1]->data_ptr()),
                                   static_cast<int>(msg_data_size),
                                   MPI_BYTE,
                                   operations[i].rank,
-                                  safe_tag(operations[i].tag),
+                                  newtag,
                                   comm,
                                   &requests[i]);
             CONDUIT_CHECK_MPI_ERROR(mpi_error);
@@ -1978,6 +2217,7 @@ communicate_using_schema::execute()
     if(logging)
     {
         log << "* Time issuing MPI_Isend calls: " << (t1-t0) << std::endl;
+        log.flush();
     }
 
     // Issue all the recvs.
@@ -1986,16 +2226,17 @@ communicate_using_schema::execute()
         if(operations[i].op == OP_RECV)
         {
             // Probe the message for its buffer size.
+            const int newtag = safe_tag(operations[i].tag, comm);
             if(logging)
             {
                 log << "    MPI_Probe("
                     << operations[i].rank << ", "
-                    << safe_tag(operations[i].tag) << ", "
+                    << newtag << ", "
                     << "comm, &statuses[" << i << "]);" << std::endl;
             }
-            mpi_error = MPI_Probe(operations[i].rank, safe_tag(operations[i].tag), comm, &statuses[i]);
+            mpi_error = MPI_Probe(operations[i].rank, newtag, comm, &statuses[i]);
             CONDUIT_CHECK_MPI_ERROR(mpi_error);
-    
+
             int buffer_size = 0;
             MPI_Get_count(&statuses[i], MPI_BYTE, &buffer_size);
             if(logging)
@@ -2015,7 +2256,7 @@ communicate_using_schema::execute()
                     << buffer_size << ", "
                     << "MPI_BYTE, "
                     << operations[i].rank << ", "
-                    << safe_tag(operations[i].tag) << ", "
+                    << newtag << ", "
                     << "comm, &requests[" << i << "]);" << std::endl;
             }
 
@@ -2024,7 +2265,7 @@ communicate_using_schema::execute()
                                   buffer_size,
                                   MPI_BYTE,
                                   operations[i].rank,
-                                  safe_tag(operations[i].tag),
+                                  newtag,
                                   comm,
                                   &requests[i]);
             CONDUIT_CHECK_MPI_ERROR(mpi_error);
@@ -2034,6 +2275,7 @@ communicate_using_schema::execute()
     if(logging)
     {
         log << "* Time issuing MPI_Irecv calls: " << (t2-t1) << std::endl;
+        log.flush();
     }
 
     // Wait for the requests to complete.
@@ -2041,6 +2283,7 @@ communicate_using_schema::execute()
     if(logging)
     {
         log << "    MPI_Waitall(" << n << ", &requests[0], &statuses[0]);" << std::endl;
+        log.flush();
     }
     mpi_error = MPI_Waitall(n, &requests[0], &statuses[0]);
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
@@ -2048,6 +2291,7 @@ communicate_using_schema::execute()
     if(logging)
     {
         log << "* Time in MPI_Waitall: " << (t3-t2) << std::endl;
+        log.flush();
     }
 
     // Finish building the nodes for which we received data.
@@ -2060,7 +2304,7 @@ communicate_using_schema::execute()
 
             Node n_msg;
             // length of the schema is sent as a 64-bit signed int
-            // NOTE: we aren't using this value  ... 
+            // NOTE: we aren't using this value  ...
             n_msg["schema_len"].set_external((int64*)n_buff_ptr);
             n_buff_ptr +=8;
             // wrap the schema string
@@ -2072,16 +2316,17 @@ communicate_using_schema::execute()
 
             // advance by the schema length
             n_buff_ptr += n_msg["schema"].total_bytes_compact();
-    
+
             // apply the schema to the data
             n_msg["data"].set_external(rcv_schema,n_buff_ptr);
-    
+
             // copy out to our result node
             operations[i].node[0]->update(n_msg["data"]);
 
             if(logging)
             {
                 log << "* Built output node " << i << std::endl;
+                log.flush();
             }
         }
     }

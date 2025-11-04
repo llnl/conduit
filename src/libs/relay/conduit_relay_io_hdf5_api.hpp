@@ -75,7 +75,7 @@
 //-----------------------------------------------------------------------------
 ///  Note: HDF5 I/O is not implemented for Conduit Nodes in the List role.
 ///        We believe this will require a non-standard HDF5 convention, and
-///        we want to focus on the Object and Leave cases since they are
+///        we want to focus on the Object and Leaf cases since they are
 ///        compatible with HDF5's data model.
 //-----------------------------------------------------------------------------
 
@@ -89,6 +89,12 @@ hid_t CONDUIT_RELAY_API hdf5_create_file(const std::string &file_path);
 /// Close hdf5 file handle
 //-----------------------------------------------------------------------------
 void CONDUIT_RELAY_API hdf5_close_file(hid_t hdf5_id);
+
+//-----------------------------------------------------------------------------
+/// Flush hdf5 file handle
+//-----------------------------------------------------------------------------
+void CONDUIT_RELAY_API hdf5_flush_file(hid_t hdf5_id);
+
 
 //-----------------------------------------------------------------------------
 /// Save node data to a given path.

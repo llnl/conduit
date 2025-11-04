@@ -15,7 +15,6 @@
 
 #include <iostream>
 #include "gtest/gtest.h"
-#include "rapidjson/document.h"
 
 using namespace conduit;
 

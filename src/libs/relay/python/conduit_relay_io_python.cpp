@@ -568,6 +568,25 @@ PyRelay_IOHandle_remove(PyRelay_IOHandle *self,
 
 //-----------------------------------------------------------------------------
 static PyObject *
+PyRelay_IOHandle_flush(PyRelay_IOHandle *self)
+{
+    try
+    {
+        self->handle->flush();
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
+
+    Py_RETURN_NONE; 
+}
+
+
+//-----------------------------------------------------------------------------
+static PyObject *
 PyRelay_IOHandle_close(PyRelay_IOHandle *self)
 {
     try
@@ -618,6 +637,10 @@ static PyMethodDef PyRelay_IOHandle_METHODS[] = {
      (PyCFunction)PyRelay_IOHandle_has_path,
      METH_VARARGS | METH_KEYWORDS,
      "Checks if a path exists"},
+     {"flush",
+      (PyCFunction)PyRelay_IOHandle_flush,
+       METH_NOARGS,
+      "Flush an active Relay IO Handle"},
     {"close",
      (PyCFunction)PyRelay_IOHandle_close,
       METH_NOARGS,
@@ -918,7 +941,7 @@ PyRelay_io_load(PyObject *, //self
         if(!PyConduit_Node_Check(py_node))
         {
             PyErr_SetString(PyExc_TypeError,
-                            "relay::load 'node' argument must be a "
+                            "relay::io::load 'node' argument must be a "
                             "conduit.Node instance");
             return NULL;
         }
@@ -981,7 +1004,7 @@ PyRelay_io_load_merged(PyObject *, //self
         if(!PyConduit_Node_Check(py_node))
         {
             PyErr_SetString(PyExc_TypeError,
-                            "relay::load 'node' argument must be a "
+                            "relay::io::load 'node' argument must be a "
                             "conduit.Node instance");
             return NULL;
         }

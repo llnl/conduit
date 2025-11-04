@@ -264,6 +264,7 @@ public:
 //-----------------------------------------------------------------------------
 
     void            save(const std::string &ofname,
+                         const std::string &protocol="json",
                          index_t indent=2,
                          index_t depth=0,
                          const std::string &pad=" ",

@@ -82,3 +82,7 @@ blt_register_library(NAME silo
                      INCLUDES ${SILO_INCLUDE_DIRS}
                      LIBRARIES ${SILO_LIBRARIES} )
 
+if(CONDUIT_ENABLE_TESTS AND WIN32 AND BUILD_SHARED_LIBS)
+    # if we are running tests with dlls, we need path to dlls
+    list(APPEND CONDUIT_TPL_DLL_PATHS ${SILO_DIR}/bin/)
+endif()

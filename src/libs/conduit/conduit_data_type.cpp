@@ -675,6 +675,7 @@ DataType::equals(const DataType& dtype) const
     return ( (m_id == dtype.m_id ) &&
              (m_num_ele   == dtype.m_num_ele) &&
              (m_offset    == dtype.m_offset) &&
+             (m_stride    == dtype.m_stride) &&
              (m_ele_bytes == dtype.m_ele_bytes) &&
              (m_endianness == dtype.m_endianness));
 }

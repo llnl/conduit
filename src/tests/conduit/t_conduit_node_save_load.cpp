@@ -26,7 +26,7 @@ public:
     
     void alloc(index_t c_size)
     {
-        x_vals.resize((size_t)c_size,0.0);        
+        x_vals.resize((size_t)c_size,0.0);
         y_vals.resize((size_t)c_size,0.0);
         z_vals.resize((size_t)c_size,0.0);
         n["x"].set_external(x_vals);
@@ -46,16 +46,16 @@ TEST(conduit_node_save_load, bin_simple_file)
 
     int32   a1_val  = 10;
     int32   b1_val  = 20;
-    
+
     int32   a2_val  = -10;
     int32   b2_val  = -20;
-    
+
     char *data = new char[16];
     memcpy(&data[0],&a1_val,4);
     memcpy(&data[4],&b1_val,4);
     memcpy(&data[8],&a2_val,4);
     memcpy(&data[12],&b2_val,4);
-    
+
     Schema schema("{\"dtype\":{\"a\":\"int32\",\"b\":\"int32\"},\"length\":2}");
 
     Node nsrc(schema,data,true);
@@ -63,10 +63,10 @@ TEST(conduit_node_save_load, bin_simple_file)
 
     Node n;
     n.load("tout_conduit_relay_io_bin_simple_2_file.conduit_bin");
-        
+
     n.schema().print();
     n.print_detailed();
-    
+
     std::cout <<  n[0]["a"].as_int32() << std::endl;
     std::cout <<  n[1]["a"].as_int32() << std::endl;
 
@@ -94,52 +94,95 @@ TEST(conduit_node_save_load, other_protocols)
     
     nsrc["a"] = a_val;
     nsrc["b"] = b_val;
-    
-    nsrc.save("tout_conduit_relay_io_other_protos_json.json",
-              "json");
 
-    n.load("tout_conduit_relay_io_other_protos_json.json",
-           "json");
-    
+    // json
+    std::string fname = "tout_conduit_relay_io_other_protos_json.json";
+    std::cout << "test json: " << fname << std::endl;
+
+    // auto detect proto
+    nsrc.save(fname);
+    n.load(fname);
+    EXPECT_EQ(n["a"].to_int32(), a_val);
+    EXPECT_EQ(n["b"].to_int32(), b_val);
+
+    // explicit proto
+    nsrc.save(fname,"json");
+    n.load(fname,"json");
     n.print_detailed();
 
     EXPECT_EQ(n["a"].to_int32(), a_val);
     EXPECT_EQ(n["b"].to_int32(), b_val);
 
-    nsrc.save("tout_conduit_relay_io_other_protos_conduit.json",
-              "conduit_json");
+    // conduit_json
+    fname = "tout_conduit_relay_io_other_protos_conduit_json.json";
+    std::cout << "test conduit_json: " << fname << std::endl;
 
-    n.load("tout_conduit_relay_io_other_protos_conduit.json",
-           "conduit_json");
-    
+    nsrc.save(fname,"conduit_json");
+    n.load(fname,"conduit_json");
     n.print_detailed();
 
     EXPECT_EQ(n["a"].as_int32(), a_val);
     EXPECT_EQ(n["b"].as_int32(), b_val);
 
-    nsrc.save("tout_conduit_relay_io_other_protos_base64_json.json",
-              "conduit_base64_json");
+    // conduit_base64_json
+    fname = "tout_conduit_relay_io_other_protos_conduit_base64_json.json";
+    std::cout << "test conduit_base64_json: " << fname << std::endl;
 
-    n.load("tout_conduit_relay_io_other_protos_base64_json.json",
-           "conduit_base64_json");
-    
+    nsrc.save(fname,"conduit_base64_json");
+    n.load(fname,"conduit_base64_json");
     n.print_detailed();
 
     EXPECT_EQ(n["a"].as_int32(), a_val);
     EXPECT_EQ(n["b"].as_int32(), b_val);
-    
-    nsrc.save("tout_conduit_relay_io_other_protos_pure_yaml.yaml",
-              "yaml");
 
-    n.load("tout_conduit_relay_io_other_protos_pure_yaml.yaml",
-           "yaml");
+    // yaml
+    fname = "tout_conduit_relay_io_other_protos_pure_yaml.json";
+    std::cout << "test yaml: " << fname << std::endl;
 
+    nsrc.save(fname,"yaml");
+    n.load(fname,"yaml");
+
+    EXPECT_EQ(n["a"].to_int32(), a_val);
+    EXPECT_EQ(n["b"].to_int32(), b_val);
+
+    nsrc.save(fname);
+    n.load(fname);
     n.print_detailed();
 
     EXPECT_EQ(n["a"].to_int32(), a_val);
     EXPECT_EQ(n["b"].to_int32(), b_val);
+
+    // yml as yaml
+    fname = "tout_conduit_relay_io_other_protos_pure_yaml.yml";
+    std::cout << "test yaml: " << fname << std::endl;
     
+    nsrc.save(fname);
+    n.load(fname);
+    n.print_detailed();
+
+    EXPECT_EQ(n["a"].to_int32(), a_val);
+    EXPECT_EQ(n["b"].to_int32(), b_val);
+
+    // yml as yaml
+    fname = "tout_conduit_relay_io_other_protos_conduit_yaml.yaml";
+    std::cout << "test conduit_yaml: " << fname << std::endl;
     
+    nsrc.save(fname,"conduit_yaml");
+    n.load(fname,"conduit_yaml");
+    n.print_detailed();
+
+    EXPECT_EQ(n["a"].to_int32(), a_val);
+    EXPECT_EQ(n["b"].to_int32(), b_val);
+
+    fname = "tout_conduit_relay_io_other_protos_conduit_base64_yaml.yml";
+    std::cout << "test yaml: " << fname << std::endl;
+
+    nsrc.save(fname,"conduit_base64_yaml");
+    n.load(fname,"conduit_base64_yaml");
+    n.print_detailed();
+
+    EXPECT_EQ(n["a"].to_int32(), a_val);
+    EXPECT_EQ(n["b"].to_int32(), b_val);
 
 }
 
@@ -149,29 +192,29 @@ TEST(conduit_node_save_load, mmap_simple_file)
 {
     int32   a1_val  = 10;
     int32   b1_val  = 20;
-    
+
     int32   a2_val  = -10;
     int32   b2_val  = -20;
-    
+
     char *data = new char[16];
     memcpy(&data[0],&a1_val,4);
     memcpy(&data[4],&b1_val,4);
     memcpy(&data[8],&a2_val,4);
     memcpy(&data[12],&b2_val,4);
-    
+
     Schema schema("{\"dtype\":{\"a\":\"int32\",\"b\":\"int32\"},\"length\":2}");
 
     Node nsrc(schema,data,true);
-    
+
     nsrc.save("tout_conduit_mmap_x2.conduit_bin");
-    
-   
+
+
     Node nmmap;
     nmmap.mmap("tout_conduit_mmap_x2.conduit_bin");
-    
+
     nmmap.schema().print();
     nmmap.print_detailed();
-    
+
     std::cout <<  nmmap[0]["a"].as_int32() << std::endl;
     std::cout <<  nmmap[1]["a"].as_int32() << std::endl;
 
@@ -188,7 +231,7 @@ TEST(conduit_node_save_load, mmap_simple_file)
     // change mmap
     nmmap[0]["a"] = 100;
     nmmap[0]["b"] = 200;
-    
+
 #if defined(CONDUIT_PLATFORM_WINDOWS)
     // need to close the mmap on windows in order
     // to read it for the next test
@@ -196,7 +239,7 @@ TEST(conduit_node_save_load, mmap_simple_file)
 #endif
 
     // standard read
-    
+
     Node ntest;
     ntest.load("tout_conduit_mmap_x2.conduit_bin",schema);
     EXPECT_EQ(ntest[0]["a"].as_int32(), 100);
@@ -211,16 +254,16 @@ TEST(conduit_node_save_load, simple_restore)
 {
     Node n_src;
     Node n_dest;
-    
-    
+
+
     std::vector<float64> v_src;
     std::vector<float64> v_dest;
     v_src.resize(10,0.0);
     v_dest.resize(10,0.0);
-    
+
     n_src["v"].set_external(v_src);
     n_dest["v"].set_external(v_dest);
-    
+
     for(size_t i=0;i<10;i++)
     {
         v_src[i] = 1.2 * (i+1);
@@ -234,7 +277,7 @@ TEST(conduit_node_save_load, simple_restore)
     n_load.load("tout_conduit_simple_restore.conduit_bin");
 
     n_load.print();
-    
+
 
     n_dest.update(n_load);
 
@@ -296,7 +339,7 @@ TEST(conduit_node_save_load, io_explicit_zero_length_vector_restore)
     std::cout << "n1 before saving" << std::endl;
 
     n1.print_detailed();
-   
+
     n1.save("tout_zero_len_vector_save.conduit_bin");
 
     Node n2;
@@ -305,11 +348,11 @@ TEST(conduit_node_save_load, io_explicit_zero_length_vector_restore)
     std::cout << "n2 load result" << std::endl;
 
     n2.print_detailed();
-            
+
     EXPECT_EQ(n1.schema()["one"].dtype().number_of_elements(),
               n2.schema()["one"].dtype().number_of_elements());
     EXPECT_EQ(n2.schema()["one"].dtype().number_of_elements(),0);
-    
+
     n1.update(n2);
 
     std::cout << "n1 after updating from n2" << std::endl;
@@ -334,13 +377,13 @@ TEST(conduit_node_save_load, io_reset_before_load)
     n1["four"].set_external(&four);
 
     n1.print_detailed();
-   
+
     n1.save("tout_node_load_reset.conduit_bin");
 
 
     EXPECT_EQ(n1.schema()["one"].dtype().number_of_elements(),1);
-    
-    // load into a node with some existing structure was 
+
+    // load into a node with some existing structure was
     // crashing, test that we resolved that here.
 
     Node n2;
@@ -351,7 +394,7 @@ TEST(conduit_node_save_load, io_reset_before_load)
     std::cout << "n2 load result" << std::endl;
 
     n2.print_detailed();
-            
+
     EXPECT_EQ(n1.schema()["one"].dtype().number_of_elements(),
               n2.schema()["one"].dtype().number_of_elements());
     EXPECT_EQ(n2.schema()["one"].dtype().number_of_elements(),1);
@@ -366,16 +409,16 @@ TEST(conduit_node_save_load, load_save_with_empty)
     n["path/to/a"] = 1;
     n["path/to/empty"];
     n["path/to/b"] = 2;
-    
+
     n.print_detailed();
-   
+
     n.save("tout_node_load_save_with_empty.conduit_bin");
 
     Node n_load;
     n_load.load("tout_node_load_save_with_empty.conduit_bin");
     EXPECT_EQ(n["path/to/empty"].dtype().id(),
               n_load["path/to/empty"].dtype().id());
-    
+
     n_load.print_detailed();
 }
 
@@ -387,17 +430,17 @@ TEST(conduit_node_save_load, load_save_with_childless_object)
     n["path/to/a"] = 1;
     n["path/to/empty"].set(DataType::object());
     n["path/to/b"] = 2;
-    
+
     n.print_detailed();
-   
+
     n.save("tout_node_load_save_with_cl_object.conduit_bin");
 
     Node n_load;
     n_load.load("tout_node_load_save_with_cl_object.conduit_bin");
     EXPECT_EQ(n["path/to/empty"].dtype().id(),
               n_load["path/to/empty"].dtype().id());
-    
-    n_load.print_detailed(); 
+
+    n_load.print_detailed();
 }
 
 //-----------------------------------------------------------------------------
@@ -408,16 +451,16 @@ TEST(conduit_node_save_load, load_save_with_childless_list)
     n["path/to/a"] = 1;
     n["path/to/empty"].set(DataType::list());
     n["path/to/b"] = 2;
-    
+
     n.print_detailed();
-   
+
     n.save("tout_node_load_save_with_cl_list.conduit_bin");
 
     Node n_load;
     n_load.load("tout_node_load_save_with_cl_list.conduit_bin");
     EXPECT_EQ(n["path/to/empty"].dtype().id(),
               n_load["path/to/empty"].dtype().id());
-    
+
     n_load.print_detailed();
 }
 
@@ -432,7 +475,7 @@ TEST(conduit_node_save_load, load_save_array)
     int64 i64 = 100;
     float64 f64 = 1.2;
     int64 arr[SZ];
-    
+
     for(int i = 0; i< SZ; ++i)
     {
         arr[i] = 2 * i;
@@ -442,9 +485,9 @@ TEST(conduit_node_save_load, load_save_array)
     n["arr"] = int64_array(arr,DataType::int64(SZ));
     n["f"] = f64;
     n["i"] = i64;
-    
+
     n.print_detailed();
-   
+
     std::string fname = "tout_node_load_save_load_save_array.conduit_bin";
     n.save(fname);
 

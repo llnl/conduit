@@ -336,6 +336,9 @@ add_compiled_library(NAME conduit_relay_mpi
                      HEADERS_DEST_DIR include/conduit
                      FOLDER libs)
 
+# avoid mpi C++ apis + link dep of libmpi_cxx
+target_compile_definitions(conduit_relay_mpi PUBLIC ${CONDUIT_MPI_SKIP_MPICXX_DEFINES} )
+
 
 ################################################################
 # If we have mpi, add the conduit relay mpi io library
@@ -412,5 +415,9 @@ add_compiled_library(NAME conduit_relay_mpi_io
                      FOLDER libs)
 
 blt_add_target_compile_flags(TO conduit_relay_mpi_io FLAGS "-DCONDUIT_RELAY_IO_MPI_ENABLED")
+
+# avoid mpi C++ apis + link dep of libmpi_cxx
+target_compile_definitions(conduit_relay_mpi_io PUBLIC ${CONDUIT_MPI_SKIP_MPICXX_DEFINES} )
+
 
 endif() # end if MPI_FOUND

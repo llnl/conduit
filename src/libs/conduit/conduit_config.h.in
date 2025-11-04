@@ -50,6 +50,8 @@
 
 #cmakedefine CONDUIT_USE_CXX14
 
+#cmakedefine CONDUIT_USE_YYJSON
+
 #cmakedefine CONDUIT_USE_CALIPER
 
 #cmakedefine CONDUIT_USE_OPENMP
@@ -57,6 +59,7 @@
 #cmakedefine CONDUIT_USE_PARMETIS
 
 #cmakedefine CONDUIT_USE_TOTALVIEW
+
 
 #endif
 

@@ -14,7 +14,7 @@
 // -- standard lib includes --
 //-----------------------------------------------------------------------------
 
-// for sleep funcs
+// for sleep and mem usage funcs
 #if defined(CONDUIT_PLATFORM_WINDOWS)
 #define NOMINMAX
 #include <windows.h>
@@ -24,9 +24,17 @@
 #endif
 #undef min
 #undef max
-#else
+// mem usage api
+#include <psapi.h>
+
+#else // not windows
 #include <dirent.h>
 #include <time.h>
+#endif
+
+// for macos memory usage functions
+#if defined(CONDUIT_PLATFORM_APPLE) && defined(__MACH__)
+#include <mach/mach.h>
 #endif
 
 // file system funcs
@@ -93,48 +101,18 @@ default_free_handler(void *data_ptr)
 
 //-----------------------------------------------------------------------------
 void
-default_memset_handler(void * ptr, int value, size_t num )
-{
-  memset(ptr,value,num);
-}
-
-//-----------------------------------------------------------------------------
-void
 default_memcpy_handler(void * destination, const void * source, size_t num)
 {
   memcpy(destination,source,num);
 }
 
-
-//-----------------------------------------------------------------------------
-// Private namespace member that holds our memcpy callback.
-void (*conduit_handle_memcpy)(void * destination,
-                              const void * source,
-                              size_t num) = default_memcpy_handler;
-
-//-----------------------------------------------------------------------------
-// Private namespace member that holds our memset callback.
-void (*conduit_handle_memset)(void * ptr,
-                              int value,
-                              size_t num ) = default_memset_handler;
-
 //-----------------------------------------------------------------------------
 void
-set_memcpy_handler(void(*conduit_hnd_copy)(void*,
-                                           const void *,
-                                           size_t))
+default_memset_handler(void * ptr, int value, size_t num )
 {
-    conduit_handle_memcpy = conduit_hnd_copy;
+  memset(ptr,value,num);
 }
 
-//-----------------------------------------------------------------------------
-void
-set_memset_handler(void(*conduit_hnd_memset)(void*,
-                                             int,
-                                             size_t))
-{
-    conduit_handle_memset = conduit_hnd_memset;
-}
 
 namespace detail
 {
@@ -142,14 +120,14 @@ namespace detail
     // AllocManager: A singleton that holds our alloc and free function maps
     //
     //
-    // NOTE: THE SINGLETON INSTNACE IS INTENTIONALLY LEAKED!
-    // 
+    // NOTE: THE SINGLETON INSTANCE IS INTENTIONALLY LEAKED!
+    //
     // These maps are used by Node instances to alloc and free
     // memory, they need to exist as long as any Node object exists!
     //
     // We are doing static init correctly here, so we
     // avoid the C++ static obj init fiasco:
-    // https://isocpp.org/wiki/faq/ctors#static-init-order 
+    // https://isocpp.org/wiki/faq/ctors#static-init-order
     //
     // However, we still can't apply fine grained control
     // to when these objects are cleaned up. This means
@@ -161,10 +139,10 @@ namespace detail
     // into the same compilation unit. We tried this
     // but we still hit an on exit cleanup where
     // the alloc maps were destructed, but a static Node
-    // object still needed to cleanup. 
+    // object still needed to cleanup.
     //
     // If leaking this singleton offends your sensibilities,
-    // I am sorry. Ideally, these would be cleaned up on 
+    // I am sorry. Ideally, these would be cleaned up on
     // exit absolutely last - meaning you could never use
     // those few precious bytes for anything else.
     //
@@ -182,8 +160,8 @@ namespace detail
           }
 
           // reg interface
-          index_t register_allocator(void*(*conduit_hnd_allocate) (size_t, size_t),
-                                     void(*conduit_hnd_free)(void *))
+          index_t register_allocator(handle_alloc_type conduit_hnd_allocate,
+                                     handle_free_type conduit_hnd_free)
           {
               m_allocator_map[m_allocator_id] = conduit_hnd_allocate;
               m_free_map[m_allocator_id]      = conduit_hnd_free;
@@ -205,11 +183,38 @@ namespace detail
               m_free_map[allocator_id](ptr);
           }
 
+          // set memcpy and memset handlers
+          void set_memcpy_handler(handle_memcpy_type conduit_hnd_memcpy)
+          {
+              m_handle_memcpy = conduit_hnd_memcpy;
+          }
+
+          void set_memset_handler(handle_memset_type conduit_hnd_memset)
+          {
+              m_handle_memset = conduit_hnd_memset;
+          }
+
+          void memcpy(void *destination,
+                      const void *source,
+                      size_t num)
+          {
+              m_handle_memcpy(destination, source, num);
+          }
+
+          void memset(void *ptr,
+                      int value,
+                      size_t num)
+          {
+              m_handle_memset(ptr, value, num);
+          }
+
      private:
           // constructor
           AllocManager()
           : m_allocator_map(),
-            m_free_map()
+            m_free_map(),
+            m_handle_memcpy(default_memcpy_handler),
+            m_handle_memset(default_memset_handler)
           {
               // register default handlers
               m_allocator_map[0] = &default_alloc_handler;
@@ -226,17 +231,33 @@ namespace detail
           }
 
           // vars
-          index_t                                    m_allocator_id;
-          std::map<index_t,void*(*)(size_t, size_t)> m_allocator_map;
-          std::map<index_t,void(*)(void*)>           m_free_map;
+          index_t                                m_allocator_id;
+          std::map<index_t,handle_alloc_type>    m_allocator_map;
+          std::map<index_t,handle_free_type>     m_free_map;
 
+          handle_memcpy_type                     m_handle_memcpy;
+          handle_memset_type                     m_handle_memset;
     };
 }
 
 //-----------------------------------------------------------------------------
+void
+set_memcpy_handler(handle_memcpy_type conduit_hnd_memcpy)
+{
+    detail::AllocManager::instance().set_memcpy_handler(conduit_hnd_memcpy);
+}
+
+//-----------------------------------------------------------------------------
+void
+set_memset_handler(handle_memset_type conduit_hnd_memset)
+{
+    detail::AllocManager::instance().set_memset_handler(conduit_hnd_memset);
+}
+
+//-----------------------------------------------------------------------------
 index_t
-register_allocator(void*(*conduit_hnd_allocate) (size_t, size_t),
-                   void(*conduit_hnd_free)(void *))
+register_allocator(handle_alloc_type conduit_hnd_allocate,
+                   handle_free_type conduit_hnd_free)
 {
     return detail::AllocManager::instance().register_allocator(conduit_hnd_allocate,
                                                                conduit_hnd_free);
@@ -268,7 +289,7 @@ conduit_memcpy(void *destination,
                const void *source,
                size_t num)
 {
-    conduit_handle_memcpy(destination,source,num);
+    detail::AllocManager::instance().memcpy(destination,source,num);
 }
 
 
@@ -277,7 +298,7 @@ void conduit_memset(void *ptr,
                     int value,
                     size_t num)
 {
-    conduit_handle_memset(ptr,value,num);
+    detail::AllocManager::instance().memset(ptr,value,num);
 }
 //-----------------------------------------------------------------------------
 void
@@ -291,9 +312,9 @@ conduit_memcpy_strided_elements(void *dest,
     // source and dest are compact
     if( dest_stride == ele_bytes && src_stride == ele_bytes)
     {
-        utils::conduit_memcpy(dest,
-                              src,
-                              ele_bytes * num_elements);
+        detail::AllocManager::instance().memcpy(dest,
+                                                src,
+                                                ele_bytes * num_elements);
     }
     else // the source or dest are strided in a non compact way
     {
@@ -302,9 +323,9 @@ conduit_memcpy_strided_elements(void *dest,
         for(size_t i=0; i< num_elements; i++)
         {
             // copy next strided element
-            utils::conduit_memcpy(dest_data_ptr,
-                                  src_data_ptr,
-                                  ele_bytes);
+            detail::AllocManager::instance().memcpy(dest_data_ptr,
+                                                    src_data_ptr,
+                                                    ele_bytes);
             // move by src stride
             src_data_ptr  += src_stride;
             // move by dest stride
@@ -932,6 +953,51 @@ check_num_char(const char v)
     return res;
 }
 
+//---------------------------------------------------------------------------//
+std::string
+strip_quoted_strings(const std::string &input, const std::string &quote_char)
+{
+    std::string res;
+    bool in_string = false;
+    bool emit = false;
+
+    for(size_t i = 0; i < input.size(); ++i)
+    {
+        emit = true;
+        // emit a character when not in a string, including the opening and
+        // closing quote.
+        //
+        // check for a quote + start & end of a string
+        // the check for `\\` ignores escaped quotes inside a string
+        if(input[i] == quote_char[0] && ( i > 0 && ( input[i-1] != '\\' )))
+        {
+            if(in_string)
+            {
+                // we are in a string & have encountered an ending quote
+                // so we are no longer in a string but  still don't want to
+                // emit the (current) quote char.
+                in_string = false;
+                emit = false;
+            }
+            else
+            {
+                // we aren't in a string & have encountered a starting quote,
+                // we are starting a string
+                in_string = true;
+            }
+        }
+
+        // never emit when in a string
+        if(in_string)
+            emit = false;
+
+        if(emit)
+            res += input[i];
+    }
+
+    return res;
+}
+
 
 //-----------------------------------------------------------------------------
 std::string
@@ -1264,7 +1330,7 @@ unescape_special_chars(const std::string &input)
 //-----------------------------------------------------------------------------
 void
 base64_encode(const void *src,
-              index_t src_nbytes,
+              const index_t src_nbytes,
               void *dest)
 {
     int nbytes = (int)src_nbytes;
@@ -1288,14 +1354,14 @@ base64_encode(const void *src,
 
 //-----------------------------------------------------------------------------
 index_t
-base64_encode_buffer_size(index_t src_nbytes)
+base64_encode_buffer_size(const index_t src_nbytes)
 {
      return  (4*src_nbytes) / 3 + 4 + 1;
 }
 
 //-----------------------------------------------------------------------------
 index_t
-base64_decode_buffer_size(index_t encoded_nbytes)
+base64_decode_buffer_size(const index_t encoded_nbytes)
 {
     return (encoded_nbytes / 4) * 3 + 1;
 }
@@ -1607,29 +1673,29 @@ format(const std::string &pattern,
         {
             if(map_index >= curr.number_of_children())
             {
-                 CONDUIT_ERROR("conduit::utils::format map_index " 
+                 CONDUIT_ERROR("conduit::utils::format map_index "
                                << "(value = " << map_index  << ")"
                                << " for '" << itr.name() << "'"
                                << " list map entry "
                                << " is out of bounds."
-                               << " Number of children = " 
+                               << " Number of children = "
                                << curr.number_of_children()
-                               << ". Valid range is [0," 
+                               << ". Valid range is [0,"
                                << curr.number_of_children() << ").");
             }
         }
         else if(curr.dtype().is_number())
-        {            
+        {
             if(map_index >= curr.dtype().number_of_elements())
             {
-                 CONDUIT_ERROR("conduit::utils::format map_index " 
+                 CONDUIT_ERROR("conduit::utils::format map_index "
                                << "(value = " << map_index  << ")"
                                << " for '" << itr.name() << "'"
                                << " array map entry "
                                << " is out of bounds."
-                               << " Number of elements = " 
+                               << " Number of elements = "
                                << curr.dtype().number_of_elements()
-                               << ". Valid range is [0," 
+                               << ". Valid range is [0,"
                                << curr.dtype().number_of_elements() << ").");
             }
         }
@@ -1779,7 +1845,7 @@ format(const std::string &pattern,
                 }
                 break;
             }
-            // support lists of strings ONLY ... 
+            // support lists of strings ONLY ...
             case conduit::DataType::LIST_ID:
             {
                 const Node &lst_ent = curr[map_index];
@@ -1802,7 +1868,7 @@ format(const std::string &pattern,
                 {
                     store.push_back(val);
                 }
-                
+
                 break;
             }
             default:
@@ -1833,6 +1899,44 @@ format(const std::string &pattern,
     return res;
 }
 
+//-----------------------------------------------------------------------------
+uint64
+memory_usage()
+{
+
+#if defined(CONDUIT_PLATFORM_WINDOWS)
+    PROCESS_MEMORY_COUNTERS pmc;
+    if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc)))
+    {
+        return static_cast<uint64>(pmc.WorkingSetSize / 1024);
+    }
+#elif defined(CONDUIT_PLATFORM_APPLE)
+    mach_task_basic_info_data_t info;
+    mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+    kern_return_t ret = task_info(mach_task_self(),
+                                  MACH_TASK_BASIC_INFO,
+                                  (task_info_t)&info, &count);
+
+    if (ret == KERN_SUCCESS)
+    {
+        return static_cast<uint64>(info.resident_size / 1024);
+    }
+
+#else //linux, unix, etc
+    std::ifstream file("/proc/self/status");
+    std::string line;
+    while (std::getline(file, line))
+    {
+        if (line.find("VmRSS") != std::string::npos)
+        {
+            size_t pos = line.find(":");
+            return static_cast<uint64>(std::stoll(line.substr(pos + 1)));
+        }
+    }
+#endif
+
+    return 0;
+}
 
 //-----------------------------------------------------------------------------
 // String hash functions
