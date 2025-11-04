@@ -1094,8 +1094,10 @@ connectivity::connect_elements_2d(const Node& ref_win,
     index_t ref_size_j = ref_win["dims/j"].to_index_t();
 
     //NSE:  Use of these values may not be correct for ratio > 3.
-    index_t part_lo = ref_win["partial_lo"].to_index_t();
-    index_t part_hi = ref_win["partial_hi"].to_index_t();
+    index_t part_lo = ref_win.has_child("partial_lo") ? 
+        ref_win["partial_lo"].to_index_t() : 0;
+    index_t part_hi = ref_win.has_child("partial_hi") ? 
+        ref_win["partial_hi"].to_index_t() : 0;
 
     if (ref_size_i == 1)
     {

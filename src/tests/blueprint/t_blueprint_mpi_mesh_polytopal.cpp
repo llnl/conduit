@@ -82,12 +82,27 @@ void test_polytopal_create_coarse_domain_2d(Node& domain)
     topo["elements/dims/i"] = 4;
     topo["elements/dims/j"] = 4;
 
-    Node& field = domain["fields/field"];
-    field["association"] = "element";
-    field["topology"] = "topo";
+    // Set up an element-centered field
+    Node& elt_field = domain["fields/elt_field"];
+    elt_field["association"] = "element";
+    elt_field["topology"] = "topo";
 
     std::vector<double> vals(16, 0.5);
-    field["values"].set(vals);
+    elt_field["values"].set(vals);
+
+    // Set up vertex fields xpos and ypos which will hold the x and y
+    // coordinate positions.  These are redundant to the coordinate positions
+    // held in the coordset, and will be used to test that the transformation
+    // of vertex fields matches the transformation of coordsets.
+    Node& xpos = domain["fields/xpos"];
+    xpos["association"] = "vertex";
+    xpos["topology"] = "topo";
+    xpos["values"].set(xcoords);
+
+    Node& ypos = domain["fields/ypos"];
+    ypos["association"] = "vertex";
+    ypos["topology"] = "topo";
+    ypos["values"].set(ycoords);
 
     Node& adjset = domain["adjsets/adjset"];
     adjset["association"] =  "vertex";
@@ -180,12 +195,13 @@ void test_polytopal_create_coarse_domain_3d(Node& domain)
     topo["elements/dims/j"] = 4;
     topo["elements/dims/k"] = 4;
 
-    Node& field = domain["fields/field"];
-    field["association"] = "element";
-    field["topology"] = "topo";
+    //Set up an element-centered field
+    Node& elt_field = domain["fields/elt_field"];
+    elt_field["association"] = "element";
+    elt_field["topology"] = "topo";
 
     std::vector<double> vals(64, 0.5);
-    field["values"].set(vals);
+    elt_field["values"].set(vals);
 
     Node& adjset = domain["adjsets/adjset"];
     adjset["association"] =  "vertex";
@@ -268,12 +284,27 @@ void test_polytopal_create_fine_domain_2d(Node& domain)
     topo["elements/dims/i"] = 8;
     topo["elements/dims/j"] = 8;
 
-    Node& field = domain["fields/field"];
-    field["association"] = "element";
-    field["topology"] = "topo";
+    //Set up an element-centered field
+    Node& elt_field = domain["fields/elt_field"];
+    elt_field["association"] = "element";
+    elt_field["topology"] = "topo";
 
     std::vector<double> vals(64, 1.5);
-    field["values"].set(vals);
+    elt_field["values"].set(vals);
+
+    // Set up vertex fields xpos and ypos which will hold the x and y
+    // coordinate positions.  These are redundant to the coordinate positions
+    // held in the coordset, and will be used to test that the transformation
+    // of vertex fields matches the transformation of coordsets.
+    Node& xpos = domain["fields/xpos"];
+    xpos["association"] = "vertex";
+    xpos["topology"] = "topo";
+    xpos["values"].set(xcoords);
+
+    Node& ypos = domain["fields/ypos"];
+    ypos["association"] = "vertex";
+    ypos["topology"] = "topo";
+    ypos["values"].set(ycoords);
 
     Node& adjset = domain["adjsets/adjset"];
     adjset["association"] =  "vertex";
@@ -369,12 +400,13 @@ void test_polytopal_create_fine_domain_3d(Node& domain)
     topo["elements/dims/j"] = 8;
     topo["elements/dims/k"] = 8;
 
-    Node& field = domain["fields/field"];
-    field["association"] = "element";
-    field["topology"] = "topo";
+    //Set up an element-centered field
+    Node& elt_field = domain["fields/elt_field"];
+    elt_field["association"] = "element";
+    elt_field["topology"] = "topo";
 
     std::vector<double> vals(512, 1.5);
-    field["values"].set(vals);
+    elt_field["values"].set(vals);
 
     Node& adjset = domain["adjsets/adjset"];
     adjset["association"] =  "vertex";
@@ -487,8 +519,9 @@ TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_serial)
                                                   MPI_COMM_WORLD);
 
 
+    std::vector<std::string> vertex_fields = {"xpos", "ypos"};
     Node poly;
-    conduit::blueprint::mpi::mesh::to_polygonal(mesh, poly, "topo", MPI_COMM_WORLD);
+    conduit::blueprint::mpi::mesh::to_polygonal(mesh, poly, "topo", vertex_fields, MPI_COMM_WORLD);
 
     EXPECT_TRUE( conduit::blueprint::mpi::verify("mesh",poly,info, MPI_COMM_WORLD));
 
@@ -606,9 +639,10 @@ TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_parallel)
                                                   protocol,
                                                   MPI_COMM_WORLD);
 
+    std::vector<std::string> vertex_fields = {"xpos", "ypos"};
     Node poly;
 
-    conduit::blueprint::mpi::mesh::to_polygonal(mesh, poly, "topo", MPI_COMM_WORLD);
+    conduit::blueprint::mpi::mesh::to_polygonal(mesh, poly, "topo", vertex_fields, MPI_COMM_WORLD);
 
     EXPECT_TRUE( conduit::blueprint::mpi::verify("mesh",poly,info, MPI_COMM_WORLD));
 
@@ -737,8 +771,9 @@ TEST(conduit_blueprint_mesh_polytopal, to_polytopal_amr_2d_transform_parallel)
                                                   protocol,
                                                   MPI_COMM_WORLD);
 
+    std::vector<std::string> vertex_fields = {"xpos", "ypos"};
     Node poly;
-    conduit::blueprint::mpi::mesh::to_polytopal(mesh, poly, "topo", MPI_COMM_WORLD);
+    conduit::blueprint::mpi::mesh::to_polytopal(mesh, poly, "topo", vertex_fields, MPI_COMM_WORLD);
 
     EXPECT_TRUE( conduit::blueprint::mpi::verify("mesh",poly,info, MPI_COMM_WORLD));
 
@@ -802,7 +837,7 @@ TEST(conduit_blueprint_mesh_polytopal, to_polytopal_amr_3d_transform_parallel)
                                                   MPI_COMM_WORLD);
 
     Node poly;
-    conduit::blueprint::mpi::mesh::to_polytopal(mesh, poly, "topo", MPI_COMM_WORLD);
+    conduit::blueprint::mpi::mesh::to_polytopal(mesh, poly, "topo", std::vector<std::string>(), MPI_COMM_WORLD);
 
     EXPECT_TRUE( conduit::blueprint::mpi::verify("mesh",poly,info, MPI_COMM_WORLD));
 
