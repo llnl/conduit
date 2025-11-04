@@ -18,6 +18,7 @@
 #include "conduit_core.hpp"
 #include "conduit_data_type.hpp"
 #include "conduit_utils.hpp"
+#include "conduit_execution.hpp"
 
 
 //-----------------------------------------------------------------------------
@@ -29,12 +30,9 @@ namespace conduit
 //-----------------------------------------------------------------------------
 // -- forward declarations required for conduit::DataAccessor --
 //-----------------------------------------------------------------------------
+class Node;
 template <typename T>
 class DataArray;
-template <typename T>
-class ExecutionArray;
-template <typename T>
-class ExecutionAccessor;
 
 //-----------------------------------------------------------------------------
 // -- begin conduit::DataArray --
@@ -43,7 +41,8 @@ class ExecutionAccessor;
 /// class: conduit::DataAccessor
 ///
 /// description:
-///  Helps consume array data as desired type with on the fly conversion.
+///  Helps consume array data as desired type with on the fly conversion and 
+///  supports memory movement between host and device.
 ///
 //-----------------------------------------------------------------------------
 template <typename T> 
@@ -67,6 +66,15 @@ public:
         DataAccessor(void *data, const DataType &dtype);
         /// Access a const pointer to raw data according to dtype description.
         DataAccessor(const void *data, const DataType &dtype);
+        /// Access a pointer to node data according to node dtype description.
+        DataAccessor(Node &node);
+        // /// Access a const pointer to node data according to node dtype description.
+        DataAccessor(const Node &node);
+        /// Access a pointer to node data according to node dtype description.
+        DataAccessor(Node *node);
+        /// Access a const pointer to node data according to node dtype description.
+        DataAccessor(const Node *node);
+        /// Destructor.
         ~DataAccessor();
 
     ///
@@ -111,14 +119,29 @@ public:
     const void     *element_ptr(index_t idx) const
                     {
                          return static_cast<const char*>(m_data) +
-                                  m_dtype.element_index(idx);
+                                  dtype().element_index(idx);
                     }
 
     index_t         number_of_elements() const 
-                        {return m_dtype.number_of_elements();}
+                        {return dtype().number_of_elements();}
 
     const DataType &dtype()    const 
                         { return m_dtype;}
+
+    const DataType &orig_dtype() const;
+
+    const DataType &other_dtype() const;
+
+//-----------------------------------------------------------------------------
+// Data movement
+//-----------------------------------------------------------------------------
+    void                                use_with(conduit::execution::ExecutionPolicy policy);
+
+    void                                sync();
+
+    void                                assume();
+
+    conduit::execution::ExecutionPolicy active_space();
 
 //-----------------------------------------------------------------------------
 // Setters
@@ -154,38 +177,6 @@ public:
     /// floating point arrays via DataAccessor
     void            set(const DataAccessor<float32>  &values);
     void            set(const DataAccessor<float64>  &values);
-
-    /// signed integer arrays via ExecutionArray
-    void            set(const ExecutionArray<int8>    &values);
-    void            set(const ExecutionArray<int16>   &values);
-    void            set(const ExecutionArray<int32>   &values);
-    void            set(const ExecutionArray<int64>   &values);
-
-    /// unsigned integer arrays via ExecutionArray
-    void            set(const ExecutionArray<uint8>   &values);
-    void            set(const ExecutionArray<uint16>  &values);
-    void            set(const ExecutionArray<uint32>  &values);
-    void            set(const ExecutionArray<uint64>  &values);
-    
-    /// floating point arrays via ExecutionArray
-    void            set(const ExecutionArray<float32>  &values);
-    void            set(const ExecutionArray<float64>  &values);
-
-    /// signed integer arrays via ExecutionAccessor
-    void            set(const ExecutionAccessor<int8>    &values);
-    void            set(const ExecutionAccessor<int16>   &values);
-    void            set(const ExecutionAccessor<int32>   &values);
-    void            set(const ExecutionAccessor<int64>   &values);
-
-    /// unsigned integer arrays via ExecutionAccessor
-    void            set(const ExecutionAccessor<uint8>   &values);
-    void            set(const ExecutionAccessor<uint16>  &values);
-    void            set(const ExecutionAccessor<uint32>  &values);
-    void            set(const ExecutionAccessor<uint64>  &values);
-    
-    /// floating point arrays via ExecutionAccessor
-    void            set(const ExecutionAccessor<float32>  &values);
-    void            set(const ExecutionAccessor<float64>  &values);
 
 //-----------------------------------------------------------------------------
 // Transforms
@@ -229,7 +220,20 @@ private:
     /// holds data (always external, never allocated)
     void           *m_data;
     /// holds data description
+    // TODO do we still need this?
     DataType        m_dtype;
+
+    Node           *m_node_ptr;
+
+    /// holds data
+    void           *m_other_ptr;
+    /// holds data description
+    DataType        m_other_dtype;
+    
+    bool            m_do_i_own_it;
+
+    index_t         m_offset;
+    index_t         m_stride;
     
 };
 //-----------------------------------------------------------------------------
