@@ -300,7 +300,6 @@ time(const conduit::Node &mesh, MPI_Comm comm)
 void to_polytopal(const Node &n,
                   Node &dest,
                   const std::string& name,
-                  const std::vector<std::string>& vtxfields,
                   MPI_Comm comm)
 {
 
@@ -375,7 +374,7 @@ void to_polytopal(const Node &n,
     {
         if(dims == 2)
         {
-            to_polygonal(n,dest,name,vtxfields,comm);
+            to_polygonal(n,dest,name,comm);
         }
         else if(dims == 3)
         {
@@ -397,7 +396,7 @@ void to_polytopal(const Node &n,
 void to_polygonal(const Node &n,
                   Node &dest,
                   const std::string& name,
-                  const std::vector<std::string>& vtxfields,
+                  //const std::vector<std::string>& vtxfields,
                   MPI_Comm comm)
 {
     // Helper Functions //
@@ -470,6 +469,22 @@ void to_polygonal(const Node &n,
 
             // Vertex fields on the input domain
             const Node &in_fields = dom["fields"];
+
+            std::vector<std::string> vtxfields;
+
+            auto itr = in_fields.children();
+            while(itr.has_next())
+            {
+                const Node &chld = itr.next();
+                std::string fname = chld.name();
+
+                if (chld.has_child("association") &&
+                    chld["association"].as_string() == "vertex")
+                {
+                    vtxfields.push_back(fname);
+                }
+            }
+
             std::map<std::string, const Node*> in_vtxfields;
             if (!vtxfields.empty())
             {

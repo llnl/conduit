@@ -485,6 +485,18 @@ void test_verify_topologies_3d(Node& struct_topo, Node& poly_topo)
     EXPECT_EQ(num_elems_structured, num_offsets);
 }
 
+void test_verify_fields_2d(Node& poly_topo)
+{
+    Node info;
+    EXPECT_TRUE(conduit::blueprint::mesh::field::verify(
+       poly_topo["fields/elt_field"],info));
+    EXPECT_TRUE(conduit::blueprint::mesh::field::verify(
+       poly_topo["fields/xpos"],info));
+    EXPECT_TRUE(conduit::blueprint::mesh::field::verify(
+       poly_topo["fields/ypos"],info));
+}
+
+
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_serial)
 {
@@ -519,9 +531,8 @@ TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_serial)
                                                   MPI_COMM_WORLD);
 
 
-    std::vector<std::string> vertex_fields = {"xpos", "ypos"};
     Node poly;
-    conduit::blueprint::mpi::mesh::to_polygonal(mesh, poly, "topo", vertex_fields, MPI_COMM_WORLD);
+    conduit::blueprint::mpi::mesh::to_polygonal(mesh, poly, "topo", MPI_COMM_WORLD);
 
     EXPECT_TRUE( conduit::blueprint::mpi::verify("mesh",poly,info, MPI_COMM_WORLD));
 
@@ -539,6 +550,11 @@ TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_serial)
         mesh_topo = mesh["domain_000001/topologies/topo"];
         poly_topo = poly["domain_000001/topologies/topo"];
         test_verify_topologies_2d(mesh_topo, poly_topo);
+
+	Node& domain_0 = poly["domain_000000"];
+	Node& domain_1 = poly["domain_000001"];
+        test_verify_fields_2d(domain_0);
+        test_verify_fields_2d(domain_1);
     }
 }
 
@@ -639,10 +655,9 @@ TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_parallel)
                                                   protocol,
                                                   MPI_COMM_WORLD);
 
-    std::vector<std::string> vertex_fields = {"xpos", "ypos"};
     Node poly;
 
-    conduit::blueprint::mpi::mesh::to_polygonal(mesh, poly, "topo", vertex_fields, MPI_COMM_WORLD);
+    conduit::blueprint::mpi::mesh::to_polygonal(mesh, poly, "topo", MPI_COMM_WORLD);
 
     EXPECT_TRUE( conduit::blueprint::mpi::verify("mesh",poly,info, MPI_COMM_WORLD));
 
@@ -656,12 +671,18 @@ TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_parallel)
         Node& mesh_topo = mesh["domain_000000/topologies/topo"];
         Node& poly_topo = poly["domain_000000/topologies/topo"];
         test_verify_topologies_2d(mesh_topo, poly_topo);
+
+	Node& domain_0 = poly["domain_000000"];
+	test_verify_fields_2d(domain_0);
     }
     else if (par_rank == 1)
     {
         Node& mesh_topo = mesh["domain_000001/topologies/topo"];
         Node& poly_topo = poly["domain_000001/topologies/topo"];
         test_verify_topologies_2d(mesh_topo, poly_topo);
+
+        Node& domain_1 = poly["domain_000001"];
+        test_verify_fields_2d(domain_1);
     }
 }
 
@@ -771,9 +792,8 @@ TEST(conduit_blueprint_mesh_polytopal, to_polytopal_amr_2d_transform_parallel)
                                                   protocol,
                                                   MPI_COMM_WORLD);
 
-    std::vector<std::string> vertex_fields = {"xpos", "ypos"};
     Node poly;
-    conduit::blueprint::mpi::mesh::to_polytopal(mesh, poly, "topo", vertex_fields, MPI_COMM_WORLD);
+    conduit::blueprint::mpi::mesh::to_polytopal(mesh, poly, "topo", MPI_COMM_WORLD);
 
     EXPECT_TRUE( conduit::blueprint::mpi::verify("mesh",poly,info, MPI_COMM_WORLD));
 
@@ -837,7 +857,7 @@ TEST(conduit_blueprint_mesh_polytopal, to_polytopal_amr_3d_transform_parallel)
                                                   MPI_COMM_WORLD);
 
     Node poly;
-    conduit::blueprint::mpi::mesh::to_polytopal(mesh, poly, "topo", std::vector<std::string>(), MPI_COMM_WORLD);
+    conduit::blueprint::mpi::mesh::to_polytopal(mesh, poly, "topo", MPI_COMM_WORLD);
 
     EXPECT_TRUE( conduit::blueprint::mpi::verify("mesh",poly,info, MPI_COMM_WORLD));
 
