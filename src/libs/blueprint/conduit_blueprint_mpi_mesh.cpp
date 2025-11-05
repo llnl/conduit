@@ -396,7 +396,6 @@ void to_polytopal(const Node &n,
 void to_polygonal(const Node &n,
                   Node &dest,
                   const std::string& name,
-                  //const std::vector<std::string>& vtxfields,
                   MPI_Comm comm)
 {
     // Helper Functions //

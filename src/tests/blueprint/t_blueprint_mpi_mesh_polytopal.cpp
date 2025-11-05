@@ -551,8 +551,8 @@ TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_serial)
         poly_topo = poly["domain_000001/topologies/topo"];
         test_verify_topologies_2d(mesh_topo, poly_topo);
 
-	Node& domain_0 = poly["domain_000000"];
-	Node& domain_1 = poly["domain_000001"];
+        Node& domain_0 = poly["domain_000000"];
+        Node& domain_1 = poly["domain_000001"];
         test_verify_fields_2d(domain_0);
         test_verify_fields_2d(domain_1);
     }
@@ -672,8 +672,8 @@ TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_parallel)
         Node& poly_topo = poly["domain_000000/topologies/topo"];
         test_verify_topologies_2d(mesh_topo, poly_topo);
 
-	Node& domain_0 = poly["domain_000000"];
-	test_verify_fields_2d(domain_0);
+        Node& domain_0 = poly["domain_000000"];
+        test_verify_fields_2d(domain_0);
     }
     else if (par_rank == 1)
     {
