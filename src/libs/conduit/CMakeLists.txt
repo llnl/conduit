@@ -49,6 +49,8 @@ set(conduit_headers
     conduit_execution.hpp
     conduit_execution_omp.hpp
     conduit_execution_serial.hpp
+    conduit_fixed_size_map.hpp
+    conduit_fixed_size_vector.hpp
     conduit_data_array.hpp
     conduit_data_accessor.hpp
     conduit_data_type.hpp
