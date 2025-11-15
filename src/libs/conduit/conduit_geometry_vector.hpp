@@ -70,7 +70,7 @@ public:
         return Size;
     }
 
-    T operator[](size_t index) const
+    const T &operator[](size_t index) const
     {
         return v[index];
     }
@@ -114,6 +114,36 @@ public:
             retval &= v[i] >= other[i];
         return retval;
     }
+
+    this_type operator - () const
+    {
+        this_type retval;
+        for(size_t i = 0u; i < size(); i++)
+        {
+            retval[i] = -v[i];
+        }
+        return retval;
+    }   
+
+    this_type operator + (const this_type &other) const
+    {
+        this_type retval;
+        for(size_t i = 0u; i < size(); i++)
+        {
+            retval[i] = v[i] + other.v[i];
+        }
+        return retval;
+    }
+
+    this_type operator - (const this_type &other) const
+    {
+        this_type retval;
+        for(size_t i = 0u; i < size(); i++)
+        {
+            retval[i] = v[i] - other.v[i];
+        }
+        return retval;
+    }   
 
     this_type operator + (T scalar) const
     {

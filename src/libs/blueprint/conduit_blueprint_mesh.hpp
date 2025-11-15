@@ -363,6 +363,38 @@ void CONDUIT_BLUEPRINT_API generate_corners(conduit::Node& mesh,
                                             conduit::Node& s2dmap,
                                             conduit::Node& d2smap);
 
+//-------------------------------------------------------------------------
+/*!
+ * @brief Convert the input mesh (with the selected topology name) to an
+ *        unstructured output mesh. If a multi-domain object is passed, it is
+ *        converted to unstructured and merged into a single domain.
+ *
+ * @param n_mesh The node containing the input mesh (coordset, topo, fields,
+ *               matset, adjset, state)
+ * @param n_options A node containing any options.
+ * @param n_output A node containing the output mesh (coordset, topo, fields,
+ *                 matset, adjset, state)
+ *
+ * options:
+ *  target: unstructured  # The target mesh type (structured, rectilinear, unstructured, generate_lines, ...)
+ *  convert_polytopes: 0  # Convert polygons to quads, polyhedra to hex if possible.
+ *  copy: 1               # When non-zero copy nodes, otherwise set_external nodes.
+ *  topology: name        # The name of the topology to convert.
+ *  policy: seq           # Influence execution policy of conversion functions. seq=sequenetial, omp=OpenMP parallel
+ */
+void CONDUIT_BLUEPRINT_API convert(const conduit::Node &n_mesh,
+                                   const conduit::Node &n_options,
+                                   conduit::Node &n_output,
+                                   conduit::Node &n_maps);
+
+//-------------------------------------------------------------------------
+/*!
+ * @copydoc convert(const conduit::Node &, const conduit::Node &, conduit::Node &, conduit::Node &)
+ */
+void CONDUIT_BLUEPRINT_API convert(const conduit::Node &n_mesh,
+                                   const conduit::Node &n_options,
+                                   conduit::Node &n_output);
+
 //-----------------------------------------------------------------------------
 // blueprint::mesh::logical_dims protocol interface
 //-----------------------------------------------------------------------------
