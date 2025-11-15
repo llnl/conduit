@@ -47,7 +47,8 @@ set(BASIC_TESTS t_conduit_smoke
                 t_conduit_utils
                 t_conduit_annotations
                 t_conduit_mem_allocator
-                t_conduit_intro_cpp_example)
+                t_conduit_intro_cpp_example
+                t_conduit_geometry_vector)
 
 
 ################################
