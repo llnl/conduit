@@ -8668,6 +8668,7 @@ void mesh::convert(const conduit::Node &n_mesh,
                 else
                 {
                     copyNode(n_topo, n_output["topologies/" + topologyName], copy);
+                    copyNode(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
                     copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
                 }
             }
@@ -8698,9 +8699,43 @@ void mesh::convert(const conduit::Node &n_mesh,
                 }
                 else
                 {
-                    CONDUIT_ERROR(
-                        conduit_fmt::format("Unsupported conversion to unstructured for {}.", type));
+                    CONDUIT_ERROR(conduit_fmt::format("No conversion for {} to {}.", type, target));
                 }
+            }
+        }
+        else if(target == "uniform")
+        {
+            if(type == "uniform")
+            {
+                copyNode(n_topo, n_output["topologies/" + topologyName], copy);
+                copyNode(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
+                copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+            }
+            else
+            {
+                CONDUIT_ERROR(conduit_fmt::format("No conversion for {} to {}.", type, target));
+            }
+        }
+        else if(target == "rectilinear")
+        {
+            if(type == "uniform")
+            {
+                conduit::Node &topo_dest = n_output["topologies/" + topologyName];
+                conduit::Node &coords_dest = n_output["coordsets/" + n_coordset->name()];
+                conduit::blueprint::mesh::topology::uniform::to_rectilinear(n_topo,
+                                                                            topo_dest,
+                                                                            coords_dest);
+                copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+            }
+            else if(type == "rectilinear")
+            {
+                copyNode(n_topo, n_output["topologies/" + topologyName], copy);
+                copyNode(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
+                copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+            }
+            else
+            {
+                CONDUIT_ERROR(conduit_fmt::format("No conversion for {} to {}.", type, target));
             }
         }
         else if(target == "structured")
@@ -8723,6 +8758,12 @@ void mesh::convert(const conduit::Node &n_mesh,
                                                                                coords_dest);
                 copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
             }
+            else if(type == "structured")
+            {
+                copyNode(n_topo, n_output["topologies/" + topologyName], copy);
+                copyNode(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
+                copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+            }
             else
             {
                 CONDUIT_ERROR(conduit_fmt::format("to_structured not implemented for {}.", type));
@@ -8739,7 +8780,20 @@ void mesh::convert(const conduit::Node &n_mesh,
             }
             else
             {
-                CONDUIT_ERROR(conduit_fmt::format("to_polytopal not implemented for {}.", type));
+                // Convert to unstructured first.
+                conduit::Node options_copy(n_options);
+                options_copy["target"] = "unstructured";
+                options_copy["copy"] = 0;  // Use set_external when possible
+                conduit::Node n_mesh_uns, tmp;
+                convert(n_mesh, options_copy, n_mesh_uns, tmp);
+
+                const conduit::Node &n_topo_uns = n_mesh_uns["topologies/" + topologyName];
+                const conduit::Node &n_coordset_uns = n_mesh_uns["coordsets/" + n_coordset->name()];
+
+                conduit::Node &topo_dest = n_output["topologies/" + topologyName];
+                conduit::blueprint::mesh::topology::unstructured::to_polytopal(n_topo_uns, topo_dest);
+                copyNode(n_coordset_uns, n_output["coordsets/" + n_coordset->name()], true);
+                copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
             }
         }
         else if(target.find("generate_") == 0)
@@ -8758,10 +8812,11 @@ void mesh::convert(const conduit::Node &n_mesh,
             }
 
             const conduit::Node &n_input_topo = n_input->fetch_existing("topologies/" + topologyName);
+            conduit::Node &n_output_topo = n_output["topologies/" + topologyName];
             if(target == "generate_points")
             {
                 conduit::blueprint::mesh::topology::unstructured::generate_points(n_input_topo,
-                                                                                  n_output,
+                                                                                  n_output_topo,
                                                                                   n_maps["s2dmap"],
                                                                                   n_maps["d2smap"]);
                 const conduit::Node *n_coordset_uns =
@@ -8771,7 +8826,7 @@ void mesh::convert(const conduit::Node &n_mesh,
             else if(target == "generate_lines")
             {
                 conduit::blueprint::mesh::topology::unstructured::generate_lines(n_input_topo,
-                                                                                 n_output,
+                                                                                 n_output_topo,
                                                                                  n_maps["s2dmap"],
                                                                                  n_maps["d2smap"]);
                 const conduit::Node *n_coordset_uns =
@@ -8781,7 +8836,7 @@ void mesh::convert(const conduit::Node &n_mesh,
             else if(target == "generate_faces")
             {
                 conduit::blueprint::mesh::topology::unstructured::generate_faces(n_input_topo,
-                                                                                 n_output,
+                                                                                 n_output_topo,
                                                                                  n_maps["s2dmap"],
                                                                                  n_maps["d2smap"]);
                 const conduit::Node *n_coordset_uns =
