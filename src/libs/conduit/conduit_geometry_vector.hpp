@@ -9,7 +9,6 @@
 //-----------------------------------------------------------------------------
 #ifndef CONDUIT_GEOMETRY_VECTOR_HPP
 #define CONDUIT_GEOMETRY_VECTOR_HPP
-#include "conduit_exports.h"
 
 #include <array>
 #include <cmath>
@@ -30,7 +29,7 @@ namespace geometry
  * @brief A simple math vector.
  */
 template<typename T, size_t Size>
-struct CONDUIT_API vector
+struct vector
 {
     using this_type = vector<T, Size>;
     using data_type = std::array<T, Size>;
