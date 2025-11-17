@@ -10,7 +10,6 @@
 #ifndef CONDUIT_FIXED_SIZE_MAP_HPP
 #define CONDUIT_FIXED_SIZE_MAP_HPP
 #include "conduit_error.hpp"
-#include "conduit_exports.h"
 
 #include <array>
 
@@ -29,7 +28,7 @@ namespace conduit
  * @tparam N The max number of elements.
  */
 template <typename KeyType, typename ValueType, int N>
-class CONDUIT_API fixed_size_map
+class fixed_size_map
 {
 public:
     int size() const { return m_length; }

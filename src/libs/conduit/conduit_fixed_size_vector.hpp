@@ -9,7 +9,6 @@
 //-----------------------------------------------------------------------------
 #ifndef CONDUIT_FIXED_SIZE_VECTOR_HPP
 #define CONDUIT_FIXED_SIZE_VECTOR_HPP
-#include "conduit_exports.h"
 
 #include <algorithm>
 #include <array>
@@ -28,7 +27,7 @@ namespace conduit
  * @tparam N The max number of elements in the vector.
  */
 template <typename T, int N>
-class CONDUIT_API fixed_size_vector
+class fixed_size_vector
 {
 public:
     int size() const { return m_length; }
