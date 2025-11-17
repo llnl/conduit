@@ -8338,7 +8338,7 @@ static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_ou
         constexpr int FORWARD = 1;
         constexpr int BACKWARD = -1;
         // Determine face orientations with respect to this element.
-        int orientation[NUM_FACES] = {FORWARD, FORWARD, FORWARD, FORWARD, FORWARD, FORWARD};
+        int orientation[] = {FORWARD, FORWARD, FORWARD, FORWARD, FORWARD, FORWARD};
         for(conduit::index_t f = 0; f < NUM_FACES; f++)
         {
             const auto faceId = elements_connectivity[elements_offsets[i] + f];
@@ -8351,7 +8351,7 @@ static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_ou
         // Order the points in the first face reversed with respect to orientation.
         // This is because we want the hex face ordering to be counter-clockwise when
         // viewed from the inside.
-        conduit::index_t conn[VERTS_PER_HEX];
+        conduit::index_t conn[8];
         const auto firstFaceId = elements_connectivity[elements_offsets[i]];
         const auto firstFaceOffset = subelements_offsets[firstFaceId];
         if(orientation[0] == BACKWARD)
