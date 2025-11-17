@@ -79,7 +79,7 @@ void test_convert(const std::string &meshType,
     conduit::Node n_options;
     n_options["topology"] = "mesh";
     n_options["convert_polytopes"] = 1;
-    n_options["copy"] = true;
+    n_options["copy"] = 1;
     n_options["target"] = target;
 
     std::cout << "  " << meshType << " to " << target << std::endl;
@@ -94,10 +94,67 @@ void test_convert(const std::string &meshType,
         EXPECT_TRUE(n_converted.has_path("fields/radial"));
         EXPECT_TRUE(n_converted.has_path("fields/vel"));
     }
+    else
+    {
+        EXPECT_TRUE(n_maps.has_path("s2dmap"));
+        EXPECT_TRUE(n_maps.has_path("d2smap"));
+    }
     EXPECT_TRUE(n_converted.has_path("state"));
   }
 }
 
+void test_convert_multi_domain(int dimension)
+{
+  int dims[] = {4, 4, 4};
+  if(dimension == 2)
+  {
+      dims[2] = 0;
+  }
+
+  conduit::Node n_mesh, n_tile_options;
+  n_tile_options["numDomains"] = 2;
+  conduit::blueprint::mesh::examples::tiled(dims[0],
+                                            dims[1],
+                                            dims[2],
+                                            n_mesh,
+                                            n_tile_options);
+  const auto domains = conduit::blueprint::mesh::domains(n_mesh);
+  EXPECT_EQ(domains.size(), 2);
+
+  const std::string type = domains[0]->fetch_existing("topologies/mesh/type").as_string();
+  const auto targets = targets_for_meshtype(type);
+  for(const auto &target : targets)
+  {
+    conduit::Node n_converted, n_maps;
+    conduit::Node n_options;
+    n_options["topology"] = "mesh";
+    n_options["convert_polytopes"] = 1;
+    n_options["copy"] = 1;
+    n_options["target"] = target;
+
+    std::cout << "  " << type << " to " << target << std::endl;
+    conduit::blueprint::mesh::convert(n_mesh, n_options, n_converted, n_maps);
+
+    const auto convertedDomains = conduit::blueprint::mesh::domains(n_converted);
+    int index = 0;
+    for(const auto domainPtr : convertedDomains)
+    {
+      EXPECT_TRUE(domainPtr->has_path("coordsets/coords"));
+      EXPECT_TRUE(domainPtr->has_path("topologies/mesh"));
+      if(target.find("generate_") == std::string::npos)
+      {
+        EXPECT_TRUE(domainPtr->has_path("adjsets/mesh_adjset"));
+      }
+      else
+      {       
+        EXPECT_TRUE(n_maps[index].has_path("s2dmap"));
+        EXPECT_TRUE(n_maps[index].has_path("d2smap"));
+      }
+      EXPECT_TRUE(domainPtr->has_path("state"));
+      index++;
+    }
+  }
+}
 
 TEST(convert, uniform2D)
 {
@@ -152,4 +209,14 @@ TEST(convert, hexs)
 TEST(convert, hexs_poly)
 {
     test_convert("hexs_poly", 3);
+}
+
+TEST(convert, multi_domain_2d)
+{
+    test_convert_multi_domain(2);
+}
+
+TEST(convert, multi_domain_3d)
+{
+    test_convert_multi_domain(3);
 }
