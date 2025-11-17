@@ -8244,9 +8244,9 @@ void polyhedral_elem_centers(const IndexAccessor elements_connectivity,
 template <typename ExecPolicy>
 static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_output_topo)
 {
-    const conduit::index_t NUM_FACES = 6;
-    const conduit::index_t NUM_VERTS = 4;
-    const conduit::index_t VERTS_PER_HEX = 8;
+    constexpr conduit::index_t NUM_FACES = 6;
+    constexpr conduit::index_t NUM_VERTS = 4;
+    constexpr conduit::index_t VERTS_PER_HEX = 8;
 
     // Checks for unstructured + polyhedral.
     if(n_topo["type"].as_string() != "unstructured")
@@ -8310,8 +8310,8 @@ static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_ou
         }
     };
 
-    const int FORWARD = 1;
-    const int BACKWARD = -1;
+    constexpr int FORWARD = 1;
+    constexpr int BACKWARD = -1;
 
     // Compute the face centers for all faces.
     std::vector<Vector> allFaceCenters, allFaceNormals;
