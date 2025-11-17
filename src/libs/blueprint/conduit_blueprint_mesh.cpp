@@ -8244,9 +8244,16 @@ void polyhedral_elem_centers(const IndexAccessor elements_connectivity,
 template <typename ExecPolicy>
 static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_output_topo)
 {
-    constexpr conduit::index_t NUM_FACES = 6;
-    constexpr conduit::index_t NUM_VERTS = 4;
-    constexpr conduit::index_t VERTS_PER_HEX = 8;
+#if defined(_WIN32)
+    // Use macros on Windows to work around an issue with lambda capture.
+    #define CONDUIT_NUM_FACES 6
+    #define CONDUIT_NUM_VERTS 4
+    #define CONDUIT_VERTS_PER_HEX 8
+#else
+    constexpr conduit::index_t CONDUIT_NUM_FACES = 6;
+    constexpr conduit::index_t CONDUIT_NUM_VERTS = 4;
+    constexpr conduit::index_t CONDUIT_VERTS_PER_HEX = 8;
+#endif
 
     // Checks for unstructured + polyhedral.
     if(n_topo["type"].as_string() != "unstructured")
@@ -8268,11 +8275,11 @@ static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_ou
     const auto subelements_sizes = n_topo.fetch_existing("subelements/sizes").as_index_t_accessor();
     const auto subelements_offsets =
         n_topo.fetch_existing("subelements/offsets").as_index_t_accessor();
-    if(elements_sizes.max() != elements_sizes.min() || elements_sizes.max() != NUM_FACES)
+    if(elements_sizes.max() != elements_sizes.min() || elements_sizes.max() != CONDUIT_NUM_FACES)
     {
         CONDUIT_ERROR("Polyhedral mesh elements/sizes indicate unsupported element type.");
     }
-    if(subelements_sizes.max() != subelements_sizes.min() || subelements_sizes.max() != NUM_VERTS)
+    if(subelements_sizes.max() != subelements_sizes.min() || subelements_sizes.max() != CONDUIT_NUM_VERTS)
     {
         CONDUIT_ERROR("Polyhedral mesh subelements/sizes indicate unsupported element type.");
     }
@@ -8291,7 +8298,7 @@ static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_ou
     n_output_topo["elements/shape"] = std::string("hex");
     n_output_topo["elements/connectivity"].set(
         conduit::DataType(n_topo.fetch_existing("elements/connectivity").dtype().id(),
-                          nElem * VERTS_PER_HEX));
+                          nElem * CONDUIT_VERTS_PER_HEX));
     n_output_topo["elements/sizes"].set(
         conduit::DataType(n_topo.fetch_existing("elements/sizes").dtype().id(), nElem));
     n_output_topo["elements/offsets"].set(
@@ -8339,7 +8346,7 @@ static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_ou
         constexpr int BACKWARD = -1;
         // Determine face orientations with respect to this element.
         int orientation[] = {FORWARD, FORWARD, FORWARD, FORWARD, FORWARD, FORWARD};
-        for(conduit::index_t f = 0; f < NUM_FACES; f++)
+        for(conduit::index_t f = 0; f < CONDUIT_NUM_FACES; f++)
         {
             const auto faceId = elements_connectivity[elements_offsets[i] + f];
             const Vector &faceNormal = allFaceNormalsPtr[faceId];
@@ -8351,7 +8358,7 @@ static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_ou
         // Order the points in the first face reversed with respect to orientation.
         // This is because we want the hex face ordering to be counter-clockwise when
         // viewed from the inside.
-        conduit::index_t conn[8];
+        conduit::index_t conn[CONDUIT_VERTS_PER_HEX];
         const auto firstFaceId = elements_connectivity[elements_offsets[i]];
         const auto firstFaceOffset = subelements_offsets[firstFaceId];
         if(orientation[0] == BACKWARD)
@@ -8374,32 +8381,32 @@ static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_ou
         // its other face.
         using MapType = conduit::fixed_size_map<conduit::index_t, IndexContainer, 8>;
         MapType graph;
-        for(conduit::index_t vi = 0; vi < NUM_VERTS; vi++)
+        for(conduit::index_t vi = 0; vi < CONDUIT_NUM_VERTS; vi++)
         {
             conduit::index_t prevI = (vi == 0) ? 3 : (vi - 1);
-            conduit::index_t nextI = (vi == NUM_VERTS - 1) ? 0 : (vi + 1);
+            conduit::index_t nextI = (vi == CONDUIT_NUM_VERTS - 1) ? 0 : (vi + 1);
             auto &current = graph[conn[vi]];
             current.push_back(conn[prevI]);
             current.push_back(conn[nextI]);
         }
         // Traverse the rest of the faces and add to the graph.
-        for(conduit::index_t f = 1; f < NUM_FACES; f++)
+        for(conduit::index_t f = 1; f < CONDUIT_NUM_FACES; f++)
         {
             const auto faceId = elements_connectivity[elements_offsets[i] + f];
-            conduit::index_t faceVertexIds[NUM_VERTS];
+            conduit::index_t faceVertexIds[CONDUIT_NUM_VERTS];
             const auto se_offset = (orientation[f] == FORWARD)
                 ? subelements_offsets[faceId]
-                : (subelements_offsets[faceId] + NUM_VERTS - 1);
+                : (subelements_offsets[faceId] + CONDUIT_NUM_VERTS - 1);
 
-            for(conduit::index_t vi = 0; vi < NUM_VERTS; vi++)
+            for(conduit::index_t vi = 0; vi < CONDUIT_NUM_VERTS; vi++)
             {
                 faceVertexIds[vi] = subelements_connectivity[se_offset + vi * orientation[f]];
             }
 
-            for(conduit::index_t vi = 0; vi < NUM_VERTS; vi++)
+            for(conduit::index_t vi = 0; vi < CONDUIT_NUM_VERTS; vi++)
             {
                 conduit::index_t prevI = (vi == 0) ? 3 : (vi - 1);
-                conduit::index_t nextI = (vi == NUM_VERTS - 1) ? 0 : (vi + 1);
+                conduit::index_t nextI = (vi == CONDUIT_NUM_VERTS - 1) ? 0 : (vi + 1);
                 const auto currentId = faceVertexIds[vi];
                 const auto prevId = faceVertexIds[prevI];
                 const auto nextId = faceVertexIds[nextI];
@@ -8426,14 +8433,19 @@ static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_ou
         auto out_offsets_nc = out_offsets;
 
         // Store it into the output arrays.
-        const auto offset = i * VERTS_PER_HEX;
-        out_sizes_nc.set(i, 8);
+        const auto offset = i * CONDUIT_VERTS_PER_HEX;
+        out_sizes_nc.set(i, CONDUIT_VERTS_PER_HEX);
         out_offsets_nc.set(i, offset);
-        for(conduit::index_t vi = 0; vi < VERTS_PER_HEX; vi++)
+        for(conduit::index_t vi = 0; vi < CONDUIT_VERTS_PER_HEX; vi++)
         {
             out_connectivity_nc.set(offset + vi, conn[vi]);
         }
     });
+#if defined(_WIN32)
+    #undef CONDUIT_NUM_FACES
+    #undef CONDUIT_NUM_VERTS
+    #undef CONDUIT_VERTS_PER_HEX
+#endif
 }
 
 /*!
