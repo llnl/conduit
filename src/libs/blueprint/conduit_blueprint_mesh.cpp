@@ -8310,9 +8310,6 @@ static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_ou
         }
     };
 
-    constexpr int FORWARD = 1;
-    constexpr int BACKWARD = -1;
-
     // Compute the face centers for all faces.
     std::vector<Vector> allFaceCenters, allFaceNormals;
     polyhedral_face_centers_normals<ExecPolicy>(*n_coordset,
@@ -8331,10 +8328,15 @@ static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_ou
                                         allElemCenters);
 
     // Fill in the output hex connectivity
+    // NOTE: We're using value capture [=], mainly to avoid issues on Windows. This
+    //       made us unable to use the accessors' set() method because it is not const.
+    //       To compensate, we make a copy of the accessors for the time being.
     const Vector *allFaceCentersPtr = allFaceCenters.data();
     const Vector *allFaceNormalsPtr = allFaceNormals.data();
     const Vector *allElemCentersPtr = allElemCenters.data();
-    conduit::execution::for_all<ExecPolicy>(0, nElem, [&](conduit::index_t i) {
+    conduit::execution::for_all<ExecPolicy>(0, nElem, [=](conduit::index_t i) {
+        constexpr int FORWARD = 1;
+        constexpr int BACKWARD = -1;
         // Determine face orientations with respect to this element.
         int orientation[NUM_FACES] = {FORWARD, FORWARD, FORWARD, FORWARD, FORWARD, FORWARD};
         for(conduit::index_t f = 0; f < NUM_FACES; f++)
@@ -8418,13 +8420,18 @@ static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_ou
         conn[6] = graph.get(2)[2];
         conn[7] = graph.get(3)[2];
 
+        // HACK: Make copies of the accessors so they are not const and we can use the set() method.
+        auto out_connectivity_nc = out_connectivity;
+        auto out_sizes_nc = out_sizes;
+        auto out_offsets_nc = out_offsets;
+
         // Store it into the output arrays.
         const auto offset = i * VERTS_PER_HEX;
-        out_sizes.set(i, 8);
-        out_offsets.set(i, offset);
+        out_sizes_nc.set(i, 8);
+        out_offsets_nc.set(i, offset);
         for(conduit::index_t vi = 0; vi < VERTS_PER_HEX; vi++)
         {
-            out_connectivity.set(offset + vi, conn[vi]);
+            out_connectivity_nc.set(offset + vi, conn[vi]);
         }
     });
 }
