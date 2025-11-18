@@ -455,7 +455,14 @@ template <typename T>
 const DataType &
 ExecutionAccessor<T>::dtype() const
 {
-    return (m_data == m_node_ptr->data_ptr() ? orig_dtype() : other_dtype());
+    if (nullptr != m_node_ptr)
+    {
+        return (m_data == m_node_ptr->data_ptr() ? orig_dtype() : other_dtype());
+    }
+    else
+    {
+        return m_dtype;
+    }
 }
 
 //---------------------------------------------------------------------------//
@@ -463,7 +470,14 @@ template <typename T>
 const DataType &
 ExecutionAccessor<T>::orig_dtype() const
 {
-    return m_node_ptr->dtype();
+    if (nullptr != m_node_ptr)
+    {
+        return m_node_ptr->dtype();
+    }
+    else
+    {
+        return m_dtype;
+    }
 }
 
 //---------------------------------------------------------------------------//
@@ -471,7 +485,14 @@ template <typename T>
 const DataType &
 ExecutionAccessor<T>::other_dtype() const
 {
-    return m_other_dtype;
+    if (nullptr != m_node_ptr)
+    {
+        return m_other_dtype;
+    }
+    else
+    {
+        return m_dtype;
+    }
 }
 
 //---------------------------------------------------------------------------//

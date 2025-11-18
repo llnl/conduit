@@ -19,9 +19,9 @@
 //-----------------------------------------------------------------------------
 // -- conduit  includes -- 
 //-----------------------------------------------------------------------------
+#include "conduit_memory_manager.hpp"
+#include "conduit_node.hpp"
 #include "conduit_data_array.hpp"
-#include "conduit_execution_accessor.hpp"
-#include "conduit_execution_array.hpp"
 
 //-----------------------------------------------------------------------------
 // -- begin conduit:: --
@@ -38,7 +38,7 @@ namespace conduit
 //---------------------------------------------------------------------------//
 template <typename T> 
 DataAccessor<T>::DataAccessor()
-: m_data(NULL),
+: m_data(nullptr),
   m_dtype()
 {}
 

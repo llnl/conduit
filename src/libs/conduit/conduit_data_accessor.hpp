@@ -220,7 +220,6 @@ private:
     /// holds data (always external, never allocated)
     void           *m_data;
     /// holds data description
-    // TODO do we still need this?
     DataType        m_dtype;
 
     Node           *m_node_ptr;
