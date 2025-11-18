@@ -8093,7 +8093,6 @@ void polyhedral_face_centers_normals(const IndexAccessor subelements_connectivit
                                      std::vector<Vector> &allFaceCenters,
                                      std::vector<Vector> &allFaceNormals)
 {
-    const int NUM_VERTS = 4;
     // Allocate output vectors.
     const auto totalNumFaces = subelements_sizes.number_of_elements();
     allFaceCenters.resize(totalNumFaces);
@@ -8103,6 +8102,7 @@ void polyhedral_face_centers_normals(const IndexAccessor subelements_connectivit
 
     // Compute face centers and normals.
     conduit::execution::for_all<ExecPolicy>(0, totalNumFaces, [=](conduit::index_t f) {
+        const int NUM_VERTS = 4;
         const auto size = subelements_sizes[f];
         const auto offset = subelements_offsets[f];
         Vector center {};
