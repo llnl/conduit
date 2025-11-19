@@ -52,6 +52,34 @@ private:
             static_assert(Index < Size, "Invalid access into data.");
             return data[Index] = v;
         }
+
+        T operator +=(T v)
+        {
+            static_assert(Index < Size, "Invalid access into data.");
+            data[Index] += v;
+            return data[Index];
+        }
+
+        T operator -=(T v)
+        {
+            static_assert(Index < Size, "Invalid access into data.");
+            data[Index] -= v;
+            return data[Index];
+        }
+
+        T operator *=(T v)
+        {
+            static_assert(Index < Size, "Invalid access into data.");
+            data[Index] *= v;
+            return data[Index];
+        }
+
+        T operator /=(T v)
+        {
+            static_assert(Index < Size, "Invalid access into data.");
+            data[Index] /= v;
+            return data[Index];
+        }
     };
 
 public:
@@ -63,6 +91,18 @@ public:
         accessor<1>  y;
         accessor<2>  z;
     };
+
+    vector()
+    {
+        v = data_type{};
+    }
+
+    template <typename... S>
+    vector(S... args)
+        : v{static_cast<T>(args)...}
+    {
+        static_assert(sizeof...(S) == Size, "Incorrect number of arguments for vector");
+    }
 
     constexpr size_t size() const
     {
@@ -269,9 +309,9 @@ public:
     template <int DIM = Size>
     typename std::enable_if<DIM == 3, this_type>::type cross(const this_type &other) const
     {
-        return this_type{y * other.z - z * other.y,
+        return this_type(y * other.z - z * other.y,
                          z * other.x - x * other.z,
-                         x * other.y - y * other.x};
+                         x * other.y - y * other.x);
     }
 };
 

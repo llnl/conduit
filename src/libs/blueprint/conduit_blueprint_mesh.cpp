@@ -8110,9 +8110,9 @@ void polyhedral_face_centers_normals(const IndexAccessor subelements_connectivit
         for(conduit::index_t vi = 0; vi < size; vi++)
         {
             const auto ptId = subelements_connectivity[offset + vi];
-            pts[vi] = Vector {static_cast<double>(x[ptId]),
-                              static_cast<double>(y[ptId]),
-                              static_cast<double>(z[ptId])};
+            pts[vi] = Vector(static_cast<double>(x[ptId]),
+                             static_cast<double>(y[ptId]),
+                             static_cast<double>(z[ptId]));
             center += pts[vi];
         }
 

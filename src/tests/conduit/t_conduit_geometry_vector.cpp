@@ -286,3 +286,70 @@ TEST(Vector3D, NormalizeZeroVector) {
     EXPECT_DOUBLE_EQ(v[1], 0.0);
     EXPECT_DOUBLE_EQ(v[2], 0.0);
 }
+
+// Other features
+
+TEST(Vector2D, Constructor) {
+    vector2d a;
+    EXPECT_DOUBLE_EQ(a.x, 0.);
+    EXPECT_DOUBLE_EQ(a.y, 0.);
+
+    vector2d v(1., 2.);
+    EXPECT_DOUBLE_EQ(v.x, 1.);
+    EXPECT_DOUBLE_EQ(v.y, 2.);
+}
+
+TEST(Vector3D, Constructor) {
+    vector3d a;
+    EXPECT_DOUBLE_EQ(a.x, 0.);
+    EXPECT_DOUBLE_EQ(a.y, 0.);
+    EXPECT_DOUBLE_EQ(a.z, 0.);
+
+    vector3d v(1., 2., 3.);
+    EXPECT_DOUBLE_EQ(v.x, 1.);
+    EXPECT_DOUBLE_EQ(v.y, 2.);
+    EXPECT_DOUBLE_EQ(v.z, 3.);
+}
+
+TEST(Vector3D, Accessor) {
+    vector3d v(3., 6., 9.);
+
+    EXPECT_DOUBLE_EQ(v.x, 3.);
+    EXPECT_DOUBLE_EQ(v.y, 6.);
+    EXPECT_DOUBLE_EQ(v.z, 9.);
+
+    v.x = 1.;
+    v.y = 2.;
+    v.z = 3.;
+    EXPECT_DOUBLE_EQ(v.x, 1.);
+    EXPECT_DOUBLE_EQ(v.y, 2.);
+    EXPECT_DOUBLE_EQ(v.z, 3.);
+
+    v.x += 1.;
+    v.y += 1.;
+    v.z += 1.;
+    EXPECT_DOUBLE_EQ(v.x, 2.);
+    EXPECT_DOUBLE_EQ(v.y, 3.);
+    EXPECT_DOUBLE_EQ(v.z, 4.);
+
+    v.x -= 1.;
+    v.y -= 1.;
+    v.z -= 1.;
+    EXPECT_DOUBLE_EQ(v.x, 1.);
+    EXPECT_DOUBLE_EQ(v.y, 2.);
+    EXPECT_DOUBLE_EQ(v.z, 3.);
+
+    v.x *= 2.;
+    v.y *= 2.;
+    v.z *= 2.;
+    EXPECT_DOUBLE_EQ(v.x, 2.);
+    EXPECT_DOUBLE_EQ(v.y, 4.);
+    EXPECT_DOUBLE_EQ(v.z, 6.);
+
+    v.x /= 2.;
+    v.y /= 2.;
+    v.z /= 2.;
+    EXPECT_DOUBLE_EQ(v.x, 1.);
+    EXPECT_DOUBLE_EQ(v.y, 2.);
+    EXPECT_DOUBLE_EQ(v.z, 3.);
+}
