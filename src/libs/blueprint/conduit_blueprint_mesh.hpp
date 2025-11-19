@@ -366,7 +366,7 @@ void CONDUIT_BLUEPRINT_API generate_corners(conduit::Node& mesh,
 //-------------------------------------------------------------------------
 /*!
  * @brief Convert the input mesh (with the selected topology name) to a
- *        new target representation. (The default target  target mesh 
+ *        new target representation. (The default target mesh 
  *        representation is `unstructured`)
  *
  * @param n_mesh The node containing the input mesh (coordset, topo, fields,
