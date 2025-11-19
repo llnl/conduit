@@ -8069,7 +8069,7 @@ using Vector = conduit::geometry::vector<double, 3>;
  *
  * @tparam ExecPolicy The execution policy to use for the loop.
  * @tparam IndexAccessor The container type for the subelement connectivity.
- * @tparam FloatAccessor The container type for the coordinates.
+ * @tparam CoordAccessor The container type for the coordinates.
  *
  * @param subelements_connectivity An accessor used for subelements_connectivity
  * @param subelements_sizes An accessor used for subelements_sizes
@@ -8083,16 +8083,18 @@ using Vector = conduit::geometry::vector<double, 3>;
  * @note Many of these arguments would normally be references but the loop captures
  *       by value so it is best to not use references.
  */
-template <typename ExecPolicy, typename IndexAccessor, typename FloatAccessor>
+template <typename ExecPolicy, typename IndexAccessor, typename CoordAccessor>
 void polyhedral_face_centers_normals(const IndexAccessor subelements_connectivity,
                                      const IndexAccessor subelements_sizes,
                                      const IndexAccessor subelements_offsets,
-                                     const FloatAccessor x,
-                                     const FloatAccessor y,
-                                     const FloatAccessor z,
+                                     const CoordAccessor x,
+                                     const CoordAccessor y,
+                                     const CoordAccessor z,
                                      std::vector<Vector> &allFaceCenters,
                                      std::vector<Vector> &allFaceNormals)
 {
+    using value_type = typename Vector::value_type;
+
     // Allocate output vectors.
     const auto totalNumFaces = subelements_sizes.number_of_elements();
     allFaceCenters.resize(totalNumFaces);
@@ -8110,9 +8112,9 @@ void polyhedral_face_centers_normals(const IndexAccessor subelements_connectivit
         for(conduit::index_t vi = 0; vi < size; vi++)
         {
             const auto ptId = subelements_connectivity[offset + vi];
-            pts[vi] = Vector(static_cast<double>(x[ptId]),
-                             static_cast<double>(y[ptId]),
-                             static_cast<double>(z[ptId]));
+            pts[vi] = Vector(static_cast<value_type>(x[ptId]),
+                             static_cast<value_type>(y[ptId]),
+                             static_cast<value_type>(z[ptId]));
             center += pts[vi];
         }
 
@@ -8152,10 +8154,10 @@ void polyhedral_face_centers_normals(const conduit::Node &n_coordset,
     const conduit::Node &n_z = n_coordset["values/z"];
     bool handled = false;
     // Dispatch to different instantiations of the function.
-    if(n_x.dtype().is_compact() && n_x.dtype().is_compact() && n_x.dtype().is_compact())
+    if(n_x.dtype().is_compact() && n_y.dtype().is_compact() && n_z.dtype().is_compact())
     {
         // Handle contiguous float64, float32. (fast paths)
-        if(n_x.dtype().is_float64() && n_x.dtype().is_float64() && n_x.dtype().is_float64())
+        if(n_x.dtype().is_float64() && n_y.dtype().is_float64() && n_z.dtype().is_float64())
         {
             polyhedral_face_centers_normals<ExecPolicy>(subelements_connectivity,
                                                         subelements_sizes,
@@ -8167,7 +8169,7 @@ void polyhedral_face_centers_normals(const conduit::Node &n_coordset,
                                                         allFaceNormals);
             handled = true;
         }
-        if(n_x.dtype().is_float32() && n_x.dtype().is_float32() && n_x.dtype().is_float32())
+        if(n_x.dtype().is_float32() && n_y.dtype().is_float32() && n_z.dtype().is_float32())
         {
             polyhedral_face_centers_normals<ExecPolicy>(subelements_connectivity,
                                                         subelements_sizes,
