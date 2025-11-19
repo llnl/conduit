@@ -365,9 +365,9 @@ void CONDUIT_BLUEPRINT_API generate_corners(conduit::Node& mesh,
 
 //-------------------------------------------------------------------------
 /*!
- * @brief Convert the input mesh (with the selected topology name) to an
- *        unstructured output mesh. If a multi-domain object is passed, it is
- *        converted to unstructured and merged into a single domain.
+ * @brief Convert the input mesh (with the selected topology name) to a
+ *        new target representation. (The default target  target mesh 
+ *        representation is `unstructured`)
  *
  * @param n_mesh The node containing the input mesh (coordset, topo, fields,
  *               matset, adjset, state)
@@ -375,12 +375,14 @@ void CONDUIT_BLUEPRINT_API generate_corners(conduit::Node& mesh,
  * @param n_output A node containing the output mesh (coordset, topo, fields,
  *                 matset, adjset, state)
  *
+ * @verbatim
  * options:
- *  target: unstructured  # The target mesh type (structured, rectilinear, unstructured, generate_lines, ...)
- *  convert_polytopes: 0  # Convert polygons to quads, polyhedra to hex if possible.
- *  copy: 1               # When non-zero copy nodes, otherwise set_external nodes.
- *  topology: name        # The name of the topology to convert.
- *  policy: seq           # Influence execution policy of conversion functions. seq=sequenetial, omp=OpenMP parallel
+ *   target: unstructured  # The target mesh type (structured, rectilinear, unstructured, generate_lines, ...)
+ *   degrade_polytopes: 0  # Convert polygons to quads, polyhedra to hex if possible.
+ *   copy: 1               # When non-zero copy nodes, otherwise set_external nodes.
+ *   topology: name        # The name of the topology to convert.
+ *   policy: seq           # Influence execution policy of conversion functions. seq=sequential, omp=OpenMP parallel
+ * @endverbatim
  */
 void CONDUIT_BLUEPRINT_API convert(const conduit::Node &n_mesh,
                                    const conduit::Node &n_options,

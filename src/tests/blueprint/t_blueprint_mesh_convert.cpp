@@ -78,7 +78,7 @@ void test_convert(const std::string &meshType,
     conduit::Node n_converted, n_maps;
     conduit::Node n_options;
     n_options["topology"] = "mesh";
-    n_options["convert_polytopes"] = 1;
+    n_options["degrade_polytopes"] = 1;
     n_options["copy"] = 1;
     n_options["target"] = target;
 

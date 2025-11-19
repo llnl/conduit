@@ -7954,12 +7954,12 @@ namespace mesh
  * @param selection An optional set of object names to copy.
  */
 static void
-copyNodesWithTopology(const conduit::Node &n_mesh,
-                      const std::string &topoName,
-                      conduit::Node &n_output,
-                      const std::string &rootName,
-                      bool copy,
-                      const std::set<std::string> &selection = std::set<std::string>())
+copy_nodes_with_topology(const conduit::Node &n_mesh,
+                         const std::string &topoName,
+                         conduit::Node &n_output,
+                         const std::string &rootName,
+                         bool copy,
+                         const std::set<std::string> &selection = std::set<std::string>())
 {
     if(n_mesh.has_path(rootName))
     {
@@ -8006,7 +8006,7 @@ copyNodesWithTopology(const conduit::Node &n_mesh,
  * @param n_dest The destination node.
  * @param copy If true, deep copy the data; otherwise set_external the data.
  */
-static void copyNode(const conduit::Node &n_src, conduit::Node &n_dest, bool copy)
+static void copy_node(const conduit::Node &n_src, conduit::Node &n_dest, bool copy)
 {
     if(copy)
     {
@@ -8029,7 +8029,7 @@ static void copyNode(const conduit::Node &n_src, conduit::Node &n_dest, bool cop
  *         "fields" node was not present in the options.
  */
 static std::set<std::string>
-getSelectedFields(const conduit::Node &n_options)
+get_selected_fields(const conduit::Node &n_options)
 {
     std::set<std::string> selection;
     if(n_options.has_path("fields"))
@@ -8555,7 +8555,7 @@ static void to_unstructured(const conduit::Node &n_mesh,
         if(input_output_different)
         {
             // It's just some other unstructured mesh. Copy to output node.
-            copyNode(*n_topo, n_output["topologies/" + n_topo->name()], copy);
+            copy_node(*n_topo, n_output["topologies/" + n_topo->name()], copy);
         }
     }
 
@@ -8563,19 +8563,19 @@ static void to_unstructured(const conduit::Node &n_mesh,
     // data over to the output node.
     if(input_output_different)
     {
-        copyNode(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
+        copy_node(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
 
-        copyNodesWithTopology(n_mesh,
+        copy_nodes_with_topology(n_mesh,
                               n_topo->name(),
                               n_output,
                               "fields",
                               copy,
-                              getSelectedFields(n_options));
-        copyNodesWithTopology(n_mesh, n_topo->name(), n_output, "matsets", copy);
-        copyNodesWithTopology(n_mesh, n_topo->name(), n_output, "adjsets", copy);
+                              get_selected_fields(n_options));
+        copy_nodes_with_topology(n_mesh, n_topo->name(), n_output, "matsets", copy);
+        copy_nodes_with_topology(n_mesh, n_topo->name(), n_output, "adjsets", copy);
         if(n_mesh.has_path("state"))
         {
-            copyNode(n_mesh["state"], n_output["state"], copy);
+            copy_node(n_mesh["state"], n_output["state"], copy);
         }
     }
 }
@@ -8671,11 +8671,11 @@ void mesh::convert(const conduit::Node &n_mesh,
             {
                 // We have an unstructured mesh.
                 const std::string shape = n_topo["elements/shape"].as_string();
-                const bool convert_polytopes = n_options.has_path("convert_polytopes")
-                    ? (n_options["convert_polytopes"].to_int() > 0)
+                const bool degrade_polytopes = n_options.has_path("degrade_polytopes")
+                    ? (n_options["degrade_polytopes"].to_int() > 0)
                     : false;
-                const bool isPolygonal = shape == "polygonal" && convert_polytopes;
-                const bool isPolyhedral = shape == "polyhedral" && convert_polytopes;
+                const bool isPolygonal = shape == "polygonal" && degrade_polytopes;
+                const bool isPolyhedral = shape == "polyhedral" && degrade_polytopes;
                 if(isPolygonal || isPolyhedral)
                 {
                     // Convert polytopal BACK to unstructured.
@@ -8686,8 +8686,8 @@ void mesh::convert(const conduit::Node &n_mesh,
                 }
                 else
                 {
-                    copyNode(n_topo, n_output["topologies/" + topologyName], copy);
-                    copyNode(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
+                    copy_node(n_topo, n_output["topologies/" + topologyName], copy);
+                    copy_node(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
                     copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
                 }
             }
@@ -8726,8 +8726,8 @@ void mesh::convert(const conduit::Node &n_mesh,
         {
             if(type == "uniform")
             {
-                copyNode(n_topo, n_output["topologies/" + topologyName], copy);
-                copyNode(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
+                copy_node(n_topo, n_output["topologies/" + topologyName], copy);
+                copy_node(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
                 copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
             }
             else
@@ -8748,8 +8748,8 @@ void mesh::convert(const conduit::Node &n_mesh,
             }
             else if(type == "rectilinear")
             {
-                copyNode(n_topo, n_output["topologies/" + topologyName], copy);
-                copyNode(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
+                copy_node(n_topo, n_output["topologies/" + topologyName], copy);
+                copy_node(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
                 copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
             }
             else
@@ -8779,8 +8779,8 @@ void mesh::convert(const conduit::Node &n_mesh,
             }
             else if(type == "structured")
             {
-                copyNode(n_topo, n_output["topologies/" + topologyName], copy);
-                copyNode(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
+                copy_node(n_topo, n_output["topologies/" + topologyName], copy);
+                copy_node(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
                 copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
             }
             else
@@ -8794,7 +8794,7 @@ void mesh::convert(const conduit::Node &n_mesh,
             {
                 conduit::Node &topo_dest = n_output["topologies/" + topologyName];
                 conduit::blueprint::mesh::topology::unstructured::to_polytopal(n_topo, topo_dest);
-                copyNode(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
+                copy_node(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
                 copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
             }
             else
@@ -8811,7 +8811,7 @@ void mesh::convert(const conduit::Node &n_mesh,
 
                 conduit::Node &topo_dest = n_output["topologies/" + topologyName];
                 conduit::blueprint::mesh::topology::unstructured::to_polytopal(n_topo_uns, topo_dest);
-                copyNode(n_coordset_uns, n_output["coordsets/" + n_coordset->name()], true);
+                copy_node(n_coordset_uns, n_output["coordsets/" + n_coordset->name()], true);
                 copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
             }
         }
@@ -8840,7 +8840,7 @@ void mesh::convert(const conduit::Node &n_mesh,
                                                                                   n_maps["d2smap"]);
                 const conduit::Node *n_coordset_uns =
                     bputils::find_reference_node(n_input_topo, "coordset");
-                copyNode(*n_coordset_uns, n_output["coordsets/" + n_coordset_uns->name()], copy);
+                copy_node(*n_coordset_uns, n_output["coordsets/" + n_coordset_uns->name()], copy);
             }
             else if(target == "generate_lines")
             {
@@ -8850,7 +8850,7 @@ void mesh::convert(const conduit::Node &n_mesh,
                                                                                  n_maps["d2smap"]);
                 const conduit::Node *n_coordset_uns =
                     bputils::find_reference_node(n_input_topo, "coordset");
-                copyNode(*n_coordset_uns, n_output["coordsets/" + n_coordset_uns->name()], copy);
+                copy_node(*n_coordset_uns, n_output["coordsets/" + n_coordset_uns->name()], copy);
             }
             else if(target == "generate_faces")
             {
@@ -8860,7 +8860,7 @@ void mesh::convert(const conduit::Node &n_mesh,
                                                                                  n_maps["d2smap"]);
                 const conduit::Node *n_coordset_uns =
                     bputils::find_reference_node(n_input_topo, "coordset");
-                copyNode(*n_coordset_uns, n_output["coordsets/" + n_coordset_uns->name()], copy);
+                copy_node(*n_coordset_uns, n_output["coordsets/" + n_coordset_uns->name()], copy);
             }
             else if(target == "generate_centroids")
             {
@@ -8905,24 +8905,24 @@ void mesh::convert(const conduit::Node &n_mesh,
         // Copy some objects from the input mesh to the output mesh.
         if(copyMask & FIELDS_MASK)
         {
-            copyNodesWithTopology(n_mesh,
+            copy_nodes_with_topology(n_mesh,
                                   topologyName,
                                   n_output,
                                   "fields",
                                   copy,
-                                  getSelectedFields(n_options));
+                                  get_selected_fields(n_options));
         }
         if(copyMask & MATSETS_MASK)
         {
-            copyNodesWithTopology(n_mesh, topologyName, n_output, "matsets", copy);
+            copy_nodes_with_topology(n_mesh, topologyName, n_output, "matsets", copy);
         }
         if(copyMask & ADJSETS_MASK)
         {
-            copyNodesWithTopology(n_mesh, topologyName, n_output, "adjsets", copy);
+            copy_nodes_with_topology(n_mesh, topologyName, n_output, "adjsets", copy);
         }
         if(n_mesh.has_path("state"))
         {
-            copyNode(n_mesh["state"], n_output["state"], copy);
+            copy_node(n_mesh["state"], n_output["state"], copy);
         }
     }
 }
