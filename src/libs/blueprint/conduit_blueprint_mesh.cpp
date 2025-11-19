@@ -8118,7 +8118,7 @@ void polyhedral_face_centers_normals(const IndexAccessor subelements_connectivit
             center += pts[vi];
         }
 
-        center /= static_cast<double>(size);
+        center /= static_cast<value_type>(size);
         allFaceCentersPtr[f] = center;
 
         // Compute apparent face normal.
