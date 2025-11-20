@@ -59,8 +59,38 @@ if(NOT CONDUIT_FOUND)
     # finally setup our final imported targets
     include(${CONDUIT_CMAKE_CONFIG_DIR}/conduit_setup_targets.cmake)
 
-    set(CONDUIT_FOUND TRUE)
     set(Conduit_FOUND TRUE)
+
+    set(_conduit_known_components)
+    foreach(_conduit_component IN LISTS Conduit_FIND_COMPONENTS)
+      if (NOT _conduit_component IN_LIST _conduit_known_components)
+        set("Conduit_${_conduit_component}_FOUND" 0)
+        set("Conduit_${_conduit_component}_NOT_FOUND_MESSAGE"
+          "Unknown component ${_conduit_component}")
+
+        if(Conduit_FIND_REQUIRED_${_conduit_component})
+          set(Conduit_FOUND 0)
+          list(APPEND Conduit_NOT_FOUND_MESSAGE
+            "Unknown component ${_conduit_component}")
+        endif()
+      else()
+        if(NOT DEFINED Conduit_${_conduit_component}_FOUND)
+          set("Conduit_${_conduit_component}_FOUND" 0)
+          set("Conduit_${_conduit_component}_NOT_FOUND_MESSAGE"
+            "Component ${_conduit_component} was not found (unimplemented?)")
+        endif()
+        if(NOT Conduit_${_conduit_component}_FOUND AND
+           Conduit_FIND_REQUIRED_${_conduit_component})
+          set(Conduit_FOUND 0)
+          list(APPEND Conduit_NOT_FOUND_MESSAGE
+            "Component ${_conduit_component} was not found: ${Conduit_${_conduit_component}_NOT_FOUND_MESSAGE}")
+        endif()
+      endif()
+    endforeach()
+    unset(_conduit_known_components)
+    unset(_conduit_component)
+
+    set(CONDUIT_FOUND "${Conduit_FOUND}")
 
 endif()
 
