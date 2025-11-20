@@ -32,6 +32,7 @@ if(NOT CONDUIT_FOUND)
     set(CONDUIT_USE_CXX14   "@CONDUIT_USE_CXX14@")
     set(CONDUIT_USE_FMT     "@CONDUIT_USE_FMT@")
     set(CONDUIT_USE_CALIPER "@CONDUIT_USE_CALIPER@")
+    set(CONDUIT_USE_MPI     "@ENABLE_MPI@")
     set(CONDUIT_USE_OPENMP  "@ENABLE_OPENMP@")
     set(CONDUIT_INSTALL_PREFIX "@CONDUIT_INSTALL_PREFIX@")
     set(CONDUIT_ZLIB_DIR  "@ZLIB_DIR@")
@@ -61,7 +62,8 @@ if(NOT CONDUIT_FOUND)
 
     set(Conduit_FOUND TRUE)
 
-    set(_conduit_known_components)
+    set(_conduit_known_components
+      MPI)
     foreach(_conduit_component IN LISTS Conduit_FIND_COMPONENTS)
       if (NOT _conduit_component IN_LIST _conduit_known_components)
         set("Conduit_${_conduit_component}_FOUND" 0)

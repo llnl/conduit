@@ -47,6 +47,39 @@ if(CONDUIT_USE_OPENMP)
 endif()
 
 ###############################################################################
+# Setup MPI
+###############################################################################
+if("MPI" IN_LIST Conduit_FIND_COMPONENTS)
+    set(Conduit_MPI_NOT_FOUND_MESSAGE "")
+
+    if(NOT CONDUIT_USE_CMAKE_MPI_TARGETS)
+        # The compiler is expected to have MPI implicitly available; MPI is
+        # found.
+    elseif(CONDUIT_USE_MPI)
+        if(NOT TARGET MPI::MPI_C)
+            set(_conduit_find_mpi_args "")
+            if(Conduit_FIND_QUIETLY)
+                list(APPEND _conduit_find_mpi_args QUIET)
+            endif()
+
+            find_dependency(MPI ${_conduit_find_mpi_args} COMPONENTS C)
+            unset(_conduit_find_mpi_args)
+        endif()
+
+        if(NOT TARGET MPI::MPI_C)
+            set(Conduit_MPI_NOT_FOUND_MESSAGE "MPI could not be found: ${MPI_NOT_FOUND_MESSAGE}")
+        endif()
+    else()
+        set(Conduit_MPI_NOT_FOUND_MESSAGE "MPI support is not available")
+    endif()
+
+    set(Conduit_MPI_FOUND 1)
+    if(Conduit_MPI_NOT_FOUND_MESSAGE)
+        set(Conduit_MPI_FOUND 0)
+    endif()
+endif()
+
+###############################################################################
 # Setup Caliper
 ###############################################################################
 if(NOT CALIPER_DIR)
