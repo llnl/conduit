@@ -16,6 +16,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Finished `bent_multi_grid_amr` mesh by adding adjacency sets between spatially adjacent domains at the same level of refinement.
 - Added `conduit::blueprint::mesh::convert()` function that can convert among various mesh formats and generate derived meshes such as points, centroids, faces, sides, and corners.
 - Added a mode within the new `convert()` function that allows it to convert polyhedral hex meshes into unstructured hex meshes.
+- Sped up `conduit::blueprint::mesh::topology::unstructured::to_polygonal()` algorithm and added support for mixed element types.
 
 ## [0.9.5] - Released 2025-09-10
 
