@@ -60,6 +60,7 @@ if(NOT CONDUIT_FOUND)
     include(${CONDUIT_CMAKE_CONFIG_DIR}/conduit_setup_targets.cmake)
 
     set(CONDUIT_FOUND TRUE)
+    set(Conduit_FOUND TRUE)
 
 endif()
 
