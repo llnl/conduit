@@ -32,6 +32,11 @@
 //-----------------------------------------------------------------------------
 // conduit includes
 //-----------------------------------------------------------------------------
+#include "conduit_fmt/conduit_fmt.h"
+#include "conduit_execution.hpp"
+#include "conduit_fixed_size_map.hpp"
+#include "conduit_fixed_size_vector.hpp"
+#include "conduit_geometry_vector.hpp"
 #include "conduit_blueprint_mcarray.hpp"
 #include "conduit_blueprint_o2mrelation.hpp"
 #include "conduit_blueprint_mesh_utils.hpp"
@@ -7913,7 +7918,7 @@ mesh::flatten(const conduit::Node &mesh,
     do_flatten.execute(mesh, output);
 }
 
-//-----------------------------------------------------------------------------
+//-------------------------------------------------------------------------
 void mesh::generate_domain_ids(conduit::Node &domains)
 {
   int num_domains = (int)domains.number_of_children();
@@ -7927,6 +7932,1008 @@ void mesh::generate_domain_ids(conduit::Node &domains)
   }
 }
 
+//
+// NOTE: Begin some namespaces to enclose some internal functions.
+//
+
+//-----------------------------------------------------------------------------
+// -- begin conduit::blueprint::mesh --
+//-----------------------------------------------------------------------------
+namespace mesh
+{
+
+/*!
+ * @brief Copy all nodes under the root that have the specified topology name.
+ *
+ * @param n_mesh The input mesh.
+ * @param topoName The name of the topology of interest.
+ * @param n_output The node that will contain the output mesh.
+ * @param rootName The root name (e.g. topologies, fields, matsets, ...)
+ * @param copy If true, copy the nodes from n_mesh to n_output. If false, we will
+ *             use set_external instead.
+ * @param selection An optional set of object names to copy.
+ */
+static void
+copy_nodes_with_topology(const conduit::Node &n_mesh,
+                         const std::string &topoName,
+                         conduit::Node &n_output,
+                         const std::string &rootName,
+                         bool copy,
+                         const std::set<std::string> &selection = std::set<std::string>())
+{
+    if(n_mesh.has_path(rootName))
+    {
+        const conduit::Node &n_objs = n_mesh.fetch_existing(rootName);
+        conduit::Node &n_output_objs = n_output[rootName];
+        for(conduit::index_t i = 0; i < n_objs.number_of_children(); i++)
+        {
+            const conduit::Node &n_obj = n_objs[i];
+
+            // If we passed a selection, admit only those names.
+            if(!selection.empty())
+            {
+                if(selection.find(n_obj.name()) == selection.end())
+                {
+                    // n_obj not found in selection. Skip it.
+                    continue;
+                }
+            }
+
+            if(n_obj["topology"].as_string() == topoName)
+            {
+                if(copy)
+                {
+                    n_output_objs[n_obj.name()].set(n_obj);
+                }
+                else
+                {
+                    n_output_objs[n_obj.name()].set_external(n_obj);
+                }
+            }
+        }
+        if(n_output_objs.number_of_children() == 0)
+        {
+            n_output.remove(rootName);
+        }
+    }
+}
+
+//-------------------------------------------------------------------------
+/*!
+ * @brief Copy a source node to a destination node.
+ *
+ * @param n_src The source node.
+ * @param n_dest The destination node.
+ * @param copy If true, deep copy the data; otherwise set_external the data.
+ */
+static void copy_node(const conduit::Node &n_src, conduit::Node &n_dest, bool copy)
+{
+    if(copy)
+    {
+        n_dest.set(n_src);
+    }
+    else
+    {
+        n_dest.set_external(n_src);
+    }
+}
+
+//-------------------------------------------------------------------------
+/*!
+ * @brief Given an options node that might contain a "fields" node, return
+ *        the names of the child nodes under the fields node.
+ *
+ * @param n_options The options node that contains the fields data.
+ *
+ * @return A set containing the selected fields. The set will be empty if the
+ *         "fields" node was not present in the options.
+ */
+static std::set<std::string>
+get_selected_fields(const conduit::Node &n_options)
+{
+    std::set<std::string> selection;
+    if(n_options.has_path("fields"))
+    {
+        const conduit::Node &n_fields = n_options["fields"];
+        for(conduit::index_t i = 0; i < n_fields.number_of_children(); i++)
+        {
+            selection.insert(n_fields[i].name());
+        }
+    }
+    return selection;
+}
+//------------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+// -- begin conduit::blueprint::mesh::topology --
+//-----------------------------------------------------------------------------
+namespace topology
+{
+
+//-----------------------------------------------------------------------------
+// -- begin conduit::blueprint::mesh::topology::unstructured --
+//-----------------------------------------------------------------------------
+namespace unstructured
+{
+
+//-----------------------------------------------------------------------------
+// -- begin conduit::blueprint::mesh::topology::unstructured::polytopal --
+//-----------------------------------------------------------------------------
+namespace polytopal
+{
+
+using Vector = conduit::geometry::vector<double, 3>;
+
+/*!
+ * @brief Compute face centers and face normals for polyhedral zones.
+ *
+ * @tparam ExecPolicy The execution policy to use for the loop.
+ * @tparam IndexAccessor The container type for the subelement connectivity.
+ * @tparam CoordAccessor The container type for the coordinates.
+ *
+ * @param subelements_connectivity An accessor used for subelements_connectivity
+ * @param subelements_sizes An accessor used for subelements_sizes
+ * @param subelements_offsets An accessor used for subelements_offsets
+ * @param x An accessor (or pointer, etc) to access X coordinate data.
+ * @param y An accessor (or pointer, etc) to access Y coordinate data.
+ * @param z An accessor (or pointer, etc) to access Z coordinate data.
+ * @param[out] allFaceCenters The output vector for all of the face centers.
+ * @param[out] allFaceNormals The output vector for all of the face normals.
+ *
+ * @note Many of these arguments would normally be references but the loop captures
+ *       by value so it is best to not use references.
+ */
+template <typename ExecPolicy, typename IndexAccessor, typename CoordAccessor>
+void polyhedral_face_centers_normals(const IndexAccessor subelements_connectivity,
+                                     const IndexAccessor subelements_sizes,
+                                     const IndexAccessor subelements_offsets,
+                                     const CoordAccessor x,
+                                     const CoordAccessor y,
+                                     const CoordAccessor z,
+                                     std::vector<Vector> &allFaceCenters,
+                                     std::vector<Vector> &allFaceNormals)
+{
+    using value_type = typename Vector::value_type;
+
+    // Allocate output vectors.
+    const auto totalNumFaces = subelements_sizes.number_of_elements();
+    allFaceCenters.resize(totalNumFaces);
+    allFaceNormals.resize(totalNumFaces);
+    Vector *allFaceCentersPtr = allFaceCenters.data();
+    Vector *allFaceNormalsPtr = allFaceNormals.data();
+
+    // Compute face centers and normals.
+    conduit::execution::for_all<ExecPolicy>(0, totalNumFaces, [=](conduit::index_t f) {
+        const int NUM_VERTS = 4;
+        const auto size = subelements_sizes[f];
+        const auto offset = subelements_offsets[f];
+        Vector center {};
+        Vector pts[NUM_VERTS];
+        for(conduit::index_t vi = 0; vi < size; vi++)
+        {
+            const auto ptId = subelements_connectivity[offset + vi];
+            pts[vi] = Vector(static_cast<value_type>(x[ptId]),
+                             static_cast<value_type>(y[ptId]),
+                             static_cast<value_type>(z[ptId]));
+            center += pts[vi];
+        }
+
+        center /= static_cast<value_type>(size);
+        allFaceCentersPtr[f] = center;
+
+        // Compute apparent face normal.
+        allFaceNormalsPtr[f] = (pts[2] - pts[1]).cross(pts[0] - pts[1]).normalize();
+    });
+}
+
+/*!
+ * @brief Compute face centers and face normals for polyhedral zones.
+ *
+ * @tparam ExecPolicy The execution policy to use for the loop.
+ * @tparam IndexAccessor The container type for the subelement connectivity.
+ *
+ * @param n_coordset The node that contains the coordset. It must be explicit.
+ * @param subelements_connectivity An accessor used for subelements_connectivity
+ * @param subelements_sizes An accessor used for subelements_sizes
+ * @param subelements_offsets An accessor used for subelements_offsets
+ * @param[out] allFaceCenters The output vector for all of the face centers.
+ * @param[out] allFaceNormals The output vector for all of the face normals.
+ */
+template <typename ExecPolicy, typename IndexAccessor>
+void polyhedral_face_centers_normals(const conduit::Node &n_coordset,
+                                     const IndexAccessor &subelements_connectivity,
+                                     const IndexAccessor &subelements_sizes,
+                                     const IndexAccessor &subelements_offsets,
+                                     std::vector<Vector> &allFaceCenters,
+                                     std::vector<Vector> &allFaceNormals)
+{
+    // TODO: Call to_explicit() on the coordset if needed.
+
+    const conduit::Node &n_x = n_coordset["values/x"];
+    const conduit::Node &n_y = n_coordset["values/y"];
+    const conduit::Node &n_z = n_coordset["values/z"];
+    bool handled = false;
+    // Dispatch to different instantiations of the function.
+    if(n_x.dtype().is_compact() && n_y.dtype().is_compact() && n_z.dtype().is_compact())
+    {
+        // Handle contiguous float64, float32. (fast paths)
+        if(n_x.dtype().is_float64() && n_y.dtype().is_float64() && n_z.dtype().is_float64())
+        {
+            polyhedral_face_centers_normals<ExecPolicy>(subelements_connectivity,
+                                                        subelements_sizes,
+                                                        subelements_offsets,
+                                                        n_x.as_float64_ptr(),
+                                                        n_y.as_float64_ptr(),
+                                                        n_z.as_float64_ptr(),
+                                                        allFaceCenters,
+                                                        allFaceNormals);
+            handled = true;
+        }
+        if(n_x.dtype().is_float32() && n_y.dtype().is_float32() && n_z.dtype().is_float32())
+        {
+            polyhedral_face_centers_normals<ExecPolicy>(subelements_connectivity,
+                                                        subelements_sizes,
+                                                        subelements_offsets,
+                                                        n_x.as_float32_ptr(),
+                                                        n_y.as_float32_ptr(),
+                                                        n_z.as_float32_ptr(),
+                                                        allFaceCenters,
+                                                        allFaceNormals);
+            handled = true;
+        }
+    }
+    if(!handled)
+    {
+        // The coordinates were not supported in the more direct modes above so
+        // use accessors instead.
+        polyhedral_face_centers_normals<ExecPolicy>(subelements_connectivity,
+                                                    subelements_sizes,
+                                                    subelements_offsets,
+                                                    n_x.as_double_accessor(),
+                                                    n_y.as_double_accessor(),
+                                                    n_z.as_double_accessor(),
+                                                    allFaceCenters,
+                                                    allFaceNormals);
+    }
+}
+
+/*!
+ * @brief Average a PH element's face centers to make its element center (good enough).
+ *
+ * @tparam ExecPolicy The execution policy to use for the loop.
+ * @tparam IndexAccessor The container type for the element connectivity.
+ *
+ * @param elements_connectivity An accessor used for elements_connectivity
+ * @param elements_sizes An accessor used for elements_sizes
+ * @param elements_offsets An accessor used for elements_offsets
+ * @param allFaceCenters The vector for all of the face centers.
+ * @param[out] allElemCenters The output vector for the element centers.
+ */
+template <typename ExecPolicy, typename IndexAccessor>
+void polyhedral_elem_centers(const IndexAccessor elements_connectivity,
+                             const IndexAccessor elements_sizes,
+                             const IndexAccessor elements_offsets,
+                             const std::vector<Vector> &allFaceCenters,
+                             std::vector<Vector> &allElemCenters)
+{
+    const auto totalNumElems = elements_sizes.number_of_elements();
+    allElemCenters.resize(totalNumElems);
+    Vector *allElemCentersPtr = allElemCenters.data();
+    const Vector *allFaceCentersPtr = allFaceCenters.data();
+    conduit::execution::for_all<ExecPolicy>(0, totalNumElems, [=](conduit::index_t i) {
+        const auto size = elements_sizes[i];
+        const auto offset = elements_offsets[i];
+        Vector center {};
+        for(conduit::index_t f = 0; f < size; f++)
+        {
+            const auto faceId = elements_connectivity[offset + f];
+            center += allFaceCentersPtr[faceId];
+        }
+        center /= static_cast<double>(size);
+        allElemCentersPtr[i] = center;
+    });
+}
+
+/*!
+ * @brief Convert a polyhedral topology to an unstructured topology of hexes. If the
+ *        input topology does not contain exclusively hexes then it errors out.
+ *
+ * @tparam ExecPolicy The execution policy to use for the loop.
+ *
+ * @param n_topo The source unstructured polyhedral topology.
+ * @param n_output_topo The output unstructured hex topology.
+ */
+template <typename ExecPolicy>
+static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_output_topo)
+{
+#if defined(_WIN32)
+    // Use macros on Windows to work around an issue with lambda capture.
+    #define CONDUIT_NUM_FACES 6
+    #define CONDUIT_NUM_VERTS 4
+    #define CONDUIT_VERTS_PER_HEX 8
+#else
+    constexpr conduit::index_t CONDUIT_NUM_FACES = 6;
+    constexpr conduit::index_t CONDUIT_NUM_VERTS = 4;
+    constexpr conduit::index_t CONDUIT_VERTS_PER_HEX = 8;
+#endif
+
+    // Checks for unstructured + polyhedral.
+    if(n_topo["type"].as_string() != "unstructured")
+    {
+        CONDUIT_ERROR("The input topology is not unstructured.");
+    }
+    if(n_topo["elements/shape"].as_string() != "polyhedral")
+    {
+        CONDUIT_ERROR("The input topology is not polyhedral.");
+    }
+
+    // Make accessors for the basic polyhedral topology data.
+    const auto elements_connectivity =
+        n_topo.fetch_existing("elements/connectivity").as_index_t_accessor();
+    const auto elements_sizes = n_topo.fetch_existing("elements/sizes").as_index_t_accessor();
+    const auto elements_offsets = n_topo.fetch_existing("elements/offsets").as_index_t_accessor();
+    const auto subelements_connectivity =
+        n_topo.fetch_existing("subelements/connectivity").as_index_t_accessor();
+    const auto subelements_sizes = n_topo.fetch_existing("subelements/sizes").as_index_t_accessor();
+    const auto subelements_offsets =
+        n_topo.fetch_existing("subelements/offsets").as_index_t_accessor();
+    if(elements_sizes.max() != elements_sizes.min() || elements_sizes.max() != CONDUIT_NUM_FACES)
+    {
+        CONDUIT_ERROR("Polyhedral mesh elements/sizes indicate unsupported element type.");
+    }
+    if(subelements_sizes.max() != subelements_sizes.min() || subelements_sizes.max() != CONDUIT_NUM_VERTS)
+    {
+        CONDUIT_ERROR("Polyhedral mesh subelements/sizes indicate unsupported element type.");
+    }
+
+    const conduit::Node *n_coordset =
+        conduit::blueprint::mesh::utils::find_reference_node(n_topo, "coordset");
+    if(n_coordset == nullptr)
+    {
+        CONDUIT_ERROR("The topology's coordset could not be located.");
+    }
+
+    // Set up the output topology and allocate storage for the connectivity, sizes, offsets.
+    const auto nElem = elements_sizes.number_of_elements();
+    n_output_topo["type"] = "unstructured";
+    n_output_topo["coordset"] = n_coordset->name();
+    n_output_topo["elements/shape"] = std::string("hex");
+    n_output_topo["elements/connectivity"].set(
+        conduit::DataType(n_topo.fetch_existing("elements/connectivity").dtype().id(),
+                          nElem * CONDUIT_VERTS_PER_HEX));
+    n_output_topo["elements/sizes"].set(
+        conduit::DataType(n_topo.fetch_existing("elements/sizes").dtype().id(), nElem));
+    n_output_topo["elements/offsets"].set(
+        conduit::DataType(n_topo.fetch_existing("elements/offsets").dtype().id(), nElem));
+    auto out_connectivity = n_output_topo["elements/connectivity"].as_index_t_accessor();
+    auto out_sizes = n_output_topo["elements/sizes"].as_index_t_accessor();
+    auto out_offsets = n_output_topo["elements/offsets"].as_index_t_accessor();
+
+    using IndexContainer = conduit::fixed_size_vector<conduit::index_t, 3>;
+
+    /// Add a value to a vector if the value does not exist in the vector.
+    auto appendIndex = [](IndexContainer &vec, conduit::index_t value) {
+        if(std::find(vec.begin(), vec.end(), value) == vec.end())
+        {
+            vec.push_back(value);
+        }
+    };
+
+    // Compute the face centers for all faces.
+    std::vector<Vector> allFaceCenters, allFaceNormals;
+    polyhedral_face_centers_normals<ExecPolicy>(*n_coordset,
+                                                subelements_connectivity,
+                                                subelements_sizes,
+                                                subelements_offsets,
+                                                allFaceCenters,
+                                                allFaceNormals);
+
+    // Compute all elem centers for all elems.
+    std::vector<Vector> allElemCenters;
+    polyhedral_elem_centers<ExecPolicy>(elements_connectivity,
+                                        elements_sizes,
+                                        elements_offsets,
+                                        allFaceCenters,
+                                        allElemCenters);
+
+    // Fill in the output hex connectivity
+    // NOTE: We're using value capture [=], mainly to avoid issues on Windows. This
+    //       made us unable to use the accessors' set() method because it is not const.
+    //       To compensate, we make a copy of the accessors for the time being.
+    const Vector *allFaceCentersPtr = allFaceCenters.data();
+    const Vector *allFaceNormalsPtr = allFaceNormals.data();
+    const Vector *allElemCentersPtr = allElemCenters.data();
+    conduit::execution::for_all<ExecPolicy>(0, nElem, [=](conduit::index_t i) {
+        constexpr int FORWARD = 1;
+        constexpr int BACKWARD = -1;
+        // Determine face orientations with respect to this element.
+        int orientation[] = {FORWARD, FORWARD, FORWARD, FORWARD, FORWARD, FORWARD};
+        for(conduit::index_t f = 0; f < CONDUIT_NUM_FACES; f++)
+        {
+            const auto faceId = elements_connectivity[elements_offsets[i] + f];
+            const Vector &faceNormal = allFaceNormalsPtr[faceId];
+            const Vector &faceCenter = allFaceCentersPtr[faceId];
+            const Vector outwardNormal = (faceCenter - allElemCentersPtr[i]).normalize();
+            orientation[f] = (outwardNormal.dot(faceNormal) < 0.) ? BACKWARD : FORWARD;
+        }
+
+        // Order the points in the first face reversed with respect to orientation.
+        // This is because we want the hex face ordering to be counter-clockwise when
+        // viewed from the inside.
+        conduit::index_t conn[CONDUIT_VERTS_PER_HEX];
+        const auto firstFaceId = elements_connectivity[elements_offsets[i]];
+        const auto firstFaceOffset = subelements_offsets[firstFaceId];
+        if(orientation[0] == BACKWARD)
+        {
+            conn[0] = subelements_connectivity[firstFaceOffset];
+            conn[1] = subelements_connectivity[firstFaceOffset + 1];
+            conn[2] = subelements_connectivity[firstFaceOffset + 2];
+            conn[3] = subelements_connectivity[firstFaceOffset + 3];
+        }
+        else
+        {
+            conn[0] = subelements_connectivity[firstFaceOffset + 3];
+            conn[1] = subelements_connectivity[firstFaceOffset + 2];
+            conn[2] = subelements_connectivity[firstFaceOffset + 1];
+            conn[3] = subelements_connectivity[firstFaceOffset];
+        }
+        // Traverse the points in face 0 and add to the graph. These points that
+        // make up face 0 will have 2 outbound graph edges. When we add more later
+        // on another pass, the 3rd edge will be the one that connects the hex to
+        // its other face.
+        using MapType = conduit::fixed_size_map<conduit::index_t, IndexContainer, 8>;
+        MapType graph;
+        for(conduit::index_t vi = 0; vi < CONDUIT_NUM_VERTS; vi++)
+        {
+            conduit::index_t prevI = (vi == 0) ? 3 : (vi - 1);
+            conduit::index_t nextI = (vi == CONDUIT_NUM_VERTS - 1) ? 0 : (vi + 1);
+            auto &current = graph[conn[vi]];
+            current.push_back(conn[prevI]);
+            current.push_back(conn[nextI]);
+        }
+        // Traverse the rest of the faces and add to the graph.
+        for(conduit::index_t f = 1; f < CONDUIT_NUM_FACES; f++)
+        {
+            const auto faceId = elements_connectivity[elements_offsets[i] + f];
+            conduit::index_t faceVertexIds[CONDUIT_NUM_VERTS];
+            const auto se_offset = (orientation[f] == FORWARD)
+                ? subelements_offsets[faceId]
+                : (subelements_offsets[faceId] + CONDUIT_NUM_VERTS - 1);
+
+            for(conduit::index_t vi = 0; vi < CONDUIT_NUM_VERTS; vi++)
+            {
+                faceVertexIds[vi] = subelements_connectivity[se_offset + vi * orientation[f]];
+            }
+
+            for(conduit::index_t vi = 0; vi < CONDUIT_NUM_VERTS; vi++)
+            {
+                conduit::index_t prevI = (vi == 0) ? 3 : (vi - 1);
+                conduit::index_t nextI = (vi == CONDUIT_NUM_VERTS - 1) ? 0 : (vi + 1);
+                const auto currentId = faceVertexIds[vi];
+                const auto prevId = faceVertexIds[prevI];
+                const auto nextId = faceVertexIds[nextI];
+
+                auto &current = graph[currentId];
+                auto &prev = graph[prevId];
+                auto &next = graph[nextId];
+
+                appendIndex(current, prevId);
+                appendIndex(current, nextId);
+                appendIndex(prev, currentId);
+                appendIndex(next, currentId);
+            }
+        }
+        // Fill in the rest of the hex connectivity.
+        conn[4] = graph.get(0)[2];
+        conn[5] = graph.get(1)[2];
+        conn[6] = graph.get(2)[2];
+        conn[7] = graph.get(3)[2];
+
+        // HACK: Make copies of the accessors so they are not const and we can use the set() method.
+        auto out_connectivity_nc = out_connectivity;
+        auto out_sizes_nc = out_sizes;
+        auto out_offsets_nc = out_offsets;
+
+        // Store it into the output arrays.
+        const auto offset = i * CONDUIT_VERTS_PER_HEX;
+        out_sizes_nc.set(i, CONDUIT_VERTS_PER_HEX);
+        out_offsets_nc.set(i, offset);
+        for(conduit::index_t vi = 0; vi < CONDUIT_VERTS_PER_HEX; vi++)
+        {
+            out_connectivity_nc.set(offset + vi, conn[vi]);
+        }
+    });
+#if defined(_WIN32)
+    #undef CONDUIT_NUM_FACES
+    #undef CONDUIT_NUM_VERTS
+    #undef CONDUIT_VERTS_PER_HEX
+#endif
+}
+
+/*!
+ * @brief Converts an input mesh from polygonal/polyhedral to quad/hex and also
+ *        brings associated fields, matsets, adjsets, state to the output mesh.
+ *
+ * @param n_mesh The input mesh
+ * @param n_options The options node that indicates which "topology" will be
+ *                  operated on. If not specified, the first topology is used.
+ *                  The "copy" attribute indicates whether to copy or set_external
+ *                  data in the output mesh. The "policy" can be "omp" or "seq".
+ * @param[out] n_output The node that will contain the output mesh.
+ */
+static void to_unstructured(const conduit::Node &n_mesh,
+                            const conduit::Node &n_options,
+                            conduit::Node &n_output)
+{
+    // Get a node designated by the options key, or the first one in the mesh if there are no options given.
+    auto getNode = [](const conduit::Node &n_mesh2,
+                      const conduit::Node &n_options2,
+                      const std::string &rootName,
+                      const std::string &key) {
+        if(n_options2.has_path(key))
+        {
+            const std::string name = n_options2[key].as_string();
+            return &n_mesh2[rootName + "/" + name];
+        }
+        return &(n_mesh2[rootName][0]);
+    };
+
+    // Determine whether we're copying or doing set_external (if possible).
+    bool copy = true;
+    if(n_options.has_path("copy"))
+    {
+        copy = (n_options["copy"].to_int() != 0);
+    }
+    // Determine whether input/output nodes are different. If they are different then
+    // we need to copy input over to output. Otherwise, the inputs are already in the
+    // output for most things.
+    bool input_output_different = (&n_mesh != &n_output);
+
+    // Get the topology and coordset
+    const conduit::Node *n_topo = getNode(n_mesh, n_options, "topologies", "topology");
+    if(n_topo == nullptr)
+    {
+        CONDUIT_ERROR("Could not find topology.");
+    }
+    const conduit::Node *n_coordset =
+        bputils::find_reference_node(*n_topo, "coordset");
+    if(n_coordset == nullptr)
+    {
+        CONDUIT_ERROR("Could not find coordset.");
+    }
+
+    // Check the topo type.
+    const auto type = n_topo->fetch_existing("type").as_string();
+    if(type != "unstructured")
+    {
+        CONDUIT_ERROR("to_unstructured called without unstructured mesh.");
+    }
+    const auto shape = n_topo->fetch_existing("elements/shape").as_string();
+    if(shape == "polygonal")
+    {
+        const auto elements_sizes = n_topo->fetch_existing("elements/sizes").as_int_accessor();
+        // Support all elements being either tri or quad.
+        if(elements_sizes.max() != elements_sizes.min() ||
+           (elements_sizes.max() != 4 && elements_sizes.max() != 3))
+        {
+            CONDUIT_ERROR("Polygonal mesh elements/sizes indicate unsupported element type.");
+        }
+        conduit::Node &n_output_topo = n_output["topologies/" + n_topo->name()];
+        // If n_mesh and n_output are different nodes, copy coordset and topology to n_output.
+        if(input_output_different)
+        {
+            n_output_topo.set(*n_topo);
+        }
+        // Force to quad from polygonal
+        n_output_topo["elements/shape"] = (elements_sizes.max() == 4) ? "quad" : "tri";
+    }
+    else if(shape == "polyhedral")
+    {
+        conduit::Node &n_output_topo = n_output["topologies/" + n_topo->name()];
+
+#if defined(CONDUIT_USE_OPENMP)
+        // Let the user select an execution policy via options.
+        std::string policy("seq");
+        if(n_options.has_path("policy"))
+        {
+            const std::string p = n_options["policy"].as_string();
+            if(p == "omp" || p == "seq") policy = p;
+        }
+
+        if(policy == "omp")
+        {
+            polyhedral_to_hexes<conduit::execution::OpenMPExec>(*n_topo, n_output_topo);
+        }
+        else
+        {
+            polyhedral_to_hexes<conduit::execution::SerialExec>(*n_topo, n_output_topo);
+        }
+#else
+        polyhedral_to_hexes<conduit::execution::SerialExec>(*n_topo, n_output_topo);
+#endif
+    }
+    else
+    {
+        if(input_output_different)
+        {
+            // It's just some other unstructured mesh. Copy to output node.
+            copy_node(*n_topo, n_output["topologies/" + n_topo->name()], copy);
+        }
+    }
+
+    // The input and output meshes are in different nodes so we must copy relevant
+    // data over to the output node.
+    if(input_output_different)
+    {
+        copy_node(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
+
+        copy_nodes_with_topology(n_mesh,
+                              n_topo->name(),
+                              n_output,
+                              "fields",
+                              copy,
+                              get_selected_fields(n_options));
+        copy_nodes_with_topology(n_mesh, n_topo->name(), n_output, "matsets", copy);
+        copy_nodes_with_topology(n_mesh, n_topo->name(), n_output, "adjsets", copy);
+        if(n_mesh.has_path("state"))
+        {
+            copy_node(n_mesh["state"], n_output["state"], copy);
+        }
+    }
+}
+
+}
+//-----------------------------------------------------------------------------
+// -- end conduit::blueprint::mesh::topology::unstructured::polytopal --
+//-----------------------------------------------------------------------------
+
+}
+//-----------------------------------------------------------------------------
+// -- end conduit::blueprint::mesh::topology::unstructured --
+//-----------------------------------------------------------------------------
+
+}
+//-----------------------------------------------------------------------------
+// -- end conduit::blueprint::mesh::topology --
+//-----------------------------------------------------------------------------
+
+}
+//-----------------------------------------------------------------------------
+// -- end conduit::blueprint::mesh --
+//-----------------------------------------------------------------------------
+
+void mesh::convert(const conduit::Node &n_mesh,
+                   const conduit::Node &n_options,
+                   conduit::Node &n_output,
+                   conduit::Node &n_maps)
+{
+    const auto domains = conduit::blueprint::mesh::domains(n_mesh);
+
+    // Select the topology on which to operate.
+    std::string topologyName;
+    if(n_options.has_path("topology"))
+    {
+        topologyName = n_options["topology"].as_string();
+    }
+    else
+    {
+        const conduit::Node &n_topologies = domains[0]->fetch_existing("topologies");
+        topologyName = n_topologies[0].name();
+        if(n_topologies.number_of_children() > 1)
+        {
+            CONDUIT_INFO(conduit_fmt::format(
+                "There is more than one possible topology in the mesh. The first one, \"{}\", will "
+                "be used. Consider passing a \"topology\" name in the options.",
+                topologyName));
+        }
+    }
+
+    // Determine whether we're copying or doing set_external (if possible).
+    bool copy = true;
+    if(n_options.has_path("copy"))
+    {
+        copy = (n_options["copy"].to_int() != 0);
+    }
+
+    // Get the target
+    std::string target("unstructured");
+    if(n_options.has_path("target"))
+    {
+        target = n_options["target"].as_string();
+    }
+
+    const int FIELDS_MASK = 1;
+    const int MATSETS_MASK = 2;
+    const int ADJSETS_MASK = 4;
+    int copyMask = 0;
+
+    if(domains.size() > 1)
+    {
+        // Iterate over the domains and convert each one.
+        for(size_t i = 0; i < domains.size(); i++)
+        {
+            convert(*domains[i], n_options, n_output.append(), n_maps.append());
+        }
+    }
+    else
+    {
+        const conduit::Node &n_topo = n_mesh["topologies/" + topologyName];
+        const conduit::Node *n_coordset =
+            bputils::find_reference_node(n_topo, "coordset");
+        if(n_coordset == nullptr)
+        {
+            CONDUIT_ERROR("Could not locate coordset.");
+        }
+
+        const std::string type = n_topo["type"].as_string();
+        if(target == "unstructured")
+        {
+            // We want to convert the mesh to unstructured.
+            if(type == "unstructured")
+            {
+                // We have an unstructured mesh.
+                const std::string shape = n_topo["elements/shape"].as_string();
+                const bool degrade_polytopes = n_options.has_path("degrade_polytopes")
+                    ? (n_options["degrade_polytopes"].to_int() > 0)
+                    : false;
+                const bool isPolygonal = shape == "polygonal" && degrade_polytopes;
+                const bool isPolyhedral = shape == "polyhedral" && degrade_polytopes;
+                if(isPolygonal || isPolyhedral)
+                {
+                    // Convert polytopal BACK to unstructured.
+                    conduit::blueprint::mesh::topology::unstructured::polytopal::to_unstructured(
+                        n_mesh,
+                        n_options,
+                        n_output);
+                }
+                else
+                {
+                    copy_node(n_topo, n_output["topologies/" + topologyName], copy);
+                    copy_node(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
+                    copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+                }
+            }
+            else
+            {
+                conduit::Node &topo_dest = n_output["topologies/" + topologyName];
+                conduit::Node &coords_dest = n_output["coordsets/" + n_coordset->name()];
+                if(type == "uniform")
+                {
+                    conduit::blueprint::mesh::topology::uniform::to_unstructured(n_topo,
+                                                                                 topo_dest,
+                                                                                 coords_dest);
+                    copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+                }
+                else if(type == "rectilinear")
+                {
+                    conduit::blueprint::mesh::topology::rectilinear::to_unstructured(n_topo,
+                                                                                     topo_dest,
+                                                                                     coords_dest);
+                    copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+                }
+                else if(type == "structured")
+                {
+                    conduit::blueprint::mesh::topology::structured::to_unstructured(n_topo,
+                                                                                    topo_dest,
+                                                                                    coords_dest);
+                    copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+                }
+                else
+                {
+                    CONDUIT_ERROR(conduit_fmt::format("No conversion for {} to {}.", type, target));
+                }
+            }
+        }
+        else if(target == "uniform")
+        {
+            if(type == "uniform")
+            {
+                copy_node(n_topo, n_output["topologies/" + topologyName], copy);
+                copy_node(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
+                copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+            }
+            else
+            {
+                CONDUIT_ERROR(conduit_fmt::format("No conversion for {} to {}.", type, target));
+            }
+        }
+        else if(target == "rectilinear")
+        {
+            if(type == "uniform")
+            {
+                conduit::Node &topo_dest = n_output["topologies/" + topologyName];
+                conduit::Node &coords_dest = n_output["coordsets/" + n_coordset->name()];
+                conduit::blueprint::mesh::topology::uniform::to_rectilinear(n_topo,
+                                                                            topo_dest,
+                                                                            coords_dest);
+                copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+            }
+            else if(type == "rectilinear")
+            {
+                copy_node(n_topo, n_output["topologies/" + topologyName], copy);
+                copy_node(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
+                copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+            }
+            else
+            {
+                CONDUIT_ERROR(conduit_fmt::format("No conversion for {} to {}.", type, target));
+            }
+        }
+        else if(target == "structured")
+        {
+            if(type == "uniform")
+            {
+                conduit::Node &topo_dest = n_output["topologies/" + topologyName];
+                conduit::Node &coords_dest = n_output["coordsets/" + n_coordset->name()];
+                conduit::blueprint::mesh::topology::uniform::to_structured(n_topo,
+                                                                           topo_dest,
+                                                                           coords_dest);
+                copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+            }
+            else if(type == "rectilinear")
+            {
+                conduit::Node &topo_dest = n_output["topologies/" + topologyName];
+                conduit::Node &coords_dest = n_output["coordsets/" + n_coordset->name()];
+                conduit::blueprint::mesh::topology::rectilinear::to_structured(n_topo,
+                                                                               topo_dest,
+                                                                               coords_dest);
+                copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+            }
+            else if(type == "structured")
+            {
+                copy_node(n_topo, n_output["topologies/" + topologyName], copy);
+                copy_node(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
+                copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+            }
+            else
+            {
+                CONDUIT_ERROR(conduit_fmt::format("to_structured not implemented for {}.", type));
+            }
+        }
+        else if(target == "polytopal")
+        {
+            if(type == "unstructured")
+            {
+                conduit::Node &topo_dest = n_output["topologies/" + topologyName];
+                conduit::blueprint::mesh::topology::unstructured::to_polytopal(n_topo, topo_dest);
+                copy_node(*n_coordset, n_output["coordsets/" + n_coordset->name()], copy);
+                copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+            }
+            else
+            {
+                // Convert to unstructured first.
+                conduit::Node options_copy(n_options);
+                options_copy["target"] = "unstructured";
+                options_copy["copy"] = 0;  // Use set_external when possible
+                conduit::Node n_mesh_uns, tmp;
+                convert(n_mesh, options_copy, n_mesh_uns, tmp);
+
+                const conduit::Node &n_topo_uns = n_mesh_uns["topologies/" + topologyName];
+                const conduit::Node &n_coordset_uns = n_mesh_uns["coordsets/" + n_coordset->name()];
+
+                conduit::Node &topo_dest = n_output["topologies/" + topologyName];
+                conduit::blueprint::mesh::topology::unstructured::to_polytopal(n_topo_uns, topo_dest);
+                copy_node(n_coordset_uns, n_output["coordsets/" + n_coordset->name()], true);
+                copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+            }
+        }
+        else if(target.find("generate_") == 0)
+        {
+            const conduit::Node *n_input = &n_mesh;
+            // If the input mesh to any of these "generate_" targets is not unstructured,
+            // recurse and make it unstructured.
+            conduit::Node n_mesh_uns, tmp;
+            if(type != "unstructured")
+            {
+                conduit::Node options_copy(n_options);
+                options_copy["target"] = "unstructured";
+                options_copy["copy"] = 0;  // Use set_external when possible
+                convert(n_mesh, options_copy, n_mesh_uns, tmp);
+                n_input = &n_mesh_uns;
+            }
+
+            const conduit::Node &n_input_topo = n_input->fetch_existing("topologies/" + topologyName);
+            conduit::Node &n_output_topo = n_output["topologies/" + topologyName];
+            if(target == "generate_points")
+            {
+                conduit::blueprint::mesh::topology::unstructured::generate_points(n_input_topo,
+                                                                                  n_output_topo,
+                                                                                  n_maps["s2dmap"],
+                                                                                  n_maps["d2smap"]);
+                const conduit::Node *n_coordset_uns =
+                    bputils::find_reference_node(n_input_topo, "coordset");
+                copy_node(*n_coordset_uns, n_output["coordsets/" + n_coordset_uns->name()], copy);
+            }
+            else if(target == "generate_lines")
+            {
+                conduit::blueprint::mesh::topology::unstructured::generate_lines(n_input_topo,
+                                                                                 n_output_topo,
+                                                                                 n_maps["s2dmap"],
+                                                                                 n_maps["d2smap"]);
+                const conduit::Node *n_coordset_uns =
+                    bputils::find_reference_node(n_input_topo, "coordset");
+                copy_node(*n_coordset_uns, n_output["coordsets/" + n_coordset_uns->name()], copy);
+            }
+            else if(target == "generate_faces")
+            {
+                conduit::blueprint::mesh::topology::unstructured::generate_faces(n_input_topo,
+                                                                                 n_output_topo,
+                                                                                 n_maps["s2dmap"],
+                                                                                 n_maps["d2smap"]);
+                const conduit::Node *n_coordset_uns =
+                    bputils::find_reference_node(n_input_topo, "coordset");
+                copy_node(*n_coordset_uns, n_output["coordsets/" + n_coordset_uns->name()], copy);
+            }
+            else if(target == "generate_centroids")
+            {
+                // NOTE: Use the same coordset name as the original mesh.
+                conduit::blueprint::mesh::topology::unstructured::generate_centroids(
+                    n_input_topo,
+                    n_output["topologies/" + topologyName],
+                    n_output["coordsets/" + n_coordset->name()],
+                    n_maps["s2dmap"],
+                    n_maps["d2smap"]);
+            }
+            else if(target == "generate_sides")
+            {
+                // NOTE: Use the same coordset name as the original mesh.
+                conduit::blueprint::mesh::topology::unstructured::generate_sides(
+                    n_input_topo,
+                    n_output["topologies/" + topologyName],
+                    n_output["coordsets/" + n_coordset->name()],
+                    n_maps["s2dmap"],
+                    n_maps["d2smap"]);
+            }
+            else if(target == "generate_corners")
+            {
+                // NOTE: Use the same coordset name as the original mesh.
+                conduit::blueprint::mesh::topology::unstructured::generate_corners(
+                    n_input_topo,
+                    n_output["topologies/" + topologyName],
+                    n_output["coordsets/" + n_coordset->name()],
+                    n_maps["s2dmap"],
+                    n_maps["d2smap"]);
+            }
+            else
+            {
+                CONDUIT_ERROR(conduit_fmt::format("Unsupported target {}.", target));
+            }
+        }
+        else
+        {
+            CONDUIT_ERROR(conduit_fmt::format("Unsupported target {}.", target));
+        }
+
+        // Copy some objects from the input mesh to the output mesh.
+        if(copyMask & FIELDS_MASK)
+        {
+            copy_nodes_with_topology(n_mesh,
+                                  topologyName,
+                                  n_output,
+                                  "fields",
+                                  copy,
+                                  get_selected_fields(n_options));
+        }
+        if(copyMask & MATSETS_MASK)
+        {
+            copy_nodes_with_topology(n_mesh, topologyName, n_output, "matsets", copy);
+        }
+        if(copyMask & ADJSETS_MASK)
+        {
+            copy_nodes_with_topology(n_mesh, topologyName, n_output, "adjsets", copy);
+        }
+        if(n_mesh.has_path("state"))
+        {
+            copy_node(n_mesh["state"], n_output["state"], copy);
+        }
+    }
+}
+
+void mesh::convert(const conduit::Node &n_mesh, const conduit::Node &n_options, conduit::Node &n_output)
+{
+    conduit::Node n_maps;
+    mesh::convert(n_mesh, n_options, n_output, n_maps);
+}
 
 }
 //-----------------------------------------------------------------------------
