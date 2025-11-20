@@ -197,6 +197,114 @@ PyBlueprint_mesh_generate_index(PyObject *, //self
 }
 
 //---------------------------------------------------------------------------//
+// conduit::blueprint::mesh::convert
+//---------------------------------------------------------------------------//
+
+// doc str
+const char *PyBlueprint_mesh_convert_doc_str =
+"convert(mesh, options, output)\n"
+"\n"
+"Assumes mesh::verify() is True\n"
+"\n"
+"Converts input mesh (with the selected topology name) to a target"
+" representation.\n"
+"(The default target mesh representation is `unstructured`)\n"
+"\n"
+"Arguments:\n"
+"  mesh: input node (conduit.Node instance)\n"
+"  options: options node (conduit.Node instance)\n"
+"  output: mesh result output node (conduit.Node instance)\n"
+"  maps: mapping result output node (optional, conduit.Node instance)\n";
+
+// py func
+static PyObject * 
+PyBlueprint_mesh_convert(PyObject *, //self
+                         PyObject *args,
+                         PyObject *kwargs)
+{
+
+    PyObject   *py_mesh     = NULL;
+    PyObject   *py_options  = NULL;
+    PyObject   *py_output   = NULL;
+    PyObject   *py_maps     = NULL;
+
+    
+    static const char *kwlist[] = {"mesh",
+                                   "options",
+                                   "output",
+                                   "maps",
+                                   NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args,
+                                     kwargs,
+                                     "OOO|O",
+                                     const_cast<char**>(kwlist),
+                                     &py_mesh, 
+                                     &py_options,
+                                     &py_output,
+                                     &py_maps))
+    {
+        return NULL;
+    }
+    
+    if(!PyConduit_Node_Check(py_mesh))
+    {
+        PyErr_SetString(PyExc_TypeError,
+                        "'mesh' argument must be a "
+                        "conduit.Node instance");
+        return NULL;
+    }
+
+    if(!PyConduit_Node_Check(py_options))
+    {
+        PyErr_SetString(PyExc_TypeError,
+                        "'options' argument must be a "
+                        "conduit.Node instance");
+        return NULL;
+    }
+
+    if(!PyConduit_Node_Check(py_output))
+    {
+        PyErr_SetString(PyExc_TypeError,
+                        "'output' argument must be a "
+                        "conduit.Node instance");
+        return NULL;
+    }
+
+    // if passed, maps must be a conduit node
+    if(py_maps != NULL && !PyConduit_Node_Check(py_maps))
+    {
+        PyErr_SetString(PyExc_TypeError,
+                        "'maps' argument must be a "
+                        "conduit.Node instance");
+        return NULL;
+    }
+
+    Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
+    Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
+    Node &output = *PyConduit_Node_Get_Node_Ptr(py_output);
+
+    if(py_maps == NULL)
+    {
+        blueprint::mesh::convert(mesh,
+                                 options,
+                                 output);
+    }
+    else
+    {
+        Node &maps = *PyConduit_Node_Get_Node_Ptr(py_maps);
+        blueprint::mesh::convert(mesh,
+                                 options,
+                                 output,
+                                 maps);
+    }
+
+    Py_RETURN_NONE;
+}
+
+
+
+//---------------------------------------------------------------------------//
 // conduit::blueprint::mesh::partition
 //---------------------------------------------------------------------------//
 
@@ -368,6 +476,10 @@ static PyMethodDef blueprint_mesh_python_funcs[] =
      (PyCFunction)PyBlueprint_mesh_generate_index,
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_generate_index_doc_str},
+    {"convert",
+     (PyCFunction)PyBlueprint_mesh_convert,
+      METH_VARARGS | METH_KEYWORDS,
+      PyBlueprint_mesh_convert_doc_str},
     {"partition",
      (PyCFunction)PyBlueprint_mesh_partition,
       METH_VARARGS | METH_KEYWORDS,
