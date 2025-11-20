@@ -8,6 +8,10 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 ### Added
 
+#### Conduit
+- Added `CONDUIT_VERSION_VALUE` macro that encodes the current Conduit version as an integer.
+- Added a macro to make an integer a version number from major, minor, patch version numbers. Example: `CONDUIT_MAKE_VERSION_VALUE(0, 9, 6)`. This macro can be used to conditionally compile code that is valid for specific versions of Conduit.
+
 #### Blueprint
 - Finished `bent_multi_grid_amr` mesh by adding adjacency sets between spatially adjacent domains at the same level of refinement.
 - Added `conduit::blueprint::mesh::convert()` function that can convert among various mesh formats and generate derived meshes such as points, centroids, faces, sides, and corners.
