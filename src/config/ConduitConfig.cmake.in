@@ -16,83 +16,78 @@ cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
 
 @PACKAGE_INIT@
 
-if(NOT CONDUIT_FOUND)
-
-    # Compute the installation prefix relative to this file.
-    get_filename_component(_IMPORT_PREFIX "${CMAKE_CURRENT_LIST_FILE}" PATH)
-    get_filename_component(_IMPORT_PREFIX "${_IMPORT_PREFIX}" PATH)
-    get_filename_component(_IMPORT_PREFIX "${_IMPORT_PREFIX}" PATH)
-    if(_IMPORT_PREFIX STREQUAL "/")
-      set(_IMPORT_PREFIX "")
-    endif()
-
-    set(CONDUIT_VERSION "@PROJECT_VERSION@")
-    # keep CONDUIT_USE_CXX11 to support old install logic
-    set(CONDUIT_USE_CXX11   "@CONDUIT_USE_CXX11@")
-    set(CONDUIT_USE_CXX14   "@CONDUIT_USE_CXX14@")
-    set(CONDUIT_USE_FMT     "@CONDUIT_USE_FMT@")
-    set(CONDUIT_USE_CALIPER "@CONDUIT_USE_CALIPER@")
-    set(CONDUIT_USE_MPI     "@ENABLE_MPI@")
-    set(CONDUIT_USE_OPENMP  "@ENABLE_OPENMP@")
-    set(CONDUIT_INSTALL_PREFIX "@CONDUIT_INSTALL_PREFIX@")
-    set(CONDUIT_ZLIB_DIR  "@ZLIB_DIR@")
-    set(CONDUIT_HDF5_DIR  "@HDF5_DIR@")
-    set(CONDUIT_ADIOS_DIR "@ADIOS_DIR@")
-    set(CONDUIT_SILO_DIR "@SILO_DIR@")
-    set(CONDUIT_METIS_DIR "@METIS_DIR@")
-    set(CONDUIT_PARMETIS_DIR "@PARMETIS_DIR@")
-    set(CONDUIT_ADIAK_DIR "@ADIAK_DIR@")
-    set(CONDUIT_CALIPER_DIR "@CALIPER_DIR@")
-    set(CONDUIT_PYTHON_ENABLED "@PYTHON_FOUND@")
-    set(CONDUIT_PYTHON_EXECUTABLE "@PYTHON_EXECUTABLE@")
-    set(CONDUIT_PYTHON_MODULE_DIR "@CONDUIT_INSTALL_PYTHON_MODULE_DIR@")
-    set(CONDUIT_PYTHON_MODULE_CUSTOM_PREFIX "@CONDUIT_INSTALL_PYTHON_MODULE_CUSTOM_PREFIX@")
-    set(CONDUIT_USE_CMAKE_MPI_TARGETS   "@CONDUIT_USE_CMAKE_MPI_TARGETS@")
-
-    get_filename_component(CONDUIT_CMAKE_CONFIG_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
-
-    # setup dependent pkgs
-    include(${CONDUIT_CMAKE_CONFIG_DIR}/conduit_setup_deps.cmake)
-
-    # include targets exported by cmake
-    include(${CONDUIT_CMAKE_CONFIG_DIR}/conduit.cmake)
-
-    # finally setup our final imported targets
-    include(${CONDUIT_CMAKE_CONFIG_DIR}/conduit_setup_targets.cmake)
-
-    set(Conduit_FOUND TRUE)
-
-    set(_conduit_known_components
-      MPI)
-    foreach(_conduit_component IN LISTS Conduit_FIND_COMPONENTS)
-      if (NOT _conduit_component IN_LIST _conduit_known_components)
-        set("Conduit_${_conduit_component}_FOUND" 0)
-        set("Conduit_${_conduit_component}_NOT_FOUND_MESSAGE"
-          "Unknown component ${_conduit_component}")
-
-        if(Conduit_FIND_REQUIRED_${_conduit_component})
-          set(Conduit_FOUND 0)
-          list(APPEND Conduit_NOT_FOUND_MESSAGE
-            "Unknown component ${_conduit_component}")
-        endif()
-      else()
-        if(NOT DEFINED Conduit_${_conduit_component}_FOUND)
-          set("Conduit_${_conduit_component}_FOUND" 0)
-          set("Conduit_${_conduit_component}_NOT_FOUND_MESSAGE"
-            "Component ${_conduit_component} was not found (unimplemented?)")
-        endif()
-        if(NOT Conduit_${_conduit_component}_FOUND AND
-           Conduit_FIND_REQUIRED_${_conduit_component})
-          set(Conduit_FOUND 0)
-          list(APPEND Conduit_NOT_FOUND_MESSAGE
-            "Component ${_conduit_component} was not found: ${Conduit_${_conduit_component}_NOT_FOUND_MESSAGE}")
-        endif()
-      endif()
-    endforeach()
-    unset(_conduit_known_components)
-    unset(_conduit_component)
-
-    set(CONDUIT_FOUND "${Conduit_FOUND}")
-
+# Compute the installation prefix relative to this file.
+get_filename_component(_IMPORT_PREFIX "${CMAKE_CURRENT_LIST_FILE}" PATH)
+get_filename_component(_IMPORT_PREFIX "${_IMPORT_PREFIX}" PATH)
+get_filename_component(_IMPORT_PREFIX "${_IMPORT_PREFIX}" PATH)
+if(_IMPORT_PREFIX STREQUAL "/")
+  set(_IMPORT_PREFIX "")
 endif()
 
+set(CONDUIT_VERSION "@PROJECT_VERSION@")
+# keep CONDUIT_USE_CXX11 to support old install logic
+set(CONDUIT_USE_CXX11   "@CONDUIT_USE_CXX11@")
+set(CONDUIT_USE_CXX14   "@CONDUIT_USE_CXX14@")
+set(CONDUIT_USE_FMT     "@CONDUIT_USE_FMT@")
+set(CONDUIT_USE_CALIPER "@CONDUIT_USE_CALIPER@")
+set(CONDUIT_USE_MPI     "@ENABLE_MPI@")
+set(CONDUIT_USE_OPENMP  "@ENABLE_OPENMP@")
+set(CONDUIT_INSTALL_PREFIX "@CONDUIT_INSTALL_PREFIX@")
+set(CONDUIT_ZLIB_DIR  "@ZLIB_DIR@")
+set(CONDUIT_HDF5_DIR  "@HDF5_DIR@")
+set(CONDUIT_ADIOS_DIR "@ADIOS_DIR@")
+set(CONDUIT_SILO_DIR "@SILO_DIR@")
+set(CONDUIT_METIS_DIR "@METIS_DIR@")
+set(CONDUIT_PARMETIS_DIR "@PARMETIS_DIR@")
+set(CONDUIT_ADIAK_DIR "@ADIAK_DIR@")
+set(CONDUIT_CALIPER_DIR "@CALIPER_DIR@")
+set(CONDUIT_PYTHON_ENABLED "@PYTHON_FOUND@")
+set(CONDUIT_PYTHON_EXECUTABLE "@PYTHON_EXECUTABLE@")
+set(CONDUIT_PYTHON_MODULE_DIR "@CONDUIT_INSTALL_PYTHON_MODULE_DIR@")
+set(CONDUIT_PYTHON_MODULE_CUSTOM_PREFIX "@CONDUIT_INSTALL_PYTHON_MODULE_CUSTOM_PREFIX@")
+set(CONDUIT_USE_CMAKE_MPI_TARGETS   "@CONDUIT_USE_CMAKE_MPI_TARGETS@")
+
+get_filename_component(CONDUIT_CMAKE_CONFIG_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+
+# setup dependent pkgs
+include(${CONDUIT_CMAKE_CONFIG_DIR}/conduit_setup_deps.cmake)
+
+# include targets exported by cmake
+include(${CONDUIT_CMAKE_CONFIG_DIR}/conduit.cmake)
+
+# finally setup our final imported targets
+include(${CONDUIT_CMAKE_CONFIG_DIR}/conduit_setup_targets.cmake)
+
+set(Conduit_FOUND TRUE)
+
+set(_conduit_known_components
+  MPI)
+foreach(_conduit_component IN LISTS Conduit_FIND_COMPONENTS)
+  if (NOT _conduit_component IN_LIST _conduit_known_components)
+    set("Conduit_${_conduit_component}_FOUND" 0)
+    set("Conduit_${_conduit_component}_NOT_FOUND_MESSAGE"
+      "Unknown component ${_conduit_component}")
+
+    if(Conduit_FIND_REQUIRED_${_conduit_component})
+      set(Conduit_FOUND 0)
+      list(APPEND Conduit_NOT_FOUND_MESSAGE
+        "Unknown component ${_conduit_component}")
+    endif()
+  else()
+    if(NOT DEFINED Conduit_${_conduit_component}_FOUND)
+      set("Conduit_${_conduit_component}_FOUND" 0)
+      set("Conduit_${_conduit_component}_NOT_FOUND_MESSAGE"
+        "Component ${_conduit_component} was not found (unimplemented?)")
+    endif()
+    if(NOT Conduit_${_conduit_component}_FOUND AND
+       Conduit_FIND_REQUIRED_${_conduit_component})
+      set(Conduit_FOUND 0)
+      list(APPEND Conduit_NOT_FOUND_MESSAGE
+        "Component ${_conduit_component} was not found: ${Conduit_${_conduit_component}_NOT_FOUND_MESSAGE}")
+    endif()
+  endif()
+endforeach()
+unset(_conduit_known_components)
+unset(_conduit_component)
+
+set(CONDUIT_FOUND "${Conduit_FOUND}")
