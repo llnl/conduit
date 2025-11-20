@@ -182,6 +182,7 @@ public:
     bool is_poly() const;
     bool is_polygonal() const;
     bool is_polyhedral() const;
+    bool is_mixed() const;
     bool is_valid() const;
 
     /// Return the number of actual faces (not triangulated)
@@ -197,9 +198,13 @@ public:
 private:
     void init(const index_t type_id);
     void init(const std::string &type_name);
+    index_t type_name_to_id(const std::string &type_name) const;
 
     static index_t wedge_id;
     static index_t pyramid_id;
+    static index_t polygonal_id;
+    static index_t polyhedral_id;
+    static index_t mixed_id;
 };
 
 //---------------------------------------------------------------------------//

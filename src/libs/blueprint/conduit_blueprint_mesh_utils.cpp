@@ -70,6 +70,9 @@ namespace utils
 // They are set in init() too.
 index_t ShapeType::wedge_id = 6;
 index_t ShapeType::pyramid_id = 7;
+index_t ShapeType::polygonal_id = 8;
+index_t ShapeType::polyhedral_id = 9;
+index_t ShapeType::mixed_id = 10;
 
 //---------------------------------------------------------------------------//
 ShapeType::ShapeType()
@@ -92,12 +95,34 @@ ShapeType::ShapeType(const std::string &type_name)
 //---------------------------------------------------------------------------//
 ShapeType::ShapeType(const conduit::Node &topology)
 {
-    init(-1);
+    constexpr index_t InvalidType = -1;
+    constexpr index_t InvalidDimension = -1;
+
+    init(InvalidType);
 
     const std::string topoType = topology["type"].as_string();
     if(topoType == "unstructured" && topology["elements"].has_child("shape"))
     {
-        init(topology["elements/shape"].as_string());
+        const auto shape = topology["elements/shape"].as_string();
+        init(shape);
+        // Do more work to initialize the dimensions for mixed.
+        if(shape == "mixed" && topology.has_path("elements/shape_map"))
+        {
+            const conduit::Node &n_shape_map = topology["elements/shape_map"];
+            index_t maxShapeDim = InvalidDimension;
+            for(conduit::index_t i = 0; i < n_shape_map.number_of_children(); i++)
+            {
+                auto id = type_name_to_id(n_shape_map[i].name());
+                if(id != InvalidType)
+                {
+                    maxShapeDim = std::max(maxShapeDim, TOPO_SHAPE_DIMS[id]);
+                }
+            }
+            if(maxShapeDim != InvalidDimension)
+            {
+               dim = maxShapeDim;
+            }
+        }
     }
     else if(topoType == "points")
     {
@@ -136,15 +161,7 @@ ShapeType::ShapeType(const conduit::Node &topology)
 void
 ShapeType::init(const std::string &type_name)
 {
-    init(-1);
-
-    for(index_t i = 0; i < (index_t)TOPO_SHAPES.size(); i++)
-    {
-        if(type_name == TOPO_SHAPES[i])
-        {
-            init(i);
-        }
-    }
+    init(type_name_to_id(type_name));
 }
 
 
@@ -177,7 +194,29 @@ ShapeType::init(const index_t type_id)
             wedge_id = i;
         if("pyramid" == TOPO_SHAPES[i])
             pyramid_id = i;
+        if("polygonal" == TOPO_SHAPES[i])
+            polygonal_id = i;
+        if("polyhedral" == TOPO_SHAPES[i])
+            polyhedral_id = i;
+        if("mixed" == TOPO_SHAPES[i])
+            mixed_id = i;
     }
+}
+
+
+//---------------------------------------------------------------------------//
+index_t
+ShapeType::type_name_to_id(const std::string &type_name) const
+{
+    constexpr index_t InvalidId = -1;
+    for(index_t i = 0; i < (index_t)TOPO_SHAPES.size(); i++)
+    {
+        if(type_name == TOPO_SHAPES[i])
+        {
+            return i;
+        }
+    }
+    return InvalidId;
 }
 
 
@@ -185,7 +224,7 @@ ShapeType::init(const index_t type_id)
 bool
 ShapeType::is_poly() const
 {
-    return embedding == NULL && (dim == 2 || dim == 3);
+    return is_polygonal() || is_polyhedral();
 }
 
 
@@ -193,7 +232,7 @@ ShapeType::is_poly() const
 bool
 ShapeType::is_polygonal() const
 {
-    return embedding == NULL && dim == 2;
+    return id == polygonal_id && dim == 2;
 }
 
 
@@ -201,7 +240,15 @@ ShapeType::is_polygonal() const
 bool
 ShapeType::is_polyhedral() const
 {
-    return embedding == NULL && dim == 3;
+    return id == polyhedral_id && dim == 3;
+}
+
+
+//---------------------------------------------------------------------------//
+bool
+ShapeType::is_mixed() const
+{
+    return id == mixed_id;
 }
 
 
