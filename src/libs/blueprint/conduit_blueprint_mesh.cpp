@@ -43,9 +43,11 @@
 #include "conduit_blueprint_mesh_partition.hpp"
 #include "conduit_blueprint_mesh_flatten.hpp"
 #include "conduit_blueprint_mesh_topology_metadata.hpp"
+#include "conduit_blueprint_mesh_utils_iterate_elements.hpp"
 #include "conduit_blueprint_mesh.hpp"
 #include "conduit_log.hpp"
 #include "conduit_annotations.hpp"
+#include "conduit_utils.hpp"
 
 using namespace conduit;
 // Easier access to the Conduit logging functions
@@ -1675,7 +1677,7 @@ calculate_unstructured_centroids(const conduit::Node &topo,
     dest.reset();
     dest["type"].set("unstructured");
     dest["coordset"].set(cdest.name());
-    dest["elements/shape"].set(topo_cascade.get_shape(0).type);
+    dest["elements/shape"].set(topo_cascade.get_shape(0).type());
     dest["elements/connectivity"].set(DataType(int_dtype.id(), topo_num_elems));
 
     cdest.reset();
@@ -4741,122 +4743,341 @@ mesh::topology::unstructured::to_polytopal(const Node &topo,
 }
 
 //-----------------------------------------------------------------------------
+// -- begin conduit::blueprint::detail --
+//-----------------------------------------------------------------------------
+namespace detail
+{
+
+template <typename IndexAccessor>
+struct accessor_traits
+{
+  using value_type = typename IndexAccessor::value_type;
+  static bool is_empty(const IndexAccessor obj) { return obj.number_of_elements() == 0; }
+};
+
+template <>
+struct accessor_traits<const int64 *>
+{
+  using value_type = int64;
+  static bool is_empty(const int64 *obj) { return obj == nullptr; }
+};
+template <>
+struct accessor_traits<const int32 *>
+{
+  using value_type = int32;
+  static bool is_empty(const int32 *obj) { return obj == nullptr; }
+};
+
+/*!
+ * @brief Get the unique face id for the given face (provided as indices). If the
+ *        face is not defined, it gets defined.
+ *
+ * @param face_indices The vertex ids that make up the face.
+ * @param face_size The number of vertices in the face.
+ * @param[inout] faceHashToFaceId A map to contain face hashes to face ids. It is used to make unique faces.
+ * @param[out] subelements_connectivity A vector containing subelement connectivity (face definitions).
+ * @param[out] subelements_sizes A vector containing subelement sizes.
+ *
+ * @return The face id.
+ */
+template <typename ConnectivityType>
+ConnectivityType get_unique_face(const ConnectivityType *face_indices,
+                                 index_t face_size,
+                                 std::map<uint64, ConnectivityType> &faceHashToFaceId,
+                                 std::vector<ConnectivityType> &subelements_connectivity,
+                                 std::vector<ConnectivityType> &subelements_sizes)
+{
+    constexpr int MAX_VERTICES_PER_FACE = 4;
+    index_t sorted_face_indices[MAX_VERTICES_PER_FACE];
+    for (index_t vi = 0; vi < face_size; vi++)
+    {
+        sorted_face_indices[vi] = static_cast<index_t>(face_indices[vi]);
+    }
+    // Sort the face's vertices so we can make a faceId for it.
+    std::sort(sorted_face_indices, sorted_face_indices + face_size);
+    const auto faceHash = conduit::utils::hash(sorted_face_indices, static_cast<unsigned int>(face_size));
+
+    auto it = faceHashToFaceId.find(faceHash);
+    ConnectivityType faceId{};
+    if(it == faceHashToFaceId.end())
+    {
+        // Define the face.
+        faceId = static_cast<ConnectivityType>(subelements_sizes.size());
+        faceHashToFaceId[faceHash] = faceId;
+
+        subelements_connectivity.insert(subelements_connectivity.end(),
+            face_indices, face_indices + face_size);
+        subelements_sizes.push_back(static_cast<ConnectivityType>(face_size));
+    }
+    else
+    {
+        faceId = it->second;
+    }
+    return faceId;
+}
+
+/*!
+ * @brief Given an element shape and connectivity, iterate over the faces for the
+ *        element, make unique faces, and assemble a polyhedral element that references
+ *        those faces.
+ *
+ * @param shape The element shape.
+ * @param src_elements_connectivity An accessor for the element connectivity.
+ * @param src_element_offset An offset into the connectivity array.
+ * @param[inout] faceHashToFaceId A map to contain face hashes to face ids. It is used to make unique faces.
+ * @param[out] elements_connectivity A vector containing element connectivity.
+ * @param[out] elements_sizes A vector containing element sizes.
+ * @param[out] subelements_connectivity A vector containing subelement connectivity (face definitions).
+ * @param[out] subelements_sizes A vector containing subelement sizes.
+ */
+template <typename ConnectivityType, typename IndexAccessor>
+void define_faces_and_element(const ShapeType &shape,
+                              IndexAccessor src_elements_connectivity,
+                              index_t src_element_offset,
+                              std::map<uint64, ConnectivityType> &faceHashToFaceId,
+                              std::vector<ConnectivityType> &elements_connectivity,
+                              std::vector<ConnectivityType> &elements_sizes,
+                              std::vector<ConnectivityType> &subelements_connectivity,
+                              std::vector<ConnectivityType> &subelements_sizes)
+{
+    constexpr int MAX_VERTICES_PER_FACE = 4;
+    ConnectivityType face_indices[MAX_VERTICES_PER_FACE];
+
+    const auto src_element_num_faces = shape.num_faces();
+    for (index_t fi = 0; fi < src_element_num_faces; fi++)
+    {
+        // Get the current face's vertices (numbered starting at 0).
+        index_t faceVertexSize = 0;
+        const index_t *faceVertexIds = shape.get_face(fi, faceVertexSize);
+
+        // Translate the faceVertexIds to the current element's actual vertices.
+        for (index_t vi = 0; vi < faceVertexSize; vi++)
+        {
+            face_indices[vi] = src_elements_connectivity[src_element_offset + faceVertexIds[vi]];
+        }
+        const auto faceId = get_unique_face(face_indices,
+                                            faceVertexSize,
+                                            faceHashToFaceId,
+                                            subelements_connectivity,
+                                            subelements_sizes);
+
+        // Reference the face in the element connectivity
+        elements_connectivity.push_back(faceId);
+    }
+    elements_sizes.push_back(static_cast<ConnectivityType>(src_element_num_faces));
+}
+
+/*!
+ * @brief Convert unstructured topology (zoo elements all the same shape) to polyhedral topology.
+ *
+ * @tparam IndexAccessor The container type that contains the connectivity and related arrays.
+ *                       This can be pointers or DataAccessors.
+ *
+ * @param topo The Node that contains the input unstructured topology.
+ * @param[out] dest The Node that will contain the output polyhedral topology.
+ *
+ */
+template <typename IndexAccessor>
+void unstructured_to_polyhedral(const conduit::Node &topo, conduit::Node &dest)
+{
+    using ConnectivityType = typename accessor_traits<IndexAccessor>::value_type;
+
+    const ShapeCascade topo_cascade(topo);
+    const ShapeType topo_shape(topo_cascade.get_shape());
+
+    // Access the connectivity and offsets (if present).
+    const conduit::Node &n_src_elements_connectivity = topo["elements/connectivity"];
+    const index_t numElements = n_src_elements_connectivity.dtype().number_of_elements() / topo_shape.indices;
+    const IndexAccessor src_elements_connectivity = n_src_elements_connectivity.value();
+    IndexAccessor src_elements_offsets {};
+    if(topo.has_path("elements/offsets"))
+    {
+        src_elements_offsets = topo["elements/offsets"].value();
+    }
+
+    // Generate each polyhedral element by generating its constituent
+    // polygonal faces. Also, make sure that faces connecting the same
+    // set of vertices aren't duplicated;
+
+    // NOTE: This algorithm does not use Shape embedding because for shapes
+    //       such as pyramids and wedges, it breaks faces into triangles.
+    std::map<uint64, ConnectivityType> faceHashToFaceId;
+    std::vector<ConnectivityType> elements_connectivity;
+    std::vector<ConnectivityType> elements_sizes;
+    elements_sizes.reserve(numElements);
+    std::vector<ConnectivityType> subelements_connectivity;
+    std::vector<ConnectivityType> subelements_sizes;
+
+    for (index_t ei = 0; ei < numElements; ei++)
+    {
+        const auto src_element_size = topo_shape.indices;
+        // Support optional offsets
+        const auto src_element_offset = accessor_traits<IndexAccessor>::is_empty(src_elements_offsets) ? (src_element_size * ei) : src_elements_offsets[ei];
+        define_faces_and_element(topo_shape,
+                                 src_elements_connectivity,
+                                 src_element_offset,
+                                 faceHashToFaceId,
+                                 elements_connectivity,
+                                 elements_sizes,
+                                 subelements_connectivity,
+                                 subelements_sizes);
+    }
+
+    dest["type"] = "unstructured";
+    dest["coordset"].set(topo["coordset"]);
+    dest["elements/shape"] = "polyhedral";
+    dest["elements/connectivity"].set(elements_connectivity);
+    dest["elements/sizes"].set(elements_sizes);
+    dest["subelements/shape"] = "polygonal";
+    dest["subelements/connectivity"].set(subelements_connectivity);
+    dest["subelements/sizes"].set(subelements_sizes);
+    conduit::blueprint::mesh::utils::topology::unstructured::generate_offsets_inline(dest);
+}
+
+/*!
+ * @brief Convert mixed unstructured topology to polyhedral topology.
+ *
+ * @tparam IndexAccessor The container type that contains the connectivity and related arrays.
+ *                       This can be pointers or DataAccessors.
+ *
+ * @param topo The Node that contains the input unstructured topology.
+ * @param[out] dest The Node that will contain the output polyhedral topology.
+ *
+ */
+template <typename IndexAccessor>
+void unstructured_mixed_to_polyhedral(const conduit::Node &topo, conduit::Node &dest)
+{
+    // Use index_t because the element traversal API uses it.
+    using ConnectivityType = index_t;
+
+    std::map<uint64, ConnectivityType> faceHashToFaceId;
+    std::vector<ConnectivityType> elements_connectivity;
+    std::vector<ConnectivityType> elements_sizes;
+    std::vector<ConnectivityType> subelements_connectivity;
+    std::vector<ConnectivityType> subelements_sizes;
+
+    // Iterate over each mixed element and define it as a polyhedron.
+    namespace bpiter = conduit::blueprint::mesh::utils::topology;
+    bpiter::impl::traverse_mixed_elements([&](const bpiter::entity &e) {
+        if(!e.subelement_ids.empty())
+        {
+            // We got a polyhedral element
+            for(size_t fi = 0; fi < e.subelement_ids.size(); fi++)
+            {
+                const auto faceId = get_unique_face(e.subelement_ids[fi].data(),
+                                                    e.subelement_ids[fi].size(),
+                                                    faceHashToFaceId,
+                                                    subelements_connectivity,
+                                                    subelements_sizes);
+                elements_connectivity.push_back(faceId);
+            }
+            elements_sizes.push_back(e.subelement_ids.size());
+        }
+        else
+        {
+            // The element is NOT polyhedral
+            define_faces_and_element(e.shape,
+                                     e.element_ids,
+                                     0,
+                                     faceHashToFaceId,
+                                     elements_connectivity,
+                                     elements_sizes,
+                                     subelements_connectivity,
+                                     subelements_sizes);
+        }
+    }, topo);
+
+    dest["type"] = "unstructured";
+    dest["coordset"].set(topo["coordset"]);
+    dest["elements/shape"] = "polyhedral";
+    dest["elements/connectivity"].set(elements_connectivity);
+    dest["elements/sizes"].set(elements_sizes);
+    dest["subelements/shape"] = "polygonal";
+    dest["subelements/connectivity"].set(subelements_connectivity);
+    dest["subelements/sizes"].set(subelements_sizes);
+    conduit::blueprint::mesh::utils::topology::unstructured::generate_offsets_inline(dest);
+}
+
+}
+//-----------------------------------------------------------------------------
+// -- end conduit::blueprint::detail --
+//-----------------------------------------------------------------------------
+
 void
 mesh::topology::unstructured::to_polygonal(const Node &topo,
                                            Node &dest)
 {
     dest.reset();
 
-    const ShapeCascade topo_cascade(topo);
-    const ShapeType topo_shape(topo_cascade.get_shape());
-    const DataType int_dtype = bputils::find_widest_dtype(topo, bputils::DEFAULT_INT_DTYPES);
-
+    const ShapeType topo_shape(topo);
     if(topo_shape.is_poly())
     {
         dest.set(topo);
     }
     else // if(!topo_shape.is_poly())
     {
-        const Node &topo_conn_const = topo["elements/connectivity"];
-        Node topo_conn; topo_conn.set_external(topo_conn_const);
-        const DataType topo_dtype(topo_conn.dtype().id(), 1);
-        const index_t topo_indices = topo_conn.dtype().number_of_elements();
-        const index_t topo_elems = topo_indices / topo_shape.indices;
         const bool is_topo_3d = topo_shape.dim == 3;
 
-        Node topo_templ;
-        topo_templ.set_external(topo);
-        topo_templ.remove("elements");
-        dest.set(topo_templ);
-        dest["elements/shape"].set(is_topo_3d ? "polyhedral" : "polygonal");
-
-        Node temp;
         if (!is_topo_3d) // polygonal
         {
+            const DataType int_dtype = bputils::find_widest_dtype(topo, bputils::DEFAULT_INT_DTYPES);
+            const Node &topo_conn_const = topo["elements/connectivity"];
+            Node topo_conn; topo_conn.set_external(topo_conn_const);
+            const DataType topo_dtype(topo_conn.dtype().id(), 1);
+
+            Node topo_templ;
+            topo_templ.set_external(topo);
+            topo_templ.remove("elements");
+            dest.set(topo_templ);
+            dest["elements/shape"].set("polygonal");
+
             // NOTE(JRC): The derived polygonal topology simply inherits the
             // original implicit connectivity and adds sizes/offsets, which
             // means that it inherits the orientation/winding of the source as well.
+            Node temp;
             temp.set_external(topo_conn);
             temp.to_data_type(int_dtype.id(), dest["elements/connectivity"]);
 
-            std::vector<int64> poly_size_data(topo_elems, topo_shape.indices);
-            temp.set_external(poly_size_data);
-            temp.to_data_type(int_dtype.id(), dest["elements/sizes"]);
-
+            if(topo.has_path("elements/sizes"))
+            {
+                // If the topo has sizes, copy them.
+                const conduit::Node &elements_sizes = topo["elements/sizes"];
+                elements_sizes.to_data_type(int_dtype.id(), dest["elements/sizes"]);
+            }
+            else
+            {
+                const index_t topo_indices = topo_conn.dtype().number_of_elements();
+                const index_t topo_elems = topo_indices / topo_shape.indices;
+                std::vector<int64> poly_size_data(topo_elems, topo_shape.indices);
+                temp.set_external(poly_size_data);
+                temp.to_data_type(int_dtype.id(), dest["elements/sizes"]);
+            }
             utils::topology::unstructured::generate_offsets_inline(dest);
         }
         else // if(is_topo_3d) // polyhedral
         {
-            // NOTE(JRC): Polyhedral topologies are a bit more complicated
-            // because the derivation comes from the embedding. The embedding
-            // is statically RHR positive, but this can be turned negative by
-            // an initially RHR negative element.
-            const ShapeType embed_shape = topo_cascade.get_shape(topo_shape.dim - 1);
-
-            std::vector<int64> polyhedral_conn_data(topo_elems * topo_shape.embed_count);
-            std::vector<int64> polygonal_conn_data;
-            std::vector<int64> face_indices(embed_shape.indices);
-
-            // Generate each polyhedral element by generating its constituent
-            // polygonal faces. Also, make sure that faces connecting the same
-            // set of vertices aren't duplicated; reuse the ID generated by the
-            // first polyhedral element to create the polygonal face.
-            for (index_t ei = 0; ei < topo_elems; ei++)
+            const conduit::Node &n_conn = topo["elements/connectivity"];
+            if(n_conn.dtype().is_compact() && n_conn.dtype().is_int64())
             {
-                index_t data_off = topo_shape.indices * ei;
-                index_t polyhedral_off = topo_shape.embed_count * ei;
-
-                for (index_t fi = 0; fi < topo_shape.embed_count; fi++)
-                {
-                    for (index_t ii = 0; ii < embed_shape.indices; ii++)
-                    {
-                        // TODO: USE ACCESSORS
-                        index_t inner_data_off = data_off +
-                          topo_shape.embedding[fi * embed_shape.indices + ii];
-                        temp.set_external(topo_dtype,
-                            topo_conn.element_ptr(inner_data_off));
-                        face_indices[ii] = temp.to_int64();
-                    }
-
-                    bool face_exists = false;
-                    index_t face_index = polygonal_conn_data.size() / embed_shape.indices;
-                    for (index_t poly_i = 0; poly_i < face_index; poly_i++)
-                    {
-                        index_t face_off = poly_i * embed_shape.indices;
-                        face_exists |= std::is_permutation(polygonal_conn_data.begin() + face_off,
-                                                           polygonal_conn_data.begin() + face_off + embed_shape.indices,
-                                                           face_indices.begin());
-                        face_index = face_exists ? poly_i : face_index;
-                    }
-
-                    polyhedral_conn_data[polyhedral_off + fi] = face_index;
-                    if (!face_exists)
-                    {
-                        polygonal_conn_data.insert(polygonal_conn_data.end(),
-                            face_indices.begin(), face_indices.end());
-                    }
-                }
+               if(topo_shape.is_mixed())
+                   detail::unstructured_mixed_to_polyhedral<const int64 *>(topo, dest);
+               else
+                   detail::unstructured_to_polyhedral<const int64 *>(topo, dest);
             }
-
-            temp.set_external(polyhedral_conn_data);
-            temp.to_data_type(int_dtype.id(), dest["elements/connectivity"]);
-
-            std::vector<int64> polyhedral_size_data(topo_elems, topo_shape.embed_count);
-
-            temp.set_external(polyhedral_size_data);
-            temp.to_data_type(int_dtype.id(), dest["elements/sizes"]);
-
-            temp.set_external(polygonal_conn_data);
-            temp.to_data_type(int_dtype.id(), dest["subelements/connectivity"]);
-
-            std::vector<int64> polygonal_size_data(polygonal_conn_data.size() / embed_shape.indices,
-                                                   embed_shape.indices);
-            temp.set_external(polygonal_size_data);
-            temp.to_data_type(int_dtype.id(), dest["subelements/sizes"]);
-
-            dest["subelements/shape"].set("polygonal");
-
-            utils::topology::unstructured::generate_offsets_inline(dest);
+            else if(n_conn.dtype().is_compact() && n_conn.dtype().is_int32())
+            {
+               if(topo_shape.is_mixed())
+                   detail::unstructured_mixed_to_polyhedral<const int32 *>(topo, dest);
+               else
+                   detail::unstructured_to_polyhedral<const int32 *>(topo, dest);
+            }
+            else
+            {
+               if(topo_shape.is_mixed())
+                   detail::unstructured_mixed_to_polyhedral<DataAccessor<index_t>>(topo, dest);
+               else
+                   detail::unstructured_to_polyhedral<DataAccessor<index_t>>(topo, dest);
+            }
         }
     }
 }
@@ -5049,7 +5270,7 @@ mesh::topology::unstructured::generate_sides(const Node &topo,
     topo_dest.reset();
     topo_dest["type"].set("unstructured");
     topo_dest["coordset"].set(coords_dest.name());
-    topo_dest["elements/shape"].set(side_shape.type);
+    topo_dest["elements/shape"].set(side_shape.type());
     topo_dest["elements/connectivity"].set(DataType(int_dtype.id(),
         side_shape.indices * sides_num_elems));
 
@@ -5898,7 +6119,7 @@ mesh::topology::unstructured::generate_corners(const Node &topo,
     topo_dest.reset();
     topo_dest["type"].set("unstructured");
     topo_dest["coordset"].set(coords_dest.name());
-    topo_dest["elements/shape"].set(corner_shape.type);
+    topo_dest["elements/shape"].set(corner_shape.type());
     if (is_topo_3d)
     {
         topo_dest["subelements/shape"].set("polygonal");

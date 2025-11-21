@@ -96,42 +96,46 @@ TEST(conduit_blueprint_mesh_utils, shapetype)
         int sdim;
         // answers
         int tdim;
-        bool is_poly, is_polygonal, is_polyhedral;
+        bool is_poly, is_polygonal, is_polyhedral, is_mixed;
     };
     std::vector<test_case> tests{
         // non-unstructured topo types.
-        {"points", "point", 2, 0, false, false, false},
-        {"points", "point", 3, 0, false, false, false},
-        {"points_implicit", "point", 2, 0, false, false, false},
-        {"points_implicit", "point", 3, 0, false, false, false},
+        {"points", "point", 2, 0, false, false, false, false},
+        {"points", "point", 3, 0, false, false, false, false},
+        {"points_implicit", "point", 2, 0, false, false, false, false},
+        {"points_implicit", "point", 3, 0, false, false, false, false},
 
-        {"uniform", "line", 1, 1, false, false, false},
-        {"uniform", "quad", 2, 2, false, false, false},
-        {"uniform", "hex", 3, 3, false, false, false},
+        {"uniform", "line", 1, 1, false, false, false, false},
+        {"uniform", "quad", 2, 2, false, false, false, false},
+        {"uniform", "hex", 3, 3, false, false, false, false},
 
-        {"rectilinear", "line", 1, 1, false, false, false},
-        {"rectilinear", "quad", 2, 2, false, false, false},
-        {"rectilinear", "hex", 3, 3, false, false, false},
+        {"rectilinear", "line", 1, 1, false, false, false, false},
+        {"rectilinear", "quad", 2, 2, false, false, false, false},
+        {"rectilinear", "hex", 3, 3, false, false, false, false},
 
-        {"structured", "quad", 2, 2, false, false, false},
-        {"structured", "hex", 3, 3, false, false, false},
+        {"structured", "quad", 2, 2, false, false, false, false},
+        {"structured", "hex", 3, 3, false, false, false, false},
 
         // unstructured types
-        {"lines", "line", 2, 1, false, false, false},
-        {"lines", "line", 3, 1, false, false, false},
+        {"lines", "line", 2, 1, false, false, false, false},
+        {"lines", "line", 3, 1, false, false, false, false},
 
-        {"tris", "tri", 2, 2, false, false, false},
+        {"tris", "tri", 2, 2, false, false, false, false},
 
-        {"quads", "quad", 2, 2, false, false, false},
-        {"quads_poly", "polygonal", 2, 2, true, true, false},
+        {"quads", "quad", 2, 2, false, false, false, false},
+        {"quads_poly", "polygonal", 2, 2, true, true, false, false},
 
-        {"tets", "tet", 3, 3, false, false, false},
+        {"mixed_2d", "mixed", 2, 2, false, false, false, true},
 
-        {"pyramids", "pyramid", 3, 3, false, false, false},
-        {"wedges", "wedge", 3, 3, false, false, false},
+        {"tets", "tet", 3, 3, false, false, false, false},
 
-        {"hexs", "hex", 3, 3, false, false, false},
-        {"hexs_poly", "polyhedral", 3, 3, true, false, true}
+        {"pyramids", "pyramid", 3, 3, false, false, false, false},
+        {"wedges", "wedge", 3, 3, false, false, false, false},
+
+        {"hexs", "hex", 3, 3, false, false, false, false},
+        {"hexs_poly", "polyhedral", 3, 3, true, false, true, false},
+
+        {"mixed", "mixed", 3, 3, false, false, false, true}
     };
 
     for(const auto &t : tests)
@@ -147,11 +151,12 @@ TEST(conduit_blueprint_mesh_utils, shapetype)
         conduit::blueprint::mesh::utils::ShapeType shape(topo);
 
         EXPECT_EQ(conduit::blueprint::mesh::coordset::dims(mesh["coordsets/coords"]), t.sdim);
-        EXPECT_EQ(shape.type, t.shapetype);
+        EXPECT_EQ(shape.type(), t.shapetype);
         EXPECT_EQ(shape.dim, t.tdim);
         EXPECT_EQ(shape.is_poly(), t.is_poly);
         EXPECT_EQ(shape.is_polygonal(), t.is_polygonal);
         EXPECT_EQ(shape.is_polyhedral(), t.is_polyhedral);
+        EXPECT_EQ(shape.is_mixed(), t.is_mixed);
     }
 
     // Initialize with a bad shape name.
