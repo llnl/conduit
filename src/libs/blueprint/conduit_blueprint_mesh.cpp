@@ -1677,7 +1677,7 @@ calculate_unstructured_centroids(const conduit::Node &topo,
     dest.reset();
     dest["type"].set("unstructured");
     dest["coordset"].set(cdest.name());
-    dest["elements/shape"].set(topo_cascade.get_shape(0).type);
+    dest["elements/shape"].set(topo_cascade.get_shape(0).type());
     dest["elements/connectivity"].set(DataType(int_dtype.id(), topo_num_elems));
 
     cdest.reset();
@@ -5270,7 +5270,7 @@ mesh::topology::unstructured::generate_sides(const Node &topo,
     topo_dest.reset();
     topo_dest["type"].set("unstructured");
     topo_dest["coordset"].set(coords_dest.name());
-    topo_dest["elements/shape"].set(side_shape.type);
+    topo_dest["elements/shape"].set(side_shape.type());
     topo_dest["elements/connectivity"].set(DataType(int_dtype.id(),
         side_shape.indices * sides_num_elems));
 
@@ -6119,7 +6119,7 @@ mesh::topology::unstructured::generate_corners(const Node &topo,
     topo_dest.reset();
     topo_dest["type"].set("unstructured");
     topo_dest["coordset"].set(coords_dest.name());
-    topo_dest["elements/shape"].set(corner_shape.type);
+    topo_dest["elements/shape"].set(corner_shape.type());
     if (is_topo_3d)
     {
         topo_dest["subelements/shape"].set("polygonal");

@@ -6469,7 +6469,7 @@ build_unstructured_output(const std::vector<const Node*> &topologies,
     if(shape_types.size() == 1)
     {
         conduit::blueprint::mesh::utils::ShapeType shape(*shape_types.begin());
-        output["elements/shape"] = shape.type;
+        output["elements/shape"] = shape.type();
         output["elements/connectivity"].set(out_conn);
         if(shape.is_polygonal())
         {
@@ -6496,7 +6496,7 @@ build_unstructured_output(const std::vector<const Node*> &topologies,
         {
             conduit::blueprint::mesh::utils::ShapeType shape(s);
             // Cast b/c VisIt requires int32 at the moment.
-            output["elements/shape_map"][shape.type] = static_cast<int>(s);
+            output["elements/shape_map"][shape.type()] = static_cast<int>(s);
         }
         output["elements/connectivity"].set(out_conn);
         output["elements/sizes"].set(out_sizes);

@@ -905,8 +905,8 @@ private:
         std::cout << "=======================================================" << std::endl;
         std::cout << "make_embedded_connectivity: shape_dim=" << shape.dim << std::endl;
         std::cout << "=======================================================" << std::endl;
-        std::cout << "shape=" << shape.type << std::endl;
-        std::cout << "embed_shape=" << embed_shape.type << std::endl;
+        std::cout << "shape=" << shape.type() << std::endl;
+        std::cout << "embed_shape=" << embed_shape.type() << std::endl;
         std::cout << "points_per_elem="<<points_per_elem<<std::endl;
         std::cout << "faces_per_elem="<<faces_per_elem<<std::endl;
         std::cout << "points_per_face="<<points_per_face<<std::endl;
@@ -998,7 +998,7 @@ private:
         conduit::Node &node = dim_topos[embed_shape.dim];
         node["type"] = "unstructured";
         node["coordset"] = coords->name();
-        node["elements/shape"] = embed_shape.type;
+        node["elements/shape"] = embed_shape.type();
         node["elements/connectivity"].set(DataType::index_t(unique * points_per_face));
         index_t *embed_conn = node["elements/connectivity"].as_index_t_ptr();
         index_t embed_conn_idx = 0;
@@ -1702,7 +1702,7 @@ TopologyMetadata::Implementation::copy_topology(const conduit::Node &src_topo,
     // Reuse the input topology as the highest dimension's topology.
     dest_topo["type"] = "unstructured";
     dest_topo["coordset"] = coords->name();
-    dest_topo["elements/shape"] = shape.type;
+    dest_topo["elements/shape"] = shape.type();
 
     // Names of fields to copy.
     std::vector<std::string> copy_keys{"elements/shape",
@@ -3595,7 +3595,7 @@ TopologyMetadata::TopologyMetadata(const conduit::Node &topology,
         dim_topo.reset();
         dim_topo["type"].set("unstructured");
         dim_topo["coordset"].set(topology["coordset"].as_string());
-        dim_topo["elements/shape"].set(topo_cascade.get_shape(di).type);
+        dim_topo["elements/shape"].set(topo_cascade.get_shape(di).type());
     }
     // NOTE: This is done so that the index values for the top-level entities
     // can be extracted by the 'get_entity_data' function before DFS

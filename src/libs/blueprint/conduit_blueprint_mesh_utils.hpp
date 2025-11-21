@@ -174,6 +174,9 @@ static const std::vector<const index_t*> TOPO_SHAPE_EMBEDDINGS = {
 struct CONDUIT_BLUEPRINT_API ShapeType
 {
 public:
+    static constexpr index_t InvalidTypeId = -1;
+    static constexpr index_t InvalidDimension = -1;
+
     ShapeType();
     ShapeType(const index_t type_id);
     ShapeType(const std::string &type_name);
@@ -191,20 +194,28 @@ public:
     /// Return the ids and number of ids for the requested face.
     const index_t *get_face(index_t face, index_t &nIds) const;
 
-    std::string type;
+    // Turn a type name into a shape id, or InvalidType.
+    static index_t type_name_to_id(const std::string &type_name);
+
+    // Get the shape type.
+    const std::string &type() const;
+
     index_t id, dim, indices;
     index_t embed_id, embed_count, *embedding;
 
 private:
     void init(const index_t type_id);
     void init(const std::string &type_name);
-    index_t type_name_to_id(const std::string &type_name) const;
 
-    static index_t wedge_id;
-    static index_t pyramid_id;
-    static index_t polygonal_id;
-    static index_t polyhedral_id;
-    static index_t mixed_id;
+    // Functions to get specific element id types. They are functions so they
+    // can contain some static data.
+    static index_t wedge_id();
+    static index_t pyramid_id();
+    static index_t polygonal_id();
+    static index_t polyhedral_id();
+    static index_t mixed_id();
+
+    static std::string empty_type;
 };
 
 //---------------------------------------------------------------------------//
