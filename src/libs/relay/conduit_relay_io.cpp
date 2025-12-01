@@ -407,7 +407,7 @@ save(const Node &node,
                       "Failed to save conduit node to path " << path);
 #endif
     }
-    else if( protocol == "blueprint/mesh/cgns")
+    else if( protocol == "cgns")
     {
 #ifdef CONDUIT_RELAY_IO_CGNS_ENABLED
         // Node 
@@ -570,6 +570,11 @@ save_merged(const Node &node,
         CONDUIT_ERROR("conduit_relay lacks ADIOS support: " <<
                       "Failed to save conduit node to path " << path);
 #endif
+    }
+    else if( protocol == "cgns")
+    {
+        CONDUIT_ERROR("conduit_relay_io::save_merged lacks CGNS support: " << 
+                      "Failed to save conduit node to path " << path);
     }
     else
     {
