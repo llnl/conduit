@@ -16,6 +16,17 @@ if(HDF5_FOUND)
   SET(CONDUIT_RELAY_IO_HDF5_ENABLED TRUE)
 endif()
 
+if(CGNS_FOUND)
+  SET(CONDUIT_RELAY_IO_CGNS_ENABLED TRUE)
+    MESSAGE("CGNS is found. CGNS relay I/O support enabled.")
+else()
+    MESSAGE("CGNS not found. CGNS relay I/O support disabled.")
+endif()
+
+if(CGNS_FOUND AND MPI_FOUND)
+  SET(CONDUIT_RELAY_IO_MPI_CGNS_ENABLED TRUE)
+endif()
+
 if(H5ZZFP_FOUND)
   SET(CONDUIT_RELAY_IO_H5ZZFP_ENABLED TRUE)
 endif()
@@ -119,6 +130,14 @@ if(HDF5_FOUND)
     list(APPEND conduit_relay_sources conduit_relay_io_hdf5.cpp)
 endif()
 
+if(CGNS_FOUND)
+    list(APPEND conduit_relay_headers
+         conduit_relay_io_cgns.hpp
+         conduit_relay_io_cgns_api.hpp
+        )
+    list(APPEND conduit_relay_sources conduit_relay_io_cgns.cpp)
+endif()
+
 if(SILO_FOUND)
     list(APPEND conduit_relay_headers 
          conduit_relay_silo.hpp 
@@ -191,6 +210,10 @@ if(HDF5_FOUND)
     if(HDF5_IS_PARALLEL)
         list(APPEND conduit_relay_deps ${conduit_blt_mpi_deps})
     endif()
+endif()
+
+if(CGNS_FOUND)
+    list(APPEND conduit_relay_deps cgns)
 endif()
 
 if(H5ZZFP_FOUND)

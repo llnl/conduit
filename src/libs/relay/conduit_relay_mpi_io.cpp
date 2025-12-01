@@ -276,6 +276,11 @@ save(const Node &node,
                       "Failed to save conduit node to path " << path);
 #endif
     }
+    else if( protocol == "cgns")
+    {
+        CONDUIT_ERROR("conduit_relay_mpi_io lacks CGNS support: " << 
+                      "Failed to save conduit node to path " << path);
+    }
     else
     {
         CONDUIT_ERROR("unknown conduit_relay protocol: " << protocol);
@@ -384,6 +389,11 @@ save_merged(const Node &node,
         CONDUIT_ERROR("conduit_relay_mpi_io lacks ADIOS support: " << 
                       "Failed to save conduit node to path " << path);
 #endif
+    }
+    else if( protocol == "cgns")
+    {
+        CONDUIT_ERROR("conduit_relay_mpi_io lacks CGNS support in save_merged: " << 
+                      "Failed to save conduit node to path " << path);
     }
     else
     {

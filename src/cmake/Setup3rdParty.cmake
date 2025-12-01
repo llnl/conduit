@@ -124,6 +124,19 @@ if(HDF5_DIR)
 endif()
 
 ################################
+# Setup CGNS if available
+################################
+# Search for CGNS.
+if(CGNS_DIR)
+    include(cmake/thirdparty/SetupCGNS.cmake)
+    include_directories(${CGNS_INCLUDE_DIRS})
+    # if we don't find CGNS, throw a fatal error
+    if(NOT CGNS_FOUND)
+        message(FATAL_ERROR "CGNS_DIR is set, but CGNS wasn't found.")
+    endif()
+endif()
+
+################################
 # Setup Silo if available
 ################################
 # Search for Silo.

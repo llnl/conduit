@@ -35,6 +35,7 @@ set(RELAY_HDF5_TESTS t_relay_io_hdf5
                      t_relay_io_hdf5_diag_verbose
                      t_relay_io_hdf5_ident_report)
 
+set(RELAY_CGNS_TESTS t_relay_io_cgns)
 
 set(RELAY_MPI_IO_TESTS t_relay_io_mpi_smoke)
 set(RELAY_ADIOS_TESTS t_relay_io_adios)
@@ -100,6 +101,26 @@ if(SILO_FOUND)
     endif()
 else()
     message(STATUS "Silo disabled: Skipping conduit_relay silo tests")
+endif()
+
+if(CGNS_FOUND)
+    message(STATUS "CGNS enabled: Adding conduit_relay CGNS unit tests")
+    foreach(TEST ${RELAY_CGNS_TESTS})
+        add_cpp_test(TEST ${TEST}
+                     DEPENDS_ON conduit conduit_relay
+                     FOLDER tests/relay)
+    endforeach()
+    if(MPI_FOUND)
+        message(STATUS "CGNS + MPI enabled: Adding conduit_relay_mpi_cgns unit tests")
+        foreach(TEST ${RELAY_MPI_CGNS_TESTS})
+            add_cpp_mpi_test(TEST ${TEST}
+                             NUM_MPI_TASKS 2
+                             DEPENDS_ON conduit conduit_relay_mpi_io
+                             FOLDER tests/relay)
+        endforeach()
+    endif()
+else()
+    message(STATUS "CGNS disabled: Skipping conduit_relay cgns tests")
 endif()
 
 if(ADIOS_FOUND)

@@ -27,6 +27,10 @@
 #include "conduit_relay_io_silo.hpp"
 #endif
 
+#ifdef CONDUIT_RELAY_IO_CGNS_ENABLED
+#include "conduit_relay_io_cgns.hpp"
+#endif
+
 #ifdef CONDUIT_RELAY_IO_ADIOS_ENABLED
 #include "conduit_relay_io_adios.hpp"
 #endif
@@ -117,6 +121,12 @@ about(Node &n)
     // hdf5
     io_protos["hdf5"] = "disabled";
     io_protos["sidre_hdf5"] = "enabled";
+#endif
+
+#ifdef CONDUIT_RELAY_IO_CGNS_ENABLED
+    io_protos["cgns"] = "enabled";
+#else
+    io_protos["cgns"] = "disabled";
 #endif
 
 #ifdef CONDUIT_RELAY_IO_H5ZZFP_ENABLED
@@ -339,6 +349,9 @@ save(const Node &node,
      const std::string &protocol_,
      const Node &options)
 {
+    std::cout << "save: " << path << " protocol: " << protocol_ << std::endl;
+    std::cout << "options: " << std::endl;
+    options.print();
     // we expect options to unused if all 3rd party i/o options are disabled
     // avoid warning using CONDUIT_UNUSED macro.
     CONDUIT_UNUSED(options);
@@ -408,6 +421,16 @@ save(const Node &node,
         silo_write(node,path);
 #else
         CONDUIT_ERROR("conduit_relay lacks Silo support: " <<
+                      "Failed to save conduit node to path " << path);
+#endif
+    }
+    else if( protocol == "cgns")
+    {
+#ifdef CONDUIT_RELAY_IO_CGNS_ENABLED
+        // Node 
+        cgns_write(node,path);
+#else
+        CONDUIT_ERROR("conduit_relay lacks CGNS support: " <<
                       "Failed to save conduit node to path " << path);
 #endif
     }
@@ -560,6 +583,11 @@ save_merged(const Node &node,
         CONDUIT_ERROR("conduit_relay lacks ADIOS support: " <<
                       "Failed to save conduit node to path " << path);
 #endif
+    }
+    else if( protocol == "cgns")
+    {
+        CONDUIT_ERROR("conduit_relay_io::save_merged lacks CGNS support: " << 
+                      "Failed to save conduit node to path " << path);
     }
     else
     {

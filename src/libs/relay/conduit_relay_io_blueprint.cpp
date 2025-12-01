@@ -603,7 +603,9 @@ identify_protocol(const std::string &path)
                                   std::string("."),
                                   file_name_ext,
                                   file_name_base);
-
+std::cout << "identify_protocol: file_path = " << file_path << std::endl;
+std::cout << "identify_protocol: file_name_base = " << file_name_base << std::endl;
+std::cout << "identify_protocol: file_name_ext = " << file_name_ext << std::endl;
     // default
     std::string io_type = "bin";
 
