@@ -53,6 +53,10 @@ namespace cgns {
 void CONDUIT_RELAY_API save_mesh(const conduit::Node &mesh,
                                  const std::string &path);
 
+void CONDUIT_RELAY_API write_mesh(const conduit::Node &mesh,
+                                  const std::string &path,
+                                  const conduit::Node &opts);
+                                  
 //-----------------------------------------------------------------------------
 // The load semantics, the mesh node is reset before reading.
 //-----------------------------------------------------------------------------

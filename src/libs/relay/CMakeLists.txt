@@ -412,6 +412,12 @@ if(SILO_FOUND)
     list(APPEND conduit_relay_mpi_io_deps silo)
 endif()
 
+if(CGNS_FOUND)
+    list(APPEND conduit_relay_mpi_io_headers conduit_relay_mpi_io_cgns.hpp)
+    list(APPEND conduit_relay_mpi_io_sources conduit_relay_io_cgns.cpp)
+    list(APPEND conduit_relay_mpi_io_deps cgns)
+endif()
+
 if(HDF5_FOUND)
     list(APPEND conduit_relay_mpi_io_headers conduit_relay_mpi_io_hdf5.hpp)
     list(APPEND conduit_relay_mpi_io_sources conduit_relay_io_hdf5.cpp)

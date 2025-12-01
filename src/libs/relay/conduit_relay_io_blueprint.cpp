@@ -21,12 +21,19 @@
     #ifdef CONDUIT_RELAY_IO_SILO_ENABLED
         #include "conduit_relay_mpi_io_silo.hpp"
     #endif
+    #ifdef CONDUIT_RELAY_IO_CGNS_ENABLED
+        #include "conduit_relay_mpi_io_cgns.hpp"
+    #endif
 #else
     #include "conduit_relay_io_blueprint.hpp"
 #endif
 
 #ifdef CONDUIT_RELAY_IO_SILO_ENABLED
     #include "conduit_relay_io_silo.hpp"
+#endif
+
+#ifdef CONDUIT_RELAY_IO_CGNS_ENABLED
+    #include "conduit_relay_io_cgns.hpp"
 #endif
 
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
@@ -911,6 +918,25 @@ void write_mesh(const Node &mesh,
 #else // conduit lacks silo support
     CONDUIT_ERROR("write_mesh invalid protocol option: `silo`"
                   << "conduit build lacks silo support\n");
+#endif
+    }
+
+    if(file_protocol == "cgns")
+    {
+#ifdef CONDUIT_RELAY_IO_CGNS_ENABLED
+    #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+        return conduit::relay::mpi::io::cgns::write_mesh(mesh,
+                                                         path,
+                                                         opts,
+                                                         mpi_comm);
+    #else
+        return conduit::relay::io::cgns::write_mesh(mesh,
+                                                    path,
+                                                    opts);
+    #endif
+#else
+    CONDUIT_ERROR("write_mesh invalid protocol option: `cgns`"
+                  << "conduit build lacks CGNS support\n");
 #endif
     }
     

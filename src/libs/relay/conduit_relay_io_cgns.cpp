@@ -499,6 +499,12 @@ void cgns_write(const conduit::Node& mesh, const std::string& path)
 namespace cgns
 {
 
+
+void write_mesh(const conduit::Node& mesh, const std::string& path, const conduit::Node&)
+{
+  save_mesh(mesh, path);
+}
+
 void save_mesh(const conduit::Node& mesh, const std::string& path)
 {
 
@@ -614,3 +620,24 @@ void load_mesh(const std::string& root_file_path, conduit::Node& mesh) {}
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
+
+
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+namespace conduit {
+namespace relay {
+namespace mpi {
+namespace io {
+namespace cgns {
+
+void write_mesh(const conduit::Node& mesh, const std::string& path, const conduit::Node& opts, MPI_Comm comm)
+{
+  std::cout << "reached conduit::relay::mpi::io::cgns::write_mesh" << std::endl;abort();
+  // save_mesh(mesh, path);
+}
+
+}
+}
+}
+}
+}
+#endif
