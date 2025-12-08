@@ -196,10 +196,9 @@ fi # build_zlib
 ################
 # HDF5
 ################
-# release 1-2 GAH!
-hdf5_version=1.14.1-2
-hdf5_middle_version=1.14.1
-hdf5_short_version=1.14
+hdf5_version=2.0.0
+hdf5_middle_version=2.0.0
+hdf5_short_version=2.0
 hdf5_src_dir=$(ospath ${source_dir}/hdf5-${hdf5_version})
 hdf5_build_dir=$(ospath ${build_dir}/hdf5-${hdf5_version}/)
 hdf5_install_dir=$(ospath ${install_dir}/hdf5-${hdf5_version}/)
@@ -216,7 +215,7 @@ fi
 
 #################
 #
-# hdf5 1.14.x CMake recipe for using zlib
+# hdf5 CMake recipe for using zlib
 #
 # -DHDF5_ENABLE_Z_LIB_SUPPORT=ON
 # Add zlib install dir to CMAKE_PREFIX_PATH
@@ -245,7 +244,7 @@ fi # build_hdf5
 ################
 # Silo
 ################
-silo_version=4.11.1
+silo_version=4.12.0
 silo_src_dir=$(ospath ${source_dir}/Silo-${silo_version})
 silo_build_dir=$(ospath ${build_dir}/silo-${silo_version}/)
 silo_install_dir=$(ospath ${install_dir}/silo-${silo_version}/)
@@ -260,17 +259,8 @@ if [ ! -d ${silo_src_dir} ]; then
   # untar and avoid symlinks (which windows despises)
   tar ${tar_extra_args} -xzf ${silo_tarball} -C ${source_dir} \
       --exclude="Silo-${silo_version}/config-site/*" \
-      --exclude="Silo-${silo_version}/README.md"
-  # apply silo patches
-  cd  ${silo_src_dir}
-  patch -p1 < ${script_dir}/2024_07_25_silo_4_11_cmake_fix.patch
-
-  # windows specifc patch
-  if [[ "$build_windows" == "ON" ]]; then
-    patch -p1 < ${script_dir}/2024_07_29_silo-pr389-win32-bugfix.patch
-  fi
-
-  cd ${root_dir}
+      --exclude="Silo-${silo_version}/LICENSE.md"
+      --exclude="Silo-${silo_version}/silo_objects.png"
 fi
 
 
