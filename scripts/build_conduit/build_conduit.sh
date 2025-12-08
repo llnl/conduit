@@ -197,8 +197,8 @@ fi # build_zlib
 # HDF5
 ################
 hdf5_version=2.0.0
-hdf5_middle_version=2.0.0
-hdf5_short_version=2.0
+hdf5_middle_version=2_0_0
+hdf5_short_version=2_0
 hdf5_src_dir=$(ospath ${source_dir}/hdf5-${hdf5_version})
 hdf5_build_dir=$(ospath ${build_dir}/hdf5-${hdf5_version}/)
 hdf5_install_dir=$(ospath ${install_dir}/hdf5-${hdf5_version}/)
@@ -209,9 +209,10 @@ if [ ! -d ${hdf5_install_dir} ]; then
 if ${build_hdf5}; then
 if [ ! -d ${hdf5_src_dir} ]; then
   echo "**** Downloading ${hdf5_tarball}"
-  curl -L https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${hdf5_short_version}/hdf5-${hdf5_middle_version}/src/hdf5-${hdf5_version}.tar.gz -o ${hdf5_tarball}
+  curl -L https://support.hdfgroup.org/releases/hdf5/v${hdf5_short_version}/v${hdf5_middle_version}/downloads/hdf5-${hdf5_version}.tar.gz -o ${hdf5_tarball}
   tar ${tar_extra_args} -xzf ${hdf5_tarball} -C ${source_dir}
 fi
+
 
 #################
 #
@@ -259,7 +260,7 @@ if [ ! -d ${silo_src_dir} ]; then
   # untar and avoid symlinks (which windows despises)
   tar ${tar_extra_args} -xzf ${silo_tarball} -C ${source_dir} \
       --exclude="Silo-${silo_version}/config-site/*" \
-      --exclude="Silo-${silo_version}/LICENSE.md"
+      --exclude="Silo-${silo_version}/LICENSE.md" \
       --exclude="Silo-${silo_version}/silo_objects.png"
 fi
 
@@ -461,6 +462,11 @@ if [ ! -d ${h5zzfp_src_dir} ]; then
   echo "**** Downloading ${h5zzfp_tarball}"
   curl -L "https://github.com/LLNL/H5Z-ZFP/archive/refs/tags/v${h5zzfp_version}.tar.gz"  -o ${h5zzfp_tarball}
   tar ${tar_extra_args} -xzf ${h5zzfp_tarball} -C ${source_dir}
+
+  # apply patches
+  cd ${h5zzfp_src_dir}
+  patch -p1 < ${script_dir}/2025_12_08_h5zzfp-hdf5-cmake-fix.patch
+  cd ${root_dir}
 fi
 
 echo "**** Configuring H5Z-ZFP ${h5zzfp_version}"
