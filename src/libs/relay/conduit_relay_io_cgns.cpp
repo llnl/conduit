@@ -510,10 +510,17 @@ void save_mesh(const conduit::Node& mesh, const std::string& path)
 
   CONDUIT_INFO("conduit::relay::io::cgns__save_mesh(const Node &node, const "
                "std::string &path)\n");
+               
+               try {
   if (mesh["/coordsets/coords/type"].as_string() != "explicit")
   {
     CONDUIT_ERROR("cgns::save_mesh requires explicit coordsets type");
   }
+}
+catch (std::exception& e){
+  std::cout << "caught exception on mesh[\"/coordsets/coords/type\"].as_string(): " << e.what() << std::endl;
+
+}
 
   mesh.print();
 
@@ -631,8 +638,10 @@ namespace cgns {
 
 void write_mesh(const conduit::Node& mesh, const std::string& path, const conduit::Node& opts, MPI_Comm comm)
 {
-  std::cout << "reached conduit::relay::mpi::io::cgns::write_mesh" << std::endl;abort();
-  // save_mesh(mesh, path);
+  std::cout << "reached conduit::relay::mpi::io::cgns::write_mesh" << std::endl;
+  //abort();
+  //  conduit::relay::io::cgns::save_mesh(mesh.child(0), path);
+   conduit::relay::io::cgns_write(mesh, path);
 }
 
 }
