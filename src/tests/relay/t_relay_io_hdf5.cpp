@@ -447,12 +447,10 @@ TEST(conduit_relay_io_hdf5, write_and_read_conduit_leaf_to_extendible_hdf5_datas
     /*
      * Modify dataset creation properties, i.e. enable chunking.
      */
-    hid_t cparms;
     hsize_t chunk_dims[1] = {1};
 
-    cparms = H5Pcreate (H5P_DATASET_CREATE);
+    hid_t cparms = H5Pcreate (H5P_DATASET_CREATE);
     H5Pset_chunk(cparms, 1, chunk_dims);
-
 
     // create new dataset
     hid_t h5_dset_id  = H5Dcreate1(h5_file_id,
@@ -481,6 +479,7 @@ TEST(conduit_relay_io_hdf5, write_and_read_conduit_leaf_to_extendible_hdf5_datas
     Node n_read, opts_read;
 
     io::hdf5_read_info(h5_dset_id,opts_read,n_read);
+
     EXPECT_EQ(4,(int) n_read["num_elements"].to_value());
 
     io::hdf5_read(h5_dset_id,opts_read,n_read);
@@ -555,9 +554,9 @@ TEST(conduit_relay_io_hdf5, write_and_read_conduit_leaf_to_extendible_hdf5_datas
     H5Dclose(h5_dset_id);
     H5Fclose(h5_file_id);
 
-    // TODO AUDIT
-    // // make sure we aren't leaking
-    //EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
+    // AUDIT
+    // make sure we aren't leaking
+    EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
 
 
@@ -575,8 +574,6 @@ TEST(conduit_relay_io_hdf5, write_and_read_conduit_leaf_to_fixed_hdf5_dataset_ha
                                  H5P_DEFAULT);
 
     // create a dataset for a 16-bit signed integer  array with 2 elements
-
-
     hid_t h5_dtype = H5T_NATIVE_SHORT;
 
     hsize_t num_eles = 2;
@@ -661,6 +658,7 @@ TEST(conduit_relay_io_hdf5, write_and_read_conduit_leaf_to_fixed_hdf5_dataset_ha
     opts_read["offset"] = 0;
     opts_read["stride"] = 1;
     io::hdf5_read(h5_dset_id,opts_read,n_read);
+
     // check values of data
     read_vals = n_read.value();
     EXPECT_EQ(-1,read_vals[0]);
@@ -686,9 +684,9 @@ TEST(conduit_relay_io_hdf5, write_and_read_conduit_leaf_to_fixed_hdf5_dataset_ha
     H5Dclose(h5_dset_id);
     H5Fclose(h5_file_id);
 
-    // TODO AUDIT!
+    // AUDIT
     // make sure we aren't leaking
-    // EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
+    EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
 
 
@@ -845,9 +843,9 @@ TEST(conduit_relay_io_hdf5, write_conduit_object_to_hdf5_group_handle_with_offse
     H5Gclose(h5_group_id);
     H5Fclose(h5_file_id);
 
-    // TODO AUDIT
+    // AUDIT
     // make sure we aren't leaking
-    //EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
+    EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
 
 

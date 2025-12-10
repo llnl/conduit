@@ -1978,7 +1978,7 @@ write_conduit_leaf_to_hdf5_dataset(const Node &node,
             // close the old dataset to prevent the old identifier from
             // interfering
             H5Oclose(hdf5_dset_id);
-            H5Dclose(hdf5_dset_parent_id);
+            H5Oclose(hdf5_dset_parent_id);
 
             hdf5_dset_id = H5Oopen(hdf5_id,
                 hdf5_dset_path.c_str(), H5P_DEFAULT);
@@ -2957,8 +2957,10 @@ calculate_readsize(index_t_array readsize, index_t rank,
 
 //---------------------------------------------------------------------------//
 void
-fill_dataset_opts(const std::string & ref_path, const Node & inopts,
-    hid_t dataspace_id, Node & filled_opts)
+fill_dataset_opts(const std::string &ref_path,
+                  const Node & inopts,
+                  hid_t dataspace_id,
+                  Node &filled_opts)
 {
 
     // Intent here is to do a deep copy, since opts is a const ref
@@ -3040,6 +3042,7 @@ read_hdf5_dataset_into_conduit_node(hid_t hdf5_dset_id,
                                     const Node &opts,
                                     Node &dest)
 {
+    // needs H5SClose
     hid_t h5_dspace_id = H5Dget_space(hdf5_dset_id);
     CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_dspace_id,
                                                     hdf5_dset_id,
@@ -3066,7 +3069,25 @@ read_hdf5_dataset_into_conduit_node(hid_t hdf5_dset_id,
         hid_t h5_status    = 0;
 
         Node filled_opts;
-        fill_dataset_opts(ref_path, opts, h5_dspace_id, filled_opts);
+        try
+        {
+            // if this fails and throws an exception,
+            // we need to cleanup our dspace and dtype handles
+            // before the exception is propagated
+            fill_dataset_opts(ref_path, opts, h5_dspace_id, filled_opts);
+        }
+        catch(conduit::Error &e)
+        {
+            CONDUIT_CHECK_HDF5_ERROR_WITH_REF_PATH(H5Tclose(h5_dtype_id),
+                                                   ref_path,
+                                                   "Error closing HDF5 DType: "
+                                                   << h5_dtype_id);
+            CONDUIT_CHECK_HDF5_ERROR_WITH_REF_PATH(H5Sclose(h5_dspace_id),
+                                                   ref_path,
+                                                   "Error closing HDF5 Dataspace: "
+                                                   << h5_dspace_id);
+            throw;
+        }
 
         Node& slab_params = filled_opts["slabparams"];
         index_t rank = slab_params["rank"].to_long_long();
