@@ -39,7 +39,8 @@ namespace conduit
 template <typename T> 
 class CONDUIT_API DataAccessor
 {
-public: 
+public:
+    using value_type = T;
 //-----------------------------------------------------------------------------
 //
 // -- conduit::DataAccessor public methods --

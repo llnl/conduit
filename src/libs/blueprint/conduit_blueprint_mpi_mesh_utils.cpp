@@ -418,7 +418,7 @@ MatchQuery::execute()
             const auto dtopo = getDomainTopology(dom);
             conduit::blueprint::mesh::utils::ShapeCascade c(*dtopo);
             const auto &s = c.get_shape((c.dim == 0) ? c.dim : (c.dim - 1));
-            shape = s.type;
+            shape = s.type();
         }
 
         it->second.builder->execute(it->second.query_mesh, shape);

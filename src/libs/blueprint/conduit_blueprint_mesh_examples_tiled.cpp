@@ -3345,9 +3345,11 @@ TopDownTiler::generateDomain(IndexType nx, IndexType ny, IndexType nz, conduit::
     tmp.to_data_type(indexDT.id(), topo["elements/sizes"]);
     if(!threeD)
     {
-      tmp.set_external(shapes.data(), shapes.size());
-      tmp.to_data_type(indexDT.id(), topo["elements/shapes"]);
-
+      if(!shapes.empty())
+      {
+        tmp.set_external(shapes.data(), shapes.size());
+        tmp.to_data_type(indexDT.id(), topo["elements/shapes"]);
+      }
       // Make offsets
       std::vector<index_t> offsets;
       offsets.reserve(sizes.size());

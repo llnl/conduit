@@ -36,6 +36,7 @@
 //-----------------------------------------------------------------------------
 #include "conduit_node.hpp"
 #include "conduit_data_accessor.hpp"
+#include "conduit_geometry_vector.hpp"
 #include "conduit_blueprint_mcarray.hpp"
 #include "conduit_blueprint_o2mrelation.hpp"
 #include "conduit_blueprint_mesh_utils.hpp"
@@ -5061,142 +5062,6 @@ private:
 namespace utils
 {
 
-/**
- @brief A simple vector struct to be used by the kdtree
-*/
-template<typename T, size_t Size>
-struct vector
-{
-    using this_type = vector<T, Size>;
-    using data_type = std::array<T, Size>;
-    using value_type = T;
-private:
-    // Used to alias vector data
-    template<size_t Index>
-    struct accessor
-    {
-        data_type data;
-
-        constexpr operator T() const
-        {
-            static_assert(Index < Size, "Invalid access into data.");
-            return data[Index];
-        }
-
-        T operator=(T v)
-        {
-            static_assert(Index < Size, "Invalid access into data.");
-            return data[Index] = v;
-        }
-    };
-
-public:
-    // Possible to access vector data with x/y/z
-    union
-    {
-        data_type    v;
-        accessor<0>  x;
-        accessor<1>  y;
-        accessor<2>  z;
-    };
-
-    constexpr size_t size() const
-    {
-        return Size;
-    }
-
-    T operator[](size_t index) const
-    {
-        return v[index];
-    }
-
-    T &operator[](size_t index)
-    {
-        return v[index];
-    }
-
-    void zero()
-    {
-        set_all(0);
-    }
-
-    void set_all(T val)
-    {
-        for(size_t i = 0u; i < size(); i++)
-        {
-            v[i] = val;
-        }
-    }
-
-    // NOTE: Defining operator= makes this non-POD type
-    // this_type operator=(const this_type &other)
-    // {
-    //     for(size_t i = 0u; i < size(); i++)
-    //     {
-    //         v[i] = other[i];
-    //     }
-    //     return *this;
-    // }
-
-    void copy(const this_type &other)
-    {
-        for(auto i = 0u; i < size(); i++)
-            other.v[i] = v[i];
-    }
-
-    bool operator<=(const this_type &other) const
-    {
-        bool retval = true;
-        for(size_t i = 0u; i < size(); i++)
-            retval &= v[i] <= other[i];
-        return retval;
-    }
-
-    bool operator>=(const this_type &other) const
-    {
-        bool retval = true;
-        for(size_t i = 0u; i < size(); i++)
-            retval &= v[i] >= other[i];
-        return retval;
-    }
-
-    this_type operator+(T scalar) const
-    {
-        this_type retval;
-        for(size_t i = 0u; i < size(); i++)
-        {
-            retval[i] = v[i] + scalar;
-        }
-        return retval;
-    }
-
-    this_type operator-(T scalar) const
-    {
-        this_type retval;
-        for(size_t i = 0u; i < size(); i++)
-        {
-            retval[i] = v[i] - scalar;
-        }
-        return retval;
-    }
-
-    double distance2(const this_type &other) const
-    {
-        double d2 = 0.;
-        for(size_t i = 0u; i < size(); i++)
-        {
-            const auto diff = other[i] - v[i];
-            d2 += (diff*diff);
-        }
-        return d2;
-    }
-
-    double distance(const this_type &other) const
-    {
-        return std::sqrt(distance2(other));
-    }
-};
-
 //-----------------------------------------------------------------------------
 /**
  @brief A simple bounding box struct to be used by the kdtree
@@ -5231,10 +5096,10 @@ struct bounding_box
 };
 
 //-----------------------------------------------------------------------------
-using vec2f = vector<float,2>;
-using vec3f = vector<float,3>;
-using vec2  = vector<double,2>;
-using vec3  = vector<double,3>;
+using vec2f = conduit::geometry::vector<float,2>;
+using vec3f = conduit::geometry::vector<float,3>;
+using vec2  = conduit::geometry::vector<double,2>;
+using vec3  = conduit::geometry::vector<double,3>;
 
 /**
  @brief A spatial search structure used to merge points within a given tolerance.
@@ -6604,7 +6469,7 @@ build_unstructured_output(const std::vector<const Node*> &topologies,
     if(shape_types.size() == 1)
     {
         conduit::blueprint::mesh::utils::ShapeType shape(*shape_types.begin());
-        output["elements/shape"] = shape.type;
+        output["elements/shape"] = shape.type();
         output["elements/connectivity"].set(out_conn);
         if(shape.is_polygonal())
         {
@@ -6631,7 +6496,7 @@ build_unstructured_output(const std::vector<const Node*> &topologies,
         {
             conduit::blueprint::mesh::utils::ShapeType shape(s);
             // Cast b/c VisIt requires int32 at the moment.
-            output["elements/shape_map"][shape.type] = static_cast<int>(s);
+            output["elements/shape_map"][shape.type()] = static_cast<int>(s);
         }
         output["elements/connectivity"].set(out_conn);
         output["elements/sizes"].set(out_sizes);
