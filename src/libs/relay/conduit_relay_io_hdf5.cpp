@@ -3400,7 +3400,8 @@ create_hdf5_file_access_plist()
     // https://forum.hdfgroup.org/t/seconding-the-request-for-h5pset-libver-bounds-1-8-x-file-compat-option/4056
     // so only enable H5F_LIBVER_LATEST if we are using hdf5 1.8
 
-    if(major_num == 1 && minor_num >= 8)
+    if( (major_num == 1 && minor_num >= 8) ||
+         major_num > 1 )
     {
 #if H5_VERSION_GE(1, 10, 2)
         if(HDF5Options::libver == "default" ||
@@ -3424,6 +3425,13 @@ create_hdf5_file_access_plist()
         else if(HDF5Options::libver == "v1140")
         {
             h5_status = H5Pset_libver_bounds(h5_fa_props, H5F_LIBVER_V18, H5F_LIBVER_V114);
+        }
+#endif
+// nested case for hdf5 >= 2.0
+#if H5_VERSION_GE(2, 0, 0)
+        else if(HDF5Options::libver == "v200")
+        {
+            h5_status = H5Pset_libver_bounds(h5_fa_props, H5F_LIBVER_V200, H5F_LIBVER_V200);
         }
 #endif
         else if(HDF5Options::libver == "latest")
