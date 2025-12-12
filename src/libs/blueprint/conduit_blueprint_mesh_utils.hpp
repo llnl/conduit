@@ -357,7 +357,9 @@ namespace connectivity
                                                    index_t iwidth,
                                                    index_t ratio,
                                                    index_t& new_vertex,
-                                                   std::map<index_t, std::vector<index_t> >& elems);
+                                                   std::map<index_t, std::vector<index_t> >& elems,
+                                                   bool flip);
+
     //-------------------------------------------------------------------------
     void CONDUIT_BLUEPRINT_API connect_elements_3d(const Node& ref_win,
                                                    index_t i_lo,

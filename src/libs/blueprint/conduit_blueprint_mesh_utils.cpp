@@ -1152,7 +1152,8 @@ connectivity::connect_elements_2d(const Node& ref_win,
                                   index_t iwidth,
                                   index_t ratio,
                                   index_t& new_vertex,
-                                  std::map<index_t, std::vector<index_t> >& elems)
+                                  std::map<index_t, std::vector<index_t> >& elems,
+                                  bool flip)
 {
     index_t origin_iref = ref_win["origin/i"].to_index_t();
     index_t origin_jref = ref_win["origin/j"].to_index_t();
@@ -1160,10 +1161,41 @@ connectivity::connect_elements_2d(const Node& ref_win,
     index_t ref_size_i = ref_win["dims/i"].to_index_t();
     index_t ref_size_j = ref_win["dims/j"].to_index_t();
 
+    //NSE:  Use of these values may not be correct for ratio > 3.
+    index_t part_lo = ref_win.has_child("partial_lo") ? 
+        ref_win["partial_lo"].to_index_t() : 0;
+    index_t part_hi = ref_win.has_child("partial_hi") ? 
+        ref_win["partial_hi"].to_index_t() : 0;
+
     if (ref_size_i == 1)
     {
         index_t jstart = origin_jref - j_lo;
         index_t jend = origin_jref - j_lo + ref_size_j - 1;
+
+        if (part_lo > 1)
+        {
+            if (flip)
+            {
+                --jend;
+            }
+            else
+            {
+                ++jstart;
+                new_vertex += ratio - part_lo; 
+            }
+        }
+        if (part_hi > 1)
+        {
+            if (flip)
+            {
+                ++jstart;
+                new_vertex += ratio - part_hi;
+            }
+            else
+            {
+                --jend;
+            }
+        }
         if (origin_iref == i_lo)
         {
             for (index_t jidx = jstart; jidx < jend; ++jidx)
@@ -1222,6 +1254,32 @@ connectivity::connect_elements_2d(const Node& ref_win,
     {
         index_t istart = origin_iref - i_lo;
         index_t iend = origin_iref - i_lo + ref_size_i - 1;
+
+        if (part_lo > 1)
+        {
+            if (flip)
+            {
+                --iend;
+            }
+            else
+            {
+                ++istart;
+                new_vertex += ratio - part_lo;
+            }
+        }
+        if (part_hi > 1)
+        {
+            if (flip)
+            {
+                ++istart;
+                new_vertex += ratio - part_hi;
+            }
+            else
+            {
+                --iend;
+            }
+        }
+
         if (origin_jref == j_lo)
         {
             for (index_t iidx = istart; iidx < iend; ++iidx)

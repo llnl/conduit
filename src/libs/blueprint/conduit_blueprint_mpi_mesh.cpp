@@ -421,9 +421,39 @@ void to_polygonal(const Node &n,
 
     Node temp;
 
+    // 3-stage Algorithm overview:
+    // 1. Send data from finer meshes to coarser neighbors (stage 0)
+    // 2. Process received data to fill windows between mesh levels (stage 1)
+    // 3. Generate polygonal elements at refinement boundaries (stage 2)
+
+    // poly_elems_map:
+    // The outer map is keyed on a domain id.
+    // The inner map is keyed on an element id, holding a vector of vertices
+    // of each element.
     std::map<index_t, std::map<index_t, std::vector<index_t> > > poly_elems_map;
+
+    // dom_to_nbr_to_xbuffer/ybuffer:
+    // The outer map is keyed on the domain id for a reference domain.
+    // The inner map is keyed on the domain id for a neigbor domain adjacent
+    // to the reference domain.  The inner map holds a vector that serves as
+    // a buffer for coordinate location values of vertices that will be shared
+    // between the reference and neighbor domains.
     std::map<index_t, std::map<index_t, std::vector<double> > > dom_to_nbr_to_xbuffer;
     std::map<index_t, std::map<index_t, std::vector<double> > > dom_to_nbr_to_ybuffer;
+
+    // dom_to_nbr_to_vtxfields:
+    // The two outermost maps are keyed identically to the xbuffer/ybuffer
+    // maps.  The inner may is keyed on a string from the passed-in vtxfields.
+    // Each string is the name of a vertex field, and the inner map holds
+    // a vector as the buffer for values of that field shared between the
+    // reference and neighbor domains.
+    std::map<index_t, std::map<index_t, std::map< std::string, std::vector<double> > > > dom_to_nbr_to_vtxfields;
+
+
+    // 3-stage algorithm overview for loop of index_t si:
+    // 0. Send vertex data from finer domains to coarser neighbors
+    // 1. Process received data on the coarser domains
+    // 2. Generate polygonal elements at coarse-fine boundaries
 
     const std::vector<const conduit::Node *> doms = ::conduit::blueprint::mesh::domains(n);
     for (index_t si = 0; si < 3; si++)
@@ -446,6 +476,57 @@ void to_polygonal(const Node &n,
             const Node *in_cset = 
                 bputils::find_reference_node(in_topo, "coordset");
             Node &out_cset = dest_dom["coordsets"][in_topo["coordset"].as_string()];
+
+            // Vertex fields on the input domain
+            const Node &in_fields = dom["fields"];
+
+            std::vector<std::string> vtxfields;
+
+            auto itr = in_fields.children();
+            while(itr.has_next())
+            {
+                const Node &chld = itr.next();
+                std::string fname = chld.name();
+
+                if (chld.has_child("association") &&
+                    chld["association"].as_string() == "vertex")
+                {
+                    vtxfields.push_back(fname);
+                }
+            }
+
+            std::map<std::string, const Node*> in_vtxfields;
+            if (!vtxfields.empty())
+            {
+                for (const auto& vname: vtxfields)
+                {
+                    if (in_fields.has_child(vname))
+                    {
+                        const Node &in_vtxfield = in_fields[vname];
+                        in_vtxfields[vname] = &in_vtxfield;
+                    }
+                }
+            }
+
+            // Vertex fields on the output domain
+            Node &out_fields = dest_dom["fields"];
+            if (si == 0)
+            {
+                out_fields.set(in_fields);
+            }
+
+            std::map<std::string, Node*> out_vtxfields;
+            if (!vtxfields.empty())
+            {
+                for (const auto& vname: vtxfields)
+                {
+                    if (out_fields.has_child(vname))
+                    {
+                        Node &out_vtxfield = out_fields[vname];
+                        out_vtxfields[vname] = &out_vtxfield;
+                    }
+                }
+            }
 
             const index_t domain_id = dom["state/domain_id"].to_index_t();
             const index_t level_id = dom["state/level_id"].to_index_t();
@@ -484,10 +565,13 @@ void to_polygonal(const Node &n,
                 }
             }
 
+            // Get references to map objects for the current domain_id.
             auto &poly_elems = poly_elems_map[domain_id];
             auto &nbr_to_xbuffer = dom_to_nbr_to_xbuffer[domain_id];
             auto &nbr_to_ybuffer = dom_to_nbr_to_ybuffer[domain_id];
+            auto &nbr_to_vtxfields = dom_to_nbr_to_vtxfields[domain_id];
 
+            // Process adjacency sets to find coarse-fine interfaces
             if (dom.has_path("adjsets/adjset/groups"))
             {
                 NodeConstIterator grp_itr = dom["adjsets/adjset/groups"].children();
@@ -511,6 +595,13 @@ void to_polygonal(const Node &n,
                         const index_t nbr_level = nbr_win["level_id"].to_index_t();
                         const index_t ref_level = ref_win["level_id"].to_index_t();
 
+                        // For si == 0, prepare data on ref_level to be
+                        // given to nbr_level.  For si !=0, process data
+                        // received from nbr_level.
+                        //
+                        // Data is given when ref_level is finer than
+                        // nbr_level and data is received when ref_level
+                        // is coarser than nbr_level.
                         if ((si == 0 && nbr_level < ref_level) ||
                             (si != 0 && nbr_level > ref_level))
                         {
@@ -525,9 +616,15 @@ void to_polygonal(const Node &n,
                             const index_t ratio_i = nbr_win["ratio/i"].to_index_t();
                             const index_t ratio_j = nbr_win["ratio/j"].to_index_t();
 
+                            // If nbr_size < ref_size, then the neighbor is
+                            // coarser and the domains touch at more than
+                            // just a corner vertex.  If the neighbor is not
+                            // local, use MPI to send data to the neighbor.
                             if (si == 0 && nbr_size < ref_size && !is_domain_local(n, nbr_name))
                             {
                                 std::vector<double> xbuffer, ybuffer;
+                                std::map< std::string, std::vector<double> > vtxbuffer;
+
                                 const Node &fcoords = (*in_cset)["values"];
 
                                 const index_t origin_i = ref_win["origin/i"].to_index_t();
@@ -535,38 +632,139 @@ void to_polygonal(const Node &n,
 
                                 temp.reset();
 
+                                // partial_lo and partial_hi indicate that
+                                // the lower or upper vertices on the fine
+                                // domain's view of the boundary, represented
+                                // by ref_win, are not colocated with vertices
+                                // in the coarse domain.  These indicators
+                                // are used to cause special handling where
+                                // placeholder data is placed into the buffers
+                                // for these cases.
+                                index_t part_lo =
+                                    ref_win.has_child("partial_lo") ?
+                                    ref_win["partial_lo"].to_index_t() : 0;
+                                index_t part_hi =
+                                    ref_win.has_child("partial_hi") ?
+                                    ref_win["partial_hi"].to_index_t() : 0;
+                                const double dbl_max =
+                                    std::numeric_limits<double>::max();
+
+                                // Add placeholder data at the front of
+                                // the buffers
+                                if (part_lo)
+                                {
+                                    xbuffer.assign(part_lo, dbl_max);
+                                    ybuffer.assign(part_lo, dbl_max);
+
+                                    for (const auto& vnode: in_vtxfields)
+                                    {
+                                        vtxbuffer[vnode.first].assign(part_lo, dbl_max);
+                                    }
+                                }
+
+                                auto& x_coords = fcoords["x"];
+                                auto& y_coords = fcoords["y"];
+                                DataType x_dtype(x_coords.dtype().id(), 1);
+                                DataType y_dtype(y_coords.dtype().id(), 1);
+
                                 if (ref_size_i == 1)
                                 {
+                                    // Width in i-direction == 1, extract
+                                    // vertex data along j-direction
+
                                     const index_t icnst = origin_i - i_lo;
-                                    const index_t jstart = origin_j - j_lo;
-                                    const index_t jend = jstart + ref_size_j;
+                                    const index_t jstart = origin_j - j_lo + part_lo;
+                                    const index_t jend = jstart + ref_size_j - part_hi - part_lo;
+                                    const size_t num_elements = jend - jstart;
+
+                                    xbuffer.reserve(xbuffer.size() + num_elements);
+                                    ybuffer.reserve(ybuffer.size() + num_elements);
+                                    for (auto& vnode : in_vtxfields)
+                                    {
+                                        auto& vbuffer = vtxbuffer[vnode.first];
+                                        vbuffer.reserve(vbuffer.size() + num_elements);
+                                    }
+
                                     for (index_t jidx = jstart; jidx < jend; ++jidx)
                                     {
                                         const index_t offset = jidx * niwidth + icnst;
-                                        temp.set_external(DataType(fcoords["x"].dtype().id(), 1),
-                                                          (void*)fcoords["x"].element_ptr(offset));
+                                        temp.set_external(x_dtype,
+                                                          (void*)x_coords.element_ptr(offset));
                                         xbuffer.push_back(temp.to_double());
-                                        temp.set_external(DataType(fcoords["y"].dtype().id(), 1),
-                                                          (void*)fcoords["y"].element_ptr(offset));
+                                        temp.set_external(y_dtype,
+                                                          (void*)y_coords.element_ptr(offset));
                                         ybuffer.push_back(temp.to_double());
+                                    }
+                                    for (const auto& vnode: in_vtxfields)
+                                    {
+                                        const auto& fvalues = (*vnode.second)["values"];
+                                        auto& vbuffer = vtxbuffer[vnode.first];
+                                        DataType f_dtype(fvalues.dtype().id(), 1);
+                                        for (index_t jidx = jstart; jidx < jend; ++jidx)
+                                        {
+                                            const index_t offset = jidx * niwidth + icnst;
+                                            temp.set_external(f_dtype,
+                                                              (void*)fvalues.element_ptr(offset));
+                                            vbuffer.push_back(temp.to_double());
+                                        }
                                     }
                                 }
                                 else if (ref_size_j == 1)
                                 {
+                                    // Width in j-direction == 1, extract
+                                    // vertex data along i-direction
+
                                     const index_t jcnst = origin_j - j_lo;
-                                    const index_t istart = origin_i - i_lo;
-                                    const index_t iend = istart + ref_size_i;
+                                    const index_t istart = origin_i - i_lo + part_lo;
+                                    const index_t iend = istart + ref_size_i - part_hi - part_lo;
+                                    const size_t num_elements = iend - istart;
+
+                                    xbuffer.reserve(xbuffer.size() + num_elements);
+                                    ybuffer.reserve(ybuffer.size() + num_elements);
+                                    for (auto& vnode : in_vtxfields)
+                                    {
+                                        auto& vbuffer = vtxbuffer[vnode.first];
+                                        vbuffer.reserve(vbuffer.size() + num_elements);
+                                    }
+
                                     for (index_t iidx = istart; iidx < iend; ++iidx)
                                     {
                                         const index_t offset = jcnst * niwidth + iidx;
-                                        temp.set_external(DataType(fcoords["x"].dtype().id(), 1),
-                                                          (void*)fcoords["x"].element_ptr(offset));
+                                        temp.set_external(x_dtype,
+                                                          (void*)x_coords.element_ptr(offset));
                                         xbuffer.push_back(temp.to_double());
-                                        temp.set_external(DataType(fcoords["y"].dtype().id(), 1),
-                                                          (void*)fcoords["y"].element_ptr(offset));
+                                        temp.set_external(y_dtype,
+                                                          (void*)y_coords.element_ptr(offset));
                                         ybuffer.push_back(temp.to_double());
                                     }
+                                    for (const auto& vnode: in_vtxfields)
+                                    {
+                                        const auto& fvalues = (*vnode.second)["values"];
+                                        auto& vbuffer = vtxbuffer[vnode.first];
+                                        DataType f_dtype(fvalues.dtype().id(), 1);
+
+                                        for (index_t iidx = istart; iidx < iend; ++iidx)
+                                        {
+                                            const index_t offset = jcnst * niwidth + iidx;
+                                            temp.set_external(f_dtype,
+                                                              (void*)fvalues.element_ptr(offset));
+                                            vbuffer.push_back(temp.to_double());
+                                        }
+                                    }
                                 }
+                                // Add placeholder data at the back
+				// of the buffers
+                                if (part_hi)
+                                {
+                                    xbuffer.insert(xbuffer.end(), part_hi, dbl_max);
+                                    ybuffer.insert(ybuffer.end(), part_hi, dbl_max);
+                                    for (const auto& vnode: in_vtxfields)
+                                    {
+                                        auto& vbuffer = vtxbuffer[vnode.first];
+                                        vbuffer.insert(vbuffer.end(), part_hi, dbl_max);
+                                    }
+                                }
+
                                 const index_t nbr_rank = group["rank"].to_index_t();
                                 MPI_Send(&xbuffer[0],
                                          static_cast<int>(xbuffer.size()),
@@ -580,25 +778,42 @@ void to_polygonal(const Node &n,
                                          static_cast<int>(nbr_rank),
                                          static_cast<int>(domain_id),
                                          comm);
+                                for (const auto& vnode: in_vtxfields)
+                                {
+                                    auto& vbuffer = vtxbuffer[vnode.first];
+                                    MPI_Send(&vbuffer[0],
+                                             vbuffer.size(),
+                                             MPI_DOUBLE,
+                                             nbr_rank,
+                                             domain_id,
+                                             comm);
+                                }
+
                             }
+
+                            // Process received vertex data to be added
+                            // to elements on coarse domains.
                             else if (si == 1 && nbr_size > ref_size)
                             {
                                 auto& xbuffer = nbr_to_xbuffer[nbr_id];
                                 auto& ybuffer = nbr_to_ybuffer[nbr_id];
+                                auto& vtxbuffer = nbr_to_vtxfields[nbr_id];
 
+                                // If neighbor is non-local, receive
+                                // vertex data from MPI messages.
                                 if (!is_domain_local(n, nbr_name))
                                 {
-                                    if (nbr_size_i == 1)
+                                    assert(nbr_size_i == 1 || nbr_size_j == 1);
+                                    size_t buf_size = nbr_size_i == 1 ?
+                                                      nbr_size_j :
+                                                      nbr_size_i;
+                                    xbuffer.resize(buf_size);
+                                    ybuffer.resize(buf_size);
+                                    for (auto& vnode: in_vtxfields)
                                     {
-                                        xbuffer.resize(nbr_size_j);
-                                        ybuffer.resize(nbr_size_j);
+                                        vtxbuffer[vnode.first].resize(buf_size);
                                     }
-                                    else if (nbr_size_j == 1)
-                                    {
-                                        xbuffer.resize(nbr_size_i);
-                                        ybuffer.resize(nbr_size_i);
-                                    }
-
+                   
                                     index_t nbr_rank = group["rank"].to_index_t();
                                     MPI_Recv(&xbuffer[0],
                                              static_cast<int>(xbuffer.size()),
@@ -615,11 +830,28 @@ void to_polygonal(const Node &n,
                                              comm,
                                              MPI_STATUS_IGNORE);
 
+                                    for (const auto& vnode: in_vtxfields)
+                                    {
+                                        auto& vbuffer = vtxbuffer[vnode.first];
+                                        MPI_Recv(&vbuffer[0],
+                                                 vbuffer.size(),
+                                                 MPI_DOUBLE,
+                                                 nbr_rank,
+                                                 nbr_id,
+                                                 comm,
+                                                 MPI_STATUS_IGNORE);
+                                    }
+
                                 }
+
+                                // If neighbor is local, fill the buffers
+				// directly from the arrays on the neighbor
+				// domain.
                                 else
                                 {
                                     const Node& nbr_dom = n[nbr_name];
                                     const Node& nbr_coords = nbr_dom["coordsets/coords"];
+                                    const Node& nbr_fields = nbr_dom["fields"];
 
                                     const Node& ntopo = nbr_dom["topologies"][name];
                                     index_t ni_lo = ntopo["elements/origin/i0"].to_index_t();
@@ -639,6 +871,53 @@ void to_polygonal(const Node &n,
                                     index_t jstart = origin_j - nj_lo;
                                     index_t iend = istart + nbr_size_i;
                                     index_t jend = jstart + nbr_size_j;
+
+                                    index_t part_lo =
+                                        nbr_win.has_child("partial_lo") ?
+                                        nbr_win["partial_lo"].to_index_t() : 0;
+                                    index_t part_hi =
+                                        nbr_win.has_child("partial_hi") ?
+                                        nbr_win["partial_hi"].to_index_t() : 0;
+
+                                    const double dbl_max =
+                                        std::numeric_limits<double>::max();
+
+				    // Add the placeholder values for
+				    // partial_lo case.
+                                    if (part_lo)
+                                    {
+                                        if (nbr_size_i > 1)
+                                        {
+                                            istart += part_lo;
+                                        }
+                                        else if (nbr_size_j > 1)
+                                        {
+                                            jstart += part_lo;
+                                        }
+
+                                        xbuffer.insert(xbuffer.end(), part_lo, dbl_max);
+                                        ybuffer.insert(ybuffer.end(), part_lo, dbl_max);
+                                        for (const auto& vnode: in_vtxfields)
+                                        {
+                                            auto& vbuffer = vtxbuffer[vnode.first];
+                                            vbuffer.insert(vbuffer.end(), part_lo, dbl_max);
+                                        }
+
+                                    }
+
+                                    if (part_hi)
+                                    {
+                                        if (nbr_size_i > 1)
+                                        {
+                                           iend -= part_hi;
+                                        } else if (nbr_size_j > 1)
+                                        {
+                                           jend -= part_hi;
+                                        }
+                                    }
+
+				    // Fill the buffers with vertex data
+				    // values.
                                     for (index_t jidx = jstart; jidx < jend; ++jidx)
                                     {
                                         index_t joffset = jidx*nbr_iwidth;
@@ -649,10 +928,46 @@ void to_polygonal(const Node &n,
                                             ybuffer.push_back(yarray[offset]);
                                         }
                                     }
+
+                                    for (const auto& vnode: in_vtxfields)
+                                    {
+                                        const auto& fvalues = nbr_fields[vnode.first]["values"];
+                                        auto& vbuffer = vtxbuffer[vnode.first];
+                                        DataType f_dtype(fvalues.dtype().id(), 1);
+                                        for (index_t jidx = jstart; jidx < jend; ++jidx)
+                                        {
+                                            index_t joffset = jidx*nbr_iwidth;
+                                            for (index_t iidx = istart; iidx < iend; ++iidx)
+                                            {
+                                                index_t offset = joffset+iidx;
+
+                                                temp.set_external(f_dtype,
+                                                                  (void*)fvalues.element_ptr(offset));
+                                                vbuffer.push_back(temp.to_double());
+                                            }
+                                        }
+                                    }
+
+				    // Add the placeholder values for the
+				    // partial_hi case.
+                                    if (part_hi)
+                                    {
+                                        xbuffer.insert(xbuffer.end(), part_hi, dbl_max);
+                                        ybuffer.insert(ybuffer.end(), part_hi, dbl_max);
+                                        for (const auto& vnode: in_vtxfields)
+                                        {
+                                            auto& vbuffer = vtxbuffer[vnode.first];
+                                            vbuffer.insert(vbuffer.end(), part_hi, dbl_max);
+                                        }
+                                    }
                                 }
                             }
+
+			    // Stage 2:  Create the polygonal elements
                             else if (si == 2 && ref_size < nbr_size)
                             {
+                                // Create the elements along the boundary
+				// as quads before they get extra vertex data
                                 bputils::connectivity::create_elements_2d(ref_win,
                                                                           i_lo,
                                                                           j_lo,
@@ -665,6 +980,7 @@ void to_polygonal(const Node &n,
 
                                 auto& xbuffer = nbr_to_xbuffer[nbr_id];
                                 auto& ybuffer = nbr_to_ybuffer[nbr_id];
+                                auto& vtxbuffer = nbr_to_vtxfields[nbr_id];
 
                                 const index_t added = (
                                     (nbr_size_j == 1) ? (xbuffer.size() - ref_size_i) : (
@@ -679,45 +995,156 @@ void to_polygonal(const Node &n,
                                 const index_t out_x_size = out_x.number_of_elements();
                                 const index_t out_y_size = out_y.number_of_elements();
 
+                                // Reserve vector capacity for added vertices
                                 std::vector<double> new_x;
                                 std::vector<double> new_y;
-                                new_x.reserve(out_x_size + added);
-                                new_y.reserve(out_y_size + added);
+                                if ((xbuffer.size()-1) % use_ratio == 0)
+                                {
+                                    new_x.reserve(out_x_size + added);
+                                }
+                                else
+                                {
+                                    new_x.reserve(out_x_size + 2 * added);
+                                }
+
+                                if ((ybuffer.size()-1) % use_ratio == 0)
+                                {
+                                    new_y.reserve(out_y_size + added);
+                                }
+                                else
+                                {
+                                    new_y.reserve(out_y_size + 2 * added);
+                                }
+
                                 const double* out_x_ptr = static_cast<const double*>(out_x.element_ptr(0));
                                 const double* out_y_ptr = static_cast<const double*>(out_y.element_ptr(0));
 
                                 new_x.insert(new_x.end(), out_x_ptr, out_x_ptr + out_x_size);
                                 new_y.insert(new_y.end(), out_y_ptr, out_y_ptr + out_y_size);
 
-                                if ((xbuffer.size()-1)%use_ratio)
+                                //Reserve vector capacity for vertex fields
+                                std::map<std::string, std::vector<double> > new_vfld;
+
+                                for (const auto& vnode: out_vtxfields)
                                 {
-                                    new_x.reserve(out_x_size + added*2);
-                                }
-                                for (index_t ni = 0; ni < (index_t)xbuffer.size(); ++ni)
-                                {
-                                    if (ni % use_ratio)
+                                    auto& vbuffer = vtxbuffer[vnode.first];
+                                    auto& vfld = new_vfld[vnode.first];
+                                    if ((vbuffer.size()-1) % use_ratio == 0)
                                     {
-                                        new_x.push_back(xbuffer[ni]);
-                                        new_y.push_back(ybuffer[ni]);
+                                        vfld.reserve(out_x_size + added);
+                                    }
+                                    else
+                                    {
+                                        vfld.reserve(out_x_size + 2 * added);
+                                    }
+                                    const auto& out_v = (*vnode.second)["values"].as_double_array();
+                                    const double* out_v_ptr = static_cast<const double*>(out_v.element_ptr(0));
+                                    vfld.insert(vfld.end(), out_v_ptr, out_v_ptr + out_x_size);
+                                }
+
+
+                                index_t part_lo =
+                                    ref_win.has_child("partial_lo") ?
+                                    ref_win["partial_lo"].to_index_t() : 0;
+                                index_t part_hi =
+                                    ref_win.has_child("partial_hi") ?
+                                    ref_win["partial_hi"].to_index_t() : 0;
+
+				// Handle cases with differing axis
+				// orientations between the neighboring
+				// domains, for meshes with block rotations.
+				// flip is set to indicate that the buffers
+				// should be traversed in reverse order.
+                                bool flip = false;
+                                if (group.has_child("orientation"))
+                                {
+                                    auto& orientation = group["orientation"].as_int_array();
+                                    index_t ref_size_i = ref_win["dims/i"].to_index_t();
+                                    index_t ref_size_j = ref_win["dims/j"].to_index_t();
+                                    if (ref_size_i == 1 && orientation[0] < 0)
+                                    {
+                                        flip = true;
+                                    }
+                                    if (ref_size_j == 1 && orientation[1] < 0)
+                                    {
+                                        flip = true;
+                                    }
+                                }
+
+                                index_t buf_size = (index_t)xbuffer.size();
+                                if (flip)
+                                {
+                                    for (index_t ni = buf_size-1-part_hi;
+                                         ni >= part_lo; --ni)
+                                    {
+                                        if (ni % use_ratio)
+                                        {
+                                            new_x.push_back(xbuffer[ni]);
+                                            new_y.push_back(ybuffer[ni]);
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    for (index_t ni = part_lo; ni < buf_size-part_hi; ++ni)
+                                    {
+                                        if (ni % use_ratio)
+                                        {
+                                            new_x.push_back(xbuffer[ni]);
+                                            new_y.push_back(ybuffer[ni]);
+                                        }
                                     }
                                 }
 
                                 out_cset["values"]["x"].set(new_x);
                                 out_cset["values"]["y"].set(new_y);
 
+                                for (auto& vnode: out_vtxfields)
+                                {
+                                    auto& vbuffer = vtxbuffer[vnode.first];
+                                    auto& vfld = new_vfld[vnode.first];
+                                    if (flip)
+                                    {
+                                        for (index_t ni = buf_size-1-part_hi;
+                                             ni >= part_lo; --ni)
+                                        {
+                                            if (ni % use_ratio)
+                                            {
+                                                vfld.push_back(vbuffer[ni]);
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        for (index_t ni = part_lo; ni < buf_size-part_hi; ++ni)
+                                        {
+                                            if (ni % use_ratio)
+                                            {
+                                                vfld.push_back(vbuffer[ni]);
+                                            }
+                                        }
+                                    }
+                                    (*vnode.second)["values"].set(vfld);
+                                }
+
+			        // Connect the elements by adding the fine
+				// vertices at the coarse-fine boundaries to
+				// the coarse polygonal lelements.
                                 bputils::connectivity::connect_elements_2d(ref_win,
                                                                            i_lo,
                                                                            j_lo,
                                                                            iwidth,
                                                                            use_ratio,
                                                                            new_vertex,
-                                                                           poly_elems);
+                                                                           poly_elems,
+                                                                           flip);
                             }
                         }
                     }
                 }
             }
 
+	    // Finalize the polygonal mesh 
             if (si == 2)
             {
                 dest_dom["state"].set(dom["state"]);
@@ -738,11 +1165,15 @@ void to_polygonal(const Node &n,
                     auto elem_itr = poly_elems.find(elem);
                     if (elem_itr == poly_elems.end())
                     {
+                        // Add regular quad elements away from the
+			// coarse-fine boundaries.
                         bputils::connectivity::make_element_2d(connect, elem, iwidth);
                         num_vertices.push_back(4);
                     }
                     else
                     {
+                        // Add the polygonal elements that have been
+			// created for the coarse-fine boundaries.
                         std::vector<index_t>& poly_elem = elem_itr->second;
                         connect.insert(connect.end(), poly_elem.begin(), poly_elem.end());
                         num_vertices.push_back(poly_elem.size());
@@ -756,11 +1187,6 @@ void to_polygonal(const Node &n,
                 out_topo["elements/sizes"].set(num_vertices);
                 out_topo["elements/offsets"].set(elem_offsets);
 
-                //TODO:  zero copy
-                if (dom.has_child("fields"))
-                {
-                    dest_dom["fields"].set(dom["fields"]);
-                }
             }
         }
     }
@@ -844,7 +1270,6 @@ find_delegate_domain(const conduit::Node &n,
     }
 }
 
-
 //-----------------------------------------------------------------------------
 void match_nbr_elems(PolyBndry& pbnd,
                      std::map<index_t, bputils::connectivity::ElemType>& nbr_elems,
@@ -891,7 +1316,7 @@ void match_nbr_elems(PolyBndry& pbnd,
         index_t kstart = origin_k;
         index_t kend = kstart + nbr_size_k - 1;
 
-        index_t rshift = -(side%2); 
+        index_t rshift = -(side%2);
         index_t ricnst = ref_origin_i - ri_lo + rshift;
 
         for (index_t kidx = kstart; kidx < kend; ++kidx)
@@ -920,7 +1345,7 @@ void match_nbr_elems(PolyBndry& pbnd,
                         nbr_elem[1];
                     pbnd.m_nbr_faces[roffset][noffset].m_face_id = face_id;
                     pbnd.m_nbr_faces[roffset][noffset].m_fine_subelem =
-                        allfaces_map[pbnd.m_nbr_id][face_id]; 
+                        allfaces_map[pbnd.m_nbr_id][face_id];
                 }
                 else
                 {
@@ -967,7 +1392,7 @@ void match_nbr_elems(PolyBndry& pbnd,
         index_t kstart = origin_k;
         index_t kend = kstart + nbr_size_k - 1;
 
-        index_t rshift = -(side%2); 
+        index_t rshift = -(side%2);
         index_t rjcnst = ref_origin_j - rj_lo + rshift;
 
         for (index_t kidx = kstart; kidx < kend; ++kidx)
@@ -1047,7 +1472,7 @@ void match_nbr_elems(PolyBndry& pbnd,
         index_t istart = origin_i;
         index_t iend = istart + nbr_size_i - 1;
 
-        index_t rshift = -(side%2); 
+        index_t rshift = -(side%2);
         index_t rkcnst = ref_origin_k - rk_lo + rshift;
 
         for (index_t jidx = jstart; jidx < jend; ++jidx)

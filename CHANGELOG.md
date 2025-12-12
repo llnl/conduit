@@ -18,6 +18,8 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Added a mode within the new `convert()` function that allows it to convert polyhedral hex meshes into unstructured hex meshes.
 - Sped up `conduit::blueprint::mesh::topology::unstructured::to_polygonal()` algorithm and added support for mixed element types.
 - Improved support for "mixed" element types in  `conduit::blueprint::mesh::utils::ShapeType` and also removed a string member to speed up construction.
+- Added 2D block rotation support in `conduit::blueprint::mpi::mesh::to_polygonal()`.
+- Added field data to the `conduit::blueprint::mpi::mesh::to_polygonal()` transformation, including communication of vertex data on hanging nodes.
 
 ## [0.9.5] - Released 2025-09-10
 

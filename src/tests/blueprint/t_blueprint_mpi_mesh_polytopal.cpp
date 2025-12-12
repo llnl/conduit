@@ -82,12 +82,27 @@ void test_polytopal_create_coarse_domain_2d(Node& domain)
     topo["elements/dims/i"] = 4;
     topo["elements/dims/j"] = 4;
 
-    Node& field = domain["fields/field"];
-    field["association"] = "element";
-    field["topology"] = "topo";
+    // Set up an element-centered field
+    Node& elt_field = domain["fields/elt_field"];
+    elt_field["association"] = "element";
+    elt_field["topology"] = "topo";
 
     std::vector<double> vals(16, 0.5);
-    field["values"].set(vals);
+    elt_field["values"].set(vals);
+
+    // Set up vertex fields xpos and ypos which will hold the x and y
+    // coordinate positions.  These are redundant to the coordinate positions
+    // held in the coordset, and will be used to test that the transformation
+    // of vertex fields matches the transformation of coordsets.
+    Node& xpos = domain["fields/xpos"];
+    xpos["association"] = "vertex";
+    xpos["topology"] = "topo";
+    xpos["values"].set(xcoords);
+
+    Node& ypos = domain["fields/ypos"];
+    ypos["association"] = "vertex";
+    ypos["topology"] = "topo";
+    ypos["values"].set(ycoords);
 
     Node& adjset = domain["adjsets/adjset"];
     adjset["association"] =  "vertex";
@@ -180,12 +195,13 @@ void test_polytopal_create_coarse_domain_3d(Node& domain)
     topo["elements/dims/j"] = 4;
     topo["elements/dims/k"] = 4;
 
-    Node& field = domain["fields/field"];
-    field["association"] = "element";
-    field["topology"] = "topo";
+    //Set up an element-centered field
+    Node& elt_field = domain["fields/elt_field"];
+    elt_field["association"] = "element";
+    elt_field["topology"] = "topo";
 
     std::vector<double> vals(64, 0.5);
-    field["values"].set(vals);
+    elt_field["values"].set(vals);
 
     Node& adjset = domain["adjsets/adjset"];
     adjset["association"] =  "vertex";
@@ -268,12 +284,27 @@ void test_polytopal_create_fine_domain_2d(Node& domain)
     topo["elements/dims/i"] = 8;
     topo["elements/dims/j"] = 8;
 
-    Node& field = domain["fields/field"];
-    field["association"] = "element";
-    field["topology"] = "topo";
+    //Set up an element-centered field
+    Node& elt_field = domain["fields/elt_field"];
+    elt_field["association"] = "element";
+    elt_field["topology"] = "topo";
 
     std::vector<double> vals(64, 1.5);
-    field["values"].set(vals);
+    elt_field["values"].set(vals);
+
+    // Set up vertex fields xpos and ypos which will hold the x and y
+    // coordinate positions.  These are redundant to the coordinate positions
+    // held in the coordset, and will be used to test that the transformation
+    // of vertex fields matches the transformation of coordsets.
+    Node& xpos = domain["fields/xpos"];
+    xpos["association"] = "vertex";
+    xpos["topology"] = "topo";
+    xpos["values"].set(xcoords);
+
+    Node& ypos = domain["fields/ypos"];
+    ypos["association"] = "vertex";
+    ypos["topology"] = "topo";
+    ypos["values"].set(ycoords);
 
     Node& adjset = domain["adjsets/adjset"];
     adjset["association"] =  "vertex";
@@ -369,12 +400,13 @@ void test_polytopal_create_fine_domain_3d(Node& domain)
     topo["elements/dims/j"] = 8;
     topo["elements/dims/k"] = 8;
 
-    Node& field = domain["fields/field"];
-    field["association"] = "element";
-    field["topology"] = "topo";
+    //Set up an element-centered field
+    Node& elt_field = domain["fields/elt_field"];
+    elt_field["association"] = "element";
+    elt_field["topology"] = "topo";
 
     std::vector<double> vals(512, 1.5);
-    field["values"].set(vals);
+    elt_field["values"].set(vals);
 
     Node& adjset = domain["adjsets/adjset"];
     adjset["association"] =  "vertex";
@@ -453,6 +485,18 @@ void test_verify_topologies_3d(Node& struct_topo, Node& poly_topo)
     EXPECT_EQ(num_elems_structured, num_offsets);
 }
 
+void test_verify_fields_2d(Node& poly_topo)
+{
+    Node info;
+    EXPECT_TRUE(conduit::blueprint::mesh::field::verify(
+       poly_topo["fields/elt_field"],info));
+    EXPECT_TRUE(conduit::blueprint::mesh::field::verify(
+       poly_topo["fields/xpos"],info));
+    EXPECT_TRUE(conduit::blueprint::mesh::field::verify(
+       poly_topo["fields/ypos"],info));
+}
+
+
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_serial)
 {
@@ -506,6 +550,11 @@ TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_serial)
         mesh_topo = mesh["domain_000001/topologies/topo"];
         poly_topo = poly["domain_000001/topologies/topo"];
         test_verify_topologies_2d(mesh_topo, poly_topo);
+
+        Node& domain_0 = poly["domain_000000"];
+        Node& domain_1 = poly["domain_000001"];
+        test_verify_fields_2d(domain_0);
+        test_verify_fields_2d(domain_1);
     }
 }
 
@@ -622,12 +671,18 @@ TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_parallel)
         Node& mesh_topo = mesh["domain_000000/topologies/topo"];
         Node& poly_topo = poly["domain_000000/topologies/topo"];
         test_verify_topologies_2d(mesh_topo, poly_topo);
+
+        Node& domain_0 = poly["domain_000000"];
+        test_verify_fields_2d(domain_0);
     }
     else if (par_rank == 1)
     {
         Node& mesh_topo = mesh["domain_000001/topologies/topo"];
         Node& poly_topo = poly["domain_000001/topologies/topo"];
         test_verify_topologies_2d(mesh_topo, poly_topo);
+
+        Node& domain_1 = poly["domain_000001"];
+        test_verify_fields_2d(domain_1);
     }
 }
 
