@@ -598,7 +598,7 @@ public:
 
     // helper to check if id was created correctly
     void check_created()
-    { 
+    {
         if(!is_valid())
         {
             if(m_parent_id != -1)
@@ -621,7 +621,7 @@ public:
 
     // helper close handle
     void close()
-    { 
+    {
         if(is_valid())
         {
             herr_t res = Handler::close_handle(m_id);
