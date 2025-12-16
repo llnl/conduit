@@ -2231,7 +2231,7 @@ template class DataArray<double>;
 #endif
 
 #ifdef CONDUIT_USE_LONG_DOUBLE
-    ltemplate class DataArray<long double>;
+template class DataArray<long double>;
 #endif
 
 }
