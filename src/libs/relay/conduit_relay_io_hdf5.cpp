@@ -561,7 +561,11 @@ public:
     : m_id(handle_id),
       m_parent_id(parent_id),
       m_ref_path(ref_path)
-    {}
+    {
+       ////  for debugging
+       // std::cout << "Construct Handle[" << Handler::name << "] "
+       //           << m_ref_path << " id: " << m_id << std::endl;
+    }
 
     // construct with ref path
     RelayH5Handle(hid_t handle_id,
@@ -569,7 +573,11 @@ public:
     : m_id(handle_id),
       m_parent_id(-1),
       m_ref_path(ref_path)
-    {}
+    {
+        ////  for debugging
+        // std::cout << "Construct Handle[" << Handler::name << "] "
+        //           << m_ref_path << " id: " << m_id << std::endl;
+    }
 
     // destruct, close handle if needed
     ~RelayH5Handle()
@@ -594,6 +602,9 @@ public:
     {
         // TODO: close()
         m_id = id;
+        ////  for debugging
+        // std::cout << "Set Handle[" << Handler::name << "] "
+        //           << m_ref_path << " id: " << m_id << std::endl;
     }
 
     // helper to check if id was created correctly
@@ -624,6 +635,9 @@ public:
     {
         if(is_valid())
         {
+            ////  for debugging
+            // std::cout << "Close[" << Handler::name << "] "
+            //           << m_ref_path  << " id: " << m_id << std::endl;
             herr_t res = Handler::close_handle(m_id);
             if(m_parent_id != -1)
             {
@@ -1046,7 +1060,9 @@ conduit_dtype_to_hdf5_dtype(const DataType &dt,
         };
     }
 
-    return res;
+    // return a copy of built in type so that we have he same ref count
+    // semanitcs as other objects
+    return H5Tcopy(res);
 }
 
 //-----------------------------------------------------------------------------
@@ -1054,27 +1070,28 @@ conduit_dtype_to_hdf5_dtype(const DataType &dt,
 // (effectively a noop, except for the string case)
 // TODO: This could be a macro ... ?
 //-----------------------------------------------------------------------------
-void
-conduit_dtype_to_hdf5_dtype_cleanup(hid_t hdf5_dtype_id,
-                            const std::string &ref_path)
-{
-    // NOTE: This cleanup won't be triggered when we use thee
-    // based H5T_C_S1 with a data space that encodes # of elements
-    // (Our current path, given our logic to encode string size in the
-    //  hdf5 type is disabled )
+// void
+// conduit_dtype_to_hdf5_dtype_cleanup(hid_t hdf5_dtype_id,
+//                             const std::string &ref_path)
+// {
+//     H5Tclose(hdf5_dtype_id);
+//     // NOTE: This cleanup won't be triggered when we use thee
+//     // based H5T_C_S1 with a data space that encodes # of elements
+//     // (Our current path, given our logic to encode string size in the
+//     //  hdf5 type is disabled )
 
-    // if this is a string using a custom type we need to cleanup
-    // the conduit_dtype_to_hdf5_dtype result
-    if( (! H5Tequal(hdf5_dtype_id, H5T_C_S1) ) &&
-        (H5Tget_class(hdf5_dtype_id) == H5T_STRING ) )
-    {
-        // TODOTODO Special Case?
-        CONDUIT_CHECK_HDF5_ERROR_WITH_REF_PATH(H5Tclose(hdf5_dtype_id),
-                                                        ref_path,
-                                    "Failed to close HDF5 string Type "
-                                                        << hdf5_dtype_id);
-    }
-}
+//     // if this is a string using a custom type we need to cleanup
+//     // the conduit_dtype_to_hdf5_dtype result
+//     if( (! H5Tequal(hdf5_dtype_id, H5T_C_S1) ) &&
+//         (H5Tget_class(hdf5_dtype_id) == H5T_STRING ) )
+//     {
+//         // TODOTODO Special Case?
+//         CONDUIT_CHECK_HDF5_ERROR_WITH_REF_PATH(H5Tclose(hdf5_dtype_id),
+//                                                         ref_path,
+//                                     "Failed to close HDF5 string Type "
+//                                                         << hdf5_dtype_id);
+//     }
+// }
 
 
 //-----------------------------------------------------------------------------
@@ -1347,13 +1364,17 @@ check_if_conduit_leaf_is_compatible_with_hdf5_obj(const DataType &dtype,
         else
         {
             // get the hdf5 datatype that matchs the conduit dtype
-            hid_t h5_dtype = conduit_dtype_to_hdf5_dtype(dtype,
-                                                         ref_path);
+            RelayH5THandle h5_dtype_hnd(conduit_dtype_to_hdf5_dtype(dtype,
+                                                                   ref_path),
+                                        hdf5_id,
+                                        ref_path);
+            h5_dtype_hnd.check_created();
 
             // get the hdf5 datatype for the passed hdf5 obj
             RelayH5THandle h5_test_dtype_hnd(H5Dget_type(hdf5_id),
                                              hdf5_id,
                                              ref_path);
+            h5_test_dtype_hnd.check_created();
 
             // we will check the 1d-properties of the hdf5 dataspace
             hssize_t h5_test_num_ele = H5Sget_simple_extent_npoints(h5_test_dspace_hnd.id());
@@ -1367,7 +1388,7 @@ check_if_conduit_leaf_is_compatible_with_hdf5_obj(const DataType &dtype,
             // check the type's size vs the # of elements
             if(   ( ! H5Tequal(h5_test_dtype_hnd.id(), H5T_C_S1) &&
                   ( H5Tget_class(h5_test_dtype_hnd.id()) == H5T_STRING ) &&
-                  ( H5Tget_class(h5_dtype) == H5T_STRING ) ) &&
+                  ( H5Tget_class(h5_dtype_hnd.id()) == H5T_STRING ) ) &&
                  // if not shorted out, we have a string w/ custom type
                  // check length to see if compat
                  // note: both hdf5 and conduit dtypes include null term in string size
@@ -1385,7 +1406,7 @@ check_if_conduit_leaf_is_compatible_with_hdf5_obj(const DataType &dtype,
 
                 res = false;
             }
-            else if( ! (H5Tequal(h5_dtype, h5_test_dtype_hnd.id()) > 0) )
+            else if( ! (H5Tequal(h5_dtype_hnd.id(), h5_test_dtype_hnd.id()) > 0) )
             {
 
                 std::ostringstream oss;
@@ -1416,7 +1437,7 @@ check_if_conduit_leaf_is_compatible_with_hdf5_obj(const DataType &dtype,
             }
 
             //
-            // auto cleanup of h5_test_dtype_hnd
+            // auto cleanup of h5_test_dtype_hnd and h5_dtype_hnd
             //
             // CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(H5Tclose(h5_test_dtype),
             //                                                 hdf5_id,
@@ -1424,7 +1445,7 @@ check_if_conduit_leaf_is_compatible_with_hdf5_obj(const DataType &dtype,
             //                          "Failed to close HDF5 Datatype "
             //                          << h5_test_dtype);
             // clean up when necessary
-            conduit_dtype_to_hdf5_dtype_cleanup(h5_dtype);
+            //conduit_dtype_to_hdf5_dtype_cleanup(h5_dtype);
         }
         //
         // auto cleanup of h5_test_dspace_hnd
@@ -1805,7 +1826,10 @@ create_hdf5_dataset_for_conduit_leaf(const DataType &dtype,
 {
     hid_t res = -1;
 
-    hid_t h5_dtype = conduit_dtype_to_hdf5_dtype(dtype,ref_path);
+    RelayH5THandle h5_dtype_hnd(conduit_dtype_to_hdf5_dtype(dtype,ref_path),
+                                hdf5_group_id,
+                                ref_path);
+    h5_dtype_hnd.check_created();
 
     hsize_t num_eles = (hsize_t) dtype.number_of_elements();
 
@@ -1891,7 +1915,7 @@ create_hdf5_dataset_for_conduit_leaf(const DataType &dtype,
     // create new dataset
     res = H5Dcreate(hdf5_group_id,
                     hdf5_dset_name.c_str(),
-                    h5_dtype,
+                    h5_dtype_hnd.id(),
                     h5_dspace_hnd.id(),
                     H5P_DEFAULT,
                     h5_cprops_id,
@@ -1905,10 +1929,10 @@ create_hdf5_dataset_for_conduit_leaf(const DataType &dtype,
                                            << hdf5_dset_name);
 
     // cleanup if custom data type was used
-    conduit_dtype_to_hdf5_dtype_cleanup(h5_dtype);
+    //conduit_dtype_to_hdf5_dtype_cleanup(h5_dtype);
 
     //
-    // auto cleanup of h5_dspace_hnd and h5_cprops_hnd (if used)
+    // auto cleanup of h5_dtype_hnd, h5_dspace_hnd, and h5_cprops_hnd (if used)
     //
     // // close plist used for compression
     // if(h5_cprops_id != H5P_DEFAULT)
@@ -2096,7 +2120,11 @@ write_conduit_leaf_to_hdf5_dataset(const Node &node,
 {
     DataType dt = node.dtype();
 
-    hid_t h5_dtype_id = conduit_dtype_to_hdf5_dtype(dt,ref_path);
+    RelayH5THandle h5_dtype_hnd(conduit_dtype_to_hdf5_dtype(dt,ref_path),
+                                hdf5_dset_id, // NOTE: This may change, not captued in current design
+                                ref_path);
+    h5_dtype_hnd.check_created();
+
     herr_t h5_status = -1;
 
     hsize_t offset = 0;
@@ -2134,7 +2162,7 @@ write_conduit_leaf_to_hdf5_dataset(const Node &node,
         {
             // write data
             h5_status = H5Dwrite(hdf5_dset_id,
-                                 h5_dtype_id,
+                                 h5_dtype_hnd.id(),
                                  H5S_ALL,
                                  H5S_ALL,
                                  H5P_DEFAULT,
@@ -2146,7 +2174,7 @@ write_conduit_leaf_to_hdf5_dataset(const Node &node,
             Node n;
             node.compact_to(n);
             h5_status = H5Dwrite(hdf5_dset_id,
-                                 h5_dtype_id,
+                                 h5_dtype_hnd.id(),
                                  H5S_ALL,
                                  H5S_ALL,
                                  H5P_DEFAULT,
@@ -2288,7 +2316,7 @@ write_conduit_leaf_to_hdf5_dataset(const Node &node,
         {
             // write data
             h5_status = H5Dwrite(hdf5_dset_id,
-                                 h5_dtype_id,
+                                 h5_dtype_hnd.id(),
                                  h5_node_dspace_hnd.id(),
                                  h5_dspace_hnd.id(),
                                  H5P_DEFAULT,
@@ -2300,7 +2328,7 @@ write_conduit_leaf_to_hdf5_dataset(const Node &node,
             Node n;
             node.compact_to(n);
             h5_status = H5Dwrite(hdf5_dset_id,
-                                 h5_dtype_id,
+                                 h5_dtype_hnd.id(),
                                  h5_node_dspace_hnd.id(),
                                  h5_dspace_hnd.id(),
                                  H5P_DEFAULT,
@@ -2309,7 +2337,7 @@ write_conduit_leaf_to_hdf5_dataset(const Node &node,
 
         // auto cleanup of h5_node_dspace_hnd
     }
-    // auto cleanup of h5_dspace_hnd
+    // auto cleanup of h5_dspace_hnd and h5_dtype_hnd
     // H5Sclose(dataspace);
 
     // check write result
@@ -2319,7 +2347,7 @@ write_conduit_leaf_to_hdf5_dataset(const Node &node,
                                            "Failed to write to HDF5 Dataset "
                                            << hdf5_dset_id);
 
-    conduit_dtype_to_hdf5_dtype_cleanup(h5_dtype_id);
+    // conduit_dtype_to_hdf5_dtype_cleanup(h5_dtype_id);
 }
 
 
@@ -2583,7 +2611,7 @@ write_conduit_node_children_to_hdf5_group(const Node &node,
                                                                        ref_path,
                                                                        hdf5_group_id,
                                                                        child_name));
-
+                h5_child_hnd.check_created();
             }
 
             // traverse
@@ -2668,7 +2696,7 @@ write_conduit_hdf5_list_attribute(hid_t hdf5_group_id,
                                  ref_path);
     h5_dspace_hnd.check_created();
 
-    RelayH5SHandle h5_attr_hnd(H5Acreate(hdf5_group_id,
+    RelayH5AHandle h5_attr_hnd(H5Acreate(hdf5_group_id,
                                          conduit_hdf5_list_attr_name.c_str(),
                                          H5T_NATIVE_INT,
                                          h5_dspace_hnd.id(),
@@ -2799,7 +2827,52 @@ struct h5_read_opdata
 
     // whether to only get metadata
     bool             metadata_only;
+
+    // hold error state
+    // if exceptions unroll the stack during a traverse hdf5
+    // can't cleanup its temporary handles, so we stash
+    // error info here
+    bool            error_thrown;
+    conduit::Error  traversal_error;
 };
+
+//
+// Helper to init our h5_read_opdata struct
+//
+void init_h5_read_opdata(h5_read_opdata &h5_od,
+                         H5O_info_t &h5_info_buf,
+                         const std::string &ref_path,
+                         bool only_get_metadata,
+                         const Node &opts,
+                         Node &dest)
+{
+        // setup linked list tracking that allows us to detect cycles
+    h5_od.recurs = 0;
+    h5_od.prev = NULL;
+#if H5_VERSION_GE(1, 12, 0) && !defined(H5_USE_18_API)
+    h5_od.token = &h5_info_buf.token;
+#else
+    h5_od.addr = h5_info_buf.addr;
+#endif
+    // attach the pointer to our node
+    h5_od.node = &dest;
+    h5_od.opts = &opts;
+    // keep ref path
+    h5_od.ref_path = ref_path;
+
+    // whether to only get metadata
+    if (only_get_metadata)
+    {
+        h5_od.metadata_only = true;
+    }
+    else
+    {
+        h5_od.metadata_only = false;
+    }
+
+    h5_od.error_thrown = false;
+    h5_od.traversal_error = conduit::Error();
+}
 
 //---------------------------------------------------------------------------//
 /// Recursive check for cycles.
@@ -2937,148 +3010,157 @@ h5l_iterate_traverse_op_func(hid_t hdf5_id,
     /* Type conversion */
     struct h5_read_opdata *h5_od = (struct h5_read_opdata*)hdf5_operator_data;
 
-    /*
-     * Get type of the object and display its name and type.
-     * The name of the object is passed to this function by
-     * the Library.
-     */
+    try
+    {
+        /*
+        * Get type of the object and display its name and type.
+        * The name of the object is passed to this function by
+        * the Library.
+        */
 
 #if H5_VERSION_GE(1, 12, 0) && !defined(H5_USE_18_API)
-    h5_status = H5Oget_info_by_name(hdf5_id,
-                                    hdf5_path,
-                                    &h5_info_buf,
-                                    H5O_INFO_ALL,
-                                    H5P_DEFAULT);
+        h5_status = H5Oget_info_by_name(hdf5_id,
+                                        hdf5_path,
+                                        &h5_info_buf,
+                                        H5O_INFO_ALL,
+                                        H5P_DEFAULT);
 #else
-    h5_status = H5Oget_info_by_name(hdf5_id,
-                                    hdf5_path,
-                                    &h5_info_buf,
-                                    H5P_DEFAULT);
+        h5_status = H5Oget_info_by_name(hdf5_id,
+                                        hdf5_path,
+                                        &h5_info_buf,
+                                        H5P_DEFAULT);
 #endif
 
-    CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_status,
-                                                    hdf5_id,
-                                                    h5_od->ref_path,
-                                           "Error fetching HDF5 Object info: "
-                                           << " parent: " << hdf5_id
-                                           << " path:"    << hdf5_path) ;
+        CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_status,
+                                                        hdf5_id,
+                                                        h5_od->ref_path,
+                                            "Error fetching HDF5 Object info: "
+                                            << " parent: " << hdf5_id
+                                            << " path:"    << hdf5_path) ;
 
-    std::string chld_ref_path = h5_od->ref_path;
-    if(chld_ref_path != std::string("/"))
-    {
-        chld_ref_path += std::string("/");
-    }
-    chld_ref_path += std::string(hdf5_path);
-
-    switch (h5_info_buf.type)
-    {
-        case H5O_TYPE_GROUP:
+        std::string chld_ref_path = h5_od->ref_path;
+        if(chld_ref_path != std::string("/"))
         {
-#if H5_VERSION_GE(1, 12, 0) && !defined(H5_USE_18_API)
-            /*
-             * With 1.12, we compare tokens, with the hope this provides
-             * the same cycle avoidance.
-             */
-            if ( h5_group_check (h5_od, hdf5_id, &h5_info_buf.token) )
-#else
-            /*
-             * Check group address against linked list of operator
-             * data structures.  We will always run the check, as the
-             * reference count cannot be relied upon if there are
-             * symbolic links, and H5Oget_info_by_name always follows
-             * symbolic links.  Alternatively we could use H5Lget_info
-             * and never recurse on groups discovered by symbolic
-             * links, however it could still fail if an object's
-             * reference count was manually manipulated with
-             * H5Odecr_refcount.
-             */
-            if ( h5_group_check (h5_od, h5_info_buf.addr) )
-#endif
+            chld_ref_path += std::string("/");
+        }
+        chld_ref_path += std::string(hdf5_path);
+
+        switch (h5_info_buf.type)
+        {
+            case H5O_TYPE_GROUP:
             {
-                // skip cycles in the graph ...
+    #if H5_VERSION_GE(1, 12, 0) && !defined(H5_USE_18_API)
+                /*
+                * With 1.12, we compare tokens, with the hope this provides
+                * the same cycle avoidance.
+                */
+                if ( h5_group_check (h5_od, hdf5_id, &h5_info_buf.token) )
+    #else
+                /*
+                * Check group address against linked list of operator
+                * data structures.  We will always run the check, as the
+                * reference count cannot be relied upon if there are
+                * symbolic links, and H5Oget_info_by_name always follows
+                * symbolic links.  Alternatively we could use H5Lget_info
+                * and never recurse on groups discovered by symbolic
+                * links, however it could still fail if an object's
+                * reference count was manually manipulated with
+                * H5Odecr_refcount.
+                */
+                if ( h5_group_check (h5_od, h5_info_buf.addr) )
+    #endif
+                {
+                    // skip cycles in the graph ...
+                }
+                else
+                {
+                    RelayH5GHandle h5_group_hnd(H5Gopen(hdf5_id,
+                                                        hdf5_path,
+                                                        H5P_DEFAULT),
+                                                hdf5_id,
+                                                h5_od->ref_path);
+                    // use custom create check because we can provide more context
+                    CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_group_hnd.id(),
+                                                                    hdf5_id,
+                                                                    h5_od->ref_path,
+                                                        "Error opening HDF5 "
+                                                        << "Group: "
+                                                        << " parent: "
+                                                        << hdf5_id
+                                                        << " path:"
+                                                        << hdf5_path);
+
+                    Node *chld_node_ptr = h5l_iterate_traverse_op_func_get_child(
+                                                    *h5_od->node,
+                                                    std::string(hdf5_path));
+
+                    read_hdf5_group_into_conduit_node(h5_group_hnd.id(),
+                                                    chld_ref_path,
+                                                    h5_od->metadata_only,
+                                                    *h5_od->opts,
+                                                    *chld_node_ptr);
+
+                    // autoclean up of h5_group_hnd
+                    // close the group
+                    // CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(H5Gclose(h5_group_id),
+                    //                                                 hdf5_id,
+                    //                                                 h5_od->ref_path,
+                    //                                        "Error closing HDF5 "
+                    //                                        << "Group: "
+                    //                                        << h5_group_id);
+                }
+                break;
             }
-            else
+            case H5O_TYPE_DATASET:
             {
-                RelayH5GHandle h5_group_hnd(H5Gopen(hdf5_id,
-                                                    hdf5_path,
-                                                    H5P_DEFAULT),
+                Node *chld_node_ptr = h5l_iterate_traverse_op_func_get_child(
+                                                    *h5_od->node,
+                                                    std::string(hdf5_path));
+
+                // open hdf5 dataset at path
+                RelayH5DHandle h5_dset_hnd(H5Dopen(hdf5_id,
+                                                hdf5_path,
+                                                H5P_DEFAULT),
                                             hdf5_id,
                                             h5_od->ref_path);
+
                 // use custom create check because we can provide more context
-                CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_group_hnd.id(),
+                CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_dset_hnd.id(),
                                                                 hdf5_id,
                                                                 h5_od->ref_path,
-                                                       "Error opening HDF5 "
-                                                       << "Group: "
-                                                       << " parent: "
-                                                       << hdf5_id
-                                                       << " path:"
-                                                       << hdf5_path);
+                                                    "Error opening HDF5 "
+                                                    << " Dataset: "
+                                                    << " parent: "
+                                                    << hdf5_id
+                                                    << " path:"
+                                                    << hdf5_path);
+                read_hdf5_dataset_into_conduit_node(h5_dset_hnd.id(),
+                                                    chld_ref_path,
+                                                    h5_od->metadata_only,
+                                                    *h5_od->opts,
+                                                    *chld_node_ptr);
 
-                Node *chld_node_ptr = h5l_iterate_traverse_op_func_get_child(
-                                                   *h5_od->node,
-                                                   std::string(hdf5_path));
-
-                read_hdf5_group_into_conduit_node(h5_group_hnd.id(),
-                                                  chld_ref_path,
-                                                  h5_od->metadata_only,
-                                                  *h5_od->opts,
-                                                  *chld_node_ptr);
-
-                // autoclean up of h5_group_hnd
-                // close the group
-                // CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(H5Gclose(h5_group_id),
+                // auto clean up of h5_dset_hnd
+                // close the dataset
+                // CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(H5Dclose(h5_dset_id),
                 //                                                 hdf5_id,
                 //                                                 h5_od->ref_path,
                 //                                        "Error closing HDF5 "
-                //                                        << "Group: "
-                //                                        << h5_group_id);
+                //                                        << " Dataset: "
+                //                                        << h5_dset_id);
+                break;
             }
-            break;
+            default:
+            {
+                // unsupported
+            }
         }
-        case H5O_TYPE_DATASET:
-        {
-            Node *chld_node_ptr = h5l_iterate_traverse_op_func_get_child(
-                                                   *h5_od->node,
-                                                   std::string(hdf5_path));
-
-            // open hdf5 dataset at path
-            RelayH5DHandle h5_dset_hnd(H5Dopen(hdf5_id,
-                                               hdf5_path,
-                                               H5P_DEFAULT),
-                                        hdf5_id,
-                                        h5_od->ref_path);
-
-            // use custom create check because we can provide more context
-            CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_dset_hnd.id(),
-                                                            hdf5_id,
-                                                            h5_od->ref_path,
-                                                   "Error opening HDF5 "
-                                                   << " Dataset: "
-                                                   << " parent: "
-                                                   << hdf5_id
-                                                   << " path:"
-                                                   << hdf5_path);
-            read_hdf5_dataset_into_conduit_node(h5_dset_hnd.id(),
-                                                chld_ref_path,
-                                                h5_od->metadata_only,
-                                                *h5_od->opts,
-                                                *chld_node_ptr);
-
-            // auto clean up of h5_dset_hnd
-            // close the dataset
-            // CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(H5Dclose(h5_dset_id),
-            //                                                 hdf5_id,
-            //                                                 h5_od->ref_path,
-            //                                        "Error closing HDF5 "
-            //                                        << " Dataset: "
-            //                                        << h5_dset_id);
-            break;
-        }
-        default:
-        {
-            // unsupported
-        }
+    }
+    catch(const conduit::Error &e)
+    {
+        h5_od->error_thrown = true;
+        h5_od->traversal_error = e;
+        h5_return_val = H5_ITER_ERROR;
     }
 
     return h5_return_val;
@@ -3119,29 +3201,39 @@ read_hdf5_group_into_conduit_node(hid_t hdf5_group_id,
 
     // setup the callback struct we will use for  H5Literate
     struct h5_read_opdata  h5_od;
-    // setup linked list tracking that allows us to detect cycles
-    h5_od.recurs = 0;
-    h5_od.prev = NULL;
-#if H5_VERSION_GE(1, 12, 0) && !defined(H5_USE_18_API)
-    h5_od.token = &h5_info_buf.token;
-#else
-    h5_od.addr = h5_info_buf.addr;
-#endif
-    // attach the pointer to our node
-    h5_od.node = &dest;
-    h5_od.opts = &opts;
-    // keep ref path
-    h5_od.ref_path = ref_path;
 
-    // whether to only get metadata
-    if (only_get_metadata)
-    {
-        h5_od.metadata_only = true;
-    }
-    else
-    {
-        h5_od.metadata_only = false;
-    }
+    init_h5_read_opdata(h5_od,
+                        h5_info_buf,
+                        ref_path,
+                        only_get_metadata,
+                        opts,
+                        dest);
+
+//     // setup linked list tracking that allows us to detect cycles
+//     h5_od.recurs = 0;
+//     h5_od.prev = NULL;
+// #if H5_VERSION_GE(1, 12, 0) && !defined(H5_USE_18_API)
+//     h5_od.token = &h5_info_buf.token;
+// #else
+//     h5_od.addr = h5_info_buf.addr;
+// #endif
+//     // attach the pointer to our node
+//     h5_od.node = &dest;
+//     h5_od.opts = &opts;
+//     // keep ref path
+//     h5_od.ref_path = ref_path;
+
+//     // whether to only get metadata
+//     if (only_get_metadata)
+//     {
+//         h5_od.metadata_only = true;
+//     }
+//     else
+//     {
+//         h5_od.metadata_only = false;
+//     }
+
+//     h5_od.error_thrown = false;
 
     H5_index_t h5_grp_index_type = H5_INDEX_NAME;
 
@@ -3178,6 +3270,9 @@ read_hdf5_group_into_conduit_node(hid_t hdf5_group_id,
 
     // auto cleanup of h5_gc_plist_hnd
 
+    // use H5_ITER_ERROR
+    // don't let exceptions unwind or hdf5 will leak handles used for traversal
+    // https://support.hdfgroup.org/documentation/hdf5/latest/_r_m.html#cpp_c_api_note
 
     // use H5Literate to traverse
     h5_status = H5Literate(hdf5_group_id,
@@ -3186,6 +3281,11 @@ read_hdf5_group_into_conduit_node(hid_t hdf5_group_id,
                            NULL,
                            h5l_iterate_traverse_op_func,
                            (void *) &h5_od);
+
+    if(h5_status == H5_ITER_ERROR && h5_od.error_thrown)
+    {
+        throw h5_od.traversal_error;
+    }
 
     CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_status,
                                                     hdf5_group_id,
@@ -3358,9 +3458,9 @@ read_hdf5_dataset_into_conduit_node(hid_t hdf5_dset_id,
         RelayH5THandle h5_dtype_hnd(H5Dget_type(hdf5_dset_id), 
                                     hdf5_dset_id,
                                     ref_path);
-        hid_t h5_dtype_id = h5_dtype_hnd.id();
+        // hid_t h5_dtype_id = h5_dtype_hnd.id();
         // custom check for better context
-        CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_dtype_id,
+        CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_dtype_hnd.id(),
                                                         hdf5_dset_id,
                                                         ref_path,
                                                "Error reading HDF5 Datatype: "
@@ -3414,7 +3514,7 @@ read_hdf5_dataset_into_conduit_node(hid_t hdf5_dset_id,
         else
         {
             // Note: string case is handed properly in hdf5_dtype_to_conduit_dtype
-            DataType dt        = hdf5_dtype_to_conduit_dtype(h5_dtype_id,
+            DataType dt        = hdf5_dtype_to_conduit_dtype(h5_dtype_hnd.id(),
                                                              readsize,
                                                              rank,
                                                              ref_path);
@@ -3441,22 +3541,23 @@ read_hdf5_dataset_into_conduit_node(hid_t hdf5_dset_id,
                 //                             << h5_dtype_id);
 
                 // get ref to standard variant of this dtype
-                h5_dtype_id  = conduit_dtype_to_hdf5_dtype(dt,
-                                                           ref_path);
+                h5_dtype_hnd.set_id(conduit_dtype_to_hdf5_dtype(dt,
+                                                           ref_path));
+                h5_dtype_hnd.check_created();
 
-                CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_dtype_id,
-                                                                hdf5_dset_id,
-                                                                ref_path,
-                                            "Error creating HDF5 Datatype");
+                // CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_dtype_id,
+                //                                                 hdf5_dset_id,
+                //                                                 ref_path,
+                //                             "Error creating HDF5 Datatype");
 
                 // copy since the logic after read will cleanup
-                h5_dtype_id  = H5Tcopy(h5_dtype_id);
-                CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_dtype_id,
-                                                                hdf5_dset_id,
-                                                                ref_path,
-                                            "Error copying HDF5 Datatype");
+                // h5_dtype_id  = H5Tcopy(h5_dtype_id);
+                // CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_dtype_id,
+                //                                                 hdf5_dset_id,
+                //                                                 ref_path,
+                //                             "Error copying HDF5 Datatype");
                 // cleanup our ref from conduit_dtype_to_hdf5_dtype if necessary
-                conduit_dtype_to_hdf5_dtype_cleanup(h5_dtype_id);
+                // conduit_dtype_to_hdf5_dtype_cleanup(h5_dtype_id);
             }
 
             hsize_t node_size[1] = {readtotal};
@@ -3480,7 +3581,7 @@ read_hdf5_dataset_into_conduit_node(hid_t hdf5_dset_id,
             // returns -1 (error) if dataspace refers to a scalar.
 
             // check for string special case, H5T_VARIABLE string
-            if( H5Tis_variable_str(h5_dtype_id) )
+            if( H5Tis_variable_str(h5_dtype_hnd.id()) )
             {
                 //special case for reading variable string data
                 // hdf5 reads the data onto its heap, and
@@ -3488,7 +3589,7 @@ read_hdf5_dataset_into_conduit_node(hid_t hdf5_dset_id,
 
                 char *read_ptr[1] = {NULL};
                 h5_status = H5Dread(hdf5_dset_id,
-                                    h5_dtype_id,
+                                    h5_dtype_hnd.id(),
                                     h5_node_dspace_hnd.id(),
                                     h5_dspace_hnd.id(),
                                     H5P_DEFAULT,
@@ -3507,10 +3608,10 @@ read_hdf5_dataset_into_conduit_node(hid_t hdf5_dset_id,
             else if( dt.number_of_elements() < 0 )
             {
                 // cleanup handles
-                CONDUIT_CHECK_HDF5_ERROR_WITH_REF_PATH(H5Tclose(h5_dtype_id),
-                                                      ref_path,
-                                                      "Error closing HDF5 DType: "
-                                                      << h5_dtype_id);
+                // CONDUIT_CHECK_HDF5_ERROR_WITH_REF_PATH(H5Tclose(h5_dtype_id),
+                //                                       ref_path,
+                //                                       "Error closing HDF5 DType: "
+                //                                       << h5_dtype_id);
                 // auto clean up for h5_dspace_hnd, h5_node_dspace_hnd, h5
                 // CONDUIT_CHECK_HDF5_ERROR_WITH_REF_PATH(H5Sclose(h5_dspace_id),
                 //                                       ref_path,
@@ -3538,7 +3639,7 @@ read_hdf5_dataset_into_conduit_node(hid_t hdf5_dset_id,
                 // we can read directly from hdf5 dataset if compact
                 // & compatible
                 h5_status = H5Dread(hdf5_dset_id,
-                                    h5_dtype_id,
+                                    h5_dtype_hnd.id(),
                                     h5_node_dspace_hnd.id(),
                                     h5_dspace_hnd.id(),
                                     H5P_DEFAULT,
@@ -3553,7 +3654,7 @@ read_hdf5_dataset_into_conduit_node(hid_t hdf5_dset_id,
                 // reading will not unless it's already compatible and compact.
                 Node n_tmp(dt);
                 h5_status = H5Dread(hdf5_dset_id,
-                                    h5_dtype_id,
+                                    h5_dtype_hnd.id(),
                                     h5_node_dspace_hnd.id(),
                                     h5_dspace_hnd.id(),
                                     H5P_DEFAULT,
@@ -3588,11 +3689,11 @@ read_hdf5_dataset_into_conduit_node(hid_t hdf5_dset_id,
                                                             << nelems);
         }
 
-        CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(H5Tclose(h5_dtype_id),
-                                                        hdf5_dset_id,
-                                                        ref_path,
-                                               "Error closing HDF5 Datatype: "
-                                               << h5_dtype_id);
+        // CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(H5Tclose(h5_dtype_id),
+        //                                                 hdf5_dset_id,
+        //                                                 ref_path,
+        //                                        "Error closing HDF5 Datatype: "
+        //                                        << h5_dtype_id);
 
     }
 
