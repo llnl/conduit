@@ -600,7 +600,6 @@ public:
     // set new handle id, does not close
     void set_id(hid_t id)
     {
-        // TODO: close()
         m_id = id;
         ////  for debugging
         // std::cout << "Set Handle[" << Handler::name << "] "
@@ -2120,8 +2119,9 @@ write_conduit_leaf_to_hdf5_dataset(const Node &node,
 {
     DataType dt = node.dtype();
 
+    // NOTE: The `hdf5_dset_id` may change, not captured in current design
     RelayH5THandle h5_dtype_hnd(conduit_dtype_to_hdf5_dtype(dt,ref_path),
-                                hdf5_dset_id, // NOTE: This may change, not captued in current design
+                                hdf5_dset_id,
                                 ref_path);
     h5_dtype_hnd.check_created();
 
@@ -2397,7 +2397,7 @@ write_conduit_leaf_to_hdf5_group(const Node &node,
                               hdf5_dset_name.c_str(),
                               H5P_DEFAULT);
         h5_child_hnd.set_id(h5_child_id);
-        // use custom error check here since we can provide more context
+        // custom check for better context
         CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_child_id,
                                                         hdf5_group_id,
                                                         ref_path,
@@ -2705,7 +2705,7 @@ write_conduit_hdf5_list_attribute(hid_t hdf5_group_id,
                                hdf5_group_id,
                                ref_path);
 
-    // use custom check for creation because we can provide more contex
+    // custom check for better context
     CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_attr_hnd.id(),
                                                     hdf5_group_id,
                                                     ref_path,
@@ -2829,9 +2829,12 @@ struct h5_read_opdata
     bool             metadata_only;
 
     // hold error state
-    // if exceptions unroll the stack during a traverse hdf5
-    // can't cleanup its temporary handles, so we stash
-    // error info here
+    //
+    // don't let exceptions unwind or hdf5 will leak handles used for traversal
+    // https://support.hdfgroup.org/documentation/hdf5/latest/_r_m.html#cpp_c_api_note
+    //
+    // stash error info in our traversal callback, so we can throw
+    // post traverse
     bool            error_thrown;
     conduit::Error  traversal_error;
 };
@@ -3010,6 +3013,7 @@ h5l_iterate_traverse_op_func(hid_t hdf5_id,
     /* Type conversion */
     struct h5_read_opdata *h5_od = (struct h5_read_opdata*)hdf5_operator_data;
 
+    // catch any exceptions to avoid stack unwind during traversal
     try
     {
         /*
@@ -3079,7 +3083,7 @@ h5l_iterate_traverse_op_func(hid_t hdf5_id,
                                                         H5P_DEFAULT),
                                                 hdf5_id,
                                                 h5_od->ref_path);
-                    // use custom create check because we can provide more context
+                    // custom check for better context
                     CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_group_hnd.id(),
                                                                     hdf5_id,
                                                                     h5_od->ref_path,
@@ -3124,7 +3128,7 @@ h5l_iterate_traverse_op_func(hid_t hdf5_id,
                                             hdf5_id,
                                             h5_od->ref_path);
 
-                // use custom create check because we can provide more context
+                // custom check for better context
                 CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_dset_hnd.id(),
                                                                 hdf5_id,
                                                                 h5_od->ref_path,
@@ -3158,6 +3162,9 @@ h5l_iterate_traverse_op_func(hid_t hdf5_id,
     }
     catch(const conduit::Error &e)
     {
+        // record that an error was thrown and
+        // a copy of the details so we can rethrow
+        // after hdf5 traversal process is complete
         h5_od->error_thrown = true;
         h5_od->traversal_error = e;
         h5_return_val = H5_ITER_ERROR;
@@ -4436,7 +4443,7 @@ hdf5_read(hid_t hdf5_id,
                                             H5P_DEFAULT),
                                     hdf5_id,
                                     hdf5_path);
-    // use custom check for more context
+    // custom check for better context
     CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_child_obj_hnd.id(),
                                                     hdf5_id,
                                                     hdf5_path,
@@ -4586,7 +4593,7 @@ hdf5_read_info(hid_t hdf5_id,
                                             H5P_DEFAULT),
                                     hdf5_id,
                                     hdf5_path);
-    // custom check that provides better context message
+    // custom check for better context
     CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_child_obj_hnd.id(),
                                                     hdf5_id,
                                                     hdf5_path,
@@ -4842,7 +4849,7 @@ void hdf5_group_list_child_names(hid_t hdf5_id,
                                 hdf5_id,
                                 hdf5_path);
 
-    // custom check provides more context
+    // custom check for better context
     CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_group_hnd.id(),
                                                     hdf5_id,
                                            "",

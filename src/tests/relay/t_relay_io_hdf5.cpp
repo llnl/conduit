@@ -827,7 +827,6 @@ TEST(conduit_relay_io_hdf5, write_conduit_object_to_hdf5_group_handle_with_offse
     H5Gclose(h5_group_id);
     H5Fclose(h5_file_id);
 
-    // AUDIT
     // make sure we aren't leaking
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
