@@ -153,6 +153,11 @@ jobs:
       run: |
         echo "**** Building Conduit"
         cmake --build build -j2
+    - name: Run Conduit Unit Tests
+      run: |
+        echo "**** Conduit Unit Tests"
+        export CTEST_OUTPUT_ON_FAILURE=1
+        ctest --test-dir build
     - name: Install Conduit
       run: |
         echo "**** Installing Conduit"

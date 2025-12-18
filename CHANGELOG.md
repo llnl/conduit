@@ -19,6 +19,12 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Sped up `conduit::blueprint::mesh::topology::unstructured::to_polygonal()` algorithm and added support for mixed element types.
 - Improved support for "mixed" element types in  `conduit::blueprint::mesh::utils::ShapeType` and also removed a string member to speed up construction.
 
+### Changed
+
+#### Relay
+- Updates to use Silo 4.12 and HDF5 2.0.0.
+- Reworked HDF5 handle managment to avoid resource leaks with exceptions.
+
 ## [0.9.5] - Released 2025-09-10
 
 ### Added

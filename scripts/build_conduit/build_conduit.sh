@@ -227,7 +227,7 @@ echo "**** Configuring HDF5 ${hdf5_version}"
 cmake -S ${hdf5_src_dir} -B ${hdf5_build_dir} ${cmake_compiler_settings} \
   -DCMAKE_VERBOSE_MAKEFILE:BOOL=${enable_verbose} \
   -DCMAKE_BUILD_TYPE=${build_config} \
-  -DHDF5_ENABLE_Z_LIB_SUPPORT=ON \
+  -DHDF5_ENABLE_ZLIB_SUPPORT:BOOL=ON \
   -DCMAKE_PREFIX_PATH=${zlib_install_dir} \
   -DCMAKE_INSTALL_PREFIX=${hdf5_install_dir}
 
