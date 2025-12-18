@@ -582,35 +582,33 @@ traverse_structured(FuncType &&func, const Node &topo)
 }
 
 //-----------------------------------------------------------------------------
-inline void
-copy_subelements(entity &e,
-                 const index_t_accessor &se_conn,
-                 const index_t_accessor &se_sizes,
-                 const index_t_accessor &se_offsets)
-{
-    const index_t numFaces = static_cast<index_t>(e.element_ids.size());
-    e.subelement_ids.resize(numFaces);
-    for(index_t j = 0; j < numFaces; j++)
-    {
-        const auto faceId = e.element_ids[j];
-        const index_t se_size = se_sizes[faceId];
-        index_t se_offset = se_offsets[faceId];
-
-        auto &se_ids = e.subelement_ids[j];
-        se_ids.resize(se_size);
-
-        for(index_t k = 0; k < se_size; k++)
-        {
-            se_ids[k] = se_conn[se_offset++];
-        }
-    }
-}
-
-//-----------------------------------------------------------------------------
 template<typename FuncType>
 inline void
 traverse_mixed_elements(FuncType &&func, const Node &topo)
 {
+    auto copy_subelements = [](entity &e,
+                               const index_t_accessor &se_conn,
+                               const index_t_accessor &se_sizes,
+                               const index_t_accessor &se_offsets)
+    {
+        const index_t numFaces = static_cast<index_t>(e.element_ids.size());
+        e.subelement_ids.resize(numFaces);
+        for(index_t j = 0; j < numFaces; j++)
+        {
+            const auto faceId = e.element_ids[j];
+            const index_t se_size = se_sizes[faceId];
+            index_t se_offset = se_offsets[faceId];
+
+            auto &se_ids = e.subelement_ids[j];
+            se_ids.resize(se_size);
+
+            for(index_t k = 0; k < se_size; k++)
+            {
+                se_ids[k] = se_conn[se_offset++];
+            }
+        }
+    };
+
     const Node &elements = topo.fetch_existing("elements");
     if(!elements.has_child("shapes"))
     {
