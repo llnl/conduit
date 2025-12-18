@@ -39,14 +39,26 @@ namespace conduit
 template <typename T> 
 DataAccessor<T>::DataAccessor()
 : m_data(nullptr),
-  m_dtype()
+  m_dtype(),
+  m_node_ptr(nullptr),
+  m_other_ptr(nullptr),
+  m_other_dtype(DataType::empty()),
+  m_do_i_own_it(false),
+  m_offset(0),
+  m_stride(0)
 {}
 
 //---------------------------------------------------------------------------//
 template <typename T>
 DataAccessor<T>::DataAccessor(const DataAccessor<T> &accessor)
 : m_data(accessor.m_data),
-  m_dtype(accessor.m_dtype)
+  m_dtype(accessor.m_dtype),
+  m_node_ptr(accessor.m_node_ptr),
+  m_other_ptr(accessor.m_other_ptr),
+  m_other_dtype(accessor.m_other_dtype),
+  m_do_i_own_it(accessor.m_do_i_own_it),
+  m_offset(accessor.m_offset),
+  m_stride(accessor.m_stride)
 {}
 
 
@@ -54,7 +66,13 @@ DataAccessor<T>::DataAccessor(const DataAccessor<T> &accessor)
 template <typename T> 
 DataAccessor<T>::DataAccessor(void *data, const DataType &dtype)
 : m_data(data),
-  m_dtype(dtype)
+  m_dtype(dtype),
+  m_node_ptr(nullptr),
+  m_other_ptr(nullptr),
+  m_other_dtype(DataType::empty()),
+  m_do_i_own_it(false),
+  m_offset(0),
+  m_stride(0)
 {}
 
 
@@ -62,13 +80,83 @@ DataAccessor<T>::DataAccessor(void *data, const DataType &dtype)
 template <typename T> 
 DataAccessor<T>::DataAccessor(const void *data, const DataType &dtype)
 : m_data(const_cast<void*>(data)),
-  m_dtype(dtype)
+  m_dtype(dtype),
+  m_node_ptr(nullptr),
+  m_other_ptr(nullptr),
+  m_other_dtype(DataType::empty()),
+  m_do_i_own_it(false),
+  m_offset(0),
+  m_stride(0)
+{}
+
+//---------------------------------------------------------------------------//
+template <typename T> 
+DataAccessor<T>::DataAccessor(Node &node)
+: m_data(node.data_ptr()),
+  m_dtype(node.dtype()),
+  m_node_ptr(&node),
+  m_other_ptr(nullptr),
+  m_other_dtype(DataType::empty()),
+  m_do_i_own_it(false),
+  m_offset(node.dtype().offset()),
+  m_stride(node.dtype().stride())
+{}
+
+//---------------------------------------------------------------------------//
+template <typename T> 
+DataAccessor<T>::DataAccessor(const Node &node)
+: m_data(const_cast<void*>(node.data_ptr())),
+  m_dtype(node.dtype()),
+  m_node_ptr(const_cast<Node*>(&node)),
+  m_other_ptr(nullptr),
+  m_other_dtype(DataType::empty()),
+  m_do_i_own_it(false),
+  m_offset(node.dtype().offset()),
+  m_stride(node.dtype().stride())
+{}
+
+//---------------------------------------------------------------------------//
+template <typename T> 
+DataAccessor<T>::DataAccessor(Node *node)
+: m_data(node->data_ptr()),
+  m_dtype(node->dtype()), 
+  m_node_ptr(node),
+  m_other_ptr(nullptr),
+  m_other_dtype(DataType::empty()),
+  m_do_i_own_it(false),
+  m_offset(node->dtype().offset()),
+  m_stride(node->dtype().stride())
+{}
+
+//---------------------------------------------------------------------------//
+template <typename T> 
+DataAccessor<T>::DataAccessor(const Node *node)
+: m_data(const_cast<void*>(node->data_ptr())),
+  m_dtype(node->dtype()), 
+  m_node_ptr(const_cast<Node*>(node)),
+  m_other_ptr(nullptr),
+  m_other_dtype(DataType::empty()),
+  m_do_i_own_it(false),
+  m_offset(node->dtype().offset()),
+  m_stride(node->dtype().stride())
 {}
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 DataAccessor<T>::~DataAccessor()
-{} // all data is external
+{
+    if (m_do_i_own_it)
+    {
+        if (execution::DeviceMemory::is_device_ptr(m_other_ptr))
+        {
+            execution::DeviceMemory::deallocate(m_other_ptr);
+        }
+        else
+        {
+            execution::HostMemory::deallocate(m_other_ptr);
+        }
+    }
+}
 
 
 //---------------------------------------------------------------------------// 
