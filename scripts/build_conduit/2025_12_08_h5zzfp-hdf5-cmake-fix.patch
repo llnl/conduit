@@ -1,0 +1,32 @@
+From e3caf7354f1cfb4bd56073cd9d145bb4fff32f1b Mon Sep 17 00:00:00 2001
+From: Cyrus Harrison <cyrush@llnl.gov>
+Date: Mon, 8 Dec 2025 15:26:12 -0800
+Subject: [PATCH] hdf5 cmake logic fix
+
+---
+ cmake/HDFMacros.cmake | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/cmake/HDFMacros.cmake b/cmake/HDFMacros.cmake
+index 5aaacd3..bfe1932 100644
+--- a/cmake/HDFMacros.cmake
++++ b/cmake/HDFMacros.cmake
+@@ -97,7 +97,7 @@ macro (HDF5_SUPPORT)
+         else ()
+           add_definitions (-DH5_BUILT_AS_STATIC_LIB)
+         endif ()
+-        if (FORTRAN_INTERFACE AND ${HDF5_BUILD_FORTRAN})
++        if (FORTRAN_INTERFACE)
+           if (HDF5_shared_Fortran_FOUND)
+             set (HDF5_FORTRAN_INCLUDE_DIRS ${HDF5_INCLUDE_DIR_FORTRAN})
+             set (HDF5_FORTRAN_LIBRARIES ${HDF5_FORTRAN_SHARED_LIBRARY})
+@@ -125,7 +125,7 @@ macro (HDF5_SUPPORT)
+         else ()
+           set (HDF5_FOUND 0)
+         endif ()
+-        if (FORTRAN_INTERFACE AND ${HDF5_BUILD_FORTRAN})
++        if (FORTRAN_INTERFACE)
+           if (HDF5_shared_Fortran_FOUND)
+             set (HDF5_FORTRAN_INCLUDE_DIRS ${HDF5_INCLUDE_DIR_FORTRAN})
+             set (HDF5_FORTRAN_LIBRARIES ${HDF5_FORTRAN_SHARED_LIBRARY})
+-- 

@@ -21,6 +21,12 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Added 2D block rotation support in `conduit::blueprint::mpi::mesh::to_polygonal()`.
 - Added field data to the `conduit::blueprint::mpi::mesh::to_polygonal()` transformation, including communication of vertex data on hanging nodes.
 
+### Changed
+
+#### Relay
+- Updates to use Silo 4.12 and HDF5 2.0.0.
+- Reworked HDF5 handle managment to avoid resource leaks with exceptions.
+
 ## [0.9.5] - Released 2025-09-10
 
 ### Added

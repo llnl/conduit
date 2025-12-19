@@ -196,10 +196,9 @@ fi # build_zlib
 ################
 # HDF5
 ################
-# release 1-2 GAH!
-hdf5_version=1.14.1-2
-hdf5_middle_version=1.14.1
-hdf5_short_version=1.14
+hdf5_version=2.0.0
+hdf5_middle_version=2_0_0
+hdf5_short_version=2_0
 hdf5_src_dir=$(ospath ${source_dir}/hdf5-${hdf5_version})
 hdf5_build_dir=$(ospath ${build_dir}/hdf5-${hdf5_version}/)
 hdf5_install_dir=$(ospath ${install_dir}/hdf5-${hdf5_version}/)
@@ -210,13 +209,14 @@ if [ ! -d ${hdf5_install_dir} ]; then
 if ${build_hdf5}; then
 if [ ! -d ${hdf5_src_dir} ]; then
   echo "**** Downloading ${hdf5_tarball}"
-  curl -L https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${hdf5_short_version}/hdf5-${hdf5_middle_version}/src/hdf5-${hdf5_version}.tar.gz -o ${hdf5_tarball}
+  curl -L https://support.hdfgroup.org/releases/hdf5/v${hdf5_short_version}/v${hdf5_middle_version}/downloads/hdf5-${hdf5_version}.tar.gz -o ${hdf5_tarball}
   tar ${tar_extra_args} -xzf ${hdf5_tarball} -C ${source_dir}
 fi
 
+
 #################
 #
-# hdf5 1.14.x CMake recipe for using zlib
+# hdf5 CMake recipe for using zlib
 #
 # -DHDF5_ENABLE_Z_LIB_SUPPORT=ON
 # Add zlib install dir to CMAKE_PREFIX_PATH
@@ -227,7 +227,7 @@ echo "**** Configuring HDF5 ${hdf5_version}"
 cmake -S ${hdf5_src_dir} -B ${hdf5_build_dir} ${cmake_compiler_settings} \
   -DCMAKE_VERBOSE_MAKEFILE:BOOL=${enable_verbose} \
   -DCMAKE_BUILD_TYPE=${build_config} \
-  -DHDF5_ENABLE_Z_LIB_SUPPORT=ON \
+  -DHDF5_ENABLE_ZLIB_SUPPORT:BOOL=ON \
   -DCMAKE_PREFIX_PATH=${zlib_install_dir} \
   -DCMAKE_INSTALL_PREFIX=${hdf5_install_dir}
 
@@ -245,7 +245,7 @@ fi # build_hdf5
 ################
 # Silo
 ################
-silo_version=4.11.1
+silo_version=4.12.0
 silo_src_dir=$(ospath ${source_dir}/Silo-${silo_version})
 silo_build_dir=$(ospath ${build_dir}/silo-${silo_version}/)
 silo_install_dir=$(ospath ${install_dir}/silo-${silo_version}/)
@@ -260,17 +260,8 @@ if [ ! -d ${silo_src_dir} ]; then
   # untar and avoid symlinks (which windows despises)
   tar ${tar_extra_args} -xzf ${silo_tarball} -C ${source_dir} \
       --exclude="Silo-${silo_version}/config-site/*" \
-      --exclude="Silo-${silo_version}/README.md"
-  # apply silo patches
-  cd  ${silo_src_dir}
-  patch -p1 < ${script_dir}/2024_07_25_silo_4_11_cmake_fix.patch
-
-  # windows specifc patch
-  if [[ "$build_windows" == "ON" ]]; then
-    patch -p1 < ${script_dir}/2024_07_29_silo-pr389-win32-bugfix.patch
-  fi
-
-  cd ${root_dir}
+      --exclude="Silo-${silo_version}/LICENSE.md" \
+      --exclude="Silo-${silo_version}/silo_objects.png"
 fi
 
 
@@ -471,6 +462,11 @@ if [ ! -d ${h5zzfp_src_dir} ]; then
   echo "**** Downloading ${h5zzfp_tarball}"
   curl -L "https://github.com/LLNL/H5Z-ZFP/archive/refs/tags/v${h5zzfp_version}.tar.gz"  -o ${h5zzfp_tarball}
   tar ${tar_extra_args} -xzf ${h5zzfp_tarball} -C ${source_dir}
+
+  # apply patches
+  cd ${h5zzfp_src_dir}
+  patch -p1 < ${script_dir}/2025_12_08_h5zzfp-hdf5-cmake-fix.patch
+  cd ${root_dir}
 fi
 
 echo "**** Configuring H5Z-ZFP ${h5zzfp_version}"
