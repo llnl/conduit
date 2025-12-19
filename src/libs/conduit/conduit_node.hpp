@@ -31,8 +31,6 @@
 #include "conduit_data_type.hpp"
 #include "conduit_data_array.hpp"
 #include "conduit_data_accessor.hpp"
-#include "conduit_execution_array.hpp"
-#include "conduit_execution_accessor.hpp"
 #include "conduit_schema.hpp"
 #include "conduit_generator.hpp"
 #include "conduit_node_iterator.hpp"
