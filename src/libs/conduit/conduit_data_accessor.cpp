@@ -258,6 +258,12 @@ DataAccessor<T>::operator=(const DataAccessor<T> &accessor)
     {
         m_data  = accessor.m_data;
         m_dtype = accessor.m_dtype;
+        m_node_ptr = accessor.m_node_ptr;
+        m_other_ptr = accessor.m_other_ptr;
+        m_other_dtype = accessor.m_other_dtype;
+        m_do_i_own_it = accessor.m_do_i_own_it;
+        m_offset = accessor.m_offset;
+        m_stride = accessor.m_stride;
     }
     return *this;
 }
@@ -267,7 +273,7 @@ template <typename T>
 T
 DataAccessor<T>::element(index_t idx) const
 {
-    switch(m_dtype.id())
+    switch(dtype().id())
     {
         // ints
         case DataType::INT8_ID:
@@ -296,7 +302,7 @@ DataAccessor<T>::element(index_t idx) const
 
     // error
     CONDUIT_ERROR("DataAccessor does not support dtype: "
-                  << m_dtype.name());
+                  << dtype().name());
     return (T)0;
 }
 
@@ -306,7 +312,7 @@ template <typename U>
 typename std::enable_if<!std::is_pointer<U>::value, void>::type
 DataAccessor<T>::set(index_t idx, T value)
 {
-    switch(m_dtype.id())
+    switch(dtype().id())
     {
         // ints
         case DataType::INT8_ID:
@@ -364,7 +370,7 @@ DataAccessor<T>::set(index_t idx, T value)
         default:
             // error
             CONDUIT_ERROR("DataAccessor does not support dtype: "
-                          << m_dtype.name());
+                          << dtype().name());
     }
 }
 
@@ -374,7 +380,7 @@ template <typename U>
 typename std::enable_if<std::is_pointer<U>::value, void>::type
 DataAccessor<T>::set(const T* values, index_t num_elements)
 {
-    switch(m_dtype.id())
+    switch(dtype().id())
     {
         // ints
         case DataType::INT8_ID:
@@ -462,7 +468,7 @@ DataAccessor<T>::set(const T* values, index_t num_elements)
         default:
             // error
             CONDUIT_ERROR("DataAccessor does not support dtype: "
-                          << m_dtype.name());
+                          << dtype().name());
     }
 }
 
@@ -471,13 +477,13 @@ template <typename T>
 void
 DataAccessor<T>::fill(T value)
 {
-    switch(m_dtype.id())
+    switch(dtype().id())
     {
         // ints
         case DataType::INT8_ID:
         {
             int8 v = static_cast<int8>(value);
-            for(index_t i=0;i < m_dtype.number_of_elements(); i++)
+            for(index_t i=0;i < dtype().number_of_elements(); i++)
             {
                  (*(int8*)(element_ptr(i))) = v;
             }
@@ -486,7 +492,7 @@ DataAccessor<T>::fill(T value)
         case DataType::INT16_ID:
         {
             int16 v = static_cast<int16>(value);
-            for(index_t i=0;i < m_dtype.number_of_elements(); i++)
+            for(index_t i=0;i < dtype().number_of_elements(); i++)
             {
                  (*(int16*)(element_ptr(i))) = v;
             }
@@ -495,7 +501,7 @@ DataAccessor<T>::fill(T value)
         case DataType::INT32_ID:
         {
             int32 v = static_cast<int32>(value);
-            for(index_t i=0;i < m_dtype.number_of_elements(); i++)
+            for(index_t i=0;i < dtype().number_of_elements(); i++)
             {
                  (*(int32*)(element_ptr(i))) = v;
             }
@@ -504,7 +510,7 @@ DataAccessor<T>::fill(T value)
         case DataType::INT64_ID:
         {
             int64 v = static_cast<int64>(value);
-            for(index_t i=0;i < m_dtype.number_of_elements(); i++)
+            for(index_t i=0;i < dtype().number_of_elements(); i++)
             {
                  (*(int64*)(element_ptr(i))) = v;
             }
@@ -514,7 +520,7 @@ DataAccessor<T>::fill(T value)
         case DataType::UINT8_ID:
         {
             uint8 v = static_cast<uint8>(value);
-            for(index_t i=0;i < m_dtype.number_of_elements(); i++)
+            for(index_t i=0;i < dtype().number_of_elements(); i++)
             {
                  (*(uint8*)(element_ptr(i))) = v;
             }
@@ -523,7 +529,7 @@ DataAccessor<T>::fill(T value)
         case DataType::UINT16_ID:
         {
             uint16 v = static_cast<uint16>(value);
-            for(index_t i=0;i < m_dtype.number_of_elements(); i++)
+            for(index_t i=0;i < dtype().number_of_elements(); i++)
             {
                  (*(uint16*)(element_ptr(i))) = v;
             }
@@ -532,7 +538,7 @@ DataAccessor<T>::fill(T value)
         case DataType::UINT32_ID:
         {
             uint32 v = static_cast<uint32>(value);
-            for(index_t i=0;i < m_dtype.number_of_elements(); i++)
+            for(index_t i=0;i < dtype().number_of_elements(); i++)
             {
                  (*(uint32*)(element_ptr(i))) = v;
             }
@@ -541,7 +547,7 @@ DataAccessor<T>::fill(T value)
         case DataType::UINT64_ID:
         {
             uint64 v = static_cast<uint64>(value);
-            for(index_t i=0;i < m_dtype.number_of_elements(); i++)
+            for(index_t i=0;i < dtype().number_of_elements(); i++)
             {
                  (*(uint64*)(element_ptr(i))) = v;
             }
@@ -551,7 +557,7 @@ DataAccessor<T>::fill(T value)
         case DataType::FLOAT32_ID:
         {
             float32 v = static_cast<float32>(value);
-            for(index_t i=0;i < m_dtype.number_of_elements(); i++)
+            for(index_t i=0;i < dtype().number_of_elements(); i++)
             {
                  (*(float32*)(element_ptr(i))) = v;
             }
@@ -560,7 +566,7 @@ DataAccessor<T>::fill(T value)
         case DataType::FLOAT64_ID:
         {
             float64 v = static_cast<float64>(value);
-            for(index_t i=0;i < m_dtype.number_of_elements(); i++)
+            for(index_t i=0;i < dtype().number_of_elements(); i++)
             {
                  (*(float64*)(element_ptr(i))) = v;
             }
@@ -569,284 +575,267 @@ DataAccessor<T>::fill(T value)
         default:
             // error
             CONDUIT_ERROR("DataAccessor does not support dtype: "
-                          << m_dtype.name());
+                          << dtype().name());
     }
 }
 
-
 //---------------------------------------------------------------------------//
-//***************************************************************************//
-// Set from ExecutionArray
-//***************************************************************************//
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-// Set from ExecutionArray signed integers
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T>
-void
-DataAccessor<T>::set(const ExecutionArray<int8> &values)
+template <typename T> 
+const DataType &
+ExecutionAccessor<T>::dtype() const
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
+    if (nullptr != m_node_ptr)
     {
-        this->set(i, (T)values[i]);
+        return (m_data == m_node_ptr->data_ptr() ? orig_dtype() : other_dtype());
+    }
+    else
+    {
+        return m_dtype;
     }
 }
 
 //---------------------------------------------------------------------------//
-template <typename T>
-void
-DataAccessor<T>::set(const ExecutionArray<int16> &values)
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->set(i, (T)values[i]);
-    }
-}
-
-//---------------------------------------------------------------------------//
-template <typename T>
-void
-DataAccessor<T>::set(const ExecutionArray<int32> &values)
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->set(i, (T)values[i]);
-    }
-}
-
-//---------------------------------------------------------------------------//
-template <typename T>
-void
-DataAccessor<T>::set(const ExecutionArray<int64> &values)
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->set(i, (T)values[i]);
-    }
-}
-
-//---------------------------------------------------------------------------//
-// Set from ExecutionArray unsigned integers
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T>
-void
-DataAccessor<T>::set(const ExecutionArray<uint8> &values)
+template <typename T> 
+const DataType &
+ExecutionAccessor<T>::orig_dtype() const
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
+    if (nullptr != m_node_ptr)
     {
-        this->set(i, (T)values[i]);
+        return m_node_ptr->dtype();
+    }
+    else
+    {
+        return m_dtype;
     }
 }
 
 //---------------------------------------------------------------------------//
-template <typename T>
-void
-DataAccessor<T>::set(const ExecutionArray<uint16> &values)
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->set(i, (T)values[i]);
-    }
-}
-
-//---------------------------------------------------------------------------//
-template <typename T>
-void
-DataAccessor<T>::set(const ExecutionArray<uint32> &values)
+template <typename T> 
+const DataType &
+ExecutionAccessor<T>::other_dtype() const
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
+    if (nullptr != m_node_ptr)
     {
-        this->set(i, (T)values[i]);
+        return m_other_dtype;
+    }
+    else
+    {
+        return m_dtype;
     }
 }
+
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const ExecutionArray<uint64> &values)
+ExecutionAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
+    if (nullptr == m_node_ptr)
     {
-        this->set(i, (T)values[i]);
+        // TODO error; we can't do anything
+        return;
+    }
+
+    // we are being asked to execute on the device
+    if (policy.is_device_policy())
+    {
+        // data is already on the device
+        if (execution::DeviceMemory::is_device_ptr(m_data))
+        {
+            // Do nothing
+        }
+        else // m_data is on the host
+        {
+            // if we started out on the host
+            if (m_node_ptr->data_ptr() == m_data)
+            {
+                CONDUIT_ASSERT(m_other_ptr == nullptr,
+                    "Using execution accessor in this way will result in a memory leak.");
+
+                // allocate new memory and create a new dtype
+                m_other_ptr = execution::DeviceMemory::allocate(
+                    dtype().element_bytes() * number_of_elements());
+                m_do_i_own_it = true;
+                m_other_dtype = DataType(dtype().id(),
+                                         number_of_elements(),
+                                         0, // offset is 0
+                                         DataType::default_bytes(dtype().id()), // stride
+                                         dtype().element_bytes(),
+                                         dtype().endianness());
+
+                // copy data
+                utils::conduit_memcpy_strided_elements(m_other_ptr,
+                                                       number_of_elements(),
+                                                       dtype().element_bytes(),
+                                                       m_other_dtype.stride(),
+                                                       m_data,
+                                                       dtype().stride());
+
+                // change where our data pointer points and update offset and stride
+                m_data = m_other_ptr;
+                m_offset = m_other_dtype.offset();
+                m_stride = m_other_dtype.stride();
+            }
+            else // we started out on the device
+            {
+                CONDUIT_ASSERT(m_data == m_other_ptr,
+                    "Using execution accessor in this way will result in a memory leak.");
+
+                // call sync to bring our copy of the data on the host back to the device
+                sync();
+
+                // dealloc the ptr on the host now that we have copied back
+                execution::HostMemory::deallocate(m_data);
+                m_do_i_own_it = false;
+                m_other_dtype = DataType::empty();
+
+                // set m_data to device data and update offset and stride
+                m_data = m_node_ptr->data_ptr();
+                // the order of operations is important here; changing the pointer
+                // will change the result of calling dtype().
+                m_offset = dtype().offset();
+                m_stride = dtype().stride();
+
+                // reset m_other_ptr
+                m_other_ptr = nullptr;
+            }
+        }
+    }
+    else // we are being asked to execute on the host
+    {
+        // data is already on the host
+        if (! execution::DeviceMemory::is_device_ptr(m_data))
+        {
+            // Do nothing
+        }
+        else // m_data is on the device
+        {
+            // if we started out on the device
+            if (m_node_ptr->data_ptr() == m_data)
+            {
+                CONDUIT_ASSERT(m_other_ptr == nullptr,
+                    "Using execution accessor in this way will result in a memory leak.");
+
+                // allocate new memory and create a new dtype
+                m_other_ptr = execution::HostMemory::allocate(
+                    dtype().element_bytes() * number_of_elements());
+                m_do_i_own_it = true;
+                m_other_dtype = DataType(dtype().id(),
+                                         number_of_elements(),
+                                         0, // offset is 0
+                                         DataType::default_bytes(dtype().id()), // stride
+                                         dtype().element_bytes(),
+                                         dtype().endianness());
+
+                // copy data
+                utils::conduit_memcpy_strided_elements(m_other_ptr,
+                                                       number_of_elements(),
+                                                       dtype().element_bytes(),
+                                                       m_other_dtype.stride(),
+                                                       m_data,
+                                                       dtype().stride());
+
+                // change where our data pointer points and update offset and stride
+                m_data = m_other_ptr;
+                m_offset = m_other_dtype.offset();
+                m_stride = m_other_dtype.stride();
+            }
+            else // we started out on the host
+            {
+                CONDUIT_ASSERT(m_data == m_other_ptr,
+                    "Using execution accessor in this way will result in a memory leak.");
+
+                // call sync to bring our copy of the data on the device back to the host
+                sync();
+
+                // dealloc the ptr on the host now that we have copied back
+                execution::DeviceMemory::deallocate(m_data);
+                m_do_i_own_it = false;
+                m_other_dtype = DataType::empty();
+
+                // set m_data to host data and update offset and stride
+                m_data = m_node_ptr->data_ptr();
+                m_offset = dtype().offset();
+                m_stride = dtype().stride();
+
+                // reset m_other_ptr
+                m_other_ptr = nullptr;
+            }
+        }
     }
 }
 
 //---------------------------------------------------------------------------//
-// Set from ExecutionArray floating point
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const ExecutionArray<float32> &values)
+ExecutionAccessor<T>::sync()
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
+    if (nullptr == m_node_ptr)
     {
-        this->set(i, (T)values[i]);
+        // TODO error; we can't do anything
+        return;
+    }
+
+    // if the ptrs don't point to the same place
+    if (m_data != m_node_ptr->data_ptr())
+    {
+        if (!(m_node_ptr->dtype().compatible(dtype()) && 
+              number_of_elements() == m_node_ptr->dtype().number_of_elements()))
+        {
+            m_node_ptr->set(dtype());
+        }
+        utils::conduit_memcpy_strided_elements(m_node_ptr->data_ptr(),
+                                               number_of_elements(),
+                                               m_node_ptr->dtype().element_bytes(),
+                                               m_node_ptr->dtype().stride(),
+                                               m_data,
+                                               m_stride);
     }
 }
+
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const ExecutionArray<float64> &values)
+ExecutionAccessor<T>::assume()
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
+    if (nullptr == m_node_ptr)
     {
-        this->set(i, (T)values[i]);
+        // TODO error; we can't do anything
+        return;
+    }
+
+    // if the ptrs don't point to the same place
+    if (m_data != m_node_ptr->data_ptr())
+    {
+        CONDUIT_ASSERT(m_data == m_other_ptr,
+            "Using execution accessor in this way will result in a memory leak.");
+
+        // reset will deallocate the data the node points to
+        m_node_ptr->reset();
+        m_node_ptr->schema_ptr()->set(dtype());
+        m_node_ptr->set_data_ptr(m_data);
+
+        // we no longer own the data since we have given it to node
+        m_other_ptr = nullptr;
+        m_do_i_own_it = false;
+        m_other_dtype = DataType::empty();
     }
 }
 
-//---------------------------------------------------------------------------//
-//***************************************************************************//
-// Set from ExecutionAccessor
-//***************************************************************************//
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-// Set from ExecutionAccessor signed integers
-//---------------------------------------------------------------------------//
 
 //---------------------------------------------------------------------------//
 template <typename T>
-void
-DataAccessor<T>::set(const ExecutionAccessor<int8> &values)
+conduit::execution::ExecutionPolicy
+ExecutionAccessor<T>::active_space()
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
+    if (execution::DeviceMemory::is_device_ptr(m_data))
     {
-        this->set(i, (T)values[i]);
+        return execution::ExecutionPolicy::device();
     }
-}
-
-//---------------------------------------------------------------------------//
-template <typename T>
-void
-DataAccessor<T>::set(const ExecutionAccessor<int16> &values)
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
+    else
     {
-        this->set(i, (T)values[i]);
-    }
-}
-
-//---------------------------------------------------------------------------//
-template <typename T>
-void
-DataAccessor<T>::set(const ExecutionAccessor<int32> &values)
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->set(i, (T)values[i]);
-    }
-}
-
-//---------------------------------------------------------------------------//
-template <typename T>
-void
-DataAccessor<T>::set(const ExecutionAccessor<int64> &values)
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->set(i, (T)values[i]);
-    }
-}
-
-//---------------------------------------------------------------------------//
-// Set from ExecutionAccessor unsigned integers
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T>
-void
-DataAccessor<T>::set(const ExecutionAccessor<uint8> &values)
-{
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->set(i, (T)values[i]);
-    }
-}
-
-//---------------------------------------------------------------------------//
-template <typename T>
-void
-DataAccessor<T>::set(const ExecutionAccessor<uint16> &values)
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->set(i, (T)values[i]);
-    }
-}
-
-//---------------------------------------------------------------------------//
-template <typename T>
-void
-DataAccessor<T>::set(const ExecutionAccessor<uint32> &values)
-{
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->set(i, (T)values[i]);
-    }
-}
-
-//---------------------------------------------------------------------------//
-template <typename T>
-void
-DataAccessor<T>::set(const ExecutionAccessor<uint64> &values)
-{
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->set(i, (T)values[i]);
-    }
-}
-
-//---------------------------------------------------------------------------//
-// Set from ExecutionAccessor floating point
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T>
-void
-DataAccessor<T>::set(const ExecutionAccessor<float32> &values)
-{
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->set(i, (T)values[i]);
-    }
-}
-
-//---------------------------------------------------------------------------//
-template <typename T>
-void
-DataAccessor<T>::set(const ExecutionAccessor<float64> &values)
-{
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->set(i, (T)values[i]);
+        return execution::ExecutionPolicy::host();
     }
 }
 

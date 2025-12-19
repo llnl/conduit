@@ -125,8 +125,7 @@ public:
     index_t         number_of_elements() const 
                         {return dtype().number_of_elements();}
 
-    const DataType &dtype()    const 
-                        { return m_dtype;}
+    const DataType &dtype()    const;
 
     const DataType &orig_dtype() const;
 
