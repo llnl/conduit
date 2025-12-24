@@ -86,6 +86,10 @@ public:
     friend class NodeIterator;
     friend class NodeConstIterator;
     friend class Generator;
+    template<typename T>
+    friend class DataArray;
+    template<typename T>
+    friend class DataAccessor;
 
 #if defined(CONDUIT_USE_TOTALVIEW)
     friend int ::TV_ttf_display_type ( const conduit::Node *n );
