@@ -120,17 +120,17 @@ ExecutionArray<T>::ExecutionArray(const Node *node)
 template <typename T> 
 ExecutionArray<T>::~ExecutionArray()
 {
-	if (m_do_i_own_it)
-	{
-	    if (execution::DeviceMemory::is_device_ptr(m_other_ptr))
-	    {
-	        execution::DeviceMemory::deallocate(m_other_ptr);
-	    }
-	    else
-	    {
-	        execution::HostMemory::deallocate(m_other_ptr);
-	    }
-	}
+    if (m_do_i_own_it)
+    {
+        if (execution::DeviceMemory::is_device_ptr(m_other_ptr))
+        {
+            execution::DeviceMemory::deallocate(m_other_ptr);
+        }
+        else
+        {
+            execution::HostMemory::deallocate(m_other_ptr);
+        }
+    }
 }
 
 //---------------------------------------------------------------------------//

@@ -39,7 +39,7 @@ namespace conduit
 template <typename T> 
 DataAccessor<T>::DataAccessor()
 : m_data(nullptr),
-  m_dtype(),
+  m_dtype(DataType::empty()),
   m_node_ptr(nullptr),
   m_other_ptr(nullptr),
   m_other_dtype(DataType::empty()),
