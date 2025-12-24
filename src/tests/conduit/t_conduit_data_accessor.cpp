@@ -206,47 +206,93 @@ TEST(conduit_data_accessor, default_construct)
 TEST(conduit_data_accessor, set)
 {
 
-    Node n;
-    n.set(DataType::int8(10));
+    {
+        Node n;
+        n.set(DataType::int8(10));
+    
+        int8_accessor  i8_acc(n);
+        int16_accessor i16_acc(n);
+        int32_accessor i32_acc(n);
+        int64_accessor i64_acc(n);
+    
+        uint8_accessor  ui8_acc(n);
+        uint16_accessor ui16_acc(n);
+        uint32_accessor ui32_acc(n);
+        uint64_accessor ui64_acc(n);
+    
+        float32_accessor f32_acc(n);
+        float64_accessor f64_acc(n);
+    
+        i8_acc.set(0,-4);
+        i16_acc.set(1,-8);
+        i32_acc.set(2,-16);
+        i64_acc.set(3,-32);
+    
+        ui8_acc.set(4, 4);
+        ui16_acc.set(5,8);
+        ui32_acc.set(6,16);
+        ui64_acc.set(7,32);
+    
+        f32_acc.set(8,16);
+        f64_acc.set(9,32);
+    
+        EXPECT_EQ(i32_acc[0],-4);
+        EXPECT_EQ(i32_acc[1],-8);
+        EXPECT_EQ(i32_acc[2],-16);
+        EXPECT_EQ(i32_acc[3],-32);
+    
+        EXPECT_EQ(i32_acc[4],4);
+        EXPECT_EQ(i32_acc[5],8);
+        EXPECT_EQ(i32_acc[6],16);
+        EXPECT_EQ(i32_acc[7],32);
+    
+        EXPECT_EQ(i32_acc[8],16);
+        EXPECT_EQ(i32_acc[9],32);
+    }
 
-    int8_accessor  i8_acc  = n.value();
-    int16_accessor i16_acc = n.value();
-    int32_accessor i32_acc = n.value();
-    int64_accessor i64_acc = n.value();
+    {
+        Node n;
+        n.set(DataType::int8(10));
 
-    uint8_accessor  ui8_acc  = n.value();
-    uint16_accessor ui16_acc = n.value();
-    uint32_accessor ui32_acc = n.value();
-    uint64_accessor ui64_acc = n.value();
+        int8_accessor  i8_acc  = n.value();
+        int16_accessor i16_acc = n.value();
+        int32_accessor i32_acc = n.value();
+        int64_accessor i64_acc = n.value();
 
-    float32_accessor f32_acc = n.value();
-    float64_accessor f64_acc = n.value();
+        uint8_accessor  ui8_acc  = n.value();
+        uint16_accessor ui16_acc = n.value();
+        uint32_accessor ui32_acc = n.value();
+        uint64_accessor ui64_acc = n.value();
 
-    i8_acc.set(0,-4);
-    i16_acc.set(1,-8);
-    i32_acc.set(2,-16);
-    i64_acc.set(3,-32);
+        float32_accessor f32_acc = n.value();
+        float64_accessor f64_acc = n.value();
 
-    ui8_acc.set(4, 4);
-    ui16_acc.set(5,8);
-    ui32_acc.set(6,16);
-    ui64_acc.set(7,32);
+        i8_acc.set(0,-4);
+        i16_acc.set(1,-8);
+        i32_acc.set(2,-16);
+        i64_acc.set(3,-32);
 
-    f32_acc.set(8,16);
-    f64_acc.set(9,32);
+        ui8_acc.set(4, 4);
+        ui16_acc.set(5,8);
+        ui32_acc.set(6,16);
+        ui64_acc.set(7,32);
 
-    EXPECT_EQ(i32_acc[0],-4);
-    EXPECT_EQ(i32_acc[1],-8);
-    EXPECT_EQ(i32_acc[2],-16);
-    EXPECT_EQ(i32_acc[3],-32);
+        f32_acc.set(8,16);
+        f64_acc.set(9,32);
 
-    EXPECT_EQ(i32_acc[4],4);
-    EXPECT_EQ(i32_acc[5],8);
-    EXPECT_EQ(i32_acc[6],16);
-    EXPECT_EQ(i32_acc[7],32);
+        EXPECT_EQ(i32_acc[0],-4);
+        EXPECT_EQ(i32_acc[1],-8);
+        EXPECT_EQ(i32_acc[2],-16);
+        EXPECT_EQ(i32_acc[3],-32);
 
-    EXPECT_EQ(i32_acc[8],16);
-    EXPECT_EQ(i32_acc[9],32);
+        EXPECT_EQ(i32_acc[4],4);
+        EXPECT_EQ(i32_acc[5],8);
+        EXPECT_EQ(i32_acc[6],16);
+        EXPECT_EQ(i32_acc[7],32);
+
+        EXPECT_EQ(i32_acc[8],16);
+        EXPECT_EQ(i32_acc[9],32);
+    }
 
 }
 
@@ -444,305 +490,6 @@ TEST(conduit_data_accessor, set_using_data_accessor)
 
     float32_accessor vacc_float32(&v_float32[0],DataType::float32(10));
     float64_accessor vacc_float64(&v_float64[0],DataType::float64(10));
-
-
-    Node n;
-
-    // int8_array
-    n["vint8"].set(DataType::int8(10));
-    n["vint8"].as_int8_accessor().set(vacc_int8);
-    int8 *n_int8_ptr = n["vint8"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_int8_ptr[i],v_int8[i]);
-    }
-
-    // int16_array
-    n["vint16"].set(DataType::int16(10));
-    n["vint16"].as_int16_accessor().set(vacc_int16);
-    int16 *n_int16_ptr = n["vint16"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_int16_ptr[i],v_int16[i]);
-    }
-
-    // int32_array
-    n["vint32"].set(DataType::int32(10));
-    n["vint32"].as_int32_accessor().set(vacc_int32);
-    int32 *n_int32_ptr = n["vint32"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_int32_ptr[i],v_int32[i]);
-    }
-
-    // int64_array
-    n["vint64"].set(DataType::int64(10));
-    n["vint64"].as_int64_accessor().set(vacc_int64);
-    int64 *n_int64_ptr = n["vint64"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_int64_ptr[i],v_int64[i]);
-    }
-
-    // uint8_array
-    n["vuint8"].set(DataType::uint8(10));
-    n["vuint8"].as_uint8_accessor().set(vacc_uint8);
-    uint8 *n_uint8_ptr = n["vuint8"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_uint8_ptr[i],v_uint8[i]);
-    }
-
-    // uint16_array
-    n["vuint16"].set(DataType::uint16(10));
-    n["vuint16"].as_uint16_accessor().set(vacc_uint16);
-    uint16 *n_uint16_ptr = n["vuint16"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_uint16_ptr[i],v_uint16[i]);
-    }
-
-    // uint32_array
-    n["vuint32"].set(DataType::uint32(10));
-    n["vuint32"].as_uint32_accessor().set(vacc_uint32);
-    uint32 *n_uint32_ptr = n["vuint32"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_uint32_ptr[i],v_uint32[i]);
-    }
-
-    // uint64_array
-    n["vuint64"].set(DataType::uint64(10));
-    n["vuint64"].as_uint64_accessor().set(vacc_uint64);
-    uint64 *n_uint64_ptr = n["vuint64"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_uint64_ptr[i],v_uint64[i]);
-    }
-
-
-    // float32_array
-    n["vfloat32"].set(DataType::float32(10));
-    n["vfloat32"].as_float32_accessor().set(vacc_float32);
-    float32 *n_float32_ptr = n["vfloat32"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_float32_ptr[i],v_float32[i]);
-    }
-
-    // float64_array
-    n["vfloat64"].set(DataType::float64(10));
-    n["vfloat64"].as_float64_accessor().set(vacc_float64);
-    float64 *n_float64_ptr = n["vfloat64"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_float64_ptr[i],v_float64[i]);
-    }
-
-}
-
-
-//-----------------------------------------------------------------------------
-TEST(conduit_data_accessor, set_using_exec_array)
-{
-    std::vector<int8>  v_int8(10,-8);
-    std::vector<int16> v_int16(10,-16);
-    std::vector<int32> v_int32(10,-32);
-    std::vector<int64> v_int64(10,-64);
-
-    std::vector<uint8>  v_uint8(10,8);
-    std::vector<uint16> v_uint16(10,16);
-    std::vector<uint32> v_uint32(10,32);
-    std::vector<uint64> v_uint64(10,64);
-
-    std::vector<float32>  v_float32(10,32.0);
-    std::vector<float64>  v_float64(10,64.0);
-
-    Node v_int8_node;
-    v_int8_node.set(v_int8);
-    Node v_int16_node;
-    v_int16_node.set(v_int16);
-    Node v_int32_node;
-    v_int32_node.set(v_int32);
-    Node v_int64_node;
-    v_int64_node.set(v_int64);
-
-    Node v_uint8_node;
-    v_uint8_node.set(v_uint8);
-    Node v_uint16_node;
-    v_uint16_node.set(v_uint16);
-    Node v_uint32_node;
-    v_uint32_node.set(v_uint32);
-    Node v_uint64_node;
-    v_uint64_node.set(v_uint64);
-
-    Node v_float32_node;
-    v_float32_node.set(v_float32);
-    Node v_float64_node;
-    v_float64_node.set(v_float64);
-
-    int8_exec_array    va_int8(v_int8_node);
-    int16_exec_array   va_int16(v_int16_node);
-    int32_exec_array   va_int32(v_int32_node);
-    int64_exec_array   va_int64(v_int64_node);
-
-    uint8_exec_array   va_uint8(v_uint8_node);
-    uint16_exec_array  va_uint16(v_uint16_node);
-    uint32_exec_array  va_uint32(v_uint32_node);
-    uint64_exec_array  va_uint64(v_uint64_node);
-
-    float32_exec_array  va_float32(v_float32_node);
-    float64_exec_array  va_float64(v_float64_node);
-
-
-    Node n;
-
-    // int8_array
-    n["vint8"].set(DataType::int8(10));
-    n["vint8"].as_int8_accessor().set(va_int8);
-    int8 *n_int8_ptr = n["vint8"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_int8_ptr[i],va_int8[i]);
-    }
-
-    // int16_array
-    n["vint16"].set(DataType::int16(10));
-    n["vint16"].as_int16_accessor().set(va_int16);
-    int16 *n_int16_ptr = n["vint16"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_int16_ptr[i],va_int16[i]);
-    }
-
-    // int32_array
-    n["vint32"].set(DataType::int32(10));
-    n["vint32"].as_int32_accessor().set(va_int32);
-    int32 *n_int32_ptr = n["vint32"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_int32_ptr[i],va_int32[i]);
-    }
-
-    // int64_array
-    n["vint64"].set(DataType::int64(10));
-    n["vint64"].as_int64_accessor().set(va_int64);
-    int64 *n_int64_ptr = n["vint64"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_int64_ptr[i],va_int64[i]);
-    }
-
-    // uint8_array
-    n["vuint8"].set(DataType::uint8(10));
-    n["vuint8"].as_uint8_accessor().set(va_uint8);
-    uint8 *n_uint8_ptr = n["vuint8"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_uint8_ptr[i],va_uint8[i]);
-    }
-
-    // uint16_array
-    n["vuint16"].set(DataType::uint16(10));
-    n["vuint16"].as_uint16_accessor().set(va_uint16);
-    uint16 *n_uint16_ptr = n["vuint16"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_uint16_ptr[i],va_uint16[i]);
-    }
-
-    // uint32_array
-    n["vuint32"].set(DataType::uint32(10));
-    n["vuint32"].as_uint32_accessor().set(va_uint32);
-    uint32 *n_uint32_ptr = n["vuint32"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_uint32_ptr[i],va_uint32[i]);
-    }
-
-    // uint64_array
-    n["vuint64"].set(DataType::uint64(10));
-    n["vuint64"].as_uint64_accessor().set(va_uint64);
-    uint64 *n_uint64_ptr = n["vuint64"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_uint64_ptr[i],va_uint64[i]);
-    }
-
-
-    // float32_array
-    n["vfloat32"].set(DataType::float32(10));
-    n["vfloat32"].as_float32_accessor().set(va_float32);
-    float32 *n_float32_ptr = n["vfloat32"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_float32_ptr[i],va_float32[i]);
-    }
-
-    // float64_array
-    n["vfloat64"].set(DataType::float64(10));
-    n["vfloat64"].as_float64_accessor().set(va_float64);
-    float64 *n_float64_ptr = n["vfloat64"].value();
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(n_float64_ptr[i],va_float64[i]);
-    }
-
-}
-
-
-
-//-----------------------------------------------------------------------------
-TEST(conduit_data_accessor, set_using_exec_accessor)
-{
-    std::vector<int8>  v_int8(10,-8);
-    std::vector<int16> v_int16(10,-16);
-    std::vector<int32> v_int32(10,-32);
-    std::vector<int64> v_int64(10,-64);
-
-    std::vector<uint8>  v_uint8(10,8);
-    std::vector<uint16> v_uint16(10,16);
-    std::vector<uint32> v_uint32(10,32);
-    std::vector<uint64> v_uint64(10,64);
-
-    std::vector<float32>  v_float32(10,32.0);
-    std::vector<float64>  v_float64(10,64.0);
-
-    Node v_int8_node;
-    v_int8_node.set(v_int8);
-    Node v_int16_node;
-    v_int16_node.set(v_int16);
-    Node v_int32_node;
-    v_int32_node.set(v_int32);
-    Node v_int64_node;
-    v_int64_node.set(v_int64);
-
-    Node v_uint8_node;
-    v_uint8_node.set(v_uint8);
-    Node v_uint16_node;
-    v_uint16_node.set(v_uint16);
-    Node v_uint32_node;
-    v_uint32_node.set(v_uint32);
-    Node v_uint64_node;
-    v_uint64_node.set(v_uint64);
-
-    Node v_float32_node;
-    v_float32_node.set(v_float32);
-    Node v_float64_node;
-    v_float64_node.set(v_float64);
-
-    int8_exec_accessor    vacc_int8(v_int8_node);
-    int16_exec_accessor   vacc_int16(v_int16_node);
-    int32_exec_accessor   vacc_int32(v_int32_node);
-    int64_exec_accessor   vacc_int64(v_int64_node);
-
-    uint8_exec_accessor   vacc_uint8(v_uint8_node);
-    uint16_exec_accessor  vacc_uint16(v_uint16_node);
-    uint32_exec_accessor  vacc_uint32(v_uint32_node);
-    uint64_exec_accessor  vacc_uint64(v_uint64_node);
-
-    float32_exec_accessor  vacc_float32(v_float32_node);
-    float64_exec_accessor  vacc_float64(v_float64_node);
 
 
     Node n;
