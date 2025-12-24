@@ -582,7 +582,7 @@ DataAccessor<T>::fill(T value)
 //---------------------------------------------------------------------------//
 template <typename T> 
 const DataType &
-ExecutionAccessor<T>::dtype() const
+DataAccessor<T>::dtype() const
 {
     if (nullptr != m_node_ptr)
     {
@@ -597,7 +597,7 @@ ExecutionAccessor<T>::dtype() const
 //---------------------------------------------------------------------------//
 template <typename T> 
 const DataType &
-ExecutionAccessor<T>::orig_dtype() const
+DataAccessor<T>::orig_dtype() const
 {
     if (nullptr != m_node_ptr)
     {
@@ -612,7 +612,7 @@ ExecutionAccessor<T>::orig_dtype() const
 //---------------------------------------------------------------------------//
 template <typename T> 
 const DataType &
-ExecutionAccessor<T>::other_dtype() const
+DataAccessor<T>::other_dtype() const
 {
     if (nullptr != m_node_ptr)
     {
@@ -628,7 +628,7 @@ ExecutionAccessor<T>::other_dtype() const
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-ExecutionAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
+DataAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
 {
     if (nullptr == m_node_ptr)
     {
@@ -768,7 +768,7 @@ ExecutionAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-ExecutionAccessor<T>::sync()
+DataAccessor<T>::sync()
 {
     if (nullptr == m_node_ptr)
     {
@@ -797,7 +797,7 @@ ExecutionAccessor<T>::sync()
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-ExecutionAccessor<T>::assume()
+DataAccessor<T>::assume()
 {
     if (nullptr == m_node_ptr)
     {
@@ -827,7 +827,7 @@ ExecutionAccessor<T>::assume()
 //---------------------------------------------------------------------------//
 template <typename T>
 conduit::execution::ExecutionPolicy
-ExecutionAccessor<T>::active_space()
+DataAccessor<T>::active_space()
 {
     if (execution::DeviceMemory::is_device_ptr(m_data))
     {
