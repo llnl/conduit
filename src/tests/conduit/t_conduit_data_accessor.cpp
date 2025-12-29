@@ -412,24 +412,6 @@ TEST(conduit_data_accessor, set_using_data_array)
         EXPECT_EQ(n_float64_ptr[i],va_float64[i]);
     }
 
-    int64 i_vals[4] = {100,200,300,400};
-
-    Node nood;
-    nood["ints"].set(i_vals,
-                  2, // # of elements
-                  0, // offset in bytes
-                  sizeof(int64)*2); // stride in bytes
-
-    int64_array vals_arr = nood["ints"].value();
-    nood["floats"].set(DataType::float64(2));
-    float64_accessor vals_acc = nood["floats"].as_float64_accessor();
-    vals_acc.set(vals_arr);
-    
-    std::cout << vals_acc[0] << std::endl;
-    std::cout << vals_acc[1] << std::endl;
-
-    std::cout << vals_acc.dtype().to_string() << std::endl;
-
 }
 
 
