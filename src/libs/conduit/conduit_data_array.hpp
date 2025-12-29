@@ -20,7 +20,6 @@
 #include "conduit_data_type.hpp"
 #include "conduit_utils.hpp"
 #include "conduit_execution.hpp"
-#include "conduit_data_accessor.hpp"
 
 //-----------------------------------------------------------------------------
 // -- begin conduit:: --
@@ -32,6 +31,8 @@ namespace conduit
 // -- forward declarations required for conduit::DataArray --
 //-----------------------------------------------------------------------------
 class Node;
+template <typename T>
+class DataAccessor;
 
 //-----------------------------------------------------------------------------
 // -- begin conduit::DataArray --
