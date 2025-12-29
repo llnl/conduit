@@ -535,27 +535,6 @@ int spc(conduit::index_t i, conduit::index_t j)
 }
 
 //-----------------------------------------------------------------------------
-int quads_and_tris_spc(conduit::index_t i, conduit::index_t j)
-{
-    return (i % 2 == 0) ? 1 : 2;
-}
-
-//-----------------------------------------------------------------------------
-int hexs_and_tets_spc(conduit::index_t i, conduit::index_t j)
-{
-    int n;
-    if((i == 0 && j == 0) || (i == 0 && j == 5))
-        n = 1;
-    else if(i == 1 && j == 0)
-        n = 6;
-    else if(j < 5)
-        n = 1;
-    else
-        n = 6;
-    return n;
-}
-
-//-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_partition, uniform_explicit_2d)
 {
     conduit::index_t vdims[] = {11,11,1};
@@ -584,22 +563,6 @@ TEST(conduit_blueprint_mesh_partition, hexs_poly_explicit_3d)
 {
     conduit::index_t vdims[] = {11,11,2};
     test_explicit_selection("hexs_poly", vdims, "hexs_poly_explicit_3d", spc);
-}
-
-//-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_partition, quads_and_tris_explicit_2d)
-{
-    conduit::index_t vdims[] = {11,11,0};
-    test_explicit_selection("quads_and_tris", vdims, "quads_end_tris_explicit_2d",
-        quads_and_tris_spc);
-}
-
-//-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_partition, hexs_and_tets_explicit_3d)
-{
-    conduit::index_t vdims[] = {11,11,2};
-    test_explicit_selection("hexs_and_tets", vdims, "hexs_and_tets_explicit_3d",
-        hexs_and_tets_spc);
 }
 
 //-----------------------------------------------------------------------------
@@ -1096,12 +1059,10 @@ TEST(conduit_blueprint_mesh_combine, recombine_braid)
     };
 
     static const conduit::index_t dims2[] = {11,11,0};
-    static const std::array<std::string, 4> cases2 = {
+    static const std::array<std::string, 3> cases2 = {
         "tris",
         "quads",
-        "quads_poly",
-        "quads_and_tris"
-    //    "quads_and_tris_offsets"
+        "quads_poly"
     };
     for(const auto &c : cases2)
     {
@@ -1109,11 +1070,10 @@ TEST(conduit_blueprint_mesh_combine, recombine_braid)
     }
 
     static const conduit::index_t dims3[] = {3,3,2};
-    static const std::array<std::string, 6> cases3 = {
+    static const std::array<std::string, 5> cases3 = {
         "tets",
         "hexs",
         "hexs_poly",
-        "hexs_and_tets",
         "wedges",
         "pyramids"
     };
@@ -1304,11 +1264,9 @@ TEST(conduit_blueprint_mesh_combine, to_poly)
     };
 
     static const conduit::index_t dims2[] = {11,11,0};
-    static const std::array<std::string, 3> cases2 = {
+    static const std::array<std::string, 2> cases2 = {
         "tris",
         "quads",
-        "quads_and_tris",
-    //    "quads_and_tris_offsets"
     };
     for(const auto &c : cases2)
     {
@@ -1316,10 +1274,9 @@ TEST(conduit_blueprint_mesh_combine, to_poly)
     }
 
     static const conduit::index_t dims3[] = {3,3,2};
-    static const std::array<std::string, 5> cases3 = {
+    static const std::array<std::string, 4> cases3 = {
         "tets",
         "hexs",
-        "hexs_and_tets",
         "wedges",
         "pyramids"
     };

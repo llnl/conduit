@@ -47,9 +47,7 @@ index_t braid_bound_npts_z(const std::string &mesh_type, index_t npts_z)
 {
     if(mesh_type == "tris"  ||
        mesh_type == "quads" ||
-       mesh_type == "quads_poly" ||
-       mesh_type == "quads_and_tris" ||
-       mesh_type == "quads_and_tris_offsets")
+       mesh_type == "quads_poly")
     {
         return 0;
     }
