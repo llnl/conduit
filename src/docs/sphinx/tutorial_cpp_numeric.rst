@@ -174,6 +174,7 @@ It is possible to convert from a DataAccessor to a DataArray as well.
     std::cout << vals_acc[1] << std::endl;
 
 ::
+
    100.0
    300.0
 
