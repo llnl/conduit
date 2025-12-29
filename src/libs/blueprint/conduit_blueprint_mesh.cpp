@@ -8324,7 +8324,7 @@ void polyhedral_face_centers_normals(const IndexAccessor subelements_connectivit
     Vector *allFaceNormalsPtr = allFaceNormals.data();
 
     // Compute face centers and normals.
-    conduit::execution::for_all<ExecPolicy>(0, totalNumFaces, [=](conduit::index_t f) {
+    conduit::execution::forall<ExecPolicy>(0, totalNumFaces, [=](conduit::index_t f) {
         const int NUM_VERTS = 4;
         const auto size = subelements_sizes[f];
         const auto offset = subelements_offsets[f];
@@ -8441,7 +8441,7 @@ void polyhedral_elem_centers(const IndexAccessor elements_connectivity,
     allElemCenters.resize(totalNumElems);
     Vector *allElemCentersPtr = allElemCenters.data();
     const Vector *allFaceCentersPtr = allFaceCenters.data();
-    conduit::execution::for_all<ExecPolicy>(0, totalNumElems, [=](conduit::index_t i) {
+    conduit::execution::forall<ExecPolicy>(0, totalNumElems, [=](conduit::index_t i) {
         const auto size = elements_sizes[i];
         const auto offset = elements_offsets[i];
         Vector center {};
@@ -8564,7 +8564,7 @@ static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_ou
     const Vector *allFaceCentersPtr = allFaceCenters.data();
     const Vector *allFaceNormalsPtr = allFaceNormals.data();
     const Vector *allElemCentersPtr = allElemCenters.data();
-    conduit::execution::for_all<ExecPolicy>(0, nElem, [=](conduit::index_t i) {
+    conduit::execution::forall<ExecPolicy>(0, nElem, [=](conduit::index_t i) {
         constexpr int FORWARD = 1;
         constexpr int BACKWARD = -1;
         // Determine face orientations with respect to this element.
