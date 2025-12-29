@@ -45,12 +45,18 @@ set(conduit_headers
     conduit.hpp
     conduit_endianness_types.h
     conduit_core.hpp
+    conduit_data_array.hpp
+    conduit_data_accessor.hpp
+    conduit_data_type.hpp
     conduit_endianness.hpp
     conduit_execution.hpp
     conduit_memory_manager.hpp
     conduit_data_array.hpp
     conduit_data_accessor.hpp
     conduit_data_type.hpp
+    conduit_fixed_size_map.hpp
+    conduit_fixed_size_vector.hpp
+    conduit_geometry_vector.hpp
     conduit_node.hpp
     conduit_generator.hpp
     conduit_error.hpp

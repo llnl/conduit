@@ -269,11 +269,55 @@ class Test_Blueprint_Mesh(unittest.TestCase):
         expected_x0 = (0., 1., 2.)
         expected_y0 = (0., 1., 2., 3.)
         expected_x1 = (-3.0, -2.0, -1.0, 0.0)
-        expected_y1 = (0.0, 1.0, 2.0, 3.0)       
+        expected_y1 = (0.0, 1.0, 2.0, 3.0)
         self.assertTrue(same(expected_x0, output[0]["coordsets/coords/values/x"]))
         self.assertTrue(same(expected_y0, output[0]["coordsets/coords/values/y"]))
         self.assertTrue(same(expected_x1, output[1]["coordsets/coords/values/x"]))
         self.assertTrue(same(expected_y1, output[1]["coordsets/coords/values/y"]))
+
+    def test_convert(self):
+        tgts = { 
+        "uniform":      [ "uniform", "rectilinear", "structured", "unstructured", "polytopal"],
+        "rectilinear":  [ "rectilinear", "structured", "unstructured", "polytopal"],
+        "structured":   [ "structured", "unstructured", "polytopal"],
+        "unstructured": [ "unstructured", "polytopal"],
+        "generate":     [ "generate_points",
+                          "generate_lines",
+                          "generate_faces",
+                          "generate_centroids",
+                          "generate_sides",
+                          "generate_corners"]
+        }
+
+        braid_types = { "uniform" : [ { "mesh_type": "uniform", "dims": [5, 5, 0]} , 
+                                      { "mesh_type": "uniform", "dims": [5, 5, 5]} ],
+                        "rectilinear" : [ { "mesh_type": "rectilinear", "dims": [5, 5, 0]} , 
+                                          { "mesh_type": "rectilinear", "dims": [5, 5, 5]} ],
+                        "structured" : [ { "mesh_type": "structured", "dims": [5, 5, 0]} , 
+                                         { "mesh_type": "structured", "dims": [5, 5, 5]} ],
+                        "unstructured" : [ { "mesh_type": "tris", "dims": [5, 5, 0]} , 
+                                           { "mesh_type": "hexs", "dims": [5, 5, 5]},
+                                           { "mesh_type": "quads_poly", "dims": [5, 5, 0]},
+                                           { "mesh_type": "hexs_poly", "dims": [5, 5, 5]},
+                                           ]}
+
+        for mesh_cat, test_meshes in braid_types.items():
+            for test_mesh in test_meshes:
+                n = Node()
+                output = Node()
+                options = Node()
+                maps = Node()
+                conduit.blueprint.mesh.examples.braid(test_mesh["mesh_type"],
+                                                      test_mesh["dims"][0],
+                                                      test_mesh["dims"][1],
+                                                      test_mesh["dims"][2],
+                                                      n)
+                for target in tgts[mesh_cat]:
+                    print("Testing",test_mesh, "to", target)
+                    options["target"] = target 
+                    conduit.blueprint.mesh.convert(n, options, output)
+                    conduit.blueprint.mesh.convert(n, options, output, maps)
+
 
 if __name__ == '__main__':
     unittest.main()

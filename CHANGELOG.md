@@ -8,8 +8,24 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 ### Added
 
+#### Conduit
+- Added `CONDUIT_VERSION_VALUE` macro that encodes the current Conduit version as an integer.
+- Added a macro to make an integer a version number from major, minor, patch version numbers. Example: `CONDUIT_MAKE_VERSION_VALUE(0, 9, 6)`. This macro can be used to conditionally compile code that is valid for specific versions of Conduit.
+
 #### Blueprint
 - Finished `bent_multi_grid_amr` mesh by adding adjacency sets between spatially adjacent domains at the same level of refinement.
+- Added `conduit::blueprint::mesh::convert()` function that can convert among various mesh formats and generate derived meshes such as points, centroids, faces, sides, and corners.
+- Added a mode within the new `convert()` function that allows it to convert polyhedral hex meshes into unstructured hex meshes.
+- Sped up `conduit::blueprint::mesh::topology::unstructured::to_polygonal()` algorithm and added support for mixed element types.
+- Improved support for "mixed" element types in  `conduit::blueprint::mesh::utils::ShapeType` and also removed a string member to speed up construction.
+- Added 2D block rotation support in `conduit::blueprint::mpi::mesh::to_polygonal()`.
+- Added field data to the `conduit::blueprint::mpi::mesh::to_polygonal()` transformation, including communication of vertex data on hanging nodes.
+
+### Changed
+
+#### Relay
+- Updates to use Silo 4.12 and HDF5 2.0.0.
+- Reworked HDF5 handle managment to avoid resource leaks with exceptions.
 
 ## [0.9.5] - Released 2025-09-10
 

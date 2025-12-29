@@ -66,15 +66,12 @@ namespace utils
 /// blueprint mesh utility structures
 //-----------------------------------------------------------------------------
 
-// Set the ids of these shape ids based on their current position in TOPO_SHAPES
-// They are set in init() too.
-index_t ShapeType::wedge_id = 6;
-index_t ShapeType::pyramid_id = 7;
+std::string ShapeType::empty_type;
 
 //---------------------------------------------------------------------------//
 ShapeType::ShapeType()
 {
-    init(-1);
+    init(InvalidTypeId);
 }
 
 //---------------------------------------------------------------------------//
@@ -92,12 +89,31 @@ ShapeType::ShapeType(const std::string &type_name)
 //---------------------------------------------------------------------------//
 ShapeType::ShapeType(const conduit::Node &topology)
 {
-    init(-1);
+    init(InvalidTypeId);
 
     const std::string topoType = topology["type"].as_string();
     if(topoType == "unstructured" && topology["elements"].has_child("shape"))
     {
-        init(topology["elements/shape"].as_string());
+        const auto shape = topology["elements/shape"].as_string();
+        init(shape);
+        // Do more work to initialize the dimensions for mixed.
+        if(shape == "mixed" && topology.has_path("elements/shape_map"))
+        {
+            const conduit::Node &n_shape_map = topology["elements/shape_map"];
+            index_t maxShapeDim = InvalidDimension;
+            for(conduit::index_t i = 0; i < n_shape_map.number_of_children(); i++)
+            {
+                auto id = type_name_to_id(n_shape_map[i].name());
+                if(id != InvalidTypeId)
+                {
+                    maxShapeDim = std::max(maxShapeDim, TOPO_SHAPE_DIMS[id]);
+                }
+            }
+            if(maxShapeDim != InvalidDimension)
+            {
+               dim = maxShapeDim;
+            }
+        }
     }
     else if(topoType == "points")
     {
@@ -136,15 +152,7 @@ ShapeType::ShapeType(const conduit::Node &topology)
 void
 ShapeType::init(const std::string &type_name)
 {
-    init(-1);
-
-    for(index_t i = 0; i < (index_t)TOPO_SHAPES.size(); i++)
-    {
-        if(type_name == TOPO_SHAPES[i])
-        {
-            init(i);
-        }
-    }
+    init(type_name_to_id(type_name));
 }
 
 
@@ -154,13 +162,13 @@ ShapeType::init(const index_t type_id)
 {
     if(type_id < 0 || type_id >= (index_t)TOPO_SHAPES.size())
     {
-        type = "";
-        id = dim = indices = embed_id = embed_count = -1;
+        id = InvalidTypeId;
+        dim = InvalidDimension;
+        indices = embed_id = embed_count = -1;
         embedding = NULL;
     }
     else
     {
-        type = TOPO_SHAPES[type_id];
         id = type_id;
         dim = TOPO_SHAPE_DIMS[type_id];
         indices = TOPO_SHAPE_INDEX_COUNTS[type_id];
@@ -169,15 +177,21 @@ ShapeType::init(const index_t type_id)
         embed_count = TOPO_SHAPE_EMBED_COUNTS[type_id];
         embedding = const_cast<index_t*>(TOPO_SHAPE_EMBEDDINGS[type_id]);
     }
+}
 
-    // Set these static class members so we can avoid string comparisons later.
+
+//---------------------------------------------------------------------------//
+index_t
+ShapeType::type_name_to_id(const std::string &type_name)
+{
     for(index_t i = 0; i < (index_t)TOPO_SHAPES.size(); i++)
     {
-        if("wedge" == TOPO_SHAPES[i])
-            wedge_id = i;
-        if("pyramid" == TOPO_SHAPES[i])
-            pyramid_id = i;
+        if(type_name == TOPO_SHAPES[i])
+        {
+            return i;
+        }
     }
+    return InvalidTypeId;
 }
 
 
@@ -185,7 +199,7 @@ ShapeType::init(const index_t type_id)
 bool
 ShapeType::is_poly() const
 {
-    return embedding == NULL && (dim == 2 || dim == 3);
+    return is_polygonal() || is_polyhedral();
 }
 
 
@@ -193,7 +207,7 @@ ShapeType::is_poly() const
 bool
 ShapeType::is_polygonal() const
 {
-    return embedding == NULL && dim == 2;
+    return id == polygonal_id() && dim == 2;
 }
 
 
@@ -201,7 +215,15 @@ ShapeType::is_polygonal() const
 bool
 ShapeType::is_polyhedral() const
 {
-    return embedding == NULL && dim == 3;
+    return id == polyhedral_id() && dim == 3;
+}
+
+
+//---------------------------------------------------------------------------//
+bool
+ShapeType::is_mixed() const
+{
+    return id == mixed_id();
 }
 
 
@@ -212,11 +234,19 @@ ShapeType::is_valid() const
     return id >= 0;
 }
 
+
+//---------------------------------------------------------------------------//
+const std::string &
+ShapeType::type() const
+{
+    return is_valid() ? TOPO_SHAPES[id] : empty_type;
+}
+
 //---------------------------------------------------------------------------//
 index_t ShapeType::num_faces() const
 {
     // wedge and pyramid are special cases.
-    return (id == wedge_id || id == pyramid_id) ? 5 : embed_count;
+    return (id == wedge_id() || id == pyramid_id()) ? 5 : embed_count;
 }
 
 //---------------------------------------------------------------------------//
@@ -226,12 +256,12 @@ ShapeType::get_face(index_t face, index_t &nIds) const
     const index_t *ids = nullptr;
 
     // wedge and pyramid are special cases.
-    if(id == wedge_id)
+    if(id == wedge_id())
     {
         nIds = TOPO_WEDGE_FACES[face][0];
         ids = &TOPO_WEDGE_FACES[face][1];
     }
-    else if(id == pyramid_id)
+    else if(id == pyramid_id())
     {
         nIds = TOPO_PYRAMID_FACES[face][0];
         ids = &TOPO_PYRAMID_FACES[face][1];
@@ -243,6 +273,41 @@ ShapeType::get_face(index_t face, index_t &nIds) const
         ids = embedding + face * nIds;
     }
     return ids;
+}
+
+//---------------------------------------------------------------------------//
+index_t ShapeType::wedge_id()
+{
+    static index_t id = ShapeType::type_name_to_id("wedge");
+    return id;
+}
+
+//---------------------------------------------------------------------------//
+index_t ShapeType::pyramid_id()
+{
+    static index_t id = ShapeType::type_name_to_id("pyramid");
+    return id;
+}
+
+//---------------------------------------------------------------------------//
+index_t ShapeType::polygonal_id()
+{
+    static index_t id = ShapeType::type_name_to_id("polygonal");
+    return id;
+}
+
+//---------------------------------------------------------------------------//
+index_t ShapeType::polyhedral_id()
+{
+    static index_t id = ShapeType::type_name_to_id("polyhedral");
+    return id;
+}
+
+//---------------------------------------------------------------------------//
+index_t ShapeType::mixed_id()
+{
+    static index_t id = ShapeType::type_name_to_id("mixed");
+    return id;
 }
 
 //---------------------------------------------------------------------------//
@@ -1087,7 +1152,8 @@ connectivity::connect_elements_2d(const Node& ref_win,
                                   index_t iwidth,
                                   index_t ratio,
                                   index_t& new_vertex,
-                                  std::map<index_t, std::vector<index_t> >& elems)
+                                  std::map<index_t, std::vector<index_t> >& elems,
+                                  bool flip)
 {
     index_t origin_iref = ref_win["origin/i"].to_index_t();
     index_t origin_jref = ref_win["origin/j"].to_index_t();
@@ -1095,10 +1161,41 @@ connectivity::connect_elements_2d(const Node& ref_win,
     index_t ref_size_i = ref_win["dims/i"].to_index_t();
     index_t ref_size_j = ref_win["dims/j"].to_index_t();
 
+    //NSE:  Use of these values may not be correct for ratio > 3.
+    index_t part_lo = ref_win.has_child("partial_lo") ? 
+        ref_win["partial_lo"].to_index_t() : 0;
+    index_t part_hi = ref_win.has_child("partial_hi") ? 
+        ref_win["partial_hi"].to_index_t() : 0;
+
     if (ref_size_i == 1)
     {
         index_t jstart = origin_jref - j_lo;
         index_t jend = origin_jref - j_lo + ref_size_j - 1;
+
+        if (part_lo > 1)
+        {
+            if (flip)
+            {
+                --jend;
+            }
+            else
+            {
+                ++jstart;
+                new_vertex += ratio - part_lo; 
+            }
+        }
+        if (part_hi > 1)
+        {
+            if (flip)
+            {
+                ++jstart;
+                new_vertex += ratio - part_hi;
+            }
+            else
+            {
+                --jend;
+            }
+        }
         if (origin_iref == i_lo)
         {
             for (index_t jidx = jstart; jidx < jend; ++jidx)
@@ -1157,6 +1254,32 @@ connectivity::connect_elements_2d(const Node& ref_win,
     {
         index_t istart = origin_iref - i_lo;
         index_t iend = origin_iref - i_lo + ref_size_i - 1;
+
+        if (part_lo > 1)
+        {
+            if (flip)
+            {
+                --iend;
+            }
+            else
+            {
+                ++istart;
+                new_vertex += ratio - part_lo;
+            }
+        }
+        if (part_hi > 1)
+        {
+            if (flip)
+            {
+                ++istart;
+                new_vertex += ratio - part_hi;
+            }
+            else
+            {
+                --iend;
+            }
+        }
+
         if (origin_jref == j_lo)
         {
             for (index_t iidx = istart; iidx < iend; ++iidx)
@@ -2872,7 +2995,7 @@ topology::unstructured::generate_offsets(const Node &topo,
     bool subelem_offsets_exist = false;
 
     // if these have already been generate, use set external to copy out results
-    if(topo_shape.type == "polyhedral")
+    if(topo_shape.is_polyhedral())
     {
         subelem_offsets_exist = topo["subelements"].has_child("offsets") &&
                                 !topo["subelements/offsets"].dtype().is_empty();
@@ -3016,7 +3139,7 @@ topology::unstructured::generate_offsets(const Node &topo,
         }
         shape_node.to_data_type(int_dtype.id(), dest_ele_offsets);
     }
-    else if(topo_shape.type == "polygonal")
+    else if(topo_shape.is_polygonal())
     {
         const Node &topo_size = topo["elements/sizes"];
         int64_accessor topo_sizes = topo_size.as_int64_accessor();
@@ -3034,7 +3157,7 @@ topology::unstructured::generate_offsets(const Node &topo,
         shape_node.set_external(shape_array);
         shape_node.to_data_type(int_dtype.id(), dest_ele_offsets);
     }
-    else if(topo_shape.type == "polyhedral")
+    else if(topo_shape.is_polyhedral())
     {
         // Construct any offsets that do not exist.
         if(!elem_offsets_exist)
@@ -4731,7 +4854,7 @@ MatchQuery::execute()
             const auto dtopo = getDomainTopology(dom);
             ShapeCascade c(*dtopo);
             const auto &s = c.get_shape((c.dim == 0) ? c.dim : (c.dim - 1));
-            shape = s.type;
+            shape = s.type();
         }
 
         it->second.builder->execute(it->second.query_mesh, shape);
