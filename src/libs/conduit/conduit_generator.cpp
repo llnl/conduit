@@ -2574,7 +2574,7 @@ Generator::Parser::YAML::parse_leaf_dtype(yaml_document_t *yaml_doc,
                 length = get_yaml_sequence_length(value_node);
             }
             // support explicit length 0 in a schema
-            else if (fetch_yaml_node_from_object_by_name(yaml_doc, yaml_node, "number_of_elements"))
+            else if (! fetch_yaml_node_from_object_by_name(yaml_doc, yaml_node, "number_of_elements"))
             {
                 length = 1;
             }
@@ -3294,7 +3294,7 @@ Generator::data_ptr() const
 
 
 //-----------------------------------------------------------------------------
-// JSON Parsing interface
+// JSON & YAML Parsing interface
 //-----------------------------------------------------------------------------s
 
 
@@ -3304,7 +3304,8 @@ Generator::walk(Schema &schema) const
 {
     schema.reset();
     index_t curr_offset = 0;
-    if (m_protocol.find("json") != std::string::npos)
+
+    auto json_case = [&]()
     {
         conduit_json::Document document;
         std::string res = utils::json_sanitize(m_schema);
@@ -3315,8 +3316,8 @@ Generator::walk(Schema &schema) const
         }
 
         Parser::JSON::walk_json_schema(&schema,document,curr_offset);
-    }
-    else if (m_protocol.find("yaml") != std::string::npos)
+    };
+    auto yaml_case = [&]()
     {
         Parser::YAML::YAMLParserWrapper parser;
         parser.parse(m_schema.c_str());
@@ -3332,6 +3333,64 @@ Generator::walk(Schema &schema) const
                                        curr_offset);
 
         // YAMLParserWrapper cleans up for us
+    };
+
+    std::string error_message;
+    bool schema_walked = false;
+
+    // The protocol is default initialized to json. We choose to prefer
+    // walking based on the protocol but we can fall back if possible.
+    if (m_protocol.find("json") != std::string::npos)
+    {
+        try
+        {
+            json_case();
+            schema_walked = true;
+        }
+        catch (conduit::Error &e_json)
+        {
+            error_message = "JSON schema walk failed: " + e_json.message();
+            try
+            {
+                yaml_case();
+                schema_walked = true;
+            }
+            catch(conduit::Error &e_yaml)
+            {
+                error_message += "\nYAML schema walk failed: " + e_yaml.message();
+            }
+        }
+
+        if (! schema_walked)
+        {
+            CONDUIT_ERROR(error_message);
+        }
+    }
+    else if (m_protocol.find("yaml") != std::string::npos)
+    {
+        try
+        {
+            yaml_case();
+            schema_walked = true;
+        }
+        catch (conduit::Error &e_yaml)
+        {
+            error_message = "YAML schema walk failed: " + e_yaml.message();
+            try
+            {
+                json_case();
+                schema_walked = true;
+            }
+            catch(conduit::Error &e_json)
+            {
+                error_message += "\nJSON schema walk failed: " + e_json.message();
+            }
+        }
+
+        if (! schema_walked)
+        {
+            CONDUIT_ERROR(error_message);
+        }
     }
     else
     {

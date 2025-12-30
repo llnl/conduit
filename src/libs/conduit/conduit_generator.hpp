@@ -30,7 +30,7 @@ namespace conduit
 /// class: conduit::Generator
 ///
 /// description:
-///  The Generator class implements parsing logic for json schemas.
+///  The Generator class implements parsing logic for yaml and json schemas.
 ///
 //-----------------------------------------------------------------------------
 class CONDUIT_API Generator
@@ -60,8 +60,12 @@ public:
     /// protocols:
     ///   "json"
     ///   "conduit_json"
+    ///   "conduit_json_external"
     ///   "conduit_base64_json"
     ///   "yaml"
+    ///   "conduit_yaml"
+    ///   "conduit_yaml_external"
+    ///   "conduit_base64_yaml"
     ///
     Generator(const std::string &schema,
               const std::string &protocol = std::string("conduit_json"),
