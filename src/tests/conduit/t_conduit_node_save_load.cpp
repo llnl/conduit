@@ -58,26 +58,53 @@ TEST(conduit_node_save_load, bin_simple_file)
 
     Schema schema("{\"dtype\":{\"a\":\"int32\",\"b\":\"int32\"},\"length\":2}");
 
-    Node nsrc(schema,data,true);
-    nsrc.save("tout_conduit_relay_io_bin_simple_2_file.conduit_bin");
+    // test conduit_bin_json
+    {
+        Node nsrc(schema,data,true);
+        nsrc.save("tout_conduit_relay_io_bin_simple_2_file.conduit_bin");
 
-    Node n;
-    n.load("tout_conduit_relay_io_bin_simple_2_file.conduit_bin");
+        Node n;
+        n.load("tout_conduit_relay_io_bin_simple_2_file.conduit_bin");
 
-    n.schema().print();
-    n.print_detailed();
+        n.schema().print();
+        n.print_detailed();
 
-    std::cout <<  n[0]["a"].as_int32() << std::endl;
-    std::cout <<  n[1]["a"].as_int32() << std::endl;
+        std::cout <<  n[0]["a"].as_int32() << std::endl;
+        std::cout <<  n[1]["a"].as_int32() << std::endl;
 
-    std::cout <<  n[0]["b"].as_int32() << std::endl;
-    std::cout <<  n[1]["b"].as_int32() << std::endl;
+        std::cout <<  n[0]["b"].as_int32() << std::endl;
+        std::cout <<  n[1]["b"].as_int32() << std::endl;
 
-    EXPECT_EQ(n[0]["a"].as_int32(), a1_val);
-    EXPECT_EQ(n[1]["a"].as_int32(), a2_val);
+        EXPECT_EQ(n[0]["a"].as_int32(), a1_val);
+        EXPECT_EQ(n[1]["a"].as_int32(), a2_val);
 
-    EXPECT_EQ(n[0]["b"].as_int32(), b1_val);
-    EXPECT_EQ(n[1]["b"].as_int32(), b2_val);
+        EXPECT_EQ(n[0]["b"].as_int32(), b1_val);
+        EXPECT_EQ(n[1]["b"].as_int32(), b2_val);
+    }
+
+    // test conduit_bin_yaml
+    {
+        Node nsrc(schema,data,true);
+        nsrc.save("tout_conduit_relay_io_bin_simple_2_file.conduit_bin","conduit_bin_yaml");
+
+        Node n;
+        n.load("tout_conduit_relay_io_bin_simple_2_file.conduit_bin");
+
+        n.schema().print();
+        n.print_detailed();
+
+        std::cout <<  n[0]["a"].as_int32() << std::endl;
+        std::cout <<  n[1]["a"].as_int32() << std::endl;
+
+        std::cout <<  n[0]["b"].as_int32() << std::endl;
+        std::cout <<  n[1]["b"].as_int32() << std::endl;
+
+        EXPECT_EQ(n[0]["a"].as_int32(), a1_val);
+        EXPECT_EQ(n[1]["a"].as_int32(), a2_val);
+
+        EXPECT_EQ(n[0]["b"].as_int32(), b1_val);
+        EXPECT_EQ(n[1]["b"].as_int32(), b2_val);
+    }
 
     delete [] data;
 }
@@ -206,44 +233,89 @@ TEST(conduit_node_save_load, mmap_simple_file)
 
     Node nsrc(schema,data,true);
 
-    nsrc.save("tout_conduit_mmap_x2.conduit_bin");
+    // test conduit_bin_json
+    {
+        nsrc.save("tout_conduit_mmap_x2.conduit_bin");
 
 
-    Node nmmap;
-    nmmap.mmap("tout_conduit_mmap_x2.conduit_bin");
+        Node nmmap;
+        nmmap.mmap("tout_conduit_mmap_x2.conduit_bin");
 
-    nmmap.schema().print();
-    nmmap.print_detailed();
+        nmmap.schema().print();
+        nmmap.print_detailed();
 
-    std::cout <<  nmmap[0]["a"].as_int32() << std::endl;
-    std::cout <<  nmmap[1]["a"].as_int32() << std::endl;
+        std::cout <<  nmmap[0]["a"].as_int32() << std::endl;
+        std::cout <<  nmmap[1]["a"].as_int32() << std::endl;
 
-    std::cout <<  nmmap[0]["b"].as_int32() << std::endl;
-    std::cout <<  nmmap[1]["b"].as_int32() << std::endl;
+        std::cout <<  nmmap[0]["b"].as_int32() << std::endl;
+        std::cout <<  nmmap[1]["b"].as_int32() << std::endl;
 
-    EXPECT_EQ(nmmap[0]["a"].as_int32(), a1_val);
-    EXPECT_EQ(nmmap[1]["a"].as_int32(), a2_val);
+        EXPECT_EQ(nmmap[0]["a"].as_int32(), a1_val);
+        EXPECT_EQ(nmmap[1]["a"].as_int32(), a2_val);
 
-    EXPECT_EQ(nmmap[0]["b"].as_int32(), b1_val);
-    EXPECT_EQ(nmmap[1]["b"].as_int32(), b2_val);
+        EXPECT_EQ(nmmap[0]["b"].as_int32(), b1_val);
+        EXPECT_EQ(nmmap[1]["b"].as_int32(), b2_val);
 
-    cout << "mmap write" <<endl;
-    // change mmap
-    nmmap[0]["a"] = 100;
-    nmmap[0]["b"] = 200;
+        cout << "mmap write" <<endl;
+        // change mmap
+        nmmap[0]["a"] = 100;
+        nmmap[0]["b"] = 200;
 
 #if defined(CONDUIT_PLATFORM_WINDOWS)
-    // need to close the mmap on windows in order
-    // to read it for the next test
-    nmmap.reset();
+        // need to close the mmap on windows in order
+        // to read it for the next test
+        nmmap.reset();
 #endif
 
-    // standard read
+        // standard read
 
-    Node ntest;
-    ntest.load("tout_conduit_mmap_x2.conduit_bin",schema);
-    EXPECT_EQ(ntest[0]["a"].as_int32(), 100);
-    EXPECT_EQ(ntest[0]["b"].as_int32(), 200);
+        Node ntest;
+        ntest.load("tout_conduit_mmap_x2.conduit_bin",schema);
+        EXPECT_EQ(ntest[0]["a"].as_int32(), 100);
+        EXPECT_EQ(ntest[0]["b"].as_int32(), 200);
+    }
+
+    // test conduit_bin_yaml
+    {
+        nsrc.save("tout_conduit_mmap_x2.conduit_bin", "conduit_bin_yaml");
+
+
+        Node nmmap;
+        nmmap.mmap("tout_conduit_mmap_x2.conduit_bin");
+
+        nmmap.schema().print();
+        nmmap.print_detailed();
+
+        std::cout <<  nmmap[0]["a"].as_int32() << std::endl;
+        std::cout <<  nmmap[1]["a"].as_int32() << std::endl;
+
+        std::cout <<  nmmap[0]["b"].as_int32() << std::endl;
+        std::cout <<  nmmap[1]["b"].as_int32() << std::endl;
+
+        EXPECT_EQ(nmmap[0]["a"].as_int32(), a1_val);
+        EXPECT_EQ(nmmap[1]["a"].as_int32(), a2_val);
+
+        EXPECT_EQ(nmmap[0]["b"].as_int32(), b1_val);
+        EXPECT_EQ(nmmap[1]["b"].as_int32(), b2_val);
+
+        cout << "mmap write" <<endl;
+        // change mmap
+        nmmap[0]["a"] = 100;
+        nmmap[0]["b"] = 200;
+
+#if defined(CONDUIT_PLATFORM_WINDOWS)
+        // need to close the mmap on windows in order
+        // to read it for the next test
+        nmmap.reset();
+#endif
+
+        // standard read
+
+        Node ntest;
+        ntest.load("tout_conduit_mmap_x2.conduit_bin",schema);
+        EXPECT_EQ(ntest[0]["a"].as_int32(), 100);
+        EXPECT_EQ(ntest[0]["b"].as_int32(), 200);
+    }
 
     delete [] data;
 }
@@ -271,21 +343,42 @@ TEST(conduit_node_save_load, simple_restore)
 
     n_src.print();
     n_src.info().print();
-    n_src.save("tout_conduit_simple_restore.conduit_bin");
 
-    Node n_load;
-    n_load.load("tout_conduit_simple_restore.conduit_bin");
+    // test conduit_bin_json
+    {
+        n_src.save("tout_conduit_simple_restore.conduit_bin");
 
-    n_load.print();
+        Node n_load;
+        n_load.load("tout_conduit_simple_restore.conduit_bin");
+
+        n_load.print();
 
 
-    n_dest.update(n_load);
+        n_dest.update(n_load);
 
-    EXPECT_EQ(n_dest["v"].as_float64_array()[0],v_src[0]);
-    EXPECT_EQ(v_dest[0],v_src[0]);
+        EXPECT_EQ(n_dest["v"].as_float64_array()[0],v_src[0]);
+        EXPECT_EQ(v_dest[0],v_src[0]);
 
-    n_dest.info().print();
+        n_dest.info().print();
+    }
 
+    // test conduit_bin_yaml
+    {
+        n_src.save("tout_conduit_simple_restore.conduit_bin", "conduit_bin_yaml");
+
+        Node n_load;
+        n_load.load("tout_conduit_simple_restore.conduit_bin");
+
+        n_load.print();
+
+
+        n_dest.update(n_load);
+
+        EXPECT_EQ(n_dest["v"].as_float64_array()[0],v_src[0]);
+        EXPECT_EQ(v_dest[0],v_src[0]);
+
+        n_dest.info().print();
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -303,23 +396,46 @@ TEST(conduit_node_save_load, simple_class_restore)
     }
 
     d.n.print();
-    d.n.save("tout_conduit_restore_mmap.conduit_bin");
+    
+    // test conduit_bin_json
+    {
+        d.n.save("tout_conduit_restore_mmap.conduit_bin");
 
-    ExampleData d2;
-    d2.alloc(10);
-    Node nmmap;
-    nmmap.mmap("tout_conduit_restore_mmap.conduit_bin");
+        ExampleData d2;
+        d2.alloc(10);
+        Node nmmap;
+        nmmap.mmap("tout_conduit_restore_mmap.conduit_bin");
 
-    d2.n.info().print();
+        d2.n.info().print();
 
-    d2.n.update(nmmap);
-    d2.n.print();
+        d2.n.update(nmmap);
+        d2.n.print();
 
-    EXPECT_EQ(d2.n["x"].as_float64_array()[1],d2.x_vals[1]);
-    EXPECT_EQ(d.x_vals[1],d2.x_vals[1]);
+        EXPECT_EQ(d2.n["x"].as_float64_array()[1],d2.x_vals[1]);
+        EXPECT_EQ(d.x_vals[1],d2.x_vals[1]);
 
-    d2.n.info().print();
+        d2.n.info().print();
+    }
 
+    // test conduit_bin_yaml
+    {
+        d.n.save("tout_conduit_restore_mmap.conduit_bin", "conduit_bin_yaml");
+
+        ExampleData d2;
+        d2.alloc(10);
+        Node nmmap;
+        nmmap.mmap("tout_conduit_restore_mmap.conduit_bin");
+
+        d2.n.info().print();
+
+        d2.n.update(nmmap);
+        d2.n.print();
+
+        EXPECT_EQ(d2.n["x"].as_float64_array()[1],d2.x_vals[1]);
+        EXPECT_EQ(d.x_vals[1],d2.x_vals[1]);
+
+        d2.n.info().print();
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -340,26 +456,51 @@ TEST(conduit_node_save_load, io_explicit_zero_length_vector_restore)
 
     n1.print_detailed();
 
-    n1.save("tout_zero_len_vector_save.conduit_bin");
+    // test conduit_bin_json
+    {
+        n1.save("tout_zero_len_vector_save.conduit_bin");
 
-    Node n2;
-    n2.load("tout_zero_len_vector_save.conduit_bin");
+        Node n2;
+        n2.load("tout_zero_len_vector_save.conduit_bin");
 
-    std::cout << "n2 load result" << std::endl;
+        std::cout << "n2 load result" << std::endl;
 
-    n2.print_detailed();
+        n2.print_detailed();
 
-    EXPECT_EQ(n1.schema()["one"].dtype().number_of_elements(),
-              n2.schema()["one"].dtype().number_of_elements());
-    EXPECT_EQ(n2.schema()["one"].dtype().number_of_elements(),0);
+        EXPECT_EQ(n1.schema()["one"].dtype().number_of_elements(),
+                  n2.schema()["one"].dtype().number_of_elements());
+        EXPECT_EQ(n2.schema()["one"].dtype().number_of_elements(),0);
 
-    n1.update(n2);
+        n1.update(n2);
 
-    std::cout << "n1 after updating from n2" << std::endl;
+        std::cout << "n1 after updating from n2" << std::endl;
 
-    n1.print_detailed();
-    EXPECT_EQ(n1.schema()["one"].dtype().number_of_elements(),0);
+        n1.print_detailed();
+        EXPECT_EQ(n1.schema()["one"].dtype().number_of_elements(),0);
+    }
 
+    // test conduit_bin_yaml
+    {
+        n1.save("tout_zero_len_vector_save.conduit_bin", "conduit_bin_yaml");
+
+        Node n2;
+        n2.load("tout_zero_len_vector_save.conduit_bin");
+
+        std::cout << "n2 load result" << std::endl;
+
+        n2.print_detailed();
+
+        EXPECT_EQ(n1.schema()["one"].dtype().number_of_elements(),
+                  n2.schema()["one"].dtype().number_of_elements());
+        EXPECT_EQ(n2.schema()["one"].dtype().number_of_elements(),0);
+
+        n1.update(n2);
+
+        std::cout << "n1 after updating from n2" << std::endl;
+
+        n1.print_detailed();
+        EXPECT_EQ(n1.schema()["one"].dtype().number_of_elements(),0);
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -378,26 +519,53 @@ TEST(conduit_node_save_load, io_reset_before_load)
 
     n1.print_detailed();
 
-    n1.save("tout_node_load_reset.conduit_bin");
+    // test conduit_bin_yaml
+    {
+        n1.save("tout_node_load_reset.conduit_bin", "conduit_bin_yaml");
 
 
-    EXPECT_EQ(n1.schema()["one"].dtype().number_of_elements(),1);
+        EXPECT_EQ(n1.schema()["one"].dtype().number_of_elements(),1);
 
-    // load into a node with some existing structure was
-    // crashing, test that we resolved that here.
+        // load into a node with some existing structure was
+        // crashing, test that we resolved that here.
 
-    Node n2;
-    n2["here"].set(one);
-    n2["there"].set(two);
-    n2.load("tout_node_load_reset.conduit_bin");
+        Node n2;
+        n2["here"].set(one);
+        n2["there"].set(two);
+        n2.load("tout_node_load_reset.conduit_bin");
 
-    std::cout << "n2 load result" << std::endl;
+        std::cout << "n2 load result" << std::endl;
 
-    n2.print_detailed();
+        n2.print_detailed();
 
-    EXPECT_EQ(n1.schema()["one"].dtype().number_of_elements(),
-              n2.schema()["one"].dtype().number_of_elements());
-    EXPECT_EQ(n2.schema()["one"].dtype().number_of_elements(),1);
+        EXPECT_EQ(n1.schema()["one"].dtype().number_of_elements(),
+                  n2.schema()["one"].dtype().number_of_elements());
+        EXPECT_EQ(n2.schema()["one"].dtype().number_of_elements(),1);
+    }
+
+    // test conduit_bin_json
+    {
+        n1.save("tout_node_load_reset.conduit_bin", "conduit_bin_json");
+
+
+        EXPECT_EQ(n1.schema()["one"].dtype().number_of_elements(),1);
+
+        // load into a node with some existing structure was
+        // crashing, test that we resolved that here.
+
+        Node n2;
+        n2["here"].set(one);
+        n2["there"].set(two);
+        n2.load("tout_node_load_reset.conduit_bin");
+
+        std::cout << "n2 load result" << std::endl;
+
+        n2.print_detailed();
+
+        EXPECT_EQ(n1.schema()["one"].dtype().number_of_elements(),
+                  n2.schema()["one"].dtype().number_of_elements());
+        EXPECT_EQ(n2.schema()["one"].dtype().number_of_elements(),1);
+    }
 }
 
 
@@ -412,14 +580,29 @@ TEST(conduit_node_save_load, load_save_with_empty)
 
     n.print_detailed();
 
-    n.save("tout_node_load_save_with_empty.conduit_bin");
+    // test conduit_bin_json
+    {
+        n.save("tout_node_load_save_with_empty.conduit_bin");
 
-    Node n_load;
-    n_load.load("tout_node_load_save_with_empty.conduit_bin");
-    EXPECT_EQ(n["path/to/empty"].dtype().id(),
-              n_load["path/to/empty"].dtype().id());
+        Node n_load;
+        n_load.load("tout_node_load_save_with_empty.conduit_bin");
+        EXPECT_EQ(n["path/to/empty"].dtype().id(),
+                  n_load["path/to/empty"].dtype().id());
 
-    n_load.print_detailed();
+        n_load.print_detailed();
+    }
+
+    // test conduit_bin_yaml
+    {
+        n.save("tout_node_load_save_with_empty.conduit_bin", "conduit_bin_yaml");
+
+        Node n_load;
+        n_load.load("tout_node_load_save_with_empty.conduit_bin");
+        EXPECT_EQ(n["path/to/empty"].dtype().id(),
+                  n_load["path/to/empty"].dtype().id());
+
+        n_load.print_detailed();
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -433,14 +616,29 @@ TEST(conduit_node_save_load, load_save_with_childless_object)
 
     n.print_detailed();
 
-    n.save("tout_node_load_save_with_cl_object.conduit_bin");
+    // test conduit_bin_json
+    {
+        n.save("tout_node_load_save_with_cl_object.conduit_bin");
 
-    Node n_load;
-    n_load.load("tout_node_load_save_with_cl_object.conduit_bin");
-    EXPECT_EQ(n["path/to/empty"].dtype().id(),
-              n_load["path/to/empty"].dtype().id());
+        Node n_load;
+        n_load.load("tout_node_load_save_with_cl_object.conduit_bin");
+        EXPECT_EQ(n["path/to/empty"].dtype().id(),
+                  n_load["path/to/empty"].dtype().id());
 
-    n_load.print_detailed();
+        n_load.print_detailed();
+    }
+
+    // test conduit_bin_yaml
+    {
+        n.save("tout_node_load_save_with_cl_object.conduit_bin", "conduit_bin_yaml");
+
+        Node n_load;
+        n_load.load("tout_node_load_save_with_cl_object.conduit_bin");
+        EXPECT_EQ(n["path/to/empty"].dtype().id(),
+                  n_load["path/to/empty"].dtype().id());
+
+        n_load.print_detailed();
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -454,14 +652,29 @@ TEST(conduit_node_save_load, load_save_with_childless_list)
 
     n.print_detailed();
 
-    n.save("tout_node_load_save_with_cl_list.conduit_bin");
+    // test conduit_bin_json
+    {
+        n.save("tout_node_load_save_with_cl_list.conduit_bin");
 
-    Node n_load;
-    n_load.load("tout_node_load_save_with_cl_list.conduit_bin");
-    EXPECT_EQ(n["path/to/empty"].dtype().id(),
-              n_load["path/to/empty"].dtype().id());
+        Node n_load;
+        n_load.load("tout_node_load_save_with_cl_list.conduit_bin");
+        EXPECT_EQ(n["path/to/empty"].dtype().id(),
+                  n_load["path/to/empty"].dtype().id());
 
-    n_load.print_detailed();
+        n_load.print_detailed();
+    }
+
+    // test conduit_bin_yaml
+    {
+        n.save("tout_node_load_save_with_cl_list.conduit_bin", "conduit_bin_yaml");
+
+        Node n_load;
+        n_load.load("tout_node_load_save_with_cl_list.conduit_bin");
+        EXPECT_EQ(n["path/to/empty"].dtype().id(),
+                  n_load["path/to/empty"].dtype().id());
+
+        n_load.print_detailed();
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -488,21 +701,43 @@ TEST(conduit_node_save_load, load_save_array)
 
     n.print_detailed();
 
-    std::string fname = "tout_node_load_save_load_save_array.conduit_bin";
-    n.save(fname);
-
-
-    Node n_load;
-    n_load.load(fname);
-
-    for(int i = 0; i< SZ; ++i)
+    // test conduit_bin_json
     {
-      EXPECT_EQ(n["arr"].as_int64_ptr()[i], n_load["arr"].as_int64_ptr()[i] );
-    }
-    EXPECT_EQ(n["f"].as_float64(), n_load["f"].as_float64());
-    EXPECT_EQ(n["i"].as_int64(), n_load["i"].as_int64());
+        std::string fname = "tout_node_load_save_load_save_array.conduit_bin";
+        n.save(fname);
 
-    n_load.print_detailed();
+
+        Node n_load;
+        n_load.load(fname);
+
+        for(int i = 0; i< SZ; ++i)
+        {
+          EXPECT_EQ(n["arr"].as_int64_ptr()[i], n_load["arr"].as_int64_ptr()[i] );
+        }
+        EXPECT_EQ(n["f"].as_float64(), n_load["f"].as_float64());
+        EXPECT_EQ(n["i"].as_int64(), n_load["i"].as_int64());
+
+        n_load.print_detailed();
+    }
+
+    // test conduit_bin_yaml
+    {
+        std::string fname = "tout_node_load_save_load_save_array.conduit_bin";
+        n.save(fname, "conduit_bin_yaml");
+
+
+        Node n_load;
+        n_load.load(fname);
+
+        for(int i = 0; i< SZ; ++i)
+        {
+          EXPECT_EQ(n["arr"].as_int64_ptr()[i], n_load["arr"].as_int64_ptr()[i] );
+        }
+        EXPECT_EQ(n["f"].as_float64(), n_load["f"].as_float64());
+        EXPECT_EQ(n["i"].as_int64(), n_load["i"].as_int64());
+
+        n_load.print_detailed();
+    }
 }
 
 

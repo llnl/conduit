@@ -411,26 +411,23 @@ Node::save(const std::string &obase,
         identify_protocol(obase,proto);
     }
 
-    if(proto == "conduit_bin")
+    if(proto == "conduit_bin" || proto == "conduit_bin_json")
     {
-        if (protocol == "conduit_bin_yaml")
-        {
-            Node res;
-            compact_to(res);
-            std::string ofschema = obase + "_yaml";
+        Node res;
+        compact_to(res);
+        std::string ofschema = obase + "_json";
 
-            res.schema().save(ofschema,"yaml");
-            res.serialize(obase);
-        }
-        else // conduit_bin_json
-        {
-            Node res;
-            compact_to(res);
-            std::string ofschema = obase + "_json";
+        res.schema().save(ofschema);
+        res.serialize(obase);
+    }
+    else if (proto == "conduit_bin_yaml")
+    {
+        Node res;
+        compact_to(res);
+        std::string ofschema = obase + "_yaml";
 
-            res.schema().save(ofschema);
-            res.serialize(obase);
-        }
+        res.schema().save(ofschema,"yaml");
+        res.serialize(obase);
     }
     else if( proto == "yaml" ||
              proto == "conduit_yaml" ||
@@ -451,7 +448,42 @@ Node::mmap(const std::string &stream_path)
     std::string ifschema = stream_path + "_json";
 
     Schema s;
-    s.load(ifschema);
+    bool loaded_schema = false;
+    std::string error_message;
+
+    std::string ifschema_json = stream_path + "_json";
+    std::string ifschema_yaml = stream_path + "_yaml";
+    try
+    {
+        s.load(ifschema_json);
+        loaded_schema = true;
+    }
+    catch(conduit::Error &e_json)
+    {
+        error_message = "JSON schema load failed for \"" + ifschema_json + "\": " + 
+                        e_json.message();
+        try
+        {
+            s.load(ifschema_yaml);
+            loaded_schema = true;
+        }
+        catch(conduit::Error &e_yaml)
+        {
+            error_message += "\nYAML schema load failed for \"" + ifschema_yaml + "\": " + 
+                             e_yaml.message();
+        }
+    }
+
+    if (! loaded_schema)
+    {
+        CONDUIT_ERROR("<Node::mmap> "
+                      << "failed to load file: \"" << stream_path << "\""
+                      << " due to failure to load Schema file. "
+                      << "Tried JSON \"" << ifschema_json 
+                      << "\" and YAML \"" << ifschema_yaml << "\"" << std::endl
+                      << "Schema load failure details:" << std::endl
+                      << error_message);
+    }
     mmap(stream_path,s);
 }
 
