@@ -375,7 +375,7 @@ Node::load(const std::string &ibase,
                           << "Tried JSON \"" << ifschema_json 
                           << "\" and YAML \"" << ifschema_yaml << "\"" << std::endl
                           << "Schema load failure details:" << std::endl
-                          << last_err_msg);
+                          << error_message);
         }
 
         load(ibase,s);
