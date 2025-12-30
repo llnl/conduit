@@ -411,6 +411,10 @@ Node::save(const std::string &obase,
         identify_protocol(obase,proto);
     }
 
+    // TODO JUSTIN
+    // add conduit_bin_json and conduit_bin_yaml
+    // and keep conduit_bin
+
     if(proto == "conduit_bin")
     {
         // TODO how will we know we want to do yaml?
