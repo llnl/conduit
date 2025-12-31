@@ -1191,6 +1191,8 @@ Generator::Parser::JSON::walk_json_schema(Schema *schema,
                 walk_json_schema(&curr_schema,itr->value, curr_offset);
                 curr_offset += curr_schema.total_strided_bytes();
             }
+
+            schema->print();
         }
     }
     // List case
@@ -1208,6 +1210,8 @@ Generator::Parser::JSON::walk_json_schema(Schema *schema,
             walk_json_schema(&curr_schema,jvalue[i], curr_offset);
             curr_offset += curr_schema.total_strided_bytes();
         }
+
+        schema->print();
     }
     // Simplest case, handles "uint32", "float64", etc
     else if(jvalue.IsString())
@@ -1215,6 +1219,8 @@ Generator::Parser::JSON::walk_json_schema(Schema *schema,
         DataType dtype;
         parse_leaf_dtype(jvalue,curr_offset,dtype);
         schema->set(dtype);
+
+        schema->print();
     }
     else
     {
@@ -2606,8 +2612,18 @@ Generator::Parser::YAML::walk_yaml_schema(Node *node,
                                           index_t curr_offset,
                                           const bool external)
 {
+    bool empty_case = false;
+    if (check_yaml_is_scalar_node(yaml_node))
+    {
+        const std::string yaml_str = get_yaml_string(yaml_node);
+        if ("" == yaml_str)
+        {
+            empty_case = true;
+        }
+    }
+
     // object cases
-    if (check_yaml_is_mapping_node(yaml_node))
+    if (check_yaml_is_mapping_node(yaml_node) || empty_case)
     {
         // if dtype is an object, we have a "list_of" case
         const yaml_node_t *dt_value = fetch_yaml_node_from_object_by_name(yaml_doc, yaml_node, "dtype");
@@ -2847,8 +2863,18 @@ Generator::Parser::YAML::walk_yaml_schema(Schema *schema,
                                           const yaml_node_t *yaml_node,
                                           index_t curr_offset)
 {
+    bool empty_case = false;
+    if (check_yaml_is_scalar_node(yaml_node))
+    {
+        const std::string yaml_str = get_yaml_string(yaml_node);
+        if ("" == yaml_str)
+        {
+            empty_case = true;
+        }
+    }
+
     // object cases
-    if (check_yaml_is_mapping_node(yaml_node))
+    if (check_yaml_is_mapping_node(yaml_node) || empty_case)
     {
         const yaml_node_t* dt_value = fetch_yaml_node_from_object_by_name(yaml_doc, yaml_node, "dtype");
         if (dt_value) // if yaml has dtype
@@ -2942,6 +2968,8 @@ Generator::Parser::YAML::walk_yaml_schema(Schema *schema,
                                  curr_offset);
                 curr_offset += curr_schema.total_strided_bytes();
             }
+
+            schema->print();
         }
     }
     // List case
