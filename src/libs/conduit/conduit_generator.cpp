@@ -2863,18 +2863,8 @@ Generator::Parser::YAML::walk_yaml_schema(Schema *schema,
                                           const yaml_node_t *yaml_node,
                                           index_t curr_offset)
 {
-    bool empty_case = false;
-    if (check_yaml_is_scalar_node(yaml_node))
-    {
-        const std::string yaml_str = get_yaml_string(yaml_node);
-        if ("" == yaml_str)
-        {
-            empty_case = true;
-        }
-    }
-
     // object cases
-    if (check_yaml_is_mapping_node(yaml_node) || empty_case)
+    if (check_yaml_is_mapping_node(yaml_node))
     {
         const yaml_node_t* dt_value = fetch_yaml_node_from_object_by_name(yaml_doc, yaml_node, "dtype");
         if (dt_value) // if yaml has dtype
