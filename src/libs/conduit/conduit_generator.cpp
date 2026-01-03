@@ -1191,8 +1191,6 @@ Generator::Parser::JSON::walk_json_schema(Schema *schema,
                 walk_json_schema(&curr_schema,itr->value, curr_offset);
                 curr_offset += curr_schema.total_strided_bytes();
             }
-
-            schema->print();
         }
     }
     // List case
@@ -1210,8 +1208,6 @@ Generator::Parser::JSON::walk_json_schema(Schema *schema,
             walk_json_schema(&curr_schema,jvalue[i], curr_offset);
             curr_offset += curr_schema.total_strided_bytes();
         }
-
-        schema->print();
     }
     // Simplest case, handles "uint32", "float64", etc
     else if(jvalue.IsString())
@@ -1219,8 +1215,6 @@ Generator::Parser::JSON::walk_json_schema(Schema *schema,
         DataType dtype;
         parse_leaf_dtype(jvalue,curr_offset,dtype);
         schema->set(dtype);
-
-        schema->print();
     }
     else
     {
@@ -1644,7 +1638,6 @@ Generator::Parser::JSON::walk_json_schema_external(Node   *node,
                     {
                         // node is already linked to the schema pointer
                         schema->set(dtype);
-                        schema->print();
                         node->set_data_ptr(data);
                     }
                     else
@@ -2712,7 +2705,6 @@ Generator::Parser::YAML::walk_yaml_schema(Node *node,
                         {
                             // node is already linked to the schema pointer
                             schema->set(des_dtype);
-                            schema->print();
                             node->set_data_ptr(data);
                         }
                         else
@@ -2958,8 +2950,6 @@ Generator::Parser::YAML::walk_yaml_schema(Schema *schema,
                                  curr_offset);
                 curr_offset += curr_schema.total_strided_bytes();
             }
-
-            schema->print();
         }
     }
     // List case
