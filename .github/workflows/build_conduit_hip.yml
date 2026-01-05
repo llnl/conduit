@@ -5,8 +5,8 @@ on:
     branches: [ develop ]
 
 jobs:
-  build_cuda:
-    name: Build Ascent HIP
+  build_hip:
+    name: Ubuntu HIP
     runs-on: ubuntu-22.04
     container: alpinedav/ascent-devel:ubuntu-22.04-rocm-6.3.4-x86_64
     env:
@@ -38,12 +38,12 @@ jobs:
         cmake --version
         echo "**** Configuring Conduit"
         cmake -S src -B build -C conduit-config.cmake -DCMAKE_INSTALL_PREFIX=install
-    - name: Build Ascent
+    - name: Build Conduit
       run: |
         export PATH=$PATH:cmake-${CMAKE_VERSION}-linux-x86_64/bin/
         echo "**** Building Conduit"
         cmake --build  build -j2 --config Release
-    - name: Install Ascent
+    - name: Install Conduit
       run: |
         export PATH=$PATH:cmake-${CMAKE_VERSION}-linux-x86_64/bin/
         echo "**** Installing Conduit"

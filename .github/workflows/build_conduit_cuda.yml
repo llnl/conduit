@@ -6,7 +6,7 @@ on:
 
 jobs:
   build_cuda:
-    name: Build Conduit CUDA
+    name: Ubuntu CUDA
     runs-on: ubuntu-latest
     container: alpinedav/ascent-ci:ubuntu-22.04-cuda-11.8.0-devel
     env:
@@ -38,12 +38,12 @@ jobs:
         cmake --version
         echo "**** Configuring Conduit"
         cmake -S src -B build -C conduit-config.cmake -DCMAKE_INSTALL_PREFIX=install
-    - name: Build Ascent
+    - name: Build Conduit
       run: |
         export PATH=$PATH:cmake-${CMAKE_VERSION}-linux-x86_64/bin/
         echo "**** Building Conduit"
         cmake --build  build -j2 --config Release
-    - name: Install Ascent
+    - name: Install Conduit
       run: |
         export PATH=$PATH:cmake-${CMAKE_VERSION}-linux-x86_64/bin/
         echo "**** Installing Conduit"
