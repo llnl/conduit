@@ -22,6 +22,9 @@ set -eu -o pipefail
 ##############################################################################
 
 # shared options
+enable_cuda="${enable_cuda:=OFF}"
+enable_hip="${enable_hip:=OFF}"
+# TODO: sycl
 enable_fortran="${enable_fortran:=OFF}"
 enable_python="${enable_python:=OFF}"
 enable_openmp="${enable_openmp:=OFF}"
@@ -39,6 +42,9 @@ build_zlib="${build_zlib:=true}"
 build_hdf5="${build_hdf5:=true}"
 build_pyvenv="${build_pyvenv:=false}"
 build_caliper="${build_caliper:=false}"
+build_camp="${build_camp:=true}"
+build_raja="${build_raja:=true}"
+build_umpire="${build_umpire:=true}"
 build_silo="${build_silo:=true}"
 build_zfp="${build_zfp:=true}"
 
@@ -50,6 +56,26 @@ build_windows="${build_windows:=OFF}"
 
 # see if we are building on macOS
 build_macos="${build_macos:=OFF}"
+
+if [[ "$enable_cuda" == "ON" ]]; then
+    echo "*** configuring with CUDA support"
+
+    CC="${CC:=gcc}"
+    CXX="${CXX:=g++}"
+    FTN="${FTN:=gfortran}"
+
+    CUDA_ARCH="${CUDA_ARCH:=80}"
+fi
+
+if [[ "$enable_hip" == "ON" ]]; then
+    echo "*** configuring with HIP support"
+
+    CC="${CC:=/opt/rocm/llvm/bin/amdclang}"
+    CXX="${CXX:=/opt/rocm/llvm/bin/amdclang++}"
+    # FTN?
+    ROCM_ARCH="${ROCM_ARCH:=gfx90a}"
+    ROCM_PATH="${ROCM_PATH:=/opt/rocm/}"
+fi
 
 case "$OSTYPE" in
   win*)     build_windows="ON";;
@@ -393,6 +419,182 @@ else
   echo "**** Skipping Caliper build, install found at: ${caliper_install_dir}"
 fi # build_caliper
 
+################
+# Camp
+################
+camp_version=v2025.09.2
+camp_src_dir=$(ospath ${source_dir}/camp-${camp_version})
+camp_build_dir=$(ospath ${build_dir}/camp-${camp_version})
+camp_install_dir=$(ospath ${install_dir}/camp-${camp_version}/)
+camp_tarball=$(ospath ${source_dir}/camp-${camp_version}.tar.gz)
+
+
+# build only if install doesn't exist
+if [ ! -d ${camp_install_dir} ]; then
+if ${build_camp}; then
+if [ ! -f ${camp_tarball} ]; then
+  echo "**** Downloading ${camp_tarball}"
+  curl -L https://github.com/LLNL/camp/releases/download/${camp_version}/camp-${camp_version}.tar.gz -o ${camp_tarball}
+fi
+if [ ! -d ${camp_src_dir} ]; then
+  echo "**** Extracting ${camp_tarball}"
+  tar ${tar_extra_args} -xzf ${camp_tarball} -C ${source_dir}
+fi
+
+camp_extra_cmake_args=""
+if [[ "$enable_cuda" == "ON" ]]; then
+  camp_extra_cmake_args="-DENABLE_CUDA=ON"
+  camp_extra_cmake_args="${camp_extra_cmake_args} -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH}"
+fi
+
+if [[ "$enable_hip" == "ON" ]]; then
+    camp_extra_cmake_args="-DENABLE_HIP=ON"
+    camp_extra_cmake_args="${camp_extra_cmake_args} -DCMAKE_HIP_COMPILER=${CXX}"
+    camp_extra_cmake_args="${camp_extra_cmake_args} -DCMAKE_HIP_ARCHITECTURES=${ROCM_ARCH}"
+    camp_extra_cmake_args="${camp_extra_cmake_args} -DROCM_PATH=${ROCM_PATH}"
+fi
+
+echo "**** Configuring Camp ${camp_version}"
+cmake -S ${camp_src_dir} -B ${camp_build_dir} ${cmake_compiler_settings} \
+  -DCMAKE_VERBOSE_MAKEFILE:BOOL=${enable_verbose}\
+  -DCMAKE_BUILD_TYPE=${build_config} \
+  -DBUILD_SHARED_LIBS=${build_shared_libs} \
+  -DENABLE_TESTS=OFF \
+  -DENABLE_EXAMPLES=OFF ${camp_extra_cmake_args} \
+  -DCMAKE_INSTALL_PREFIX=${camp_install_dir}
+
+echo "**** Building Camp ${camp_version}"
+cmake --build ${camp_build_dir} --config ${build_config} -j${build_jobs}
+echo "**** Installing Camp ${camp_version}"
+cmake --install ${camp_build_dir}  --config ${build_config}
+
+fi
+else
+  echo "**** Skipping Camp build, install found at: ${camp_install_dir}"
+fi # build_camp
+
+
+################
+# RAJA
+################
+raja_version=v2025.09.0
+raja_src_dir=$(ospath ${source_dir}/RAJA-${raja_version})
+raja_build_dir=$(ospath ${build_dir}/raja-${raja_version})
+raja_install_dir=$(ospath ${install_dir}/raja-${raja_version}/)
+raja_tarball=$(ospath ${source_dir}/RAJA-${raja_version}.tar.gz)
+raja_enable_vectorization="${raja_enable_vectorization:=ON}"
+
+# build only if install doesn't exist
+if [ ! -d ${raja_install_dir} ]; then
+if ${build_raja}; then
+if [ ! -f ${raja_tarball} ]; then
+  echo "**** Downloading ${raja_tarball}"
+  curl -L https://github.com/LLNL/RAJA/releases/download/${raja_version}/RAJA-${raja_version}.tar.gz -o ${raja_tarball}
+fi
+if [ ! -d ${raja_src_dir} ]; then
+  echo "**** Extracting ${raja_tarball}"
+  tar ${tar_extra_args} -xzf ${raja_tarball} -C ${source_dir}
+fi
+
+raja_extra_cmake_args=""
+if [[ "$enable_cuda" == "ON" ]]; then
+  raja_extra_cmake_args="-DENABLE_CUDA=ON"
+  raja_extra_cmake_args="${raja_extra_cmake_args} -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH}"
+fi
+
+if [[ "$enable_hip" == "ON" ]]; then
+  raja_extra_cmake_args="-DENABLE_HIP=ON"
+  raja_extra_cmake_args="${raja_extra_cmake_args} -DCMAKE_HIP_COMPILER=${CXX}"
+  raja_extra_cmake_args="${raja_extra_cmake_args} -DCMAKE_HIP_ARCHITECTURES=${ROCM_ARCH}"
+  raja_extra_cmake_args="${raja_extra_cmake_args} -DROCM_PATH=${ROCM_PATH}"
+fi
+
+echo "**** Configuring RAJA ${raja_version}"
+cmake -S ${raja_src_dir} -B ${raja_build_dir} ${cmake_compiler_settings} \
+  -DCMAKE_VERBOSE_MAKEFILE:BOOL=${enable_verbose}\
+  -DCMAKE_BUILD_TYPE=${build_config} \
+  -DBUILD_SHARED_LIBS=${build_shared_libs} \
+  -Dcamp_DIR=${camp_install_dir} \
+  -DENABLE_OPENMP=${enable_openmp} \
+  -DENABLE_TESTS=OFF \
+  -DRAJA_ENABLE_TESTS=OFF \
+  -DENABLE_EXAMPLES=OFF \
+  -DENABLE_EXERCISES=OFF ${raja_extra_cmake_args} \
+  -DCMAKE_INSTALL_PREFIX=${raja_install_dir} \
+  -DRAJA_ENABLE_VECTORIZATION=${raja_enable_vectorization}
+
+echo "**** Building RAJA ${raja_version}"
+cmake --build ${raja_build_dir} --config ${build_config} -j${build_jobs}
+echo "**** Installing RAJA ${raja_version}"
+cmake --install ${raja_build_dir}  --config ${build_config}
+
+fi
+else
+  echo "**** Skipping RAJA build, install found at: ${raja_install_dir}"
+fi # build_raja
+
+################
+# Umpire
+################
+# note: the release tarball naming scheme for Umpire is different vs RAJA + Camp
+umpire_version=2025.09.0
+umpire_src_dir=$(ospath ${source_dir}/umpire-${umpire_version})
+umpire_build_dir=$(ospath ${build_dir}/umpire-${umpire_version})
+umpire_install_dir=$(ospath ${install_dir}/umpire-${umpire_version}/)
+umpire_tarball=$(ospath ${source_dir}/umpire-${umpire_version}.tar.gz)
+umpire_windows_cmake_flags="-DBLT_CXX_STD=c++17 -DCMAKE_CXX_STANDARD=17 -DUMPIRE_ENABLE_FILESYSTEM=On -DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=On"
+
+umpire_extra_cmake_args=""
+if [[ "$build_windows" == "ON" ]]; then
+  umpire_extra_cmake_args="${umpire_windows_cmake_flags}"
+fi
+
+if [[ "$enable_cuda" == "ON" ]]; then
+  umpire_extra_cmake_args="${umpire_extra_cmake_args} -DENABLE_CUDA=ON"
+  umpire_extra_cmake_args="${umpire_extra_cmake_args} -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH}"
+fi
+
+if [[ "$enable_hip" == "ON" ]]; then
+  umpire_extra_cmake_args="${umpire_extra_cmake_args} -DENABLE_HIP=ON"
+  umpire_extra_cmake_args="${umpire_extra_cmake_args} -DCMAKE_HIP_COMPILER=${CXX}"
+  umpire_extra_cmake_args="${umpire_extra_cmake_args} -DCMAKE_HIP_ARCHITECTURES=${ROCM_ARCH}"
+  umpire_extra_cmake_args="${umpire_extra_cmake_args} -DROCM_PATH=${ROCM_PATH}"
+fi
+
+# build only if install doesn't exist
+if [ ! -d ${umpire_install_dir} ]; then
+if ${build_umpire}; then
+if [ ! -f ${umpire_tarball} ]; then
+  echo "**** Downloading ${umpire_tarball}"
+  curl -L https://github.com/LLNL/Umpire/releases/download/v${umpire_version}/umpire-${umpire_version}.tar.gz -o ${umpire_tarball}
+fi
+if [ ! -d ${umpire_src_dir} ]; then
+  echo "**** Extracting ${umpire_tarball}"
+  tar ${tar_extra_args} -xzf ${umpire_tarball} -C ${source_dir}
+fi
+
+echo "**** Configuring Umpire ${umpire_version}"
+cmake -S ${umpire_src_dir} -B ${umpire_build_dir} ${cmake_compiler_settings} \
+  -DCMAKE_VERBOSE_MAKEFILE:BOOL=${enable_verbose} \
+  -DCMAKE_BUILD_TYPE=${build_config} \
+  -DBUILD_SHARED_LIBS=${build_shared_libs} \
+  -Dcamp_DIR=${camp_install_dir} \
+  -DENABLE_OPENMP=${enable_openmp} \
+  -DENABLE_TESTS=OFF \
+  -DUMPIRE_ENABLE_TOOLS=Off \
+  -DUMPIRE_ENABLE_BENCHMARKS=OFF ${umpire_extra_cmake_args} \
+  -DCMAKE_INSTALL_PREFIX=${umpire_install_dir}
+
+echo "**** Building Umpire ${umpire_version}"
+cmake --build ${umpire_build_dir} --config ${build_config} -j${build_jobs}
+echo "**** Installing Umpire ${umpire_version}"
+cmake --install ${umpire_build_dir}  --config ${build_config}
+
+fi
+else
+  echo "**** Skipping Umpire build, install found at: ${umpire_install_dir}"
+fi # build_umpire
+
 
 ################
 # ZFP
@@ -564,11 +766,33 @@ fi
 if ${build_caliper}; then
   echo 'set(CALIPER_DIR ' ${caliper_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
 fi
+if ${build_camp}; then
+  echo 'set(CAMP_DIR ' ${camp_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+fi
+if ${build_camp}; then
+  echo 'set(RAJA_DIR ' ${raja_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+fi
+if ${build_camp}; then
+  echo 'set(UMPIRE_DIR ' ${umpire_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+fi
+
 echo 'set(HDF5_DIR ' ${hdf5_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
 echo 'set(ZLIB_DIR ' ${zlib_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
 if ${build_zfp}; then
   echo 'set(ZFP_DIR ' ${zfp_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
   echo 'set(H5ZZFP_DIR ' ${h5zzfp_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+fi
+
+if [[ "$enable_cuda" == "ON" ]]; then
+    echo 'set(ENABLE_CUDA ON CACHE BOOL "")' >> ${root_dir}/conduit-config.cmake
+    echo 'set(CMAKE_CUDA_ARCHITECTURES ' ${CUDA_ARCH} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+fi
+
+if [[ "$enable_hip" == "ON" ]]; then
+    echo 'set(ENABLE_HIP ON CACHE BOOL "")' >> ${root_dir}/conduit-config.cmake
+    echo 'set(CMAKE_HIP_COMPILER ' ${CXX} ' CACHE STRING "")' >> ${root_dir}/conduit-config.cmake
+    echo 'set(CMAKE_HIP_ARCHITECTURES ' ${ROCM_ARCH} ' CACHE STRING "")' >> ${root_dir}/conduit-config.cmake
+    echo 'set(ROCM_PATH ' ${ROCM_PATH} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
 fi
 
 # build only if install doesn't exist

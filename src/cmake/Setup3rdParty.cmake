@@ -201,6 +201,37 @@ if(CALIPER_DIR)
     endif()
 endif()
 
+
+################################
+# Camp
+################################
+if(CAMP_DIR) # optional for now
+    include(cmake/thirdparty/SetupCamp.cmake)
+    if(NOT CAMP_FOUND)
+        message(FATAL_ERROR "CAMP_DIR is set, but CAMP wasn't found.")
+    endif()
+endif()
+
+################################
+# RAJA
+################################
+if(RAJA_DIR)  # optional for now
+    include(cmake/thirdparty/SetupRAJA.cmake)
+    if(NOT RAJA_FOUND)
+        message(FATAL_ERROR "RAJA_DIR is set, but RAJA wasn't found.")
+    endif()
+endif()
+
+################################
+# Umpire
+################################
+if(UMPIRE_DIR) # optional for now
+    include(cmake/thirdparty/SetupUmpire.cmake)
+    if(NOT UMPIRE_FOUND)
+        message(FATAL_ERROR "UMPIRE_DIR is set, but Umpire wasn't found.")
+    endif()
+endif()
+
 ################################
 # Setup Totalview if available
 ################################
