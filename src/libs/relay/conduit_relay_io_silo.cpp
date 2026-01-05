@@ -9161,7 +9161,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                         const std::string read_comp_name = read_comp_itr.name();
 
                         // if this object has never been seen before on any domain
-                        if (!root_type_domain_info_comp.has_child(read_comp_name))
+                        if (!root_type_domain_info_comp.has_child(read_comp_name + "_status"))
                         {
                             // For this object, we allocate an array that is num domains long.
                             // Into this array we will record the status of thee domain, i.e.
