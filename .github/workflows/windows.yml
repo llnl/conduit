@@ -53,7 +53,7 @@ jobs:
     - name: Setup MPI
       uses: mpi4py/setup-mpi@v1
     - name: Setup Python Env
-      run: python3 -m pip install --upgrade pip numpy mpi4py wheel
+      run: python3 -m pip install --upgrade pip numpy mpi4py wheel setuptools
     - uses: actions/checkout@v4
       with: 
         submodules: 'recursive'
@@ -82,7 +82,7 @@ jobs:
     - name: Setup MPI
       uses: mpi4py/setup-mpi@v1
     - name: Setup Python Env
-      run: python3 -m pip install --upgrade pip numpy mpi4py wheel
+      run: python3 -m pip install --upgrade pip numpy mpi4py wheel setuptools
     - uses: actions/checkout@v4
       with: 
         submodules: 'recursive'
