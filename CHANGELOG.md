@@ -23,6 +23,9 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 ### Changed
 
+#### Blueprint
+- Removed previously deprecated `quads_and_tris` and `hexs_and_tets` mesh types from `braid` in `blueprint::mesh::examples`.
+
 #### Relay
 - Updates to use Silo 4.12 and HDF5 2.0.0.
 - Reworked HDF5 handle managment to avoid resource leaks with exceptions.
