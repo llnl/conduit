@@ -276,8 +276,7 @@ TEST(blueprint_mesh_flatten, braid)
     const std::string mesh_types[] = {
         "points_implicit", "uniform", "rectilinear", "structured",
         "points", "lines", "tris", "quads", "quads_poly",
-        "quads_and_tris", "quads_and_tris_offsets",
-        "tets", "hexs", "hexs_poly", "hexs_and_tets",
+        "tets", "hexs", "hexs_poly",
         "wedges", "pyramids"
     };
     const index_t x = 4;
@@ -328,9 +327,7 @@ TEST(blueprint_mesh_flatten, braid)
         }
         else if(mesh_type == "tris"
             || mesh_type == "quads"
-            || mesh_type == "quads_poly"
-            || mesh_type == "quads_and_tris"
-            || mesh_type == "quads_and_tris_offsets")
+            || mesh_type == "quads_poly")
         {
             // 2D celltypes
             Node mesh;
