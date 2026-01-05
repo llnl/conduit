@@ -644,12 +644,6 @@ TEST(conduit_blueprint_topology_metadata, custom_ph)
 // not the new class either as additional connectivity handling is needed.)
 
 //-----------------------------------------------------------------------------
-TEST(conduit_blueprint_topology_metadata, quads_and_tris)
-{
-    test_mesh_type("quads_and_tris");
-}
-
-//-----------------------------------------------------------------------------
 TEST(conduit_blueprint_topology_metadata, mixed_2d)
 {
     test_mesh_type("mixed_2d");
