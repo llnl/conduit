@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-22.04
     container: alpinedav/ascent-devel:ubuntu-22.04-rocm-6.3.4-x86_64
     env:
-      CMAKE_VERSION: 3.24.4
+      CMAKE_VERSION: 3.31.8
     steps:
     - name: Checkout
       uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4
