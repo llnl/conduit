@@ -776,6 +776,7 @@ if ${build_umpire}; then
   echo 'set(UMPIRE_DIR ' ${umpire_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
 fi
 
+
 echo 'set(HDF5_DIR ' ${hdf5_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
 echo 'set(ZLIB_DIR ' ${zlib_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
 if ${build_zfp}; then
