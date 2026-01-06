@@ -343,22 +343,8 @@ Node::load(const std::string &ibase,
         std::string ifschema_json = ibase + "_json";
         std::string ifschema_yaml = ibase + "_yaml";
 
-        bool json_exists = false;
-        std::ifstream ifs_json;
-        ifs_json.open(ifschema_json);
-        if (ifs_json.is_open())
-        {
-            json_exists = true;
-            ifs_json.close();
-        }
-        bool yaml_exists = false;
-        std::ifstream ifs_yaml;
-        ifs_yaml.open(ifschema_yaml);
-        if (ifs_yaml.is_open())
-        {
-            yaml_exists = true;
-            ifs_yaml.close();
-        }
+        const bool json_exists = utils::is_file(ifschema_json);
+        const bool yaml_exists = utils::is_file(ifschema_yaml);
 
         if (json_exists && yaml_exists)
         {
@@ -557,22 +543,8 @@ Node::mmap(const std::string &stream_path)
     std::string ifschema_json = stream_path + "_json";
     std::string ifschema_yaml = stream_path + "_yaml";
 
-    bool json_exists = false;
-    std::ifstream ifs_json;
-    ifs_json.open(ifschema_json);
-    if (ifs_json.is_open())
-    {
-        json_exists = true;
-        ifs_json.close();
-    }
-    bool yaml_exists = false;
-    std::ifstream ifs_yaml;
-    ifs_yaml.open(ifschema_yaml);
-    if (ifs_yaml.is_open())
-    {
-        yaml_exists = true;
-        ifs_yaml.close();
-    }
+    const bool json_exists = utils::is_file(ifschema_json);
+    const bool yaml_exists = utils::is_file(ifschema_yaml);
 
     if (json_exists && yaml_exists)
     {
