@@ -23,6 +23,7 @@
 #include "conduit_node.hpp"
 #include "conduit_utils.hpp"
 #include "conduit_log.hpp"
+#include "conduit_data_accessor.hpp"
 
 // Easier access to the Conduit logging functions
 using namespace conduit::utils;
