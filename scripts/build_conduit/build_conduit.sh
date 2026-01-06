@@ -259,10 +259,10 @@ fi # build_hdf5
 ################
 
 cgns_version=4.5.0
-cgns_tarball=cgns-${cgns_version}.tar.gz
+cgns_src_dir=$(ospath ${source_dir}/CGNS-${cgns_version})
+cgns_build_dir=$(ospath ${build_dir}/cgns-${cgns_version}/)
 cgns_install_dir=$(ospath ${install_dir}/cgns-${cgns_version}/)
-cgns_src_dir=$(ospath ${root_dir}/CGNS-${cgns_version})
-cgns_build_dir=$(ospath ${root_dir}/build/cgns-${cgns_version}/)
+cgns_tarball=$(ospath ${source_dir}/cgns-${cgns_version}.tar.gz)
 
 # build only if install doesn't exist
 if [ ! -d ${cgns_install_dir} ]; then
@@ -271,6 +271,11 @@ if [ ! -d ${cgns_src_dir} ]; then
   echo "**** Downloading ${cgns_tarball}"
   curl -L https://github.com/CGNS/CGNS/archive/refs/tags/v${cgns_version}.tar.gz -o ${cgns_tarball}
   tar -xzf ${cgns_tarball}
+
+  # hdf5 2.0 patch
+  cd  ${cgns_src_dir}
+  patch -p1 < ${script_dir}/2026_01_06_cgns_hdf5_2.patch
+  cd ${root_dir}
 fi
 
 
@@ -399,7 +404,7 @@ if [ ! -d ${caliper_src_dir} ]; then
   echo "**** Downloading ${caliper_tarball}"
   curl -L https://github.com/LLNL/Caliper/archive/refs/tags/v${caliper_version}.tar.gz -o ${caliper_tarball}
   tar ${tar_extra_args} -xzf ${caliper_tarball} -C ${source_dir}
-  # windows specifc patch
+  # windows specific patch
   cd  ${caliper_src_dir}
   if [[ "$build_windows" == "ON" ]]; then
     patch -p1 < ${script_dir}/2024_08_01_caliper-win-smaller-opts.patch
