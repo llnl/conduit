@@ -339,43 +339,150 @@ Node::load(const std::string &ibase,
 
     if(proto == "conduit_bin")
     {
-        bool loaded_schema = false;
-        std::string error_message;
-
         Schema s;
         std::string ifschema_json = ibase + "_json";
         std::string ifschema_yaml = ibase + "_yaml";
-        try
+
+        bool json_exists = false;
+        std::ifstream ifs_json;
+        ifs_json.open(ifschema_json);
+        if (ifs_json.is_open())
         {
-            s.load(ifschema_json);
-            loaded_schema = true;
+            json_exists = true;
+            ifs_json.close();
         }
-        catch(conduit::Error &e_json)
+        bool yaml_exists = false;
+        std::ifstream ifs_yaml;
+        ifs_yaml.open(ifschema_yaml);
+        if (ifs_yaml.is_open())
         {
-            error_message = "JSON schema load failed for \"" + ifschema_json + "\": " + 
-                            e_json.message();
+            yaml_exists = true;
+            ifs_yaml.close();
+        }
+
+        if (json_exists && yaml_exists)
+        {
+            bool loaded_schema = false;
+            std::string error_message;
+            try
+            {
+                s.load(ifschema_json);
+                loaded_schema = true;
+            }
+            catch(conduit::Error &e_json)
+            {
+                error_message = "JSON schema load failed for \"" + ifschema_json + "\": " + 
+                                e_json.message();
+                try
+                {
+                    s.load(ifschema_yaml);
+                    loaded_schema = true;
+                }
+                catch(conduit::Error &e_yaml)
+                {
+                    error_message += "\nYAML schema load failed for \"" + ifschema_yaml + "\": " + 
+                                     e_yaml.message();
+                }
+            }
+
+            if (! loaded_schema)
+            {
+                CONDUIT_ERROR("<Node::load> (using protocol = "
+                              << proto << ") "
+                              << "failed to load file: \"" << ibase << "\""
+                              << " due to failure to load Schema file. "
+                              << "Tried JSON \"" << ifschema_json 
+                              << "\" and YAML \"" << ifschema_yaml << "\"" << std::endl
+                              << "Schema load failure details:" << std::endl
+                              << error_message);
+            }
+        }
+        else if (json_exists && !yaml_exists)
+        {
+            try
+            {
+                s.load(ifschema_json);
+            }
+            catch(conduit::Error &e_json)
+            {
+                CONDUIT_ERROR("<Node::load> (using protocol = "
+                              << proto << ") "
+                              << "failed to load file: \"" << ibase << "\""
+                              << " due to failure to load Schema file. "
+                              << "Tried JSON \"" << ifschema_json << std::endl
+                              << "Schema load failure details:" << std::endl
+                              << e_json.message());
+            }
+        }
+        else if (!json_exists && yaml_exists)
+        {
             try
             {
                 s.load(ifschema_yaml);
-                loaded_schema = true;
             }
             catch(conduit::Error &e_yaml)
             {
-                error_message += "\nYAML schema load failed for \"" + ifschema_yaml + "\": " + 
-                                 e_yaml.message();
+                CONDUIT_ERROR("<Node::load> (using protocol = "
+                              << proto << ") "
+                              << "failed to load file: \"" << ibase << "\""
+                              << " due to failure to load Schema file. "
+                              << "Tried YAML \"" << ifschema_yaml << std::endl
+                              << "Schema load failure details:" << std::endl
+                              << e_yaml.message());
             }
         }
-
-        if (! loaded_schema)
+        else
         {
             CONDUIT_ERROR("<Node::load> (using protocol = "
                           << proto << ") "
                           << "failed to load file: \"" << ibase << "\""
                           << " due to failure to load Schema file. "
                           << "Tried JSON \"" << ifschema_json 
-                          << "\" and YAML \"" << ifschema_yaml << "\"" << std::endl
+                          << "\" and YAML \"" << ifschema_yaml << "\"" << std::endl);
+        }
+
+        load(ibase,s);
+    }
+    else if (proto == "conduit_bin_yaml")
+    {
+        Schema s;
+        std::string ifschema_yaml = ibase + "_yaml";
+
+        try
+        {
+            s.load(ifschema_yaml);
+        }
+        catch(conduit::Error &e_yaml)
+        {
+            CONDUIT_ERROR("<Node::load> (using protocol = "
+                          << proto << ") "
+                          << "failed to load file: \"" << ibase << "\""
+                          << " due to failure to load Schema file. "
+                          << "Tried YAML \"" << ifschema_yaml << std::endl
                           << "Schema load failure details:" << std::endl
-                          << error_message);
+                          << e_yaml.message());
+        }
+
+        load(ibase,s);
+    }
+    else if (proto == "conduit_bin_json")
+    {
+        Schema s;
+        std::string ifschema_json = ibase + "_json";
+
+        try
+        {
+            s.load(ifschema_json);
+        }
+        catch(conduit::Error &e_json)
+        {
+            CONDUIT_ERROR("<Node::load> (using protocol = "
+                          << proto << ") "
+                          << "failed to load file: \"" << ibase << "\""
+                          << " due to failure to load Schema file. "
+                          << "Tried JSON \"" << ifschema_json << std::endl
+                          << "Schema load failure details:" << std::endl
+                          << e_json.message());
         }
 
         load(ibase,s);
@@ -445,45 +552,105 @@ Node::save(const std::string &obase,
 void
 Node::mmap(const std::string &stream_path)
 {
-    std::string ifschema = stream_path + "_json";
-
     Schema s;
-    bool loaded_schema = false;
-    std::string error_message;
 
     std::string ifschema_json = stream_path + "_json";
     std::string ifschema_yaml = stream_path + "_yaml";
-    try
+
+    bool json_exists = false;
+    std::ifstream ifs_json;
+    ifs_json.open(ifschema_json);
+    if (ifs_json.is_open())
     {
-        s.load(ifschema_json);
-        loaded_schema = true;
+        json_exists = true;
+        ifs_json.close();
     }
-    catch(conduit::Error &e_json)
+    bool yaml_exists = false;
+    std::ifstream ifs_yaml;
+    ifs_yaml.open(ifschema_yaml);
+    if (ifs_yaml.is_open())
     {
-        error_message = "JSON schema load failed for \"" + ifschema_json + "\": " + 
-                        e_json.message();
+        yaml_exists = true;
+        ifs_yaml.close();
+    }
+
+    if (json_exists && yaml_exists)
+    {
+        bool loaded_schema = false;
+        std::string error_message;
+        try
+        {
+            s.load(ifschema_json);
+            loaded_schema = true;
+        }
+        catch(conduit::Error &e_json)
+        {
+            error_message = "JSON schema load failed for \"" + ifschema_json + "\": " + 
+                            e_json.message();
+            try
+            {
+                s.load(ifschema_yaml);
+                loaded_schema = true;
+            }
+            catch(conduit::Error &e_yaml)
+            {
+                error_message += "\nYAML schema load failed for \"" + ifschema_yaml + "\": " + 
+                                 e_yaml.message();
+            }
+        }
+
+        if (! loaded_schema)
+        {
+            CONDUIT_ERROR("<Node::mmap> "
+                          << "failed to load file: \"" << stream_path << "\""
+                          << " due to failure to load Schema file. "
+                          << "Tried JSON \"" << ifschema_json 
+                          << "\" and YAML \"" << ifschema_yaml << "\"" << std::endl
+                          << "Schema load failure details:" << std::endl
+                          << error_message);
+        }
+    }
+    else if (json_exists && !yaml_exists)
+    {
+        try
+        {
+            s.load(ifschema_json);
+        }
+        catch(conduit::Error &e_json)
+        {
+            CONDUIT_ERROR("<Node::mmap> "
+                          << "failed to load file: \"" << stream_path << "\""
+                          << " due to failure to load Schema file. "
+                          << "Tried JSON \"" << ifschema_json << std::endl
+                          << "Schema load failure details:" << std::endl
+                          << e_json.message());
+        }
+    }
+    else if (!json_exists && yaml_exists)
+    {
         try
         {
             s.load(ifschema_yaml);
-            loaded_schema = true;
         }
         catch(conduit::Error &e_yaml)
         {
-            error_message += "\nYAML schema load failed for \"" + ifschema_yaml + "\": " + 
-                             e_yaml.message();
+            CONDUIT_ERROR("<Node::mmap> "
+                          << "failed to load file: \"" << stream_path << "\""
+                          << " due to failure to load Schema file. "
+                          << "Tried YAML \"" << ifschema_yaml << std::endl
+                          << "Schema load failure details:" << std::endl
+                          << e_yaml.message());
         }
     }
-
-    if (! loaded_schema)
+    else
     {
         CONDUIT_ERROR("<Node::mmap> "
                       << "failed to load file: \"" << stream_path << "\""
                       << " due to failure to load Schema file. "
                       << "Tried JSON \"" << ifschema_json 
-                      << "\" and YAML \"" << ifschema_yaml << "\"" << std::endl
-                      << "Schema load failure details:" << std::endl
-                      << error_message);
+                      << "\" and YAML \"" << ifschema_yaml << "\"" << std::endl);
     }
+
     mmap(stream_path,s);
 }
 
