@@ -340,8 +340,8 @@ Node::load(const std::string &ibase,
     if(proto == "conduit_bin")
     {
         Schema s;
-        std::string ifschema_json = ibase + "_json";
-        std::string ifschema_yaml = ibase + "_yaml";
+        const std::string ifschema_json = ibase + "_json";
+        const std::string ifschema_yaml = ibase + "_yaml";
 
         const bool json_exists = utils::is_file(ifschema_json);
         const bool yaml_exists = utils::is_file(ifschema_yaml);
@@ -432,7 +432,7 @@ Node::load(const std::string &ibase,
     else if (proto == "conduit_bin_yaml")
     {
         Schema s;
-        std::string ifschema_yaml = ibase + "_yaml";
+        const std::string ifschema_yaml = ibase + "_yaml";
 
         try
         {
@@ -454,7 +454,7 @@ Node::load(const std::string &ibase,
     else if (proto == "conduit_bin_json")
     {
         Schema s;
-        std::string ifschema_json = ibase + "_json";
+        const std::string ifschema_json = ibase + "_json";
 
         try
         {
@@ -508,7 +508,13 @@ Node::save(const std::string &obase,
     {
         Node res;
         compact_to(res);
-        std::string ofschema = obase + "_json";
+        const std::string ofschema = obase + "_json";
+
+        const std::string ofschema_yaml = obase + "_yaml";
+        if (utils::is_file(ofschema_yaml))
+        {
+            utils::remove_path_if_exists(ofschema_yaml);
+        }
 
         res.schema().save(ofschema);
         res.serialize(obase);
@@ -517,7 +523,13 @@ Node::save(const std::string &obase,
     {
         Node res;
         compact_to(res);
-        std::string ofschema = obase + "_yaml";
+        const std::string ofschema = obase + "_yaml";
+
+        const std::string ofschema_json = obase + "_json";
+        if (utils::is_file(ofschema_json))
+        {
+            utils::remove_path_if_exists(ofschema_json);
+        }
 
         res.schema().save(ofschema,"yaml");
         res.serialize(obase);
@@ -540,8 +552,8 @@ Node::mmap(const std::string &stream_path)
 {
     Schema s;
 
-    std::string ifschema_json = stream_path + "_json";
-    std::string ifschema_yaml = stream_path + "_yaml";
+    const std::string ifschema_json = stream_path + "_json";
+    const std::string ifschema_yaml = stream_path + "_yaml";
 
     const bool json_exists = utils::is_file(ifschema_json);
     const bool yaml_exists = utils::is_file(ifschema_yaml);
