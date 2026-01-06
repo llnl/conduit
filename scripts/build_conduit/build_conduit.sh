@@ -258,7 +258,7 @@ fi # build_hdf5
 # CGNS
 ################
 
-cgns_version=4.4.0
+cgns_version=4.5.0
 cgns_tarball=cgns-${cgns_version}.tar.gz
 cgns_install_dir=$(ospath ${install_dir}/cgns-${cgns_version}/)
 cgns_src_dir=$(ospath ${root_dir}/CGNS-${cgns_version})
