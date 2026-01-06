@@ -12,6 +12,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Added `CONDUIT_VERSION_VALUE` macro that encodes the current Conduit version as an integer.
 - Added a macro to make an integer a version number from major, minor, patch version numbers. Example: `CONDUIT_MAKE_VERSION_VALUE(0, 9, 6)`. This macro can be used to conditionally compile code that is valid for specific versions of Conduit.
 - Added `set` methods to `DataAccessor` that take `DataArray`s and `DataAccessor`s.
+- Added `conduit_bin_yaml` protocol case to `Node::load()` and `Node::save()`. Also added `conduit_bin_json`, which does the same thing as `conduit_bin` (creates a json schema file to go with the `conduit_bin` file).
 
 #### Blueprint
 - Finished `bent_multi_grid_amr` mesh by adding adjacency sets between spatially adjacent domains at the same level of refinement.
@@ -30,6 +31,12 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Relay
 - Updates to use Silo 4.12 and HDF5 2.0.0.
 - Reworked HDF5 handle managment to avoid resource leaks with exceptions.
+
+### Fixed
+
+#### Conduit
+- Fixed a bug preventing explicit length 0 in `yaml` schema.
+- Fixed a bug where empty objects or lists were not written correctly to `yaml` schema.
 
 ## [0.9.5] - Released 2025-09-10
 
