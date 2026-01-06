@@ -769,7 +769,7 @@ fi
 if ${build_camp}; then
   echo 'set(CAMP_DIR ' ${camp_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
 fi
-if ${build_camp}; then
+if ${build_raja}; then
   echo 'set(RAJA_DIR ' ${raja_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
 fi
 if ${build_umpire}; then
