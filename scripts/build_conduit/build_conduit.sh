@@ -270,7 +270,7 @@ if ${build_cgns}; then
 if [ ! -d ${cgns_src_dir} ]; then
   echo "**** Downloading ${cgns_tarball}"
   curl -L https://github.com/CGNS/CGNS/archive/refs/tags/v${cgns_version}.tar.gz -o ${cgns_tarball}
-  tar -xzf ${cgns_tarball}
+  tar ${tar_extra_args} -xzf ${cgns_tarball} -C ${source_dir}
 
   # hdf5 2.0 patch
   cd  ${cgns_src_dir}
