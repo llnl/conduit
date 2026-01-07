@@ -240,7 +240,7 @@ if [ ! -d ${hdf5_install_dir} ]; then
 if ${build_hdf5}; then
 if [ ! -f ${hdf5_tarball} ]; then
   echo "**** Downloading ${hdf5_tarball}"
-  curl -L https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${hdf5_short_version}/hdf5-${hdf5_middle_version}/src/hdf5-${hdf5_version}.tar.gz -o ${hdf5_tarball}
+  curl -L https://support.hdfgroup.org/releases/hdf5/v${hdf5_short_version}/v${hdf5_middle_version}/downloads/hdf5-${hdf5_version}.tar.gz -o ${hdf5_tarball}
 fi
 if [ ! -d ${hdf5_src_dir} ]; then
   echo "**** Extracting ${hdf5_tarball}"
