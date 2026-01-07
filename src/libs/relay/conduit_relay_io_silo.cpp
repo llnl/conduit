@@ -2708,11 +2708,20 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
         }
     }
 
-    if (matset_ptr->datatype != DB_DOUBLE && matset_ptr->datatype != DB_FLOAT)
+    // We only need to check the data type is one of the allowed types
+    // if mixlen is greater than 0 (meaning that we have volume fractions
+    // and mixed zones). One user reported hitting this error with data
+    // that had no mixed zones, although we have not been able to reproduce,
+    // even using data they provided. Regardless, it doesn't hurt to relax
+    // the restriction here.
+    if (matset_ptr->mixlen > 0)
     {
-        CONDUIT_INFO("Volume fractions must be doubles or floats." <<
-                     " Unknown type for volume fractions for " << matset_name);
-        return false;
+        if (matset_ptr->datatype != DB_DOUBLE && matset_ptr->datatype != DB_FLOAT)
+        {
+            CONDUIT_INFO("Volume fractions must be doubles or floats." <<
+                         " Unknown type for volume fractions for " << matset_name);
+            return false;
+        }
     }
 
     std::vector<double> volume_fractions;
@@ -2743,7 +2752,9 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
     }
     else
     {
-        // we have verified up above that this is a float
+        // We have verified up above that this is a float, or that there
+        // are no mixed zones, in which case we won't need to use the
+        // `float` type.
         read_matlist<float>(matset_ptr,
                             nx, ny, nz,
                             volume_fractions,
