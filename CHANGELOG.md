@@ -31,6 +31,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Relay
 - Updates to use Silo 4.12 and HDF5 2.0.0.
 - Reworked HDF5 handle managment to avoid resource leaks with exceptions.
+- Relaxed the restriction on float and double volume fractions for data being read from Silo when the length of the mixed arrays is 0 (i.e. no mixed zones/volume fractions are present).
 
 ### Fixed
 
