@@ -67,7 +67,7 @@
 
 #cmakedefine CONDUIT_USE_HIP
 
-#if defined(CONDUIT_USE_CUDA) || definedCONDUIT_USE_HIP
+#if defined(CONDUIT_USE_CUDA) || defined(CONDUIT_USE_HIP)
 #define CONDUIT_DEVICE_SUPPORT_ENABLED
 #endif
 

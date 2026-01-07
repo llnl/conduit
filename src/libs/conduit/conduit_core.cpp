@@ -103,8 +103,17 @@ about(Node &n)
 // caliper annotations support
 #if defined(CONDUIT_USE_CALIPER)
     n["annotations"] = "enabled";
-#else 
+#else
     n["annotations"] = "disabled";
+#endif
+
+// device support
+#if defined(CONDUIT_USE_CUDA)
+    n["device_support"] = "cuda";
+#elif defined(CONDUIT_USE_HIP)
+    n["device_support"] = "hip";
+#else
+    n["device_support"] = "disabled";
 #endif
 
     // ints
