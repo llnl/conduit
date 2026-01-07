@@ -197,11 +197,15 @@ zlib_tarball=$(ospath ${source_dir}/zlib-${zlib_version}.tar.gz)
 # build only if install doesn't exist
 if [ ! -d ${zlib_install_dir} ]; then
 if ${build_zlib}; then
-if [ ! -d ${zlib_src_dir} ]; then
+if [ ! -f ${zlib_tarball} ]; then
   echo "**** Downloading ${zlib_tarball}"
   curl -L https://github.com/madler/zlib/releases/download/v${zlib_version}/zlib-${zlib_version}.tar.gz -o ${zlib_tarball}
+fi
+if [ ! -d ${zlib_src_dir} ]; then
+  echo "**** Extracting ${zlib_tarball}"
   tar  ${tar_extra_args} -xzf ${zlib_tarball} -C ${source_dir}
 fi
+
 
 echo "**** Configuring Zlib ${zlib_version}"
 cmake -S ${zlib_src_dir} -B ${zlib_build_dir} ${cmake_compiler_settings} \
@@ -234,18 +238,20 @@ hdf5_tarball=$(ospath ${source_dir}/hdf5-${hdf5_version}.tar.gz)
 # build only if install doesn't exist
 if [ ! -d ${hdf5_install_dir} ]; then
 if ${build_hdf5}; then
-if [ ! -d ${hdf5_src_dir} ]; then
+if [ ! -f ${hdf5_tarball} ]; then
   echo "**** Downloading ${hdf5_tarball}"
-  curl -L https://support.hdfgroup.org/releases/hdf5/v${hdf5_short_version}/v${hdf5_middle_version}/downloads/hdf5-${hdf5_version}.tar.gz -o ${hdf5_tarball}
+  curl -L https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${hdf5_short_version}/hdf5-${hdf5_middle_version}/src/hdf5-${hdf5_version}.tar.gz -o ${hdf5_tarball}
+fi
+if [ ! -d ${hdf5_src_dir} ]; then
+  echo "**** Extracting ${hdf5_tarball}"
   tar ${tar_extra_args} -xzf ${hdf5_tarball} -C ${source_dir}
 fi
-
 
 #################
 #
 # hdf5 CMake recipe for using zlib
 #
-# -DHDF5_ENABLE_Z_LIB_SUPPORT=ON
+# -DHDF5_ENABLE_ZLIB_SUPPORT=ON
 # Add zlib install dir to CMAKE_PREFIX_PATH
 #
 #################
@@ -293,13 +299,16 @@ cgns_tarball=$(ospath ${source_dir}/cgns-${cgns_version}.tar.gz)
 # build only if install doesn't exist
 if [ ! -d ${cgns_install_dir} ]; then
 if ${build_cgns}; then
-if [ ! -d ${cgns_src_dir} ]; then
+if [ ! -f ${cgns_tarball} ]; then
   echo "**** Downloading ${cgns_tarball}"
   curl -L https://github.com/CGNS/CGNS/archive/refs/tags/v${cgns_version}.tar.gz -o ${cgns_tarball}
+fi
+if [ ! -d ${cgns_src_dir} ]; then
+  echo "**** Extracting ${cgns_tarball}"
   tar ${tar_extra_args} -xzf ${cgns_tarball} -C ${source_dir}
 
   # hdf5 2.0 patch
-  cd  ${cgns_src_dir}
+  cd ${cgns_src_dir}
   patch -p1 < ${script_dir}/2026_01_06_cgns_hdf5_2.patch
   cd ${root_dir}
 fi
@@ -347,16 +356,18 @@ silo_tarball=$(ospath ${source_dir}/silo-${silo_version}.tar.gz)
 # build only if install doesn't exist
 if [ ! -d ${silo_install_dir} ]; then
 if ${build_silo}; then
-if [ ! -d ${silo_src_dir} ]; then
+if [ ! -f ${silo_tarball} ]; then
   echo "**** Downloading ${silo_tarball}"
   curl -L https://github.com/LLNL/Silo/archive/refs/tags/${silo_version}.tar.gz -o ${silo_tarball}
+fi
+if [ ! -d ${silo_src_dir} ]; then
+  echo "**** Extracting ${silo_tarball}"
   # untar and avoid symlinks (which windows despises)
   tar ${tar_extra_args} -xzf ${silo_tarball} -C ${source_dir} \
       --exclude="Silo-${silo_version}/config-site/*" \
       --exclude="Silo-${silo_version}/LICENSE.md" \
       --exclude="Silo-${silo_version}/silo_objects.png"
 fi
-
 
 echo "**** Configuring Silo ${silo_version}"
 cmake -S ${silo_src_dir} -B ${silo_build_dir} ${cmake_compiler_settings} \
@@ -426,9 +437,12 @@ caliper_tarball=$(ospath ${source_dir}/caliper-${caliper_version}-src-with-blt.t
 # build only if install doesn't exist
 if [ ! -d ${caliper_install_dir} ]; then
 if ${build_caliper}; then
-if [ ! -d ${caliper_src_dir} ]; then
+if [ ! -f ${caliper_tarball} ]; then
   echo "**** Downloading ${caliper_tarball}"
   curl -L https://github.com/LLNL/Caliper/archive/refs/tags/v${caliper_version}.tar.gz -o ${caliper_tarball}
+fi
+if [ ! -d ${caliper_src_dir} ]; then
+  echo "**** Extracting ${caliper_tarball}"
   tar ${tar_extra_args} -xzf ${caliper_tarball} -C ${source_dir}
   # windows specific patch
   cd  ${caliper_src_dir}
@@ -437,7 +451,6 @@ if [ ! -d ${caliper_src_dir} ]; then
   fi
   cd ${root_dir}
 fi
-
 #
 # Note: Caliper has optional Umpire support,
 # if we want to support in the future, we will need to build umpire first
@@ -675,9 +688,12 @@ zfp_tarball=$(ospath ${source_dir}/zfp-${zfp_version}.tar.gz)
 # build only if install doesn't exist
 if [ ! -d ${zfp_install_dir} ]; then
 if ${build_zfp}; then
-if [ ! -d ${zfp_src_dir} ]; then
+if [ ! -f ${zfp_tarball} ]; then
   echo "**** Downloading ${zfp_tarball}"
-  curl -L https://github.com/LLNL/zfp/releases/download/${zfp_version}/zfp-${zfp_version}.tar.gz -o ${zfp_tarball}
+  curl -L https://github.com/LLNL/zfp/releases/download/1.0.1/zfp-${zfp_version}.tar.gz -o ${zfp_tarball}
+fi
+if [ ! -d ${zfp_src_dir} ]; then
+  echo "**** Extracting ${zfp_tarball}"
   tar ${tar_extra_args} -xzf ${zfp_tarball} -C ${source_dir}
 
   # apply patches
@@ -727,9 +743,12 @@ h5zzfp_tarball=$(ospath ${source_dir}/h5zzfp-${h5zzfp_version}.tar.gz)
 if [ ! -d ${h5zzfp_install_dir} ]; then
 # also enabled via `build_zfp` instead of sep option
 if ${build_zfp}; then
-if [ ! -d ${h5zzfp_src_dir} ]; then
+if [ ! -f ${h5zzfp_tarball} ]; then
   echo "**** Downloading ${h5zzfp_tarball}"
   curl -L "https://github.com/LLNL/H5Z-ZFP/archive/refs/tags/v${h5zzfp_version}.tar.gz"  -o ${h5zzfp_tarball}
+fi
+if [ ! -d ${h5zzfp_src_dir} ]; then
+  echo "**** Extracting ${h5zzfp_tarball}"
   tar ${tar_extra_args} -xzf ${h5zzfp_tarball} -C ${source_dir}
 
   # apply patches
@@ -780,88 +799,90 @@ fi
 conduit_build_dir=$(ospath ${build_dir}/conduit-${conduit_version}/)
 conduit_install_dir=$(ospath ${install_dir}//conduit-${conduit_version}/)
 
+cmake_host_config=${root_dir}/conduit-config.cmake
+
 echo "**** Creating Conduit host-config (conduit-config.cmake)"
 #
-echo '# host-config file generated by build_conduit.sh' > ${root_dir}/conduit-config.cmake
+echo '# host-config file generated by build_conduit.sh' > ${cmake_host_config}
 
 # capture compilers if they are provided via env vars
 if [ ! -z ${CC+x} ]; then
-    echo 'set(CMAKE_C_COMPILER ' ${CC} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+    echo 'set(CMAKE_C_COMPILER ' ${CC} ' CACHE PATH "")' >>  ${cmake_host_config}
 fi
 
 if [ ! -z ${CXX+x} ]; then
-    echo 'set(CMAKE_CXX_COMPILER ' ${CXX} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+    echo 'set(CMAKE_CXX_COMPILER ' ${CXX} ' CACHE PATH "")' >>  ${cmake_host_config}
 fi
 
 if [ ! -z ${FTN+x} ]; then
-    echo 'set(CMAKE_Fortran_COMPILER ' ${FTN} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+    echo 'set(CMAKE_Fortran_COMPILER ' ${FTN} ' CACHE PATH "")' >>  ${cmake_host_config}
 fi
 
 # capture compiler flags  if they are provided via env vars
 if [ ! -z ${CFLAGS+x} ]; then
-    echo 'set(CMAKE_C_FLAGS "' ${CFLAGS} '" CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+    echo 'set(CMAKE_C_FLAGS "' ${CFLAGS} '" CACHE PATH "")' >>  ${cmake_host_config}
 fi
 
 if [ ! -z ${CXXFLAGS+x} ]; then
-    echo 'set(CMAKE_CXX_FLAGS "' ${CXXFLAGS} '" CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+    echo 'set(CMAKE_CXX_FLAGS "' ${CXXFLAGS} '" CACHE PATH "")' >>  ${cmake_host_config}
 fi
 
 if [ ! -z ${FFLAGS+x} ]; then
-    echo 'set(CMAKE_F_FLAGS "' ${FFLAGS} '" CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+    echo 'set(CMAKE_F_FLAGS "' ${FFLAGS} '" CACHE PATH "")' >>  ${cmake_host_config}
 fi
 
 if [[ "$enable_mpicc" == "ON" ]]; then
-  echo 'set(MPI_C_COMPILER '  ${mpicc_exe}  ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
-  echo 'set(MPI_CXX_COMPILER ' ${mpicxx_exe}  ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+  echo 'set(MPI_C_COMPILER '  ${mpicc_exe}  ' CACHE PATH "")' >> ${cmake_host_config}
+  echo 'set(MPI_CXX_COMPILER ' ${mpicxx_exe}  ' CACHE PATH "")' >> ${cmake_host_config}
 fi
 
-echo 'set(CMAKE_VERBOSE_MAKEFILE ' ${enable_verbose} ' CACHE BOOL "")' >> ${root_dir}/conduit-config.cmake
-echo 'set(CMAKE_BUILD_TYPE ' ${build_config} ' CACHE STRING "")' >> ${root_dir}/conduit-config.cmake
-echo 'set(BUILD_SHARED_LIBS ' ${build_shared_libs} ' CACHE STRING "")' >> ${root_dir}/conduit-config.cmake
-echo 'set(CMAKE_INSTALL_PREFIX ' ${conduit_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
-echo 'set(ENABLE_TESTS ' ${enable_tests} ' CACHE BOOL "")' >> ${root_dir}/conduit-config.cmake
-echo 'set(ENABLE_MPI ' ${enable_mpi} ' CACHE BOOL "")' >> ${root_dir}/conduit-config.cmake
-echo 'set(ENABLE_FIND_MPI ' ${enable_find_mpi} ' CACHE BOOL "")' >> ${root_dir}/conduit-config.cmake
-echo 'set(ENABLE_FORTRAN ' ${enable_fortran} ' CACHE BOOL "")' >> ${root_dir}/conduit-config.cmake
-echo 'set(ENABLE_PYTHON ' ${enable_python} ' CACHE BOOL "")' >> ${root_dir}/conduit-config.cmake
+echo 'set(CMAKE_VERBOSE_MAKEFILE ' ${enable_verbose} ' CACHE BOOL "")' >> ${cmake_host_config}
+echo 'set(CMAKE_BUILD_TYPE ' ${build_config} ' CACHE STRING "")' >> ${cmake_host_config}
+echo 'set(BUILD_SHARED_LIBS ' ${build_shared_libs} ' CACHE STRING "")' >> ${cmake_host_config}
+echo 'set(CMAKE_INSTALL_PREFIX ' ${conduit_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
+echo 'set(ENABLE_TESTS ' ${enable_tests} ' CACHE BOOL "")' >> ${cmake_host_config}
+echo 'set(ENABLE_MPI ' ${enable_mpi} ' CACHE BOOL "")' >> ${cmake_host_config}
+echo 'set(ENABLE_FIND_MPI ' ${enable_find_mpi} ' CACHE BOOL "")' >> ${cmake_host_config}
+echo 'set(ENABLE_FORTRAN ' ${enable_fortran} ' CACHE BOOL "")' >> ${cmake_host_config}
+echo 'set(ENABLE_PYTHON ' ${enable_python} ' CACHE BOOL "")' >> ${cmake_host_config}
 if ${build_pyvenv}; then
-echo 'set(PYTHON_EXECUTABLE ' ${venv_python_exe} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
-echo 'set(PYTHON_MODULE_INSTALL_PREFIX ' ${venv_python_site_pkgs_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
-echo 'set(ENABLE_DOCS ON CACHE BOOL "")' >> ${root_dir}/conduit-config.cmake
-echo 'set(SPHINX_EXECUTABLE ' ${venv_sphinx_exe} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+echo 'set(PYTHON_EXECUTABLE ' ${venv_python_exe} ' CACHE PATH "")' >> ${cmake_host_config}
+echo 'set(PYTHON_MODULE_INSTALL_PREFIX ' ${venv_python_site_pkgs_dir} ' CACHE PATH "")' >> ${cmake_host_config}
+echo 'set(ENABLE_DOCS ON CACHE BOOL "")' >> ${cmake_host_config}
+echo 'set(SPHINX_EXECUTABLE ' ${venv_sphinx_exe} ' CACHE PATH "")' >> ${cmake_host_config}
 fi
 if ${build_caliper}; then
-  echo 'set(CALIPER_DIR ' ${caliper_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+  echo 'set(CALIPER_DIR ' ${caliper_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
 fi
 if ${build_camp}; then
-  echo 'set(CAMP_DIR ' ${camp_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+  echo 'set(CAMP_DIR ' ${camp_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
 fi
 if ${build_raja}; then
-  echo 'set(RAJA_DIR ' ${raja_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+  echo 'set(RAJA_DIR ' ${raja_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
 fi
 if ${build_umpire}; then
-  echo 'set(UMPIRE_DIR ' ${umpire_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+  echo 'set(UMPIRE_DIR ' ${umpire_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
 fi
 
 
-echo 'set(HDF5_DIR ' ${hdf5_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
-echo 'set(CGNS_DIR ' ${cgns_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
-echo 'set(ZLIB_DIR ' ${zlib_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+echo 'set(HDF5_DIR ' ${hdf5_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
+echo 'set(CGNS_DIR ' ${cgns_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
+echo 'set(ZLIB_DIR ' ${zlib_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
 if ${build_zfp}; then
-  echo 'set(ZFP_DIR ' ${zfp_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
-  echo 'set(H5ZZFP_DIR ' ${h5zzfp_install_dir} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+  echo 'set(ZFP_DIR ' ${zfp_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
+  echo 'set(H5ZZFP_DIR ' ${h5zzfp_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
 fi
 
 if [[ "$enable_cuda" == "ON" ]]; then
-    echo 'set(ENABLE_CUDA ON CACHE BOOL "")' >> ${root_dir}/conduit-config.cmake
-    echo 'set(CMAKE_CUDA_ARCHITECTURES ' ${CUDA_ARCH} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+    echo 'set(ENABLE_CUDA ON CACHE BOOL "")' >> ${cmake_host_config}
+    echo 'set(CMAKE_CUDA_ARCHITECTURES ' ${CUDA_ARCH} ' CACHE PATH "")' >> ${cmake_host_config}
 fi
 
 if [[ "$enable_hip" == "ON" ]]; then
-    echo 'set(ENABLE_HIP ON CACHE BOOL "")' >> ${root_dir}/conduit-config.cmake
-    echo 'set(CMAKE_HIP_COMPILER ' ${CXX} ' CACHE STRING "")' >> ${root_dir}/conduit-config.cmake
-    echo 'set(CMAKE_HIP_ARCHITECTURES ' ${ROCM_ARCH} ' CACHE STRING "")' >> ${root_dir}/conduit-config.cmake
-    echo 'set(ROCM_PATH ' ${ROCM_PATH} ' CACHE PATH "")' >> ${root_dir}/conduit-config.cmake
+    echo 'set(ENABLE_HIP ON CACHE BOOL "")' >> ${cmake_host_config}
+    echo 'set(CMAKE_HIP_COMPILER ' ${CXX} ' CACHE STRING "")' >> ${cmake_host_config}
+    echo 'set(CMAKE_HIP_ARCHITECTURES ' ${ROCM_ARCH} ' CACHE STRING "")' >> ${cmake_host_config}
+    echo 'set(ROCM_PATH ' ${ROCM_PATH} ' CACHE PATH "")' >> ${cmake_host_config}
 fi
 
 # build only if install doesn't exist
@@ -873,7 +894,7 @@ if [ ! -d ${conduit_src_dir} ]; then
 fi
 
 echo "**** Configuring Conduit"
-cmake -S ${conduit_src_dir} -B ${conduit_build_dir} -C ${root_dir}/conduit-config.cmake
+cmake -S ${conduit_src_dir} -B ${conduit_build_dir} -C ${cmake_host_config}
 
 echo "**** Building Conduit"
 cmake --build ${conduit_build_dir} --config ${build_config} -j${build_jobs}
