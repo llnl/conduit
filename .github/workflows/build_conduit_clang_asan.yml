@@ -6,7 +6,7 @@ on:
 
 jobs:
   build_basic:
-    name: Ubuntu Build Conduit Clang Asan
+    name: Ubuntu Clang Asan
     runs-on: ubuntu-latest
     env:
       CC: clang

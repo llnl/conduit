@@ -12,6 +12,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Added `CONDUIT_VERSION_VALUE` macro that encodes the current Conduit version as an integer.
 - Added a macro to make an integer a version number from major, minor, patch version numbers. Example: `CONDUIT_MAKE_VERSION_VALUE(0, 9, 6)`. This macro can be used to conditionally compile code that is valid for specific versions of Conduit.
 - Added `set` methods to `DataAccessor` that take `DataArray`s and `DataAccessor`s.
+- Added optional device execution support via RAJA and Umpire.
 - Added `conduit_bin_yaml` protocol case to `Node::load()` and `Node::save()`. Also added `conduit_bin_json`, which does the same thing as `conduit_bin` (creates a json schema file to go with the `conduit_bin` file).
 
 #### Blueprint

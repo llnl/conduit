@@ -79,6 +79,7 @@ if("MPI" IN_LIST Conduit_FIND_COMPONENTS)
     endif()
 endif()
 
+
 ###############################################################################
 # Setup Caliper
 ###############################################################################
@@ -139,6 +140,100 @@ if(CALIPER_DIR)
     find_dependency(caliper REQUIRED
                     NO_DEFAULT_PATH
                     PATHS ${CALIPER_DIR}/share/cmake/caliper)
+endif()
+
+###############################################################################
+# Setup Camp
+###############################################################################
+if(NOT CAMP_DIR)
+    set(CAMP_DIR ${CONDUIT_CAMP_DIR})
+endif()
+
+if(CAMP_DIR)
+    set(_CAMP_SEARCH_PATH)
+    if(EXISTS ${CAMP_DIR}/share/camp/cmake)
+      # old install layout ?
+      set(_CAMP_SEARCH_PATH ${CAMP_DIR}/share/camp/cmake)
+    else()
+      # new install layout ?
+      set(_CAMP_SEARCH_PATH ${CAMP_DIR}/lib/cmake/camp)
+    endif()
+
+    if(NOT EXISTS ${_CAMP_SEARCH_PATH})
+        message(FATAL_ERROR "Could not find Camp CMake include file (${_CAMP_SEARCH_PATH})")
+    endif()
+
+    ###############################################################################
+    # Import CMake targets
+    ###############################################################################
+    find_dependency(camp REQUIRED
+                    NO_DEFAULT_PATH
+                    PATHS ${_CAMP_SEARCH_PATH})
+endif()
+
+
+###############################################################################
+# Setup Umpire
+###############################################################################
+if(NOT UMPIRE_DIR)
+    set(UMPIRE_DIR ${CONDUIT_UMPIRE_DIR})
+endif()
+
+if(UMPIRE_DIR)
+    set(_UMPIRE_SEARCH_PATH)
+    if(EXISTS ${UMPIRE_DIR}/share/umpire/cmake)
+      # old install layout
+      set(_UMPIRE_SEARCH_PATH ${UMPIRE_DIR}/share/umpire/cmake)
+    elseif(EXISTS ${UMPIRE_DIR}/lib/cmake/umpire)
+      # new install layout
+      set(_UMPIRE_SEARCH_PATH ${UMPIRE_DIR}/lib/cmake/umpire)
+    elseif(EXISTS ${UMPIRE_DIR}/lib64/cmake/umpire)
+        # new new install layout
+        set(_UMPIRE_SEARCH_PATH ${UMPIRE_DIR}/lib64/cmake/umpire)
+    endif()
+
+    if(NOT EXISTS ${_UMPIRE_SEARCH_PATH})
+        message(FATAL_ERROR "Could not find Umpire CMake include file (${_UMPIRE_SEARCH_PATH})")
+    endif()
+
+    ###############################################################################
+    # Import CMake targets
+    ###############################################################################
+    find_dependency(umpire REQUIRED
+                    NO_DEFAULT_PATH
+                    PATHS ${_UMPIRE_SEARCH_PATH})
+endif()
+
+###############################################################################
+# Setup RAJA
+###############################################################################
+if(NOT RAJA_DIR)
+    set(RAJA_DIR ${CONDUIT_RAJA_DIR})
+endif()
+
+if(RAJA_DIR)
+    set(_RAJA_SEARCH_PATH)
+    if(EXISTS ${RAJA_DIR}/share/raja/cmake)
+      # old install layout
+      set(_RAJA_SEARCH_PATH ${RAJA_DIR}/share/raja/cmake)
+    elseif(EXISTS ${RAJA_DIR}/lib/cmake/raja)
+      # new install layout
+      set(_RAJA_SEARCH_PATH ${RAJA_DIR}/lib/cmake/raja)
+    else ()
+      # try RAJA_DIR itself
+      set(_RAJA_SEARCH_PATH ${RAJA_DIR})
+    endif()
+
+    if(NOT EXISTS ${_RAJA_SEARCH_PATH})
+        message(FATAL_ERROR "Could not find RAJA CMake include file (${_RAJA_SEARCH_PATH})")
+    endif()
+
+    ###############################################################################
+    # Import CMake targets
+    ###############################################################################
+    find_dependency(RAJA REQUIRED
+                    NO_DEFAULT_PATH
+                    PATHS ${_RAJA_SEARCH_PATH})
 endif()
 
 ###############################################################################

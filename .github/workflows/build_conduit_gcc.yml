@@ -6,7 +6,7 @@ on:
 
 jobs:
   build_basic:
-    name: Ubuntu Build Conduit GCC
+    name: Ubuntu GCC
     runs-on: ubuntu-24.04
     env:
       CC: gcc
@@ -86,7 +86,7 @@ jobs:
         cmake --build build --verbose -j2
         mpiexec -n 2 ./build/conduit_mpi_example
   build_basic_pyvenv:
-    name: Ubuntu Build Conduit GCC with Python VENV
+    name: Ubuntu GCC with Python VENV
     runs-on: ubuntu-24.04
     env:
       CC: gcc
