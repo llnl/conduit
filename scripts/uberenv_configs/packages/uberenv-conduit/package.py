@@ -22,17 +22,17 @@
 # License along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 ##############################################################################
-from spack import *
 
-import socket
 import os
-
 from os.path import join as pjoin
-from os import environ as env
 
-import spack.pkg.builtin.ascent
+import spack.repo
+from spack.package import *
 
-class UberenvConduit(spack.pkg.builtin.conduit.Conduit):
+from spack_repo.builtin.packages.conduit.package import Conduit as BuiltinConduit 
+
+
+class UberenvConduit(BuiltinConduit):
     """Conduit is an open source project from Lawrence Livermore National
     Laboratory that provides an intuitive model for describing hierarchical
     scientific data in C++, C, Fortran, and Python. It is used for data
@@ -68,7 +68,7 @@ class UberenvConduit(spack.pkg.builtin.conduit.Conduit):
         return url
 
     def hostconfig(self,spec,prefix):
-        spack.pkg.builtin.conduit.Conduit.hostconfig(self)
+        BuiltinConduit.hostconfig(self)
         src = self._get_host_config_path(self.spec)
         dst = join_path(self.spec.prefix, os.path.basename(src))
         copy(src, dst)
