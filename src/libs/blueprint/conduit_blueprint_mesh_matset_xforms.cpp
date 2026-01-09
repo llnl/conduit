@@ -545,7 +545,7 @@ determine_num_elems_in_multi_buffer_by_material(const conduit::Node &elem_ids)
         const Node &mat_elem_ids = eid_itr.next();
         const std::string matname = eid_itr.name();
         int64_accessor mat_elem_ids_vals = mat_elem_ids.value();
-        int num_vf = mat_elem_ids_vals.dtype().number_of_elements();
+        const int num_vf = mat_elem_ids_vals.dtype().number_of_elements();
         for (int i = 0; i < num_vf; i ++)
         {
             elem_ids_set.insert(mat_elem_ids_vals[i]);
@@ -605,6 +605,7 @@ read_from_map_write_out(std::map<std::string, std::vector<T>> &datamap,
 }
 
 //-----------------------------------------------------------------------------
+// takes sparse by material data and stores it into a map
 void
 create_sbm_rep(const conduit::Node &elem_id_src,
                const conduit::Node &values_src,
@@ -633,24 +634,24 @@ sbm_rep_to_full(const std::map<std::string, std::pair<int64_accessor, float64_ac
                 const int num_elems,
                 conduit::Node &destination)
 {
-    for (auto &mapitem : sbm_rep)
+    for (const auto &mapitem : sbm_rep)
     {
-        std::vector<double> values(num_elems, 0.0);
-        
         const std::string &matname = mapitem.first;
         const int64_accessor sbm_eids = mapitem.second.first;
         const float64_accessor sbm_vals = mapitem.second.second;
+
+        destination[matname].set(DataType::float64(num_elems));
+        float64_array dest_data = destination[matname].value();
+        dest_data.fill(0.0);
         
         const int num_vf = sbm_vals.dtype().number_of_elements();
         for (int mat_vf_id = 0; mat_vf_id < num_vf; mat_vf_id ++)
         {
             const int elem_id = sbm_eids[mat_vf_id];
-            const double value = sbm_vals[mat_vf_id];
+            const float64 value = sbm_vals[mat_vf_id];
 
-            values[elem_id] = value;
+            dest_data[elem_id] = value;
         }
-
-        destination[matname].set(values);
     }
 }
 
@@ -1451,6 +1452,77 @@ multi_buffer_by_material_to_multi_buffer_by_element_field(const conduit::Node &s
     else
     {
         dest_field.set(src_field);
+    }
+}
+
+//-----------------------------------------------------------------------------
+// venn sparse by material -> full
+void
+multi_buffer_by_material_to_multi_buffer_by_element_specset(const conduit::Node &src_matset,
+                                                            const conduit::Node &src_specset,
+                                                            const std::string &dest_matset_name,
+                                                            conduit::Node &dest_specset)
+{
+    dest_specset.reset();
+
+    dest_specset["matset"] = dest_matset_name;
+
+    // sparse by material representation
+    // we map material names to element ids and maps from species names to mass fractions
+    std::map<std::string, std::pair<int64_accessor, std::map<std::string, float64_accessor>>> sbm_rep;
+
+    auto eid_itr = src_matset["element_ids"].children();
+    while (eid_itr.has_next())
+    {
+        const Node &mat_elem_ids = eid_itr.next();
+        const std::string matname = eid_itr.name();
+        sbm_rep[matname].first = mat_elem_ids.value();
+    }
+
+    auto val_itr = src_specset["matset_values"].children();
+    while (val_itr.has_next())
+    {
+        const Node &mset_vals = val_itr.next();
+        const std::string matname = val_itr.name();
+
+        auto spec_itr = mset_vals.children();
+        while (spec_itr.has_next())
+        {
+            const Node &spec_mf = spec_itr.next();
+            const std::string specname = spec_itr.name();
+
+            sbm_rep[matname].second[specname] = spec_mf.value();
+        }
+    }
+
+    const int num_elems = determine_num_elems_in_multi_buffer_by_material(src_matset["element_ids"]);
+
+    for (const auto &mapitem : sbm_rep)
+    {
+        const std::string &matname = mapitem.first;
+        const int64_accessor sbm_eids = mapitem.second.first;
+
+
+        const std::map<std::string, float64_accessor> &spec_mf_map = mapitem.second.second;
+        for (const auto &spec_mf_map_item : spec_mf_map)
+        {
+            const std::string specname = spec_mf_map_item.first;
+            const float64_accessor sbm_spec_mf_vals = spec_mf_map_item.second;
+
+            dest_specset["matset_values"][matname][specname].set(DataType::float64(num_elems));
+            float64_array dest_data = dest_specset["matset_values"][matname][specname].value();
+            dest_data.fill(0.0);
+
+            const int num_mf = sbm_spec_mf_vals.dtype().number_of_elements();
+            for (int mat_vf_id = 0; mat_vf_id < num_mf; mat_vf_id ++)
+            {
+                const int elem_id = sbm_eids[mat_vf_id];
+                const float64 value = sbm_spec_mf_vals[mat_vf_id];
+
+                dest_data[elem_id] = value;
+            }
+
+        }
     }
 }
 
