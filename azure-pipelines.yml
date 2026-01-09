@@ -82,7 +82,7 @@ stages:
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
-        ub_22_04_static_py313_cmake_3_30:
+        ub_22_04_static_py313_cmake_3_30_hdf5_2_0:
           containerImage: ${{ variables.ubuntu_22_04_tag }}
           COMPILER_CC: gcc
           COMPILER_CXX: g++
@@ -97,8 +97,8 @@ stages:
           ENABLE_RELAY_WEBSERVER: ON
           ENABLE_OPENMP: ON
           ENABLE_HDF5: ON
-          ENABLE_HDF5_COMPAT: ON
-          HDF5_SPEC: "hdf5~mpi"
+          ENABLE_HDF5_COMPAT: OFF
+          HDF5_SPEC: "hdf5@2.0.0"
           ENABLE_SILO: ON
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: ON
@@ -108,59 +108,7 @@ stages:
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
-        ub_22_04_shared_py313_cmake_3_30:
-          containerImage: ${{ variables.ubuntu_22_04_tag }}
-          COMPILER_CC: gcc
-          COMPILER_CXX: g++
-          COMPILER_FC: gfortran
-          COMPILER_SPEC: gcc
-          FORCE_COMPILERS: OFF
-          BUILD_SHARED_LIBS: ON
-          CMAKE_BUILD_TYPE: Debug
-          ENABLE_COVERAGE: OFF
-          ENABLE_MPI: ON
-          ENABLE_DOCS: ON
-          ENABLE_RELAY_WEBSERVER: ON
-          ENABLE_OPENMP: ON
-          ENABLE_HDF5: ON
-          ENABLE_HDF5_COMPAT: ON
-          HDF5_SPEC: "hdf5~mpi"
-          ENABLE_SILO: ON
-          ENABLE_ADIOS: OFF
-          ENABLE_PARMETIS: ON
-          ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.13.0
-          CMAKE_VERSION:  3.30.5
-          BLT_CXX_STD: c++14
-          BLT_ENABLE_FIND_MPI: ON
-
-        # ub_22_04_shared_py313_cmake_3_30_hdf5_1_10:
-        #   containerImage: ${{ variables.ubuntu_22_04_tag }}
-        #   COMPILER_CC: gcc
-        #   COMPILER_CXX: g++
-        #   COMPILER_FC: gfortran
-        #   COMPILER_SPEC: gcc
-        #   FORCE_COMPILERS: OFF
-        #   BUILD_SHARED_LIBS: ON
-        #   CMAKE_BUILD_TYPE: Debug
-        #   ENABLE_COVERAGE: OFF
-        #   ENABLE_MPI: ON
-        #   ENABLE_DOCS: ON
-        #   ENABLE_RELAY_WEBSERVER: ON
-        #   ENABLE_OPENMP: ON
-        #   ENABLE_HDF5: ON
-        #   ENABLE_HDF5_COMPAT: OFF
-        #   HDF5_SPEC: "hdf5@1.10.7~mpi"
-        #   ENABLE_SILO: ON
-        #   ENABLE_ADIOS: OFF
-        #   ENABLE_PARMETIS: ON
-        #   ENABLE_PYTHON: ON
-        #   PYTHON_VERSION: 3.13.0
-        #   CMAKE_VERSION: 3.30.5
-        #   BLT_CXX_STD: c++14
-        #   BLT_ENABLE_FIND_MPI: ON
-
-        ub_22_04_shared_py313_cmake_3_30_hdf5_1_14:
+        ub_22_04_shared_py313_cmake_3_30_hdf5_2_0:
           containerImage: ${{ variables.ubuntu_22_04_tag }}
           COMPILER_CC: gcc
           COMPILER_CXX: g++
@@ -176,76 +124,43 @@ stages:
           ENABLE_OPENMP: ON
           ENABLE_HDF5: ON
           ENABLE_HDF5_COMPAT: OFF
-          HDF5_SPEC: "hdf5@1.14.0~mpi"
-          # silo requires hdf5 1.10, so for now we can't
-          # test both silo and hdf5 1.14 support
-          ENABLE_SILO: OFF
+          HDF5_SPEC: "hdf5@2.0.0"
+          ENABLE_SILO: ON
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: ON
           ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.10.14
-          CMAKE_VERSION: 3.24.4
+          PYTHON_VERSION: 3.13.0
+          CMAKE_VERSION:  3.30.5
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
-        # ub_20_04_shared_py310_cmake_3_30_hdf5_1_14:
-        #   containerImage: ${{ variables.ubuntu_20_04_tag }}
-        #   COMPILER_CC: gcc
-        #   COMPILER_CXX: g++
-        #   COMPILER_FC: gfortran
-        #   COMPILER_SPEC: gcc
-        #   FORCE_COMPILERS: OFF
-        #   BUILD_SHARED_LIBS: ON
-        #   CMAKE_BUILD_TYPE: Debug
-        #   ENABLE_COVERAGE: OFF
-        #   ENABLE_MPI: ON
-        #   ENABLE_DOCS: ON
-        #   ENABLE_RELAY_WEBSERVER: ON
-        #   ENABLE_OPENMP: ON
-        #   ENABLE_HDF5: ON
-        #   ENABLE_HDF5_COMPAT: OFF
-        #   HDF5_SPEC: "hdf5@1.14.0~mpi"
-        #   # silo requires hdf5 1.10, so for now we can't
-        #   # test both silo and hdf5 1.14 support
-        #   ENABLE_SILO: OFF
-        #   ENABLE_ADIOS: OFF
-        #   ENABLE_PARMETIS: ON
-        #   ENABLE_PYTHON: ON
-        #   PYTHON_VERSION: 3.10.14
-        #   CMAKE_VERSION: 3.30.5
-        #   BLT_CXX_STD: c++14
-        #   BLT_ENABLE_FIND_MPI: ON
+        ub_22_04_shared_cxx_20_py313_cmake_3_30_hdf5_2_0:
+          containerImage: ${{ variables.ubuntu_24_04_tag }}
+          COMPILER_CC: gcc
+          COMPILER_CXX: g++
+          COMPILER_FC: gfortran
+          COMPILER_SPEC: gcc
+          FORCE_COMPILERS: OFF
+          BUILD_SHARED_LIBS: ON
+          CMAKE_BUILD_TYPE: Debug
+          ENABLE_COVERAGE: OFF
+          ENABLE_MPI: ON
+          ENABLE_DOCS: ON
+          ENABLE_RELAY_WEBSERVER: ON
+          ENABLE_OPENMP: ON
+          ENABLE_HDF5: ON
+          ENABLE_HDF5_COMPAT: OFF
+          HDF5_SPEC: "hdf5@2.0.0"
+          ENABLE_SILO: ON
+          ENABLE_ADIOS: OFF
+          ENABLE_PARMETIS: ON
+          ENABLE_PYTHON: ON
+          PYTHON_VERSION: 3.13.0
+          CMAKE_VERSION:  3.30.5
+          BLT_CXX_STD: c++20
+          BLT_ENABLE_FIND_MPI: ON
 
-        # TODO: Need to solve spack mysterty to enable this
-        # ub_20_04_shared_py311_cmake_3_26_hdf5_1_14:
-        #   containerImage: ${{ variables.ubuntu_20_04_tag }}
-        #   COMPILER_CC: gcc
-        #   COMPILER_CXX: g++
-        #   COMPILER_FC: gfortran
-        #   COMPILER_SPEC: gcc
-        #   FORCE_COMPILERS: OFF
-        #   BUILD_SHARED_LIBS: ON
-        #   CMAKE_BUILD_TYPE: Debug
-        #   ENABLE_COVERAGE: OFF
-        #   ENABLE_MPI: ON
-        #   ENABLE_DOCS: ON
-        #   ENABLE_RELAY_WEBSERVER: ON
-        #   ENABLE_OPENMP: ON
-        #   ENABLE_HDF5: ON
-        #   ENABLE_HDF5_COMPAT: OFF
-        #   HDF5_SPEC: "hdf5@1.14.0~mpi"
-        #   # silo requires hdf5 1.10, so for now we can't
-        #   # test both silo and hdf5 1.14 support
-        #   ENABLE_SILO: OFF
-        #   ENABLE_ADIOS: OFF
-        #   ENABLE_PARMETIS: ON
-        #   ENABLE_PYTHON: ON
-        #   PYTHON_VERSION: 3.11.2
-        #   CMAKE_VERSION: 3.26.0
-        #   BLT_CXX_STD: c++14
-        #   BLT_ENABLE_FIND_MPI: ON
-
-        ub_22_04_shared_mpi_compilers_direct_cmake_3_30:
+        ub_22_04_shared_mpi_compilers_direct_cmake_3_30_hdf5_1_14:
           containerImage: ${{ variables.ubuntu_22_04_tag }}
           COMPILER_CC: mpicc
           COMPILER_CXX: mpic++
@@ -260,7 +175,7 @@ stages:
           ENABLE_RELAY_WEBSERVER: ON
           ENABLE_OPENMP: ON
           ENABLE_HDF5: ON
-          ENABLE_HDF5_COMPAT: ON
+          ENABLE_HDF5_COMPAT: OFF
           HDF5_SPEC: "hdf5~mpi"
           ENABLE_SILO: ON
           ENABLE_ADIOS: OFF
@@ -268,32 +183,6 @@ stages:
           CMAKE_VERSION: 3.30.0
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: OFF
-
-        # ub_22_04_shared_py39_cmake_3_21:
-        #   containerImage: ${{ variables.ubuntu_22_04_tag }}
-        #   COMPILER_CC: gcc
-        #   COMPILER_CXX: g++
-        #   COMPILER_FC: gfortran
-        #   COMPILER_SPEC: gcc
-        #   FORCE_COMPILERS: OFF
-        #   BUILD_SHARED_LIBS: ON
-        #   CMAKE_BUILD_TYPE: Debug
-        #   ENABLE_COVERAGE: OFF
-        #   ENABLE_MPI: ON
-        #   ENABLE_DOCS: ON
-        #   ENABLE_RELAY_WEBSERVER: ON
-        #   ENABLE_OPENMP: ON
-        #   ENABLE_HDF5: ON
-        #   ENABLE_HDF5_COMPAT: ON
-        #   HDF5_SPEC: "hdf5~mpi"
-        #   ENABLE_SILO: ON
-        #   ENABLE_ADIOS: OFF
-        #   ENABLE_PARMETIS: ON
-        #   ENABLE_PYTHON: ON
-        #   PYTHON_VERSION: 3.9.19
-        #   CMAKE_VERSION: 3.21.7
-        #   BLT_CXX_STD: c++14
-        #   BLT_ENABLE_FIND_MPI: ON
 
     steps:
       - checkout: self
