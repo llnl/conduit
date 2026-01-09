@@ -1684,6 +1684,8 @@ multi_buffer_by_material_to_uni_buffer_by_element_specset(const conduit::Node &s
     // we map material names to element ids and maps from species names to mass fractions
     std::map<std::string, std::pair<int64_accessor, std::map<std::string, float64_accessor>>> sbm_rep;
 
+    // TODO can I refactor sbm_rep creation for species sets?
+
     auto eid_itr = src_matset["element_ids"].children();
     while (eid_itr.has_next())
     {
