@@ -78,7 +78,7 @@ stages:
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: OFF
           ENABLE_PYTHON: OFF
-          CMAKE_VERSION: 3.30.5
+          CMAKE_VERSION: 3.30.9
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
@@ -103,8 +103,8 @@ stages:
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: ON
           ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.13.0
-          CMAKE_VERSION: 3.30.5
+          PYTHON_VERSION: 3.13.11
+          CMAKE_VERSION: 3.30.9
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
@@ -129,8 +129,8 @@ stages:
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: ON
           ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.13.0
-          CMAKE_VERSION:  3.30.5
+          PYTHON_VERSION: 3.13.11
+          CMAKE_VERSION:  3.30.9
           BLT_CXX_STD: c++14
           BLT_ENABLE_FIND_MPI: ON
 
@@ -155,8 +155,8 @@ stages:
           ENABLE_ADIOS: OFF
           ENABLE_PARMETIS: ON
           ENABLE_PYTHON: ON
-          PYTHON_VERSION: 3.13.0
-          CMAKE_VERSION:  3.30.5
+          PYTHON_VERSION: 3.13.11
+          CMAKE_VERSION:  3.30.9
           BLT_CXX_STD: c++20
           BLT_ENABLE_FIND_MPI: ON
 
