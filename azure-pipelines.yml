@@ -135,7 +135,7 @@ stages:
           BLT_ENABLE_FIND_MPI: ON
 
         ub_22_04_shared_cxx_20_py313_cmake_3_30_hdf5_2_0:
-          containerImage: ${{ variables.ubuntu_24_04_tag }}
+          containerImage: ${{ variables.ubuntu_22_04_tag }}
           COMPILER_CC: gcc
           COMPILER_CXX: g++
           COMPILER_FC: gfortran
@@ -210,7 +210,7 @@ stages:
            which python
            python3 --version
            # setup spack spec
-           export SPACK_SPEC="%${COMPILER_SPEC}"
+           export SPACK_SPEC=""
            # mpi
            if [ $ENABLE_MPI  = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC}+mpi"; fi
            if [ $ENABLE_MPI  = 'OFF' ]; then export SPACK_SPEC="${SPACK_SPEC}~mpi"; fi
@@ -244,6 +244,8 @@ stages:
            if [ $ENABLE_HDF5 = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC} ^${HDF5_SPEC}"; fi
            # silo constraints
            if [ $ENABLE_SILO = 'ON' ]; then export SPACK_SPEC="${SPACK_SPEC} ^silo~mpi~python"; fi
+           # Note: Spack 1.0 and beyond, compiler spec must be at the end
+           export SPACK_SPEC="${SPACK_SPEC}%${COMPILER_SPEC}"
            # show final spec
            echo "SPACK SPEC:"
            echo $SPACK_SPEC
