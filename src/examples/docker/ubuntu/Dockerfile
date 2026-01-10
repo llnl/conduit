@@ -55,7 +55,7 @@ RUN tar -xf conduit.docker.src.tar
 #  will not run for the root user
 RUN cd conduit && python3 scripts/uberenv/uberenv.py \
     -k \
-    --spec "%gcc+mpi" \
+    --spec "+mpi%gcc" \
     --spack-env-file=scripts/uberenv_configs/spack_configs/envs/alpinedav-ubuntu_18.04_devel/spack.yaml
 
 # configure a debug build with cmake
