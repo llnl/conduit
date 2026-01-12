@@ -633,7 +633,7 @@ create_sbm_rep(const conduit::Node &elem_id_src,
 void
 create_sbm_specset_rep(const conduit::Node &elem_id_src,
                        const conduit::Node &values_src,
-                       std::map<std::string, std::pair<int64_accessor, std::map<std::string, float64_accessor>>> sbm_rep)
+                       std::map<std::string, std::pair<int64_accessor, std::map<std::string, float64_accessor>>> &sbm_rep)
 {
     auto eid_itr = elem_id_src.children();
     while (eid_itr.has_next())
@@ -888,7 +888,7 @@ multi_buffer_by_element_to_uni_buffer_by_element_specset(const conduit::Node &sr
             const float64 vol_frac = full_vol_fracs[mat_id][elem_id];
             if (vol_frac > epsilon)
             {
-                const int num_species_for_this_material = num_species_for_mat.at(mat_idx);
+                const int num_species_for_this_material = num_species_for_mat.at(mat_id);
                 for (int spec_id = 0; spec_id < num_species_for_this_material; spec_id ++)
                 {
                     const float64 spec_val = full_specset_vals.at(mat_id).at(spec_id)[elem_id];
@@ -1273,7 +1273,7 @@ uni_buffer_by_element_to_multi_buffer_by_material_specset(const conduit::Node &s
                 const float64 val = matset_values[spec_mf_idx];
 
                 // save the species mass fraction in its new home
-                new_matset_vals.at(matname).at(specname).push_back(val);
+                new_matset_vals[matname][specname].push_back(val);
             }
 
             // we have read num species, now we must move our offset
