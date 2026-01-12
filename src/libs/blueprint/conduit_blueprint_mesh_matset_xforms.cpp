@@ -1257,7 +1257,7 @@ uni_buffer_by_element_to_multi_buffer_by_material_specset(const conduit::Node &s
                 // the names appear in the species_names)
                 const std::string &specname = src_specset["species_names"][matname].child(spec_val_idx).name();
 
-                // We need an index that is between 0 and the num_species_for_this_material
+                // We need an index that is between 0 and the number of species in this zone.
                 // The way to calculate this is to add our running sum (material_offset)
                 // with the current species value index, which ranges between 0 and the
                 // number of species for this material.
