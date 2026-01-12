@@ -629,6 +629,38 @@ create_sbm_rep(const conduit::Node &elem_id_src,
 }
 
 //-----------------------------------------------------------------------------
+// takes sparse by material data and stores it into a map
+void
+create_sbm_specset_rep(const conduit::Node &elem_id_src,
+                       const conduit::Node &values_src,
+                       std::map<std::string, std::pair<int64_accessor, std::map<std::string, float64_accessor>>> sbm_rep)
+{
+    auto eid_itr = elem_id_src.children();
+    while (eid_itr.has_next())
+    {
+        const Node &mat_elem_ids = eid_itr.next();
+        const std::string matname = eid_itr.name();
+        sbm_rep[matname].first = mat_elem_ids.value();
+    }
+
+    auto val_itr = values_src.children();
+    while (val_itr.has_next())
+    {
+        const Node &mset_vals = val_itr.next();
+        const std::string matname = val_itr.name();
+
+        auto spec_itr = mset_vals.children();
+        while (spec_itr.has_next())
+        {
+            const Node &spec_mf = spec_itr.next();
+            const std::string specname = spec_itr.name();
+
+            sbm_rep[matname].second[specname] = spec_mf.value();
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
 void
 sbm_rep_to_full(const std::map<std::string, std::pair<int64_accessor, float64_accessor>> &sbm_rep,
                 const int num_elems,
@@ -1471,29 +1503,7 @@ multi_buffer_by_material_to_multi_buffer_by_element_specset(const conduit::Node 
     // we map material names to element ids and maps from species names to mass fractions
     std::map<std::string, std::pair<int64_accessor, std::map<std::string, float64_accessor>>> sbm_rep;
 
-    auto eid_itr = src_matset["element_ids"].children();
-    while (eid_itr.has_next())
-    {
-        const Node &mat_elem_ids = eid_itr.next();
-        const std::string matname = eid_itr.name();
-        sbm_rep[matname].first = mat_elem_ids.value();
-    }
-
-    auto val_itr = src_specset["matset_values"].children();
-    while (val_itr.has_next())
-    {
-        const Node &mset_vals = val_itr.next();
-        const std::string matname = val_itr.name();
-
-        auto spec_itr = mset_vals.children();
-        while (spec_itr.has_next())
-        {
-            const Node &spec_mf = spec_itr.next();
-            const std::string specname = spec_itr.name();
-
-            sbm_rep[matname].second[specname] = spec_mf.value();
-        }
-    }
+    create_sbm_specset_rep(src_matset["element_ids"], src_specset["matset_values"], sbm_rep);
 
     const int num_elems = determine_num_elems_in_multi_buffer_by_material(src_matset["element_ids"]);
 
@@ -1501,7 +1511,6 @@ multi_buffer_by_material_to_multi_buffer_by_element_specset(const conduit::Node 
     {
         const std::string &matname = mapitem.first;
         const int64_accessor sbm_eids = mapitem.second.first;
-
 
         const std::map<std::string, float64_accessor> &spec_mf_map = mapitem.second.second;
         for (const auto &spec_mf_map_item : spec_mf_map)
@@ -1684,31 +1693,7 @@ multi_buffer_by_material_to_uni_buffer_by_element_specset(const conduit::Node &s
     // we map material names to element ids and maps from species names to mass fractions
     std::map<std::string, std::pair<int64_accessor, std::map<std::string, float64_accessor>>> sbm_rep;
 
-    // TODO can I refactor sbm_rep creation for species sets?
-
-    auto eid_itr = src_matset["element_ids"].children();
-    while (eid_itr.has_next())
-    {
-        const Node &mat_elem_ids = eid_itr.next();
-        const std::string matname = eid_itr.name();
-        sbm_rep[matname].first = mat_elem_ids.value();
-    }
-
-    auto val_itr = src_specset["matset_values"].children();
-    while (val_itr.has_next())
-    {
-        const Node &mset_vals = val_itr.next();
-        const std::string matname = val_itr.name();
-
-        auto spec_itr = mset_vals.children();
-        while (spec_itr.has_next())
-        {
-            const Node &spec_mf = spec_itr.next();
-            const std::string specname = spec_itr.name();
-
-            sbm_rep[matname].second[specname] = spec_mf.value();
-        }
-    }
+    create_sbm_specset_rep(src_matset["element_ids"], src_specset["matset_values"], sbm_rep);
 
     // create the species_names
     const std::vector<std::string> &matnames = src_specset["matset_values"].child_names();
