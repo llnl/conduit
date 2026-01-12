@@ -1548,12 +1548,13 @@ multi_buffer_by_material_to_uni_buffer_by_element_matset(const conduit::Node &sr
     // sparse by material representation
     // we map material names to volume fractions and element ids
     std::map<std::string, std::pair<int64_accessor, float64_accessor>> sbm_rep;
-    std::map<std::string, int64> matmap;
+
+    Node &material_map = dest_matset["material_map"];
 
     int64 mat_map_id = 0;
     for (const auto &matname : src_matset["volume_fractions"].child_names())
     {
-        matmap[matname] = mat_map_id;
+        material_map[matname] = mat_map_id;
         mat_map_id ++;
     }
 
@@ -1570,7 +1571,7 @@ multi_buffer_by_material_to_uni_buffer_by_element_matset(const conduit::Node &sr
     for (const auto &mapitem : sbm_rep)
     {
         const std::string &matname = mapitem.first;
-        const int64 mat_id = matmap[matname];
+        const int64 mat_id = material_map[matname].to_int64();
 
         int64_accessor sbm_eids = std::get<0>(mapitem.second);
         float64_accessor sbm_vfs = std::get<1>(mapitem.second);
