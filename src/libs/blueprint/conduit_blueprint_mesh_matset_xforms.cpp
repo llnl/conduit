@@ -605,7 +605,7 @@ read_from_map_write_out(std::map<std::string, std::vector<T>> &datamap,
 }
 
 //-----------------------------------------------------------------------------
-// takes sparse by material data and stores it into a map
+// takes sparse by material data and stores it in a map
 void
 create_sbm_rep(const conduit::Node &elem_id_src,
                const conduit::Node &values_src,
@@ -629,7 +629,7 @@ create_sbm_rep(const conduit::Node &elem_id_src,
 }
 
 //-----------------------------------------------------------------------------
-// takes sparse by material data and stores it into a map
+// takes sparse by material data and stores it in a map
 void
 create_sbm_specset_rep(const conduit::Node &elem_id_src,
                        const conduit::Node &values_src,
