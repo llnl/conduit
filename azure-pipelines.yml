@@ -268,7 +268,7 @@ stages:
            export HOST_CONFIG=`ls ${ROOT_DIR}/uberenv_libs/*-patch.cmake`
            echo $HOST_CONFIG
            # find spack installed cmake
-           export CMAKE_BIN_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/cmake-*/bin
+           export CMAKE_BIN_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/cmake-*/bin`
            export PATH=${CMAKE_BIN_DIR}:$PATH
            echo $PATH
            which cmake
@@ -308,7 +308,7 @@ stages:
            #################################
            # find spack installed cmake
            export ROOT_DIR=`pwd`
-           export CMAKE_BIN_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/cmake-*/bin
+           export CMAKE_BIN_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/cmake-*/bin`
            export PATH=${CMAKE_BIN_DIR}:$PATH
            which ctest
            cd build
@@ -354,7 +354,7 @@ stages:
           ls -l
           # find spack installed cmake
           export ROOT_DIR=`pwd`
-          export CMAKE_BIN_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/cmake-*/bin
+          export CMAKE_BIN_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/cmake-*/bin`
           export PATH=${CMAKE_BIN_DIR}:$PATH
           echo $PATH
           which cmake
@@ -378,7 +378,7 @@ stages:
           ls -l
           # find spack installed cmake
           export ROOT_DIR=`pwd`
-          export CMAKE_BIN_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/cmake-*/bin
+          export CMAKE_BIN_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/cmake-*/bin`
           export PATH=${CMAKE_BIN_DIR}:$PATH
           echo $PATH
           which cmake
@@ -415,7 +415,7 @@ stages:
           ls -l
           # find spack installed cmake
           export ROOT_DIR=`pwd`
-          export CMAKE_BIN_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/cmake-*/bin
+          export CMAKE_BIN_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/cmake-*/bin`
           export PATH=${CMAKE_BIN_DIR}:$PATH
           echo $PATH
           which cmake
@@ -497,7 +497,7 @@ stages:
           ls -l
           # find spack installed cmake
           export ROOT_DIR=`pwd`
-          export CMAKE_BIN_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/cmake-*/bin
+          export CMAKE_BIN_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/cmake-*/bin`
           export PATH=${CMAKE_BIN_DIR}:$PATH
           echo $PATH
           which cmake
