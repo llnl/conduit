@@ -590,6 +590,85 @@ walk_uni_buffer_by_element_to_multi_buffer_by_element(
 }
 
 //-----------------------------------------------------------------------------
+template <typename SaveFunc>
+void
+walk_uni_buffer_by_element_to_multi_buffer_by_element_specset(
+    const conduit::Node &src_matset,
+    const conduit::Node &src_specset,
+    const std::map<int, std::string> &reverse_matmap,
+    float64_accessor &matset_values,
+    int64_accessor &material_ids,
+    SaveFunc save)
+{
+    // Create one to many index objects to index into the sparse by element 
+    // matset and specset.
+    auto o2m_matset_idx = o2mrelation::O2MIndex(src_matset);
+    auto o2m_specset_idx = o2mrelation::O2MIndex(src_specset);
+
+    const int num_elems = o2m_matset_idx.size();
+
+    // iterate through matset
+    for (int elem_id = 0; elem_id < num_elems; elem_id ++)
+    {
+        // Based on the element id, we can query how many materials there
+        // are in the current zone.
+        const index_t num_mats_in_zone = o2m_matset_idx.size(elem_id);
+
+        // Each time we step through a material, we need to track how far
+        // in the species matset_values we have read for that zone.
+        // So if a zone has some number of materials and each have a
+        // different number of species, then we need to track how many
+        // values we have read for the materials that came before.
+        int material_offset = 0;
+
+        // iterate through the materials in this zone
+        for (index_t local_mat_id = 0; local_mat_id < num_mats_in_zone; local_mat_id ++)
+        {
+            // what is the index into the material ids array
+            const index_t material_ids_index = o2m_matset_idx.index(elem_id, local_mat_id);
+
+            // what is the real material id
+            const int mat_id = material_ids[material_ids_index];
+
+            // fetch the material name
+            const std::string &matname = reverse_matmap.at(mat_id);
+
+            // fetch the number of species for this material
+            const int num_species_for_this_material = src_specset["species_names"][matname].number_of_children();
+
+            // iterate through each species for the current material
+            for (int spec_val_idx = 0; spec_val_idx < num_species_for_this_material; spec_val_idx ++)
+            {
+                // fetch the species name from the original specset (based on the order 
+                // the names appear in the species_names)
+                const std::string &specname = src_specset["species_names"][matname].child(spec_val_idx).name();
+
+                // We need an index that is between 0 and the number of species in this zone.
+                // The way to calculate this is to add our running sum (material_offset)
+                // with the current species value index, which ranges between 0 and the
+                // number of species for this material.
+                const int local_spec_id = material_offset + spec_val_idx;
+
+                // Now we can provide the one (element id) to many (species in element)
+                // relation with our element id and the local species index, which is
+                // an index into the number of species in this element. The result is
+                // an index into the "matset_values", which store species mass fractions.
+                const index_t spec_mf_idx = o2m_specset_idx.index(elem_id, local_spec_id);
+
+                // fetch the species mass fraction
+                const float64 val = matset_values[spec_mf_idx];
+
+                // save the species mass fraction in its new home
+                save(matname, specname, elem_id, val);
+            }
+
+            // we have read num species, now we must move our offset
+            material_offset += num_species_for_this_material;
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
 template<typename T>
 void
 read_from_map_write_out(std::map<std::string, std::vector<T>> &datamap,
@@ -1030,70 +1109,20 @@ uni_buffer_by_element_to_multi_buffer_by_element_specset(const conduit::Node &sr
     float64_accessor matset_values = src_specset["matset_values"].value();
     int64_accessor material_ids = src_matset["material_ids"].value();
 
-    // Create one to many index objects to index into the sparse by element 
-    // matset and specset.
-    auto o2m_matset_idx = o2mrelation::O2MIndex(src_matset);
-    auto o2m_specset_idx = o2mrelation::O2MIndex(src_specset);
-
-    // iterate through matset
-    for (int elem_id = 0; elem_id < num_elems; elem_id ++)
+    auto save_function = [&](const std::string &matname,
+                             const std::string &specname,
+                             const int elem_id,
+                             const float64 val)
     {
-        // Based on the element id, we can query how many materials there
-        // are in the current zone.
-        const index_t num_mats_in_zone = o2m_matset_idx.size(elem_id);
+        new_matset_vals.at(matname).at(specname)[elem_id] = val;
+    };
 
-        // Each time we step through a material, we need to track how far
-        // in the species matset_values we have read for that zone.
-        // So if a zone has some number of materials and each have a
-        // different number of species, then we need to track how many
-        // values we have read for the materials that came before.
-        int material_offset = 0;
-
-        // iterate through the materials in this zone
-        for (index_t local_mat_id = 0; local_mat_id < num_mats_in_zone; local_mat_id ++)
-        {
-            // what is the index into the material ids array
-            const index_t material_ids_index = o2m_matset_idx.index(elem_id, local_mat_id);
-
-            // what is the real material id
-            const int mat_id = material_ids[material_ids_index];
-
-            // fetch the material name
-            const std::string &matname = reverse_matmap.at(mat_id);
-
-            // fetch the number of species for this material
-            const int num_species_for_this_material = src_specset["species_names"][matname].number_of_children();
-
-            // iterate through each species for the current material
-            for (int spec_val_idx = 0; spec_val_idx < num_species_for_this_material; spec_val_idx ++)
-            {
-                // fetch the species name from the original specset (based on the order 
-                // the names appear in the species_names)
-                const std::string &specname = src_specset["species_names"][matname].child(spec_val_idx).name();
-
-                // We need an index that is between 0 and the number of species in this zone.
-                // The way to calculate this is to add our running sum (material_offset)
-                // with the current species value index, which ranges between 0 and the
-                // number of species for this material.
-                const int local_spec_id = material_offset + spec_val_idx;
-
-                // Now we can provide the one (element id) to many (species in element)
-                // relation with our element id and the local species index, which is
-                // an index into the number of species in this element. The result is
-                // an index into the "matset_values", which store species mass fractions.
-                const index_t spec_mf_idx = o2m_specset_idx.index(elem_id, local_spec_id);
-
-                // fetch the species mass fraction
-                const float64 val = matset_values[spec_mf_idx];
-
-                // save the species mass fraction in its new home
-                new_matset_vals.at(matname).at(specname)[elem_id] = val;
-            }
-
-            // we have read num species, now we must move our offset
-            material_offset += num_species_for_this_material;
-        }
-    }
+    walk_uni_buffer_by_element_to_multi_buffer_by_element_specset(src_matset,
+                                                                  src_specset,
+                                                                  reverse_matmap,
+                                                                  matset_values,
+                                                                  material_ids,
+                                                                  save_function);
 
     // There is nothing more to do as we took care to save species mass fractions
     // in the right place.
@@ -1207,8 +1236,6 @@ uni_buffer_by_element_to_multi_buffer_by_material_specset(const conduit::Node &s
     // map material numbers to material names
     const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
 
-    const int num_elems = src_matset["sizes"].dtype().number_of_elements();
-
     // We create a map that we will write to
     std::map<std::string, std::map<std::string, std::vector<float64>>> new_matset_vals;
     
@@ -1216,70 +1243,21 @@ uni_buffer_by_element_to_multi_buffer_by_material_specset(const conduit::Node &s
     float64_accessor matset_values = src_specset["matset_values"].value();
     int64_accessor material_ids = src_matset["material_ids"].value();
 
-    // Create one to many index objects to index into the sparse by element 
-    // matset and specset.
-    auto o2m_matset_idx = o2mrelation::O2MIndex(src_matset);
-    auto o2m_specset_idx = o2mrelation::O2MIndex(src_specset);
-
-    // iterate through matset
-    for (int elem_id = 0; elem_id < num_elems; elem_id ++)
+    auto save_function = [&](const std::string &matname,
+                             const std::string &specname,
+                             const int elem_id,
+                             const float64 val)
     {
-        // Based on the element id, we can query how many materials there
-        // are in the current zone.
-        const index_t num_mats_in_zone = o2m_matset_idx.size(elem_id);
+        (void) elem_id;
+        new_matset_vals[matname][specname].push_back(val);
+    };
 
-        // Each time we step through a material, we need to track how far
-        // in the species matset_values we have read for that zone.
-        // So if a zone has some number of materials and each have a
-        // different number of species, then we need to track how many
-        // values we have read for the materials that came before.
-        int material_offset = 0;
-
-        // iterate through the materials in this zone
-        for (index_t local_mat_id = 0; local_mat_id < num_mats_in_zone; local_mat_id ++)
-        {
-            // what is the index into the material ids array
-            const index_t material_ids_index = o2m_matset_idx.index(elem_id, local_mat_id);
-
-            // what is the real material id
-            const int mat_id = material_ids[material_ids_index];
-
-            // fetch the material name
-            const std::string &matname = reverse_matmap.at(mat_id);
-
-            // fetch the number of species for this material
-            const int num_species_for_this_material = src_specset["species_names"][matname].number_of_children();
-
-            // iterate through each species for the current material
-            for (int spec_val_idx = 0; spec_val_idx < num_species_for_this_material; spec_val_idx ++)
-            {
-                // fetch the species name from the original specset (based on the order 
-                // the names appear in the species_names)
-                const std::string &specname = src_specset["species_names"][matname].child(spec_val_idx).name();
-
-                // We need an index that is between 0 and the number of species in this zone.
-                // The way to calculate this is to add our running sum (material_offset)
-                // with the current species value index, which ranges between 0 and the
-                // number of species for this material.
-                const int local_spec_id = material_offset + spec_val_idx;
-
-                // Now we can provide the one (element id) to many (species in element)
-                // relation with our element id and the local species index, which is
-                // an index into the number of species in this element. The result is
-                // an index into the "matset_values", which store species mass fractions.
-                const index_t spec_mf_idx = o2m_specset_idx.index(elem_id, local_spec_id);
-
-                // fetch the species mass fraction
-                const float64 val = matset_values[spec_mf_idx];
-
-                // save the species mass fraction in its new home
-                new_matset_vals[matname][specname].push_back(val);
-            }
-
-            // we have read num species, now we must move our offset
-            material_offset += num_species_for_this_material;
-        }
-    }
+    walk_uni_buffer_by_element_to_multi_buffer_by_element_specset(src_matset,
+                                                                  src_specset,
+                                                                  reverse_matmap,
+                                                                  matset_values,
+                                                                  material_ids,
+                                                                  save_function);
 
     // fetch the sparse by element species names child
     const Node &sbe_species_names = src_specset["species_names"];
