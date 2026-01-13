@@ -759,8 +759,15 @@ fi
 
 echo "**** Configuring H5Z-ZFP ${h5zzfp_version}"
 
-HDF5_DIR=${hdf5_install_dir}  \
-ZFP_DIR=${zfp_install_dir}/lib/cmake/zfp/ \
+# depending on the system zfp may use lib or lib64 pattern:
+if [ ! -d ${zfp_install_dir}/lib64/cmake/zfp/ ]; then
+  zfp_cmake_dir=${zfp_install_dir}/lib64/cmake/zfp/
+else
+  zfp_cmake_dir=${zfp_install_dir}/lib/cmake/zfp/
+fi
+
+HDF5_DIR=${hdf5_install_dir} \
+ZFP_DIR=${zfp_cmake_dir} \
 cmake -S ${h5zzfp_src_dir} -B ${h5zzfp_build_dir} ${cmake_compiler_settings} \
   -DCMAKE_VERBOSE_MAKEFILE:BOOL=${enable_verbose} \
   -DCMAKE_BUILD_TYPE=${build_config} \

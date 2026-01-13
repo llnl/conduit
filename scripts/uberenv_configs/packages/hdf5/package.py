@@ -39,10 +39,12 @@ class Hdf5(CMakePackage):
     version("develop-1.10", branch="hdf5_1_10")
     version("develop-1.8", branch="hdf5_1_8")
 
+    # note: there is a checksum mismatch between 2.0 github release and hdf5 group web tarballs
+    #       use github tarball b/c it matches the published shasum
     version(
         "2.0.0",
         sha256="f4c2edc5668fb846627182708dbe1e16c60c467e63177a75b0b9f12c19d7efed",
-        url="https://support.hdfgroup.org/releases/hdf5/v2_0/v2_0_0/downloads/hdf5-2.0.0.tar.gz"
+        url="https://github.com/HDFGroup/hdf5/releases/download/2.0.0/hdf5-2.0.0.tar.gz"
     )
     # Odd versions are considered experimental releases
     # Even versions are maintenance versions

@@ -20,6 +20,7 @@ jobs:
       run: |
         env build_conduit=false `
             enable_tests=OFF `
+            enable_zfp=OFF `
             ./scripts/build_conduit/build_conduit.sh
     - name: Configure Conduit
       run: |
