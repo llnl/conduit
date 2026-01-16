@@ -760,7 +760,7 @@ fi
 echo "**** Configuring H5Z-ZFP ${h5zzfp_version}"
 
 # depending on the system zfp may use lib or lib64 pattern:
-if [ ! -d ${zfp_install_dir}/lib64/cmake/zfp/ ]; then
+if [ -d ${zfp_install_dir}/lib64/cmake/zfp/ ]; then
   zfp_cmake_dir=${zfp_install_dir}/lib64/cmake/zfp/
 else
   zfp_cmake_dir=${zfp_install_dir}/lib/cmake/zfp/
