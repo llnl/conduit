@@ -8526,24 +8526,22 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     if (write_overlink)
     {
         // step 1. generate a map with the number of species per material for each
-        //         specset.
+        //         specset and check that all local domains match
 
         // map from specset name to map from matname to number of species per material
         Node num_spec_for_mats;
         // i.e.
-        //  -
-        //    specset1:
-        //       mat1: 3
-        //       mat2: 4
-        //    specset2:
-        //       mat1: 1
-        //       mat2: 2
-        //       mat3: 6
-        //  - 
-        //    specset1:
-        //       mat1: 3
-        //       mat2: 4
+        // specset1:
+        //    mat1: 3
+        //    mat2: 4
+        // specset2:
+        //    mat1: 1
+        //    mat2: 2
+        //    mat3: 6
         // ...
+
+        int error = 0;
+        std::stringstream errmsg;
 
         auto child_itr = multi_dom.children();
         while (child_itr.has_next())
@@ -8551,7 +8549,6 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
             const Node &child = child_itr.next();
             if (child.has_child("specsets"))
             {
-                Node &curr_dom_info = num_spec_for_mats.append();
                 const Node &specsets = child["specsets"];
                 auto specset_itr = specsets.children();
                 while (specset_itr.has_next())
@@ -8562,10 +8559,40 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                     std::vector<std::string> matnames;
                     blueprint::mesh::specset::get_material_names(specset, matnames);
 
-                    for (const auto &matname : matnames)
+                    // if we already have an entry for this specset from some domain
+                    if (num_spec_for_mats.has_child(specset_name))
                     {
-                        const index_t num_spec_for_mat = get_num_species_for_material(specset, matname);
-                        curr_dom_info[specset_name][matname] = num_spec_for_mat;
+                        const Node &specset_entry = num_spec_for_mats[specset_name];
+                        // if there is a mismatch in the number of materials
+                        if (specset_entry.number_of_children() != static_cast<index_t>(matnames.size()))
+                        {
+                            error = 1;
+                            errmsg << "Mismatch in the number of materials between species sets on different domains.";
+                            break;
+                        }
+                        else
+                        {
+                            for (const auto &matname : matnames)
+                            {
+                                const index_t num_spec_for_mat = get_num_species_for_material(specset, matname);
+                                const index_t other_num_spec_for_mat = specset_entry[matname].to_index_t();
+                                if (num_spec_for_mat != other_num_spec_for_mat)
+                                {
+                                    error = 1;
+                                    errmsg << "Mismatch in the number of species per material between species sets on different domains.";
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    // our first time encountering this species set on any local domain
+                    else
+                    {
+                        for (const auto &matname : matnames)
+                        {
+                            const index_t num_spec_for_mat = get_num_species_for_material(specset, matname);
+                            num_spec_for_mats[specset_name][matname] = num_spec_for_mat;
+                        }
                     }
                 }
             }
@@ -8575,41 +8602,60 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
             }
         }
 
-        // step 2. locally check that all domains have the same info
+        // step 2. globally check that all local results are acceptable
 
-        // step 3. globally check that all local results are the same
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+        Node n_local, n_global;
+        n_local.set((int)error);
+        relay::mpi::sum_all_reduce(n_local,
+                                   n_global,
+                                   mpi_comm);
 
-        // for both these steps we want to ignore domains that are missing data
+        error = n_global.as_int();
+
+        if (0 != error)
+        {
+            // we have a problem, broadcast string message
+            // from rank 0 all ranks can throw an error
+            n_global.set("Number of species per material within a set must agree across domains.");
+            conduit::relay::mpi::broadcast_using_schema(n_global,
+                                                        0,
+                                                        mpi_comm);
+
+            CONDUIT_ERROR(n_global.as_string());
+        }
+#else
+        // non MPI case, throw error
+        if (0 != error)
+        {
+            CONDUIT_ERROR("Number of species per material within a set must agree across domains.");
+        }
+#endif
+
+        // step 3. gather global results and check that they are the same
+
+        Node global_num_spec_for_mats;
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+        relay::mpi::all_gather_using_schema(num_spec_for_mats,
+                                            global_num_spec_for_mats,
+                                            mpi_comm);
+#else
+        global_num_spec_for_mats.append().set_external(num_spec_for_mats);
+#endif
+        if (global_num_spec_for_mats.number_of_children() != 1)
+        {
+
+        }
+
+        auto num_spec_for_mat_for_dom_itr = global_num_spec_for_mats.itr();
+        while (num_spec_for_mat_for_dom_itr.has_next())
+        {
+            num_spec_for_mat_for_dom
+        }
         
 
-// the following is some potentially useful junk
-// #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-//         Node n_local, n_global;
-//         n_local.set((int)error);
-//         relay::mpi::sum_all_reduce(n_local,
-//                                    n_global,
-//                                    mpi_comm);
-
-//         error = n_global.as_int();
-
-//         if (1 == error)
-//         {
-//             // we have a problem, broadcast string message
-//             // from rank 0 all ranks can throw an error
-//             n_global.set("Not all domains contain species sets");
-//             conduit::relay::mpi::broadcast_using_schema(n_global,
-//                                                         0,
-//                                                         mpi_comm);
-
-//             CONDUIT_ERROR(n_global.as_string());
-//         }
-// #else
-//         // non MPI case, throw error
-//         if (1 == error)
-//         {
-//             CONDUIT_ERROR("Not all domains contain species sets");
-//         }
-// #endif
+        // TODO how does missing domain data play into this? Are you allowed
+        // to be missing for overlink?
     }
 
 
