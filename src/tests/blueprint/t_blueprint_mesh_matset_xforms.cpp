@@ -34,6 +34,12 @@ convert_to_material_based(const Node &topo, Node &mset)
 }
 
 //-----------------------------------------------------------------------------
+// the venn_specsets("full", ...) example creates irrelevant species mass
+// fractions, as it adds non-trivial mass fractions for species for materials
+// that are not present in some zones. If we want to use the "full"
+// representation to diff with species sets converted from the other
+// representations, we need to clear the irrelevant zone mass fractions, as the
+// converters will default initialize the unused zone mass fractions to zero.
 void
 modify_full_specset_to_clear_irrelevant_zone_mass_fractions(const Node &full_matset,
                                                             Node &full_specset)
@@ -542,6 +548,7 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms)
         full_field_baseline.set(mesh_full["fields/importance"]);
         full_sset_baseline.set(mesh_full["specsets/specset"]);
 
+        // remove irrelevant zone mass fractions for a clean diff
         modify_full_specset_to_clear_irrelevant_zone_mass_fractions(full_mset_baseline, full_sset_baseline);
 
         std::cout << mset.to_yaml() << std::endl;
@@ -626,6 +633,7 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms)
         full_field_baseline.set(mesh_full["fields/importance"]);
         full_sset_baseline.set(mesh_full["specsets/specset"]);
 
+        // remove irrelevant zone mass fractions for a clean diff
         modify_full_specset_to_clear_irrelevant_zone_mass_fractions(full_mset_baseline, full_sset_baseline);
 
         std::cout << mset.to_yaml() << std::endl;
