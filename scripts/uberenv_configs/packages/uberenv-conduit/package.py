@@ -45,11 +45,28 @@ class UberenvConduit(BuiltinConduit):
     # default to building docs when using uberenv
     variant("doc",
             default=True,
+            sticky=True,
             description="Build deps needed to create Conduit's Docs")
 
     variant("python",
             default=True,
+            sticky=True,
             description="Build deps needed for Conduit python support")
+
+    variant("hdf5",
+            default=True,
+            sticky=True,
+            description="Build HDF5 I/O support")
+
+    variant("silo",
+            default=True,
+            sticky=True,
+            description="Build Silo I/O support")
+
+    variant("caliper",
+            default=True,
+            sticky=True,
+            description="Build Caliper support")
 
     # things we want in our view to support development need to be
     # tagged `run``
