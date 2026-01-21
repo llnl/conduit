@@ -8523,10 +8523,12 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     // across domains, and agree with that specified in the corresponding
     // DBPutMultimatspecies call.
 
-    if (write_overlink)
+    // this is scoped since to avoid naming/declaration issues
     {
+        //
         // step 1. generate a map with the number of species per material for each
         //         specset and check that all local domains match
+        //
 
         // map from specset name to map from matname to number of species per material
         Node num_spec_for_mats;
@@ -8541,7 +8543,6 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         // ...
 
         int error = 0;
-        std::stringstream errmsg;
 
         auto child_itr = multi_dom.children();
         while (child_itr.has_next())
@@ -8557,7 +8558,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                     const std::string specset_name = specset_itr.name();
 
                     std::vector<std::string> matnames;
-                    blueprint::mesh::specset::get_material_names(specset, matnames);
+                    conduit::blueprint::mesh::specset::get_material_names(specset, matnames);
 
                     // if we already have an entry for this specset from some domain
                     if (num_spec_for_mats.has_child(specset_name))
@@ -8567,19 +8568,17 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                         if (specset_entry.number_of_children() != static_cast<index_t>(matnames.size()))
                         {
                             error = 1;
-                            errmsg << "Mismatch in the number of materials between species sets on different domains.";
                             break;
                         }
                         else
                         {
                             for (const auto &matname : matnames)
                             {
-                                const index_t num_spec_for_mat = get_num_species_for_material(specset, matname);
+                                const index_t num_spec_for_mat = conduit::blueprint::mesh::specset::get_num_species_for_material(specset, matname);
                                 const index_t other_num_spec_for_mat = specset_entry[matname].to_index_t();
                                 if (num_spec_for_mat != other_num_spec_for_mat)
                                 {
                                     error = 1;
-                                    errmsg << "Mismatch in the number of species per material between species sets on different domains.";
                                     break;
                                 }
                             }
@@ -8590,7 +8589,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                     {
                         for (const auto &matname : matnames)
                         {
-                            const index_t num_spec_for_mat = get_num_species_for_material(specset, matname);
+                            const index_t num_spec_for_mat = conduit::blueprint::mesh::specset::get_num_species_for_material(specset, matname);
                             num_spec_for_mats[specset_name][matname] = num_spec_for_mat;
                         }
                     }
@@ -8602,7 +8601,9 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
             }
         }
 
+        //
         // step 2. globally check that all local results are acceptable
+        //
 
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
         Node n_local, n_global;
@@ -8622,17 +8623,33 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                                                         0,
                                                         mpi_comm);
 
-            CONDUIT_ERROR(n_global.as_string());
+            if (write_overlink)
+            {
+                CONDUIT_ERROR(n_global.as_string());
+            }
+            else
+            {
+                CONDUIT_INFO(n_global.as_string());
+            }
         }
 #else
         // non MPI case, throw error
         if (0 != error)
         {
-            CONDUIT_ERROR("Number of species per material within a set must agree across domains.");
+            if (write_overlink)
+            {
+                CONDUIT_ERROR("Number of species per material within a set must agree across domains.");
+            }
+            else
+            {
+                CONDUIT_INFO("Number of species per material within a set must agree across domains.");
+            }
         }
 #endif
 
-        // step 3. gather global results and check that they are the same
+        //
+        // step 3. gather global results
+        //
 
         Node global_num_spec_for_mats;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
@@ -8644,22 +8661,78 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
 #endif
         if (global_num_spec_for_mats.number_of_children() != 1)
         {
+            std::map<std::string, std::map<std::string, index_t>> global_n_spec_for_mats_map;
+            auto num_spec_for_mat_for_dom_itr = global_num_spec_for_mats.children();
+            while (num_spec_for_mat_for_dom_itr.has_next())
+            {
+                const Node &num_spec_for_mat_for_dom = num_spec_for_mat_for_dom_itr.next();
+                const std::vector<std::string> &specset_names = num_spec_for_mat_for_dom.child_names();
+                for (const auto &specset_name : specset_names)
+                {
+                    const Node &specset_entry = num_spec_for_mat_for_dom[specset_name];
+                    if (global_n_spec_for_mats_map.count(specset_name))
+                    {
+                        // investigate if each number is right
+                        const std::vector<std::string> &matnames = specset_entry.child_names();
+                        
+                        const size_t num_mat_in_specset = global_n_spec_for_mats_map.at(specset_name).size();
 
+                        if (num_mat_in_specset != matnames.size())
+                        {
+                            error = 1;
+                            break;
+                        }
+
+                        for (const auto &matname : matnames)
+                        {
+                            // if we contain an entry for this material
+                            if (global_n_spec_for_mats_map.at(specset_name).count(matname))
+                            {
+                                const index_t recorded_num = global_n_spec_for_mats_map.at(specset_name).at(matname);
+                                const index_t local_num = specset_entry[matname].to_index_t();
+                                if (recorded_num != local_num)
+                                {
+                                    error = 1;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                error = 1;
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // fill the map
+                        const std::vector<std::string> &matnames = specset_entry.child_names();
+                        for (const auto &matname : matnames)
+                        {
+                            global_n_spec_for_mats_map[specset_name][matname] = specset_entry[matname].to_index_t();
+                        }
+                    }
+                }
+            }
         }
 
-        auto num_spec_for_mat_for_dom_itr = global_num_spec_for_mats.itr();
-        while (num_spec_for_mat_for_dom_itr.has_next())
+        //
+        // step 4. globally check that global results are acceptable
+        //
+
+        // we did an all gather above so every rank has everything; error will happen on all ranks
+        if (0 != error)
         {
-            num_spec_for_mat_for_dom
+            if (write_overlink)
+            {
+                CONDUIT_ERROR("Number of species per material within a set must agree across domains.");
+            }
+            else
+            {
+                CONDUIT_INFO("Number of species per material within a set must agree across domains.");
+            }
         }
-        
-
-        // TODO how does missing domain data play into this? Are you allowed
-        // to be missing for overlink?
     }
-
-
-
 
     // I want the names of specsets that are associated with the first
     // matset associated with the chosen topology
