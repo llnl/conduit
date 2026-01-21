@@ -2,7 +2,7 @@
 # Project developers. See top-level LICENSE AND COPYRIGHT files for dates and
 # other details. No copyright assignment is required to contribute to Conduit.
 
-FROM ubuntu:18.04
+FROM ubuntu:22.04
 
 # fetch build env
 RUN apt-get update && apt-get install -y \
@@ -51,12 +51,10 @@ RUN tar -xf conduit.docker.src.tar
 #RUN echo insecure >> ~/.curlrc
 
 # bootstrap third party libs using spack and uberenv
-#  for this example we use mpich for MPI b/c openmpi's mpiexec
-#  will not run for the root user
 RUN cd conduit && python3 scripts/uberenv/uberenv.py \
     -k \
     --spec "+mpi%gcc" \
-    --spack-env-file=scripts/uberenv_configs/spack_configs/envs/alpinedav-ubuntu_18.04_devel/spack.yaml
+    --spack-env-file=scripts/uberenv_configs/spack_configs/envs/ubuntu/spack.yaml
 
 # configure a debug build with cmake
 RUN cd conduit && \

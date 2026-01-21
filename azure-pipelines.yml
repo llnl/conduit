@@ -38,17 +38,11 @@ stages:
         displayName: 'BLT Time Travel Check'
 
 # main checks
-# TODO:
-# - setup coverage
-#
+
 - stage: Main
   jobs:
   ###############################################################################
-  # Ubuntu 18 build and test, using spack to build tpls
-  #
-  # When setup in Ascent, Azure didint have an Ubuntu 18 dev image, so we are
-  #  using the standard Ubuntu 18 container.
-  #
+  # Ubuntu build and test, using spack to build tpls
   ###############################################################################
   - job: Ubuntu
     pool:
@@ -250,7 +244,7 @@ stages:
            echo "SPACK SPEC:"
            echo $SPACK_SPEC
            # run uber to build tpls
-           python3 scripts/uberenv/uberenv.py -k --spec "${SPACK_SPEC}" --spack-env-file=scripts/uberenv_configs/spack_configs/envs/alpinedav-ubuntu_18.04_devel/spack.yaml
+           python3 scripts/uberenv/uberenv.py -k --spec "${SPACK_SPEC}" --spack-env-file=scripts/uberenv_configs/spack_configs/envs/ubuntu/spack.yaml
         displayName: 'Spack Build Tpls'
 
       - script: |
