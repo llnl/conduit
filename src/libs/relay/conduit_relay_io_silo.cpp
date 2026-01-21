@@ -9705,9 +9705,9 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                         opts_nameschemes);
 
         // TODO for overlink: Specie sets:
-        //    [ ] A domain may contain multiple specie sets.
+        //    [x] A domain may contain multiple specie sets.
         //    [ ] All domains must contain the same number of specie sets.
-        //    [ ] The numbers of species per material in each set may be 
+        //    [x] The numbers of species per material in each set may be 
         //        different for the same material in different sets.
         //    [x] The number of species per material in each set must be 
         //        the same for all domains.

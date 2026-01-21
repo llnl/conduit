@@ -1200,8 +1200,9 @@ TEST(conduit_relay_io_silo, unstructured_points)
 }
 
 //-----------------------------------------------------------------------------
-// Test this Overlink rule: Number of species per material within a set must
+// Tests this Overlink rule: Number of species per material within a set must
 // agree across domains
+// This tests if we can find the error in the serial case.
 TEST(conduit_relay_io_silo, overlink_specset_rules)
 {
     Node save_mesh, load_mesh, info;

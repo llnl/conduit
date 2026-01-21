@@ -1418,6 +1418,234 @@ TEST(conduit_relay_mpi_io_silo, missing_domain_mesh)
 }
 
 //-----------------------------------------------------------------------------
+// Tests this Overlink rule: Number of species per material within a set must
+// agree across domains
+// This test specifically tests if the final phase of MPI communication can
+// find the error.
+TEST(conduit_relay_mpi_io_silo, overlink_specset_rules)
+{
+    //
+    // Set Up MPI
+    //
+    int par_rank;
+    int par_size;
+    MPI_Comm comm = MPI_COMM_WORLD;
+    MPI_Comm_rank(comm, &par_rank);
+    MPI_Comm_size(comm, &par_size);
+
+    CONDUIT_INFO("Rank "
+                  << par_rank
+                  << " of "
+                  << par_size
+                  << " reporting");
+
+    //
+    // Create an example mesh.
+    //
+    Node save_mesh, load_mesh, info;
+    blueprint::mesh::examples::misc("specsets", 3, 3, 1, save_mesh.append());
+    save_mesh[0]["matsets"].rename_child("mesh", "matset");
+    save_mesh[0]["specsets"].rename_child("mesh", "specset");
+    save_mesh[0]["specsets"]["specset"]["matset"].set("matset");
+    save_mesh[0]["state"]["domain_id"] = par_rank;
+
+    if (par_rank == 0)
+    {
+        // nothing to do
+    }
+    else if (par_rank == 1)
+    {
+        save_mesh[0]["specsets"]["specset"]["matset_values"]["mat2"]["spec3"].set(DataType::float64(4));
+    }
+    else
+    {
+        // cyrus was wrong about 2 mpi ranks.
+        EXPECT_TRUE(false);
+    }
+
+    MPI_Barrier(comm);
+
+    // the faulty specset passes verify
+    EXPECT_TRUE(blueprint::mesh::verify(save_mesh, info));
+
+    Node write_opts;
+    write_opts["file_style"] = "overlink";
+
+    // We will first try to save with Overlink, which should fail.
+    // Then we will save with regular Silo which should succeed.
+    const std::string basename = "silo_save_overlink_specset_rules";
+    const std::string filename = basename + ".cycle_000100.root";
+    EXPECT_EQ(filename, relay::mpi::io::blueprint::generate_root_filename(save_mesh, basename, "silo", comm));
+
+    Node read_opts;
+    read_opts["matset_style"] = "multi_buffer_full";
+
+    remove_path_if_exists(filename);
+
+    MPI_Barrier(comm);
+
+    EXPECT_THROW(relay::mpi::io::silo::save_mesh(save_mesh, basename, write_opts, comm), conduit::Error);
+    
+    MPI_Barrier(comm);
+
+    // now save without overlink
+    relay::mpi::io::silo::save_mesh(save_mesh, basename, comm);
+
+    MPI_Barrier(comm);
+
+    relay::mpi::io::silo::load_mesh(filename, read_opts, load_mesh, comm);
+    EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
+
+    // make changes to save mesh so the diff will pass
+    if (par_rank == 0)
+    {
+        // add bogus numbers to the specset; read behavior assumes this exists
+        save_mesh[0]["specsets"]["specset"]["matset_values"]["mat2"]["spec3"].set(DataType::float64(4));
+        float64_array spec3 = save_mesh[0]["specsets"]["specset"]["matset_values"]["mat2"]["spec3"].value();
+        spec3[0] = 1.0; spec3[1] = 0.0; spec3[2] = 1.0; spec3[3] = 0.0;
+    }
+    silo_name_changer("mesh", save_mesh[0]);
+
+    std::cout << "par_rank " << par_rank << "  read # of children " << load_mesh.number_of_children();
+
+    EXPECT_EQ(load_mesh.number_of_children(), save_mesh.number_of_children());
+    NodeConstIterator l_itr = load_mesh.children();
+    NodeConstIterator s_itr = save_mesh.children();
+    while (l_itr.has_next())
+    {
+        const Node &l_curr = l_itr.next();
+        const Node &s_curr = s_itr.next();
+
+        EXPECT_FALSE(l_curr.diff(s_curr, info, CONDUIT_EPSILON, true));
+    }
+}
+
+//-----------------------------------------------------------------------------
+// Tests this Overlink rule: Number of species per material within a set must
+// agree across domains
+// This test specifically tests if MPI communication can propagate an error on
+// one of the processors to the others.
+TEST(conduit_relay_mpi_io_silo, overlink_specset_rules2)
+{
+    //
+    // Set Up MPI
+    //
+    int par_rank;
+    int par_size;
+    MPI_Comm comm = MPI_COMM_WORLD;
+    MPI_Comm_rank(comm, &par_rank);
+    MPI_Comm_size(comm, &par_size);
+
+    CONDUIT_INFO("Rank "
+                  << par_rank
+                  << " of "
+                  << par_size
+                  << " reporting");
+
+    //
+    // Create an example mesh.
+    //
+    Node save_mesh, load_mesh, info;
+    blueprint::mesh::examples::misc("specsets", 3, 3, 1, save_mesh.append());
+    save_mesh[0]["matsets"].rename_child("mesh", "matset");
+    save_mesh[0]["specsets"].rename_child("mesh", "specset");
+    save_mesh[0]["specsets"]["specset"]["matset"].set("matset");
+    // save_mesh[0]["state"]["domain_id"] = par_rank;
+
+    // duplicate
+    save_mesh.append().set(save_mesh[0]);
+
+    // rank 0 has an extra species for a material on one of its domains
+    if (par_rank == 0)
+    {
+        save_mesh[0]["state"]["domain_id"] = 0;
+        save_mesh[1]["state"]["domain_id"] = 1;
+        save_mesh[0]["specsets"]["specset"]["matset_values"]["mat2"]["spec3"].set(DataType::float64(4));
+    }
+    else if (par_rank == 1)
+    {
+        save_mesh[0]["state"]["domain_id"] = 2;
+        save_mesh[1]["state"]["domain_id"] = 3;
+    }
+    else
+    {
+        // cyrus was wrong about 2 mpi ranks.
+        EXPECT_TRUE(false);
+    }
+
+    MPI_Barrier(comm);
+
+    // the faulty specset passes verify
+    EXPECT_TRUE(blueprint::mesh::verify(save_mesh, info));
+
+    Node write_opts;
+    write_opts["file_style"] = "overlink";
+
+    // We will first try to save with Overlink, which should fail.
+    // Then we will save with regular Silo which should succeed.
+    const std::string basename = "silo_save_overlink_specset_rules";
+    const std::string filename = basename + ".cycle_000100.root";
+    EXPECT_EQ(filename, relay::mpi::io::blueprint::generate_root_filename(save_mesh, basename, "silo", comm));
+
+    Node read_opts;
+    read_opts["matset_style"] = "multi_buffer_full";
+
+    remove_path_if_exists(filename);
+
+    MPI_Barrier(comm);
+
+    EXPECT_THROW(relay::mpi::io::silo::save_mesh(save_mesh, basename, write_opts, comm), conduit::Error);
+    
+    MPI_Barrier(comm);
+
+    // now save without overlink
+    relay::mpi::io::silo::save_mesh(save_mesh, basename, comm);
+
+    MPI_Barrier(comm);
+
+    relay::mpi::io::silo::load_mesh(filename, read_opts, load_mesh, comm);
+    EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
+
+    // make changes to save mesh so the diff will pass
+    if (par_rank == 0)
+    {
+        // add bogus numbers to the specset; read behavior assumes this exists
+        save_mesh[1]["specsets"]["specset"]["matset_values"]["mat2"]["spec3"].set(DataType::float64(4));
+        float64_array spec3 = save_mesh[1]["specsets"]["specset"]["matset_values"]["mat2"]["spec3"].value();
+        spec3[0] = 1.0; spec3[1] = 0.0; spec3[2] = 1.0; spec3[3] = 0.0;
+    }
+    else if (par_rank == 1)
+    {
+        // add bogus numbers to the specset; read behavior assumes this exists
+        save_mesh[0]["specsets"]["specset"]["matset_values"]["mat2"]["spec3"].set(DataType::float64(4));
+        float64_array spec30 = save_mesh[0]["specsets"]["specset"]["matset_values"]["mat2"]["spec3"].value();
+        spec30[0] = 1.0; spec30[1] = 0.0; spec30[2] = 1.0; spec30[3] = 0.0;
+
+        // add bogus numbers to the specset; read behavior assumes this exists
+        save_mesh[1]["specsets"]["specset"]["matset_values"]["mat2"]["spec3"].set(DataType::float64(4));
+        float64_array spec31 = save_mesh[1]["specsets"]["specset"]["matset_values"]["mat2"]["spec3"].value();
+        spec31[0] = 1.0; spec31[1] = 0.0; spec31[2] = 1.0; spec31[3] = 0.0;
+    }
+    for (index_t child = 0; child < save_mesh.number_of_children(); child ++)
+    {
+        silo_name_changer("mesh", save_mesh[child]);
+    }
+
+    std::cout << "par_rank " << par_rank << "  read # of children " << load_mesh.number_of_children();
+
+    EXPECT_EQ(load_mesh.number_of_children(), save_mesh.number_of_children());
+    NodeConstIterator l_itr = load_mesh.children();
+    NodeConstIterator s_itr = save_mesh.children();
+    while (l_itr.has_next())
+    {
+        const Node &l_curr = l_itr.next();
+        const Node &s_curr = s_itr.next();
+
+        EXPECT_FALSE(l_curr.diff(s_curr, info, CONDUIT_EPSILON, true));
+    }
+}
+
+//-----------------------------------------------------------------------------
 int main(int argc, char* argv[])
 {
     int result = 0;
