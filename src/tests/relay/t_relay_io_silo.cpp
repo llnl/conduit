@@ -1200,6 +1200,8 @@ TEST(conduit_relay_io_silo, unstructured_points)
 }
 
 //-----------------------------------------------------------------------------
+// Test this Overlink rule: Number of species per material within a set must
+// agree across domains
 TEST(conduit_relay_io_silo, overlink_specset_rules)
 {
     Node save_mesh, load_mesh, info;
@@ -1214,6 +1216,9 @@ TEST(conduit_relay_io_silo, overlink_specset_rules)
     save_mesh[1]["state"]["domain_id"] = 1;
 
     save_mesh[1]["specsets"]["specset"]["matset_values"]["mat2"]["spec3"].set(DataType::float64(4));
+
+    // the faulty specset passes verify
+    EXPECT_TRUE(blueprint::mesh::verify(save_mesh, info));
 
     Node write_opts;
     write_opts["file_style"] = "overlink";
