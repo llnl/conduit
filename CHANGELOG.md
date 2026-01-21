@@ -23,6 +23,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Improved support for "mixed" element types in  `conduit::blueprint::mesh::utils::ShapeType` and also removed a string member to speed up construction.
 - Added 2D block rotation support in `conduit::blueprint::mpi::mesh::to_polygonal()`.
 - Added field data to the `conduit::blueprint::mpi::mesh::to_polygonal()` transformation, including communication of vertex data on hanging nodes.
+- Added `conduit::blueprint::mesh::specset::to_multi_buffer_full()`, `conduit::blueprint::mesh::specset::to_uni_buffer_by_element()`, and `conduit::blueprint::mesh::specset::to_multi_buffer_by_material()`, which are converters that take species sets between the three supported species set/material set representations.
 
 ### Changed
 
