@@ -2,34 +2,56 @@
 # Project developers. See top-level LICENSE AND COPYRIGHT files for dates and
 # other details. No copyright assignment is required to contribute to Conduit.
 
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
-# fetch build env
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    build-essential \
-    gcc \
-    g++ \
-    gfortran \
-    zlib1g-dev \
-    python \
-    python3 \
-    tar \
-    unzip \
-    perl \
-    libncurses-dev \
-    libssl-dev \
-    libopenblas-dev \
-    zlib1g-dev \
-    libgdbm-dev \
-    libreadline-dev \
-    libsqlite3-dev \
-    libbz2-dev \
-    mpich \
-    libmpich-dev \
-    vim \
- && rm -rf /var/lib/apt/lists/*
+#####################
+# base deps
+#####################
+# add sudo to base ubuntu container
+# so we can install additional packages as
+# non-root, but admin default user on azure pipelines
+RUN apt-get update && apt-get -y install sudo
+# tzdata install wants to ask questions, so handled as sep case
+RUN DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata
+# install std packages
+RUN apt-get update && apt-get -y install \
+             binutils \
+             cmake \
+             gcc \
+             g++ \
+             gfortran \
+             python3 \
+             python3-dev \
+             python-is-python3 \
+             python3.12-venv \
+             clang \
+             llvm \
+             perl \
+             git \
+             git-lfs \
+             curl \
+             wget \
+             tar \
+             unzip \
+             file \
+             build-essential \
+             libncurses-dev \
+             libssl-dev \
+             libblas-dev \
+             liblapack-dev \
+             liblapacke-dev \
+             zlib1g-dev \
+             libgdbm-dev \
+             libreadline-dev \
+             libsqlite3-dev \
+             libbz2-dev \
+             mpich \
+             libmpich-dev \
+             nodejs \
+             npm \
+             vim
+
+RUN rm -rf /var/lib/apt/lists/*
 
 
 # untar the current source  (created as part of example_build.sh)
