@@ -8541,6 +8541,9 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
 
         int error = 0;
 
+        // TODO we only care about this for overlink specsets that we are actually going to write
+        // TODO we also need to enforce same number of specsets (that we are going to write) on each domain for overlink
+
         auto child_itr = multi_dom.children();
         while (child_itr.has_next())
         {
