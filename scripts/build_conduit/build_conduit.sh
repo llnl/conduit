@@ -273,7 +273,7 @@ cmake -S ${hdf5_src_dir} -B ${hdf5_build_dir} ${cmake_compiler_settings} \
   -DHDF5_ENABLE_ZLIB_SUPPORT:BOOL=ON \
   -DCMAKE_PREFIX_PATH=${zlib_install_dir} \
   -DCMAKE_INSTALL_PREFIX=${hdf5_install_dir} \
-  -DHDF5_BUILD_EXAMPLES:BOOL:OFF \
+  -DHDF5_BUILD_EXAMPLES:BOOL=OFF \
   -DBUILD_TESTING:BOOL=OFF \
   ${hdf_parallel_settings}
 
@@ -774,7 +774,7 @@ cmake -S ${h5zzfp_src_dir} -B ${h5zzfp_build_dir} ${cmake_compiler_settings} \
   -DCMAKE_VERBOSE_MAKEFILE:BOOL=${enable_verbose} \
   -DCMAKE_BUILD_TYPE=${build_config} \
   -DFORTRAN_INTERFACE=OFF \
-  -DBUILD_SHARED_LIBS=${build_shared_libs} \
+  -DBUILD_SHARED_LIBS=BOOL:${build_shared_libs} \
   -DCMAKE_INSTALL_PREFIX=${h5zzfp_install_dir}
 
 echo "**** Building H5Z-ZFP ${h5zzfp_version}"
