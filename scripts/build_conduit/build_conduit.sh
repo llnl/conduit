@@ -273,6 +273,8 @@ cmake -S ${hdf5_src_dir} -B ${hdf5_build_dir} ${cmake_compiler_settings} \
   -DHDF5_ENABLE_ZLIB_SUPPORT:BOOL=ON \
   -DCMAKE_PREFIX_PATH=${zlib_install_dir} \
   -DCMAKE_INSTALL_PREFIX=${hdf5_install_dir} \
+  -DHDF5_BUILD_EXAMPLES:BOOL:OFF \
+  -DBUILD_TESTING:BOOL=OFF \
   ${hdf_parallel_settings}
 
 echo "**** Building HDF5 ${hdf5_version}"
@@ -870,11 +872,18 @@ fi
 if ${build_umpire}; then
   echo 'set(UMPIRE_DIR ' ${umpire_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
 fi
-
-
-echo 'set(HDF5_DIR ' ${hdf5_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
-echo 'set(CGNS_DIR ' ${cgns_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
-echo 'set(ZLIB_DIR ' ${zlib_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
+if ${build_zlib}; then
+  echo 'set(ZLIB_DIR ' ${zlib_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
+fi
+if ${build_hdf5}; then
+  echo 'set(HDF5_DIR ' ${hdf5_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
+fi
+if ${build_silo}; then
+  echo 'set(SILO_DIR ' ${silo_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
+fi
+if ${build_cgns}; then
+  echo 'set(CGNS_DIR ' ${cgns_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
+fi
 if ${build_zfp}; then
   echo 'set(ZFP_DIR ' ${zfp_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
   echo 'set(H5ZZFP_DIR ' ${h5zzfp_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
