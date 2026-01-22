@@ -664,7 +664,7 @@ g: [2.0, 4.0]
         s_compact = Schema()
         s.compact_to(s_compact)
 
-        ra = multiprocessing.sharedctypes.RawArray(ctypes.c_ubyte,s_compact.total_strided_bytes())
+        ra = multiprocessing.RawArray(ctypes.c_ubyte,s_compact.total_strided_bytes())
         # also test with direct numpy ndarray views of the ra
         np_a_arr = np.frombuffer(ra, dtype=np.dtype("float64"))
         np_a_arr[:5] = 42.0
