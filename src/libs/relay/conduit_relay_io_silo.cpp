@@ -363,7 +363,6 @@ is_silo_file(const std::string &file_path, const std::string &silo_driver)
 DBfile *
 silo_open_file_for_read(const std::string &file_path)
 {
-    std::cout << "opening: " << file_path << std::endl;
     // this open cascade is an optimization -- we expect most open cases
     // will need hdf5 driver, DB_UNKNOWN has more logic that is slightly
     // more expensive.
@@ -475,19 +474,19 @@ public:
         // create nameschemes
         if (n_item.has_path("namescheme/file"))
         {
-            file_namescheme =
+            file_namescheme = 
                 DBMakeNamescheme(
-                    n_item["namescheme"]["file"].as_char8_str(),
-                    0,
+                    n_item["namescheme"]["file"].as_char8_str(), 
+                    0, 
                     dbfile,
                     ".");
         }
         if (n_item.has_path("namescheme/block"))
         {
-            block_namescheme =
+            block_namescheme = 
                 DBMakeNamescheme(
-                    n_item["namescheme"]["block"].as_char8_str(),
-                    0,
+                    n_item["namescheme"]["block"].as_char8_str(), 
+                    0, 
                     dbfile,
                     ".");
         }
@@ -560,7 +559,6 @@ public:
         if (nullptr != block_namescheme)
         {
             const char *block_res = DBGetName(block_namescheme, idx);
-            std::cout << "DBGetName res: " << block_res << std::endl;
             if (nullptr != block_res)
             {
                 res += std::string(block_res);
@@ -1230,7 +1228,7 @@ assign_values(int datatype,
 // We are using this function to decide if we can save a single mesh/var type
 // or need to save mesh/var types for every domain. If some domains are missing
 // it doesn't matter if the rest of them have the same type. When we read, we
-// don't use missing mesh/var types to decide if we skip a domain or not, we use
+// don't use missing mesh/var types to decide if we skip a domain or not, we use 
 // the mesh/var name.
 bool
 all_types_the_same(const int32_accessor &types_acc,
@@ -1284,7 +1282,7 @@ generate_silo_mb_data(const Node &n_mesh_state,
                       std::vector<std::string> &name_strings,
                       std::vector<int> *empty_domains)
 {
-    // this function does the following:
+    // this function does the following: 
     //  - generates names for multi-block data paths,
     //  - and tracks the empty domains.
     // we only generate names if we ARE NOT doing nameschemes, and we only
@@ -1341,7 +1339,7 @@ generate_silo_mb_data(const Node &n_mesh_state,
             else
             {
                 // we create the silo names
-
+                
                 std::string generated_silo_name;
                 // we have three cases, just as we had in write_mesh
                 // we don't want to be making any choices here, just using
@@ -1525,7 +1523,7 @@ handle_nameschemes_or_pathnames(const bool do_nameschemes,
                 DBAddOption(optlist,
                             DBOPT_MB_FILE_NS,
                             const_cast<char *>(global_file_namescheme.c_str())),
-                "Error adding file namescheme option for " << mbobj_writer_type <<
+                "Error adding file namescheme option for " << mbobj_writer_type << 
                 " for " << mbobj_name << ".");
         }
 
@@ -1533,9 +1531,9 @@ handle_nameschemes_or_pathnames(const bool do_nameschemes,
             DBAddOption(optlist,
                         DBOPT_MB_BLOCK_NS,
                         const_cast<char *>(block_namescheme.c_str())),
-            "Error adding block namescheme option for " << mbobj_writer_type <<
+            "Error adding block namescheme option for " << mbobj_writer_type << 
             " for " << mbobj_name << ".");
-
+    
         // if we have some domains that are "empty"
         if (! empty_domains.empty())
         {
@@ -1548,7 +1546,7 @@ handle_nameschemes_or_pathnames(const bool do_nameschemes,
                 DBAddOption(optlist,
                             DBOPT_MB_EMPTY_LIST,
                             empty_domains.data()),
-                "Error adding empty list option for " << mbobj_writer_type <<
+                "Error adding empty list option for " << mbobj_writer_type << 
                 " for " << mbobj_name << ".");
 
             CONDUIT_CHECK_SILO_ERROR(
@@ -1557,7 +1555,7 @@ handle_nameschemes_or_pathnames(const bool do_nameschemes,
                             const_cast<void *>(
                                 static_cast<const void *>(
                                     &num_empty_doms))),
-                "Error adding empty size option for " << mbobj_writer_type <<
+                "Error adding empty size option for " << mbobj_writer_type << 
                 " for " << mbobj_name << ".");
         }
         return nullptr;
@@ -1897,18 +1895,14 @@ read_mesh_domain(const int meshtype,
                  const std::string &domain_path,
                  Node &mesh)
 {
-    std::cout << "read_mesh_domain " <<  mesh_name << " from " << multimesh_name << std::endl;
     // quadmeshes are finnicky with their types so we use this helpful lambda
     auto meshtype_is_quad = [](const int meshtype)
     {
         return meshtype == DB_QUADMESH || meshtype == DB_QUADCURV || meshtype == DB_QUADRECT;
     };
 
-
-
     if (! DBInqVarExists(mesh_domain_file_to_use, mesh_name.c_str()))
     {
-        std::cout << "cant find " << mesh_name << std::endl;
         // This mesh is missing
         return false;
     }
@@ -3539,7 +3533,7 @@ read_multimesh(DBfile *dbfile,
             mesh_path.set(mmesh_ptr->meshnames[block_id]);
         }
     }
-
+    
     if (nullptr == mmesh_ptr->meshtypes)
     {
         // if we do not have meshtypes, we can assume we either have a single
@@ -3593,7 +3587,7 @@ read_multivars(DBtoc *toc,
             // or our mvar is invalid
             if (nullptr == mvar_ptr->block_ns)
             {
-                CONDUIT_INFO("Multivar " << multivar_name <<
+                CONDUIT_INFO("Multivar " << multivar_name << 
                              " is missing var names and namescheme specifiers. Skipping.");
                 continue;
             }
@@ -3676,7 +3670,7 @@ read_multivars(DBtoc *toc,
                 var_path.set(mvar_ptr->varnames[block_id]);
             }
         }
-
+        
         if (nullptr == mvar_ptr->vartypes)
         {
             // if we do not have vartypes, we can assume we either have a single
@@ -3729,7 +3723,7 @@ read_multimats(DBtoc *toc,
             // or our mmat is invalid
             if (nullptr == multimat_ptr->block_ns)
             {
-                CONDUIT_INFO("Multimat " << multimat_name <<
+                CONDUIT_INFO("Multimat " << multimat_name << 
                              " is missing material names and namescheme specifiers. Skipping.");
                 continue;
             }
@@ -3876,7 +3870,7 @@ read_multimatspecs(DBtoc *toc,
             // or our mmatspec is invalid
             if (nullptr == multimatspec_ptr->block_ns)
             {
-                CONDUIT_INFO("Multimatspecies " << multimatspec_name <<
+                CONDUIT_INFO("Multimatspecies " << multimatspec_name << 
                              " is missing material species names and namescheme specifiers. Skipping.");
                 continue;
             }
@@ -4434,8 +4428,6 @@ read_mesh(const std::string &root_file_path,
         {
             error = 1;
         }
-
-        std::cout << root_node.to_yaml() <<  std::endl;
     }
 
 #if CONDUIT_RELAY_IO_MPI_ENABLED
@@ -4495,7 +4487,6 @@ read_mesh(const std::string &root_file_path,
 
     // read all domains for given mesh
     const int num_domains = mesh_index["nblocks"].to_int();
-    std::cout  << "num domains = " << num_domains << std::endl;
 
     std::ostringstream oss;
     int domain_start = 0;
@@ -4540,7 +4531,6 @@ read_mesh(const std::string &root_file_path,
                                                              num_domains,
                                                              mesh_index,
                                                              "mesh_paths");
-
     std::map<std::string, SiloNameGenerator*> mat_path_gen;
     std::map<std::string, SiloNameGenerator*> spec_path_gen;
     std::map<std::string, SiloNameGenerator*> var_path_gen;
@@ -4585,7 +4575,6 @@ read_mesh(const std::string &root_file_path,
         //
 
         const std::string silo_mesh_path = mesh_path_gen->Name(domain_id);
-        std::cout << "silo_mesh_path: " << silo_mesh_path << std::endl;
         const int meshtype = [&]() -> int
         {
             // it is either one or the other
@@ -4651,7 +4640,6 @@ read_mesh(const std::string &root_file_path,
                                domain_path,
                                mesh))
         {
-            std::cout << "read_mesh_domain failed!" << std::endl;
             continue; // we hit a case where we want to skip this mesh domain
         }
 
@@ -4702,7 +4690,7 @@ read_mesh(const std::string &root_file_path,
             {
                 const Node &n_matset = matset_itr.next();
                 const std::string multimat_name = matset_itr.name();
-                const std::string silo_matset_path =
+                const std::string silo_matset_path = 
                     mat_path_gen.at(multimat_name)->Name(domain_id);
 
                 std::string matset_name, matset_domain_filename;
@@ -4778,7 +4766,7 @@ read_mesh(const std::string &root_file_path,
             {
                 const Node &n_specset = specset_itr.next();
                 const std::string multimatspec_name = specset_itr.name();
-                const std::string silo_specset_path =
+                const std::string silo_specset_path = 
                     spec_path_gen.at(multimatspec_name)->Name(domain_id);
 
                 std::string specset_name, specset_domain_filename;
@@ -4839,7 +4827,7 @@ read_mesh(const std::string &root_file_path,
             {
                 const Node &n_var = var_itr.next();
                 const std::string multivar_name = var_itr.name();
-                const std::string silo_var_path =
+                const std::string silo_var_path = 
                     var_path_gen.at(multivar_name)->Name(domain_id);
                 const int vartype = [&]() -> int
                 {
@@ -4916,7 +4904,7 @@ read_mesh(const std::string &root_file_path,
         for (auto file_map_itr = file_map.begin(); file_map_itr != file_map.end(); )
         {
             // if this file is open and is not the root file
-            if (file_map_itr->first != root_file_path &&
+            if (file_map_itr->first != root_file_path && 
                 nullptr != file_map_itr->second)
             {
                 // close the file
@@ -7131,7 +7119,7 @@ void write_multimesh(DBfile *dbfile,
     std::vector<const char *> domain_name_ptrs;
     std::string block_namescheme;
     const int num_empty_doms = static_cast<int>(empty_domains.size());
-    const char **dom_names_ptr =
+    const char **dom_names_ptr = 
         detail::handle_nameschemes_or_pathnames(do_nameschemes,
                                                 domain_name_strings,
                                                 global_file_namescheme,
@@ -7349,7 +7337,7 @@ write_multivars(DBfile *dbfile,
                     std::vector<const char *> var_name_ptrs;
                     std::string block_namescheme;
                     const int num_empty_doms = static_cast<int>(empty_domains.size());
-                    const char **var_names_ptr =
+                    const char **var_names_ptr = 
                         detail::handle_nameschemes_or_pathnames(do_nameschemes,
                                                                 var_name_strings,
                                                                 global_file_namescheme,
@@ -7504,7 +7492,7 @@ write_multimats(DBfile *dbfile,
                 std::vector<const char *> matset_name_ptrs;
                 std::string block_namescheme;
                 const int num_empty_doms = static_cast<int>(empty_domains.size());
-                const char **matset_names_ptr =
+                const char **matset_names_ptr = 
                     detail::handle_nameschemes_or_pathnames(do_nameschemes,
                                                             matset_name_strings,
                                                             global_file_namescheme,
@@ -7713,7 +7701,7 @@ write_multimatspecs(DBfile *dbfile,
                 std::vector<const char *> specset_name_ptrs;
                 std::string block_namescheme;
                 const int num_empty_doms = static_cast<int>(empty_domains.size());
-                const char **specset_names_ptr =
+                const char **specset_names_ptr = 
                     detail::handle_nameschemes_or_pathnames(do_nameschemes,
                                                             specset_name_strings,
                                                             global_file_namescheme,
@@ -7954,8 +7942,8 @@ write_dom2filemap(DBfile *dbfile,
     }
 
     // sort based on the domain ids
-    std::sort(file_dom_pairs.begin(),
-              file_dom_pairs.end(),
+    std::sort(file_dom_pairs.begin(), 
+              file_dom_pairs.end(), 
               [](std::pair<index_t, index_t> pair1,
                  std::pair<index_t, index_t> pair2)
               {
@@ -8014,7 +8002,7 @@ write_dom2filemap(DBfile *dbfile,
 ///      unified_types: "default", "yes", "no"
 ///            "default" ==> "yes"
 ///            prefer single mesh/var types versus writing an entire array
-///            of types. "yes" will prefer this if possible, "no" will
+///            of types. "yes" will prefer this if possible, "no" will 
 ///            always write the entire array.
 ///
 ///      number_of_files:  {# of files}
@@ -9203,7 +9191,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                                 // for meshes and vars we additionally save an array containing the types
                                 root_type_domain_info_comp[read_comp_name + "_types"].set(DataType::int32(global_num_domains));
                                 int32_array root_comp_types = root_type_domain_info_comp[read_comp_name + "_types"].value();
-                                // we fill this with our default value, which is DB_QUADMESH for meshes and
+                                // we fill this with our default value, which is DB_QUADMESH for meshes and 
                                 // DB_QUADVAR for vars.
                                 root_comp_types.fill(default_value);
                             }
@@ -9335,12 +9323,12 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                     output_silo_path = utils::join_file_path(output_dir_base, "domain{:d}.silo:{}");
 
                     // "|my_overlink_dir/domain%d.silo|n"
-                    global_file_namescheme = namescheme_delimiter
-                                           + utils::join_file_path(output_dir_base,
+                    global_file_namescheme = namescheme_delimiter 
+                                           + utils::join_file_path(output_dir_base, 
                                                                    "domain%d.silo")
                                            + namescheme_delimiter + "n";
                     // "|topo"
-                    global_block_namescheme =  namescheme_delimiter + "{}";
+                    global_block_namescheme = namescheme_delimiter + "{}";
                 }
                 else
                 {
@@ -9349,11 +9337,12 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
 
                     // "|my_silo_dir.cycle_000000/domain%06d.silo|n"
                     global_file_namescheme = namescheme_delimiter
-                                           + utils::join_file_path(output_dir_base,
+                                           + utils::join_file_path(output_dir_base, 
                                                                    "domain_%06d.silo")
                                            + namescheme_delimiter + "n";
                     // "|mesh/topo"
-                    global_block_namescheme =  namescheme_delimiter + opts_out_mesh_name + "/{}";
+                    global_block_namescheme = namescheme_delimiter
+                                            + opts_out_mesh_name + "/{}";
                 }
             }
             // m to n case
@@ -9366,8 +9355,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                     output_silo_path = utils::join_file_path(output_dir_base, "domfile{:d}.silo:domain{:d}/{}");
 
                     // "|my_overlink_dir/domfile%d.silo|#dom2filemap[n]"
-                    global_file_namescheme = namescheme_delimiter
-                                           + utils::join_file_path(output_dir_base,
+                    global_file_namescheme = namescheme_delimiter 
+                                           + utils::join_file_path(output_dir_base, 
                                                                    "domfile%d.silo")
                                            + namescheme_delimiter + "#dom2filemap[n]";
                     // "|domain%d/topo"
@@ -9382,7 +9371,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
 
                     // "|my_silo_dir.cycle_000000/file_%06d.silo|#dom2filemap[n]"
                     global_file_namescheme = namescheme_delimiter
-                                           + utils::join_file_path(output_dir_base,
+                                           + utils::join_file_path(output_dir_base, 
                                                                    "file_%06d.silo")
                                            + namescheme_delimiter + "#dom2filemap[n]";
                     // "|domain_%06d/mesh/topo|n"
@@ -9537,9 +9526,9 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                            root);
         }
 
-        // only if we are doing nameschemes and we are in the
+        // only if we are doing nameschemes and we are in the 
         // m domains to n files case
-        if (opts_nameschemes &&
+        if (opts_nameschemes && 
             opts_file_style != "root_only" &&
             global_num_domains != num_files)
         {
@@ -9638,7 +9627,7 @@ void CONDUIT_RELAY_API save_mesh(const Node &mesh,
 ///      unified_types: "default", "yes", "no"
 ///            "default" ==> "yes"
 ///            prefer single mesh/var types versus writing an entire array
-///            of types. "yes" will prefer this if possible, "no" will
+///            of types. "yes" will prefer this if possible, "no" will 
 ///            always write the entire array.
 ///
 ///      number_of_files:  {# of files}
