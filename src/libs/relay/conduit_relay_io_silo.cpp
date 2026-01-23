@@ -9071,7 +9071,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     // - The number of species per material in each set must be 
     //   the same for all domains.
 
-    // We warn if Overlink is not enabled.
+    // We warn if Overlink is not enabled and one of these conditions is not true.
 
     // This is scoped since to avoid naming/declaration issues
     {
