@@ -2694,16 +2694,28 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
             // Compute diagonal info.
             if(nIds >= 4)
             {
-               polygonDiagInfo(e.element_ids);
+                polygonDiagInfo(e.element_ids);
+            }
+            else
+            {
+                // triangle - just use the longest edge length.
+                info.minDiagonalLength = std::min(info.minDiagonalLength, info.minEdgeLength);
+                info.maxDiagonalLength = std::max(info.maxDiagonalLength, info.maxEdgeLength);
             }
         }
         else if(e.shape.dim == 1)
         {
             computeEdgeInfo(e.element_ids[0], e.element_ids[1]);
+
+            info.minDiagonalLength = std::min(info.minDiagonalLength, info.minEdgeLength);
+            info.maxDiagonalLength = std::max(info.maxDiagonalLength, info.maxEdgeLength);
         }
         else if(e.shape.dim == 0)
         {
             computeEdgeInfo(e.element_ids[0], e.element_ids[0]);
+
+            info.minDiagonalLength = std::min(info.minDiagonalLength, info.minEdgeLength);
+            info.maxDiagonalLength = std::max(info.maxDiagonalLength, info.maxEdgeLength);
         }
     });
 
@@ -2713,7 +2725,10 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
     info.maxEdgeLength = (info.maxEdgeLength > 0.) ? sqrt(info.maxEdgeLength) : 1.;
 
     // Initialize the diagonal lengths.
-    if(info.minDiagonalLength == std::numeric_limits<double>::max())
+    constexpr double dOffset = 100. * std::numeric_limits<double>::epsilon();
+    constexpr double upperLimit = std::numeric_limits<double>::max() - dOffset;
+    constexpr double lowerLimit = std::numeric_limits<double>::lowest() + dOffset;
+    if(info.minDiagonalLength >= upperLimit)
     {
        // The value has not been set. Use minEdgeLength.
        info.minDiagonalLength = info.minEdgeLength;
@@ -2722,7 +2737,7 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
     {
        info.minDiagonalLength = sqrt(info.minDiagonalLength);
     }
-    if(info.maxDiagonalLength == std::numeric_limits<double>::lowest())
+    if(info.maxDiagonalLength <= lowerLimit)
     {
        // The value has not been set. Use maxEdgeLength.
        info.maxDiagonalLength = info.maxEdgeLength;
