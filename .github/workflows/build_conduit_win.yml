@@ -34,12 +34,13 @@ jobs:
       run: |
         echo "**** Building Conduit"
         cmake --build build --config Release -j2
-    - name: Install Conduit
-      run: |
-        echo "**** Installing Conduit"
-        cmake --install build --config Release
     - name: Run Conduit Unit Tests
       run: |
         echo "**** Conduit Unit Tests"
         cmake -E env CTEST_OUTPUT_ON_FAILURE=1 cmake --build build --config Release --target RUN_TESTS
+    - name: Install Conduit
+      run: |
+        echo "**** Installing Conduit"
+        cmake --install build --config Release
+
 
