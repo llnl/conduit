@@ -226,14 +226,25 @@ if(ZLIB_FOUND)
     list(APPEND hdf5_tpl_lnk_libs_list ${ZLIB_LIBRARIES})
 endif()
 
-
+#
+# libhdf5.setting may list its threading dep as the cmake target Threads::Threads.
+# If so replace with ${CMAKE_THREAD_LIBS_INIT} to support downstream makefile
+# builds via config.mk
+#
+#
 # add -l to any libraries that are just their names (like "m" instead of "-lm")
 # this will get them into proper shape for the config.mk entry
+#
 set(_fixed_link_libs)
 foreach(lib ${hdf5_tpl_lnk_libs_list})
+    # lib doesn't start with '-' (-l) or '/' ()
     if(NOT "${lib}" MATCHES ^[-/])
-        # lib doesn't start with '-' (-l) or '/' ()
-        set(_fixed_link_libs "${_fixed_link_libs} -l${lib}")
+        # special case for Threads::Threads
+        if( "${lib}" EQUAL "Threads::Threads")
+            set(_fixed_link_libs "${_fixed_link_libs} ${CMAKE_THREAD_LIBS_INIT}")
+        else()
+            set(_fixed_link_libs "${_fixed_link_libs} -l${lib}")
+        endif()
     else()
         set(_fixed_link_libs "${_fixed_link_libs} ${lib}")
     endif()
