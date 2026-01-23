@@ -2789,6 +2789,7 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
     // create an entry for this matset in the output
     Node &matset_out = mesh_out["matsets"][multimat_name];
 
+    // TODO encase these in try-catch blocks
     if (opts_matset_style == "default" || opts_matset_style == "sparse_by_element")
     {
         matset_out.move(intermediate_matset);
