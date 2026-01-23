@@ -9056,7 +9056,17 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         }
     }
 
-    // The number of species per material within a set must agree across domains.
+    //
+    // OVERLINK species set requirements
+    //
+
+    // We must enforce the following species set requirements:
+    // - All domains must contain the same number of specie sets.
+    // - The number of species per material in each set must be 
+    //   the same for all domains.
+
+    // We warn if Overlink is not enabled.
+
     // This is scoped since to avoid naming/declaration issues
     {
         //
@@ -9078,9 +9088,6 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
 
         int error = 0;
         int num_specsets_on_domain = -1;
-
-        // TODO we only care about this for overlink specsets that we are actually going to write
-        // TODO we also need to enforce same number of specsets (that we are going to write) on each domain for overlink
 
         auto child_itr = multi_dom.children();
         while (child_itr.has_next())
@@ -9736,14 +9743,6 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                         root,
                         write_overlink,
                         opts_nameschemes);
-
-        // TODO for overlink: Specie sets:
-        //    [x] A domain may contain multiple specie sets.
-        //    [x] All domains must contain the same number of specie sets.
-        //    [x] The numbers of species per material in each set may be 
-        //        different for the same material in different sets.
-        //    [x] The number of species per material in each set must be 
-        //        the same for all domains.
 
         const int num_specsets_written =
             write_multimatspecs(dbfile.getSiloObject(),
