@@ -8523,10 +8523,14 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     // I want the names of specsets that are associated with the first
     // matset associated with the chosen topology
     std::map<std::string, std::pair<std::string, std::string>> ovl_specset_names;
-    // we need this to ensure that all species get assigned a unique name
+    // maps the conduit specset name to the overlink name + an empty string OR
+    // maps the conduit specset name to the string "ERROR" + an error message
+    
+    // We need this to ensure that all species sets get assigned a unique name
     // for overlink, independent of the order they appear for a particular domain.
     // TODO test me, specset1 and specset2, specset1 appears first on one dom
     // and second on the other dom.
+    // TODO does this work in parallel?
     if (write_overlink)
     {
         int ovl_mspecies_object_index = 0;
@@ -8579,11 +8583,13 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
             if (ovl_mspecies_object_index == 0)
             {
                 ovl_specset_names[specset_name] = std::make_pair("SPECIES", "");
+                ovl_mspecies_object_index ++;
             }
             else
             {
                 ovl_specset_names[specset_name] = std::make_pair(
                     "SPECIES" + std::to_string(ovl_mspecies_object_index), "");
+                ovl_mspecies_object_index ++;
             }
         }
     }
