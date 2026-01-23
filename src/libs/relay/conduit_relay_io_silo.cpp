@@ -9339,8 +9339,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                                            + utils::join_file_path(output_dir_base,
                                                                    "domain%d.silo")
                                            + namescheme_delimiter + "n";
-                    // "|topo|"
-                    global_block_namescheme =  namescheme_delimiter + "{}" + namescheme_delimiter;
+                    // "|topo"
+                    global_block_namescheme =  namescheme_delimiter + "{}";
                 }
                 else
                 {
@@ -9352,8 +9352,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                                            + utils::join_file_path(output_dir_base,
                                                                    "domain_%06d.silo")
                                            + namescheme_delimiter + "n";
-                    // "|mesh/topo|"
-                    global_block_namescheme =  namescheme_delimiter + opts_out_mesh_name + "/{}" +  namescheme_delimiter;
+                    // "|mesh/topo"
+                    global_block_namescheme =  namescheme_delimiter + opts_out_mesh_name + "/{}";
                 }
             }
             // m to n case
