@@ -8998,6 +8998,10 @@ Node::swap(Node &n_b)
     {
       m_children[i]->m_parent = this;
     }
+    for(conduit::index_t i = 0; i < n_b.number_of_children(); i++)
+    {
+      n_b.m_children[i]->m_parent = &n_b;
+    }
 }
 
 
