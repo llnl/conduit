@@ -2243,8 +2243,8 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
             DBfile *rootfile = DBOpen(filename.c_str(), DB_UNKNOWN, DB_READ);
 
             const std::string file_namescheme = (file_styles[j] == "overlink" ?
-                                                 "|" + basename + "/domfile%d.silo|#dom2filemap[n]" :
-                                                 "|" + basename + ".cycle_000000/file_%06d.silo|#dom2filemap[n]");
+                                                  "|" + basename + conduit::utils::file_path_separator() + "domfile%d.silo|#dom2filemap[n]" :
+                                                  "|" + basename + ".cycle_000000" + conduit::utils::file_path_separator() + "file_%06d.silo|#dom2filemap[n]");
 
             // check multimesh
             {
@@ -2282,7 +2282,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                         {
                             const std::string meshname =
                                 conduit_fmt::format(
-                                    basename + "/domfile{:d}.silo:domain{:d}/MESH",
+                                    basename + conduit::utils::file_path_separator() + "domfile{:d}.silo:domain{:d}/MESH",
                                     dom2filemap.at(domid),
                                     domid);
                             EXPECT_EQ(meshnames[domid], meshname);
@@ -2294,7 +2294,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                         {
                             const std::string meshname =
                                 conduit_fmt::format(
-                                    basename + ".cycle_000000/file_{:06d}.silo:domain_{:06d}/mesh/topo",
+                                    basename + ".cycle_000000" + conduit::utils::file_path_separator() + "file_{:06d}.silo:domain_{:06d}/mesh/topo",
                                     dom2filemap.at(domid),
                                     domid);
                             EXPECT_EQ(meshnames[domid], meshname);
@@ -2355,7 +2355,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                             {
                                 const std::string varname =
                                     conduit_fmt::format(
-                                        basename + "/domfile{:d}.silo:domain{:d}/dist",
+                                        basename + conduit::utils::file_path_separator()  +"domfile{:d}.silo:domain{:d}/dist",
                                         dom2filemap.at(domid),
                                         domid);
                                 EXPECT_EQ(varnames[domid], varname);
@@ -2432,7 +2432,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                         {
                             const std::string matname =
                                 conduit_fmt::format(
-                                    basename + "/domfile{:d}.silo:domain{:d}/MATERIAL",
+                                    basename + conduit::utils::file_path_separator() + "domfile{:d}.silo:domain{:d}/MATERIAL",
                                     dom2filemap.at(domid),
                                     domid);
                             EXPECT_EQ(matnames[domid], matname);
@@ -2450,7 +2450,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                             {
                                 const std::string matname =
                                     conduit_fmt::format(
-                                        basename + ".cycle_000000/file_{:06d}.silo:domain_{:06d}/mesh/matset",
+                                        basename + ".cycle_000000" + conduit::utils::file_path_separator() +"file_{:06d}.silo:domain_{:06d}/mesh/matset",
                                         dom2filemap.at(domid),
                                         domid);
                                 EXPECT_EQ(matnames[domid], matname);
@@ -2514,7 +2514,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_overlink1)
         {
             basename = "silo_save_option_overlink_spiral_" + ovl_topo_names[i];
         }
-        const std::string filename = basename + "/OvlTop.silo";
+        const std::string filename = basename + conduit::utils::file_path_separator() + "OvlTop.silo";
 
         int ndomains = 2;
 
