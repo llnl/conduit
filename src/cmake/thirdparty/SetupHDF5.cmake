@@ -240,7 +240,7 @@ foreach(lib ${hdf5_tpl_lnk_libs_list})
     # lib doesn't start with '-' (-l) or '/' ()
     if(NOT "${lib}" MATCHES ^[-/])
         # special case for Threads::Threads
-        if( "${lib}" EQUAL "Threads::Threads")
+        if( "${lib}" STREQUAL "Threads::Threads")
             set(_fixed_link_libs "${_fixed_link_libs} ${CMAKE_THREAD_LIBS_INIT}")
         else()
             set(_fixed_link_libs "${_fixed_link_libs} -l${lib}")
