@@ -80,7 +80,7 @@ RUN cd conduit && python3 scripts/uberenv/uberenv.py \
 
 # configure a debug build with cmake
 RUN cd conduit && \
-    uberenv_libs/spack/opt/spack/*/*/cmake*/bin/cmake \
+    uberenv_libs/spack/opt/spack/*/cmake-*/bin/cmake \
     -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_INSTALL_PREFIX=/conduit/install-debug \
     -C /conduit/uberenv_libs/*-patch.cmake \

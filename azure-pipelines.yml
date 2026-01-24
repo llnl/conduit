@@ -437,7 +437,7 @@ stages:
           ls -l
           # find spack installed cmake
           export ROOT_DIR=`pwd`
-          export CMAKE_BIN_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/*/cmake*/bin/`
+          export CMAKE_BIN_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/cmake-*/bin`
           export PATH=${CMAKE_BIN_DIR}:$PATH
           echo $PATH
           # find spack installed python (use spack view dir)
@@ -459,9 +459,9 @@ stages:
           #  THIS LD+_LIB FIX FOR AN ISSUE THAT OCCURED IN A CI PYTHON 2.7 STATIC LIBS TEST CASE
           #  Since the issue is related to hdf5 (not python!) we should investigate further.
           #
-          export HDF5_ROOT_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/*/hdf5*/`
+          export HDF5_ROOT_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/hdf5-*/`
           export LD_LIBRARY_PATH="${HDF5_ROOT_DIR}/lib"
-          if [ $ENABLE_SILO = 'ON' ]; then export SILO_ROOT_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/*/silo*/`; fi
+          if [ $ENABLE_SILO = 'ON' ]; then export SILO_ROOT_DIR=`ls -d ${ROOT_DIR}/uberenv_libs/spack/opt/spack/*/silo-*/`; fi
           if [ $ENABLE_SILO = 'ON' ]; then export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${SILO_ROOT_DIR}/lib"; fi
           #
           # make sure we can import conduit from python before we try our compiled example
