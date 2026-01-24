@@ -2700,30 +2700,16 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
             if(nIds >= 4)
             {
                 polygonDiagInfo(e.element_ids);
+                diagonalsSet = true;
             }
-            else
-            {
-                // triangle - just use the longest edge length.
-                info.minDiagonalLength = std::min(info.minDiagonalLength, info.minEdgeLength);
-                info.maxDiagonalLength = std::max(info.maxDiagonalLength, info.maxEdgeLength);
-            }
-            diagonalsSet = true;
         }
         else if(e.shape.dim == 1)
         {
             computeEdgeInfo(e.element_ids[0], e.element_ids[1]);
-
-            info.minDiagonalLength = std::min(info.minDiagonalLength, info.minEdgeLength);
-            info.maxDiagonalLength = std::max(info.maxDiagonalLength, info.maxEdgeLength);
-            diagonalsSet = true;
         }
         else if(e.shape.dim == 0)
         {
             computeEdgeInfo(e.element_ids[0], e.element_ids[0]);
-
-            info.minDiagonalLength = std::min(info.minDiagonalLength, info.minEdgeLength);
-            info.maxDiagonalLength = std::max(info.maxDiagonalLength, info.maxEdgeLength);
-            diagonalsSet = true;
         }
     });
 
