@@ -25,7 +25,7 @@
 using namespace conduit;
 using namespace conduit::utils;
 using namespace generate;
-#if 0
+
 //---------------------------------------------------------------------------
 /**
  @brief Save the node to an HDF5 compatible with VisIt or the
@@ -1327,7 +1327,7 @@ topologies:
     EXPECT_NEAR(info.minEdgeLength, 0.1, eps);
     EXPECT_NEAR(info.maxEdgeLength, 4., eps);
 }
-#endif
+
 //-----------------------------------------------------------------------------
 void make_mesh(conduit::Node &mesh)
 {
@@ -1375,6 +1375,7 @@ mesh:
     mesh.parse(yaml);
 }
 
+//-----------------------------------------------------------------------------
 void test_find_reference_node(const conduit::Node &mesh)
 {
     namespace bputils = conduit::blueprint::mesh::utils;
@@ -1382,43 +1383,71 @@ void test_find_reference_node(const conduit::Node &mesh)
     const conduit::Node *coordset = mesh.fetch_ptr("coordsets/coords");
     EXPECT_TRUE(coordset != nullptr);
     EXPECT_EQ(fr_coordset, coordset);
+    EXPECT_TRUE(fr_coordset->parent() != nullptr);
 
     const conduit::Node *fr_topo = bputils::find_reference_node(mesh.fetch_existing("matsets/mat"), "topology");
     const conduit::Node *topo = mesh.fetch_ptr("topologies/topo");
     EXPECT_TRUE(fr_topo != nullptr);
     EXPECT_EQ(fr_topo, topo);
+    EXPECT_TRUE(fr_topo->parent() != nullptr);
 
     const conduit::Node *fr_topo2 = bputils::find_reference_node(mesh.fetch_existing("fields/elems"), "topology");
     EXPECT_TRUE(fr_topo2 != nullptr);
     EXPECT_EQ(fr_topo2, topo);
+    EXPECT_TRUE(fr_topo2->parent() != nullptr);
 }
 
+//-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_utils, find_reference_node)
 {
-  conduit::Node whole;
-  make_mesh(whole);
+    conduit::Node whole;
+    make_mesh(whole);
 
-  test_find_reference_node(whole["mesh"]);
+    test_find_reference_node(whole["mesh"]);
 }
 
+//-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_utils, find_reference_node_set)
 {
-  conduit::Node whole;
-  make_mesh(whole);
+    conduit::Node whole;
+    make_mesh(whole);
 
-  // Use find_reference_node with a copy.
-  conduit::Node mesh;
-  mesh.set(whole["mesh"]);
-  test_find_reference_node(mesh);
+    conduit::Node mesh;
+    mesh.set(whole["mesh"]);
+
+    // Test find_reference_node with a copy.
+    test_find_reference_node(mesh);
 }
 
+//-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_utils, find_reference_node_move)
 {
-  conduit::Node whole;
-  make_mesh(whole);
+    conduit::Node whole;
+    make_mesh(whole);
   
-  // Use find_reference_node with a moved mesh.
-  conduit::Node mesh;
-  mesh.move(whole["mesh"]);
-  test_find_reference_node(mesh);
+    conduit::Node mesh;
+    mesh.move(whole["mesh"]);
+
+    // Make sure the mesh node still has no parent.
+    EXPECT_EQ(mesh.parent(), nullptr);
+
+    // Make sure the paths to the children are right
+    EXPECT_EQ(mesh["coordsets"].path(), "coordsets");
+    EXPECT_EQ(mesh["topologies"].path(), "topologies");
+    EXPECT_EQ(mesh["matsets"].path(), "matsets");
+    EXPECT_EQ(mesh["fields"].path(), "fields");
+
+    // Make sure the children do not point to the old parent.
+    EXPECT_NE(mesh["topologies"].parent(), whole.fetch_ptr("mesh"));
+    EXPECT_NE(mesh["coordsets"].parent(), whole.fetch_ptr("mesh"));
+    EXPECT_NE(mesh["matsets"].parent(), whole.fetch_ptr("mesh"));
+    EXPECT_NE(mesh["fields"].parent(), whole.fetch_ptr("mesh"));
+
+    // Make sure they have the same parent.
+    EXPECT_EQ(mesh["topologies"].parent(), mesh["coordsets"].parent());
+    EXPECT_EQ(mesh["topologies"].parent(), mesh["matsets"].parent());
+    EXPECT_EQ(mesh["topologies"].parent(), mesh["fields"].parent());
+
+    // Test find_reference_node with a moved mesh.
+    test_find_reference_node(mesh);
 }

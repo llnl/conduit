@@ -8960,7 +8960,6 @@ Node::swap(Node &n_b)
         // find index in parent schema
         Schema *b_parent_schema = schema_b->parent();
         index_t idx = b_parent_schema->child_index(schema_b);
-
         // as we swap, we need to make sure the parent schema is updated
         if(idx < 0)
         {
@@ -8994,7 +8993,11 @@ Node::swap(Node &n_b)
     std::swap(m_allocator_id,n_b.m_allocator_id);
     // this should be an efficient O(1)
     std::swap(m_children,n_b.m_children);
-
+    // Make the children point to their new parent.
+    for(conduit::index_t i = 0; i < number_of_children(); i++)
+    {
+      m_children[i]->m_parent = this;
+    }
 }
 
 
