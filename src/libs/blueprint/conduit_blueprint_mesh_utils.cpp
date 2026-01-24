@@ -2651,6 +2651,7 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
     // Iterate over all of the elements in the topology and compute the edge info
     // for each element.
     CONDUIT_ANNOTATE_MARK_BEGIN("edgeLength");
+    bool diagonalsSet = false;
     iterate_elements(n_topo, [&](const entity &e)
     {
         // NOTE: For shapes where we do not compute the diagonal info, we just
@@ -2665,7 +2666,10 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
                 {
                     computeEdgeInfo(faceIds[i], faceIds[(i + 1) % nIds]);
                 }
+                // Compute diagonals across the face (good enough)
+                polygonDiagInfo(faceIds);
             }
+            diagonalsSet = true;
         }
         else if(e.shape.dim == 3)
         {
@@ -2681,6 +2685,7 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
             }
             // Compute diagonal info.
             shapeDiagInfo(e.element_ids);
+            diagonalsSet = true;
         }
         else if(e.shape.dim == 2)
         {
@@ -2702,6 +2707,7 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
                 info.minDiagonalLength = std::min(info.minDiagonalLength, info.minEdgeLength);
                 info.maxDiagonalLength = std::max(info.maxDiagonalLength, info.maxEdgeLength);
             }
+            diagonalsSet = true;
         }
         else if(e.shape.dim == 1)
         {
@@ -2709,6 +2715,7 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
 
             info.minDiagonalLength = std::min(info.minDiagonalLength, info.minEdgeLength);
             info.maxDiagonalLength = std::max(info.maxDiagonalLength, info.maxEdgeLength);
+            diagonalsSet = true;
         }
         else if(e.shape.dim == 0)
         {
@@ -2716,6 +2723,7 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
 
             info.minDiagonalLength = std::min(info.minDiagonalLength, info.minEdgeLength);
             info.maxDiagonalLength = std::max(info.maxDiagonalLength, info.maxEdgeLength);
+            diagonalsSet = true;
         }
     });
 
@@ -2725,26 +2733,17 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
     info.maxEdgeLength = (info.maxEdgeLength > 0.) ? sqrt(info.maxEdgeLength) : 1.;
 
     // Initialize the diagonal lengths.
-    constexpr double dOffset = 100. * std::numeric_limits<double>::epsilon();
-    constexpr double upperLimit = std::numeric_limits<double>::max() - dOffset;
-    constexpr double lowerLimit = std::numeric_limits<double>::lowest() + dOffset;
-    if(info.minDiagonalLength >= upperLimit)
+    if(diagonalsSet)
+    {
+       info.minDiagonalLength = sqrt(info.minDiagonalLength);
+       info.maxDiagonalLength = sqrt(info.maxDiagonalLength);
+    }
+    else
     {
        // The value has not been set. Use minEdgeLength.
        info.minDiagonalLength = info.minEdgeLength;
-    }
-    else
-    {
-       info.minDiagonalLength = sqrt(info.minDiagonalLength);
-    }
-    if(info.maxDiagonalLength <= lowerLimit)
-    {
        // The value has not been set. Use maxEdgeLength.
        info.maxDiagonalLength = info.maxEdgeLength;
-    }
-    else
-    {
-       info.maxDiagonalLength = sqrt(info.maxDiagonalLength);
     }
     CONDUIT_ANNOTATE_MARK_END("edgeLength");
 }
