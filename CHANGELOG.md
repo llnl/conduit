@@ -14,6 +14,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Added `set` methods to `DataAccessor` that take `DataArray`s and `DataAccessor`s.
 - Added optional device execution support via RAJA and Umpire.
 - Added `conduit_bin_yaml` protocol case to `Node::load()` and `Node::save()`. Also added `conduit_bin_json`, which does the same thing as `conduit_bin` (creates a json schema file to go with the `conduit_bin` file).
+- Fixed an issue in `Node::swap()` or `Node::move()` where child nodes moved to a new parent did not point to their new parent. This caused operations that call `Node::parent()` to traverse upwards to malfunction.
 
 #### Blueprint
 - Finished `bent_multi_grid_amr` mesh by adding adjacency sets between spatially adjacent domains at the same level of refinement.
@@ -25,6 +26,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Added field data to the `conduit::blueprint::mpi::mesh::to_polygonal()` transformation, including communication of vertex data on hanging nodes.
 - Added `conduit::blueprint::mesh::specset::to_multi_buffer_full()`, `conduit::blueprint::mesh::specset::to_uni_buffer_by_element()`, and `conduit::blueprint::mesh::specset::to_multi_buffer_by_material()`, which are converters that take species sets between the three supported species set/material set representations.
 - Added `conduit::blueprint::mesh::specset::is_multi_buffer()`, `conduit::blueprint::mesh::specset::is_uni_buffer()`, `conduit::blueprint::mesh::specset::get_num_species_for_material()`, and `conduit::blueprint::mesh::specset::get_material_names()`, which are simple species set utilities.
+- Fixed `conduit::blueprint::mesh::utils::topology::compute_mesh_info()` so it does not generate a floating point exception when processing 1-d meshes under the Intel 25 compiler with C++20.
 
 ### Changed
 
