@@ -29,7 +29,7 @@ from os.path import join as pjoin
 import spack.repo
 from spack.package import *
 
-from spack_repo.builtin.packages.conduit.package import Conduit as BuiltinConduit 
+from spack_repo.builtin.packages.conduit.package import Conduit as BuiltinConduit
 
 
 class UberenvConduit(BuiltinConduit):

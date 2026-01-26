@@ -369,6 +369,11 @@ if [ ! -d ${silo_src_dir} ]; then
       --exclude="Silo-${silo_version}/config-site/*" \
       --exclude="Silo-${silo_version}/LICENSE.md" \
       --exclude="Silo-${silo_version}/silo_objects.png"
+
+  # ns patch for 4.12.0
+  cd  ${silo_src_dir}
+  patch -p1 < ${script_dir}/2026_01_26_silo_ns_patch_pr_515.patch
+  cd ${root_dir}
 fi
 
 echo "**** Configuring Silo ${silo_version}"
