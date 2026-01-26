@@ -440,7 +440,7 @@ find_reference_node(const Node &node, const std::string &ref_key)
 
     if(node.has_child(ref_key))
     {
-        const std::string &ref_value = node.fetch(ref_key).as_string();
+        const std::string ref_value = node.fetch(ref_key).as_string();
 
         const Node *traverse_node = node.parent();
         while(traverse_node != NULL)
