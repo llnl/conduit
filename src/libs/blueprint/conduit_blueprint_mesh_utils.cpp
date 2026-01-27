@@ -11,6 +11,7 @@
 //-----------------------------------------------------------------------------
 // std lib includes
 #include <algorithm>
+#include <cfenv>
 #include <cmath>
 #include <deque>
 #include <string>
@@ -2520,27 +2521,27 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
     }
 
     // Make coordset accessors for the components.
-    std::vector<double_accessor> coords;
+    std::vector<float64_accessor> coords;
     for(const auto &axisName : conduit::blueprint::mesh::utils::coordset::axes(n_coordset))
     {
-       coords.push_back(n_coordset.fetch_existing("values/" + axisName).as_double_accessor());
+       coords.push_back(n_coordset.fetch_existing("values/" + axisName).as_float64_accessor());
     }
 
     // Initialize the mesh information.
     for(size_t i = 0; i < 3; i++)
     {
-      info.minExtents[i] = (i < coords.size()) ? std::numeric_limits<double>::max() : 0.;
-      info.maxExtents[i] = (i < coords.size()) ? std::numeric_limits<double>::lowest() : 0.;
+      info.minExtents[i] = (i < coords.size()) ? std::numeric_limits<float64>::max() : 0.;
+      info.maxExtents[i] = (i < coords.size()) ? std::numeric_limits<float64>::lowest() : 0.;
     }
-    info.minEdgeLength = std::numeric_limits<double>::max();
-    info.maxEdgeLength = std::numeric_limits<double>::lowest();
-    info.minDiagonalLength = std::numeric_limits<double>::max();
-    info.maxDiagonalLength = std::numeric_limits<double>::lowest();
+    info.minEdgeLength = std::numeric_limits<float64>::max();
+    info.maxEdgeLength = std::numeric_limits<float64>::lowest();
+    info.minDiagonalLength = std::numeric_limits<float64>::max();
+    info.maxDiagonalLength = std::numeric_limits<float64>::lowest();
 
     // This lambda computes length information between p0, p1.
     auto computeEdgeInfo = [&](index_t p0, index_t p1)
     {
-        double lenSquared = 0.;
+        float64 lenSquared = 0.;
         for(size_t comp = 0; comp < coords.size(); comp++)
         {
             const auto &acc = coords[comp];
@@ -2562,7 +2563,7 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
 
     auto diagLength = [&](index_t p0, index_t p1)
     {
-        double lenSquared = 0.;
+        float64 lenSquared = 0.;
         for(size_t comp = 0; comp < coords.size(); comp++)
         {
             const auto &acc = coords[comp];
@@ -2715,8 +2716,12 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
 
     // If we had edges then the min,max edge lengths will be greater than zero.
     // Turn them from len squared to len by taking the square root.
-    info.minEdgeLength = (info.minEdgeLength > 0.) ? sqrt(info.minEdgeLength) : 1.;
-    info.maxEdgeLength = (info.maxEdgeLength > 0.) ? sqrt(info.maxEdgeLength) : 1.;
+    info.minEdgeLength = sqrt((info.minEdgeLength > 0.) ? info.minEdgeLength : 1.);
+    info.maxEdgeLength = sqrt((info.maxEdgeLength > 0.) ? info.maxEdgeLength : 1.);
+
+    // Workaround. There might be an "inexact result" floating point exception in effect
+    // from some compilers. Ignore it.
+    std::feclearexcept(FE_INEXACT);
 
     // Initialize the diagonal lengths.
     if(diagonalsSet)
