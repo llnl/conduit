@@ -131,7 +131,7 @@ class Silo(autotools.AutotoolsPackage, cmake.CMakePackage):
     patch("48-configure-f77.patch", when="@:4.8")
 
     # Namescheme fix for 4.12
-    patch("2026_01_26_silo_ns_patch_pr_515.patch"
+    patch("2026_01_26_silo_ns_patch_pr_515.patch")
 
     # The previously used AX_CHECK_COMPILER_FLAGS macro was dropped from
     # autoconf-archive in 2011
