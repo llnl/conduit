@@ -942,6 +942,11 @@ namespace specset
                                       conduit::Node &info);
 
     //-------------------------------------------------------------------------
+    bool CONDUIT_BLUEPRINT_API is_multi_buffer(const conduit::Node &specset);
+
+    //-------------------------------------------------------------------------
+    bool CONDUIT_BLUEPRINT_API is_uni_buffer(const conduit::Node &specset);
+
     void CONDUIT_BLUEPRINT_API to_multi_buffer_full(const conduit::Node &src_matset,
                                                     const conduit::Node &src_specset,
                                                     const std::string &dest_matset_name,
@@ -962,7 +967,16 @@ namespace specset
                                                            const std::string &dest_matset_name,
                                                            conduit::Node &dest_specset,
                                                            const float64 epsilon = CONDUIT_EPSILON);
+    
+    //-------------------------------------------------------------------------
+    index_t CONDUIT_BLUEPRINT_API get_num_species_for_material(
+                                            const conduit::Node &specset,
+                                            const std::string &matname);
 
+    //-------------------------------------------------------------------------
+    void CONDUIT_BLUEPRINT_API get_material_names(const conduit::Node &specset,
+                                                  std::vector<std::string> &matnames);
+    
     //-------------------------------------------------------------------------
     // Converts a blueprint specset to the silo style sparse mixed slot 
     // representation.
