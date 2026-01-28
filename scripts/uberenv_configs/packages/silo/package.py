@@ -130,9 +130,6 @@ class Silo(autotools.AutotoolsPackage, cmake.CMakePackage):
     # Fix missing F77 init, fixed in 4.9
     patch("48-configure-f77.patch", when="@:4.8")
 
-    # Namescheme fix for 4.12
-    patch("2026_01_26_silo_ns_patch_pr_515.patch")
-
     # The previously used AX_CHECK_COMPILER_FLAGS macro was dropped from
     # autoconf-archive in 2011
     patch("configure-AX_CHECK_COMPILE_FLAG.patch", when="@:4.11-bsd")
@@ -160,6 +157,9 @@ class Silo(autotools.AutotoolsPackage, cmake.CMakePackage):
 
     # use /usr/bin/env perl for portability
     patch("mkinc-usr-bin-env-perl.patch", when="@:4.11-bsd")
+
+    # Nameschemes fix for 4.12
+    patch("2026_01_26_silo_ns_patch_pr_515.patch", when="@4.12.0")
 
     # CMake was introduced in version 4.12.0. Autotools is still
     # available but deprecated in 4.12.0 and is fully removed after
