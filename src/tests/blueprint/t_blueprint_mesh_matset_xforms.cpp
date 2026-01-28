@@ -948,3 +948,21 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_specset_edge_cases)
         EXPECT_FALSE(silo_rep.diff(baseline, info, CONDUIT_EPSILON, true));
     }
 }
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_misc_FOR_FUN)
+{
+    Node mesh;
+    blueprint::mesh::examples::venn_specsets("full", 2, 2, 0.25, mesh);
+    mesh.print();
+    const Node &matset = mesh["matsets/matset"];
+    const Node &specset = mesh["specsets/specset"];
+
+    Node silo_rep1, silo_rep2, silo_rep_matset, info;
+
+    blueprint::mesh::matset::to_silo(matset, silo_rep_matset);
+    blueprint::mesh::specset::to_silo(specset, silo_rep_matset, silo_rep2);
+
+    std::cout << silo_rep_matset.to_yaml() << std::endl;
+    std::cout << silo_rep2.to_yaml() << std::endl;
+}
