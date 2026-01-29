@@ -775,9 +775,9 @@ to_silo(const conduit::Node &matset,
         std::vector<std::vector<float64>> vol_fracs(num_zones);
         get_material_data_for_zones(matset,
                                     num_zones,
-                                    epsilon,
                                     material_ids,
-                                    vol_fracs);
+                                    vol_fracs,
+                                    epsilon);
 
         // 1-index into the mixed arrays
         int current_position = 1;
@@ -2607,9 +2607,9 @@ is_material_in_zone(const conduit::Node &matset,
 // Useful for walking material-dependent matsets efficiently
 void get_material_data_for_zones(const conduit::Node &matset,
                                  const int num_zones,
-                                 const float64 epsilon,
                                  std::vector<std::vector<int>> &material_ids,
-                                 std::vector<std::vector<float64>> &vol_fracs)
+                                 std::vector<std::vector<float64>> &vol_fracs,
+                                 const float64 epsilon)
 {
     // assumed to have num_zones material_ids arrays
     // assumed to have num_zones vol_fracs arrays
