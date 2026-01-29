@@ -1200,6 +1200,72 @@ TEST(conduit_relay_io_silo, unstructured_points)
 }
 
 //-----------------------------------------------------------------------------
+// Tests this Overlink rule: Number of species per material within a set must
+// agree across domains
+// This tests if we can find the error in the serial case.
+TEST(conduit_relay_io_silo, overlink_specset_rules)
+{
+    Node save_mesh, load_mesh, info;
+    blueprint::mesh::examples::misc("specsets", 3, 3, 1, save_mesh.append());
+    save_mesh[0]["matsets"].rename_child("mesh", "matset");
+    save_mesh[0]["specsets"].rename_child("mesh", "specset");
+    save_mesh[0]["specsets"]["specset"]["matset"].set("matset");
+    save_mesh[0]["state"]["domain_id"] = 0;
+
+    // duplicate
+    save_mesh.append().set(save_mesh[0]);
+    save_mesh[1]["state"]["domain_id"] = 1;
+
+    save_mesh[1]["specsets"]["specset"]["matset_values"]["mat2"]["spec3"].set(DataType::float64(4));
+
+    // the faulty specset passes verify
+    EXPECT_TRUE(blueprint::mesh::verify(save_mesh, info));
+
+    Node write_opts;
+    write_opts["file_style"] = "overlink";
+
+    // We will first try to save with Overlink, which should fail.
+    // Then we will save with regular Silo which should succeed.
+    const std::string basename = "silo_save_overlink_specset_rules";
+    const std::string filename = basename + ".cycle_000100.root";
+    EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, basename, "silo"));
+
+    Node read_opts;
+    read_opts["matset_style"] = "multi_buffer_full";
+
+    remove_path_if_exists(filename);
+
+    EXPECT_THROW(io::silo::save_mesh(save_mesh, basename, write_opts), conduit::Error);
+    
+    // now save without overlink
+    io::silo::save_mesh(save_mesh, basename);
+
+    io::silo::load_mesh(filename, read_opts, load_mesh);
+    EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
+
+    // make changes to save mesh so the diff will pass
+    // add bogus numbers to the specset; read behavior assumes this exists
+    save_mesh[0]["specsets"]["specset"]["matset_values"]["mat2"]["spec3"].set(DataType::float64(4));
+    float64_array spec3 = save_mesh[0]["specsets"]["specset"]["matset_values"]["mat2"]["spec3"].value();
+    spec3[0] = 1.0; spec3[1] = 0.0; spec3[2] = 1.0; spec3[3] = 0.0;
+    for (index_t child = 0; child < save_mesh.number_of_children(); child ++)
+    {
+        silo_name_changer("mesh", save_mesh[child]);
+    }
+
+    EXPECT_EQ(load_mesh.number_of_children(), save_mesh.number_of_children());
+    NodeConstIterator l_itr = load_mesh.children();
+    NodeConstIterator s_itr = save_mesh.children();
+    while (l_itr.has_next())
+    {
+        const Node &l_curr = l_itr.next();
+        const Node &s_curr = s_itr.next();
+
+        EXPECT_FALSE(l_curr.diff(s_curr, info, CONDUIT_EPSILON, true));
+    }
+}
+
+//-----------------------------------------------------------------------------
 
 //
 // save option tests

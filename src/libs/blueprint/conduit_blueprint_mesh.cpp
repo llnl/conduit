@@ -7108,6 +7108,20 @@ bool verify_specset_species_names(const std::string &protocol,
     return res;
 }
 
+//-------------------------------------------------------------------------
+bool
+mesh::specset::is_multi_buffer(const Node &specset)
+{
+    return specset.child("matset_values").dtype().is_object();
+}
+
+//-------------------------------------------------------------------------
+bool
+mesh::specset::is_uni_buffer(const Node &specset)
+{
+    return specset.child("matset_values").dtype().is_number();
+}
+
 //-----------------------------------------------------------------------------
 bool
 mesh::specset::verify(const Node &specset,

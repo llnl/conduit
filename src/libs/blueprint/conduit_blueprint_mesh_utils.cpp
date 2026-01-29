@@ -11,6 +11,7 @@
 //-----------------------------------------------------------------------------
 // std lib includes
 #include <algorithm>
+#include <cfenv>
 #include <cmath>
 #include <deque>
 #include <string>
@@ -440,7 +441,7 @@ find_reference_node(const Node &node, const std::string &ref_key)
 
     if(node.has_child(ref_key))
     {
-        const std::string &ref_value = node.fetch(ref_key).as_string();
+        const std::string ref_value = node.fetch(ref_key).as_string();
 
         const Node *traverse_node = node.parent();
         while(traverse_node != NULL)
@@ -2520,27 +2521,27 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
     }
 
     // Make coordset accessors for the components.
-    std::vector<double_accessor> coords;
+    std::vector<float64_accessor> coords;
     for(const auto &axisName : conduit::blueprint::mesh::utils::coordset::axes(n_coordset))
     {
-       coords.push_back(n_coordset.fetch_existing("values/" + axisName).as_double_accessor());
+       coords.push_back(n_coordset.fetch_existing("values/" + axisName).as_float64_accessor());
     }
 
     // Initialize the mesh information.
     for(size_t i = 0; i < 3; i++)
     {
-      info.minExtents[i] = (i < coords.size()) ? std::numeric_limits<double>::max() : 0.;
-      info.maxExtents[i] = (i < coords.size()) ? std::numeric_limits<double>::lowest() : 0.;
+      info.minExtents[i] = (i < coords.size()) ? std::numeric_limits<float64>::max() : 0.;
+      info.maxExtents[i] = (i < coords.size()) ? std::numeric_limits<float64>::lowest() : 0.;
     }
-    info.minEdgeLength = std::numeric_limits<double>::max();
-    info.maxEdgeLength = std::numeric_limits<double>::lowest();
-    info.minDiagonalLength = std::numeric_limits<double>::max();
-    info.maxDiagonalLength = std::numeric_limits<double>::lowest();
+    info.minEdgeLength = std::numeric_limits<float64>::max();
+    info.maxEdgeLength = std::numeric_limits<float64>::lowest();
+    info.minDiagonalLength = std::numeric_limits<float64>::max();
+    info.maxDiagonalLength = std::numeric_limits<float64>::lowest();
 
     // This lambda computes length information between p0, p1.
     auto computeEdgeInfo = [&](index_t p0, index_t p1)
     {
-        double lenSquared = 0.;
+        float64 lenSquared = 0.;
         for(size_t comp = 0; comp < coords.size(); comp++)
         {
             const auto &acc = coords[comp];
@@ -2562,7 +2563,7 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
 
     auto diagLength = [&](index_t p0, index_t p1)
     {
-        double lenSquared = 0.;
+        float64 lenSquared = 0.;
         for(size_t comp = 0; comp < coords.size(); comp++)
         {
             const auto &acc = coords[comp];
@@ -2651,6 +2652,7 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
     // Iterate over all of the elements in the topology and compute the edge info
     // for each element.
     CONDUIT_ANNOTATE_MARK_BEGIN("edgeLength");
+    bool diagonalsSet = false;
     iterate_elements(n_topo, [&](const entity &e)
     {
         // NOTE: For shapes where we do not compute the diagonal info, we just
@@ -2665,7 +2667,10 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
                 {
                     computeEdgeInfo(faceIds[i], faceIds[(i + 1) % nIds]);
                 }
+                // Compute diagonals across the face (good enough)
+                polygonDiagInfo(faceIds);
             }
+            diagonalsSet = true;
         }
         else if(e.shape.dim == 3)
         {
@@ -2681,6 +2686,7 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
             }
             // Compute diagonal info.
             shapeDiagInfo(e.element_ids);
+            diagonalsSet = true;
         }
         else if(e.shape.dim == 2)
         {
@@ -2694,7 +2700,8 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
             // Compute diagonal info.
             if(nIds >= 4)
             {
-               polygonDiagInfo(e.element_ids);
+                polygonDiagInfo(e.element_ids);
+                diagonalsSet = true;
             }
         }
         else if(e.shape.dim == 1)
@@ -2709,27 +2716,25 @@ topology::compute_mesh_info(const conduit::Node &n_topo, topology::MeshInfo &inf
 
     // If we had edges then the min,max edge lengths will be greater than zero.
     // Turn them from len squared to len by taking the square root.
-    info.minEdgeLength = (info.minEdgeLength > 0.) ? sqrt(info.minEdgeLength) : 1.;
-    info.maxEdgeLength = (info.maxEdgeLength > 0.) ? sqrt(info.maxEdgeLength) : 1.;
+    info.minEdgeLength = sqrt((info.minEdgeLength > 0.) ? info.minEdgeLength : 1.);
+    info.maxEdgeLength = sqrt((info.maxEdgeLength > 0.) ? info.maxEdgeLength : 1.);
+
+    // Workaround. There might be an "inexact result" floating point exception in effect
+    // from some compilers. Ignore it.
+    std::feclearexcept(FE_INEXACT);
 
     // Initialize the diagonal lengths.
-    if(info.minDiagonalLength == std::numeric_limits<double>::max())
+    if(diagonalsSet)
+    {
+       info.minDiagonalLength = sqrt(info.minDiagonalLength);
+       info.maxDiagonalLength = sqrt(info.maxDiagonalLength);
+    }
+    else
     {
        // The value has not been set. Use minEdgeLength.
        info.minDiagonalLength = info.minEdgeLength;
-    }
-    else
-    {
-       info.minDiagonalLength = sqrt(info.minDiagonalLength);
-    }
-    if(info.maxDiagonalLength == std::numeric_limits<double>::lowest())
-    {
        // The value has not been set. Use maxEdgeLength.
        info.maxDiagonalLength = info.maxEdgeLength;
-    }
-    else
-    {
-       info.maxDiagonalLength = sqrt(info.maxDiagonalLength);
     }
     CONDUIT_ANNOTATE_MARK_END("edgeLength");
 }
