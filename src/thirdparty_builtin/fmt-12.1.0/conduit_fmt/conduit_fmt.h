@@ -18,6 +18,7 @@
 #include "format.h"
 #include "ostream.h"
 #include "printf.h"
+#include "args.h"
 
 #endif
 
