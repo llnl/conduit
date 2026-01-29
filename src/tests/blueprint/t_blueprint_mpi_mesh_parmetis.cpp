@@ -212,7 +212,7 @@ topo_adjset:
     const char *dom0_parmetis_result = R"(
 association: "element"
 topology: "topo"
-values: [0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0]
+values: [0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0]
 )";
     const char *dom0_global_vertex_ids = R"(
 association: "vertex"
@@ -246,6 +246,9 @@ values: [384, 385, 386, 387, 388, 389, 390, 391, 89, 90, 87, 100, 392, 393, 88, 
     for(const auto &field : fields)
     {
         bool different = mesh[0][field].diff(baselines[field], info);
+        // also add the baselines to the output so we can easily
+        // compare if they change in the future.
+        mesh[0][field + "_baseline"] = baselines[field];
         in_rank_order(MPI_COMM_WORLD, [&](int rank) {
             if(different)
             {
@@ -659,7 +662,7 @@ TEST(blueprint_mpi_parmetis, empty_mesh_on_non_root_rank)
 
     MPI_Comm_size(MPI_COMM_WORLD, &par_size);
     MPI_Comm_rank(MPI_COMM_WORLD, &par_rank);
-    
+
     Node mesh;
     if(par_rank == 0)
     {
@@ -670,7 +673,7 @@ TEST(blueprint_mpi_parmetis, empty_mesh_on_non_root_rank)
     conduit::blueprint::mpi::mesh::generate_partition_field(mesh,
                                                             part_opts,
                                                             MPI_COMM_WORLD);
-                                                            
+
 
     std::string output_base = "tout_bp_mpi_mesh_parametis_empty_mesh_on_non_root_rank";
 
