@@ -836,6 +836,11 @@ namespace matset
     //-------------------------------------------------------------------------
     void CONDUIT_BLUEPRINT_API create_or_reuse_material_map(const conduit::Node &matset);
     //-------------------------------------------------------------------------
+    void CONDUIT_BLUEPRINT_API renumber_material_ids(const conduit::Node &src_matset,
+                                                     conduit::Node &dest_matset);
+    //-------------------------------------------------------------------------
+    void CONDUIT_BLUEPRINT_API renumber_material_ids(conduit::Node &matset);
+    //-------------------------------------------------------------------------
     index_t CONDUIT_BLUEPRINT_API count_zones_from_matset(const conduit::Node &matset);
     //-------------------------------------------------------------------------
     bool CONDUIT_BLUEPRINT_API is_material_in_zone(const conduit::Node &matset,

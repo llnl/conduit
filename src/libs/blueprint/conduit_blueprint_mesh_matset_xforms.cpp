@@ -2802,6 +2802,71 @@ create_reverse_material_map(const conduit::Node &src_material_map)
 
 //-------------------------------------------------------------------------
 void
+renumber_material_ids(const conduit::Node &src_matset,
+                      conduit::Node &dest_matset)
+{
+    // extra seat belt here
+    if (! src_matset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::matset::renumber_material_ids"
+                      " passed matset node must be a valid matset tree.");
+    }
+
+    dest_matset.set(src_matset);
+    renumber_material_ids(dest_matset);
+}
+
+//-------------------------------------------------------------------------
+void
+renumber_material_ids(conduit::Node &matset)
+{
+    // extra seat belt here
+    if (! matset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::matset::renumber_material_ids"
+                      " passed matset node must be a valid matset tree.");
+    }
+
+    // if we are sparse by element we have more to do
+    if (is_element_dominant(matset) && is_uni_buffer(matset))
+    {
+        // we must have material map in this case
+        std::map<index_t, index_t> old_to_new;
+        const std::vector<std::string> &matnames = matset["material_map"].child_names();
+        const index_t num_mats = static_cast<index_t>(matnames.size());
+        for (index_t i = 0; i < num_mats; i ++)
+        {
+            const std::string &matname = matnames[i];
+            const index_t old = matset["material_map"][matname].to_index_t();
+            matset["material_map"][matname].set(i);
+            old_to_new[old] = i;
+        }
+
+        index_t_accessor mat_ids = matset["material_ids"].as_index_t_accessor();
+        for (index_t i = 0; i < mat_ids.number_of_elements(); i ++)
+        {
+            const int old_mat_id = mat_ids[i];
+            mat_ids[i] = old_to_new.at(old_mat_id);
+        }
+    }
+    else
+    {
+        // if we have a material map to modify
+        if (matset.has_child("material_map"))
+        {
+            const std::vector<std::string> &matnames = matset["material_map"].child_names();
+            const index_t num_mats = static_cast<index_t>(matnames.size());
+            for (index_t i = 0; i < num_mats; i ++)
+            {
+                const std::string &matname = matnames[i];
+                matset["material_map"][matname].set(i);
+            }
+        }
+    }
+}
+
+//-------------------------------------------------------------------------
+void
 create_or_reuse_material_map(const conduit::Node &matset,
                              conduit::Node &material_map)
 {
