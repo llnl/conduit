@@ -2812,6 +2812,8 @@ create_or_reuse_material_map(const conduit::Node &matset,
                       " passed matset node must be a valid matset tree.");
     }
 
+    material_map.reset();
+
     if (matset.has_child("material_map"))
     {
         material_map.set(matset["material_map"]);

@@ -950,19 +950,51 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_specset_edge_cases)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_misc_FOR_FUN)
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_create_or_reuse_matmap)
 {
-    Node mesh;
-    blueprint::mesh::examples::venn_specsets("full", 2, 2, 0.25, mesh);
-    mesh.print();
-    const Node &matset = mesh["matsets/matset"];
-    const Node &specset = mesh["specsets/specset"];
+    const int nx = 4, ny = 4;
+    const double radius = 0.25;
 
-    Node silo_rep1, silo_rep2, silo_rep_matset, info;
+    Node info;
+    std::std::vector<Node> venn_examples(3);
+    blueprint::mesh::examples::venn("full", nx, ny, radius, venn_examples[0]);
+    blueprint::mesh::examples::venn("sparse_by_element", nx, ny, radius, venn_examples[1]);
+    blueprint::mesh::examples::venn("sparse_by_material", nx, ny, radius, venn_examples[2]);
 
-    blueprint::mesh::matset::to_silo(matset, silo_rep_matset);
-    blueprint::mesh::specset::to_silo(specset, silo_rep_matset, silo_rep2);
 
-    std::cout << silo_rep_matset.to_yaml() << std::endl;
-    std::cout << silo_rep2.to_yaml() << std::endl;
+    const std::string yaml_text = 
+        "material_map: \n"
+        "  circle_a: 1\n"
+        "  circle_b: 2\n"
+        "  circle_c: 3\n"
+        "  background: 0\n";
+    Node baseline;
+    baseline.parse(yaml_text, "yaml");
+
+    for (const Node &venn_example : venn_examples)
+    {
+        const Node &mset = venn_example["matsets/matset"];
+        Node matmap;
+        blueprint::mesh::matset::create_or_reuse_material_map(mset, matmap);
+
+        EXPECT_FALSE(matmap.diff(baseline, info, CONDUIT_EPSILON, true));
+    }
 }
+
+// //-----------------------------------------------------------------------------
+// TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_misc_FOR_FUN)
+// {
+//     Node mesh;
+//     blueprint::mesh::examples::venn_specsets("full", 2, 2, 0.25, mesh);
+//     mesh.print();
+//     const Node &matset = mesh["matsets/matset"];
+//     const Node &specset = mesh["specsets/specset"];
+
+//     Node silo_rep1, silo_rep2, silo_rep_matset, info;
+
+//     blueprint::mesh::matset::to_silo(matset, silo_rep_matset);
+//     blueprint::mesh::specset::to_silo(specset, silo_rep_matset, silo_rep2);
+
+//     std::cout << silo_rep_matset.to_yaml() << std::endl;
+//     std::cout << silo_rep2.to_yaml() << std::endl;
+// }
