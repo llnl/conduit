@@ -953,47 +953,99 @@ to_silo(const conduit::Node &matset,
     std::vector<int> mix_next;
     std::vector<float64> field_mixvar_values;
 
-    int current_position = 1; // 1-index into the mixed arrays
+    //
+    // create a 1-index into the mixed arrays for bookkeeping
+    //
+    int current_position = 1;
 
+    //
+    // Generic lambda for iterating over all the zones for material data.
+    // For each case we provide a `fill_arrays()` method that puts data
+    // in the per-zone data arrays, which is then written out.
+    //
+    auto iterate_over_zones_for_material = [&](auto &&fill_arrays)
+    {
+        for (int zone_id = 0; zone_id < num_zones; zone_id ++)
+        {
+            int num_mats_in_zone; // how many materials in this zone
+            std::vector<int> local_material_ids; // their material ids
+            std::vector<float64> local_volume_fractions; // their volume fractions
+
+            fill_arrays(zone_id,
+                        num_mats_in_zone,
+                        local_material_ids,
+                        local_volume_fractions);
+
+            store_material_data_for_zone_to_silo_arrays(
+                num_mats_in_zone, local_material_ids, local_volume_fractions, 
+                zone_id, matlist, mix_vf, mix_mat, mix_next, current_position);
+        }
+    };
+
+    //
+    // Generic lambda for iterating over all the zones for material and field data.
+    // For each case we provide a `fill_arrays()` method that puts data
+    // in the per-zone data arrays, which is then written out.
+    //
+    auto iterate_over_zones_for_material_field = [&](auto &&fill_arrays)
+    {
+        for (int zone_id = 0; zone_id < num_zones; zone_id ++)
+        {
+            int num_mats_in_zone; // how many materials in this zone
+            std::vector<int> local_material_ids; // their material ids
+            std::vector<float64> local_volume_fractions; // their volume fractions
+            std::vector<float64> local_matset_values; // the field matset vals
+
+            fill_arrays(zone_id,
+                        num_mats_in_zone,
+                        local_material_ids,
+                        local_volume_fractions,
+                        local_matset_values);
+
+            store_material_field_data_for_zone_to_silo_arrays(
+                num_mats_in_zone, local_material_ids, local_volume_fractions,
+                local_matset_values, zone_id, matlist, mix_vf, mix_mat, mix_next,
+                field_mixvar_values, current_position);
+        }
+    };
+
+    //
+    // Now we have a switchyard for choosing which case we are in.
+    // While there is shared logic, we need a separate case for each of the 
+    // three matset representations, and we additionally need a case for
+    // if we are doing fields or not. We use our created lambdas and helpers
+    // to walk the data structures and write the results to the silo arrays.
+    // 
     // "full" representation
     if (element_dominant && multi_buffer)
     {
         if (transform_field)
         {
-            for (int zone_id = 0; zone_id < num_zones; zone_id ++)
-            {
-                int num_mats_in_zone; // how many materials in this zone
-                std::vector<int> local_material_ids; // their material ids
-                std::vector<float64> local_volume_fractions; // their volume fractions
-                std::vector<float64> local_matset_values; // the field matset vals
-
-                get_multi_buffer_element_dom_material_field_data_for_zone(
-                    matset, material_map, field, zone_id, local_material_ids,
-                    local_volume_fractions, local_matset_values, num_mats_in_zone,
-                    epsilon);
-
-                store_material_field_data_for_zone_to_silo_arrays(
-                    num_mats_in_zone, local_material_ids, local_volume_fractions,
-                    local_matset_values, zone_id, matlist, mix_vf, mix_mat, mix_next,
-                    field_mixvar_values, current_position);
-            }
+            iterate_over_zones_for_material_field(
+                [&](const int zone_id,
+                    int &num_mats_in_zone,
+                    std::vector<int> &local_material_ids,
+                    std::vector<float64> &local_volume_fractions,
+                    std::vector<float64> &local_matset_values)
+                {
+                    get_multi_buffer_element_dom_material_field_data_for_zone(
+                        matset, material_map, field, zone_id, local_material_ids,
+                        local_volume_fractions, local_matset_values, num_mats_in_zone,
+                        epsilon);
+                });
         }
         else
         {
-            for (int zone_id = 0; zone_id < num_zones; zone_id ++)
-            {
-                int num_mats_in_zone; // how many materials in this zone
-                std::vector<int> local_material_ids; // their material ids
-                std::vector<float64> local_volume_fractions; // their volume fractions
-
-                get_multi_buffer_element_dom_material_data_for_zone(
-                    matset, material_map, zone_id, local_material_ids, 
-                    local_volume_fractions, num_mats_in_zone, epsilon);
-
-                store_material_data_for_zone_to_silo_arrays(
-                    num_mats_in_zone, local_material_ids, local_volume_fractions, 
-                    zone_id, matlist, mix_vf, mix_mat, mix_next, current_position);
-            }
+            iterate_over_zones_for_material(
+                [&](const int zone_id,
+                    int &num_mats_in_zone,
+                    std::vector<int> &local_material_ids,
+                    std::vector<float64> &local_volume_fractions)
+                {
+                    get_multi_buffer_element_dom_material_data_for_zone(
+                        matset, material_map, zone_id, local_material_ids, 
+                        local_volume_fractions, num_mats_in_zone, epsilon);
+                });
         }
     }
     // "sparse by element" representation
@@ -1001,103 +1053,81 @@ to_silo(const conduit::Node &matset,
     {
         if (transform_field)
         {
-            for (int zone_id = 0; zone_id < num_zones; zone_id ++)
-            {
-                int num_mats_in_zone; // how many materials in this zone
-                std::vector<int> local_material_ids; // their material ids
-                std::vector<float64> local_volume_fractions; // their volume fractions
-                std::vector<float64> local_matset_values; // the field matset vals
-
-                get_uni_buffer_element_dom_material_field_data_for_zone(
-                    matset, material_map, field, zone_id, local_material_ids,
-                    local_volume_fractions, local_matset_values, num_mats_in_zone);
-
-                store_material_field_data_for_zone_to_silo_arrays(
-                    num_mats_in_zone, local_material_ids, local_volume_fractions,
-                    local_matset_values, zone_id, matlist, mix_vf, mix_mat, mix_next,
-                    field_mixvar_values, current_position);
-            }
+            iterate_over_zones_for_material_field(
+                [&](const int zone_id,
+                    int &num_mats_in_zone,
+                    std::vector<int> &local_material_ids,
+                    std::vector<float64> &local_volume_fractions,
+                    std::vector<float64> &local_matset_values)
+                {
+                    get_uni_buffer_element_dom_material_field_data_for_zone(
+                        matset, material_map, field, zone_id, local_material_ids,
+                        local_volume_fractions, local_matset_values, num_mats_in_zone);
+                });
         }
         else
         {
-            for (int zone_id = 0; zone_id < num_zones; zone_id ++)
-            {
-                int num_mats_in_zone; // how many materials in this zone
-                std::vector<int> local_material_ids; // their material ids
-                std::vector<float64> local_volume_fractions; // their volume fractions
-
-                get_uni_buffer_element_dom_material_data_for_zone(
-                    matset, material_map, zone_id, local_material_ids, 
-                    local_volume_fractions, num_mats_in_zone);
-
-                store_material_data_for_zone_to_silo_arrays(
-                    num_mats_in_zone, local_material_ids, local_volume_fractions, 
-                    zone_id, matlist, mix_vf, mix_mat, mix_next, current_position);
-            }
+            iterate_over_zones_for_material(
+                [&](const int zone_id,
+                    int &num_mats_in_zone,
+                    std::vector<int> &local_material_ids,
+                    std::vector<float64> &local_volume_fractions)
+                {
+                    get_uni_buffer_element_dom_material_data_for_zone(
+                        matset, material_map, zone_id, local_material_ids, 
+                        local_volume_fractions, num_mats_in_zone);
+                });
         }
     }
     // "sparse by material" representation
     else if (! element_dominant)
     {
+        //
+        // create an intermediate representation
+        // we could do this for all matset types, but it is less efficient
+        // it is required for material dominant matsets
+        //
+        // for each zone, the material ids of the materials in that zone
+        std::vector<std::vector<int>> material_ids(num_zones);
+        // for each zone, the volume fractions of the materials in that zone
+        std::vector<std::vector<float64>> vol_fracs(num_zones);
+
         if (transform_field)
         {
-            //
-            // create an intermediate representation
-            // we could do this for all matset types, but it is less efficient
-            // it is required for material dominant matsets
-            //
-            // we have three vectors for each zone, one for material ids and one
-            // for volume fractions
-            std::vector<std::vector<int>> material_ids(num_zones);
-            std::vector<std::vector<float64>> vol_fracs(num_zones);
+            // for each zone, the matset vals of the field in that zone
             std::vector<std::vector<float64>> mset_vals(num_zones);
+
             get_multi_buffer_element_dom_material_field_data_for_zones(
                 matset, material_map, field, material_ids, vol_fracs, mset_vals);
 
-            for (int zone_id = 0; zone_id < num_zones; zone_id ++)
-            {
-                // how many materials in this zone
-                const int num_mats_in_zone = static_cast<int>(material_ids[zone_id].size());
-                // what are their material ids
-                std::vector<int> &local_material_ids = material_ids[zone_id];
-                // what are their volume fractions
-                std::vector<float64> &local_volume_fractions = vol_fracs[zone_id];
-                // what are the field matset vals
-                std::vector<float64> &local_matset_values = mset_vals[zone_id];
-
-                store_material_field_data_for_zone_to_silo_arrays(
-                    num_mats_in_zone, local_material_ids, local_volume_fractions,
-                    local_matset_values, zone_id, matlist, mix_vf, mix_mat, mix_next,
-                    field_mixvar_values, current_position);
-            }
+            iterate_over_zones_for_material_field(
+                [&](const int zone_id,
+                    int &num_mats_in_zone,
+                    std::vector<int> &local_material_ids,
+                    std::vector<float64> &local_volume_fractions,
+                    std::vector<float64> &local_matset_values)
+                {
+                    num_mats_in_zone = static_cast<int>(material_ids[zone_id].size());
+                    local_material_ids = std::move(material_ids[zone_id]);
+                    local_volume_fractions = std::move(vol_fracs[zone_id]);
+                    local_matset_values = std::move(mset_vals[zone_id]);
+                });
         }
         else
         {
-            //
-            // create an intermediate representation
-            // we could do this for all matset types, but it is less efficient
-            // it is required for material dominant matsets
-            //
-            // we have two vectors for each zone, one for material ids and one
-            // for volume fractions
-            std::vector<std::vector<int>> material_ids(num_zones);
-            std::vector<std::vector<float64>> vol_fracs(num_zones);
             get_multi_buffer_element_dom_material_data_for_zones(
                 matset, material_map, material_ids, vol_fracs);
 
-            for (int zone_id = 0; zone_id < num_zones; zone_id ++)
-            {
-                // how many materials in this zone
-                const int num_mats_in_zone = static_cast<int>(material_ids[zone_id].size());
-                // what are their material ids
-                std::vector<int> &local_material_ids = material_ids[zone_id];
-                // what are their volume fractions
-                std::vector<float64> &local_volume_fractions = vol_fracs[zone_id];
-
-                store_material_data_for_zone_to_silo_arrays(
-                    num_mats_in_zone, local_material_ids, local_volume_fractions, 
-                    zone_id, matlist, mix_vf, mix_mat, mix_next, current_position);
-            }
+            iterate_over_zones_for_material(
+                [&](const int zone_id,
+                    int &num_mats_in_zone,
+                    std::vector<int> &local_material_ids,
+                    std::vector<float64> &local_volume_fractions)
+                {
+                    num_mats_in_zone = static_cast<int>(material_ids[zone_id].size());
+                    local_material_ids = std::move(material_ids[zone_id]);
+                    local_volume_fractions = std::move(vol_fracs[zone_id]);
+                });
         }
     }
     else
