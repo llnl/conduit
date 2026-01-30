@@ -915,9 +915,12 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_create_or_reuse_matmap)
     {
         const Node &mset = venn_example["matsets/matset"];
         Node matmap;
+        Node matmap_copy;
         blueprint::mesh::matset::create_or_reuse_material_map(mset, matmap);
+        blueprint::mesh::matset::create_or_copy_material_map(mset, matmap_copy);
 
         EXPECT_FALSE(matmap.diff(baseline["material_map"], info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(matmap_copy.diff(baseline["material_map"], info, CONDUIT_EPSILON, true));
     }
 }
 

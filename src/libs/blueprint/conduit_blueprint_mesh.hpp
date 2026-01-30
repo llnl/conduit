@@ -837,6 +837,9 @@ namespace matset
     void CONDUIT_BLUEPRINT_API create_or_reuse_material_map(const conduit::Node &matset,
                                                             conduit::Node &material_map);
     //-------------------------------------------------------------------------
+    void CONDUIT_BLUEPRINT_API create_or_copy_material_map(const conduit::Node &matset,
+                                                           conduit::Node &material_map);
+    //-------------------------------------------------------------------------
     void CONDUIT_BLUEPRINT_API renumber_material_ids(const conduit::Node &src_matset,
                                                      conduit::Node &dest_matset);
     //-------------------------------------------------------------------------
@@ -848,6 +851,13 @@ namespace matset
                                                    const std::string &matname,
                                                    const index_t zone_id,
                                                    const float64 epsilon = CONDUIT_EPSILON);
+    //-------------------------------------------------------------------------
+    template <class Visit>
+    void CONDUIT_BLUEPRINT_API walk_matset_by_element(const conduit::Node &matset,
+                                                      const conduit::Node &material_map,
+                                                      const int num_zones,
+                                                      Visit &&visit,
+                                                      const float64 epsilon = CONDUIT_EPSILON);
     //-----------------------------------------------------------------------------
     std::map<int, std::string> CONDUIT_BLUEPRINT_API create_reverse_material_map(
         const conduit::Node &src_matset);

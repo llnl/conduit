@@ -63,6 +63,47 @@ namespace detail
 {
 //-----------------------------------------------------------------------------
 
+//-------------------------------------------------------------------------
+void
+create_material_map(const conduit::Node &matset,
+                    conduit::Node &material_map)
+{
+    // We must be multi-buffer, so we can assume we have a 
+    // "volume_fractions" child that is an object.
+    const std::vector<std::string> &matnames = matset["volume_fractions"].child_names();
+    int mat_id = 0;
+    for (const auto &matname : matnames)
+    {
+        material_map[matname].set(mat_id);
+        mat_id ++;
+    }
+}
+
+//-----------------------------------------------------------------------------
+template <class FillArrays, class Visit>
+void
+walk_matset_by_element_helper(const int num_zones,
+                              FillArrays &&fill_arrays,
+                              Visit &&visit)
+{
+    for (int zone_id = 0; zone_id < num_zones; zone_id ++)
+    {
+        int num_mats_in_zone = 0; // how many materials in this zone
+        std::vector<int> local_material_ids; // their material ids
+        std::vector<float64> local_volume_fractions; // their volume fractions
+
+        fill_arrays(zone_id,
+                    num_mats_in_zone,
+                    local_material_ids,
+                    local_volume_fractions);
+
+        visit(zone_id,
+              num_mats_in_zone,
+              local_material_ids,
+              local_volume_fractions);
+    }
+}
+
 //-----------------------------------------------------------------------------
 int
 // TODO delete me???
@@ -632,16 +673,28 @@ to_silo(const conduit::Node &matset,
         }
         else
         {
-            iterate_over_zones_for_material(
-                [&](const int zone_id,
-                    int &num_mats_in_zone,
-                    std::vector<int> &local_material_ids,
-                    std::vector<float64> &local_volume_fractions)
-                {
-                    get_uni_buffer_element_dom_material_data_for_zone(
-                        matset, zone_id, local_material_ids, 
-                        local_volume_fractions, num_mats_in_zone);
-                });
+            auto visit = [&](const int zone_id,
+                             int &num_mats_in_zone,
+                             std::vector<int> &local_material_ids,
+                             std::vector<float64> &local_volume_fractions)
+            {
+                store_material_data_for_zone_to_silo_arrays(
+                    num_mats_in_zone, local_material_ids, local_volume_fractions, 
+                    zone_id, matlist, mix_vf, mix_mat, mix_next, current_position);
+            };
+
+            walk_matset_by_element(matset, material_map, num_zones, visit, epsilon);
+
+            // iterate_over_zones_for_material(
+            //     [&](const int zone_id,
+            //         int &num_mats_in_zone,
+            //         std::vector<int> &local_material_ids,
+            //         std::vector<float64> &local_volume_fractions)
+            //     {
+            //         get_uni_buffer_element_dom_material_data_for_zone(
+            //             matset, zone_id, local_material_ids, 
+            //             local_volume_fractions, num_mats_in_zone);
+            //     });
         }
     }
     // "sparse by material" representation
@@ -1480,11 +1533,44 @@ uni_buffer_by_element_to_multi_buffer_by_element_matset(const conduit::Node &src
     // create container for new volume fractions
     Node &new_vol_fracs = dest_matset["volume_fractions"];
 
-    walk_uni_buffer_by_element_to_multi_buffer_by_element(src_matset,
-                                                          reverse_matmap,
-                                                          volume_fractions,
-                                                          material_ids,
-                                                          new_vol_fracs);
+    /////
+
+
+    auto o2m_idx = o2mrelation::O2MIndex(src_matset);
+    const int num_elems = o2m_idx.size();
+
+    // initialize sizes
+    for (const auto & mapitem : reverse_matmap)
+    {
+        const std::string &matname = mapitem.second;
+        new_vol_fracs[matname].set(DataType::float64(num_elems));
+    }
+
+    auto visit = [&](const int zone_id,
+                     int &num_mats_in_zone,
+                     std::vector<int> &local_material_ids,
+                     std::vector<float64> &local_volume_fractions)
+    {
+        for (int matzoneid = 0; matzoneid < num_mats_in_zone; matzoneid ++)
+        {
+            const float64 val = local_volume_fractions[matzoneid];
+            const int mat_id = local_material_ids[matzoneid];
+
+            const std::string &matname = reverse_matmap.at(mat_id);
+            new_vol_fracs[matname].as_float64_array()[zone_id] = val;
+        }
+    };
+
+    walk_matset_by_element(src_matset,
+                           src_matset["material_map"],
+                           num_elems,
+                           visit);
+
+    // walk_uni_buffer_by_element_to_multi_buffer_by_element(src_matset,
+    //                                                       reverse_matmap,
+    //                                                       volume_fractions,
+    //                                                       material_ids,
+    //                                                       new_vol_fracs);
 }
 
 //-----------------------------------------------------------------------------
@@ -2204,6 +2290,63 @@ multi_buffer_by_material_to_uni_buffer_by_element_specset(const conduit::Node &s
 // -- end conduit::blueprint::mesh::matset::detail --
 //-----------------------------------------------------------------------------
 
+//-----------------------------------------------------------------------------
+template <class Visit>
+void
+walk_matset_by_element(const conduit::Node &matset,
+                       const conduit::Node &material_map,
+                       const int num_zones,
+                       Visit &&visit,
+                       const float64 epsilon)
+{
+    // extra seat belt here
+    if (! matset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::matset::count_zones_in_matset"
+                      " passed matset node must be a valid matset tree.");
+    }
+    // full
+    if (is_element_dominant(matset) && is_multi_buffer(matset))
+    {
+        // TODO
+    }
+    // sparse_by_element
+    else if (is_element_dominant(matset))
+    {
+        auto fill_arrays = [&](const int zone_id,
+                               int &num_mats_in_zone,
+                               std::vector<int> &local_material_ids,
+                               std::vector<float64> &local_volume_fractions)
+        {
+            const float64_accessor vol_fracs = matset["volume_fractions"].value();
+            const index_t_accessor material_ids = matset["material_ids"].value();
+
+            auto o2m_idx = o2mrelation::O2MIndex(matset);
+            num_mats_in_zone = o2m_idx.size(zone_id);
+            for (index_t many_id = 0; many_id < num_mats_in_zone; many_id ++)
+            {
+                const index_t data_index = o2m_idx.index(zone_id, many_id);
+
+                const float64 vol_frac = vol_fracs[data_index];
+                const index_t mat_id = material_ids[data_index];
+
+                local_material_ids.push_back(mat_id);
+                local_volume_fractions.push_back(vol_frac);
+            }
+        };
+
+        detail::walk_matset_by_element_helper(num_zones, fill_arrays, visit);
+    }
+    // sparse_by_material
+    else if (is_material_dominant(matset))
+    {
+        // TODO
+    }
+    else
+    {
+        CONDUIT_ERROR("Unknown matset type.");
+    }
+}
 
 //-----------------------------------------------------------------------------
 void
@@ -2311,9 +2454,35 @@ renumber_material_ids(conduit::Node &matset)
 }
 
 //-------------------------------------------------------------------------
+// this will use set external if the matmap already exists
 void
 create_or_reuse_material_map(const conduit::Node &matset,
                              conduit::Node &material_map)
+{
+    // extra seat belt here
+    if (! matset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::matset::create_or_reuse_material_map"
+                      " passed matset node must be a valid matset tree.");
+    }
+
+    material_map.reset();
+
+    if (matset.has_child("material_map"))
+    {
+        material_map.set_external(matset["material_map"]);
+    }
+    else
+    {
+        detail::create_material_map(matset, material_map);
+    }
+}
+
+//-------------------------------------------------------------------------
+// this will use set if the matmap already exists
+void
+create_or_copy_material_map(const conduit::Node &matset,
+                            conduit::Node &material_map)
 {
     // extra seat belt here
     if (! matset.dtype().is_object())
@@ -2330,15 +2499,7 @@ create_or_reuse_material_map(const conduit::Node &matset,
     }
     else
     {
-        // We must be multi-buffer, so we can assume we have a 
-        // "volume_fractions" child that is an object.
-        const std::vector<std::string> &matnames = matset["volume_fractions"].child_names();
-        int mat_id = 0;
-        for (const auto &matname : matnames)
-        {
-            material_map[matname].set(mat_id);
-            mat_id ++;
-        }
+        detail::create_material_map(matset, material_map);
     }
 }
 
