@@ -872,7 +872,7 @@ to_silo(const conduit::Node &matset,
     //    [x] buffer_style
     //    [x] dominance
     // for fields:
-    //    [ ] field_mixvar_values
+    //    [x] field_mixvar_values
     //    [x] field_values (optional)
     // for specsets:
     //    [ ] nmatspec
@@ -953,11 +953,11 @@ to_silo(const conduit::Node &matset,
     std::vector<int> mix_next;
     std::vector<float64> field_mixvar_values;
 
+    int current_position = 1; // 1-index into the mixed arrays
+
     // "full" representation
     if (element_dominant && multi_buffer)
     {
-        int current_position = 1; // 1-index into the mixed arrays
-
         if (transform_field)
         {
             for (int zone_id = 0; zone_id < num_zones; zone_id ++)
@@ -985,7 +985,6 @@ to_silo(const conduit::Node &matset,
                 int num_mats_in_zone; // how many materials in this zone
                 std::vector<int> local_material_ids; // their material ids
                 std::vector<float64> local_volume_fractions; // their volume fractions
-                std::vector<float64> local_matset_values; // the field matset vals
 
                 get_multi_buffer_element_dom_material_data_for_zone(
                     matset, material_map, zone_id, local_material_ids, 
@@ -1000,8 +999,6 @@ to_silo(const conduit::Node &matset,
     // "sparse by element" representation
     else if (element_dominant)
     {
-        int current_position = 1; // 1-index into the mixed arrays
-
         if (transform_field)
         {
             for (int zone_id = 0; zone_id < num_zones; zone_id ++)
@@ -1028,7 +1025,6 @@ to_silo(const conduit::Node &matset,
                 int num_mats_in_zone; // how many materials in this zone
                 std::vector<int> local_material_ids; // their material ids
                 std::vector<float64> local_volume_fractions; // their volume fractions
-                std::vector<float64> local_matset_values; // the field matset vals
 
                 get_uni_buffer_element_dom_material_data_for_zone(
                     matset, material_map, zone_id, local_material_ids, 
@@ -1057,9 +1053,6 @@ to_silo(const conduit::Node &matset,
             std::vector<std::vector<float64>> mset_vals(num_zones);
             get_multi_buffer_element_dom_material_field_data_for_zones(
                 matset, material_map, field, material_ids, vol_fracs, mset_vals);
-
-            // 1-index into the mixed arrays
-            int current_position = 1;
 
             for (int zone_id = 0; zone_id < num_zones; zone_id ++)
             {
@@ -1091,9 +1084,6 @@ to_silo(const conduit::Node &matset,
             std::vector<std::vector<float64>> vol_fracs(num_zones);
             get_multi_buffer_element_dom_material_data_for_zones(
                 matset, material_map, material_ids, vol_fracs);
-
-            // 1-index into the mixed arrays
-            int current_position = 1;
 
             for (int zone_id = 0; zone_id < num_zones; zone_id ++)
             {
