@@ -1035,7 +1035,7 @@ walk_uni_buffer_by_element_to_multi_buffer_by_element(
     const std::map<int, std::string> &reverse_matmap,
     float64_accessor &values, // can be either vol fracs or matset vals
     int64_accessor &material_ids,
-    std::map<std::string, std::vector<float64>> &new_vals)
+    conduit::Node &new_vals)
 {
     auto o2m_idx = o2mrelation::O2MIndex(src_matset);
     const int num_elems = o2m_idx.size();
@@ -1044,7 +1044,7 @@ walk_uni_buffer_by_element_to_multi_buffer_by_element(
     for (const auto & mapitem : reverse_matmap)
     {
         const std::string &matname = mapitem.second;
-        new_vals[matname] = std::vector<float64>(num_elems);
+        new_vals[matname].set(DataType::float64(num_elems));
     }
 
     // iterate through matset
@@ -1057,7 +1057,7 @@ walk_uni_buffer_by_element_to_multi_buffer_by_element(
             const float64 val = values[data_index];
             const int mat_id = material_ids[data_index];
             const std::string &matname = reverse_matmap.at(mat_id);
-            new_vals[matname][elem_id] = val;
+            new_vals[matname].as_float64_array()[elem_id] = val;
         }
     }
 }
@@ -1477,16 +1477,14 @@ uni_buffer_by_element_to_multi_buffer_by_element_matset(const conduit::Node &src
     float64_accessor volume_fractions = src_matset["volume_fractions"].value();
     int64_accessor material_ids = src_matset["material_ids"].value();
     
-    // create container for new matset vals
-    std::map<std::string, std::vector<float64>> new_vol_fracs;
+    // create container for new volume fractions
+    Node &new_vol_fracs = dest_matset["volume_fractions"];
 
     walk_uni_buffer_by_element_to_multi_buffer_by_element(src_matset,
                                                           reverse_matmap,
                                                           volume_fractions,
                                                           material_ids,
                                                           new_vol_fracs);
-
-    read_from_map_write_out(new_vol_fracs, dest_matset["volume_fractions"]);
 }
 
 //-----------------------------------------------------------------------------
@@ -1514,15 +1512,13 @@ uni_buffer_by_element_to_multi_buffer_by_element_field(const conduit::Node &src_
         int64_accessor material_ids = src_matset["material_ids"].value();
 
         // create container for new matset vals and initialize sizes
-        std::map<std::string, std::vector<float64>> new_matset_vals;
+        Node &new_matset_vals = dest_field["matset_values"];
 
         walk_uni_buffer_by_element_to_multi_buffer_by_element(src_matset,
                                                               reverse_matmap,
                                                               matset_values,
                                                               material_ids,
                                                               new_matset_vals);
-
-        read_from_map_write_out(new_matset_vals, dest_field["matset_values"]);
     }
     else
     {
