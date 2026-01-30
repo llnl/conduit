@@ -20,20 +20,6 @@
 using namespace conduit;
 
 //-----------------------------------------------------------------------------
-// Simply adds an "element_ids" field [0 1 2 ... N-1]
-static void
-convert_to_material_based(const Node &topo, Node &mset)
-{
-    const int nelem = static_cast<int>(blueprint::mesh::topology::length(topo));
-    mset["element_ids"].set_dtype(DataType::c_int(nelem));
-    DataArray<int> eids = mset["element_ids"].value();
-    for(int i = 0; i < nelem; i++)
-    {
-        eids[i] = i;
-    }
-}
-
-//-----------------------------------------------------------------------------
 // the venn_specsets("full", ...) example creates irrelevant species mass
 // fractions, as it adds non-trivial mass fractions for species for materials
 // that are not present in some zones. If we want to use the "full"
@@ -199,15 +185,14 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_basic)
         EXPECT_EQ(actual_topology, expected_topology);
     }
 
-    // { // Check 'matlist' Field //
-    //     // TODO(JRC): Need to make sure these are the same type.
-    //     int64 expected_matlist_vec[] = {1, -1, -3, 2};
-    //     Node expected_matlist(DataType::int64(4),
-    //         &expected_matlist_vec[0], true);
-    //     const Node &actual_matlist = silo["matlist"];
+    { // Check 'matlist' Field //
+        int64 expected_matlist_vec[] = {0, -1, -3, 1};
+        Node expected_matlist(DataType::int64(4),
+            &expected_matlist_vec[0], true);
+        const Node &actual_matlist = silo["matlist"];
 
-    //     EXPECT_FALSE(actual_matlist.diff(expected_matlist, info));
-    // }
+        EXPECT_FALSE(actual_matlist.diff(expected_matlist, info, CONDUIT_EPSILON, true));
+    }
 }
 
 
@@ -273,26 +258,6 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_venn_to_silo)
 
         EXPECT_FALSE(mset_silo.diff(mset_silo_baseline,info));
     }
-
-    CONDUIT_INFO("venn sparse_by_element (converted to material based) to silo")
-    {
-        Node mesh, info;
-        blueprint::mesh::examples::venn("sparse_by_element", nx, ny, radius, mesh);
-        Node &mset = mesh["matsets/matset"];
-        convert_to_material_based(mesh["topologies/topo"], mset);
-
-        std::cout << mset.to_yaml() << std::endl;
-
-        Node mset_silo;
-        blueprint::mesh::matset::to_silo(mset, mset_silo);
-        std::cout << mset_silo.to_yaml() << std::endl;
-
-        mset_silo_baseline["buffer_style"] = "uni";
-        mset_silo_baseline["dominance"] = "material";
-
-        EXPECT_FALSE(mset_silo.diff(mset_silo_baseline,info));
-    }
-
 }
 
 
@@ -375,31 +340,6 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_venn_to_silo_matset_values)
 
         EXPECT_FALSE(mset_silo.diff(mset_silo_baseline,info));
     }
-
-    CONDUIT_INFO("venn sparse_by_element (converted to material based) to silo")
-    {
-        Node mesh, info;
-        blueprint::mesh::examples::venn("sparse_by_element", nx, ny, radius, mesh);
-        const Node &field = mesh["fields/mat_check"];
-        Node &mset = mesh["matsets/matset"];
-        convert_to_material_based(mesh["topologies/topo"], mset);
-
-        std::cout << mset.to_yaml() << std::endl;
-        std::cout << field.to_yaml() << std::endl;
-
-        Node mset_silo;
-        blueprint::mesh::field::to_silo(field,
-                                        mset,
-                                        mset_silo);
-
-        std::cout << mset_silo.to_yaml() << std::endl;
-
-        mset_silo_baseline["buffer_style"] = "uni";
-        mset_silo_baseline["dominance"] = "material";
-
-        EXPECT_FALSE(mset_silo.diff(mset_silo_baseline,info));
-    }
-
 }
 
 //-----------------------------------------------------------------------------
@@ -977,7 +917,7 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_create_or_reuse_matmap)
         Node matmap;
         blueprint::mesh::matset::create_or_reuse_material_map(mset, matmap);
 
-        EXPECT_FALSE(matmap.diff(baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(matmap.diff(baseline["material_map"], info, CONDUIT_EPSILON, true));
     }
 }
 
@@ -987,34 +927,32 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_renumber_mat_ids)
     // multi-buffer test
     {
         const std::string yaml_text1 = 
-            "matset: \n"
-            "  topology: \"topo\"\n"
-            "  volume_fractions: \n"
-            "    background: [1.0, 1.0, 1.0, 0.0]\n"
-            "    circle_a: [0.0, 0.0, 0.0, 0.333333333333333]\n"
-            "    circle_b: [0.0, 0.0, 0.0, 0.333333333333333]\n"
-            "    circle_c: [0.0, 0.0, 0.0, 0.333333333333333]\n"
-            "  material_map: \n"
-            "    circle_a: 6\n"
-            "    circle_b: 8\n"
-            "    circle_c: 3\n"
-            "    background: 9\n";
+            "topology: \"topo\"\n"
+            "volume_fractions: \n"
+            "  background: [1.0, 1.0, 1.0, 0.0]\n"
+            "  circle_a: [0.0, 0.0, 0.0, 0.333333333333333]\n"
+            "  circle_b: [0.0, 0.0, 0.0, 0.333333333333333]\n"
+            "  circle_c: [0.0, 0.0, 0.0, 0.333333333333333]\n"
+            "material_map: \n"
+            "  circle_a: 6\n"
+            "  circle_b: 8\n"
+            "  circle_c: 3\n"
+            "  background: 9\n";
         Node matset;
         matset.parse(yaml_text1, "yaml");
 
         const std::string yaml_text2 = 
-            "matset: \n"
-            "  topology: \"topo\"\n"
-            "  volume_fractions: \n"
-            "    background: [1.0, 1.0, 1.0, 0.0]\n"
-            "    circle_a: [0.0, 0.0, 0.0, 0.333333333333333]\n"
-            "    circle_b: [0.0, 0.0, 0.0, 0.333333333333333]\n"
-            "    circle_c: [0.0, 0.0, 0.0, 0.333333333333333]\n"
-            "  material_map: \n"
-            "    circle_a: 0\n"
-            "    circle_b: 1\n"
-            "    circle_c: 2\n"
-            "    background: 3\n";
+            "topology: \"topo\"\n"
+            "volume_fractions: \n"
+            "  background: [1.0, 1.0, 1.0, 0.0]\n"
+            "  circle_a: [0.0, 0.0, 0.0, 0.333333333333333]\n"
+            "  circle_b: [0.0, 0.0, 0.0, 0.333333333333333]\n"
+            "  circle_c: [0.0, 0.0, 0.0, 0.333333333333333]\n"
+            "material_map: \n"
+            "  circle_a: 0\n"
+            "  circle_b: 1\n"
+            "  circle_c: 2\n"
+            "  background: 3\n";
         Node baseline;
         baseline.parse(yaml_text2, "yaml");
 
@@ -1033,32 +971,30 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_renumber_mat_ids)
     // uni-buffer test
     {
         const std::string yaml_text1 = 
-            "matset: \n"
-            "  topology: \"topo\"\n"
-            "  material_map: \n"
-            "    circle_a: 6\n"
-            "    circle_b: 8\n"
-            "    circle_c: 9\n"
-            "    background: 3\n"
-            "  volume_fractions: [1.0, 1.0, 1.0, 0.333333333333333, 0.333333333333333, 0.333333333333333]\n"
-            "  material_ids: [3, 3, 3, 6, 8, 9]\n"
-            "  sizes: [1, 1, 1, 3]\n"
-            "  offsets: [0, 1, 2, 3]\n";
+            "topology: \"topo\"\n"
+            "material_map: \n"
+            "  circle_a: 6\n"
+            "  circle_b: 8\n"
+            "  circle_c: 9\n"
+            "  background: 3\n"
+            "volume_fractions: [1.0, 1.0, 1.0, 0.333333333333333, 0.333333333333333, 0.333333333333333]\n"
+            "material_ids: [3, 3, 3, 6, 8, 9]\n"
+            "sizes: [1, 1, 1, 3]\n"
+            "offsets: [0, 1, 2, 3]\n";
         Node matset;
         matset.parse(yaml_text1, "yaml");
 
         const std::string yaml_text2 = 
-            "matset: \n"
-            "  topology: \"topo\"\n"
-            "  material_map: \n"
-            "    circle_a: 0\n"
-            "    circle_b: 1\n"
-            "    circle_c: 2\n"
-            "    background: 3\n"
-            "  volume_fractions: [1.0, 1.0, 1.0, 0.333333333333333, 0.333333333333333, 0.333333333333333]\n"
-            "  material_ids: [3, 3, 3, 0, 1, 2]\n"
-            "  sizes: [1, 1, 1, 3]\n"
-            "  offsets: [0, 1, 2, 3]\n";
+            "topology: \"topo\"\n"
+            "material_map: \n"
+            "  circle_a: 0\n"
+            "  circle_b: 1\n"
+            "  circle_c: 2\n"
+            "  background: 3\n"
+            "volume_fractions: [1.0, 1.0, 1.0, 0.333333333333333, 0.333333333333333, 0.333333333333333]\n"
+            "material_ids: [3, 3, 3, 0, 1, 2]\n"
+            "sizes: [1, 1, 1, 3]\n"
+            "offsets: [0, 1, 2, 3]\n";
         Node baseline;
         baseline.parse(yaml_text2, "yaml");
 

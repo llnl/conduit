@@ -532,7 +532,7 @@ to_silo(const conduit::Node &matset,
     {
         for (int zone_id = 0; zone_id < num_zones; zone_id ++)
         {
-            int num_mats_in_zone; // how many materials in this zone
+            int num_mats_in_zone = 0; // how many materials in this zone
             std::vector<int> local_material_ids; // their material ids
             std::vector<float64> local_volume_fractions; // their volume fractions
 
@@ -556,7 +556,7 @@ to_silo(const conduit::Node &matset,
     {
         for (int zone_id = 0; zone_id < num_zones; zone_id ++)
         {
-            int num_mats_in_zone; // how many materials in this zone
+            int num_mats_in_zone = 0; // how many materials in this zone
             std::vector<int> local_material_ids; // their material ids
             std::vector<float64> local_volume_fractions; // their volume fractions
             std::vector<float64> local_matset_values; // the field matset vals
