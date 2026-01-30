@@ -956,7 +956,7 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_create_or_reuse_matmap)
     const double radius = 0.25;
 
     Node info;
-    std::std::vector<Node> venn_examples(3);
+    std::vector<Node> venn_examples(3);
     blueprint::mesh::examples::venn("full", nx, ny, radius, venn_examples[0]);
     blueprint::mesh::examples::venn("sparse_by_element", nx, ny, radius, venn_examples[1]);
     blueprint::mesh::examples::venn("sparse_by_material", nx, ny, radius, venn_examples[2]);
@@ -1020,11 +1020,12 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_renumber_mat_ids)
 
         // renumber with new matset
         Node renumbered_matset;
-        renumber_material_ids(matset, renumbered_matset);
+        blueprint::mesh::matset::renumber_material_ids(matset, renumbered_matset);
 
         // renumber in-place
-        renumber_material_ids(matset);
+        blueprint::mesh::matset::renumber_material_ids(matset);
 
+        Node info;
         EXPECT_FALSE(renumbered_matset.diff(baseline, info, CONDUIT_EPSILON, true));
         EXPECT_FALSE(matset.diff(baseline, info, CONDUIT_EPSILON, true));
     }
@@ -1063,11 +1064,12 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_renumber_mat_ids)
 
         // renumber with new matset
         Node renumbered_matset;
-        renumber_material_ids(matset, renumbered_matset);
+        blueprint::mesh::matset::renumber_material_ids(matset, renumbered_matset);
 
         // renumber in-place
-        renumber_material_ids(matset);
+        blueprint::mesh::matset::renumber_material_ids(matset);
 
+        Node info;
         EXPECT_FALSE(renumbered_matset.diff(baseline, info, CONDUIT_EPSILON, true));
         EXPECT_FALSE(matset.diff(baseline, info, CONDUIT_EPSILON, true));
     }

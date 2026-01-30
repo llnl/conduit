@@ -236,7 +236,6 @@ store_material_data_for_zone_to_silo_arrays(
 // get material data for a specific zone from the "sparse by element" representation
 void
 get_uni_buffer_element_dom_material_data_for_zone(const conduit::Node &matset,
-                                                  const conduit::Node &material_map,
                                                   const index_t zone_id,
                                                   std::vector<int> &local_material_ids,
                                                   std::vector<float64> &local_volume_fractions,
@@ -245,7 +244,7 @@ get_uni_buffer_element_dom_material_data_for_zone(const conduit::Node &matset,
     const float64_accessor vol_fracs = matset["volume_fractions"].value();
     const index_t_accessor material_ids = matset["material_ids"].value();
 
-    auto o2m_idx = o2mrelation::O2MIndex(src_matset);
+    auto o2m_idx = o2mrelation::O2MIndex(matset);
     num_mats_in_zone = o2m_idx.size(zone_id);
     for (index_t many_id = 0; many_id < num_mats_in_zone; many_id ++)
     {
@@ -263,7 +262,6 @@ get_uni_buffer_element_dom_material_data_for_zone(const conduit::Node &matset,
 // get material and field data for a specific zone from the "sparse by element" representation
 void
 get_uni_buffer_element_dom_material_field_data_for_zone(const conduit::Node &matset,
-                                                        const conduit::Node &material_map,
                                                         const conduit::Node &field,
                                                         const index_t zone_id,
                                                         std::vector<int> &local_material_ids,
@@ -275,7 +273,7 @@ get_uni_buffer_element_dom_material_field_data_for_zone(const conduit::Node &mat
     const index_t_accessor material_ids = matset["material_ids"].value();
     const float64_accessor mset_vals = field["matset_values"].value();
 
-    auto o2m_idx = o2mrelation::O2MIndex(src_matset);
+    auto o2m_idx = o2mrelation::O2MIndex(matset);
     num_mats_in_zone = o2m_idx.size(zone_id);
     for (index_t many_id = 0; many_id < num_mats_in_zone; many_id ++)
     {
@@ -309,7 +307,7 @@ get_multi_buffer_element_dom_material_data_for_zone(const conduit::Node &matset,
         const float64 vf_for_mat = mat_vfs[zone_id];
         if (vf_for_mat > epsilon)
         {
-            const int material_id = matset["material_map"][matname].as_int();
+            const int material_id = material_map[matname].as_int();
 
             num_mats_in_zone ++;
             local_volume_fractions.push_back(vf_for_mat);
@@ -338,7 +336,7 @@ get_multi_buffer_element_dom_material_field_data_for_zone(const conduit::Node &m
         const float64 vf_for_mat = mat_vfs[zone_id];
         if (vf_for_mat > epsilon)
         {
-            const int material_id = matset["material_map"][matname].as_int();
+            const int material_id = material_map[matname].as_int();
             const float64_accessor mset_vals = field["matset_values"][matname].value();
             const float64 val_for_mat = mset_vals[zone_id];
 
@@ -360,7 +358,7 @@ void get_multi_buffer_element_dom_material_field_data_for_zones(
     std::vector<std::vector<float64>> &vol_fracs,
     std::vector<std::vector<float64>> &matset_values)
 {
-    std::vector<std::string> &matnames = matset["element_ids"].child_names();
+    const std::vector<std::string> &matnames = matset["element_ids"].child_names();
     for (const auto &matname : matnames)
     {
         const int material_id = material_map[matname].as_int();
@@ -391,7 +389,7 @@ void get_multi_buffer_element_dom_material_data_for_zones(
     std::vector<std::vector<int>> &material_ids,
     std::vector<std::vector<float64>> &vol_fracs)
 {
-    std::vector<std::string> &matnames = matset["element_ids"].child_names();
+    const std::vector<std::string> &matnames = matset["element_ids"].child_names();
     for (const auto &matname : matnames)
     {
         const int material_id = material_map[matname].as_int();
@@ -447,6 +445,9 @@ to_silo(const conduit::Node &matset,
     //    [ ] species_mf
     //    [ ] mix_spec
     //    [ ] mixlen
+
+    // TODO
+    (void) specset;
 
     //
     // make sure output is empty to start
@@ -625,7 +626,7 @@ to_silo(const conduit::Node &matset,
                     std::vector<float64> &local_matset_values)
                 {
                     get_uni_buffer_element_dom_material_field_data_for_zone(
-                        matset, material_map, field, zone_id, local_material_ids,
+                        matset, field, zone_id, local_material_ids,
                         local_volume_fractions, local_matset_values, num_mats_in_zone);
                 });
         }
@@ -638,7 +639,7 @@ to_silo(const conduit::Node &matset,
                     std::vector<float64> &local_volume_fractions)
                 {
                     get_uni_buffer_element_dom_material_data_for_zone(
-                        matset, material_map, zone_id, local_material_ids, 
+                        matset, zone_id, local_material_ids, 
                         local_volume_fractions, num_mats_in_zone);
                 });
         }
@@ -761,7 +762,7 @@ multi_buffer_element_dominant_specset_to_silo(const conduit::Node &specset,
         // we must iterate using the material map since it has the "correct"
         // ordering of materials. Ordering may be different for the specset.
         // We choose the material map order to be the one source of truth.
-        matmap_itr.to_front();
+        auto matmap_itr = silo_matset["material_map"].children();
         while (matmap_itr.has_next())
         {
             matmap_itr.next();
@@ -962,6 +963,9 @@ multi_buffer_material_dominant_specset_to_silo(const conduit::Node &specset,
                                                const conduit::Node &silo_matset,
                                                conduit::Node &dest)
 {
+    (void) specset;
+    (void) silo_matset;
+    (void) dest;
     // TODO
 }
 
@@ -972,6 +976,9 @@ uni_buffer_element_dominant_specset_to_silo(const conduit::Node &specset,
                                             const conduit::Node &silo_matset,
                                             conduit::Node &dest)
 {
+    (void) specset;
+    (void) silo_matset;
+    (void) dest;
     // TODO
 }
 
@@ -1013,7 +1020,7 @@ determine_num_elems_in_multi_buffer_by_material(const conduit::Node &elem_ids)
         const int num_vf = mat_elem_ids_vals.dtype().number_of_elements();
         for (int i = 0; i < num_vf; i ++)
         {
-            const int64 element_id = mat_elem_ids_vals[i];
+            const int element_id = mat_elem_ids_vals[i];
             running_max = std::max(running_max, element_id + 1);
         }
     }
@@ -2288,7 +2295,7 @@ renumber_material_ids(conduit::Node &matset)
         for (index_t i = 0; i < mat_ids.number_of_elements(); i ++)
         {
             const int old_mat_id = mat_ids[i];
-            mat_ids[i] = old_to_new.at(old_mat_id);
+            mat_ids.set(i, old_to_new.at(old_mat_id));
         }
     }
     else

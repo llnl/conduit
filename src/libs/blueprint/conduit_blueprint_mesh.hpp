@@ -834,7 +834,8 @@ namespace matset
                                        const float64 epsilon = CONDUIT_EPSILON);
 
     //-------------------------------------------------------------------------
-    void CONDUIT_BLUEPRINT_API create_or_reuse_material_map(const conduit::Node &matset);
+    void CONDUIT_BLUEPRINT_API create_or_reuse_material_map(const conduit::Node &matset,
+                                                            conduit::Node &material_map);
     //-------------------------------------------------------------------------
     void CONDUIT_BLUEPRINT_API renumber_material_ids(const conduit::Node &src_matset,
                                                      conduit::Node &dest_matset);
