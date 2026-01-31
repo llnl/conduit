@@ -79,105 +79,38 @@ create_material_map(const conduit::Node &matset,
     }
 }
 
-//-----------------------------------------------------------------------------
-template <class FillArrays, class Visit>
-void
-walk_matset_by_element_helper(const int num_zones,
-                              FillArrays &&fill_arrays,
-                              Visit &&visit)
-{
-    for (int zone_id = 0; zone_id < num_zones; zone_id ++)
-    {
-        int num_mats_in_zone = 0; // how many materials in this zone
-        std::vector<int> local_material_ids; // their material ids
-        std::vector<float64> local_volume_fractions; // their volume fractions
+// TODO
+// //-----------------------------------------------------------------------------
+// // do something for each element value for a full matset
+// void
+// do_for_full_matset_element_value()
+// {
 
-        fill_arrays(zone_id,
-                    num_mats_in_zone,
-                    local_material_ids,
-                    local_volume_fractions);
-
-        visit(zone_id,
-              num_mats_in_zone,
-              local_material_ids,
-              local_volume_fractions);
-    }
-}
+// }
 
 //-----------------------------------------------------------------------------
-template <class Walk, class VisitVF, class VisitZone>
+// for uni-buffer by element matset (sparse by element)
+// this function walks a single element and does something for each
+// vol_frac/mat_id pair it encounters.
+template <class VisitValue>
 void
-walk_matset_by_element_helper(const int num_zones,
-                              Walk &&walk,
-                              VisitVF &&do_for_vf,
-                              VisitZone &&do_for_zone)
+walk_sbe_matset_element_by_value(const conduit::Node &matset,
+                                 const int zone_id,
+                                 VisitValue &&visit_value)
 {
-    for (int zone_id = 0; zone_id < num_zones; zone_id ++)
+
+    auto o2m_idx = o2mrelation::O2MIndex(matset);
+    const float64_accessor vol_fracs = matset["volume_fractions"].value();
+    const index_t_accessor material_ids = matset["material_ids"].value();
+    const int num_mats_in_zone = o2m_idx.size(zone_id);
+    for (index_t many_id = 0; many_id < num_mats_in_zone; many_id ++)
     {
-        int num_mats_in_zone = 0; // how many materials in this zone
-        std::vector<int> local_material_ids; // their material ids
-        std::vector<float64> local_volume_fractions; // their volume fractions
+        const index_t data_index = o2m_idx.index(zone_id, many_id);
 
-        fill_arrays(zone_id,
-                    num_mats_in_zone,
-                    local_material_ids,
-                    local_volume_fractions);
+        const float64 vol_frac = vol_fracs[data_index];
+        const index_t mat_id = material_ids[data_index];
 
-        do_for_zone(zone_id,
-                    num_mats_in_zone,
-                    local_material_ids,
-                    local_volume_fractions);
-    }
-}
-
-//-----------------------------------------------------------------------------
-template <class Walk, class VisitVF, class VisitZone>
-void
-walk_matset_by_element_helper(const int num_zones,
-                              Walk &&walk,
-                              VisitVF &&do_for_vf,
-                              VisitZone &&do_for_zone)
-{
-    for (int zone_id = 0; zone_id < num_zones; zone_id ++)
-    {
-        int num_mats_in_zone = 0; // how many materials in this zone
-        std::vector<int> local_material_ids; // their material ids
-        std::vector<float64> local_volume_fractions; // their volume fractions
-
-        fill_arrays(zone_id,
-                    num_mats_in_zone,
-                    local_material_ids,
-                    local_volume_fractions);
-
-        do_for_zone(zone_id,
-                    num_mats_in_zone,
-                    local_material_ids,
-                    local_volume_fractions);
-    }
-}
-
-//-----------------------------------------------------------------------------
-template <class FillArrays, class Visit>
-void
-walk_matset_by_element_volume_fraction_helper(const int num_zones,
-                                              FillArrays &&fill_arrays,
-                                              Visit &&visit)
-{
-    for (int zone_id = 0; zone_id < num_zones; zone_id ++)
-    {
-        int num_mats_in_zone = 0; // how many materials in this zone
-        std::vector<int> local_material_ids; // their material ids
-        std::vector<float64> local_volume_fractions; // their volume fractions
-
-        fill_arrays(zone_id,
-                    num_mats_in_zone,
-                    local_material_ids,
-                    local_volume_fractions);
-
-        visit(zone_id,
-              num_mats_in_zone,
-              local_material_ids,
-              local_volume_fractions);
+        visit_value(mat_id, vol_frac, zone_id);
     }
 }
 
@@ -750,17 +683,16 @@ to_silo(const conduit::Node &matset,
         }
         else
         {
-            auto visit = [&](const int zone_id,
-                             int &num_mats_in_zone,
-                             std::vector<int> &local_material_ids,
-                             std::vector<float64> &local_volume_fractions)
+            auto visit_zone = [&](const int zone_id,
+                                  std::vector<int> &local_material_ids,
+                                  std::vector<float64> &local_volume_fractions)
             {
                 store_material_data_for_zone_to_silo_arrays(
-                    num_mats_in_zone, local_material_ids, local_volume_fractions, 
+                    static_cast<int>(local_material_ids.size()), local_material_ids, local_volume_fractions, 
                     zone_id, matlist, mix_vf, mix_mat, mix_next, current_position);
             };
 
-            walk_matset_by_element(matset, material_map, num_zones, visit, epsilon);
+            walk_matset_by_element(matset, material_map, num_zones, visit_zone, epsilon);
 
             // iterate_over_zones_for_material(
             //     [&](const int zone_id,
@@ -1177,32 +1109,19 @@ walk_uni_buffer_by_element_to_multi_buffer_by_element(
         new_vals[matname].set(DataType::float64(num_elems));
     }
 
-    // // iterate through matset
-    // for (int elem_id = 0; elem_id < num_elems; elem_id ++)
-    // {
-    //     for (index_t many_id = 0; many_id < o2m_idx.size(elem_id); many_id ++)
-    //     {
-    //         const index_t data_index = o2m_idx.index(elem_id, many_id);
-
-    //         const float64 val = values[data_index];
-    //         const int mat_id = material_ids[data_index];
-    //         const std::string &matname = reverse_matmap.at(mat_id);
-    //         new_vals[matname].as_float64_array()[elem_id] = val;
-    //     }
-    // }
-
-    auto visit = [&](const int mat_id, const float64 val, const int zone_id)
+    // iterate through matset
+    for (int elem_id = 0; elem_id < num_elems; elem_id ++)
     {
-        const std::string &matname = reverse_matmap.at(mat_id);
-        new_vals[matname].as_float64_array()[zone_id] = val;
-    };
+        for (index_t many_id = 0; many_id < o2m_idx.size(elem_id); many_id ++)
+        {
+            const index_t data_index = o2m_idx.index(elem_id, many_id);
 
-    walk_matset_by_element_volume_fraction(src_matset,
-                                           src_matset["material_map"],
-                                           num_elems,
-                                           visit);
-
-
+            const float64 val = values[data_index];
+            const int mat_id = material_ids[data_index];
+            const std::string &matname = reverse_matmap.at(mat_id);
+            new_vals[matname].as_float64_array()[elem_id] = val;
+        }
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -1636,25 +1555,16 @@ uni_buffer_by_element_to_multi_buffer_by_element_matset(const conduit::Node &src
         new_vol_fracs[matname].set(DataType::float64(num_elems));
     }
 
-    auto visit = [&](const int zone_id,
-                     int &num_mats_in_zone,
-                     std::vector<int> &local_material_ids,
-                     std::vector<float64> &local_volume_fractions)
+    auto visit_value = [&](const int mat_id, const float64 val, const int zone_id)
     {
-        for (int matzoneid = 0; matzoneid < num_mats_in_zone; matzoneid ++)
-        {
-            const float64 val = local_volume_fractions[matzoneid];
-            const int mat_id = local_material_ids[matzoneid];
-
-            const std::string &matname = reverse_matmap.at(mat_id);
-            new_vol_fracs[matname].as_float64_array()[zone_id] = val;
-        }
+        const std::string &matname = reverse_matmap.at(mat_id);
+        new_vol_fracs[matname].as_float64_array()[zone_id] = val;
     };
 
-    walk_matset_by_element(src_matset,
-                           src_matset["material_map"],
-                           num_elems,
-                           visit);
+    walk_matset_by_element_value(src_matset,
+                                 src_matset["material_map"],
+                                 num_elems,
+                                 visit_value);
 
     // walk_uni_buffer_by_element_to_multi_buffer_by_element(src_matset,
     //                                                       reverse_matmap,
@@ -2380,47 +2290,14 @@ multi_buffer_by_material_to_uni_buffer_by_element_specset(const conduit::Node &s
 // -- end conduit::blueprint::mesh::matset::detail --
 //-----------------------------------------------------------------------------
 
-// TODO
-// //-----------------------------------------------------------------------------
-// // do something for each element value for a full matset
-// void
-// do_for_full_matset_element_value()
-// {
-
-// }
-
-//-----------------------------------------------------------------------------
-// for uni-buffer by element matset (sparse by element)
-// this function walks a single element and does something for each
-// vol_frac/mat_id pair it encounters.
-template <class VisitValue>
-void
-walk_sbe_matset_element_by_value(const conduit::Node &matset,
-                                 const int num_zones,
-                                 VisitValue &&visit_value)
-{
-
-    auto o2m_idx = o2mrelation::O2MIndex(matset);
-    const float64_accessor vol_fracs = matset["volume_fractions"].value();
-    const index_t_accessor material_ids = matset["material_ids"].value();
-    const int num_mats_in_zone = o2m_idx.size(zone_id);
-    for (index_t many_id = 0; many_id < num_mats_in_zone; many_id ++)
-    {
-        const index_t data_index = o2m_idx.index(zone_id, many_id);
-
-        const float64 vol_frac = vol_fracs[data_index];
-        const index_t mat_id = material_ids[data_index];
-
-        visit_value(mat_id, vol_frac, zone_id);
-    }
-}
-
 //-----------------------------------------------------------------------------
 template <class VisitValue>
 void
 walk_matset_by_element_value(const conduit::Node &matset,
+                             const conduit::Node &material_map,
                              const int num_zones,
-                             VisitValue &&visit_value)
+                             VisitValue &&visit_value,
+                             const float64 epsilon)
 {
     // extra seat belt here
     if (! matset.dtype().is_object())
@@ -2441,7 +2318,7 @@ walk_matset_by_element_value(const conduit::Node &matset,
         {
             for (int zone_id = 0; zone_id < num_zones; zone_id ++)
             {
-                walk_sbe_matset_element_by_value(matset, num_zones, visit_value);
+                detail::walk_sbe_matset_element_by_value(matset, zone_id, visit_value);
             }
         }
     }
@@ -2455,8 +2332,10 @@ walk_matset_by_element_value(const conduit::Node &matset,
 template <class VisitZone>
 void
 walk_matset_by_element(const conduit::Node &matset,
+                       const conduit::Node &material_map,
                        const int num_zones,
-                       VisitZone &&visit_zone)
+                       VisitZone &&visit_zone,
+                       const float64 epsilon)
 {
     // extra seat belt here
     if (! matset.dtype().is_object())
@@ -2464,16 +2343,6 @@ walk_matset_by_element(const conduit::Node &matset,
         CONDUIT_ERROR("blueprint::mesh::matset::count_zones_in_matset"
                       " passed matset node must be a valid matset tree.");
     }
-
-    // we need to gather info from each value for the zones
-    auto fill_arrays = [&](const float64 vol_frac,
-                           const index_t mat_id,
-                           std::vector<int> &local_material_ids,
-                           std::vector<float64> &local_volume_fractions)
-    {
-        local_material_ids.push_back(mat_id);
-        local_volume_fractions.push_back(vol_frac);
-    };
 
     if (is_element_dominant(matset))
     {
@@ -2490,7 +2359,17 @@ walk_matset_by_element(const conduit::Node &matset,
                 std::vector<int> local_material_ids; // material ids in this zone
                 std::vector<float64> local_volume_fractions; // volume fractions in this zone
 
-                walk_sbe_matset_element_by_value(matset, num_zones, fill_arrays);
+                // we need to gather info from each value for the zones
+                auto fill_arrays = [&](const index_t mat_id,
+                                       const float64 vol_frac,
+                                       const int zone_id)
+                {
+                    (void) zone_id;
+                    local_material_ids.push_back(mat_id);
+                    local_volume_fractions.push_back(vol_frac);
+                };
+
+                detail::walk_sbe_matset_element_by_value(matset, zone_id, fill_arrays);
 
                 visit_zone(zone_id,
                            local_material_ids,
@@ -2501,179 +2380,6 @@ walk_matset_by_element(const conduit::Node &matset,
     else
     {
         CONDUIT_ERROR("Walking by element is only supported for element-dominant material sets.");
-    }
-}
-
-//-----------------------------------------------------------------------------
-template <class VisitVF, class VisitZone>
-void
-walk_matset_by_element(const conduit::Node &matset,
-                       const conduit::Node &material_map,
-                       const int num_zones,
-                       VisitVF &&visit_vf,
-                       VisitZone &&visit_zone,
-                       const float64 epsilon)
-{
-    // extra seat belt here
-    if (! matset.dtype().is_object())
-    {
-        CONDUIT_ERROR("blueprint::mesh::matset::count_zones_in_matset"
-                      " passed matset node must be a valid matset tree.");
-    }
-    // full
-    if (is_element_dominant(matset) && is_multi_buffer(matset))
-    {
-        // TODO
-    }
-    // sparse_by_element
-    else if (is_element_dominant(matset))
-    {
-        auto fill_arrays = [&](const int zone_id,
-                               int &num_mats_in_zone,
-                               std::vector<int> &local_material_ids,
-                               std::vector<float64> &local_volume_fractions)
-        {
-            const float64_accessor vol_fracs = matset["volume_fractions"].value();
-            const index_t_accessor material_ids = matset["material_ids"].value();
-
-            auto o2m_idx = o2mrelation::O2MIndex(matset);
-            num_mats_in_zone = o2m_idx.size(zone_id);
-            for (index_t many_id = 0; many_id < num_mats_in_zone; many_id ++)
-            {
-                const index_t data_index = o2m_idx.index(zone_id, many_id);
-
-                const float64 vol_frac = vol_fracs[data_index];
-                const index_t mat_id = material_ids[data_index];
-
-                local_material_ids.push_back(mat_id);
-                local_volume_fractions.push_back(vol_frac);
-            }
-        };
-
-        detail::walk_matset_by_element_helper(num_zones, fill_arrays, visit);
-    }
-    // sparse_by_material
-    else if (is_material_dominant(matset))
-    {
-        // TODO
-    }
-    else
-    {
-        CONDUIT_ERROR("Unknown matset type.");
-    }
-}
-
-//-----------------------------------------------------------------------------
-template <class Visit>
-void
-walk_matset_by_element_volume_fraction(const conduit::Node &matset,
-                                       const conduit::Node &material_map,
-                                       const int num_zones,
-                                       Visit &&visit,
-                                       const float64 epsilon)
-{
-    // extra seat belt here
-    if (! matset.dtype().is_object())
-    {
-        CONDUIT_ERROR("blueprint::mesh::matset::count_zones_in_matset"
-                      " passed matset node must be a valid matset tree.");
-    }
-    // full
-    if (is_element_dominant(matset) && is_multi_buffer(matset))
-    {
-        // TODO
-    }
-    // sparse_by_element
-    else if (is_element_dominant(matset))
-    {
-        const float64_accessor vol_fracs = matset["volume_fractions"].value();
-        const index_t_accessor material_ids = matset["material_ids"].value();
-
-        auto o2m_idx = o2mrelation::O2MIndex(matset);
-        for (int zone_id = 0; zone_id < num_zones; zone_id ++)
-        {
-            const int num_mats_in_zone = o2m_idx.size(zone_id);
-            for (index_t many_id = 0; many_id < num_mats_in_zone; many_id ++)
-            {
-                const index_t data_index = o2m_idx.index(zone_id, many_id);
-
-                const float64 vol_frac = vol_fracs[data_index];
-                const index_t mat_id = material_ids[data_index];
-
-                visit(mat_id, vol_frac, zone_id);
-
-                // TODO rewrite other one in terms of this?
-                // local_material_ids.push_back(mat_id);
-                // local_volume_fractions.push_back(vol_frac);
-            }
-        }
-    }
-    // sparse_by_material
-    else if (is_material_dominant(matset))
-    {
-        // TODO
-    }
-    else
-    {
-        CONDUIT_ERROR("Unknown matset type.");
-    }
-}
-
-//-----------------------------------------------------------------------------
-template <class Visit>
-void
-walk_matset_by_element(const conduit::Node &matset,
-                       const conduit::Node &material_map,
-                       const int num_zones,
-                       Visit &&visit,
-                       const float64 epsilon)
-{
-    // extra seat belt here
-    if (! matset.dtype().is_object())
-    {
-        CONDUIT_ERROR("blueprint::mesh::matset::count_zones_in_matset"
-                      " passed matset node must be a valid matset tree.");
-    }
-    // full
-    if (is_element_dominant(matset) && is_multi_buffer(matset))
-    {
-        // TODO
-    }
-    // sparse_by_element
-    else if (is_element_dominant(matset))
-    {
-        auto fill_arrays = [&](const int zone_id,
-                               int &num_mats_in_zone,
-                               std::vector<int> &local_material_ids,
-                               std::vector<float64> &local_volume_fractions)
-        {
-            const float64_accessor vol_fracs = matset["volume_fractions"].value();
-            const index_t_accessor material_ids = matset["material_ids"].value();
-
-            auto o2m_idx = o2mrelation::O2MIndex(matset);
-            num_mats_in_zone = o2m_idx.size(zone_id);
-            for (index_t many_id = 0; many_id < num_mats_in_zone; many_id ++)
-            {
-                const index_t data_index = o2m_idx.index(zone_id, many_id);
-
-                const float64 vol_frac = vol_fracs[data_index];
-                const index_t mat_id = material_ids[data_index];
-
-                local_material_ids.push_back(mat_id);
-                local_volume_fractions.push_back(vol_frac);
-            }
-        };
-
-        detail::walk_matset_by_element_helper(num_zones, fill_arrays, visit);
-    }
-    // sparse_by_material
-    else if (is_material_dominant(matset))
-    {
-        // TODO
-    }
-    else
-    {
-        CONDUIT_ERROR("Unknown matset type.");
     }
 }
 

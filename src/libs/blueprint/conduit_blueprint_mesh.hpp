@@ -852,19 +852,19 @@ namespace matset
                                                    const index_t zone_id,
                                                    const float64 epsilon = CONDUIT_EPSILON);
     //-------------------------------------------------------------------------
-    template <class Visit>
+    template <class VisitZone>
     void CONDUIT_BLUEPRINT_API walk_matset_by_element(const conduit::Node &matset,
                                                       const conduit::Node &material_map,
                                                       const int num_zones,
-                                                      Visit &&visit,
+                                                      VisitZone &&visit_zone,
                                                       const float64 epsilon = CONDUIT_EPSILON);
-    //-------------------------------------------------------------------------
-    template <class Visit>
-    void CONDUIT_BLUEPRINT_API walk_matset_by_element_volume_fraction(const conduit::Node &matset,
-                                                                      const conduit::Node &material_map,
-                                                                      const int num_zones,
-                                                                      Visit &&visit,
-                                                                      const float64 epsilon = CONDUIT_EPSILON);
+    //-----------------------------------------------------------------------------
+    template <class VisitValue>
+    void CONDUIT_BLUEPRINT_API walk_matset_by_element_value(const conduit::Node &matset,
+                                                            const conduit::Node &material_map,
+                                                            const int num_zones,
+                                                            VisitValue &&visit_value,
+                                                            const float64 epsilon = CONDUIT_EPSILON);
     //-----------------------------------------------------------------------------
     std::map<int, std::string> CONDUIT_BLUEPRINT_API create_reverse_material_map(
         const conduit::Node &src_matset);
