@@ -1413,6 +1413,16 @@ multi_buffer_by_element_to_uni_buffer_by_element_matset(const conduit::Node &src
                                              fill_context,
                                              visit_zone_with_ctx);
 
+    // TODO JUSTIN this is the problem. Below is simple and elegant;
+    // the new approach is impossible to understand. I think I need
+    // to return to the time before walk_zones_with_context() and go
+    // back to having the generalized walk by element and walk by
+    // element-value. Then make a new generalization that handles the
+    // sizes. It's sad but I think it is better. I could also leave
+    // this as is and worry about refactoring it later. There are
+    // other places where I can use my new walkers. I still need to
+    // write walkers for the fields.
+
     // for (int elem_id = 0; elem_id < num_elems; elem_id ++)
     // {
     //     int size = 0;
