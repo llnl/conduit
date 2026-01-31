@@ -79,17 +79,34 @@ create_material_map(const conduit::Node &matset,
     }
 }
 
-// TODO
-// //-----------------------------------------------------------------------------
-// // do something for each element value for a full matset
-// void
-// do_for_full_matset_element_value()
-// {
+//-----------------------------------------------------------------------------
+// for multi-buffer by element matset (venn full)
+// this function walks a single element and does something for each
+// vol_frac/mat_id pair it encounters.
+template <class VisitValue>
+void
+walk_full_matset_element_by_value(const conduit::Node &matset,
+                                  const conduit::Node &material_map,
+                                  const int zone_id,
+                                  VisitValue &&visit_value,
+                                  const float64 epsilon)
+{
+    const std::vector<std::string> matnames = matset["volume_fractions"].child_names();
+    for (const auto &matname : matnames)
+    {
+        const float64_accessor mat_vfs = matset["volume_fractions"][matname].value();
+        const float64 vol_frac = mat_vfs[zone_id];
+        if (vol_frac > epsilon)
+        {
+            const int mat_id = material_map[matname].as_int();
 
-// }
+            visit_value(mat_id, vol_frac, zone_id);
+        }
+    }
+}
 
 //-----------------------------------------------------------------------------
-// for uni-buffer by element matset (sparse by element)
+// for uni-buffer by element matset (venn sparse by element)
 // this function walks a single element and does something for each
 // vol_frac/mat_id pair it encounters.
 template <class VisitValue>
@@ -652,16 +669,16 @@ to_silo(const conduit::Node &matset,
         }
         else
         {
-            iterate_over_zones_for_material(
-                [&](const int zone_id,
-                    int &num_mats_in_zone,
-                    std::vector<int> &local_material_ids,
-                    std::vector<float64> &local_volume_fractions)
-                {
-                    get_multi_buffer_element_dom_material_data_for_zone(
-                        matset, material_map, zone_id, local_material_ids, 
-                        local_volume_fractions, num_mats_in_zone, epsilon);
-                });
+            auto visit_zone = [&](const int zone_id,
+                                  std::vector<int> &local_material_ids,
+                                  std::vector<float64> &local_volume_fractions)
+            {
+                store_material_data_for_zone_to_silo_arrays(
+                    static_cast<int>(local_material_ids.size()), local_material_ids, local_volume_fractions, 
+                    zone_id, matlist, mix_vf, mix_mat, mix_next, current_position);
+            };
+
+            walk_matset_by_element(matset, material_map, num_zones, visit_zone, epsilon);
         }
     }
     // "sparse by element" representation
@@ -693,17 +710,6 @@ to_silo(const conduit::Node &matset,
             };
 
             walk_matset_by_element(matset, material_map, num_zones, visit_zone, epsilon);
-
-            // iterate_over_zones_for_material(
-            //     [&](const int zone_id,
-            //         int &num_mats_in_zone,
-            //         std::vector<int> &local_material_ids,
-            //         std::vector<float64> &local_volume_fractions)
-            //     {
-            //         get_uni_buffer_element_dom_material_data_for_zone(
-            //             matset, zone_id, local_material_ids, 
-            //             local_volume_fractions, num_mats_in_zone);
-            //     });
         }
     }
     // "sparse by material" representation
@@ -2311,14 +2317,23 @@ walk_matset_by_element_value(const conduit::Node &matset,
         // full
         if (is_multi_buffer(matset))
         {
-            // TODO
+            for (int zone_id = 0; zone_id < num_zones; zone_id ++)
+            {
+                detail::walk_full_matset_element_by_value(matset,
+                                                          material_map,
+                                                          zone_id,
+                                                          visit_value,
+                                                          epsilon);
+            }
         }
         // sparse by element
         else
         {
             for (int zone_id = 0; zone_id < num_zones; zone_id ++)
             {
-                detail::walk_sbe_matset_element_by_value(matset, zone_id, visit_value);
+                detail::walk_sbe_matset_element_by_value(matset,
+                                                         zone_id,
+                                                         visit_value);
             }
         }
     }
@@ -2349,7 +2364,31 @@ walk_matset_by_element(const conduit::Node &matset,
         // full
         if (is_multi_buffer(matset))
         {
-            // TODO
+            for (int zone_id = 0; zone_id < num_zones; zone_id ++)
+            {
+                std::vector<int> local_material_ids; // material ids in this zone
+                std::vector<float64> local_volume_fractions; // volume fractions in this zone
+
+                // we need to gather info from each value for the zones
+                auto fill_arrays = [&](const index_t mat_id,
+                                       const float64 vol_frac,
+                                       const int zone_id)
+                {
+                    (void) zone_id;
+                    local_material_ids.push_back(mat_id);
+                    local_volume_fractions.push_back(vol_frac);
+                };
+
+                detail::walk_full_matset_element_by_value(matset,
+                                                          material_map,
+                                                          zone_id,
+                                                          fill_arrays,
+                                                          epsilon);
+
+                visit_zone(zone_id,
+                           local_material_ids,
+                           local_volume_fractions);
+            }
         }
         // sparse by element
         else
@@ -2369,7 +2408,9 @@ walk_matset_by_element(const conduit::Node &matset,
                     local_volume_fractions.push_back(vol_frac);
                 };
 
-                detail::walk_sbe_matset_element_by_value(matset, zone_id, fill_arrays);
+                detail::walk_sbe_matset_element_by_value(matset,
+                                                         zone_id,
+                                                         fill_arrays);
 
                 visit_zone(zone_id,
                            local_material_ids,
