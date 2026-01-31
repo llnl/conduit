@@ -1541,42 +1541,26 @@ uni_buffer_by_element_to_multi_buffer_by_element_matset(const conduit::Node &src
     // map material numbers to material names
     const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
 
-    // get ptr to vol fracs and mat ids
-    float64_accessor volume_fractions = src_matset["volume_fractions"].value();
-    int64_accessor material_ids = src_matset["material_ids"].value();
-    
     // create container for new volume fractions
     Node &new_vol_fracs = dest_matset["volume_fractions"];
 
-    /////
+    const int num_elems = count_zones_from_matset(src_matset);
 
-
-    auto o2m_idx = o2mrelation::O2MIndex(src_matset);
-    const int num_elems = o2m_idx.size();
-
-    // initialize sizes
+    // initialize sizes of the vol frac arrays
     for (const auto & mapitem : reverse_matmap)
     {
         const std::string &matname = mapitem.second;
         new_vol_fracs[matname].set(DataType::float64(num_elems));
     }
 
+    // what we will do for each mat_id/vol_frac we encounter
     auto visit_value = [&](const int mat_id, const float64 val, const int zone_id)
     {
         const std::string &matname = reverse_matmap.at(mat_id);
         new_vol_fracs[matname].as_float64_array()[zone_id] = val;
     };
 
-    walk_matset_by_element_value(src_matset,
-                                 src_matset["material_map"],
-                                 num_elems,
-                                 visit_value);
-
-    // walk_uni_buffer_by_element_to_multi_buffer_by_element(src_matset,
-    //                                                       reverse_matmap,
-    //                                                       volume_fractions,
-    //                                                       material_ids,
-    //                                                       new_vol_fracs);
+    walk_matset_by_element_value(src_matset, num_elems, visit_value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1711,22 +1695,32 @@ uni_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &sr
     std::map<std::string, std::vector<float64>> new_vol_fracs;
     std::map<std::string, std::vector<int64>> new_elem_ids;
 
-    // iterate through matset
-    auto o2m_idx = o2mrelation::O2MIndex(src_matset);
-    for (int elem_id = 0; elem_id < o2m_idx.size(); elem_id ++)
-    {
-        for (int many_id = 0; many_id < o2m_idx.size(elem_id); many_id ++)
-        {
-            index_t data_index = o2m_idx.index(elem_id, many_id);
+    // // iterate through matset
+    // auto o2m_idx = o2mrelation::O2MIndex(src_matset);
+    // for (int elem_id = 0; elem_id < o2m_idx.size(); elem_id ++)
+    // {
+    //     for (int many_id = 0; many_id < o2m_idx.size(elem_id); many_id ++)
+    //     {
+    //         index_t data_index = o2m_idx.index(elem_id, many_id);
 
-            float64 vol_frac = volume_fractions[data_index];
-            int64 mat_id = material_ids[data_index];
-            const std::string &matname = reverse_matmap.at(mat_id);
+    //         float64 vol_frac = volume_fractions[data_index];
+    //         int64 mat_id = material_ids[data_index];
+    //         const std::string &matname = reverse_matmap.at(mat_id);
             
-            new_vol_fracs[matname].push_back(vol_frac);
-            new_elem_ids[matname].push_back(elem_id);
-        }
-    }
+    //         new_vol_fracs[matname].push_back(vol_frac);
+    //         new_elem_ids[matname].push_back(elem_id);
+    //     }
+    // }
+
+    // what we will do for each mat_id/vol_frac we encounter
+    auto visit_value = [&](const int mat_id, const float64 val, const int zone_id)
+    {
+        const std::string &matname = reverse_matmap.at(mat_id);
+        new_vol_fracs[matname].push_back(val);
+        new_elem_ids[matname].push_back(zone_id);
+    };
+
+    walk_matset_by_element_value(src_matset, visit_value);
 
     read_from_map_write_out(new_vol_fracs, dest_matset["volume_fractions"]);
     read_from_map_write_out(new_elem_ids, dest_matset["element_ids"]);
@@ -2300,6 +2294,44 @@ multi_buffer_by_material_to_uni_buffer_by_element_specset(const conduit::Node &s
 template <class VisitValue>
 void
 walk_matset_by_element_value(const conduit::Node &matset,
+                             VisitValue &&visit_value,
+                             const float64 epsilon)
+{
+    Node material_map;
+    create_or_reuse_material_map(matset, material_map);
+    const int num_zones = count_zones_from_matset(matset);
+    walk_matset_by_element_value(matset, material_map, num_zones, visit_value, epsilon);
+}
+
+//-----------------------------------------------------------------------------
+template <class VisitValue>
+void
+walk_matset_by_element_value(const conduit::Node &matset,
+                             const int num_zones,
+                             VisitValue &&visit_value,
+                             const float64 epsilon)
+{
+    Node material_map;
+    create_or_reuse_material_map(matset, material_map);
+    walk_matset_by_element_value(matset, material_map, num_zones, visit_value, epsilon);
+}
+
+//-----------------------------------------------------------------------------
+template <class VisitValue>
+void
+walk_matset_by_element_value(const conduit::Node &matset,
+                             const conduit::Node &material_map,
+                             VisitValue &&visit_value,
+                             const float64 epsilon)
+{
+    const int num_zones = count_zones_from_matset(matset);
+    walk_matset_by_element_value(matset, material_map, num_zones, visit_value, epsilon);
+}
+
+//-----------------------------------------------------------------------------
+template <class VisitValue>
+void
+walk_matset_by_element_value(const conduit::Node &matset,
                              const conduit::Node &material_map,
                              const int num_zones,
                              VisitValue &&visit_value,
@@ -2341,6 +2373,44 @@ walk_matset_by_element_value(const conduit::Node &matset,
     {
         CONDUIT_ERROR("Walking by element is only supported for element-dominant material sets.");
     }
+}
+
+//-----------------------------------------------------------------------------
+template <class VisitZone>
+void
+walk_matset_by_element(const conduit::Node &matset,
+                       VisitZone &&visit_zone,
+                       const float64 epsilon)
+{
+    Node material_map;
+    create_or_reuse_material_map(matset, material_map);
+    const int num_zones = count_zones_from_matset(matset);
+    walk_matset_by_element(matset, material_map, num_zones, visit_zone, epsilon);
+}
+
+//-----------------------------------------------------------------------------
+template <class VisitZone>
+void
+walk_matset_by_element(const conduit::Node &matset,
+                       const int num_zones,
+                       VisitZone &&visit_zone,
+                       const float64 epsilon)
+{
+    Node material_map;
+    create_or_reuse_material_map(matset, material_map);
+    walk_matset_by_element(matset, material_map, num_zones, visit_zone, epsilon);
+}
+
+//-----------------------------------------------------------------------------
+template <class VisitZone>
+void
+walk_matset_by_element(const conduit::Node &matset,
+                       const conduit::Node &material_map,
+                       VisitZone &&visit_zone,
+                       const float64 epsilon)
+{
+    const int num_zones = count_zones_from_matset(matset);
+    walk_matset_by_element(matset, material_map, num_zones, visit_zone, epsilon);
 }
 
 //-----------------------------------------------------------------------------

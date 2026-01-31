@@ -854,10 +854,44 @@ namespace matset
     //-------------------------------------------------------------------------
     template <class VisitZone>
     void CONDUIT_BLUEPRINT_API walk_matset_by_element(const conduit::Node &matset,
+                                                      VisitZone &&visit_zone,
+                                                      const float64 epsilon = CONDUIT_EPSILON);
+    //-------------------------------------------------------------------------
+    template <class VisitZone>
+    void CONDUIT_BLUEPRINT_API walk_matset_by_element(const conduit::Node &matset,
+                                                      const int num_zones,
+                                                      VisitZone &&visit_zone,
+                                                      const float64 epsilon = CONDUIT_EPSILON);
+    //-------------------------------------------------------------------------
+    template <class VisitZone>
+    void CONDUIT_BLUEPRINT_API walk_matset_by_element(const conduit::Node &matset,
+                                                      const conduit::Node &material_map,
+                                                      VisitZone &&visit_zone,
+                                                      const float64 epsilon = CONDUIT_EPSILON);
+    //-------------------------------------------------------------------------
+    template <class VisitZone>
+    void CONDUIT_BLUEPRINT_API walk_matset_by_element(const conduit::Node &matset,
                                                       const conduit::Node &material_map,
                                                       const int num_zones,
                                                       VisitZone &&visit_zone,
                                                       const float64 epsilon = CONDUIT_EPSILON);
+    //-----------------------------------------------------------------------------
+    template <class VisitValue>
+    void CONDUIT_BLUEPRINT_API walk_matset_by_element_value(const conduit::Node &matset,
+                                                            VisitValue &&visit_value,
+                                                            const float64 epsilon = CONDUIT_EPSILON);
+    //-----------------------------------------------------------------------------
+    template <class VisitValue>
+    void CONDUIT_BLUEPRINT_API walk_matset_by_element_value(const conduit::Node &matset,
+                                                            const int num_zones,
+                                                            VisitValue &&visit_value,
+                                                            const float64 epsilon = CONDUIT_EPSILON);
+    //-----------------------------------------------------------------------------
+    template <class VisitValue>
+    void CONDUIT_BLUEPRINT_API walk_matset_by_element_value(const conduit::Node &matset,
+                                                            const conduit::Node &material_map,
+                                                            VisitValue &&visit_value,
+                                                            const float64 epsilon = CONDUIT_EPSILON);
     //-----------------------------------------------------------------------------
     template <class VisitValue>
     void CONDUIT_BLUEPRINT_API walk_matset_by_element_value(const conduit::Node &matset,
