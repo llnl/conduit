@@ -1298,61 +1298,53 @@ multi_buffer_by_element_to_uni_buffer_by_element_field(const conduit::Node &src_
 {
     dest_field.reset();
 
-    // if this field is material dependent
-    if (src_field.has_child("matset_values"))
+    copy_matset_independent_parts_of_field(src_field,
+                                           dest_matset_name,
+                                           dest_field);
+
+    // map material ids to matset values and volume fractions
+    std::map<int, float64_accessor> full_vol_fracs;
+    std::map<int, float64_accessor> full_matset_vals;
+
+    // create the material map
+    auto mat_itr = src_matset["volume_fractions"].children();
+    auto fmat_itr = src_field["matset_values"].children();
+    int mat_idx = 0;
+    while (mat_itr.has_next() && fmat_itr.has_next())
     {
-        copy_matset_independent_parts_of_field(src_field,
-                                               dest_matset_name,
-                                               dest_field);
+        const Node &mat_vol_fracs = mat_itr.next();
+        std::string matname = mat_itr.name();
 
-        // map material ids to matset values and volume fractions
-        std::map<int, float64_accessor> full_vol_fracs;
-        std::map<int, float64_accessor> full_matset_vals;
+        const Node &mat_field_vals = fmat_itr.next();
+        std::string fmatname = fmat_itr.name();
 
-        // create the material map
-        auto mat_itr = src_matset["volume_fractions"].children();
-        auto fmat_itr = src_field["matset_values"].children();
-        int mat_idx = 0;
-        while (mat_itr.has_next() && fmat_itr.has_next())
+        CONDUIT_ASSERT(matname == fmatname, "Materials must be ordered the same in "
+            "material dependent fields and their matsets.");
+
+        full_vol_fracs[mat_idx] = mat_vol_fracs.value();
+        full_matset_vals[mat_idx] = mat_field_vals.value();
+        mat_idx ++;
+    }
+
+    std::vector<float64> matset_values;
+
+    const int nmats = src_matset["volume_fractions"].number_of_children();
+    const int num_elems = src_matset["volume_fractions"][0].dtype().number_of_elements();
+
+    for (int elem_id = 0; elem_id < num_elems; elem_id ++)
+    {
+        for (int mat_id = 0; mat_id < nmats; mat_id ++)
         {
-            const Node &mat_vol_fracs = mat_itr.next();
-            std::string matname = mat_itr.name();
-
-            const Node &mat_field_vals = fmat_itr.next();
-            std::string fmatname = fmat_itr.name();
-
-            CONDUIT_ASSERT(matname == fmatname, "Materials must be ordered the same in "
-                "material dependent fields and their matsets.");
-
-            full_vol_fracs[mat_idx] = mat_vol_fracs.value();
-            full_matset_vals[mat_idx] = mat_field_vals.value();
-            mat_idx ++;
-        }
-
-        std::vector<float64> matset_values;
-
-        const int nmats = src_matset["volume_fractions"].number_of_children();
-        const int num_elems = src_matset["volume_fractions"][0].dtype().number_of_elements();
-
-        for (int elem_id = 0; elem_id < num_elems; elem_id ++)
-        {
-            for (int mat_id = 0; mat_id < nmats; mat_id ++)
+            float64 matset_val = full_matset_vals[mat_id][elem_id];
+            float64 vol_frac = full_vol_fracs[mat_id][elem_id];
+            if (vol_frac > epsilon)
             {
-                float64 matset_val = full_matset_vals[mat_id][elem_id];
-                float64 vol_frac = full_vol_fracs[mat_id][elem_id];
-                if (vol_frac > epsilon)
-                {
-                    matset_values.push_back(matset_val);
-                }
+                matset_values.push_back(matset_val);
             }
         }
+    }
 
-        dest_field["matset_values"].set(matset_values);
-    }
-    else
-    {
-        dest_field.set(src_field);
-    }
+    dest_field["matset_values"].set(matset_values);
 }
 
 //-----------------------------------------------------------------------------
@@ -1494,33 +1486,25 @@ uni_buffer_by_element_to_multi_buffer_by_element_field(const conduit::Node &src_
 {
     dest_field.reset();
 
-    // if this field is material dependent
-    if (src_field.has_child("matset_values"))
-    {
-        copy_matset_independent_parts_of_field(src_field,
-                                               dest_matset_name,
-                                               dest_field);
+    copy_matset_independent_parts_of_field(src_field,
+                                           dest_matset_name,
+                                           dest_field);
 
-        // map material numbers to material names
-        const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
+    // map material numbers to material names
+    const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
 
-        // get ptr to matset values and mat ids
-        float64_accessor matset_values = src_field["matset_values"].value();
-        int64_accessor material_ids = src_matset["material_ids"].value();
+    // get ptr to matset values and mat ids
+    float64_accessor matset_values = src_field["matset_values"].value();
+    int64_accessor material_ids = src_matset["material_ids"].value();
 
-        // create container for new matset vals and initialize sizes
-        Node &new_matset_vals = dest_field["matset_values"];
+    // create container for new matset vals and initialize sizes
+    Node &new_matset_vals = dest_field["matset_values"];
 
-        walk_uni_buffer_by_element_to_multi_buffer_by_element(src_matset,
-                                                              reverse_matmap,
-                                                              matset_values,
-                                                              material_ids,
-                                                              new_matset_vals);
-    }
-    else
-    {
-        dest_field.set(src_field);
-    }
+    walk_uni_buffer_by_element_to_multi_buffer_by_element(src_matset,
+                                                          reverse_matmap,
+                                                          matset_values,
+                                                          material_ids,
+                                                          new_matset_vals);
 }
 
 //-----------------------------------------------------------------------------
@@ -1636,44 +1620,36 @@ uni_buffer_by_element_to_multi_buffer_by_material_field(const conduit::Node &src
 {
     dest_field.reset();
 
-    // if this field is material dependent
-    if (src_field.has_child("matset_values"))
+    copy_matset_independent_parts_of_field(src_field,
+                                           dest_matset_name,
+                                           dest_field);
+
+    // map material numbers to material names
+    const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
+
+    // get ptr to matset values and mat ids
+    float64_accessor matset_values = src_field["matset_values"].value();
+    int64_accessor material_ids = src_matset["material_ids"].value();
+
+    // create container for new matset vals
+    std::map<std::string, std::vector<float64>> new_mset_vals;
+
+    auto o2m_idx = o2mrelation::O2MIndex(src_matset);
+    for (int elem_id = 0; elem_id < o2m_idx.size(); elem_id ++)
     {
-        copy_matset_independent_parts_of_field(src_field,
-                                               dest_matset_name,
-                                               dest_field);
-
-        // map material numbers to material names
-        const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
-
-        // get ptr to matset values and mat ids
-        float64_accessor matset_values = src_field["matset_values"].value();
-        int64_accessor material_ids = src_matset["material_ids"].value();
-
-        // create container for new matset vals
-        std::map<std::string, std::vector<float64>> new_mset_vals;
-
-        auto o2m_idx = o2mrelation::O2MIndex(src_matset);
-        for (int elem_id = 0; elem_id < o2m_idx.size(); elem_id ++)
+        for (int many_id = 0; many_id < o2m_idx.size(elem_id); many_id ++)
         {
-            for (int many_id = 0; many_id < o2m_idx.size(elem_id); many_id ++)
-            {
-                index_t data_index = o2m_idx.index(elem_id, many_id);
+            index_t data_index = o2m_idx.index(elem_id, many_id);
 
-                float64 mset_val = matset_values[data_index];
-                int64 mat_id = material_ids[data_index];
-                const std::string &matname = reverse_matmap.at(mat_id);
-                
-                new_mset_vals[matname].push_back(mset_val);
-            }
+            float64 mset_val = matset_values[data_index];
+            int64 mat_id = material_ids[data_index];
+            const std::string &matname = reverse_matmap.at(mat_id);
+            
+            new_mset_vals[matname].push_back(mset_val);
         }
+    }
 
-        read_from_map_write_out(new_mset_vals, dest_field["matset_values"]);
-    }
-    else
-    {
-        dest_field.set(src_field);
-    }
+    read_from_map_write_out(new_mset_vals, dest_field["matset_values"]);
 }
 
 //-----------------------------------------------------------------------------
@@ -1775,45 +1751,37 @@ multi_buffer_by_element_to_multi_buffer_by_material_field(const conduit::Node &s
 {
     dest_field.reset();
 
-    // if this field is material dependent
-    if (src_field.has_child("matset_values"))
-    {
-        copy_matset_independent_parts_of_field(src_field,
-                                               dest_matset_name,
-                                               dest_field);
+    copy_matset_independent_parts_of_field(src_field,
+                                           dest_matset_name,
+                                           dest_field);
 
-        auto mat_itr = src_matset["volume_fractions"].children();
-        auto fmat_itr = src_field["matset_values"].children();
-        while (mat_itr.has_next() && fmat_itr.has_next())
+    auto mat_itr = src_matset["volume_fractions"].children();
+    auto fmat_itr = src_field["matset_values"].children();
+    while (mat_itr.has_next() && fmat_itr.has_next())
+    {
+        const Node &mat_vol_fracs = mat_itr.next();
+        std::string matname = mat_itr.name();
+        
+        const Node &mat_vals = fmat_itr.next();
+        std::string fmatname = fmat_itr.name();
+
+        CONDUIT_ASSERT(matname == fmatname, "Materials must be ordered the same in "
+            "material dependent fields and their matsets.");
+
+        std::vector<float64> mset_vals;
+
+        float64_accessor full_vol_fracs = mat_vol_fracs.value();
+        float64_accessor full_mset_vals = mat_vals.value();
+        int num_elems = full_vol_fracs.dtype().number_of_elements();
+        for (int elem_id = 0; elem_id < num_elems; elem_id ++)
         {
-            const Node &mat_vol_fracs = mat_itr.next();
-            std::string matname = mat_itr.name();
-            
-            const Node &mat_vals = fmat_itr.next();
-            std::string fmatname = fmat_itr.name();
-
-            CONDUIT_ASSERT(matname == fmatname, "Materials must be ordered the same in "
-                "material dependent fields and their matsets.");
-
-            std::vector<float64> mset_vals;
-
-            float64_accessor full_vol_fracs = mat_vol_fracs.value();
-            float64_accessor full_mset_vals = mat_vals.value();
-            int num_elems = full_vol_fracs.dtype().number_of_elements();
-            for (int elem_id = 0; elem_id < num_elems; elem_id ++)
+            if (full_vol_fracs[elem_id] > epsilon)
             {
-                if (full_vol_fracs[elem_id] > epsilon)
-                {
-                    mset_vals.push_back(full_mset_vals[elem_id]);
-                }
+                mset_vals.push_back(full_mset_vals[elem_id]);
             }
-
-            dest_field["matset_values"][matname].set(mset_vals);
         }
-    }
-    else
-    {
-        dest_field.set(src_field);
+
+        dest_field["matset_values"][matname].set(mset_vals);
     }
 }
 
@@ -1897,27 +1865,19 @@ multi_buffer_by_material_to_multi_buffer_by_element_field(const conduit::Node &s
 {
     dest_field.reset();
 
-    // if this field is material dependent
-    if (src_field.has_child("matset_values"))
-    {
-        copy_matset_independent_parts_of_field(src_field,
-                                               dest_matset_name,
-                                               dest_field);
+    copy_matset_independent_parts_of_field(src_field,
+                                           dest_matset_name,
+                                           dest_field);
 
-        // sparse by material representation
-        // we map material names to element ids and matset values
-        std::map<std::string, std::pair<int64_accessor, float64_accessor>> sbm_rep;
+    // sparse by material representation
+    // we map material names to element ids and matset values
+    std::map<std::string, std::pair<int64_accessor, float64_accessor>> sbm_rep;
 
-        create_sbm_rep(src_matset["element_ids"], src_field["matset_values"], sbm_rep);
+    create_sbm_rep(src_matset["element_ids"], src_field["matset_values"], sbm_rep);
 
-        const int num_elems = determine_num_elems_in_multi_buffer_by_material(src_matset["element_ids"]);
+    const int num_elems = determine_num_elems_in_multi_buffer_by_material(src_matset["element_ids"]);
 
-        sbm_rep_to_full(sbm_rep, num_elems, dest_field["matset_values"]);
-    }
-    else
-    {
-        dest_field.set(src_field);
-    }
+    sbm_rep_to_full(sbm_rep, num_elems, dest_field["matset_values"]);
 }
 
 //-----------------------------------------------------------------------------
@@ -2050,59 +2010,51 @@ multi_buffer_by_material_to_uni_buffer_by_element_field(const conduit::Node &src
 {
     dest_field.reset();
 
-    // if this field is material dependent
-    if (src_field.has_child("matset_values"))
+    copy_matset_independent_parts_of_field(src_field,
+                                           dest_matset_name,
+                                           dest_field);
+
+    // sparse by material representation
+    // we map material names to element ids and matset values
+    std::map<std::string, std::pair<int64_accessor, float64_accessor>> sbm_rep;
+
+    create_sbm_rep(src_matset["element_ids"], src_field["matset_values"], sbm_rep);
+
+    const int num_elems = determine_num_elems_in_multi_buffer_by_material(src_matset["element_ids"]);
+
+    // There is no way to pack the matset values correctly without
+    // first knowing the sizes. So we create an intermediate representation
+    // in which matset values are packed by element. Later we smooth this out.
+    std::vector<std::vector<float64>> intermediate_mset_vals(num_elems);
+
+    for (const auto &mapitem : sbm_rep)
     {
-        copy_matset_independent_parts_of_field(src_field,
-                                               dest_matset_name,
-                                               dest_field);
-
-        // sparse by material representation
-        // we map material names to element ids and matset values
-        std::map<std::string, std::pair<int64_accessor, float64_accessor>> sbm_rep;
-
-        create_sbm_rep(src_matset["element_ids"], src_field["matset_values"], sbm_rep);
-
-        const int num_elems = determine_num_elems_in_multi_buffer_by_material(src_matset["element_ids"]);
-
-        // There is no way to pack the matset values correctly without
-        // first knowing the sizes. So we create an intermediate representation
-        // in which matset values are packed by element. Later we smooth this out.
-        std::vector<std::vector<float64>> intermediate_mset_vals(num_elems);
-
-        for (const auto &mapitem : sbm_rep)
+        int64_accessor sbm_eids = mapitem.second.first;
+        float64_accessor sbm_mvals = mapitem.second.second;
+        
+        const int num_vf = sbm_mvals.dtype().number_of_elements();
+        for (int mat_vf_id = 0; mat_vf_id < num_vf; mat_vf_id ++)
         {
-            int64_accessor sbm_eids = mapitem.second.first;
-            float64_accessor sbm_mvals = mapitem.second.second;
-            
-            const int num_vf = sbm_mvals.dtype().number_of_elements();
-            for (int mat_vf_id = 0; mat_vf_id < num_vf; mat_vf_id ++)
-            {
-                const int64 elem_id = sbm_eids[mat_vf_id];
-                const float64 mset_val = sbm_mvals[mat_vf_id];
+            const int64 elem_id = sbm_eids[mat_vf_id];
+            const float64 mset_val = sbm_mvals[mat_vf_id];
 
-                intermediate_mset_vals[elem_id].push_back(mset_val);
-            }
+            intermediate_mset_vals[elem_id].push_back(mset_val);
         }
-
-        std::vector<float64> mset_vals;
-
-        // final pass
-        for (int elem_id = 0; elem_id < num_elems; elem_id ++)
-        {
-            int size = static_cast<int>(intermediate_mset_vals[elem_id].size());
-            for (int mat_vf_id = 0; mat_vf_id < size; mat_vf_id ++)
-            {
-                mset_vals.push_back(intermediate_mset_vals[elem_id][mat_vf_id]);
-            }
-        }
-
-        dest_field["matset_values"].set(mset_vals);
     }
-    else
+
+    std::vector<float64> mset_vals;
+
+    // final pass
+    for (int elem_id = 0; elem_id < num_elems; elem_id ++)
     {
-        dest_field.set(src_field);
+        int size = static_cast<int>(intermediate_mset_vals[elem_id].size());
+        for (int mat_vf_id = 0; mat_vf_id < size; mat_vf_id ++)
+        {
+            mset_vals.push_back(intermediate_mset_vals[elem_id][mat_vf_id]);
+        }
     }
+
+    dest_field["matset_values"].set(mset_vals);
 }
 
 //-----------------------------------------------------------------------------
@@ -3058,6 +3010,16 @@ to_multi_buffer_full(const conduit::Node &src_matset,
                       " passed field node must be a valid field tree.");
     }
 
+    // if this field is NOT material dependent
+    if (! src_field.has_child("matset_values"))
+    {
+        // nothing to do
+        dest_field.set(src_field);
+        dest_field["matset"].reset();
+        dest_field["matset"] = dest_matset_name;
+        return;
+    }
+
     // full
     if (conduit::blueprint::mesh::matset::is_element_dominant(src_matset) && 
         conduit::blueprint::mesh::matset::is_multi_buffer(src_matset))
@@ -3106,6 +3068,16 @@ to_uni_buffer_by_element(const conduit::Node &src_matset,
                       " passed field node must be a valid field tree.");
     }
 
+    // if this field is NOT material dependent
+    if (! src_field.has_child("matset_values"))
+    {
+        // nothing to do
+        dest_field.set(src_field);
+        dest_field["matset"].reset();
+        dest_field["matset"] = dest_matset_name;
+        return;
+    }
+
     // full
     if (conduit::blueprint::mesh::matset::is_element_dominant(src_matset) && 
         conduit::blueprint::mesh::matset::is_multi_buffer(src_matset))
@@ -3152,6 +3124,16 @@ to_multi_buffer_by_material(const conduit::Node &src_matset,
     {
         CONDUIT_ERROR("blueprint::mesh::field::to_multi_buffer_by_material"
                       " passed field node must be a valid field tree.");
+    }
+
+    // if this field is NOT material dependent
+    if (! src_field.has_child("matset_values"))
+    {
+        // nothing to do
+        dest_field.set(src_field);
+        dest_field["matset"].reset();
+        dest_field["matset"] = dest_matset_name;
+        return;
     }
 
     // full
