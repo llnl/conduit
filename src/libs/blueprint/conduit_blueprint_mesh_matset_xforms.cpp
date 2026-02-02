@@ -1014,40 +1014,6 @@ determine_num_elems_in_multi_buffer_by_material(const conduit::Node &elem_ids)
 }
 
 //-----------------------------------------------------------------------------
-void
-walk_uni_buffer_by_element_to_multi_buffer_by_element(
-    const conduit::Node &src_matset,
-    const std::map<int, std::string> &reverse_matmap,
-    float64_accessor &values, // can be either vol fracs or matset vals
-    int64_accessor &material_ids,
-    conduit::Node &new_vals)
-{
-    auto o2m_idx = o2mrelation::O2MIndex(src_matset);
-    const int num_elems = o2m_idx.size();
-
-    // initialize sizes
-    for (const auto & mapitem : reverse_matmap)
-    {
-        const std::string &matname = mapitem.second;
-        new_vals[matname].set(DataType::float64(num_elems));
-    }
-
-    // iterate through matset
-    for (int elem_id = 0; elem_id < num_elems; elem_id ++)
-    {
-        for (index_t many_id = 0; many_id < o2m_idx.size(elem_id); many_id ++)
-        {
-            const index_t data_index = o2m_idx.index(elem_id, many_id);
-
-            const float64 val = values[data_index];
-            const int mat_id = material_ids[data_index];
-            const std::string &matname = reverse_matmap.at(mat_id);
-            new_vals[matname].as_float64_array()[elem_id] = val;
-        }
-    }
-}
-
-//-----------------------------------------------------------------------------
 template <typename SaveFunc>
 void
 walk_uni_buffer_by_element_to_multi_buffer_by_element_specset(
@@ -1328,21 +1294,20 @@ multi_buffer_by_element_to_uni_buffer_by_element_field(const conduit::Node &src_
 
     std::vector<float64> matset_values;
 
-    const int nmats = src_matset["volume_fractions"].number_of_children();
-    const int num_elems = src_matset["volume_fractions"][0].dtype().number_of_elements();
-
-    for (int elem_id = 0; elem_id < num_elems; elem_id ++)
+    // what we will do for each mat_id/vol_frac/mset_val we encounter
+    auto for_each_value = [&](const int mat_id,
+                              const float64 vf,
+                              const float64 mset_val,
+                              const int zone_id)
     {
-        for (int mat_id = 0; mat_id < nmats; mat_id ++)
-        {
-            float64 matset_val = full_matset_vals[mat_id][elem_id];
-            float64 vol_frac = full_vol_fracs[mat_id][elem_id];
-            if (vol_frac > epsilon)
-            {
-                matset_values.push_back(matset_val);
-            }
-        }
-    }
+        (void) mat_id;
+        (void) vf;
+        (void) zone_id;
+        matset_values.push_back(mset_val);
+    };
+
+    conduit::blueprint::mesh::field::walk_matset_field_by_element_value(
+        src_field, src_matset, for_each_value, epsilon);
 
     dest_field["matset_values"].set(matset_values);
 }
@@ -1467,13 +1432,13 @@ uni_buffer_by_element_to_multi_buffer_by_element_matset(const conduit::Node &src
     }
 
     // what we will do for each mat_id/vol_frac we encounter
-    auto visit_value = [&](const int mat_id, const float64 val, const int zone_id)
+    auto for_each_value = [&](const int mat_id, const float64 vf, const int zone_id)
     {
         const std::string &matname = reverse_matmap.at(mat_id);
-        new_vol_fracs[matname].as_float64_array()[zone_id] = val;
+        new_vol_fracs[matname].as_float64_array()[zone_id] = vf;
     };
 
-    walk_matset_by_element_value(src_matset, num_elems, visit_value);
+    walk_matset_by_element_value(src_matset, num_elems, for_each_value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1493,18 +1458,31 @@ uni_buffer_by_element_to_multi_buffer_by_element_field(const conduit::Node &src_
     // map material numbers to material names
     const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
 
-    // get ptr to matset values and mat ids
-    float64_accessor matset_values = src_field["matset_values"].value();
-    int64_accessor material_ids = src_matset["material_ids"].value();
-
-    // create container for new matset vals and initialize sizes
+    // create container for new matset vals
     Node &new_matset_vals = dest_field["matset_values"];
 
-    walk_uni_buffer_by_element_to_multi_buffer_by_element(src_matset,
-                                                          reverse_matmap,
-                                                          matset_values,
-                                                          material_ids,
-                                                          new_matset_vals);
+    const int num_elems = count_zones_from_matset(src_matset);
+
+    // initialize sizes
+    for (const auto & mapitem : reverse_matmap)
+    {
+        const std::string &matname = mapitem.second;
+        new_matset_vals[matname].set(DataType::float64(num_elems));
+    }
+
+    // what we will do for each mat_id/vol_frac/mset_val we encounter
+    auto for_each_value = [&](const int mat_id,
+                              const float64 vf,
+                              const float64 mset_val,
+                              const int zone_id)
+    {
+        (void) vf;
+        const std::string &matname = reverse_matmap.at(mat_id);
+        new_matset_vals[matname].as_float64_array()[zone_id] = mset_val;
+    };
+
+    conduit::blueprint::mesh::field::walk_matset_field_by_element_value(
+        src_field, src_matset, num_elems, for_each_value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1597,14 +1575,14 @@ uni_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &sr
     std::map<std::string, std::vector<int64>> new_elem_ids;
 
     // what we will do for each mat_id/vol_frac we encounter
-    auto visit_value = [&](const int mat_id, const float64 val, const int zone_id)
+    auto for_each_value = [&](const int mat_id, const float64 vf, const int zone_id)
     {
         const std::string &matname = reverse_matmap.at(mat_id);
-        new_vol_fracs[matname].push_back(val);
+        new_vol_fracs[matname].push_back(vf);
         new_elem_ids[matname].push_back(zone_id);
     };
 
-    walk_matset_by_element_value(src_matset, visit_value);
+    walk_matset_by_element_value(src_matset, for_each_value);
 
     read_from_map_write_out(new_vol_fracs, dest_matset["volume_fractions"]);
     read_from_map_write_out(new_elem_ids, dest_matset["element_ids"]);
@@ -1627,27 +1605,23 @@ uni_buffer_by_element_to_multi_buffer_by_material_field(const conduit::Node &src
     // map material numbers to material names
     const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
 
-    // get ptr to matset values and mat ids
-    float64_accessor matset_values = src_field["matset_values"].value();
-    int64_accessor material_ids = src_matset["material_ids"].value();
-
     // create container for new matset vals
     std::map<std::string, std::vector<float64>> new_mset_vals;
 
-    auto o2m_idx = o2mrelation::O2MIndex(src_matset);
-    for (int elem_id = 0; elem_id < o2m_idx.size(); elem_id ++)
+    // what we will do for each mat_id/vol_frac/mset_val we encounter
+    auto for_each_value = [&](const int mat_id,
+                              const float64 vf,
+                              const float64 mset_val,
+                              const int zone_id)
     {
-        for (int many_id = 0; many_id < o2m_idx.size(elem_id); many_id ++)
-        {
-            index_t data_index = o2m_idx.index(elem_id, many_id);
+        (void) vf;
+        (void) zone_id;
+        const std::string &matname = reverse_matmap.at(mat_id);
+        new_mset_vals[matname].push_back(mset_val);
+    };
 
-            float64 mset_val = matset_values[data_index];
-            int64 mat_id = material_ids[data_index];
-            const std::string &matname = reverse_matmap.at(mat_id);
-            
-            new_mset_vals[matname].push_back(mset_val);
-        }
-    }
+    conduit::blueprint::mesh::field::walk_matset_field_by_element_value(
+        src_field, src_matset, for_each_value);
 
     read_from_map_write_out(new_mset_vals, dest_field["matset_values"]);
 }
