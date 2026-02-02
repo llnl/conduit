@@ -273,7 +273,7 @@ store_material_field_data_for_zone_to_silo_arrays(
     const int &num_mats_in_zone,
     const std::vector<index_t> &local_material_ids,
     const std::vector<float64> &local_volume_fractions,
-    std::vector<float64> &local_matset_values,
+    const std::vector<float64> &local_matset_values,
     const int zone_id,
     index_t_array &matlist,
     std::vector<float64> &mix_vf,
@@ -355,122 +355,6 @@ store_material_data_for_zone_to_silo_arrays(
             {
                 mix_next.push_back(current_position);
             }
-        }
-    }
-}
-
-//-----------------------------------------------------------------------------
-// get material data for a specific zone from the "sparse by element" representation
-void
-get_uni_buffer_element_dom_material_data_for_zone(const conduit::Node &matset,
-                                                  const index_t zone_id,
-                                                  std::vector<index_t> &local_material_ids,
-                                                  std::vector<float64> &local_volume_fractions,
-                                                  int &num_mats_in_zone)
-{
-    const float64_accessor vol_fracs = matset["volume_fractions"].value();
-    const index_t_accessor material_ids = matset["material_ids"].value();
-
-    auto o2m_idx = o2mrelation::O2MIndex(matset);
-    num_mats_in_zone = o2m_idx.size(zone_id);
-    for (index_t many_id = 0; many_id < num_mats_in_zone; many_id ++)
-    {
-        const index_t data_index = o2m_idx.index(zone_id, many_id);
-
-        const float64 vol_frac = vol_fracs[data_index];
-        const index_t mat_id = material_ids[data_index];
-
-        local_material_ids.push_back(mat_id);
-        local_volume_fractions.push_back(vol_frac);
-    }
-}
-
-//-----------------------------------------------------------------------------
-// get material and field data for a specific zone from the "sparse by element" representation
-void
-get_uni_buffer_element_dom_material_field_data_for_zone(const conduit::Node &matset,
-                                                        const conduit::Node &field,
-                                                        const index_t zone_id,
-                                                        std::vector<index_t> &local_material_ids,
-                                                        std::vector<float64> &local_volume_fractions,
-                                                        std::vector<float64> &local_matset_values,
-                                                        int &num_mats_in_zone)
-{
-    const float64_accessor vol_fracs = matset["volume_fractions"].value();
-    const index_t_accessor material_ids = matset["material_ids"].value();
-    const float64_accessor mset_vals = field["matset_values"].value();
-
-    auto o2m_idx = o2mrelation::O2MIndex(matset);
-    num_mats_in_zone = o2m_idx.size(zone_id);
-    for (index_t many_id = 0; many_id < num_mats_in_zone; many_id ++)
-    {
-        const index_t data_index = o2m_idx.index(zone_id, many_id);
-
-        const float64 vol_frac = vol_fracs[data_index];
-        const index_t mat_id = material_ids[data_index];
-        const float64 val_for_mat = mset_vals[data_index];
-
-        local_material_ids.push_back(mat_id);
-        local_volume_fractions.push_back(vol_frac);
-        local_matset_values.push_back(val_for_mat);
-    }
-}
-
-//-----------------------------------------------------------------------------
-// get material data for a specific zone from the "full" representation
-void
-get_multi_buffer_element_dom_material_data_for_zone(const conduit::Node &matset,
-                                                    const conduit::Node &material_map,
-                                                    const index_t zone_id,
-                                                    std::vector<index_t> &local_material_ids,
-                                                    std::vector<float64> &local_volume_fractions,
-                                                    int &num_mats_in_zone,
-                                                    const float64 epsilon)
-{
-    const std::vector<std::string> matnames = matset["volume_fractions"].child_names();
-    for (const auto &matname : matnames)
-    {
-        const float64_accessor mat_vfs = matset["volume_fractions"][matname].value();
-        const float64 vf_for_mat = mat_vfs[zone_id];
-        if (vf_for_mat > epsilon)
-        {
-            const int material_id = material_map[matname].as_int();
-
-            num_mats_in_zone ++;
-            local_volume_fractions.push_back(vf_for_mat);
-            local_material_ids.push_back(material_id);
-        }
-    }
-}
-
-//-----------------------------------------------------------------------------
-// get material and field data for a specific zone from the "full" representation
-void
-get_multi_buffer_element_dom_material_field_data_for_zone(const conduit::Node &matset,
-                                                          const conduit::Node &material_map,
-                                                          const conduit::Node &field,
-                                                          const index_t zone_id,
-                                                          std::vector<index_t> &local_material_ids,
-                                                          std::vector<float64> &local_volume_fractions,
-                                                          std::vector<float64> &local_matset_values,
-                                                          int &num_mats_in_zone,
-                                                          const float64 epsilon)
-{
-    const std::vector<std::string> matnames = matset["volume_fractions"].child_names();
-    for (const auto &matname : matnames)
-    {
-        const float64_accessor mat_vfs = matset["volume_fractions"][matname].value();
-        const float64 vf_for_mat = mat_vfs[zone_id];
-        if (vf_for_mat > epsilon)
-        {
-            const int material_id = material_map[matname].as_int();
-            const float64_accessor mset_vals = field["matset_values"][matname].value();
-            const float64 val_for_mat = mset_vals[zone_id];
-
-            num_mats_in_zone ++;
-            local_volume_fractions.push_back(vf_for_mat);
-            local_material_ids.push_back(material_id);
-            local_matset_values.push_back(val_for_mat);
         }
     }
 }
@@ -708,113 +592,36 @@ to_silo(const conduit::Node &matset,
     // if we are doing fields or not. We use our created lambdas and helpers
     // to walk the data structures and write the results to the silo arrays.
     // 
-    // TODO this new paradigm is the future
-    // // if we are working with fields
-    // if (transform_field)
-    // {
-
-    // }
-    // else
-    // {
-    //     if (element_dominant)
-    //     {
-    //         auto visit_zone = [&](const int zone_id,
-    //                               const std::vector<index_t> &local_material_ids,
-    //                               const std::vector<float64> &local_volume_fractions)
-    //         {
-    //             store_material_data_for_zone_to_silo_arrays(
-    //                 static_cast<int>(local_material_ids.size()), local_material_ids, local_volume_fractions, 
-    //                 zone_id, matlist, mix_vf, mix_mat, mix_next, current_position);
-    //         };
-
-    //         walk_matset_by_element(matset, material_map, num_zones, visit_zone, epsilon);
-    //     }
-    //     else // material_dominant
-    //     {
-
-    //     }
-    // }
-
-
-
-    // "full" representation
-    if (element_dominant && multi_buffer)
+    // if we are working with fields
+    if (transform_field)
     {
-        if (transform_field)
+        if (element_dominant)
         {
-            iterate_over_zones_for_material_field(
-                [&](const int zone_id,
-                    int &num_mats_in_zone,
-                    std::vector<index_t> &local_material_ids,
-                    std::vector<float64> &local_volume_fractions,
-                    std::vector<float64> &local_matset_values)
-                {
-                    get_multi_buffer_element_dom_material_field_data_for_zone(
-                        matset, material_map, field, zone_id, local_material_ids,
-                        local_volume_fractions, local_matset_values, num_mats_in_zone,
-                        epsilon);
-                });
-        }
-        else
-        {
-            auto visit_zone = [&](const int zone_id,
-                                  const std::vector<index_t> &local_material_ids,
-                                  const std::vector<float64> &local_volume_fractions)
+            auto for_each_zone = [&](const int zone_id,
+                                     const std::vector<index_t> &local_material_ids,
+                                     const std::vector<float64> &local_volume_fractions,
+                                     const std::vector<float64> &local_matset_values)
             {
-                store_material_data_for_zone_to_silo_arrays(
-                    static_cast<int>(local_material_ids.size()), local_material_ids, local_volume_fractions, 
-                    zone_id, matlist, mix_vf, mix_mat, mix_next, current_position);
+                store_material_field_data_for_zone_to_silo_arrays(
+                    static_cast<int>(local_material_ids.size()), local_material_ids, local_volume_fractions,
+                    local_matset_values, zone_id, matlist, mix_vf, mix_mat, mix_next,
+                    field_mixvar_values, current_position);
             };
 
-            walk_matset_by_element(matset, material_map, num_zones, visit_zone, epsilon);
+            conduit::blueprint::mesh::field::walk_matset_field_by_element(
+                field, matset, material_map, num_zones, for_each_zone, epsilon);
         }
-    }
-    // "sparse by element" representation
-    else if (element_dominant)
-    {
-        if (transform_field)
+        else // material dominant
         {
-            iterate_over_zones_for_material_field(
-                [&](const int zone_id,
-                    int &num_mats_in_zone,
-                    std::vector<index_t> &local_material_ids,
-                    std::vector<float64> &local_volume_fractions,
-                    std::vector<float64> &local_matset_values)
-                {
-                    get_uni_buffer_element_dom_material_field_data_for_zone(
-                        matset, field, zone_id, local_material_ids,
-                        local_volume_fractions, local_matset_values, num_mats_in_zone);
-                });
-        }
-        else
-        {
-            auto visit_zone = [&](const int zone_id,
-                                  const std::vector<index_t> &local_material_ids,
-                                  const std::vector<float64> &local_volume_fractions)
-            {
-                store_material_data_for_zone_to_silo_arrays(
-                    static_cast<int>(local_material_ids.size()), local_material_ids, local_volume_fractions, 
-                    zone_id, matlist, mix_vf, mix_mat, mix_next, current_position);
-            };
-
-            walk_matset_by_element(matset, material_map, num_zones, visit_zone, epsilon);
-        }
-    }
-    // "sparse by material" representation
-    else if (! element_dominant)
-    {
-        //
-        // create an intermediate representation
-        // we could do this for all matset types, but it is less efficient
-        // it is required for material dominant matsets
-        //
-        // for each zone, the material ids of the materials in that zone
-        std::vector<std::vector<index_t>> material_ids(num_zones);
-        // for each zone, the volume fractions of the materials in that zone
-        std::vector<std::vector<float64>> vol_fracs(num_zones);
-
-        if (transform_field)
-        {
+            //
+            // create an intermediate representation
+            // we could do this for all matset types, but it is less efficient
+            // it is required for material dominant matsets
+            //
+            // for each zone, the material ids of the materials in that zone
+            std::vector<std::vector<index_t>> material_ids(num_zones);
+            // for each zone, the volume fractions of the materials in that zone
+            std::vector<std::vector<float64>> vol_fracs(num_zones);
             // for each zone, the matset vals of the field in that zone
             std::vector<std::vector<float64>> mset_vals(num_zones);
 
@@ -834,8 +641,34 @@ to_silo(const conduit::Node &matset,
                     local_matset_values = std::move(mset_vals[zone_id]);
                 });
         }
-        else
+    }
+    else
+    {
+        if (element_dominant)
         {
+            auto for_each_zone = [&](const int zone_id,
+                                     const std::vector<index_t> &local_material_ids,
+                                     const std::vector<float64> &local_volume_fractions)
+            {
+                store_material_data_for_zone_to_silo_arrays(
+                    static_cast<int>(local_material_ids.size()), local_material_ids, local_volume_fractions, 
+                    zone_id, matlist, mix_vf, mix_mat, mix_next, current_position);
+            };
+
+            walk_matset_by_element(matset, material_map, num_zones, for_each_zone, epsilon);
+        }
+        else // material_dominant
+        {
+            //
+            // create an intermediate representation
+            // we could do this for all matset types, but it is less efficient
+            // it is required for material dominant matsets
+            //
+            // for each zone, the material ids of the materials in that zone
+            std::vector<std::vector<index_t>> material_ids(num_zones);
+            // for each zone, the volume fractions of the materials in that zone
+            std::vector<std::vector<float64>> vol_fracs(num_zones);
+
             get_multi_buffer_element_dom_material_data_for_zones(
                 matset, material_map, material_ids, vol_fracs);
 
@@ -850,10 +683,6 @@ to_silo(const conduit::Node &matset,
                     local_volume_fractions = std::move(vol_fracs[zone_id]);
                 });
         }
-    }
-    else
-    {
-        CONDUIT_ERROR("Unknown matset type.");
     }
 
     //
