@@ -88,7 +88,7 @@ RUN cd conduit && \
 
 # build, test, and install conduit
 RUN cd conduit/build-debug && make
-RUN cd conduit/build-debug && env CTEST_OUTPUT_ON_FAILURE=1 make test
+RUN cd conduit/build-debug && make VERBOSE=1 test
 RUN cd conduit/build-debug && make install
 
 # open port 9000, for use by conduit relay
