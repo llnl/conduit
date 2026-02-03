@@ -1,1 +1,1 @@
-blt  branch='develop' commit='fb4246b8bae74c3d7291bef9698fd38863844680'
+blt  branch='task/2026_02_blt_mpi_more_smoke' commit='6c445f8482eee4894fd184f815c992661559b0e2'
