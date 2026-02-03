@@ -473,6 +473,22 @@ enum { use_utf8 = !FMT_WIN32 || is_utf8_enabled };
 #  define FMT_UNICODE 1
 #endif
 
+//--------------------
+// BEGIN CONDUIT FIX
+// FMT win32 unicode fix, pioneered by axom team
+// See PR https://github.com/llnl/axom/pull/1772/
+#ifndef FMT_UNICODE
+// Make Unicode support conditional on whether it appears enabled instead of
+// requiring the compiler be invoked with special /utf-8 command line argument.
+#  ifdef FMT_WIN32
+#    define FMT_UNICODE is_utf8_enabled
+#  else
+#    define FMT_UNICODE 1
+#  endif
+#endif
+// END CONDUIT FIX
+//--------------------
+
 static_assert(!FMT_UNICODE || use_utf8,
               "Unicode support requires compiling with /utf-8");
 
