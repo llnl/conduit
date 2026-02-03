@@ -948,3 +948,129 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_specset_edge_cases)
         EXPECT_FALSE(silo_rep.diff(baseline, info, CONDUIT_EPSILON, true));
     }
 }
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_create_or_reuse_matmap)
+{
+    const int nx = 4, ny = 4;
+    const double radius = 0.25;
+
+    Node info;
+    std::vector<Node> venn_examples(3);
+    blueprint::mesh::examples::venn("full", nx, ny, radius, venn_examples[0]);
+    blueprint::mesh::examples::venn("sparse_by_element", nx, ny, radius, venn_examples[1]);
+    blueprint::mesh::examples::venn("sparse_by_material", nx, ny, radius, venn_examples[2]);
+
+
+    const std::string yaml_text = 
+        "material_map: \n"
+        "  circle_a: 1\n"
+        "  circle_b: 2\n"
+        "  circle_c: 3\n"
+        "  background: 0\n";
+    Node baseline;
+    baseline.parse(yaml_text, "yaml");
+
+    for (const Node &venn_example : venn_examples)
+    {
+        const Node &mset = venn_example["matsets/matset"];
+        Node matmap;
+        Node matmap_copy;
+        blueprint::mesh::matset::create_or_reuse_material_map(mset, matmap);
+        blueprint::mesh::matset::create_or_copy_material_map(mset, matmap_copy);
+
+        EXPECT_FALSE(matmap.diff(baseline["material_map"], info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(matmap_copy.diff(baseline["material_map"], info, CONDUIT_EPSILON, true));
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_renumber_mat_ids)
+{
+    // multi-buffer test
+    {
+        const std::string yaml_text1 = 
+            "topology: \"topo\"\n"
+            "volume_fractions: \n"
+            "  background: [1.0, 1.0, 1.0, 0.0]\n"
+            "  circle_a: [0.0, 0.0, 0.0, 0.333333333333333]\n"
+            "  circle_b: [0.0, 0.0, 0.0, 0.333333333333333]\n"
+            "  circle_c: [0.0, 0.0, 0.0, 0.333333333333333]\n"
+            "material_map: \n"
+            "  circle_a: 6\n"
+            "  circle_b: 8\n"
+            "  circle_c: 3\n"
+            "  background: 9\n";
+        Node matset;
+        matset.parse(yaml_text1, "yaml");
+
+        const std::string yaml_text2 = 
+            "topology: \"topo\"\n"
+            "volume_fractions: \n"
+            "  background: [1.0, 1.0, 1.0, 0.0]\n"
+            "  circle_a: [0.0, 0.0, 0.0, 0.333333333333333]\n"
+            "  circle_b: [0.0, 0.0, 0.0, 0.333333333333333]\n"
+            "  circle_c: [0.0, 0.0, 0.0, 0.333333333333333]\n"
+            "material_map: \n"
+            "  circle_a: 0\n"
+            "  circle_b: 1\n"
+            "  circle_c: 2\n"
+            "  background: 3\n";
+        Node baseline;
+        baseline.parse(yaml_text2, "yaml");
+
+        // renumber with new matset
+        Node renumbered_matset;
+        blueprint::mesh::matset::renumber_material_ids(matset, renumbered_matset);
+
+        // renumber in-place
+        blueprint::mesh::matset::renumber_material_ids(matset);
+
+        Node info;
+        EXPECT_FALSE(renumbered_matset.diff(baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(matset.diff(baseline, info, CONDUIT_EPSILON, true));
+    }
+
+    // uni-buffer test
+    {
+        const std::string yaml_text1 = 
+            "topology: \"topo\"\n"
+            "material_map: \n"
+            "  circle_a: 6\n"
+            "  circle_b: 8\n"
+            "  circle_c: 9\n"
+            "  background: 3\n"
+            "volume_fractions: [1.0, 1.0, 1.0, 0.333333333333333, 0.333333333333333, 0.333333333333333]\n"
+            "material_ids: [3, 3, 3, 6, 8, 9]\n"
+            "sizes: [1, 1, 1, 3]\n"
+            "offsets: [0, 1, 2, 3]\n";
+        Node matset;
+        matset.parse(yaml_text1, "yaml");
+
+        const std::string yaml_text2 = 
+            "topology: \"topo\"\n"
+            "material_map: \n"
+            "  circle_a: 0\n"
+            "  circle_b: 1\n"
+            "  circle_c: 2\n"
+            "  background: 3\n"
+            "volume_fractions: [1.0, 1.0, 1.0, 0.333333333333333, 0.333333333333333, 0.333333333333333]\n"
+            "material_ids: [3, 3, 3, 0, 1, 2]\n"
+            "sizes: [1, 1, 1, 3]\n"
+            "offsets: [0, 1, 2, 3]\n";
+        Node baseline;
+        baseline.parse(yaml_text2, "yaml");
+
+        // renumber with new matset
+        Node renumbered_matset;
+        blueprint::mesh::matset::renumber_material_ids(matset, renumbered_matset);
+
+        // renumber in-place
+        blueprint::mesh::matset::renumber_material_ids(matset);
+
+        Node info;
+        EXPECT_FALSE(renumbered_matset.diff(baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(matset.diff(baseline, info, CONDUIT_EPSILON, true));
+    }
+}
+
