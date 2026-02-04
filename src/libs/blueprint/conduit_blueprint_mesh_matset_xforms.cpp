@@ -467,45 +467,11 @@ store_material_data_for_zone_to_silo_arrays(
     }
 }
 
-// TODO delete me
-//-----------------------------------------------------------------------------
-// get material and field data for all zones from the "sparse by material" representation
-void get_multi_buffer_element_dom_material_field_data_for_zones(
-    const conduit::Node &matset,
-    const conduit::Node &material_map,
-    const conduit::Node &field,
-    std::vector<std::vector<index_t>> &material_ids,
-    std::vector<std::vector<float64>> &vol_fracs,
-    std::vector<std::vector<float64>> &matset_values)
-{
-    const std::vector<std::string> &matnames = matset["element_ids"].child_names();
-    for (const auto &matname : matnames)
-    {
-        const int material_id = material_map[matname].as_int();
-
-        const index_t_accessor elem_ids_for_mat = matset["element_ids"][matname].value();
-        const float64_accessor vol_fracs_for_mat = matset["volume_fractions"][matname].value();
-        const float64_accessor mset_vals_for_mat = field["matset_values"][matname].value();
-        const index_t num_eids_for_mat = elem_ids_for_mat.number_of_elements();
-
-        for (index_t eid_id = 0; eid_id < num_eids_for_mat; eid_id ++)
-        {
-            const index_t elem_id = elem_ids_for_mat[eid_id];
-            const float64 vol_frac = vol_fracs_for_mat[eid_id];
-            const float64 mset_val = mset_vals_for_mat[eid_id];
-
-            material_ids[elem_id].push_back(material_id);
-            vol_fracs[elem_id].push_back(vol_frac);
-            matset_values[elem_id].push_back(mset_val);
-        }
-    }
-}
-
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 // Single implementation that supports the case where just matset
-// is passed, the case where the field is passed, and the case where the
-// specset is passed.
+// is passed, the case where the field+matset is passed, and the case where the
+// specset+matset is passed.
 //
 // We smooth this out for the API by providing the non detail variants.
 //-----------------------------------------------------------------------------
@@ -616,37 +582,10 @@ to_silo(const conduit::Node &matset,
     int current_position = 1;
 
     //
-    // Generic lambda for iterating over all the zones for material and field data.
-    // For each case we provide a `fill_arrays()` method that puts data
-    // in the per-zone data arrays, which is then written out.
-    //
-    auto iterate_over_zones_for_material_field = [&](auto &&fill_arrays)
-    {
-        for (int zone_id = 0; zone_id < num_zones; zone_id ++)
-        {
-            int num_mats_in_zone = 0; // how many materials in this zone
-            std::vector<index_t> local_material_ids; // their material ids
-            std::vector<float64> local_volume_fractions; // their volume fractions
-            std::vector<float64> local_matset_values; // the field matset vals
-
-            fill_arrays(zone_id,
-                        num_mats_in_zone,
-                        local_material_ids,
-                        local_volume_fractions,
-                        local_matset_values);
-
-            store_material_field_data_for_zone_to_silo_arrays(
-                num_mats_in_zone, local_material_ids, local_volume_fractions,
-                local_matset_values, zone_id, matlist, mix_vf, mix_mat, mix_next,
-                field_mixvar_values, current_position);
-        }
-    };
-
-    //
     // Now we have a switchyard for choosing which case we are in.
     // While there is shared logic, we need a separate case for each of the 
-    // three matset representations, and we additionally need a case for
-    // if we are doing fields or not. We use our created lambdas and helpers
+    // matset representations, and we additionally need a case for
+    // if we are doing fields or not. We use our matset/field/specset walkers
     // to walk the data structures and write the results to the silo arrays.
     // 
     // if we are working with fields
@@ -682,21 +621,27 @@ to_silo(const conduit::Node &matset,
             // for each zone, the matset vals of the field in that zone
             std::vector<std::vector<float64>> mset_vals(num_zones);
 
-            get_multi_buffer_element_dom_material_field_data_for_zones(
-                matset, material_map, field, material_ids, vol_fracs, mset_vals);
+            auto for_each_value = [&](const index_t mat_id,
+                                      const float64 vol_frac,
+                                      const float64 mset_val,
+                                      const int zone_id)
+            {
+                material_ids[zone_id].push_back(mat_id);
+                vol_fracs[zone_id].push_back(vol_frac);
+                mset_vals[zone_id].push_back(mset_val);
+            };
 
-            iterate_over_zones_for_material_field(
-                [&](const int zone_id,
-                    int &num_mats_in_zone,
-                    std::vector<index_t> &local_material_ids,
-                    std::vector<float64> &local_volume_fractions,
-                    std::vector<float64> &local_matset_values)
-                {
-                    num_mats_in_zone = static_cast<int>(material_ids[zone_id].size());
-                    local_material_ids = std::move(material_ids[zone_id]);
-                    local_volume_fractions = std::move(vol_fracs[zone_id]);
-                    local_matset_values = std::move(mset_vals[zone_id]);
-                });
+            conduit::blueprint::mesh::field::walk_matset_field_by_material_value(
+                field, matset, material_map, for_each_value, epsilon);
+
+            for (int zone_id = 0; zone_id < num_zones; zone_id ++)
+            {
+                store_material_field_data_for_zone_to_silo_arrays(
+                    static_cast<int>(material_ids[zone_id].size()),
+                    material_ids[zone_id], vol_fracs[zone_id], mset_vals[zone_id],
+                    zone_id, matlist, mix_vf, mix_mat, mix_next,
+                    field_mixvar_values, current_position);
+            }
         }
     }
     else
