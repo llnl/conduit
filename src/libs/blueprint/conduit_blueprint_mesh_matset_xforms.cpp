@@ -1116,30 +1116,6 @@ read_from_map_write_out(std::map<std::string, std::vector<T>> &datamap,
 //-----------------------------------------------------------------------------
 // takes sparse by material data and stores it in a map
 void
-create_sbm_rep(const conduit::Node &elem_id_src,
-               const conduit::Node &values_src,
-               std::map<std::string, std::pair<int64_accessor, float64_accessor>> &sbm_rep)
-{
-    auto eid_itr = elem_id_src.children();
-    while (eid_itr.has_next())
-    {
-        const Node &mat_elem_ids = eid_itr.next();
-        const std::string matname = eid_itr.name();
-        sbm_rep[matname].first = mat_elem_ids.value();
-    }
-
-    auto val_itr = values_src.children();
-    while (val_itr.has_next())
-    {
-        const Node &values = val_itr.next();
-        const std::string matname = val_itr.name();
-        sbm_rep[matname].second = values.value();
-    }
-}
-
-//-----------------------------------------------------------------------------
-// takes sparse by material data and stores it in a map
-void
 create_sbm_specset_rep(const conduit::Node &elem_id_src,
                        const conduit::Node &values_src,
                        std::map<std::string, std::pair<int64_accessor, std::map<std::string, float64_accessor>>> &sbm_rep)
@@ -1181,50 +1157,44 @@ multi_buffer_by_element_to_uni_buffer_by_element_matset(const conduit::Node &src
     // set the topology
     dest_matset["topology"].set(src_matset["topology"]);
 
-    std::map<int, float64_accessor> full_vol_fracs;
-    // create the material map
-    auto mat_itr = src_matset["volume_fractions"].children();
-    int mat_id = 0;
-    while (mat_itr.has_next())
-    {
-        const Node &mat_vol_fracs = mat_itr.next();
-        std::string matname = mat_itr.name();
-        full_vol_fracs[mat_id] = mat_vol_fracs.value();
-        dest_matset["material_map"][matname] = mat_id;
-        mat_id ++;
-    }
-
-    const int nmats = dest_matset["material_map"].number_of_children();
+    Node &material_map = dest_matset["material_map"];
+    create_or_reuse_material_map(src_matset, material_map);
 
     std::vector<double> vol_fracs;
     std::vector<int> mat_ids;
     std::vector<int> sizes;
     std::vector<int> offsets;
 
-    const int num_elems = src_matset["volume_fractions"][0].dtype().number_of_elements();
-
-    // TODO refactor this somehow to use a walking paradigm
-    // not easy to refactor since it does work at both the 
-    // element level and the value level.
-
     int offset = 0;
-    for (int elem_id = 0; elem_id < num_elems; elem_id ++)
+    auto for_each_zone = [&](const int zone_id,
+                             const std::vector<index_t> &local_material_ids,
+                             const std::vector<float64> &local_volume_fractions)
     {
-        int size = 0;
-        for (int mat_id = 0; mat_id < nmats; mat_id ++)
-        {
-            float64 vol_frac = full_vol_fracs[mat_id][elem_id];
-            if (vol_frac > epsilon)
-            {
-                vol_fracs.push_back(vol_frac);
-                mat_ids.push_back(mat_id);
-                size ++;
-            }
-        }
-        sizes.push_back(size);
+        (void) zone_id;
+
+        // fetch the number of materials in this zone
+        const size_t size = local_material_ids.size();
+        const int size_int = static_cast<int>(size);
+        
+        // save the volume fractions
+        vol_fracs.reserve(vol_fracs.size() + size);
+        vol_fracs.insert(vol_fracs.end(),
+                         local_volume_fractions.begin(),
+                         local_volume_fractions.end());
+        
+        // save the material ids
+        mat_ids.reserve(mat_ids.size() + size);
+        mat_ids.insert(mat_ids.end(),
+                       local_material_ids.begin(),
+                       local_material_ids.end());
+        
+        // save the size and offset information
+        sizes.push_back(size_int);
         offsets.push_back(offset);
-        offset += size;
-    }
+        offset += size_int;
+    };
+
+    walk_matset_by_element(src_matset, material_map, for_each_zone, epsilon);
 
     dest_matset["volume_fractions"].set(vol_fracs);
     dest_matset["material_ids"].set(mat_ids);
@@ -1672,12 +1642,10 @@ multi_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &
     dest_matset["topology"].set(src_matset["topology"]);
 
     // what we will do for each material's elem_ids/vol_fracs
-    auto for_each_material = [&](const int mat_id,
-                                 const std::string &matname,
+    auto for_each_material = [&](const std::string &matname,
                                  const std::vector<index_t> &local_element_ids,
                                  const std::vector<float64> &local_volume_fractions)
     {
-        (void) mat_id;
         dest_matset["volume_fractions"][matname].set(local_volume_fractions);
         dest_matset["element_ids"][matname].set(local_element_ids);
     };
@@ -1700,12 +1668,10 @@ multi_buffer_by_element_to_multi_buffer_by_material_field(const conduit::Node &s
                                            dest_matset_name,
                                            dest_field);
 
-    // what we will do for each material's elem_ids/vol_fracs/mset_vals
-    auto for_each_material = [&](const int mat_id,
-                                 const std::string &matname,
+    // what we will do for each material's mset_vals
+    auto for_each_material = [&](const std::string &matname,
                                  const std::vector<float64> &local_matset_values)
     {
-        (void) mat_id;
         dest_field["matset_values"][matname].set(local_matset_values);
     };
 
@@ -2500,7 +2466,7 @@ walk_matset_by_material(const conduit::Node &matset,
                                                            fill_arrays,
                                                            epsilon);
 
-                for_each_material(mat_id,
+                for_each_material(// mat_id,
                                   matname,
                                   local_element_ids,
                                   local_volume_fractions);
@@ -2546,7 +2512,7 @@ walk_matset_by_material(const conduit::Node &matset,
                                                           mat_id,
                                                           fill_arrays);
 
-                for_each_material(mat_id,
+                for_each_material(// mat_id,
                                   matname,
                                   local_element_ids,
                                   local_volume_fractions);
@@ -3923,7 +3889,7 @@ walk_matset_field_by_material(const conduit::Node &field,
                     fill_arrays,
                     epsilon);
 
-                for_each_material(mat_id,
+                for_each_material(// mat_id,
                                   matname,
                                   // local_element_ids,
                                   // local_volume_fractions,
@@ -3980,7 +3946,7 @@ walk_matset_field_by_material(const conduit::Node &field,
                     mat_id,
                     fill_arrays);
 
-                for_each_material(mat_id,
+                for_each_material(// mat_id,
                                   matname,
                                   // local_element_ids,
                                   // local_volume_fractions,
