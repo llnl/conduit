@@ -127,11 +127,11 @@ PyRelay_Web_WebServer_dealloc(PyRelay_Web_WebServer *self)
 
 //---------------------------------------------------------------------------//
 static int
-PyRelay_Web_WebServer_init(PyRelay_Web_WebServer *self)
+PyRelay_Web_WebServer_init(PyRelay_Web_WebServer *self,
+                           PyObject * /*args*/, // unused
+                           PyObject * /*kwds*/) // unused
 {
-    
     self->webserver = new WebServer();
-
     return 0;
 }
 
@@ -645,7 +645,9 @@ PyRelay_Web_WebSocket_dealloc(PyRelay_Web_WebSocket *self)
 
 //---------------------------------------------------------------------------//
 static int
-PyRelay_Web_WebSocket_init(PyRelay_Web_WebSocket *self)
+PyRelay_Web_WebSocket_init(PyRelay_Web_WebSocket *self,
+                           PyObject * /*args*/, // unused
+                           PyObject * /*kwds*/) // unused
 {
     self->websocket = NULL;
     return 0;

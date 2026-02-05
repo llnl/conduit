@@ -67,7 +67,9 @@ PyRelay_MPI_Request_dealloc(PyRelay_MPI_Request *self)
 
 //---------------------------------------------------------------------------//
 static int
-PyRelay_MPI_Request_init(PyRelay_MPI_Request * /*self*/) // self unused
+PyRelay_MPI_Request_init(PyRelay_MPI_Request * /*self*/,  //unused
+                         PyObject * /*args*/, //unused
+                         PyObject * /*kwd*/) //unused
 {
     return 0;
 }

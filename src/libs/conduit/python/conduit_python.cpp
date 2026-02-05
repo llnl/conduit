@@ -5021,7 +5021,7 @@ static PyTypeObject PyConduit_NodeIterator_TYPE = {
    0, /* descr_get */
    0, /* gescr_set */
    0, /* dictoffset */
-   (initproc)PyConduit_NodeIterator_init,
+   (initproc)PyConduit_NodeIterator_init, /* tp_init */
    0, /* alloc */
    PyConduit_NodeIterator_new,   /* new */
    0, /* tp_free */
