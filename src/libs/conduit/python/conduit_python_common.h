@@ -37,7 +37,8 @@
 //-----------------------------------------------------------------------------
 
 #ifdef Py_TPFLAGS_HAVE_FINALIZE
-    // python 3.8 adds tp_vectorcall, at end and special slot for tp_print
+    // before python 3.8, Py_TPFLAGS_HAVE_FINALIZE indicates existance of `tp_finalize`
+    // python 3.8 adds tp_vectorcall and special slot for tp_print
     // python 3.9 removes tp_print special slot
     // python 3.12 adds tq_watched 
     // python 3.13 adds tp_versions_used
