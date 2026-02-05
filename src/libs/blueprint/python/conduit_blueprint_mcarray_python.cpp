@@ -6,20 +6,7 @@
 //-----------------------------------------------------------------------------
 // -- Python includes (these must be included first) -- 
 //-----------------------------------------------------------------------------
-#include <Python.h>
-#include <structmember.h>
-#include "bytesobject.h"
-
-#if PY_MAJOR_VERSION >= 3
-#define IS_PY3K
-#endif
-
-// use  proper strdup
-#ifdef CONDUIT_PLATFORM_WINDOWS
-    #define _conduit_strdup _strdup
-#else
-    #define _conduit_strdup strdup
-#endif
+#include "conduit_python_common.h"
 
 //-----------------------------------------------------------------------------
 // -- standard lib includes -- 
@@ -37,7 +24,6 @@
 
 // conduit python module capi header
 #include "conduit_python.hpp"
-
 
 using namespace conduit;
 
@@ -304,19 +290,19 @@ static PyMethodDef blueprint_mcarray_python_funcs[] =
 {
     //-----------------------------------------------------------------------//
     {"verify",
-     (PyCFunction)PyBlueprint_mcarray_verify,
+      _PyCFunction_CAST(PyBlueprint_mcarray_verify),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mcarray_verify_doc_str},
     {"is_interleaved",
-     (PyCFunction)PyBlueprint_mcarray_is_interleaved,
+      _PyCFunction_CAST(PyBlueprint_mcarray_is_interleaved),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mcarray_is_interleaved_doc_str},
     {"to_interleaved",
-     (PyCFunction)PyBlueprint_mcarray_to_interleaved,
+      _PyCFunction_CAST(PyBlueprint_mcarray_to_interleaved),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mcarray_to_interleaved_doc_str},
     {"to_contiguous",
-     (PyCFunction)PyBlueprint_mcarray_to_contiguous,
+      _PyCFunction_CAST(PyBlueprint_mcarray_to_contiguous),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mcarray_to_contiguous_doc_str},
 

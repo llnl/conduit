@@ -6,10 +6,7 @@
 //-----------------------------------------------------------------------------
 // -- Python includes (these must be included first) -- 
 //-----------------------------------------------------------------------------
-#include <Python.h>
-#include <structmember.h>
-#include "bytesobject.h"
-
+#include "conduit_python_common.h"
 
 //-----------------------------------------------------------------------------
 // -- standard lib includes -- 
@@ -33,43 +30,7 @@
 using namespace conduit;
 using namespace conduit::relay::mpi::io;
 
-#if PY_MAJOR_VERSION >= 3
-#define IS_PY3K
-#endif
 
-// use  proper strdup
-#ifdef CONDUIT_PLATFORM_WINDOWS
-    #define _conduit_strdup _strdup
-#else
-    #define _conduit_strdup strdup
-#endif
-
-//-----------------------------------------------------------------------------
-// PyVarObject_TAIL is used at the end of each PyVarObject def
-// to make sure we have the correct number of initializers across python
-// versions.
-//-----------------------------------------------------------------------------
-
-
-#ifdef Py_TPFLAGS_HAVE_FINALIZE
-    // python 3.8 adds tp_vectorcall, at end and special slot for tp_print
-    // python 3.9 removes tp_print special slot
-    #if PY_VERSION_HEX >= 0x03080000
-        #if PY_VERSION_HEX < 0x03090000
-             // python 3.8 tail
-            #define PyVarObject_TAIL ,0, 0, 0 
-        #else
-            // python 3.9 and newer tail
-            #define PyVarObject_TAIL ,0, 0
-        #endif
-    #else
-        // python tail when finalize is part of struct
-        #define PyVarObject_TAIL ,0
-    #endif
-#else
-// python tail when finalize is not part of struct
-#define PyVarObject_TAIL
-#endif
 
 //---------------------------------------------------------------------------//
 //---------------------------------------------------------------------------//
@@ -171,19 +132,6 @@ PyRelay_mpi_io_about(PyObject *, //self
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
-    int rank = -1;
-
-    try
-    {
-        rank = relay::mpi::rank(comm);
-    }
-    catch(conduit::Error &e)
-    {
-        PyErr_SetString(PyExc_Exception,
-                        e.message().c_str());
-        return NULL;
-    }
-
     //create and return a node with the result of about
     PyObject *py_node_res = PyConduit_Node_Python_Create();
     Node *node = PyConduit_Node_Get_Node_Ptr(py_node_res);
@@ -257,20 +205,6 @@ PyRelay_mpi_io_save(PyObject *, //self
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
-    int rank = -1;
-
-    try
-    {
-        rank = relay::mpi::rank(comm);
-    }
-    catch(conduit::Error &e)
-    {
-        PyErr_SetString(PyExc_Exception,
-                        e.message().c_str());
-        return NULL;
-    }
-    
-    
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
 
     // default protocol string is empty which auto detects
@@ -359,31 +293,17 @@ PyRelay_mpi_io_save_merged(PyObject *, //self
                             "conduit.Node instance");
             return NULL;
         }
-        
+
         opts_ptr = PyConduit_Node_Get_Node_Ptr(py_opts);
     }
 
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
-    int rank = -1;
-
-    try
-    {
-        rank = relay::mpi::rank(comm);
-    }
-    catch(conduit::Error &e)
-    {
-        PyErr_SetString(PyExc_Exception,
-                        e.message().c_str());
-        return NULL;
-    }
-    
-    
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
 
     // default protocol string is empty which auto detects
-    std::string protocol_str("");    
+    std::string protocol_str("");
     if(protocol != NULL)
     {
         protocol_str = std::string(protocol);
@@ -447,29 +367,15 @@ PyRelay_mpi_io_load(PyObject *, //self
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
-    int rank = -1;
-
-    try
-    {
-        rank = relay::mpi::rank(comm);
-    }
-    catch(conduit::Error &e)
-    {
-        PyErr_SetString(PyExc_Exception,
-                        e.message().c_str());
-        return NULL;
-    }
-
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
     // default protocol string is empty which auto detects
     std::string protocol_str("");
-    
+
     if(protocol != NULL)
     {
         protocol_str = std::string(protocol);
     }
-    
-    
+
     try
     {
         relay::mpi::io::load(std::string(path),
@@ -530,28 +436,15 @@ PyRelay_mpi_io_load_merged(PyObject *, //self
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
-    int rank = -1;
-
-    try
-    {
-        rank = relay::mpi::rank(comm);
-    }
-    catch(conduit::Error &e)
-    {
-        PyErr_SetString(PyExc_Exception,
-                        e.message().c_str());
-        return NULL;
-    }
-
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
     // default protocol string is empty which auto detects
     std::string protocol_str("");
-    
+
     if(protocol != NULL)
     {
         protocol_str = std::string(protocol);
     }
-    
+
     try
     {
         relay::mpi::io::load_merged(std::string(path),
@@ -576,23 +469,23 @@ static PyMethodDef relay_mpi_io_python_funcs[] =
     //-----------------------------------------------------------------------//
     //-----------------------------------------------------------------------//
     {"about",
-     (PyCFunction)PyRelay_mpi_io_about,
+      _PyCFunction_CAST(PyRelay_mpi_io_about),
       METH_VARARGS | METH_KEYWORDS,
       NULL},
     {"save",
-     (PyCFunction)PyRelay_mpi_io_save,
+      _PyCFunction_CAST(PyRelay_mpi_io_save),
       METH_VARARGS | METH_KEYWORDS,
       NULL},
     {"load",
-     (PyCFunction)PyRelay_mpi_io_load,
+      _PyCFunction_CAST(PyRelay_mpi_io_load),
       METH_VARARGS | METH_KEYWORDS,
       NULL},
     {"save_merged",
-     (PyCFunction)PyRelay_mpi_io_save_merged,
+      _PyCFunction_CAST(PyRelay_mpi_io_save_merged),
       METH_VARARGS | METH_KEYWORDS,
       NULL},
     {"load_merged",
-     (PyCFunction)PyRelay_mpi_io_load_merged,
+      _PyCFunction_CAST(PyRelay_mpi_io_load_merged),
       METH_VARARGS | METH_KEYWORDS,
       NULL},
     //-----------------------------------------------------------------------//

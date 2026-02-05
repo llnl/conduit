@@ -6,20 +6,7 @@
 //-----------------------------------------------------------------------------
 // -- Python includes (these must be included first) -- 
 //-----------------------------------------------------------------------------
-#include <Python.h>
-#include <structmember.h>
-#include "bytesobject.h"
-
-#if PY_MAJOR_VERSION >= 3
-#define IS_PY3K
-#endif
-
-#ifdef CONDUIT_PLATFORM_WINDOWS
-    #define _conduit_strdup _strdup
-#else
-    #define _conduit_strdup strdup
-#endif
-
+#include "conduit_python_common.h"
 
 //-----------------------------------------------------------------------------
 // -- standard lib includes -- 
@@ -41,33 +28,6 @@
 
 using namespace conduit;
 using namespace conduit::relay::io;
-
-//-----------------------------------------------------------------------------
-// PyVarObject_TAIL is used at the end of each PyVarObject def
-// to make sure we have the correct number of initializers across python
-// versions.
-//-----------------------------------------------------------------------------
-
-
-#ifdef Py_TPFLAGS_HAVE_FINALIZE
-    // python 3.8 adds tp_vectorcall, at end and special slot for tp_print
-    // python 3.9 removes tp_print special slot
-    #if PY_VERSION_HEX >= 0x03080000
-        #if PY_VERSION_HEX < 0x03090000
-             // python 3.8 tail
-            #define PyVarObject_TAIL ,0, 0, 0 
-        #else
-            // python 3.9 and newer tail
-            #define PyVarObject_TAIL ,0, 0
-        #endif
-    #else
-        // python tail when finalize is part of struct
-        #define PyVarObject_TAIL ,0
-    #endif
-#else
-// python tail when finalize is not part of struct
-#define PyVarObject_TAIL
-#endif
 
 //---------------------------------------------------------------------------//
 //---------------------------------------------------------------------------//
@@ -610,39 +570,39 @@ PyRelay_IOHandle_close(PyRelay_IOHandle *self)
 static PyMethodDef PyRelay_IOHandle_METHODS[] = {
     //-----------------------------------------------------------------------//
     {"open",
-     (PyCFunction)PyRelay_IOHandle_open,
+     _PyCFunction_CAST(PyRelay_IOHandle_open),
      METH_VARARGS | METH_KEYWORDS,
      "Opens a Relay IO Handle"},
     {"is_open",
-     (PyCFunction)PyRelay_IOHandle_is_open,
+     _PyCFunction_CAST(PyRelay_IOHandle_is_open),
      METH_NOARGS,
      "Checks if a Relay IO Handle is currently open"},
     {"read",
-     (PyCFunction)PyRelay_IOHandle_read,
+     _PyCFunction_CAST(PyRelay_IOHandle_read),
      METH_VARARGS | METH_KEYWORDS,
      "Reads from an active Relay IO Handle"},
     {"write",
-     (PyCFunction)PyRelay_IOHandle_write,
+     _PyCFunction_CAST(PyRelay_IOHandle_write),
      METH_VARARGS | METH_KEYWORDS,
      "Writes to an active Relay IO Handle"},
     {"list_child_names",
-     (PyCFunction)PyRelay_IOHandle_list_child_names,
+     _PyCFunction_CAST(PyRelay_IOHandle_list_child_names),
      METH_VARARGS | METH_KEYWORDS,
      "Returns a list of child names"},
     {"remove",
-     (PyCFunction)PyRelay_IOHandle_remove,
+     _PyCFunction_CAST(PyRelay_IOHandle_remove),
      METH_VARARGS | METH_KEYWORDS,
      "Removes a path"},
     {"has_path",
-     (PyCFunction)PyRelay_IOHandle_has_path,
+     _PyCFunction_CAST(PyRelay_IOHandle_has_path),
      METH_VARARGS | METH_KEYWORDS,
      "Checks if a path exists"},
      {"flush",
-      (PyCFunction)PyRelay_IOHandle_flush,
+      _PyCFunction_CAST(PyRelay_IOHandle_flush),
        METH_NOARGS,
       "Flush an active Relay IO Handle"},
     {"close",
-     (PyCFunction)PyRelay_IOHandle_close,
+     _PyCFunction_CAST(PyRelay_IOHandle_close),
       METH_NOARGS,
      "Closes an active Relay IO Handle"},
     //-----------------------------------------------------------------------//
@@ -1042,23 +1002,23 @@ static PyMethodDef relay_io_python_funcs[] =
     //-----------------------------------------------------------------------//
     //-----------------------------------------------------------------------//
     {"about",
-     (PyCFunction)PyRelay_io_about,
+     _PyCFunction_CAST(PyRelay_io_about),
       METH_NOARGS,
       NULL},
     {"save",
-     (PyCFunction)PyRelay_io_save,
+     _PyCFunction_CAST(PyRelay_io_save),
       METH_VARARGS | METH_KEYWORDS,
       NULL},
     {"load",
-     (PyCFunction)PyRelay_io_load,
+     _PyCFunction_CAST(PyRelay_io_load),
       METH_VARARGS | METH_KEYWORDS,
       NULL},
     {"save_merged",
-     (PyCFunction)PyRelay_io_save_merged,
+     _PyCFunction_CAST(PyRelay_io_save_merged),
       METH_VARARGS | METH_KEYWORDS,
       NULL},
     {"load_merged",
-     (PyCFunction)PyRelay_io_load_merged,
+     _PyCFunction_CAST(PyRelay_io_load_merged),
       METH_VARARGS | METH_KEYWORDS,
       NULL},
     //-----------------------------------------------------------------------//

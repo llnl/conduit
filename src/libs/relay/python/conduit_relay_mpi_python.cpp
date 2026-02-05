@@ -6,10 +6,7 @@
 //-----------------------------------------------------------------------------
 // -- Python includes (these must be included first) -- 
 //-----------------------------------------------------------------------------
-#include <Python.h>
-#include <structmember.h>
-#include "bytesobject.h"
-
+#include "conduit_python_common.h"
 //-----------------------------------------------------------------------------
 // -- standard lib includes -- 
 //-----------------------------------------------------------------------------
@@ -27,47 +24,8 @@
 // conduit python module capi header
 #include "conduit_python.hpp"
 
-
 using namespace conduit;
 using namespace conduit::relay::mpi;
-
-#if PY_MAJOR_VERSION >= 3
-#define IS_PY3K
-#endif
-
-// use  proper strdup
-#ifdef CONDUIT_PLATFORM_WINDOWS
-    #define _conduit_strdup _strdup
-#else
-    #define _conduit_strdup strdup
-#endif
-
-//-----------------------------------------------------------------------------
-// PyVarObject_TAIL is used at the end of each PyVarObject def
-// to make sure we have the correct number of initializers across python
-// versions.
-//-----------------------------------------------------------------------------
-
-
-#ifdef Py_TPFLAGS_HAVE_FINALIZE
-    // python 3.8 adds tp_vectorcall, at end and special slot for tp_print
-    // python 3.9 removes tp_print special slot
-    #if PY_VERSION_HEX >= 0x03080000
-        #if PY_VERSION_HEX < 0x03090000
-             // python 3.8 tail
-            #define PyVarObject_TAIL ,0, 0, 0 
-        #else
-            // python 3.9 and newer tail
-            #define PyVarObject_TAIL ,0, 0
-        #endif
-    #else
-        // python tail when finalize is part of struct
-        #define PyVarObject_TAIL ,0
-    #endif
-#else
-// python tail when finalize is not part of struct
-#define PyVarObject_TAIL
-#endif
 
 //---------------------------------------------------------------------------//
 struct PyRelay_MPI_Request
@@ -1812,101 +1770,101 @@ static PyMethodDef relay_mpi_python_funcs[] =
     //-----------------------------------------------------------------------//
     //-----------------------------------------------------------------------//
     {"about",
-     (PyCFunction)PyRelay_MPI_about,
+     _PyCFunction_CAST(PyRelay_MPI_about),
       METH_NOARGS,
       "About Relay MPI"},
     {"rank",
-     (PyCFunction)PyRelay_MPI_rank,
+     _PyCFunction_CAST(PyRelay_MPI_rank),
       METH_VARARGS | METH_KEYWORDS,
       "MPI Comm Rank"},
     {"size",
-     (PyCFunction)PyRelay_MPI_size,
+     _PyCFunction_CAST(PyRelay_MPI_size),
       METH_VARARGS | METH_KEYWORDS,
       "MPI Comm Size"},
      // -- send + recv ---
     {"send",
-     (PyCFunction)PyRelay_MPI_send,
+     _PyCFunction_CAST(PyRelay_MPI_send),
       METH_VARARGS | METH_KEYWORDS,
       "Send Conduit Node via MPI Send"},
     {"recv",
-     (PyCFunction)PyRelay_MPI_recv,
+     _PyCFunction_CAST(PyRelay_MPI_recv),
       METH_VARARGS | METH_KEYWORDS,
       "Receive Conduit Node via MPI Recv"},
     {"send_using_schema",
-     (PyCFunction)PyRelay_MPI_send_using_schema,
+     _PyCFunction_CAST(PyRelay_MPI_send_using_schema),
       METH_VARARGS | METH_KEYWORDS,
       "Send Conduit Node and Schema via MPI Send"},
     {"recv_using_schema",
-     (PyCFunction)PyRelay_MPI_recv_using_schema,
+     _PyCFunction_CAST(PyRelay_MPI_recv_using_schema),
       METH_VARARGS | METH_KEYWORDS,
       "Receive Conduit Node and Schema via MPI Recv"},
      // -- reduce --
     {"sum_reduce",
-     (PyCFunction)PyRelay_MPI_sum_reduce,
+     _PyCFunction_CAST(PyRelay_MPI_sum_reduce),
       METH_VARARGS | METH_KEYWORDS,
       "Sum Reduce a Conduit Node"},
     {"min_reduce",
-     (PyCFunction)PyRelay_MPI_min_reduce,
+     _PyCFunction_CAST(PyRelay_MPI_min_reduce),
       METH_VARARGS | METH_KEYWORDS,
       "Min Reduce a Conduit Node"},
     {"max_reduce",
-     (PyCFunction)PyRelay_MPI_max_reduce,
+     _PyCFunction_CAST(PyRelay_MPI_max_reduce),
       METH_VARARGS | METH_KEYWORDS,
       "Max Reduce a Conduit Node"},
     {"prod_reduce",
-     (PyCFunction)PyRelay_MPI_prod_reduce,
+     _PyCFunction_CAST(PyRelay_MPI_prod_reduce),
       METH_VARARGS | METH_KEYWORDS,
       "Prod Reduce a Conduit Node"},
      // -- all reduce --
     {"sum_all_reduce",
-     (PyCFunction)PyRelay_MPI_sum_all_reduce,
+     _PyCFunction_CAST(PyRelay_MPI_sum_all_reduce),
       METH_VARARGS | METH_KEYWORDS,
       "Sum All Reduce a Conduit Node"},
     {"min_all_reduce",
-     (PyCFunction)PyRelay_MPI_min_all_reduce,
+     _PyCFunction_CAST(PyRelay_MPI_min_all_reduce),
       METH_VARARGS | METH_KEYWORDS,
       "Min All Reduce a Conduit Node"},
     {"max_all_reduce",
-     (PyCFunction)PyRelay_MPI_max_all_reduce,
+     _PyCFunction_CAST(PyRelay_MPI_max_all_reduce),
       METH_VARARGS | METH_KEYWORDS,
       "Max All Reduce a Conduit Node"},
     {"prod_all_reduce",
-     (PyCFunction)PyRelay_MPI_prod_all_reduce,
+     _PyCFunction_CAST(PyRelay_MPI_prod_all_reduce),
       METH_VARARGS | METH_KEYWORDS,
       "Prod All Reduce a Conduit Node"},
      // -- gather --
     {"gather",
-     (PyCFunction)PyRelay_MPI_gather,
+     _PyCFunction_CAST(PyRelay_MPI_gather),
       METH_VARARGS | METH_KEYWORDS,
       "MPI Gather using Conduit Nodes"},
     {"all_gather",
-     (PyCFunction)PyRelay_MPI_all_gather,
+     _PyCFunction_CAST(PyRelay_MPI_all_gather),
       METH_VARARGS | METH_KEYWORDS,
       "MPI All Gather using Conduit Nodes"},
     {"gather_using_schema",
-     (PyCFunction)PyRelay_MPI_gather_using_schema,
+     _PyCFunction_CAST(PyRelay_MPI_gather_using_schema),
       METH_VARARGS | METH_KEYWORDS,
       "MPI Gather using Conduit Nodes and their Schemas"},
     {"all_gather_using_schema",
-     (PyCFunction)PyRelay_MPI_all_gather_using_schema,
+     _PyCFunction_CAST(PyRelay_MPI_all_gather_using_schema),
       METH_VARARGS | METH_KEYWORDS,
       "MPI All Gather using Conduit Nodes and their Schemas"},
      // -- broadcast --
     {"broadcast",
-     (PyCFunction)PyRelay_MPI_broadcast,
+     _PyCFunction_CAST(PyRelay_MPI_broadcast),
       METH_VARARGS | METH_KEYWORDS,
       "MPI Broadcast a Conduit Node"},
     {"broadcast_using_schema",
-     (PyCFunction)PyRelay_MPI_broadcast_using_schema,
+     _PyCFunction_CAST(PyRelay_MPI_broadcast_using_schema),
       METH_VARARGS | METH_KEYWORDS,
       "MPI Broadcast a Conduit Node and its Schema"},
      // -- isend + irecv ---
     // {"isend",
-    //  (PyCFunction)PyRelay_MPI_send,
+    //  _PyCFunction_CAST(PyRelay_MPI_send,
     //   METH_VARARGS | METH_KEYWORDS,
     //   "Send Conduit Node via MPI ISend"},
     // {"irecv",
-    //  (PyCFunction)PyRelay_MPI_send,
+    //  _PyCFunction_CAST(PyRelay_MPI_send,
     //   METH_VARARGS | METH_KEYWORDS,
     //   "Receive Conduit Node via MPI IRecv"},
     //-----------------------------------------------------------------------//

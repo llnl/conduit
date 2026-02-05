@@ -6,9 +6,7 @@
 //-----------------------------------------------------------------------------
 // -- Python includes (these must be included first) -- 
 //-----------------------------------------------------------------------------
-#include <Python.h>
-#include <structmember.h>
-#include "bytesobject.h"
+#include "conduit_python_common.h"
 
 //-----------------------------------------------------------------------------
 // -- standard lib includes -- 
@@ -30,44 +28,6 @@
 
 using namespace conduit;
 using namespace conduit::relay::web;
-
-#if PY_MAJOR_VERSION >= 3
-#define IS_PY3K
-#endif
-
-// use  proper strdup
-#ifdef CONDUIT_PLATFORM_WINDOWS
-    #define _conduit_strdup _strdup
-#else
-    #define _conduit_strdup strdup
-#endif
-
-//-----------------------------------------------------------------------------
-// PyVarObject_TAIL is used at the end of each PyVarObject def
-// to make sure we have the correct number of initializers across python
-// versions.
-//-----------------------------------------------------------------------------
-
-
-#ifdef Py_TPFLAGS_HAVE_FINALIZE
-    // python 3.8 adds tp_vectorcall, at end and special slot for tp_print
-    // python 3.9 removes tp_print special slot
-    #if PY_VERSION_HEX >= 0x03080000
-        #if PY_VERSION_HEX < 0x03090000
-             // python 3.8 tail
-            #define PyVarObject_TAIL ,0, 0, 0 
-        #else
-            // python 3.9 and newer tail
-            #define PyVarObject_TAIL ,0, 0
-        #endif
-    #else
-        // python tail when finalize is part of struct
-        #define PyVarObject_TAIL ,0
-    #endif
-#else
-// python tail when finalize is not part of struct
-#define PyVarObject_TAIL
-#endif
 
 //---------------------------------------------------------------------------//
 //---------------------------------------------------------------------------//
@@ -497,55 +457,55 @@ PyRelay_Web_WebServer_websocket(PyRelay_Web_WebServer *self,
 static PyMethodDef PyRelay_Web_WebServer_METHODS[] = {
     //-----------------------------------------------------------------------//
     {"serve",
-     (PyCFunction)PyRelay_Web_WebServer_serve,
+     _PyCFunction_CAST(PyRelay_Web_WebServer_serve),
      METH_VARARGS| METH_KEYWORDS,
      "Start the web server."},
     {"set_document_root",
-     (PyCFunction)PyRelay_Web_WebServer_set_document_root,
+     _PyCFunction_CAST(PyRelay_Web_WebServer_set_document_root),
      METH_VARARGS| METH_KEYWORDS,
      "Set the document root path to use."},
     {"set_bind_address",
-     (PyCFunction)PyRelay_Web_WebServer_set_bind_address,
+     _PyCFunction_CAST(PyRelay_Web_WebServer_set_bind_address),
      METH_VARARGS| METH_KEYWORDS,
      "Set the ip address to bind to."},
     {"set_port",
-     (PyCFunction)PyRelay_Web_WebServer_set_port,
+     _PyCFunction_CAST(PyRelay_Web_WebServer_set_port),
      METH_VARARGS| METH_KEYWORDS,
      "Set the port to serve on."},
     {"set_htpasswd_auth_domain",
-     (PyCFunction)PyRelay_Web_WebServer_set_htpasswd_auth_domain,
+     _PyCFunction_CAST(PyRelay_Web_WebServer_set_htpasswd_auth_domain),
      METH_VARARGS| METH_KEYWORDS,
      "Set the htpasswd authentication domain to use."},
     {"set_htpasswd_auth_file",
-     (PyCFunction)PyRelay_Web_WebServer_set_htpasswd_auth_file,
+     _PyCFunction_CAST(PyRelay_Web_WebServer_set_htpasswd_auth_file),
      METH_VARARGS| METH_KEYWORDS,
      "Set the htpasswd authentication file to use."},
     {"set_ssl_certificate_file",
-     (PyCFunction)PyRelay_Web_WebServer_set_ssl_certificate_file,
+     _PyCFunction_CAST(PyRelay_Web_WebServer_set_ssl_certificate_file),
      METH_VARARGS| METH_KEYWORDS,
      "Set the ssl certificate to use."},
     {"set_entangle_output_base",
-     (PyCFunction)PyRelay_Web_WebServer_set_entangle_output_base,
+     _PyCFunction_CAST(PyRelay_Web_WebServer_set_entangle_output_base),
      METH_VARARGS| METH_KEYWORDS,
      "Set the output base name for entangle register."},
     {"set_entangle_gateway",
-     (PyCFunction)PyRelay_Web_WebServer_set_entangle_gateway,
+     _PyCFunction_CAST(PyRelay_Web_WebServer_set_entangle_gateway),
      METH_VARARGS| METH_KEYWORDS,
      "Set named gateway to use for entangle register."},
     {"entangle_register",
-     (PyCFunction)PyRelay_Web_WebServer_entangle_register,
+     _PyCFunction_CAST(PyRelay_Web_WebServer_entangle_register),
      METH_NOARGS,
      "Call entangle to generate a new password and register the server."},
     {"shutdown",
-     (PyCFunction)PyRelay_Web_WebServer_shutdown,
+     _PyCFunction_CAST(PyRelay_Web_WebServer_shutdown),
      METH_NOARGS,
      "Shutdown the web server."},
     {"is_running",
-     (PyCFunction)PyRelay_Web_WebServer_is_running,
+     _PyCFunction_CAST(PyRelay_Web_WebServer_is_running),
      METH_NOARGS,
      "Returns if the web server is running."},
     {"websocket",
-     (PyCFunction)PyRelay_Web_WebServer_websocket,
+     _PyCFunction_CAST(PyRelay_Web_WebServer_websocket),
      METH_VARARGS| METH_KEYWORDS,
      "Obtain connected web socket connection."},
     //-----------------------------------------------------------------------//
@@ -762,11 +722,11 @@ PyRelay_Web_WebSocket_is_connected(PyRelay_Web_WebSocket *self)
 static PyMethodDef PyRelay_Web_WebSocket_METHODS[] = {
     //-----------------------------------------------------------------------//
     {"send",
-     (PyCFunction)PyRelay_Web_WebSocket_send,
+     _PyCFunction_CAST(PyRelay_Web_WebSocket_send),
      METH_NOARGS,
      "Send a conduit node over the web socket."},
     {"is_connected",
-     (PyCFunction)PyRelay_Web_WebSocket_is_connected,
+     _PyCFunction_CAST(PyRelay_Web_WebSocket_is_connected),
      METH_NOARGS,
      "Returns if the web socket is connected."},
     //-----------------------------------------------------------------------//

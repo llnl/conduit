@@ -6,47 +6,7 @@
 //-----------------------------------------------------------------------------
 // -- Python includes (these must be included first) -- 
 //-----------------------------------------------------------------------------
-#include <Python.h>
-#include <structmember.h>
-#include "bytesobject.h"
-#include <string.h> // for strdup
-
-#if PY_MAJOR_VERSION >= 3
-#define IS_PY3K
-#endif
-
-// use  proper strdup
-#ifdef CONDUIT_PLATFORM_WINDOWS
-    #define _conduit_strdup _strdup
-#else
-    #define _conduit_strdup strdup
-#endif
-
-//-----------------------------------------------------------------------------
-// PyVarObject_TAIL is used at the end of each PyVarObject def
-// to make sure we have the correct number of initializers across python
-// versions.
-//-----------------------------------------------------------------------------
-
-#ifdef Py_TPFLAGS_HAVE_FINALIZE
-    // python 3.8 adds tp_vectorcall, at end and special slot for tp_print
-    // python 3.9 removes tp_print special slot
-    #if PY_VERSION_HEX >= 0x03080000
-        #if PY_VERSION_HEX < 0x03090000
-             // python 3.8 tail
-            #define PyVarObject_TAIL ,0, 0, 0 
-        #else
-            // python 3.9 and newer tail
-            #define PyVarObject_TAIL ,0, 0
-        #endif
-    #else
-        // python tail when finalize is part of struct
-        #define PyVarObject_TAIL ,0
-    #endif
-#else
-// python tail when finalize is not part of struct
-#define PyVarObject_TAIL
-#endif
+#include "conduit_python_common.h"
 
 //-----------------------------------------------------------------------------
 // -- standard lib includes -- 
@@ -2663,347 +2623,347 @@ PyConduit_DataType_float64_id(PyObject *) // unused
 static PyMethodDef PyConduit_DataType_METHODS[] = {
     //-----------------------------------------------------------------------//
     {"set",
-     (PyCFunction)PyConduit_DataType_set,
+     _PyCFunction_CAST(PyConduit_DataType_set),
      METH_VARARGS | METH_KEYWORDS,
      "{todo}"},
     {"set_id",
-     (PyCFunction)PyConduit_DataType_set_id,
+     _PyCFunction_CAST(PyConduit_DataType_set_id),
       METH_VARARGS,
       "Sets the dtype id of this DataType"},
     //-----------------------------------------------------------------------//
     {"set_number_of_elements",
-     (PyCFunction)PyConduit_DataType_set_number_of_elements,
+     _PyCFunction_CAST(PyConduit_DataType_set_number_of_elements),
      METH_VARARGS,
      "Sets the number of elements property of this DataType"},
     //-----------------------------------------------------------------------//
     {"set_offset",
-     (PyCFunction)PyConduit_DataType_set_offset,
+     _PyCFunction_CAST(PyConduit_DataType_set_offset),
      METH_VARARGS,
      "Sets the byte offset property of this DataType"},
     //-----------------------------------------------------------------------//
     {"set_stride",
-     (PyCFunction)PyConduit_DataType_set_stride,
+     _PyCFunction_CAST(PyConduit_DataType_set_stride),
      METH_VARARGS,
      "Sets the byte stride property of this DataType"},
     //-----------------------------------------------------------------------//
     {"set_element_bytes",
-     (PyCFunction)PyConduit_DataType_set_element_bytes,
+     _PyCFunction_CAST(PyConduit_DataType_set_element_bytes),
      METH_VARARGS,
      "Sets the number of bytes per element property of this DataType"},
     //-----------------------------------------------------------------------//
     {"set_endianness",
-     (PyCFunction)PyConduit_DataType_set_endianness,
+     _PyCFunction_CAST(PyConduit_DataType_set_endianness),
      METH_VARARGS,
      "Sets the endianness property of this DataType"},
     //-----------------------------------------------------------------------//
     {"id",
-     (PyCFunction)PyConduit_DataType_id,
+     _PyCFunction_CAST(PyConduit_DataType_id),
      METH_NOARGS,
      "Returns the dtype id of this DataType"},
     //-----------------------------------------------------------------------//
     {"name",
-     (PyCFunction)PyConduit_DataType_name,
+     _PyCFunction_CAST(PyConduit_DataType_name),
      METH_NOARGS,
      "Returns the name of this DataType"},
     //-----------------------------------------------------------------------//
     {"number_of_elements",
-     (PyCFunction)PyConduit_DataType_number_of_elements,
+     _PyCFunction_CAST(PyConduit_DataType_number_of_elements),
      METH_NOARGS,
      "Returns the number of elements property of this DataType"},
     //-----------------------------------------------------------------------//
     {"offset",
-     (PyCFunction)PyConduit_DataType_offset,
+     _PyCFunction_CAST(PyConduit_DataType_offset),
      METH_VARARGS,
      "Returns the byte offset property of this DataType"},
     //-----------------------------------------------------------------------//
     {"stride",
-     (PyCFunction)PyConduit_DataType_stride,
+     _PyCFunction_CAST(PyConduit_DataType_stride),
      METH_NOARGS,
      "Returns the byte stride property of this DataType"},
     //-----------------------------------------------------------------------//
     {"element_bytes",
-     (PyCFunction)PyConduit_DataType_element_bytes,
+     _PyCFunction_CAST(PyConduit_DataType_element_bytes),
      METH_NOARGS,
      "Returns the number of bytes per element property of this DataType"},
     //-----------------------------------------------------------------------//
     {"endianness",
-     (PyCFunction)PyConduit_DataType_endianness,
+     _PyCFunction_CAST(PyConduit_DataType_endianness),
      METH_NOARGS,
      "Returns the endianness property of this DataType"},
     //-----------------------------------------------------------------------//
     {"element_index",
-     (PyCFunction)PyConduit_DataType_element_index,
+     _PyCFunction_CAST(PyConduit_DataType_element_index),
      METH_VARARGS,
      "Returns the byte offset for a given element index of this DataType"},
     //-----------------------------------------------------------------------//
     {"strided_bytes",
-     (PyCFunction)PyConduit_DataType_strided_bytes,
+     _PyCFunction_CAST(PyConduit_DataType_strided_bytes),
      METH_NOARGS,
      "Returns the strided bytes property of this DataType"},
     //-----------------------------------------------------------------------//
     {"bytes_compact",
-     (PyCFunction)PyConduit_DataType_bytes_compact,
+     _PyCFunction_CAST(PyConduit_DataType_bytes_compact),
      METH_NOARGS,
      "Returns the bytes compact property of this DataType"},
     //-----------------------------------------------------------------------//
     {"spanned_bytes",
-     (PyCFunction)PyConduit_DataType_spanned_bytes,
+     _PyCFunction_CAST(PyConduit_DataType_spanned_bytes),
      METH_NOARGS,
      "Returns the bytes spanned property of this DataType"},
     //-----------------------------------------------------------------------//
     {"is_compact",
-     (PyCFunction)PyConduit_DataType_is_compact,
+     _PyCFunction_CAST(PyConduit_DataType_is_compact),
      METH_NOARGS,
      "Returns if this DataType is compact"},
     //-----------------------------------------------------------------------//
     {"compatible",
-     (PyCFunction)PyConduit_DataType_compatible,
+     _PyCFunction_CAST(PyConduit_DataType_compatible),
      METH_VARARGS,
      "Returns if this DataType is compatible with another DataType instance"},
     //-----------------------------------------------------------------------//
     {"equals",
-     (PyCFunction)PyConduit_DataType_equals,
+     _PyCFunction_CAST(PyConduit_DataType_equals),
      METH_VARARGS,
      "Returns if this DataType is equal one passed"},
     //-----------------------------------------------------------------------//
     {"is_empty",
-     (PyCFunction)PyConduit_DataType_is_empty,
+     _PyCFunction_CAST(PyConduit_DataType_is_empty),
      METH_NOARGS,
      "Returns if this DataType is empty"},
     //-----------------------------------------------------------------------//
     {"is_object",
-     (PyCFunction)PyConduit_DataType_is_object,
+     _PyCFunction_CAST(PyConduit_DataType_is_object),
      METH_NOARGS,
      "Returns if this DataType is an object"},
     //-----------------------------------------------------------------------//
     {"is_list",
-     (PyCFunction)PyConduit_DataType_is_list,
+     _PyCFunction_CAST(PyConduit_DataType_is_list),
      METH_NOARGS,
      "Returns if this DataType is a list"},
     //-----------------------------------------------------------------------//
     {"is_number",
-     (PyCFunction)PyConduit_DataType_is_number,
+     _PyCFunction_CAST(PyConduit_DataType_is_number),
      METH_NOARGS,
      "Returns if this DataType is a number"},
     //-----------------------------------------------------------------------//
     {"is_floating_point",
-     (PyCFunction)PyConduit_DataType_is_floating_point,
+     _PyCFunction_CAST(PyConduit_DataType_is_floating_point),
      METH_NOARGS,
      "Returns if this DataType is a floating point number"},
     //-----------------------------------------------------------------------//
     {"is_integer",
-     (PyCFunction)PyConduit_DataType_is_integer,
+     _PyCFunction_CAST(PyConduit_DataType_is_integer),
      METH_NOARGS,
      "Returns if this DataType is an integer"},
     //-----------------------------------------------------------------------//
     {"is_signed_integer",
-     (PyCFunction)PyConduit_DataType_is_signed_integer,
+     _PyCFunction_CAST(PyConduit_DataType_is_signed_integer),
      METH_NOARGS,
      "Returns if this DataType is a signed integer"},
     //-----------------------------------------------------------------------//
     {"is_unsigned_integer",
-     (PyCFunction)PyConduit_DataType_is_unsigned_integer,
+     _PyCFunction_CAST(PyConduit_DataType_is_unsigned_integer),
      METH_NOARGS,
      "Returns if this DataType is an unsigned integer"},
      
     //-----------------------------------------------------------------------//
     {"is_int8",
-     (PyCFunction)PyConduit_DataType_is_int8,
+     _PyCFunction_CAST(PyConduit_DataType_is_int8),
      METH_NOARGS,
      "Returns if this DataType is an int8"},
     //-----------------------------------------------------------------------//
     {"is_int16",
-     (PyCFunction)PyConduit_DataType_is_int16,
+     _PyCFunction_CAST(PyConduit_DataType_is_int16),
      METH_NOARGS,
      "Returns if this DataType is an int16"},
     //-----------------------------------------------------------------------//
     {"is_int32",
-     (PyCFunction)PyConduit_DataType_is_int32,
+     _PyCFunction_CAST(PyConduit_DataType_is_int32),
      METH_NOARGS,
      "Returns if this DataType is an int32"},
     //-----------------------------------------------------------------------//
     {"is_int64",
-     (PyCFunction)PyConduit_DataType_is_int64,
+     _PyCFunction_CAST(PyConduit_DataType_is_int64),
      METH_NOARGS,
      "Returns if this DataType is an int64"},
     //-----------------------------------------------------------------------//
     {"is_uint8",
-     (PyCFunction)PyConduit_DataType_is_uint8,
+     _PyCFunction_CAST(PyConduit_DataType_is_uint8),
      METH_NOARGS,
      "Returns if this DataType is an uint8"},
     //-----------------------------------------------------------------------//
     {"is_uint16",
-     (PyCFunction)PyConduit_DataType_is_uint16,
+     _PyCFunction_CAST(PyConduit_DataType_is_uint16),
      METH_NOARGS,
      "Returns if this DataType is an uint16"},
     //-----------------------------------------------------------------------//
     {"is_uint32",
-     (PyCFunction)PyConduit_DataType_is_uint32,
+     _PyCFunction_CAST(PyConduit_DataType_is_uint32),
      METH_NOARGS,
      "Returns if this DataType is an uint32"},
     //-----------------------------------------------------------------------//
     {"is_uint64",
-     (PyCFunction)PyConduit_DataType_is_uint64,
+     _PyCFunction_CAST(PyConduit_DataType_is_uint64),
      METH_NOARGS,
      "Returns if this DataType is an uint64"},
 
     //-----------------------------------------------------------------------//
     {"is_float32",
-     (PyCFunction)PyConduit_DataType_is_float32,
+     _PyCFunction_CAST(PyConduit_DataType_is_float32),
      METH_NOARGS,
      "Returns if this DataType is a float32"},
     //-----------------------------------------------------------------------//
     {"is_float64",
-     (PyCFunction)PyConduit_DataType_is_float64,
+     _PyCFunction_CAST(PyConduit_DataType_is_float64),
      METH_NOARGS,
      "Returns if this DataType is a float64"},
 
     //-----------------------------------------------------------------------//
     {"is_index_t",
-     (PyCFunction)PyConduit_DataType_is_index_t,
+     _PyCFunction_CAST(PyConduit_DataType_is_index_t),
      METH_NOARGS,
      "Returns if this DataType is an index_t"},
 
     //-----------------------------------------------------------------------//
     {"is_char",
-     (PyCFunction)PyConduit_DataType_is_char,
+     _PyCFunction_CAST(PyConduit_DataType_is_char),
      METH_NOARGS,
      "Returns if this DataType is a char"},
     //-----------------------------------------------------------------------//
     {"is_short",
-     (PyCFunction)PyConduit_DataType_is_short,
+     _PyCFunction_CAST(PyConduit_DataType_is_short),
      METH_NOARGS,
      "Returns if this DataType is a short"},
     //-----------------------------------------------------------------------//
     {"is_int",
-     (PyCFunction)PyConduit_DataType_is_int,
+     _PyCFunction_CAST(PyConduit_DataType_is_int),
      METH_NOARGS,
      "Returns if this DataType is an int"},
     //-----------------------------------------------------------------------//
     {"is_long",
-     (PyCFunction)PyConduit_DataType_is_long,
+     _PyCFunction_CAST(PyConduit_DataType_is_long),
      METH_NOARGS,
      "Returns if this DataType is a long"},
     //-----------------------------------------------------------------------//
     {"is_long_long",
-     (PyCFunction)PyConduit_DataType_is_long_long,
+     _PyCFunction_CAST(PyConduit_DataType_is_long_long),
      METH_NOARGS,
      "Returns if this DataType is a long long"},
 
     //-----------------------------------------------------------------------//
     {"is_signed_char",
-     (PyCFunction)PyConduit_DataType_is_signed_char,
+     _PyCFunction_CAST(PyConduit_DataType_is_signed_char),
      METH_NOARGS,
      "Returns if this DataType is a signed char"},
     //-----------------------------------------------------------------------//
     {"is_signed_short",
-     (PyCFunction)PyConduit_DataType_is_signed_short,
+     _PyCFunction_CAST(PyConduit_DataType_is_signed_short),
      METH_NOARGS,
      "Returns if this DataType is a signed short"},
     //-----------------------------------------------------------------------//
     {"is_signed_int",
-     (PyCFunction)PyConduit_DataType_is_signed_int,
+     _PyCFunction_CAST(PyConduit_DataType_is_signed_int),
      METH_NOARGS,
      "Returns if this DataType is a signed int"},
     //-----------------------------------------------------------------------//
     {"is_signed_long",
-     (PyCFunction)PyConduit_DataType_is_signed_long,
+     _PyCFunction_CAST(PyConduit_DataType_is_signed_long),
      METH_NOARGS,
      "Returns if this DataType is a signed long"},
     //-----------------------------------------------------------------------//
     {"is_signed_long_long",
-     (PyCFunction)PyConduit_DataType_is_signed_long_long,
+     _PyCFunction_CAST(PyConduit_DataType_is_signed_long_long),
      METH_NOARGS,
      "Returns if this DataType is a signed long long"},
 
     //-----------------------------------------------------------------------//
     {"is_unsigned_char",
-     (PyCFunction)PyConduit_DataType_is_unsigned_char,
+     _PyCFunction_CAST(PyConduit_DataType_is_unsigned_char),
      METH_NOARGS,
      "Returns if this DataType is an unsigned char"},
     //-----------------------------------------------------------------------//
     {"is_unsigned_short",
-     (PyCFunction)PyConduit_DataType_is_unsigned_short,
+     _PyCFunction_CAST(PyConduit_DataType_is_unsigned_short),
      METH_NOARGS,
      "Returns if this DataType is an unsigned short"},
     //-----------------------------------------------------------------------//
     {"is_unsigned_int",
-     (PyCFunction)PyConduit_DataType_is_unsigned_int,
+     _PyCFunction_CAST(PyConduit_DataType_is_unsigned_int),
      METH_NOARGS,
      "Returns if this DataType is an unsigned int"},
     //-----------------------------------------------------------------------//
     {"is_unsigned_long",
-     (PyCFunction)PyConduit_DataType_is_unsigned_long,
+     _PyCFunction_CAST(PyConduit_DataType_is_unsigned_long),
      METH_NOARGS,
      "Returns if this DataType is an unsigned long"},
     //-----------------------------------------------------------------------//
     {"is_unsigned_long_long",
-     (PyCFunction)PyConduit_DataType_is_unsigned_long_long,
+     _PyCFunction_CAST(PyConduit_DataType_is_unsigned_long_long),
      METH_NOARGS,
      "Returns if this DataType is an unsigned long long"},
 
     //-----------------------------------------------------------------------//
     {"is_float",
-     (PyCFunction)PyConduit_DataType_is_float,
+     _PyCFunction_CAST(PyConduit_DataType_is_float),
      METH_NOARGS,
      "Returns if this DataType is a float"},
     //-----------------------------------------------------------------------//
     {"is_double",
-     (PyCFunction)PyConduit_DataType_is_double,
+     _PyCFunction_CAST(PyConduit_DataType_is_double),
      METH_NOARGS,
      "Returns if this DataType is a double"},
     //-----------------------------------------------------------------------//
     {"is_long_double",
-     (PyCFunction)PyConduit_DataType_is_long_double,
+     _PyCFunction_CAST(PyConduit_DataType_is_long_double),
      METH_NOARGS,
      "Returns if this DataType is a long double"},
 
     //-----------------------------------------------------------------------//
     {"is_string",
-     (PyCFunction)PyConduit_DataType_is_string,
+     _PyCFunction_CAST(PyConduit_DataType_is_string),
      METH_NOARGS,
      "Returns if this DataType is a string"},
 
     //-----------------------------------------------------------------------//
     {"is_char8_str",
-     (PyCFunction)PyConduit_DataType_is_char8_str,
+     _PyCFunction_CAST(PyConduit_DataType_is_char8_str),
      METH_NOARGS,
      "Returns if this DataType is a char8 string"},
 
     //-----------------------------------------------------------------------//
     {"is_little_endian",
-     (PyCFunction)PyConduit_DataType_is_little_endian,
+     _PyCFunction_CAST(PyConduit_DataType_is_little_endian),
      METH_NOARGS,
      "Returns if this DataType uses little endian byte ordering"},
 
     //-----------------------------------------------------------------------//
     {"is_big_endian",
-     (PyCFunction)PyConduit_DataType_is_big_endian,
+     _PyCFunction_CAST(PyConduit_DataType_is_big_endian),
      METH_NOARGS,
      "Returns if this DataType uses big endian byte ordering"},
 
     //-----------------------------------------------------------------------//
     {"endianness_matches_machine",
-     (PyCFunction)PyConduit_DataType_endianness_matches_machine,
+     _PyCFunction_CAST(PyConduit_DataType_endianness_matches_machine),
      METH_NOARGS,
      "Returns if this DataType's endianness matches this machines endianness"},
 
     //-----------------------------------------------------------------------//
     {"to_string",
-     (PyCFunction)PyConduit_DataType_to_string, 
+     _PyCFunction_CAST(PyConduit_DataType_to_string),
      METH_VARARGS| METH_KEYWORDS,
      "Returns a string representation of the DataType. "
      "Optionally takes protocol and spacing options. "
      "(Default protocol='yaml'.)"},
     //-----------------------------------------------------------------------//
     {"to_json",
-     (PyCFunction)PyConduit_DataType_to_json, 
+     _PyCFunction_CAST(PyConduit_DataType_to_json),
      METH_VARARGS| METH_KEYWORDS,
      "Returns a JSON string representation of the DataType. "
      "Optionally takes protocol and spacing options."},
     //-----------------------------------------------------------------------//
     {"to_yaml",
-     (PyCFunction)PyConduit_DataType_to_yaml, 
+     _PyCFunction_CAST(PyConduit_DataType_to_yaml),
      METH_VARARGS| METH_KEYWORDS,
      "Returns a YAML string representation of the DataType. "
      "Optionally takes protocol and spacing options."},
@@ -3012,211 +2972,211 @@ static PyMethodDef PyConduit_DataType_METHODS[] = {
     //-----------------------------------------------------------------------//
     //-----------------------------------------------------------------------//
     {"name_to_id",
-     (PyCFunction)PyConduit_DataType_name_to_id,
+     _PyCFunction_CAST(PyConduit_DataType_name_to_id),
      METH_VARARGS | METH_STATIC,
      "Converts a DataType name string to its corresponding id value"},
     //-----------------------------------------------------------------------//
     {"id_to_name",
-     (PyCFunction)PyConduit_DataType_id_to_name,
+     _PyCFunction_CAST(PyConduit_DataType_id_to_name),
      METH_VARARGS | METH_STATIC,
      "Converts a DataType id value to its corresponding name string"},
     //-----------------------------------------------------------------------//
     {"empty",
-     (PyCFunction)PyConduit_DataType_empty,
+     _PyCFunction_CAST(PyConduit_DataType_empty),
      METH_NOARGS | METH_STATIC,
      "Creates a DataType for the empty role"},
     //-----------------------------------------------------------------------//
     {"object",
-     (PyCFunction)PyConduit_DataType_object,
+     _PyCFunction_CAST(PyConduit_DataType_object),
      METH_NOARGS | METH_STATIC,
      "Creates a DataType for the object role"},
     //-----------------------------------------------------------------------//
     {"list",
-     (PyCFunction)PyConduit_DataType_list,
+     _PyCFunction_CAST(PyConduit_DataType_list),
      METH_NOARGS | METH_STATIC,
      "Creates a DataType for the list role"},
     //-----------------------------------------------------------------------//
     {"int8",
-     (PyCFunction)PyConduit_DataType_int8,
+     _PyCFunction_CAST(PyConduit_DataType_int8),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for an int8 leaf"},
     //-----------------------------------------------------------------------//
     {"int16",
-     (PyCFunction)PyConduit_DataType_int16,
+     _PyCFunction_CAST(PyConduit_DataType_int16),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for an int16 leaf"},
     //-----------------------------------------------------------------------//
     {"int32",
-     (PyCFunction)PyConduit_DataType_int32,
+     _PyCFunction_CAST(PyConduit_DataType_int32),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for an int32 leaf"},
     //-----------------------------------------------------------------------//
     {"int64",
-     (PyCFunction)PyConduit_DataType_int64,
+     _PyCFunction_CAST(PyConduit_DataType_int64),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for an int64 leaf"},
     //-----------------------------------------------------------------------//
     {"uint8",
-     (PyCFunction)PyConduit_DataType_uint8,
+     _PyCFunction_CAST(PyConduit_DataType_uint8),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for an uint8 leaf"},
     //-----------------------------------------------------------------------//
     {"uint16",
-     (PyCFunction)PyConduit_DataType_uint16,
+     _PyCFunction_CAST(PyConduit_DataType_uint16),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for an uint16 leaf"},
     //-----------------------------------------------------------------------//
     {"uint32",
-     (PyCFunction)PyConduit_DataType_uint32,
+     _PyCFunction_CAST(PyConduit_DataType_uint32),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for an uint32 leaf"},
     //-----------------------------------------------------------------------//
     {"uint64",
-     (PyCFunction)PyConduit_DataType_uint64,
+     _PyCFunction_CAST(PyConduit_DataType_uint64),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for an uint64 leaf"},
     //-----------------------------------------------------------------------//
     {"float32",
-     (PyCFunction)PyConduit_DataType_float32,
+     _PyCFunction_CAST(PyConduit_DataType_float32),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for an float32 leaf"},
     //-----------------------------------------------------------------------//
     {"float64",
-     (PyCFunction)PyConduit_DataType_float64,
+     _PyCFunction_CAST(PyConduit_DataType_float64),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for an float64 leaf"},
     //-----------------------------------------------------------------------//
     {"char8_str",
-     (PyCFunction)PyConduit_DataType_char8_str,
+     _PyCFunction_CAST(PyConduit_DataType_char8_str),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for a char8_str string leaf"},
     //-----------------------------------------------------------------------//
     {"index_t",
-     (PyCFunction)PyConduit_DataType_index_t,
+     _PyCFunction_CAST(PyConduit_DataType_index_t),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for an index_t leaf"},
     //-----------------------------------------------------------------------//
     {"c_char",
-     (PyCFunction)PyConduit_DataType_c_char,
+     _PyCFunction_CAST(PyConduit_DataType_c_char),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for a c-style native char leaf"},
     //-----------------------------------------------------------------------//
     {"c_short",
-     (PyCFunction)PyConduit_DataType_c_short,
+     _PyCFunction_CAST(PyConduit_DataType_c_short),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for a c-style native short leaf"},
     //-----------------------------------------------------------------------//
     {"c_int",
-     (PyCFunction)PyConduit_DataType_c_int,
+     _PyCFunction_CAST(PyConduit_DataType_c_int),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for a c-style native int leaf"},
     //-----------------------------------------------------------------------//
     {"c_long",
-     (PyCFunction)PyConduit_DataType_c_long,
+     _PyCFunction_CAST(PyConduit_DataType_c_long),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for a c-style native long leaf"},
     //-----------------------------------------------------------------------//
     {"c_unsigned_char",
-     (PyCFunction)PyConduit_DataType_c_unsigned_char,
+     _PyCFunction_CAST(PyConduit_DataType_c_unsigned_char),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for a c-style native unsigned char leaf"},
     //-----------------------------------------------------------------------//
     {"c_unsigned_short",
-     (PyCFunction)PyConduit_DataType_c_unsigned_short,
+     _PyCFunction_CAST(PyConduit_DataType_c_unsigned_short),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for a c-style native unsigned short leaf"},
     //-----------------------------------------------------------------------//
     {"c_unsigned_int",
-     (PyCFunction)PyConduit_DataType_c_unsigned_int,
+     _PyCFunction_CAST(PyConduit_DataType_c_unsigned_int),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for a c-style native unsigned int leaf"},
     //-----------------------------------------------------------------------//
     {"c_unsigned_long",
-     (PyCFunction)PyConduit_DataType_c_unsigned_long,
+     _PyCFunction_CAST(PyConduit_DataType_c_unsigned_long),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for a c-style native unsigned long leaf"},
     //-----------------------------------------------------------------------//
     {"c_float",
-     (PyCFunction)PyConduit_DataType_c_float,
+     _PyCFunction_CAST(PyConduit_DataType_c_float),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for a c-style native float leaf"},
     //-----------------------------------------------------------------------//
     {"c_double",
-     (PyCFunction)PyConduit_DataType_c_double,
+     _PyCFunction_CAST(PyConduit_DataType_c_double),
      METH_VARARGS | METH_KEYWORDS| METH_STATIC,
      "Creates a DataType for a c-style native double leaf"},
     // -- ids -- //
     //-----------------------------------------------------------------------//
      {"empty_id",
-      (PyCFunction)PyConduit_DataType_empty_id,
+      _PyCFunction_CAST(PyConduit_DataType_empty_id),
       METH_NOARGS | METH_STATIC,
       "Returns DataType::EMPTY_ID"},
     //-----------------------------------------------------------------------//
      {"object_id",
-      (PyCFunction)PyConduit_DataType_object_id,
+      _PyCFunction_CAST(PyConduit_DataType_object_id),
       METH_NOARGS | METH_STATIC,
       "Returns DataType::OBJECT_ID"},
     //-----------------------------------------------------------------------//
      {"list_id",
-      (PyCFunction)PyConduit_DataType_list_id,
+      _PyCFunction_CAST(PyConduit_DataType_list_id),
       METH_NOARGS | METH_STATIC,
       "Returns DataType::LIST_ID"},
     //-----------------------------------------------------------------------//
      {"char8_str_id",
-      (PyCFunction)PyConduit_DataType_char8_str_id,
+      _PyCFunction_CAST(PyConduit_DataType_char8_str_id),
       METH_NOARGS | METH_STATIC,
       "Returns DataType::CHAR8_STR_ID"},
     // -- signed int ids -- //
     //-----------------------------------------------------------------------//
      {"int8_id",
-      (PyCFunction)PyConduit_DataType_int8_id,
+      _PyCFunction_CAST(PyConduit_DataType_int8_id),
       METH_NOARGS | METH_STATIC,
       "Returns DataType::INT8_ID"},
     //-----------------------------------------------------------------------//
      {"int16_id",
-      (PyCFunction)PyConduit_DataType_int16_id,
+      _PyCFunction_CAST(PyConduit_DataType_int16_id),
       METH_NOARGS | METH_STATIC,
       "Returns DataType::INT16_ID"},
     //-----------------------------------------------------------------------//
      {"int32_id",
-      (PyCFunction)PyConduit_DataType_int32_id,
+      _PyCFunction_CAST(PyConduit_DataType_int32_id),
       METH_NOARGS | METH_STATIC,
       "Returns DataType::INT32_ID"},
     //-----------------------------------------------------------------------//
      {"int64_id",
-      (PyCFunction)PyConduit_DataType_int64_id,
+      _PyCFunction_CAST(PyConduit_DataType_int64_id),
       METH_NOARGS | METH_STATIC,
       "Returns DataType::INT64_ID"},
     // -- uint ids -- //
     //-----------------------------------------------------------------------//
      {"uint8_id",
-      (PyCFunction)PyConduit_DataType_uint8_id,
+      _PyCFunction_CAST(PyConduit_DataType_uint8_id),
       METH_NOARGS | METH_STATIC,
       "Returns DataType::UINT8_ID"},
     //-----------------------------------------------------------------------//
      {"uint16_id",
-      (PyCFunction)PyConduit_DataType_uint16_id,
+      _PyCFunction_CAST(PyConduit_DataType_uint16_id),
       METH_NOARGS | METH_STATIC,
       "Returns DataType::UINT16_ID"},
     //-----------------------------------------------------------------------//
      {"uint32_id",
-      (PyCFunction)PyConduit_DataType_uint32_id,
+      _PyCFunction_CAST(PyConduit_DataType_uint32_id),
       METH_NOARGS | METH_STATIC,
       "Returns DataType::UINT32_ID"},
     //-----------------------------------------------------------------------//
      {"uint64_id",
-      (PyCFunction)PyConduit_DataType_uint64_id,
+      _PyCFunction_CAST(PyConduit_DataType_uint64_id),
       METH_NOARGS | METH_STATIC,
       "Returns DataType::UINT64_ID"},
     // -- fp ids -- //
     //-----------------------------------------------------------------------//
      {"float32_id",
-      (PyCFunction)PyConduit_DataType_float32_id,
+      _PyCFunction_CAST(PyConduit_DataType_float32_id),
       METH_NOARGS | METH_STATIC,
       "Returns DataType::FLOAT32_ID"},
     //-----------------------------------------------------------------------//
      {"float64_id",
-      (PyCFunction)PyConduit_DataType_float64_id,
+      _PyCFunction_CAST(PyConduit_DataType_float64_id),
       METH_NOARGS | METH_STATIC,
       "Returns DataType::FLOAT64_ID"},
     //-----------------------------------------------------------------------//
@@ -3513,11 +3473,11 @@ PyConduit_Generator_walk_external(PyConduit_Generator *self,
 static PyMethodDef PyConduit_Generator_METHODS[] = {
     //-----------------------------------------------------------------------//
     {"walk",
-     (PyCFunction)PyConduit_Generator_walk,
+     _PyCFunction_CAST(PyConduit_Generator_walk),
      METH_VARARGS | METH_KEYWORDS,
      "Use Generator to parse a JSON schema into passed 'node' or 'schema'"},
     {"walk_external",
-     (PyCFunction)PyConduit_Generator_walk_external,
+     _PyCFunction_CAST(PyConduit_Generator_walk_external),
      METH_VARARGS | METH_KEYWORDS,
      "Use Generator to parse a JSON schema into passed 'node' using"
      " external data"},
@@ -4464,130 +4424,130 @@ PyConduit_Schema_to_yaml(PyConduit_Schema* self,
 static PyMethodDef PyConduit_Schema_METHODS[] = {
     //-----------------------------------------------------------------------//
     {"python_owns",
-     (PyCFunction)PyConduit_Schema_python_owns,
+     _PyCFunction_CAST(PyConduit_Schema_python_owns),
      METH_NOARGS,
      "{todo}"},
     //-----------------------------------------------------------------------//
     {"python_attach",
-     (PyCFunction)PyConduit_Schema_python_attach,
+     _PyCFunction_CAST(PyConduit_Schema_python_attach),
       METH_NOARGS,
       "{todo}"},
     //-----------------------------------------------------------------------//
     {"python_detach",
-     (PyCFunction)PyConduit_Schema_python_detach,
+     _PyCFunction_CAST(PyConduit_Schema_python_detach),
      METH_NOARGS,
      "{todo}"},
     //-----------------------------------------------------------------------//
     {"dtype",
-    (PyCFunction)PyConduit_Schema_dtype,
+    _PyCFunction_CAST(PyConduit_Schema_dtype),
     METH_NOARGS,
     "{todo}"},
     //-----------------------------------------------------------------------//
     {"total_strided_bytes",
-    (PyCFunction)PyConduit_Schema_total_strided_bytes,
+    _PyCFunction_CAST(PyConduit_Schema_total_strided_bytes),
     METH_NOARGS,
     "{todo}"},
     //-----------------------------------------------------------------------//
     {"total_bytes_compact",
-    (PyCFunction)PyConduit_Schema_total_bytes_compact,
+    _PyCFunction_CAST(PyConduit_Schema_total_bytes_compact),
     METH_NOARGS,
     "{todo}"},
     //-----------------------------------------------------------------------//
     {"element_index",
-    (PyCFunction)PyConduit_Schema_element_index,
+    _PyCFunction_CAST(PyConduit_Schema_element_index),
     METH_VARARGS,
     "{todo}"},
     //-----------------------------------------------------------------------//
     {"is_root",
-    (PyCFunction)PyConduit_Schema_is_root,
+    _PyCFunction_CAST(PyConduit_Schema_is_root),
     METH_NOARGS,
     "{todo}"},
     //-----------------------------------------------------------------------//
     {"parent",
-    (PyCFunction)PyConduit_Schema_parent,
+    _PyCFunction_CAST(PyConduit_Schema_parent),
     METH_NOARGS,
     "{todo}"},
     //-----------------------------------------------------------------------//
     {"set",
-     (PyCFunction)PyConduit_Schema_set,
+     _PyCFunction_CAST(PyConduit_Schema_set),
      METH_VARARGS,
      "Sets the schema"},
     //-----------------------------------------------------------------------//
     {"child_names",
-     (PyCFunction)PyConduit_Schema_child_names,
+     _PyCFunction_CAST(PyConduit_Schema_child_names),
      METH_NOARGS, 
      "Returns a list with this schema's child names"},
     //-----------------------------------------------------------------------//
     {"add_child",
-    (PyCFunction)PyConduit_Schema_add_child,
+    _PyCFunction_CAST(PyConduit_Schema_add_child),
     METH_VARARGS | METH_KEYWORDS,
     "Add a new direct child (name is not parsed as path, allows slashes) "},
     //-----------------------------------------------------------------------//
     {"child",
-    (PyCFunction)PyConduit_Schema_child,
+    _PyCFunction_CAST(PyConduit_Schema_child),
     METH_VARARGS | METH_KEYWORDS,
     "Access existing direct child by index or name"},
     //-----------------------------------------------------------------------//
     {"remove_child",
-    (PyCFunction)PyConduit_Schema_remove_child,
+    _PyCFunction_CAST(PyConduit_Schema_remove_child),
     METH_VARARGS | METH_KEYWORDS,
     "Remove a direct child by index or name"},
     //-----------------------------------------------------------------------//
     {"rename_child",
-    (PyCFunction)PyConduit_Schema_rename_child,
+    _PyCFunction_CAST(PyConduit_Schema_rename_child),
     METH_VARARGS | METH_KEYWORDS,
     "Rename an existing child (object role)"},
     //-----------------------------------------------------------------------//
     {"remove",
-    (PyCFunction)PyConduit_Schema_remove,
+    _PyCFunction_CAST(PyConduit_Schema_remove),
     METH_VARARGS | METH_KEYWORDS,
     "Remove a child by index or path"},
     //-----------------------------------------------------------------------//
     {"number_of_children",
-      (PyCFunction)PyConduit_Schema_number_of_children,
+      _PyCFunction_CAST(PyConduit_Schema_number_of_children),
       METH_NOARGS, 
       "Number of child schemas"},
     //-----------------------------------------------------------------------//
     {"name",
-      (PyCFunction)PyConduit_Schema_name,
+      _PyCFunction_CAST(PyConduit_Schema_name),
       METH_NOARGS, 
       "This schema's name"},
     //-----------------------------------------------------------------------//
     {"path",
-      (PyCFunction)PyConduit_Schema_path,
+      _PyCFunction_CAST(PyConduit_Schema_path),
       METH_NOARGS, 
       "Path to this schema"},
     //-----------------------------------------------------------------------//
     {"has_path",
-     (PyCFunction)PyConduit_Schema_has_path,
+     _PyCFunction_CAST(PyConduit_Schema_has_path),
      METH_VARARGS, 
      "Returns if this schema has the given path"},
     //-----------------------------------------------------------------------//
     {"has_child",
-     (PyCFunction)PyConduit_Schema_has_child,
+     _PyCFunction_CAST(PyConduit_Schema_has_child),
      METH_VARARGS, 
      "Returns if this schema has the given child"},
     //-----------------------------------------------------------------------//
     {"compact_to",
-     (PyCFunction)PyConduit_Schema_compact_to, 
+     _PyCFunction_CAST(PyConduit_Schema_compact_to),
      METH_VARARGS| METH_KEYWORDS,
      "Compacts this schema into the passed schema instance."},
     //-----------------------------------------------------------------------//
     {"to_string",
-     (PyCFunction)PyConduit_Schema_to_string, 
+     _PyCFunction_CAST(PyConduit_Schema_to_string),
      METH_VARARGS| METH_KEYWORDS,
      "Returns a string representation of the schema. "
      "Optionally takes protocol and spacing options. "
      "(Default protocol='yaml'.)"},
     //-----------------------------------------------------------------------//
     {"to_json",
-     (PyCFunction)PyConduit_Schema_to_json, 
+     _PyCFunction_CAST(PyConduit_Schema_to_json),
      METH_VARARGS| METH_KEYWORDS,
      "Returns a JSON string representation of the schema. "
      "Optionally takes protocol and spacing options."},
     //-----------------------------------------------------------------------//
     {"to_yaml",
-     (PyCFunction)PyConduit_Schema_to_yaml, 
+     _PyCFunction_CAST(PyConduit_Schema_to_yaml),
      METH_VARARGS| METH_KEYWORDS,
      "Returns a YAML string representation of the schema. "
      "Optionally takes protocol and spacing options."},
@@ -4934,62 +4894,62 @@ PyConduit_NodeIterator_info(PyConduit_NodeIterator *self)
 static PyMethodDef PyConduit_NodeIterator_METHODS[] = {
     //-----------------------------------------------------------------------//
     {"name",
-     (PyCFunction)PyConduit_NodeIterator_name, 
+     _PyCFunction_CAST(PyConduit_NodeIterator_name),
      METH_NOARGS,
      "{todo}"}, 
     //-----------------------------------------------------------------------//
     {"index",
-     (PyCFunction)PyConduit_NodeIterator_index, 
+     _PyCFunction_CAST(PyConduit_NodeIterator_index),
      METH_NOARGS,
      "{todo}"}, 
      //-----------------------------------------------------------------------//
      {"node",
-      (PyCFunction)PyConduit_NodeIterator_node, 
+      _PyCFunction_CAST(PyConduit_NodeIterator_node),
       METH_NOARGS,
       "{todo}"}, 
     //-----------------------------------------------------------------------//
     {"to_front",
-     (PyCFunction)PyConduit_NodeIterator_to_front, 
+     _PyCFunction_CAST(PyConduit_NodeIterator_to_front),
      METH_NOARGS,
      "{todo}"}, 
     //-----------------------------------------------------------------------//
     {"has_next",
-     (PyCFunction)PyConduit_NodeIterator_has_next, 
+     _PyCFunction_CAST(PyConduit_NodeIterator_has_next),
      METH_NOARGS,
      "{todo}"}, 
     //-----------------------------------------------------------------------//
     {"next",
-     (PyCFunction)PyConduit_NodeIterator_next, 
+     _PyCFunction_CAST(PyConduit_NodeIterator_next),
      METH_NOARGS,
      "{todo}"}, 
     //-----------------------------------------------------------------------//
     {"peek_next",
-     (PyCFunction)PyConduit_NodeIterator_peek_next, 
+     _PyCFunction_CAST(PyConduit_NodeIterator_peek_next),
      METH_NOARGS,
      "{todo}"}, 
     //-----------------------------------------------------------------------//
     {"has_previous",
-     (PyCFunction)PyConduit_NodeIterator_has_previous, 
+     _PyCFunction_CAST(PyConduit_NodeIterator_has_previous),
      METH_NOARGS,
      "{todo}"}, 
     //-----------------------------------------------------------------------//
     {"previous",
-     (PyCFunction)PyConduit_NodeIterator_previous,
+     _PyCFunction_CAST(PyConduit_NodeIterator_previous),
      METH_NOARGS,
      "{todo}"}, 
     //-----------------------------------------------------------------------//
     {"peek_previous",
-     (PyCFunction)PyConduit_NodeIterator_peek_previous, 
+     _PyCFunction_CAST(PyConduit_NodeIterator_peek_previous),
      METH_NOARGS,
      "{todo}"}, 
     //-----------------------------------------------------------------------//
     {"to_back",
-     (PyCFunction)PyConduit_NodeIterator_to_back, 
+     _PyCFunction_CAST(PyConduit_NodeIterator_to_back),
      METH_NOARGS,
      "{todo}"}, 
     //-----------------------------------------------------------------------//
     {"info",
-     (PyCFunction)PyConduit_NodeIterator_info, 
+     _PyCFunction_CAST(PyConduit_NodeIterator_info),
      METH_NOARGS,
      "{todo}"}, 
     //-----------------------------------------------------------------------//
@@ -7022,284 +6982,284 @@ PyConduit_Node_endian_swap_to_big(PyConduit_Node *self)
 static PyMethodDef PyConduit_Node_METHODS[] = {
     //-----------------------------------------------------------------------//
     {"python_owns",
-     (PyCFunction)PyConduit_Node_python_owns,
+     _PyCFunction_CAST(PyConduit_Node_python_owns),
      METH_NOARGS,
      "{todo}"},
     //-----------------------------------------------------------------------//
     {"python_attach",
-     (PyCFunction)PyConduit_Node_python_attach,
+     _PyCFunction_CAST(PyConduit_Node_python_attach),
       METH_NOARGS,
       "{todo}"},
     //-----------------------------------------------------------------------//
     {"python_detach",
-     (PyCFunction)PyConduit_Node_python_detach,
+     _PyCFunction_CAST(PyConduit_Node_python_detach),
      METH_NOARGS,
      "{todo}"},
     //-----------------------------------------------------------------------//
     {"reset",
-     (PyCFunction)PyConduit_Node_reset,
+     _PyCFunction_CAST(PyConduit_Node_reset),
      METH_NOARGS,
      "Reset the name"},
     //-----------------------------------------------------------------------//
     {"set",
-     (PyCFunction)PyConduit_Node_set,
+     _PyCFunction_CAST(PyConduit_Node_set),
      METH_VARARGS,
      "Sets the node"},
     //-----------------------------------------------------------------------//
     {"set_external",
-     (PyCFunction)PyConduit_Node_set_external,
+     _PyCFunction_CAST(PyConduit_Node_set_external),
      METH_VARARGS,
      "Sets the node's data to an external numpy array"},
     //-----------------------------------------------------------------------//
     {"compact_to",
-     (PyCFunction)PyConduit_Node_compact_to,
+     _PyCFunction_CAST(PyConduit_Node_compact_to),
      METH_VARARGS | METH_KEYWORDS, 
      "Compact the contents of this node into the destination node"},
     //-----------------------------------------------------------------------//
     {"update",
-     (PyCFunction)PyConduit_Node_update,
+     _PyCFunction_CAST(PyConduit_Node_update),
      METH_VARARGS | METH_KEYWORDS, 
      "Update node with the contents of another node"},
     //-----------------------------------------------------------------------//
     {"update_compatible",
-     (PyCFunction)PyConduit_Node_update_compatible,
+     _PyCFunction_CAST(PyConduit_Node_update_compatible),
      METH_VARARGS | METH_KEYWORDS, 
      "Update node with the compatible contents of another node"},
     //-----------------------------------------------------------------------//
     {"update_external",
-     (PyCFunction)PyConduit_Node_update_external,
+     _PyCFunction_CAST(PyConduit_Node_update_external),
      METH_VARARGS | METH_KEYWORDS, 
      "Update node with to externally point to another node's contents"},
     //-----------------------------------------------------------------------//
     {"fetch",
-     (PyCFunction)PyConduit_Node_fetch,
+     _PyCFunction_CAST(PyConduit_Node_fetch),
      METH_VARARGS, 
      "Fetches the node at a given path"},
     //-----------------------------------------------------------------------//
     {"fetch_existing",
-     (PyCFunction)PyConduit_Node_fetch_existing,
+     _PyCFunction_CAST(PyConduit_Node_fetch_existing),
      METH_VARARGS, 
      "Fetches an existing node at a given path, error on bad path"},
     //-----------------------------------------------------------------------//
     {"child",
-     (PyCFunction)PyConduit_Node_child,
+     _PyCFunction_CAST(PyConduit_Node_child),
       METH_VARARGS | METH_KEYWORDS, 
      "Retrieves the child node at a given index or with given name"},
     //-----------------------------------------------------------------------//
     {"number_of_children",
-      (PyCFunction)PyConduit_Node_number_of_children,
+      _PyCFunction_CAST(PyConduit_Node_number_of_children),
       METH_NOARGS, 
       "Number of child nodes"},
     //-----------------------------------------------------------------------//
     {"name",
-      (PyCFunction)PyConduit_Node_name,
+      _PyCFunction_CAST(PyConduit_Node_name),
       METH_NOARGS, 
       "This node's name"},
     //-----------------------------------------------------------------------//
     {"path",
-      (PyCFunction)PyConduit_Node_path,
+      _PyCFunction_CAST(PyConduit_Node_path),
       METH_NOARGS, 
       "Path to this node"},
     //-----------------------------------------------------------------------//
     {"has_path",
-     (PyCFunction)PyConduit_Node_has_path,
+     _PyCFunction_CAST(PyConduit_Node_has_path),
      METH_VARARGS, 
      "Returns if this node has the given path"},
     //-----------------------------------------------------------------------//
     {"has_child",
-     (PyCFunction)PyConduit_Node_has_child,
+     _PyCFunction_CAST(PyConduit_Node_has_child),
      METH_VARARGS, 
      "Returns if this node has the given child"},
     //-----------------------------------------------------------------------//
     {"child_names",
-     (PyCFunction)PyConduit_Node_child_names,
+     _PyCFunction_CAST(PyConduit_Node_child_names),
      METH_NOARGS, 
      "Returns a list with this node's child names"},
     //-----------------------------------------------------------------------//
     {"info",
-     (PyCFunction)PyConduit_Node_info,
+     _PyCFunction_CAST(PyConduit_Node_info),
      METH_VARARGS, 
      "Returns a node populated with the memory space details for this node"},
     //-----------------------------------------------------------------------//
     {"describe",
-     (PyCFunction)PyConduit_Node_describe,
+     _PyCFunction_CAST(PyConduit_Node_describe),
      METH_VARARGS | METH_KEYWORDS, 
      "Returns a node that mirrors the current Node, however each leaf is"
      " replaced by summary stats and a truncated display of the values."},
     //-----------------------------------------------------------------------//
     {"print_detailed",
-     (PyCFunction)PyConduit_Node_print_detailed,
+     _PyCFunction_CAST(PyConduit_Node_print_detailed),
      METH_NOARGS, 
      "Prints detailed json description of this node to standard out"},
     //-----------------------------------------------------------------------//
     {"append",
-     (PyCFunction)PyConduit_Node_append,
+     _PyCFunction_CAST(PyConduit_Node_append),
      METH_NOARGS, 
      "Appends a node (coarse to conduit list)"},
     //-----------------------------------------------------------------------//
     {"add_child",
-     (PyCFunction)PyConduit_Node_add_child,
+     _PyCFunction_CAST(PyConduit_Node_add_child),
      METH_VARARGS | METH_KEYWORDS,
      "Add a new direct child (name is not parsed as path, allows slashes) "},
     //-----------------------------------------------------------------------//
     {"child",
-     (PyCFunction)PyConduit_Node_child,
+     _PyCFunction_CAST(PyConduit_Node_child),
      METH_VARARGS | METH_KEYWORDS,
      "Access existing direct child by index or name"},
     //-----------------------------------------------------------------------//
     {"move", 
-     (PyCFunction)PyConduit_Node_move,
+     _PyCFunction_CAST(PyConduit_Node_move),
      METH_VARARGS | METH_KEYWORDS, 
      "Move the contents of passed node into this node."
      " Passed node is empty after the move."},
     //-----------------------------------------------------------------------//
     {"swap", 
-     (PyCFunction)PyConduit_Node_swap,
+     _PyCFunction_CAST(PyConduit_Node_swap),
      METH_VARARGS | METH_KEYWORDS, 
      "Swap contents of this node with those of the passed node"},
     //-----------------------------------------------------------------------//
     {"remove", 
-     (PyCFunction)PyConduit_Node_remove,
+     _PyCFunction_CAST(PyConduit_Node_remove),
      METH_VARARGS | METH_KEYWORDS, 
      "Remove node at a given index or path."},
     //-----------------------------------------------------------------------//
     {"rename_child",
-     (PyCFunction)PyConduit_Node_rename_child,
+     _PyCFunction_CAST(PyConduit_Node_rename_child),
      METH_VARARGS | METH_KEYWORDS,
      "Rename an existing child (object role)"},
     //-----------------------------------------------------------------------//
     {"remove_child",
-     (PyCFunction)PyConduit_Node_remove_child,
+     _PyCFunction_CAST(PyConduit_Node_remove_child),
      METH_VARARGS | METH_KEYWORDS,
      "Remove direct child by name or index"},
     //-----------------------------------------------------------------------//
     {"diff", 
-     (PyCFunction)PyConduit_Node_diff,
+     _PyCFunction_CAST(PyConduit_Node_diff),
      METH_VARARGS | METH_KEYWORDS, 
      "Diff node with another node."},
     //-----------------------------------------------------------------------//
     {"diff_compatible", 
-     (PyCFunction)PyConduit_Node_diff_compatible,
+     _PyCFunction_CAST(PyConduit_Node_diff_compatible),
      METH_VARARGS | METH_KEYWORDS, 
      "Diff node with compatible parts of another node."},
     //-----------------------------------------------------------------------//
     {"value",
-     (PyCFunction)PyConduit_Node_value,
+     _PyCFunction_CAST(PyConduit_Node_value),
      METH_NOARGS, 
      "Value access for leaf nodes"},
     //-----------------------------------------------------------------------//
     {"generate",
-     (PyCFunction)PyConduit_Node_generate,
+     _PyCFunction_CAST(PyConduit_Node_generate),
      METH_VARARGS,  // will become kwargs
      "Generate a node"},
     //-----------------------------------------------------------------------//
     {"parse",
-     (PyCFunction)PyConduit_Node_parse,
+     _PyCFunction_CAST(PyConduit_Node_parse),
      METH_VARARGS | METH_KEYWORDS, 
      "Creates a node tree by parsing a YAML or JSON string"},
     //-----------------------------------------------------------------------//
     {"save",
-     (PyCFunction)PyConduit_Node_save,
+     _PyCFunction_CAST(PyConduit_Node_save),
      METH_VARARGS | METH_KEYWORDS, 
      "Saves a node to a file pair"},
     //-----------------------------------------------------------------------//
     {"load",
-     (PyCFunction)PyConduit_Node_load,
+     _PyCFunction_CAST(PyConduit_Node_load),
      METH_VARARGS | METH_KEYWORDS, 
      "Loads a node from a file pair, file with schema, or file with protocol"},
     //-----------------------------------------------------------------------//
     {"mmap",
-     (PyCFunction)PyConduit_Node_mmap,
+     _PyCFunction_CAST(PyConduit_Node_mmap),
      METH_VARARGS, // will become kwargs
      "Memory Maps a node from a file pair, file with schema, or file with protocol"},
     //-----------------------------------------------------------------------//
     {"set_path",
-     (PyCFunction)PyConduit_Node_set_path,
+     _PyCFunction_CAST(PyConduit_Node_set_path),
      METH_VARARGS,
      "Sets the node at the given path"},
     //-----------------------------------------------------------------------//
     {"schema",
-     (PyCFunction)PyConduit_Node_schema, 
+     _PyCFunction_CAST(PyConduit_Node_schema),
      METH_NOARGS,
      "Returns the schema for the node"}, 
      //-----------------------------------------------------------------------//
      {"dtype",
-      (PyCFunction)PyConduit_Node_dtype, 
+      _PyCFunction_CAST(PyConduit_Node_dtype),
       METH_NOARGS,
-      "Returns the conduit DataType for the node"}, 
+      "Returns the conduit DataType for the node"},
     //-----------------------------------------------------------------------//
     {"is_root",
-     (PyCFunction)PyConduit_Node_is_root, 
+     _PyCFunction_CAST(PyConduit_Node_is_root),
      METH_NOARGS,
-     "Returns if this node is the root of the hierarchy."}, 
+     "Returns if this node is the root of the hierarchy."},
     //-----------------------------------------------------------------------//
     {"parent",
-     (PyCFunction)PyConduit_Node_parent, 
+     _PyCFunction_CAST(PyConduit_Node_parent),
      METH_NOARGS,
-     "Returns this nodes parent, or None if no parent"}, 
+     "Returns this nodes parent, or None if no parent"},
     //-----------------------------------------------------------------------//
     {"total_strided_bytes",
-     (PyCFunction)PyConduit_Node_total_strided_bytes, 
+     _PyCFunction_CAST(PyConduit_Node_total_strided_bytes), 
      METH_NOARGS,
      "Returns the total bytes strided by the all leaves in this node's tree"}, 
     //-----------------------------------------------------------------------//
     {"total_bytes_compact",
-     (PyCFunction)PyConduit_Node_total_bytes_compact, 
+     _PyCFunction_CAST(PyConduit_Node_total_bytes_compact),
      METH_NOARGS,
      "Returns the total bytes of compact rep of all the leaves in this node's tree"}, 
     //-----------------------------------------------------------------------//
     {"is_compact",
-     (PyCFunction)PyConduit_Node_is_compact, 
+     _PyCFunction_CAST(PyConduit_Node_is_compact),
      METH_NOARGS,
-     "Returns if this node's data is in compact form"}, 
+     "Returns if this node's data is in compact form"},
      //-----------------------------------------------------------------------//
      {"to_string",
-      (PyCFunction)PyConduit_Node_to_string, 
+      _PyCFunction_CAST(PyConduit_Node_to_string),
       METH_VARARGS| METH_KEYWORDS,
       "Returns a string representation of the node. "
       "Optionally takes protocol and spacing options. "
       "(Default protocol='yaml'.)"},
      //------------------------------------------------------------t-----------//
      {"to_summary_string",
-      (PyCFunction)PyConduit_Node_to_summary_string, 
+      _PyCFunction_CAST(PyConduit_Node_to_summary_string),
       METH_VARARGS| METH_KEYWORDS,
       "Returns a summary string representation of the node. "
       "Optionally takes a Node that provides spacing and threshold options. "},
      //-----------------------------------------------------------------------//
      {"to_json",
-      (PyCFunction)PyConduit_Node_to_json, 
+      _PyCFunction_CAST(PyConduit_Node_to_json),
       METH_VARARGS| METH_KEYWORDS,
       "Returns a JSON string representation of the node. "
       "Optionally takes protocol and spacing options."},
      //-----------------------------------------------------------------------//
      {"to_yaml",
-      (PyCFunction)PyConduit_Node_to_yaml, 
+      _PyCFunction_CAST(PyConduit_Node_to_yaml),
       METH_VARARGS| METH_KEYWORDS,
       "Returns a YAML string representation of the node. "
       "Optionally takes protocol and spacing options."},
      //-----------------------------------------------------------------------//
      {"children",
-      (PyCFunction)PyConduit_Node_iter, 
+      _PyCFunction_CAST(PyConduit_Node_iter),
       METH_NOARGS,
       "Returns a NodeIterator for this node"}, 
       //-----------------------------------------------------------------------//
       {"endian_swap",
-       (PyCFunction)PyConduit_Node_endian_swap, 
+       _PyCFunction_CAST(PyConduit_Node_endian_swap),
        METH_VARARGS,
-       "Swaps data byte order to given endianness"}, 
+       "Swaps data byte order to given endianness"},
       //-----------------------------------------------------------------------//
       {"endian_swap_to_machine_default",
-       (PyCFunction)PyConduit_Node_endian_swap_to_machine_default, 
+       _PyCFunction_CAST(PyConduit_Node_endian_swap_to_machine_default),
        METH_NOARGS,
-       "Swaps data byte order to default endianness"}, 
+       "Swaps data byte order to default endianness"},
       //-----------------------------------------------------------------------//
       {"endian_swap_to_little",
-       (PyCFunction)PyConduit_Node_endian_swap_to_little, 
+       _PyCFunction_CAST(PyConduit_Node_endian_swap_to_little),
        METH_NOARGS,
-       "Swaps data byte order to little endian"}, 
+       "Swaps data byte order to little endian"},
       //-----------------------------------------------------------------------//
       {"endian_swap_to_big",
-       (PyCFunction)PyConduit_Node_endian_swap_to_big, 
+       _PyCFunction_CAST(PyConduit_Node_endian_swap_to_big),
        METH_NOARGS,
        "Swaps data byte order to big endian"},
 
@@ -7419,7 +7379,7 @@ static PyMethodDef conduit_python_funcs[] =
 {
     //-----------------------------------------------------------------------//
     {"about",
-     (PyCFunction)PyConduit_about,
+     _PyCFunction_CAST(PyConduit_about),
       METH_NOARGS,
       NULL},
     //-----------------------------------------------------------------------//
@@ -8238,36 +8198,36 @@ static PyMethodDef PyConduit_Endianness_METHODS[] =
 {
     //-----------------------------------------------------------------------//
     {"machine_default",
-     (PyCFunction)PyEndianness_machine_default,
+     _PyCFunction_CAST(PyEndianness_machine_default),
       METH_NOARGS | METH_STATIC,
      "Returns the id (Endianness::LITTLE_ID or Endianness::BIG_ID) for this machine's byte order."},
     {"machine_is_little_endian",
-     (PyCFunction)PyEndianness_machine_is_little_endian,
+     _PyCFunction_CAST(PyEndianness_machine_is_little_endian),
       METH_NOARGS | METH_STATIC,
        "Returns if this machine uses little endian byte order."},
     {"machine_is_big_endian",
-     (PyCFunction)PyEndianness_machine_is_big_endian,
+     _PyCFunction_CAST(PyEndianness_machine_is_big_endian),
       METH_NOARGS | METH_STATIC,
       "Returns if this machine uses big endian byte order."},
     {"name_to_id",
-      (PyCFunction)PyEndianness_name_to_id,
+      _PyCFunction_CAST(PyEndianness_name_to_id),
        METH_VARARGS | METH_STATIC,
        "Returns the endianness id that correspondes to the passed string"},
     {"id_to_name",
-      (PyCFunction)PyEndianness_id_to_name,
+      _PyCFunction_CAST(PyEndianness_id_to_name),
        METH_VARARGS | METH_STATIC,
        "Returns the string name of given endianness id"},
      // -- direct access to enum ids -- //
     {"default_id",
-      (PyCFunction)PyEndianness_default_id,
+      _PyCFunction_CAST(PyEndianness_default_id),
        METH_VARARGS | METH_STATIC,
        "Returns Endianness::DEFAULT_ID"},
     {"little_id",
-      (PyCFunction)PyEndianness_little_id,
+      _PyCFunction_CAST(PyEndianness_little_id),
        METH_VARARGS | METH_STATIC,
        "Returns Endianness::LITTLE_ID"},
     {"big_id",
-      (PyCFunction)PyEndianness_big_id,
+      _PyCFunction_CAST(PyEndianness_big_id),
        METH_VARARGS | METH_STATIC,
        "Returns Endianness::BIG_ID"},
 

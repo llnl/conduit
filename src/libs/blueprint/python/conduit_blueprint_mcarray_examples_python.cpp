@@ -113,7 +113,7 @@ static PyMethodDef blueprint_mcarray_examples_python_funcs[] =
 {
     //-----------------------------------------------------------------------//
     {"xyz",
-     (PyCFunction)PyBlueprint_mcarray_examples_xyz,
+      _PyCFunction_CAST(PyBlueprint_mcarray_examples_xyz),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mcarray_examples_xyz_doc_str},
     //-----------------------------------------------------------------------//

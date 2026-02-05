@@ -59,7 +59,7 @@ static PyMethodDef relay_python_funcs[] =
 {
     //-----------------------------------------------------------------------//
     {"about",
-     (PyCFunction)PyRelay_about,
+      _PyCFunction_CAST(PyRelay_about),
       METH_NOARGS,
       NULL},
     //-----------------------------------------------------------------------//
