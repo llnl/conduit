@@ -114,6 +114,20 @@ PyBlueprint_MPI_verify(PyObject *, //self
 
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
+
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
+    try
+    {
+        relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
+        return NULL;
+    }
+
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
     Node &info = *PyConduit_Node_Get_Node_Ptr(py_info);
 

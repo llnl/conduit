@@ -80,6 +80,18 @@ PyBlueprint_mpi_mesh_examples_braid_uniform_multi_domain(PyObject *, //self
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
+    try
+    {
+        relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
     blueprint::mpi::mesh::examples::braid_uniform_multi_domain(node, comm);
@@ -145,6 +157,19 @@ PyBlueprint_mpi_mesh_examples_spiral_round_robin(PyObject *, //self
 
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
+
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
+    try
+    {
+        relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
 

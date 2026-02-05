@@ -82,29 +82,6 @@ type = state->NAME
 #define Set_PyTypeObject_Macro(type,NAME) type = (PyTypeObject*)&NAME
 #endif
 
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-// Begin Functions to help with Python 2/3 Compatibility.
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-
-
-#if defined(IS_PY3K)
-//-----------------------------------------------------------------------------
-static PyObject *
-PyString_FromString(const char *s)
-{
-    return PyUnicode_FromString(s);
-}
-
-#endif
-
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-// End Functions to help with Python 2/3 Compatibility.
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-
 //---------------------------------------------------------------------------//
 // conduit::relay::mpi::io::about
 //---------------------------------------------------------------------------//
@@ -131,6 +108,19 @@ PyRelay_mpi_io_about(PyObject *, //self
 
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
+
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
+    try
+    {
+        relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
+        return NULL;
+    }
 
     //create and return a node with the result of about
     PyObject *py_node_res = PyConduit_Node_Python_Create();
@@ -204,6 +194,19 @@ PyRelay_mpi_io_save(PyObject *, //self
 
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
+ 
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
+    try
+    {
+        relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
 
@@ -300,6 +303,19 @@ PyRelay_mpi_io_save_merged(PyObject *, //self
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
+    try
+    {
+        relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
+        return NULL;
+    }
+
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
 
     // default protocol string is empty which auto detects
@@ -366,6 +382,19 @@ PyRelay_mpi_io_load(PyObject *, //self
 
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
+
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
+    try
+    {
+        relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
     // default protocol string is empty which auto detects
@@ -435,6 +464,19 @@ PyRelay_mpi_io_load_merged(PyObject *, //self
 
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
+
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
+    try
+    {
+        relay::mpi::rank(comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_Exception,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
     // default protocol string is empty which auto detects
