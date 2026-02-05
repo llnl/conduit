@@ -39,15 +39,16 @@
 #ifdef Py_TPFLAGS_HAVE_FINALIZE
     // python 3.8 adds tp_vectorcall, at end and special slot for tp_print
     // python 3.9 removes tp_print special slot
-    // python 3.12 adds tq_watched and tp_versions_used
+    // python 3.12 adds tq_watched 
+    // python 3.13 adds tp_versions_used
     #if PY_VERSION_HEX >= 0x03080000
-        #if PY_VERSION_HEX >= 0x030c0000
-            // python 3.12 and newer tail
+        #if PY_VERSION_HEX >= 0x030d0000
+            // python 3.13 and newer tail
             #define PyVarObject_TAIL ,0, 0, 0, 0
         #else
-            #if PY_VERSION_HEX < 0x03090000
-                // python 3.8 tail
-                #define PyVarObject_TAIL ,0, 0, 0
+            #if PY_VERSION_HEX == 0x030c0000 || PY_VERSION_HEX == 0x03090000
+                // python 3.8 tail + python 3.12
+                #define PyVarObject_TAIL ,0, 0, 0,
             #else
                 // python 3.9 to 3.11 tail
                 #define PyVarObject_TAIL ,0, 0
