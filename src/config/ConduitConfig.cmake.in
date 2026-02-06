@@ -64,7 +64,7 @@ include(${CONDUIT_CMAKE_CONFIG_DIR}/conduit_setup_targets.cmake)
 set(Conduit_FOUND TRUE)
 
 set(_conduit_known_components
-  MPI)
+  MPI Python)
 foreach(_conduit_component IN LISTS Conduit_FIND_COMPONENTS)
   if (NOT _conduit_component IN_LIST _conduit_known_components)
     set("Conduit_${_conduit_component}_FOUND" 0)
