@@ -150,7 +150,11 @@ FUNCTION(PYTHON_ADD_COMPILED_MODULE)
     endif()
 
     MESSAGE(STATUS "Configuring python module: ${args_NAME}")
-    Python3_add_library(${args_NAME} MODULE WITH_SOABI ${args_SOURCES})
+    set(sabi)
+    if (CONDUIT_PYTHON_USE_LIMITED_API)
+        set(sabi USE_SABI 3.8)
+    endif ()
+    Python3_add_library(${args_NAME} MODULE ${sabi} WITH_SOABI ${args_SOURCES})
 
     set_target_properties(${args_NAME} PROPERTIES
                                        LIBRARY_OUTPUT_DIRECTORY
