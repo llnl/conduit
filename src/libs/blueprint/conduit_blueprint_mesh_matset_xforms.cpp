@@ -2353,6 +2353,50 @@ walk_matset_by_element_value(const conduit::Node &matset,
 }
 
 //-----------------------------------------------------------------------------
+index_t
+get_num_species_for_material(const conduit::Node &specset,
+                             const std::string &matname)
+{
+    if (blueprint::mesh::specset::is_multi_buffer(specset))
+    {
+        if (specset["matset_values"].has_child(matname))
+        {
+            return specset["matset_values"][matname].number_of_children();
+        }
+        else
+        {
+            return 0;
+        }
+    }
+    else // uni buffer
+    {
+        if (specset["species_names"].has_child(matname))
+        {
+            return specset["species_names"][matname].number_of_children();
+        }
+        else
+        {
+            return 0;
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+void
+get_material_names(const conduit::Node &specset,
+                   std::vector<std::string> &matnames)
+{
+    if (blueprint::mesh::specset::is_multi_buffer(specset))
+    {
+        matnames = specset["matset_values"].child_names();
+    }
+    else // uni buffer
+    {
+        matnames = specset["species_names"].child_names();
+    }
+}
+
+//-----------------------------------------------------------------------------
 template <class ForEachValue>
 void
 walk_matset_by_element_value(const conduit::Node &matset,
