@@ -22,7 +22,7 @@ PYTHON_ADD_COMPILED_MODULE(NAME          conduit_blueprint_python
 target_link_libraries(conduit_blueprint_python PRIVATE conduit_python_py_setup)
 
 # link with the proper libs (beyond python)
-target_link_libraries(conduit_blueprint_python PRIVATE conduit conduit_blueprint conduit_python_build)
+target_link_libraries(conduit_blueprint_python PRIVATE conduit conduit_blueprint)
 
 #############################################################
 # blueprint.mcarray
@@ -40,7 +40,7 @@ PYTHON_ADD_COMPILED_MODULE(NAME          conduit_blueprint_mcarray_python
 target_link_libraries(conduit_blueprint_mcarray_python PRIVATE conduit_python_py_setup)
 
 # link with the proper libs (beyond python)
-target_link_libraries(conduit_blueprint_mcarray_python PRIVATE conduit conduit_blueprint conduit_python_build)
+target_link_libraries(conduit_blueprint_mcarray_python PRIVATE conduit conduit_blueprint)
 
 # add mcarray examples submodule
 PYTHON_ADD_COMPILED_MODULE(NAME          conduit_blueprint_mcarray_examples_python
@@ -54,7 +54,7 @@ PYTHON_ADD_COMPILED_MODULE(NAME          conduit_blueprint_mcarray_examples_pyth
 target_link_libraries(conduit_blueprint_mcarray_examples_python PRIVATE conduit_python_py_setup)
 
 # link with the proper libs (beyond python)
-target_link_libraries(conduit_blueprint_mcarray_examples_python PRIVATE conduit conduit_blueprint conduit_python_build)
+target_link_libraries(conduit_blueprint_mcarray_examples_python PRIVATE conduit conduit_blueprint)
 
 #############################################################
 # blueprint.mesh
@@ -72,7 +72,7 @@ PYTHON_ADD_COMPILED_MODULE(NAME          conduit_blueprint_mesh_python
 target_link_libraries(conduit_blueprint_mesh_python PRIVATE conduit_python_py_setup)
 
 # link with the proper libs (beyond python)
-target_link_libraries(conduit_blueprint_mesh_python PRIVATE conduit conduit_blueprint conduit_python_build)
+target_link_libraries(conduit_blueprint_mesh_python PRIVATE conduit conduit_blueprint)
 
 
 # add mesh examples submodule
@@ -87,7 +87,7 @@ PYTHON_ADD_COMPILED_MODULE(NAME          conduit_blueprint_mesh_examples_python
 target_link_libraries(conduit_blueprint_mesh_examples_python PRIVATE conduit_python_py_setup)
 
 # link with the proper libs (beyond python)
-target_link_libraries(conduit_blueprint_mesh_examples_python PRIVATE conduit conduit_blueprint conduit_python_build)
+target_link_libraries(conduit_blueprint_mesh_examples_python PRIVATE conduit conduit_blueprint)
 
 #############################################################
 # blueprint.table
@@ -105,7 +105,7 @@ PYTHON_ADD_COMPILED_MODULE(NAME          conduit_blueprint_table_python
 target_link_libraries(conduit_blueprint_table_python PRIVATE conduit_python_py_setup)
 
 # link with the proper libs (beyond python)
-target_link_libraries(conduit_blueprint_table_python PRIVATE conduit conduit_blueprint conduit_python_build)
+target_link_libraries(conduit_blueprint_table_python PRIVATE conduit conduit_blueprint)
 
 
 # add table examples submodule
@@ -120,7 +120,7 @@ PYTHON_ADD_COMPILED_MODULE(NAME          conduit_blueprint_table_examples_python
 target_link_libraries(conduit_blueprint_table_examples_python PRIVATE conduit_python_py_setup)
 
 # link with the proper libs (beyond python)
-target_link_libraries(conduit_blueprint_table_examples_python PRIVATE conduit conduit_blueprint conduit_python_build)
+target_link_libraries(conduit_blueprint_table_examples_python PRIVATE conduit conduit_blueprint)
 
 ################################################################
 # If we have mpi, add the conduit blueprint mpi module
@@ -140,7 +140,7 @@ if(MPI_FOUND)
     target_link_libraries(conduit_blueprint_mpi_python PRIVATE conduit_python_py_setup)
 
     # link with the proper libs (beyond python)
-    target_link_libraries(conduit_blueprint_mpi_python PRIVATE conduit conduit_blueprint_mpi conduit_python_build)
+    target_link_libraries(conduit_blueprint_mpi_python PRIVATE conduit conduit_blueprint_mpi)
 
 endif()
 
@@ -162,7 +162,7 @@ if(MPI_FOUND)
     target_link_libraries(conduit_blueprint_mpi_mesh_python PRIVATE conduit_python_py_setup)
 
     # link with the proper libs (beyond python)
-    target_link_libraries(conduit_blueprint_mpi_mesh_python PRIVATE conduit conduit_blueprint_mpi conduit_python_build)
+    target_link_libraries(conduit_blueprint_mpi_mesh_python PRIVATE conduit conduit_blueprint_mpi)
 
 
     # add mesh examples submodule
@@ -177,6 +177,6 @@ if(MPI_FOUND)
     target_link_libraries(conduit_blueprint_mpi_mesh_examples_python PRIVATE conduit_python_py_setup)
 
     # link with the proper libs (beyond python)
-    target_link_libraries(conduit_blueprint_mpi_mesh_examples_python PRIVATE conduit conduit_blueprint_mpi conduit_python_build)
+    target_link_libraries(conduit_blueprint_mpi_mesh_examples_python PRIVATE conduit conduit_blueprint_mpi)
 
 endif()
