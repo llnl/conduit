@@ -7,10 +7,6 @@ cmake_minimum_required(VERSION 3.21)
 ################################
 # cmake policy selections
 ################################
-# allow find_packages to use ZZZ_ROOT vars
-if(POLICY CMP0074)
-  cmake_policy(SET CMP0074 NEW)
-endif()
 # allow install path dest normalization (cmake 3.31 +)
 if(POLICY CMP0177)
   cmake_policy(SET CMP0177 NEW)
