@@ -62,7 +62,7 @@ endif()
 ################################
 # Add Python Tests
 ################################
-if(PYTHON_FOUND)
+if(Python3_FOUND)
     foreach(TEST ${DOCS_PYTHON_TESTS})
         add_python_test(TEST ${TEST}
                         FOLDER tests/docs)

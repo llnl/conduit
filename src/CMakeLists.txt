@@ -11,10 +11,6 @@ cmake_minimum_required(VERSION 3.21)
 if(POLICY CMP0177)
   cmake_policy(SET CMP0177 NEW)
 endif()
-# use old cmake python find logic
-if(POLICY CMP0148)
-  cmake_policy(SET CMP0148 OLD)
-endif()
 
 ################################
 # Conduit
