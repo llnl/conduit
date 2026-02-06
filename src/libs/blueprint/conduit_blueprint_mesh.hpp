@@ -1197,6 +1197,122 @@ namespace specset
                                        conduit::Node &dest);
 
     //-------------------------------------------------------------------------
+    index_t CONDUIT_BLUEPRINT_API count_materials_from_specset(const conduit::Node &specset);
+
+    //-------------------------------------------------------------------------
+    template <class ForEachZone>
+    void CONDUIT_BLUEPRINT_API walk_matset_specset_by_element(const conduit::Node &specset,
+                                                              const conduit::Node &matset,
+                                                              ForEachZone &&for_each_zone,
+                                                              const float64 epsilon = CONDUIT_EPSILON);
+    //-------------------------------------------------------------------------
+    template <class ForEachZone>
+    void CONDUIT_BLUEPRINT_API walk_matset_specset_by_element(const conduit::Node &specset,
+                                                              const conduit::Node &matset,
+                                                              const int num_zones,
+                                                              ForEachZone &&for_each_zone,
+                                                              const float64 epsilon = CONDUIT_EPSILON);
+    //-------------------------------------------------------------------------
+    template <class ForEachZone>
+    void CONDUIT_BLUEPRINT_API walk_matset_specset_by_element(const conduit::Node &specset,
+                                                              const conduit::Node &matset,
+                                                              const conduit::Node &material_map,
+                                                              ForEachZone &&for_each_zone,
+                                                              const float64 epsilon = CONDUIT_EPSILON);
+    //-------------------------------------------------------------------------
+    template <class ForEachZone>
+    void CONDUIT_BLUEPRINT_API walk_matset_specset_by_element(const conduit::Node &specset,
+                                                              const conduit::Node &matset,
+                                                              const conduit::Node &material_map,
+                                                              const int num_zones,
+                                                              ForEachZone &&for_each_zone,
+                                                              const float64 epsilon = CONDUIT_EPSILON);
+    //-----------------------------------------------------------------------------
+    template <class ForEachValue>
+    void CONDUIT_BLUEPRINT_API walk_matset_specset_by_element_value(const conduit::Node &specset,
+                                                                    const conduit::Node &matset,
+                                                                    ForEachValue &&for_each_value,
+                                                                    const float64 epsilon = CONDUIT_EPSILON);
+    //-----------------------------------------------------------------------------
+    template <class ForEachValue>
+    void CONDUIT_BLUEPRINT_API walk_matset_specset_by_element_value(const conduit::Node &specset,
+                                                                    const conduit::Node &matset,
+                                                                    const int num_zones,
+                                                                    ForEachValue &&for_each_value,
+                                                                    const float64 epsilon = CONDUIT_EPSILON);
+    //-----------------------------------------------------------------------------
+    template <class ForEachValue>
+    void CONDUIT_BLUEPRINT_API walk_matset_specset_by_element_value(const conduit::Node &specset,
+                                                                    const conduit::Node &matset,
+                                                                    const conduit::Node &material_map,
+                                                                    ForEachValue &&for_each_value,
+                                                                    const float64 epsilon = CONDUIT_EPSILON);
+    //-----------------------------------------------------------------------------
+    template <class ForEachValue>
+    void CONDUIT_BLUEPRINT_API walk_matset_specset_by_element_value(const conduit::Node &specset,
+                                                                    const conduit::Node &matset,
+                                                                    const conduit::Node &material_map,
+                                                                    const int num_zones,
+                                                                    ForEachValue &&for_each_value,
+                                                                    const float64 epsilon = CONDUIT_EPSILON);
+    //-------------------------------------------------------------------------
+    template <class ForEachMaterial>
+    void CONDUIT_BLUEPRINT_API walk_matset_specset_by_material(const conduit::Node &specset,
+                                                               const conduit::Node &matset,
+                                                               ForEachMaterial &&for_each_material,
+                                                               const float64 epsilon = CONDUIT_EPSILON);
+    //-------------------------------------------------------------------------
+    template <class ForEachMaterial>
+    void CONDUIT_BLUEPRINT_API walk_matset_specset_by_material(const conduit::Node &specset,
+                                                               const conduit::Node &matset,
+                                                               const int num_materials,
+                                                               ForEachMaterial &&for_each_material,
+                                                               const float64 epsilon = CONDUIT_EPSILON);
+    //-------------------------------------------------------------------------
+    template <class ForEachMaterial>
+    void CONDUIT_BLUEPRINT_API walk_matset_specset_by_material(const conduit::Node &specset,
+                                                               const conduit::Node &matset,
+                                                               const conduit::Node &material_map,
+                                                               ForEachMaterial &&for_each_material,
+                                                               const float64 epsilon = CONDUIT_EPSILON);
+    //-------------------------------------------------------------------------
+    template <class ForEachMaterial>
+    void CONDUIT_BLUEPRINT_API walk_matset_specset_by_material(const conduit::Node &specset,
+                                                               const conduit::Node &matset,
+                                                               const conduit::Node &material_map,
+                                                               const int num_materials,
+                                                               ForEachMaterial &&for_each_material,
+                                                               const float64 epsilon = CONDUIT_EPSILON);
+    //-----------------------------------------------------------------------------
+    template <class ForEachValue>
+    void CONDUIT_BLUEPRINT_API walk_matset_specset_by_material_value(const conduit::Node &specset,
+                                                                     const conduit::Node &matset,
+                                                                     ForEachValue &&for_each_value,
+                                                                     const float64 epsilon = CONDUIT_EPSILON);
+    //-----------------------------------------------------------------------------
+    template <class ForEachValue>
+    void CONDUIT_BLUEPRINT_API walk_matset_specset_by_material_value(const conduit::Node &specset,
+                                                                     const conduit::Node &matset,
+                                                                     const int num_materials,
+                                                                     ForEachValue &&for_each_value,
+                                                                     const float64 epsilon = CONDUIT_EPSILON);
+    //-----------------------------------------------------------------------------
+    template <class ForEachValue>
+    void CONDUIT_BLUEPRINT_API walk_matset_specset_by_material_value(const conduit::Node &specset,
+                                                                     const conduit::Node &matset,
+                                                                     const conduit::Node &material_map,
+                                                                     ForEachValue &&for_each_value,
+                                                                     const float64 epsilon = CONDUIT_EPSILON);
+    //-----------------------------------------------------------------------------
+    template <class ForEachValue>
+    void CONDUIT_BLUEPRINT_API walk_matset_specset_by_material_value(const conduit::Node &specset,
+                                                                     const conduit::Node &matset,
+                                                                     const conduit::Node &material_map,
+                                                                     const int num_materials,
+                                                                     ForEachValue &&for_each_value,
+                                                                     const float64 epsilon = CONDUIT_EPSILON);
+
+    //-------------------------------------------------------------------------
     // blueprint::mesh::specset::index protocol interface
     //-------------------------------------------------------------------------
     namespace index
