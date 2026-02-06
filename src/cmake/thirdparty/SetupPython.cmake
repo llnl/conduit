@@ -150,7 +150,7 @@ FUNCTION(PYTHON_ADD_COMPILED_MODULE)
     endif()
 
     MESSAGE(STATUS "Configuring python module: ${args_NAME}")
-    Python3_add_library(${args_NAME} MODULE ${args_SOURCES})
+    Python3_add_library(${args_NAME} MODULE WITH_SOABI ${args_SOURCES})
 
     set_target_properties(${args_NAME} PROPERTIES
                                        LIBRARY_OUTPUT_DIRECTORY
