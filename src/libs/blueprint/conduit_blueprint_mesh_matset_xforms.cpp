@@ -731,7 +731,7 @@ to_silo(const conduit::Node &matset,
     //    [ ] nmatspec
     //    [ ] specnames
     //    [ ] speclist
-    //    [ ] nmat
+    //    [x] nmat
     //    [ ] nspecies_mf
     //    [ ] species_mf
     //    [ ] mix_spec
@@ -792,8 +792,14 @@ to_silo(const conduit::Node &matset,
     if (transform_specset)
     {
         const int nmat = count_materials_from_matset(matset);
-        if ()
+        const int nmat_specset = conduit::blueprint::mesh::specset::count_materials_from_specset(specset);
+        CONDUIT_ASSERT(nmat >= nmat_specset, "blueprint::mesh::specset::to_silo number of materials in the matset "
+                                             "must be greater than or equal to the number of materials in the specset.");
+        
+        dest["nmatspec"].set(DataType::index_t(nmat));
 
+        // number of materials
+        dest["nmat"] = nmat;
     }
 
     //
@@ -831,9 +837,10 @@ to_silo(const conduit::Node &matset,
     std::vector<float64> field_mixvar_values;
 
     // for specsets
+    index_t_array nmatspec
     if (transform_specset)
     {
-
+        nmatspec = dest["nmatspec"].value();
     }
 
     //
@@ -2353,50 +2360,6 @@ walk_matset_by_element_value(const conduit::Node &matset,
 }
 
 //-----------------------------------------------------------------------------
-index_t
-get_num_species_for_material(const conduit::Node &specset,
-                             const std::string &matname)
-{
-    if (blueprint::mesh::specset::is_multi_buffer(specset))
-    {
-        if (specset["matset_values"].has_child(matname))
-        {
-            return specset["matset_values"][matname].number_of_children();
-        }
-        else
-        {
-            return 0;
-        }
-    }
-    else // uni buffer
-    {
-        if (specset["species_names"].has_child(matname))
-        {
-            return specset["species_names"][matname].number_of_children();
-        }
-        else
-        {
-            return 0;
-        }
-    }
-}
-
-//-----------------------------------------------------------------------------
-void
-get_material_names(const conduit::Node &specset,
-                   std::vector<std::string> &matnames)
-{
-    if (blueprint::mesh::specset::is_multi_buffer(specset))
-    {
-        matnames = specset["matset_values"].child_names();
-    }
-    else // uni buffer
-    {
-        matnames = specset["species_names"].child_names();
-    }
-}
-
-//-----------------------------------------------------------------------------
 template <class ForEachValue>
 void
 walk_matset_by_element_value(const conduit::Node &matset,
@@ -3508,6 +3471,73 @@ to_multi_buffer_by_material(const conduit::Node &src_matset,
     {
         CONDUIT_ERROR("Unknown matset type.");
     }
+}
+
+//-----------------------------------------------------------------------------
+index_t
+get_num_species_for_material(const conduit::Node &specset,
+                             const std::string &matname)
+{
+    if (is_multi_buffer(specset))
+    {
+        if (specset["matset_values"].has_child(matname))
+        {
+            return specset["matset_values"][matname].number_of_children();
+        }
+        else
+        {
+            return 0;
+        }
+    }
+    else // uni buffer
+    {
+        if (specset["species_names"].has_child(matname))
+        {
+            return specset["species_names"][matname].number_of_children();
+        }
+        else
+        {
+            return 0;
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+void
+get_material_names(const conduit::Node &specset,
+                   std::vector<std::string> &matnames)
+{
+    if (is_multi_buffer(specset))
+    {
+        matnames = specset["matset_values"].child_names();
+    }
+    else // uni buffer
+    {
+        matnames = specset["species_names"].child_names();
+    }
+}
+
+//-------------------------------------------------------------------------
+index_t 
+count_materials_from_specset(const conduit::Node &specset)
+{
+    // extra seat belt here
+    if (! specset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::specset::count_materials_from_specset"
+                      " passed specset node must be a valid specset tree.");
+    }
+
+    if (multi_buffer)
+    {
+        return specset["matset_values"].number_of_children();
+    }
+    else
+    {
+        return specset["species_names"].number_of_children();
+    }
+
+    return -1;
 }
 
 //-----------------------------------------------------------------------------
