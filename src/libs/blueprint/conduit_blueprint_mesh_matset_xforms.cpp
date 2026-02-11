@@ -462,7 +462,7 @@ store_material_specset_data_for_zone_to_silo_arrays(
     const std::vector<index_t> &local_material_ids,
     const std::vector<float64> &local_volume_fractions,
     const std::map<int, int> &mat_id_to_array_index,
-    const index_t_array &nmatspec,
+    const index_t_accessor &nmatspec,
     const int num_species_across_mats,
     const int zone_id,
     index_t_array &matlist,
@@ -728,8 +728,8 @@ to_silo(const conduit::Node &matset,
     //    [x] field_mixvar_values
     //    [x] field_values (optional)
     // for specsets:
-    //    [ ] nmatspec
-    //    [ ] specnames
+    //    [x] nmatspec
+    //    [x] specnames
     //    [ ] speclist
     //    [x] nmat
     //    [ ] nspecies_mf
@@ -787,7 +787,27 @@ to_silo(const conduit::Node &matset,
     }
 
     //
-    // fetch the number of materials for the specset output
+    // fetch or create the material map
+    //
+    Node &material_map = dest["material_map"];
+    create_or_reuse_material_map(matset, material_map);
+
+    // We declare a map that is only used for writing specsets.
+    // Maps actual material numbers to indicies into the material map
+    // We need this map so that, no matter what material numbers we see,
+    // we can figure out their order in the material map for when we calculate
+    // species indices.
+    std::map<int, int> mat_id_to_array_index;
+
+    // we want to know the total number of species across all materials
+    // - if we are writing specsets.
+    int num_species_across_mats = 0;
+
+    //
+    // specset preprocessing:
+    // 1. fetch the number of materials for the specset output
+    // 2. create and fill nmatspec for the specset output
+    // 3. create and fill specnames for the specset output
     //
     if (transform_specset)
     {
@@ -796,10 +816,62 @@ to_silo(const conduit::Node &matset,
         CONDUIT_ASSERT(nmat >= nmat_specset, "blueprint::mesh::specset::to_silo number of materials in the matset "
                                              "must be greater than or equal to the number of materials in the specset.");
         
-        dest["nmatspec"].set(DataType::index_t(nmat));
-
         // number of materials
         dest["nmat"] = nmat;
+
+        // create nmatspec
+        dest["nmatspec"].set(DataType::index_t(nmat));
+        index_t_array nmatspec = dest["nmatspec"].value();
+
+        CONDUIT_ASSERT(nmat == material_map.number_of_children(),
+                       "blueprint::mesh::specset::to_silo mismatch between number of materials "
+                       "and materials in the material map.");
+
+        for (int matmap_index = 0; matmap_index < nmat; matmap_index ++)
+        {
+            const Node &matmap_entry = material_map.child(matmap_index);
+            const std::string matname = matmap_entry.name();
+
+            // save material id correspondence with array position
+            mat_id_to_array_index[matmap_entry.as_int()] = matmap_index;
+
+            // get the number of species for this material
+            const int num_species_for_this_material = get_num_species_for_material(specset, matname);
+
+            // is this material present in the specset?
+            if (num_species_for_this_material > 0)
+            {
+                // save the number of species for this material in the output
+                nmatspec[matmap_index] = num_species_for_this_material;
+
+                // get the specie names for this material and add to the specnames.
+                // the specnames array is the length of the sum of the dest_nmatspec array
+                // so for all materials with species, the species names will appear
+                // in this list in order.
+                NodeConstIterator spec_itr;
+                if (blueprint::mesh::specset::is_multi_buffer(specset))
+                {
+                    spec_itr = specset["matset_values"][matname].children();
+                }
+                else
+                {
+                    spec_itr = specset["species_names"][matname].children();
+                }
+                while (spec_itr.has_next())
+                {
+                    spec_itr.next();
+                    const std::string specname = spec_itr.name();
+                    dest_specnames.append().set(specname);
+                }
+            }
+            else
+            {
+                // if this material has no species, then we set to zero.
+                nmatspec[matmap_index] = 0;
+            }
+        }
+
+        num_species_across_mats = nmatspec.sum();
     }
 
     //
@@ -812,12 +884,6 @@ to_silo(const conduit::Node &matset,
             dest["field_values"].set(field["values"]);
         }
     }
-
-    //
-    // fetch or create the material map
-    //
-    Node &material_map = dest["material_map"];
-    create_or_reuse_material_map(matset, material_map);
 
     //
     // get the number of zones in the material set
@@ -837,7 +903,7 @@ to_silo(const conduit::Node &matset,
     std::vector<float64> field_mixvar_values;
 
     // for specsets
-    index_t_array nmatspec
+    index_t_accessor nmatspec; // we need to read from this; it has already been created
     if (transform_specset)
     {
         nmatspec = dest["nmatspec"].value();
@@ -1003,6 +1069,8 @@ multi_buffer_element_dominant_specset_to_silo(const conduit::Node &specset,
 
     // first we need number of zones
     const int num_zones = silo_matset["matlist"].dtype().number_of_elements();
+
+    // TODO JUSTIN I left off here converting this to the new to_silo
 
     // TODO
     // I may wish to go through and check if the material is even in the zone
@@ -3507,6 +3575,13 @@ void
 get_material_names(const conduit::Node &specset,
                    std::vector<std::string> &matnames)
 {
+    // extra seat belt here
+    if (! specset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::specset::get_material_names"
+                      " passed specset node must be a valid specset tree.");
+    }
+
     if (is_multi_buffer(specset))
     {
         matnames = specset["matset_values"].child_names();

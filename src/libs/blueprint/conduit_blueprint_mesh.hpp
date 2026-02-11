@@ -1169,6 +1169,7 @@ namespace specset
     //-------------------------------------------------------------------------
     bool CONDUIT_BLUEPRINT_API is_uni_buffer(const conduit::Node &specset);
 
+    //-------------------------------------------------------------------------
     void CONDUIT_BLUEPRINT_API to_multi_buffer_full(const conduit::Node &src_matset,
                                                     const conduit::Node &src_specset,
                                                     const std::string &dest_matset_name,
