@@ -1,1 +1,1 @@
-blt  branch='task/2026_02_blt_mpi_more_smoke' commit='6c445f8482eee4894fd184f815c992661559b0e2'
+blt  branch='main' commit='e783e30f2823ee1a208f7f90741b41c1f5a08063'
