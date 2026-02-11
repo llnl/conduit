@@ -14,6 +14,12 @@ RUN apt-get update && apt-get -y install sudo
 # tzdata install wants to ask questions, so handled as sep case
 RUN DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata
 # install std packages
+#
+# Note: switched to openmpi due to issues with mpich in ubuntu 24.04
+#  https://github.com/pmodels/mpich/issues/7064
+#  https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1102612
+#  https://bugs.launchpad.net/ubuntu/+source/mpich/+bug/2072338
+#
 RUN apt-get update && apt-get -y install \
              binutils \
              cmake \
@@ -45,8 +51,8 @@ RUN apt-get update && apt-get -y install \
              libreadline-dev \
              libsqlite3-dev \
              libbz2-dev \
-             mpich \
-             libmpich-dev \
+             openmpi-bin \
+             libopenmpi-dev\ 
              nodejs \
              npm \
              vim
@@ -76,7 +82,7 @@ RUN tar -xf conduit.docker.src.tar
 RUN cd conduit && python3 scripts/uberenv/uberenv.py \
     -k \
     --spec "+mpi%gcc" \
-    --spack-env-file=scripts/uberenv_configs/spack_configs/envs/ubuntu/spack.yaml
+    --spack-env-file=scripts/uberenv_configs/spack_configs/envs/ubuntu-24.04/spack.yaml
 
 # configure a debug build with cmake
 RUN cd conduit && \
@@ -88,7 +94,10 @@ RUN cd conduit && \
 
 # build, test, and install conduit
 RUN cd conduit/build-debug && make
-RUN cd conduit/build-debug && make VERBOSE=1 test
+RUN cd conduit/build-debug && env CTEST_OUTPUT_ON_FAILURE=1 \
+                                  OMPI_ALLOW_RUN_AS_ROOT=1 \
+                                  OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 \
+                                  make test
 RUN cd conduit/build-debug && make install
 
 # open port 9000, for use by conduit relay
