@@ -97,6 +97,8 @@ RUN cd conduit/build-debug && make
 RUN cd conduit/build-debug && env CTEST_OUTPUT_ON_FAILURE=1 \
                                   OMPI_ALLOW_RUN_AS_ROOT=1 \
                                   OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 \
+                                  OMPI_MCA_rmaps_base_oversubscribe=true \
+                                  PRTE_MCA_rmaps_default_mapping_policy=:oversubscribe \
                                   make test
 RUN cd conduit/build-debug && make install
 
