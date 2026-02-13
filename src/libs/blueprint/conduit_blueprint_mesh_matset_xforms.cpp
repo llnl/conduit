@@ -461,9 +461,9 @@ store_material_specset_data_for_zone_to_silo_arrays(
     const int &num_mats_in_zone,
     const std::vector<index_t> &local_material_ids,
     const std::vector<float64> &local_volume_fractions,
+    const std::vector<float64> &local_mass_fractions,
     const std::map<int, int> &mat_id_to_array_index,
     const index_t_accessor &nmatspec,
-    const int num_species_across_mats,
     const int zone_id,
     index_t_array &matlist,
     std::vector<float64> &mix_vf,
@@ -471,59 +471,20 @@ store_material_specset_data_for_zone_to_silo_arrays(
     std::vector<int> &mix_next,
     int64_array &speclist,
     std::vector<int> &mix_spec,
-    int &current_position)
+    std::vector<float64> &species_mf,
+    int &current_position,
+    int &current_spec_position)
 {
-    auto calculate_species_index = [&](const int zone_id, const int mat_index)
-    {
-        // To get the value for the speclist for this zone, we must determine
-        // the correct 1-index in the species_mf array that corresponds to the 
-        // material in this zone. We have organized the species_mf array such 
-        // that there are entries for each material's species for each zone,
-        // even if those materials are not present in that zone. Thus there are
-        // the same number of species entries for each zone in the species_mf
-        // array. So we need to determine what I am calling an "outer_index" 
-        // that tells us the starting index of the current zone in the species_mf
-        // array.
-
-        // how many entries per zone? Use the calculated num_species_across_mats
-        const int outer_index = zone_id * num_species_across_mats;
-
-        // Next we need the inner or "local_index", which corresponds to the 
-        // starting 1-index of the relevant material's species within this zone.
-        // We can use the nmatspec array to determine where that starts for our
-        // given material, which we fetch via material number, which we have used
-        // to get an index into the nmatspec array.
-
-        // We wish to offset the local index by 1, hence starting from 1 when we take the sum.
-
-        // local index is the number of species for each material
-        // BEFORE this material plus 1, since it is 1 indexed.
-        // So if mat0 has 2 species and mat1 has 3 species, then
-        // the 1-index start of mat2 will be 2 + 3 + 1 = 6.
-
-        const int local_index = [&]()
-        {
-            int sum = 1;
-            for (index_t i = 0; i < mat_index; i ++)
-            {
-                sum += nmatspec[i];
-            }
-            return sum;
-        }();
-
-        // we save the final index for this zone
-        return outer_index + local_index;
-
-        // This can produce an out of bounds index in very specific cases.
-        // If a material has no species, the index produced by this function is 
-        // useless, but downstream data consumers shouldn't be reading the index
-        // anyway. If a material has no species and it is the last one in the 
-        // material map and the final zone is mixed and contains that material,
-        // then we can get an index that is out of bounds. This is ok because 
-        // downstream tools like VisIt read based on the number of species, so
-        // even though the index is garbage it goes unused.
-    };
-
+    // save species mass fractions for this zone
+    // we assume that we have only been given the mass fractions for species
+    // belonging to materials that are actually in this zone
+    species_mf.reserve(species_mf.size() + local_mass_fractions.size());
+    species_mf.insert(species_mf.end(),
+                      local_mass_fractions.begin(),
+                      local_mass_fractions.end());
+    // TODO wouldn't it be faster to save species_mf as we go?
+    // my idea for zonal walker right now collects species mass fractions
+    // but perhaps it doesn't have to?
 
     // if zone is clean
     if (1 == num_mats_in_zone)
@@ -533,7 +494,8 @@ store_material_specset_data_for_zone_to_silo_arrays(
 
         // I can use the material number to determine which part of the speclist to index into
         const int mat_index = mat_id_to_array_index[matno];
-        if (nmatspec[mat_index] == 1)
+        const int num_species_for_this_material = nmatspec[mat_index];
+        if (num_species_for_this_material == 1)
         {
             // This is an optimization for if the material has only one
             // species. See MIR.C in VisIt in the MIR::SpeciesSelect() 
@@ -548,8 +510,9 @@ store_material_specset_data_for_zone_to_silo_arrays(
             // a value here though even when there are no species for the
             // material because we must have entries in the different silo
             // species arrays for each material.
-            speclist[zone_id] = calculate_species_index(zone_id, mat_index);
+            speclist[zone_id] = current_spec_position;
         }
+        current_spec_position += num_species_for_this_material;
     }
     // if zone is mixed
     else
@@ -587,7 +550,8 @@ store_material_specset_data_for_zone_to_silo_arrays(
                 mix_next.push_back(current_position);
             }
 
-            if (nmatspec[mat_index] == 1)
+            const int num_species_for_this_material = nmatspec[mat_index];
+            if (num_species_for_this_material == 1)
             {
                 // This is an optimization for if the material has only one
                 // species. See MIR.C in VisIt in the MIR::SpeciesSelect() 
@@ -602,8 +566,9 @@ store_material_specset_data_for_zone_to_silo_arrays(
                 // a value here though even when there are no species for the
                 // material because we must have entries in the different silo
                 // species arrays for each material.
-                mix_spec.push_back(calculate_species_index(zone_id, mat_index));
+                mix_spec.push_back(current_spec_position);
             }
+            current_spec_position += num_species_for_this_material;
         }
     }
 }
@@ -730,12 +695,12 @@ to_silo(const conduit::Node &matset,
     // for specsets:
     //    [x] nmatspec
     //    [x] specnames
-    //    [ ] speclist
+    //    [x] speclist
     //    [x] nmat
-    //    [ ] nspecies_mf
-    //    [ ] species_mf
-    //    [ ] mix_spec
-    //    [ ] mixlen
+    //    [x] nspecies_mf
+    //    [x] species_mf
+    //    [x] mix_spec
+    //    [x] mixlen
 
     //
     // make sure output is empty to start
@@ -798,10 +763,6 @@ to_silo(const conduit::Node &matset,
     // we can figure out their order in the material map for when we calculate
     // species indices.
     std::map<int, int> mat_id_to_array_index;
-
-    // we want to know the total number of species across all materials
-    // - if we are writing specsets.
-    int num_species_across_mats = 0;
 
     //
     // specset preprocessing:
@@ -870,8 +831,6 @@ to_silo(const conduit::Node &matset,
                 nmatspec[matmap_index] = 0;
             }
         }
-
-        num_species_across_mats = nmatspec.sum();
     }
 
     //
@@ -893,6 +852,8 @@ to_silo(const conduit::Node &matset,
     //
     // create destination silo arrays
     //
+
+    // for matsets
     dest["matlist"].set(DataType::index_t(num_zones));
     index_t_array matlist = dest["matlist"].value();
     std::vector<float64> mix_vf;
@@ -904,15 +865,36 @@ to_silo(const conduit::Node &matset,
 
     // for specsets
     index_t_accessor nmatspec; // we need to read from this; it has already been created
+    index_t_array speclist;
     if (transform_specset)
     {
         nmatspec = dest["nmatspec"].value();
+        dest["speclist"].set(DataType::index_t(num_zones));
+        speclist = dest["speclist"].value();
     }
+    // The function silo_write_specset() in conduit_relay_io_silo.cpp
+    // depends on this being a float64. If we change this here,
+    // we must also change it there.
+    std::vector<float64> species_mf;
+    std::vector<int> mix_spec;
 
     //
     // create a 1-index into the mixed arrays for bookkeeping
     //
     int current_position = 1;
+    // TODO if we pre-calculate the number of materials in each zone, we can
+    // get away from using this running sum and make this more GPU-friendly.
+
+    //
+    // create a 1-index into the species mass fractions array for bookkeeping
+    //
+    int current_spec_position = 1;
+    // TODO we can precalculate the number of species in each zone and get
+    // away from using this running sum and make this more GPU-friendly.
+    // We could also put values in for every species for every material
+    // in each zone even if the zone does not contain each material. Then
+    // we can algorithmically find out where each index should be, but we 
+    // waste a lot of space.
 
     //
     // Now we have a switchyard for choosing which case we are in.
@@ -1031,9 +1013,25 @@ to_silo(const conduit::Node &matset,
     dest["mix_vf"].set(mix_vf);
     dest["mix_mat"].set(mix_mat);
     dest["mix_next"].set(mix_next);
+    
     if (transform_field)
     {
         dest["field_mixvar_values"].set(field_mixvar_values);
+    }
+
+    if (transform_specset)
+    {
+        // length of the species_mf array
+        dest["nspecies_mf"] = static_cast<int>(species_mf.size());
+
+        // mass fractions of the matspecies in an array of length nspecies_mf
+        dest["species_mf"].set(species_mf);
+
+        // array of length mixlen containing indices into the species_mf array
+        dest["mix_spec"].set(mix_spec);
+
+        // length of mix_spec array
+        dest["mixlen"] = static_cast<int>(mix_spec.size());
     }
 }
 
@@ -2535,6 +2533,20 @@ walk_matset_by_element(const conduit::Node &matset,
     {
         CONDUIT_ERROR("Walking by element is only supported for element-dominant material sets.");
     }
+
+    // TODO could this be abstracted using Nodes?
+    // context could be a node with the arrays and data you want
+    // you could provide a do-per-value function that, given
+    // the zone-value info, does something to the Node.
+    // then we can call the normal walk_XXX_matset_element_by_value
+    // and then the provided for_each_zone function would only take the
+    // zone_id and Node.
+    // interesting idea - perhaps the walk_matset_by_element function 
+    // as it currently stands is not the right approach. Having more
+    // freedom adds more complexity but may make for more efficient code,
+    // plus it helps us to be GPU-ready.
+    // there are only two use cases right now and one of them is bad and
+    // the other could be easily rewritten to use this novel approach
 
     // full
     if (is_multi_buffer(matset))
