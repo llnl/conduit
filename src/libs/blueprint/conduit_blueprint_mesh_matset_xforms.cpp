@@ -300,6 +300,7 @@ walk_full_matset_material_by_value(const int mat_id,
                                    const int num_zones,
                                    const float64_accessor &vol_fracs_for_mat,
                                    ForEachValue &&for_each_value,
+                                   index_t &num_elems_for_mat,
                                    const float64 epsilon)
 {
     for (index_t zone_id = 0; zone_id < num_zones; zone_id ++)
@@ -307,7 +308,8 @@ walk_full_matset_material_by_value(const int mat_id,
         const float64 vol_frac = vol_fracs_for_mat[zone_id];
         if (vol_frac > epsilon)
         {
-            for_each_value(mat_id, vol_frac, zone_id);
+            for_each_value(mat_id, vol_frac, zone_id, num_elems_for_mat);
+            num_elems_for_mat ++;
         }
     }
 }
@@ -353,7 +355,7 @@ walk_sbm_matset_material_by_value(const int mat_id,
         const index_t zone_id = elem_ids_for_mat[eid_id];
         const float64 vol_frac = vol_fracs_for_mat[eid_id];
 
-        for_each_value(mat_id, vol_frac, zone_id);
+        for_each_value(mat_id, vol_frac, zone_id, eid_id);
     }
 }
 
@@ -626,9 +628,9 @@ store_material_field_data_for_zone_to_silo_arrays(
 //-----------------------------------------------------------------------------
 void
 store_material_data_for_zone_to_silo_arrays(
-    const int &num_mats_in_zone,
-    const std::vector<index_t> &local_material_ids,
-    const std::vector<float64> &local_volume_fractions,
+    const index_t &num_mats_in_zone,
+    const index_t_array &local_material_ids,
+    const float64_array &local_volume_fractions,
     const int zone_id,
     index_t_array &matlist,
     std::vector<float64> &mix_vf,
@@ -646,7 +648,7 @@ store_material_data_for_zone_to_silo_arrays(
         // a negated 1-index into the mixed arrays
         matlist[zone_id] = -1 * current_position;
 
-        for (int mat = 0; mat < num_mats_in_zone; mat ++)
+        for (index_t mat = 0; mat < num_mats_in_zone; mat ++)
         {
             const int curr_mat_id = local_material_ids[mat];
             const float64 curr_vol_frac = local_volume_fractions[mat];
@@ -2005,6 +2007,12 @@ multi_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &
         dest_matset["element_ids"][matname].set(local_element_ids);
     };
 
+    // TODO justin you need to port all the walk_matset_by_material and walk_matset_by_material_value
+    // calls to use the new paradigm. Then you need to update the header file with the new reality.
+    // Then you need to do the same for field walkers. Then you need to see what you built for specsets
+    // and retool it for the new paradigm, based on use. But you did already build some stuff, so see
+    // what it is and how it can be used.
+
     walk_matset_by_material(src_matset, for_each_material, epsilon);
 }
 
@@ -2462,7 +2470,12 @@ walk_matset_by_element_value(const conduit::Node &matset,
         (void) zone_id;
         (void) nmats;
     };
-    walk_matset_by_element(matset, material_map, num_zones, for_each_value, for_each_zone, epsilon);
+    walk_matset_by_element(matset,
+                           material_map,
+                           num_zones,
+                           for_each_value,
+                           for_each_zone,
+                           epsilon);
 }
 
 //-----------------------------------------------------------------------------
@@ -2614,80 +2627,18 @@ walk_matset_by_material_value(const conduit::Node &matset,
                               ForEachValue &&for_each_value,
                               const float64 epsilon)
 {
-    // extra seat belt here
-    if (! matset.dtype().is_object())
+    auto for_each_material = [](const std::string &matname,
+                                const int num_elems_for_mat)
     {
-        CONDUIT_ERROR("blueprint::mesh::matset::walk_matset_by_material_value"
-                      " passed matset node must be a valid matset tree.");
-    }
-
-    if (is_element_dominant(matset))
-    {
-        // elem-dom multi-buffer "full"
-        if (is_multi_buffer(matset))
-        {
-            // we *can* walk this elem-dom representation by material, and sometimes
-            // we have to. But it is not very efficient.
-
-            const std::vector<std::string> &matnames = matset["volume_fractions"].child_names();
-
-            const int num_zones = count_zones_from_matset(matset);
-
-            // a mat_order_id is a "material order id". It is so named because if we
-            // fetched each material in the order they appear in the matset, this is
-            // the index of that order. We can't iterate by material id because they
-            // need not be within the range [0, N-1).
-            for (int mat_order_id = 0; mat_order_id < num_materials; mat_order_id ++)
-            {
-                const std::string &matname = matnames[mat_order_id];
-                const int mat_id = material_map[matname].as_int();
-                const float64_accessor vol_fracs_for_mat = matset["volume_fractions"][matname].value();
-                detail::walk_full_matset_material_by_value(mat_id,
-                                                           num_zones,
-                                                           vol_fracs_for_mat,
-                                                           for_each_value,
-                                                           epsilon);
-            }
-        }
-        // elem-dom uni-buffer "sparse by element"
-        else
-        {
-            CONDUIT_ERROR("blueprint::mesh::matset::walk_matset_by_material_value() "
-                          "Walking by material is not supported for element-dominant uni-buffer material sets.");
-        }
-    }
-    else
-    {
-        // mat-dom multi-buffer "sparse by material"
-        if (is_multi_buffer(matset))
-        {
-            const std::vector<std::string> &matnames = matset["element_ids"].child_names();
-
-            // a mat_order_id is a "material order id". It is so named because if we
-            // fetched each material in the order they appear in the matset, this is
-            // the index of that order. We can't iterate by material id because they
-            // need not be within the range [0, N-1).
-            for (int mat_order_id = 0; mat_order_id < num_materials; mat_order_id ++)
-            {
-                const std::string &matname = matnames[mat_order_id];
-                const int mat_id = material_map[matname].as_int();
-                const index_t_accessor elem_ids_for_mat = matset["element_ids"][matname].value();
-                const float64_accessor vol_fracs_for_mat = matset["volume_fractions"][matname].value();
-                const index_t num_elems_for_mat = elem_ids_for_mat.number_of_elements();
-                detail::walk_sbm_matset_material_by_value(mat_id,
-                                                          elem_ids_for_mat,
-                                                          vol_fracs_for_mat,
-                                                          num_elems_for_mat,
-                                                          for_each_value);
-            }
-        }
-        // mat-dom uni-buffer - currently unsupported
-        else
-        {
-            CONDUIT_ERROR("blueprint::mesh::matset::walk_matset_by_material_value() "
-                          "material-dominant uni-buffer material set is unsupported.");
-        }
-    }
+        (void) matname;
+        (void) num_elems_for_mat;
+    };
+    walk_matset_by_material(matset,
+                            material_map,
+                            num_materials,
+                            for_each_value,
+                            for_each_material,
+                            epsilon);
 }
 
 //-----------------------------------------------------------------------------
@@ -2729,11 +2680,12 @@ walk_matset_by_material(const conduit::Node &matset,
 }
 
 //-----------------------------------------------------------------------------
-template <class ForEachMaterial>
+template <class ForEachValue, class ForEachMaterial>
 void
 walk_matset_by_material(const conduit::Node &matset,
                         const conduit::Node &material_map,
                         const int num_materials,
+                        ForEachValue &&for_each_value,
                         ForEachMaterial &&for_each_material,
                         const float64 epsilon)
 {
@@ -2761,18 +2713,7 @@ walk_matset_by_material(const conduit::Node &matset,
             // need not be within the range [0, N-1).
             for (int mat_order_id = 0; mat_order_id < num_materials; mat_order_id ++)
             {
-                std::vector<index_t> local_element_ids; // element ids in this zone
-                std::vector<float64> local_volume_fractions; // volume fractions in this zone
-
-                // we need to gather info from each value for the zones
-                auto fill_arrays = [&](const index_t mat_id,
-                                       const float64 vol_frac,
-                                       const int zone_id)
-                {
-                    (void) mat_id;
-                    local_element_ids.push_back(zone_id);
-                    local_volume_fractions.push_back(vol_frac);
-                };
+                index_t num_elems_for_mat = 0;
 
                 const std::string &matname = matnames[mat_order_id];
                 const int mat_id = material_map[matname].as_int();
@@ -2780,13 +2721,13 @@ walk_matset_by_material(const conduit::Node &matset,
                 detail::walk_full_matset_material_by_value(mat_id,
                                                            num_zones,
                                                            vol_fracs_for_mat,
-                                                           fill_arrays,
+                                                           for_each_value,
+                                                           num_elems_for_mat,
                                                            epsilon);
 
                 for_each_material(// mat_id,
                                   matname,
-                                  local_element_ids,
-                                  local_volume_fractions);
+                                  num_elems_for_mat);
             }
         }
         // elem-dom uni-buffer "sparse by element"
@@ -2809,19 +2750,6 @@ walk_matset_by_material(const conduit::Node &matset,
             // need not be within the range [0, N-1).
             for (int mat_order_id = 0; mat_order_id < num_materials; mat_order_id ++)
             {
-                std::vector<index_t> local_element_ids; // element ids in this zone
-                std::vector<float64> local_volume_fractions; // volume fractions in this zone
-
-                // we need to gather info from each value for the zones
-                auto fill_arrays = [&](const index_t mat_id,
-                                       const float64 vol_frac,
-                                       const int zone_id)
-                {
-                    (void) mat_id;
-                    local_element_ids.push_back(zone_id);
-                    local_volume_fractions.push_back(vol_frac);
-                };
-
                 const std::string &matname = matnames[mat_order_id];
                 const int mat_id = material_map[matname].as_int();
                 const index_t_accessor elem_ids_for_mat = matset["element_ids"][matname].value();
@@ -2835,8 +2763,7 @@ walk_matset_by_material(const conduit::Node &matset,
 
                 for_each_material(// mat_id,
                                   matname,
-                                  local_element_ids,
-                                  local_volume_fractions);
+                                  num_elems_for_mat);
             }
         }
         // mat-dom uni-buffer - currently unsupported
