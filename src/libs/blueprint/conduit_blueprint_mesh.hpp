@@ -855,8 +855,8 @@ namespace matset
                                                    const float64 epsilon = CONDUIT_EPSILON);
     //-------------------------------------------------------------------------
     template <class ForEachValue, class ForEachZone>
-    void CONDUIT_BLUEPRINT_API walk_matset_by_element(const conduit::Node &matset
-        ForEachValue &&for_each_value,,
+    void CONDUIT_BLUEPRINT_API walk_matset_by_element(const conduit::Node &matset,
+                                                      ForEachValue &&for_each_value,
                                                       ForEachZone &&for_each_zone,
                                                       const float64 epsilon = CONDUIT_EPSILON);
     //-------------------------------------------------------------------------
@@ -869,8 +869,8 @@ namespace matset
     //-------------------------------------------------------------------------
     template <class ForEachValue, class ForEachZone>
     void CONDUIT_BLUEPRINT_API walk_matset_by_element(const conduit::Node &matset,
-                                                      const conduit::Node &materi
-                                                      ForEachValue &&for_each_value,al_map,
+                                                      const conduit::Node &material_map,
+                                                      ForEachValue &&for_each_value,
                                                       ForEachZone &&for_each_zone,
                                                       const float64 epsilon = CONDUIT_EPSILON);
     //-------------------------------------------------------------------------
