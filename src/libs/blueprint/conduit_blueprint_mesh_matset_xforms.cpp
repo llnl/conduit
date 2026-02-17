@@ -2087,9 +2087,6 @@ multi_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &
             element_ids[eid_id] = local_element_ids[eid_id];
             volume_fractions[eid_id] = local_volume_fractions[eid_id];
         }
-
-        dest_matset["volume_fractions"][matname].set(local_volume_fractions);
-        dest_matset["element_ids"][matname].set(local_element_ids);
     };
 
     // TODO justin
@@ -2352,6 +2349,9 @@ multi_buffer_by_material_to_uni_buffer_by_element_matset(const conduit::Node &sr
     // set the topology
     dest_matset["topology"].set(src_matset["topology"]);
 
+    Node &material_map = dest_matset["material_map"];
+    create_or_reuse_material_map(src_matset, material_map);
+
     const int num_elems = determine_num_elems_in_multi_buffer_by_material(src_matset["element_ids"]);
 
     // There is no way to pack the volume fractions correctly without
@@ -2370,7 +2370,7 @@ multi_buffer_by_material_to_uni_buffer_by_element_matset(const conduit::Node &sr
         intermediate_vol_fracs[zone_id].push_back(vol_frac);
     };
 
-    walk_matset_by_material_value(src_matset, for_each_value);
+    walk_matset_by_material_value(src_matset, material_map, for_each_value);
 
     std::vector<float64> vol_fracs;
     std::vector<int64> mat_ids;
