@@ -373,6 +373,7 @@ if [ ! -d ${silo_src_dir} ]; then
   # ns patch for 4.12.0
   cd  ${silo_src_dir}
   patch -p1 < ${script_dir}/2026_01_26_silo_ns_patch_pr_515.patch
+  patch -p1 < ${script_dir}/2026_02_18_silo_vfd_fix_pr_517.patch
   cd ${root_dir}
 fi
 

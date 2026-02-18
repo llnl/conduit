@@ -161,6 +161,9 @@ class Silo(autotools.AutotoolsPackage, cmake.CMakePackage):
     # Nameschemes fix for 4.12
     patch("2026_01_26_silo_ns_patch_pr_515.patch", when="@4.12.0")
 
+    # vfd fix for 4.12 + hdf5 2.0.0 w/ mpi
+    patch("2026_02_18_silo_vfd_fix_pr_517.patch", when="@4.12.0")
+
     # CMake was introduced in version 4.12.0. Autotools is still
     # available but deprecated in 4.12.0 and is fully removed after
     # 4.12.0. So, 4.12.0 is only version where both are available.
