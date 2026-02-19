@@ -1,15 +1,15 @@
-# Copyright 2013-2024 Lawrence Livermore National Security, LLC and other
-# Spack Project Developers. See the top-level COPYRIGHT file for details.
+# Copyright Spack Project Developers. See COPYRIGHT file for details.
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
 import os
 import re
 
-import spack.build_systems.cmake
-import spack.build_systems.makefile
+from spack_repo.builtin.build_systems import cmake, makefile
+from spack_repo.builtin.build_systems.cmake import CMakePackage
+from spack_repo.builtin.build_systems.makefile import MakefilePackage
+
 from spack.package import *
-from spack.package_test import compare_output_file, compile_c_and_execute
 
 
 class Openblas(CMakePackage, MakefilePackage):
@@ -21,12 +21,15 @@ class Openblas(CMakePackage, MakefilePackage):
     )
     git = "https://github.com/OpenMathLib/OpenBLAS.git"
 
+    maintainers("mathomp4")
+
     libraries = ["libopenblas", "openblas"]
 
     license("BSD-3-Clause")
 
     version("develop", branch="develop")
     version("0.3.30", sha256="27342cff518646afb4c2b976d809102e368957974c250a25ccc965e53063c95d")
+    version("0.3.29", sha256="38240eee1b29e2bde47ebb5d61160207dc68668a54cac62c076bb5032013b1eb")
     version("0.3.28", sha256="f1003466ad074e9b0c8d421a204121100b0751c96fc6fcf3d1456bd12f8a00a1")
     version("0.3.27", sha256="aa2d68b1564fe2b13bc292672608e9cdeeeb6dc34995512e65c3b10f4599e897")
     version("0.3.26", sha256="4e6e4f5cb14c209262e33e6816d70221a2fe49eb69eaf0a06f065598ac602c68")
@@ -36,32 +39,67 @@ class Openblas(CMakePackage, MakefilePackage):
     version("0.3.22", sha256="7fa9685926ba4f27cfe513adbf9af64d6b6b63f9dcabb37baefad6a65ff347a7")
     version("0.3.21", sha256="f36ba3d7a60e7c8bcc54cd9aaa9b1223dd42eaf02c811791c37e8ca707c241ca")
     version("0.3.20", sha256="8495c9affc536253648e942908e88e097f2ec7753ede55aca52e5dead3029e3c")
-    version("0.3.19", sha256="947f51bfe50c2a0749304fbe373e00e7637600b0a47b78a51382aeb30ca08562")
-    version("0.3.18", sha256="1632c1e8cca62d8bed064b37747e331a1796fc46f688626337362bf0d16aeadb")
-    version("0.3.17", sha256="df2934fa33d04fd84d839ca698280df55c690c86a5a1133b3f7266fce1de279f")
-    version("0.3.16", sha256="fa19263c5732af46d40d3adeec0b2c77951b67687e670fb6ba52ea3950460d79")
-    version("0.3.15", sha256="30a99dec977594b387a17f49904523e6bc8dd88bd247266e83485803759e4bbe")
-    version("0.3.14", sha256="d381935d26f9cae8e4bbd7d7f278435adf8e3a90920edf284bb9ad789ee9ad60")
-    version("0.3.13", sha256="79197543b17cc314b7e43f7a33148c308b0807cd6381ee77f77e15acf3e6459e")
-    version("0.3.12", sha256="65a7d3a4010a4e3bd5c0baa41a234797cd3a1735449a4a5902129152601dc57b")
-    version("0.3.11", sha256="bc4617971179e037ae4e8ebcd837e46db88422f7b365325bd7aba31d1921a673")
-    version("0.3.10", sha256="0484d275f87e9b8641ff2eecaa9df2830cbe276ac79ad80494822721de6e1693")
-    version("0.3.9", sha256="17d4677264dfbc4433e97076220adc79b050e4f8a083ea3f853a53af253bc380")
-    version("0.3.8", sha256="8f86ade36f0dbed9ac90eb62575137388359d97d8f93093b38abe166ad7ef3a8")
-    version("0.3.7", sha256="bde136122cef3dd6efe2de1c6f65c10955bbb0cc01a520c2342f5287c28f9379")
-    version("0.3.6", sha256="e64c8fe083832ffbc1459ab6c72f71d53afd3b36e8497c922a15a06b72e9002f")
-    version("0.3.5", sha256="0950c14bd77c90a6427e26210d6dab422271bc86f9fc69126725833ecdaa0e85")
-    version("0.3.4", sha256="4b4b4453251e9edb5f57465bf2b3cf67b19d811d50c8588cdf2ea1f201bb834f")
-    version("0.3.3", sha256="49d88f4494ae780e3d7fa51769c00d982d7cdb73e696054ac3baa81d42f13bab")
-    version("0.3.2", sha256="e8ba64f6b103c511ae13736100347deb7121ba9b41ba82052b1a018a65c0cb15")
-    version("0.3.1", sha256="1f5e956f35f3acdd3c74516e955d797a320c2e0135e31d838cbdb3ea94d0eb33")
-    version("0.3.0", sha256="cf51543709abe364d8ecfb5c09a2b533d2b725ea1a66f203509b21a8e9d8f1a1")
-    version("0.2.20", sha256="5ef38b15d9c652985774869efd548b8e3e972e1e99475c673b25537ed7bcf394")
-    version("0.2.19", sha256="9c40b5e4970f27c5f6911cb0a28aa26b6c83f17418b69f8e5a116bb983ca8557")
-    version("0.2.18", sha256="7d9f8d4ea4a65ab68088f3bb557f03a7ac9cb5036ef2ba30546c3a28774a4112")
-    version("0.2.17", sha256="0fe836dfee219ff4cadcc3567fb2223d9e0da5f60c7382711fb9e2c35ecf0dbf")
-    version("0.2.16", sha256="766f350d0a4be614812d535cead8c816fc3ad3b9afcd93167ea5e4df9d61869b")
-    version("0.2.15", sha256="73c40ace5978282224e5e122a41c8388c5a19e65a6f2329c2b7c0b61bacc9044")
+
+    # Deprecate versions before 2022
+    with default_args(deprecated=True):
+        version(
+            "0.3.19", sha256="947f51bfe50c2a0749304fbe373e00e7637600b0a47b78a51382aeb30ca08562"
+        )
+        version(
+            "0.3.18", sha256="1632c1e8cca62d8bed064b37747e331a1796fc46f688626337362bf0d16aeadb"
+        )
+        version(
+            "0.3.17", sha256="df2934fa33d04fd84d839ca698280df55c690c86a5a1133b3f7266fce1de279f"
+        )
+        version(
+            "0.3.16", sha256="fa19263c5732af46d40d3adeec0b2c77951b67687e670fb6ba52ea3950460d79"
+        )
+        version(
+            "0.3.15", sha256="30a99dec977594b387a17f49904523e6bc8dd88bd247266e83485803759e4bbe"
+        )
+        version(
+            "0.3.14", sha256="d381935d26f9cae8e4bbd7d7f278435adf8e3a90920edf284bb9ad789ee9ad60"
+        )
+        version(
+            "0.3.13", sha256="79197543b17cc314b7e43f7a33148c308b0807cd6381ee77f77e15acf3e6459e"
+        )
+        version(
+            "0.3.12", sha256="65a7d3a4010a4e3bd5c0baa41a234797cd3a1735449a4a5902129152601dc57b"
+        )
+        version(
+            "0.3.11", sha256="bc4617971179e037ae4e8ebcd837e46db88422f7b365325bd7aba31d1921a673"
+        )
+        version(
+            "0.3.10", sha256="0484d275f87e9b8641ff2eecaa9df2830cbe276ac79ad80494822721de6e1693"
+        )
+        version("0.3.9", sha256="17d4677264dfbc4433e97076220adc79b050e4f8a083ea3f853a53af253bc380")
+        version("0.3.8", sha256="8f86ade36f0dbed9ac90eb62575137388359d97d8f93093b38abe166ad7ef3a8")
+        version("0.3.7", sha256="bde136122cef3dd6efe2de1c6f65c10955bbb0cc01a520c2342f5287c28f9379")
+        version("0.3.6", sha256="e64c8fe083832ffbc1459ab6c72f71d53afd3b36e8497c922a15a06b72e9002f")
+        version("0.3.5", sha256="0950c14bd77c90a6427e26210d6dab422271bc86f9fc69126725833ecdaa0e85")
+        version("0.3.4", sha256="4b4b4453251e9edb5f57465bf2b3cf67b19d811d50c8588cdf2ea1f201bb834f")
+        version("0.3.3", sha256="49d88f4494ae780e3d7fa51769c00d982d7cdb73e696054ac3baa81d42f13bab")
+        version("0.3.2", sha256="e8ba64f6b103c511ae13736100347deb7121ba9b41ba82052b1a018a65c0cb15")
+        version("0.3.1", sha256="1f5e956f35f3acdd3c74516e955d797a320c2e0135e31d838cbdb3ea94d0eb33")
+        version("0.3.0", sha256="cf51543709abe364d8ecfb5c09a2b533d2b725ea1a66f203509b21a8e9d8f1a1")
+        version(
+            "0.2.20", sha256="5ef38b15d9c652985774869efd548b8e3e972e1e99475c673b25537ed7bcf394"
+        )
+        version(
+            "0.2.19", sha256="9c40b5e4970f27c5f6911cb0a28aa26b6c83f17418b69f8e5a116bb983ca8557"
+        )
+        version(
+            "0.2.18", sha256="7d9f8d4ea4a65ab68088f3bb557f03a7ac9cb5036ef2ba30546c3a28774a4112"
+        )
+        version(
+            "0.2.17", sha256="0fe836dfee219ff4cadcc3567fb2223d9e0da5f60c7382711fb9e2c35ecf0dbf"
+        )
+        version(
+            "0.2.16", sha256="766f350d0a4be614812d535cead8c816fc3ad3b9afcd93167ea5e4df9d61869b"
+        )
+        version(
+            "0.2.15", sha256="73c40ace5978282224e5e122a41c8388c5a19e65a6f2329c2b7c0b61bacc9044"
+        )
 
     variant(
         "fortran",
@@ -115,8 +153,15 @@ class Openblas(CMakePackage, MakefilePackage):
     # https://github.com/OpenMathLib/OpenBLAS/pull/4328
     patch("xcode15-fortran.patch", when="@0.3.25 %apple-clang@15:")
 
+    # https://github.com/OpenMathLib/OpenBLAS/issues/5202
+    patch("openblas-0.3.29-darwin-aarch64.patch", when="@0.3.29 platform=darwin")
+
     # https://github.com/xianyi/OpenBLAS/pull/2519/files
-    patch("ifort-msvc.patch", when="%msvc")
+    patch("ifort-msvc.patch", when="@0.3.24:0.3.29 %msvc")
+
+    # Adds proper compiler definitions to allow symbol mangling
+    # consistent with the rest of blas when building blas tests
+    patch("blas_normalize_test_symbols.patch", when="%msvc")
 
     # https://github.com/OpenMathLib/OpenBLAS/pull/3712
     patch("cce.patch", when="@0.3.20 %cce")
@@ -142,7 +187,7 @@ class Openblas(CMakePackage, MakefilePackage):
 
     # Fixes compilation error on POWER8 with GCC 7
     # https://github.com/OpenMathLib/OpenBLAS/pull/1098
-    patch("power8.patch", when="@0.2.18:0.2.19 %gcc@7.1.0: target=power8")
+    patch("power8.patch", when="@0.2.18:0.2.19 target=power8 %gcc@7.1.0:")
 
     # Change file comments to work around clang 3.9 assembler bug
     # https://github.com/OpenMathLib/OpenBLAS/pull/982
@@ -151,6 +196,9 @@ class Openblas(CMakePackage, MakefilePackage):
     # Fix CMake export symbol error
     # https://github.com/OpenMathLib/OpenBLAS/pull/1703
     patch("openblas-0.3.2-cmake.patch", when="@0.3.1:0.3.2")
+
+    # https://github.com/OpenMathLib/OpenBLAS/issues/5473
+    patch("openblas-0.3.30-apple-LTO.patch", when="@0.3.30 platform=darwin")
 
     # Disable experimental TLS code that lead to many threading issues
     # https://github.com/OpenMathLib/OpenBLAS/issues/1735#issuecomment-422954465
@@ -239,6 +287,25 @@ class Openblas(CMakePackage, MakefilePackage):
         when="@0.3.27 %oneapi",
     )
 
+    # Fix arm64 HAVE_SME setting for DYNAMIC_ARCH builds using CMake
+    # patch(
+    #     "https://github.com/OpenMathLib/OpenBLAS/commit/cdebb4fd4b2bbbf856e5abdcedbe9a5cf348ef8e.patch?full_index=1",
+    #     sha256="0df81a8f5c1460d3db461e2309e5ac0b70c7745a97a10e617f109b4a5811e043",
+    #     when="@0.3.30 +dynamic_dispatch target=aarch64:",
+    # )
+
+    # ilp64 and symbol suffixes are not supported with CMake build system
+    requires("~ilp64", when="build_system=cmake")
+    requires("symbol_suffix=none", when="build_system=cmake")
+
+    # AOCC compiler detection adjustments
+    patch("openblas-aocc-0.3.28-plus.patch", when="@0.3.28: %aocc@5.1.0:")
+    patch("openblas-0.3.27_aocc.patch", when="@0.3.27 %aocc@5.0.0:")
+    patch("openblas-0.3.21-0.3.26_aocc.patch", when="@0.3.21:0.3.26 %aocc@5.0.0:")
+
+    # Requires support for -mtune=generic
+    conflicts("%fortran=clang %llvm@18")
+
     # See https://github.com/spack/spack/issues/19932#issuecomment-733452619
     # Notice: fixed on Amazon Linux GCC 7.3.1 (which is an unofficial version
     # as GCC only has major.minor releases. But the bound :7.3.0 doesn't hurt)
@@ -295,20 +362,6 @@ class Openblas(CMakePackage, MakefilePackage):
         # unclear whether setting `-j N` externally was supported before 0.3
         return self.spec.version >= Version("0.3.0")
 
-    @run_before("edit")
-    def check_compilers(self):
-        # As of 06/2016 there is no mechanism to specify that packages which
-        # depends on Blas/Lapack need C or/and Fortran symbols. For now
-        # require both.
-        # As of 08/2022 (0.3.21), we can build purely with a C compiler using
-        # a f2c translated LAPACK version
-        #   https://github.com/xianyi/OpenBLAS/releases/tag/v0.3.21
-        if self.compiler.fc is None and "~fortran" not in self.spec:
-            raise InstallError(
-                self.compiler.cc
-                + " has no Fortran compiler added in spack. Add it or use openblas~fortran!"
-            )
-
     @property
     def headers(self):
         # The only public headers for cblas and lapacke in
@@ -316,14 +369,14 @@ class Openblas(CMakePackage, MakefilePackage):
         # headers either included in one of these two headers, or included in
         # one of the source files implementing functions declared in these
         # headers.
-        return find_headers(["cblas", "lapacke"], self.prefix.include)
+        return find_headers(["cblas", "lapacke"], self.prefix.include, recursive=True)
 
     @property
     def libs(self):
         spec = self.spec
 
         # Look for openblas{symbol_suffix}
-        name = ["libopenblas", "openblas"]
+        name = self.libraries
         search_shared = bool(spec.variants["shared"].value)
         suffix = spec.variants["symbol_suffix"].value
         if suffix != "none":
@@ -332,7 +385,7 @@ class Openblas(CMakePackage, MakefilePackage):
         return find_libraries(name, spec.prefix, shared=search_shared, recursive=True)
 
 
-class MakefileBuilder(spack.build_systems.makefile.MakefileBuilder):
+class MakefileBuilder(makefile.MakefileBuilder):
     @staticmethod
     def _read_targets(target_file):
         """Parse a list of available targets from the OpenBLAS/TargetList.txt
@@ -453,7 +506,7 @@ class MakefileBuilder(spack.build_systems.makefile.MakefileBuilder):
 
         return args
 
-    def setup_build_environment(self, env):
+    def setup_build_environment(self, env: EnvironmentModifications) -> None:
         # When building OpenBLAS with threads=openmp, `make all`
         # runs tests, so we set the max number of threads at runtime
         # accordingly
@@ -555,6 +608,11 @@ class MakefileBuilder(spack.build_systems.makefile.MakefileBuilder):
         if self.spec.satisfies("threads=openmp") or self.spec.satisfies("threads=pthreads"):
             make_defs.append("NUM_THREADS=512")
 
+        # Fix https://github.com/OpenMathLib/OpenBLAS/issues/4212
+        # Following https://github.com/OpenMathLib/OpenBLAS/pull/4214
+        if self.spec.satisfies("platform=darwin target=aarch64: %gcc"):
+            make_defs.append("NO_SVE=1")
+
         return make_defs
 
     @property
@@ -596,7 +654,7 @@ class MakefileBuilder(spack.build_systems.makefile.MakefileBuilder):
         compare_output_file(output, blessed_file)
 
 
-class CMakeBuilder(spack.build_systems.cmake.CMakeBuilder):
+class CMakeBuilder(cmake.CMakeBuilder):
     def cmake_args(self):
         cmake_defs = [
             self.define("TARGET", "GENERIC"),
