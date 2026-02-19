@@ -462,6 +462,69 @@ PyBlueprint_mesh_flatten(PyObject *, //self
     Py_RETURN_NONE;
 }
 
+
+//---------------------------------------------------------------------------//
+// conduit::blueprint::mesh::paint_adjset
+//---------------------------------------------------------------------------//
+
+// doc str
+const char *PyBlueprint_mesh_paint_adjset_doc_str =
+"paint_adjset(adjset_name, field_prefix, mesh)\n"
+"\n"
+"Assumes mesh::verify() is True\n"
+"\n"
+"Creates a set of fields that represent adjacency set relationships.\n"
+"\n"
+"Arguments:\n"
+"  adjset_name: Adjacency Set Name (string)\n"
+"  field_prefix: Prefix added to generated field names (string)\n"
+"  mesh Input and Output mesh node, a blueprint mesh. (conduit.Node instance)\n";
+
+// py func
+static PyObject *
+PyBlueprint_mesh_paint_adjset(PyObject *, //self
+                              PyObject *args,
+                              PyObject *kwargs)
+{
+
+    const char *adjset_name  = NULL;
+    const char *field_prefix = NULL;
+    PyObject   *py_mesh      = NULL;
+
+    static const char *kwlist[] = {"adjset_name",
+                                   "field_prefix",
+                                   "mesh",
+                                   NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args,
+                                     kwargs,
+                                     "ssO",
+                                     const_cast<char**>(kwlist),
+                                     &adjset_name,
+                                     &field_prefix,
+                                     &py_mesh))
+    {
+        return NULL;
+    }
+
+    if(!PyConduit_Node_Check(py_mesh))
+    {
+        PyErr_SetString(PyExc_TypeError,
+                        "'mesh' argument must be a "
+                        "conduit.Node instance");
+        return NULL;
+    }
+
+    Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
+
+    blueprint::mesh::paint_adjset(std::string(adjset_name),
+                                  std::string(field_prefix),
+                                  mesh);
+
+    Py_RETURN_NONE;
+}
+
+
 //---------------------------------------------------------------------------//
 // Python Module Method Defs
 //---------------------------------------------------------------------------//
@@ -488,6 +551,11 @@ static PyMethodDef blueprint_mesh_python_funcs[] =
      (PyCFunction)PyBlueprint_mesh_flatten,
      METH_VARARGS | METH_KEYWORDS,
      PyBlueprint_mesh_flatten_doc_str},
+    {"paint_adjset",
+     (PyCFunction)PyBlueprint_mesh_paint_adjset,
+     METH_VARARGS | METH_KEYWORDS,
+     PyBlueprint_mesh_paint_adjset_doc_str},
+
     //-----------------------------------------------------------------------//
     // end methods table
     //-----------------------------------------------------------------------//

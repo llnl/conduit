@@ -23,35 +23,17 @@ if(NOT ZFP_DIR)
     MESSAGE(FATAL_ERROR "h5z-zfp support needs explicit ZFP_DIR")
 endif()
 
-find_path(H5ZZFP_INCLUDE_DIR H5Zzfp.h
-          PATHS ${H5ZZFP_DIR}/include
-          NO_DEFAULT_PATH
-          NO_CMAKE_ENVIRONMENT_PATH
-          NO_CMAKE_PATH
-          NO_SYSTEM_ENVIRONMENT_PATH
-          NO_CMAKE_SYSTEM_PATH)
-        
+message(STATUS "Looking for h5z-zfp in: ${H5ZZFP_DIR}")
 
-find_library(H5ZZFP_LIBRARIES NAMES libh5zzfp.a h5zzfp
-             PATHS ${H5ZZFP_DIR}/lib
+set(_H5ZZFP_SEARCH_PATH ${H5ZZFP_DIR}/lib/cmake/h5z_zfp/)
+find_package(h5z_zfp REQUIRED
              NO_DEFAULT_PATH
-             NO_CMAKE_ENVIRONMENT_PATH
-             NO_CMAKE_PATH
-             NO_SYSTEM_ENVIRONMENT_PATH
-             NO_CMAKE_SYSTEM_PATH)
-
-include(FindPackageHandleStandardArgs)
-# handle the QUIETLY and REQUIRED arguments and set SILO_FOUND to TRUE
-# if all listed variables are TRUE
-find_package_handle_standard_args(H5zZfp  DEFAULT_MSG
-                                  H5ZZFP_LIBRARIES H5ZZFP_INCLUDE_DIR)
-
+             PATHS ${_H5ZZFP_SEARCH_PATH})
 
 blt_register_library(NAME h5zzfp
-                     INCLUDES ${H5ZZFP_INCLUDE_DIR}
-                     LIBRARIES ${H5ZZFP_LIBRARIES})
+                     LIBRARIES h5z_zfp::h5z_zfp)
 
 if(CONDUIT_ENABLE_TESTS AND WIN32 AND BUILD_SHARED_LIBS)
     # if we are running tests with dlls, we need path to dlls
-    list(APPEND CONDUIT_TPL_DLL_PATHS ${H5ZZFP_DIR}/bin/)
+    list(APPEND CONDUIT_TPL_DLL_PATHS ${H5ZZFP_DIR}/lib/)
 endif()

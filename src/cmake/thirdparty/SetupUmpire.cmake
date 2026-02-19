@@ -26,20 +26,27 @@ find_package(umpire REQUIRED
              PATHS ${_UMPIRE_SEARCH_PATH})
 
 message(STATUS "Found Umpire in: ${UMPIRE_DIR}")
+# reset UMPIRE_DIR just in case the find process mangled it
+set(UMPIRE_DIR ${UMPIRE_DIR_ORIG})
 set(UMPIRE_FOUND TRUE)
 
 if(CONDUIT_ENABLE_TESTS AND WIN32 AND BUILD_SHARED_LIBS)
     # if we are running tests with dlls, we need path to dlls
     # hey, now we have to look at bin for the dlls :-(
-    if(EXISTS ${UMPIRE_DIR_ORIG}/bin/)
-        list(APPEND ASCENT_TPL_DLL_PATHS ${UMPIRE_DIR_ORIG}/bin/)
-    endif()
-    
-    if(EXISTS ${UMPIRE_DIR_ORIG}/lib)
-        list(APPEND CONDUIT_TPL_DLL_PATHS ${UMPIRE_DIR_ORIG}/lib/)
-    elseif(EXISTS ${UMPIRE_DIR_ORIG}/lib64) 
+
+    # we want the root of the umpire install so we can
+    # locate the dlls
+    set(_UMPIRE_DLL_DIR)
+    if(EXISTS ${UMPIRE_DIR}/bin/)
+        set(_UMPIRE_DLL_DIR ${UMPIRE_DIR}/bin/)
+    elseif(EXISTS ${UMPIRE_DIR}/lib)
+        set(_UMPIRE_DLL_DIR ${UMPIRE_DIR}/lib/)
+    elseif(EXISTS ${UMPIRE_DIR}/lib64)
         # lib64 shouldn't happen on windows, but someone might
         # be clever and surprise us
-        list(APPEND CONDUIT_TPL_DLL_PATHS ${UMPIRE_DIR_ORIG}/lib64/)
+        set(_UMPIRE_DLL_DIR ${UMPIRE_DIR}/lib64/)
+    else()
+      message(FATAL_ERROR "Failed to locate umpire dll dir ujnder intsall at ${UMPIRE_DIR}")
     endif()
+    list(APPEND CONDUIT_TPL_DLL_PATHS ${_UMPIRE_DLL_DIR})
 endif()

@@ -172,6 +172,8 @@ if(PARMETIS_FOUND)
                      NUM_MPI_TASKS 2
                      DEPENDS_ON parmetis
                      FOLDER tests/thirdparty)
+    # make sure parmetis test doens't use MPI C++ API and libs to implement MPI C API
+    target_compile_definitions(t_parmetis_smoke PUBLIC ${CONDUIT_MPI_SKIP_MPICXX_DEFINES} )
 else()
     message(STATUS "Parmetis disabled: Skipping related tests")
 endif()

@@ -273,6 +273,8 @@ cmake -S ${hdf5_src_dir} -B ${hdf5_build_dir} ${cmake_compiler_settings} \
   -DHDF5_ENABLE_ZLIB_SUPPORT:BOOL=ON \
   -DCMAKE_PREFIX_PATH=${zlib_install_dir} \
   -DCMAKE_INSTALL_PREFIX=${hdf5_install_dir} \
+  -DHDF5_BUILD_EXAMPLES:BOOL=OFF \
+  -DBUILD_TESTING:BOOL=OFF \
   ${hdf_parallel_settings}
 
 echo "**** Building HDF5 ${hdf5_version}"
@@ -367,6 +369,12 @@ if [ ! -d ${silo_src_dir} ]; then
       --exclude="Silo-${silo_version}/config-site/*" \
       --exclude="Silo-${silo_version}/LICENSE.md" \
       --exclude="Silo-${silo_version}/silo_objects.png"
+
+  # ns patch for 4.12.0
+  cd  ${silo_src_dir}
+  patch -p1 < ${script_dir}/2026_01_26_silo_ns_patch_pr_515.patch
+  patch -p1 < ${script_dir}/2026_02_18_silo_vfd_fix_pr_517.patch
+  cd ${root_dir}
 fi
 
 echo "**** Configuring Silo ${silo_version}"
@@ -759,13 +767,20 @@ fi
 
 echo "**** Configuring H5Z-ZFP ${h5zzfp_version}"
 
-HDF5_DIR=${hdf5_install_dir}  \
-ZFP_DIR=${zfp_install_dir}/lib/cmake/zfp/ \
+# depending on the system zfp may use lib or lib64 pattern:
+if [ -d ${zfp_install_dir}/lib64/cmake/zfp/ ]; then
+  zfp_cmake_dir=${zfp_install_dir}/lib64/cmake/zfp/
+else
+  zfp_cmake_dir=${zfp_install_dir}/lib/cmake/zfp/
+fi
+
+HDF5_DIR=${hdf5_install_dir} \
+ZFP_DIR=${zfp_cmake_dir} \
 cmake -S ${h5zzfp_src_dir} -B ${h5zzfp_build_dir} ${cmake_compiler_settings} \
   -DCMAKE_VERBOSE_MAKEFILE:BOOL=${enable_verbose} \
   -DCMAKE_BUILD_TYPE=${build_config} \
   -DFORTRAN_INTERFACE=OFF \
-  -DBUILD_SHARED_LIBS=${build_shared_libs} \
+  -DBUILD_SHARED_LIBS=BOOL:${build_shared_libs} \
   -DCMAKE_INSTALL_PREFIX=${h5zzfp_install_dir}
 
 echo "**** Building H5Z-ZFP ${h5zzfp_version}"
@@ -863,11 +878,18 @@ fi
 if ${build_umpire}; then
   echo 'set(UMPIRE_DIR ' ${umpire_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
 fi
-
-
-echo 'set(HDF5_DIR ' ${hdf5_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
-echo 'set(CGNS_DIR ' ${cgns_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
-echo 'set(ZLIB_DIR ' ${zlib_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
+if ${build_zlib}; then
+  echo 'set(ZLIB_DIR ' ${zlib_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
+fi
+if ${build_hdf5}; then
+  echo 'set(HDF5_DIR ' ${hdf5_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
+fi
+if ${build_silo}; then
+  echo 'set(SILO_DIR ' ${silo_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
+fi
+if ${build_cgns}; then
+  echo 'set(CGNS_DIR ' ${cgns_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
+fi
 if ${build_zfp}; then
   echo 'set(ZFP_DIR ' ${zfp_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
   echo 'set(H5ZZFP_DIR ' ${h5zzfp_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
