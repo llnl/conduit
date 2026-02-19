@@ -226,11 +226,10 @@ PyRelay_MPI_rank(PyObject *, //self
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
-    // obtain rank to check that the passed mpi comm is valid
-    // return error state to python if check fails
+    int rank = -1;
     try
     {
-        relay::mpi::rank(comm);
+        rank = relay::mpi::rank(comm);
     }
     catch(conduit::Error &e)
     {
@@ -238,7 +237,6 @@ PyRelay_MPI_rank(PyObject *, //self
                         e.message().c_str());
         return NULL;
     }
-
 
     return PyLong_FromLong((long)rank);
 }
