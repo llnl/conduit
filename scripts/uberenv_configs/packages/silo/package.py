@@ -1,23 +1,28 @@
-# Copyright 2013-2024 Lawrence Livermore National Security, LLC and other
-# Spack Project Developers. See the top-level COPYRIGHT file for details.
+# Copyright Spack Project Developers. See COPYRIGHT file for details.
 #
 # SPDX-License-Identifier: (Apache-2.0 OR MIT)
 
+from spack_repo.builtin.build_systems import autotools, cmake
+
 from spack.package import *
-from spack.util.environment import is_system_path
 
 
-class Silo(AutotoolsPackage):
+class Silo(autotools.AutotoolsPackage, cmake.CMakePackage):
     """Silo is a library for reading and writing a wide variety of scientific
-    data to binary, disk files."""
+    data to binary, disk or memory (in-situ) files."""
 
-    homepage = "https://wci.llnl.gov/simulation/computer-codes/silo"
+    homepage = "https://silo.llnl.gov"
     git = "https://github.com/LLNL/Silo.git"
-    url = "https://wci.llnl.gov/sites/wci/files/2021-01/silo-4.10.2.tgz"
-    maintainers("patrickb314")
+    url = "https://github.com/LLNL/Silo/releases/tag/4.12.0"
+    maintainers("patrickb314", "markcmiller86")
 
-    # note: 4.12 cmake build system is default, but we need a bigger spack
-    #       recipe update to leverage that
+    # Base license is BSD; fpzip and hzip variants change effective licensing.
+    # Versions of both hzip and fpzip built into silo are NOT BSD licensed.
+    # Newer versions of fpzip are BSD licensed but not version 1.0.2 in Silo.
+    license("BSD-3-Clause", when="license=bsdonly")
+
+    version("main", branch="main")
+    version("4.12RC", branch="4.12RC")
     version(
         "4.12.0",
         preferred=True,
@@ -47,45 +52,72 @@ class Silo(AutotoolsPackage):
     version(
         "4.10.2",
         sha256="3af87e5f0608a69849c00eb7c73b11f8422fa36903dd14610584506e7f68e638",
-        preferred=True,
+        url="https://sd.llnl.gov/sites/sd/files/2021-01/silo-4.10.2.tgz",
     )
     version(
         "4.10.2-bsd",
         sha256="4b901dfc1eb4656e83419a6fde15a2f6c6a31df84edfad7f1dc296e01b20140e",
-        url="https://wci.llnl.gov/sites/wci/files/2021-01/silo-4.10.2-bsd.tgz",
+        url="https://sd.llnl.gov/sites/sd/files/2021-01/silo-4.10.2-bsd.tgz",
     )
-    version("4.9", sha256="90f3d069963d859c142809cfcb034bc83eb951f61ac02ccb967fc8e8d0409854")
-    version("4.8", sha256="c430c1d33fcb9bc136a99ad473d535d6763bd1357b704a915ba7b1081d58fb21")
-
-    depends_on("c", type="build")  # generated
-    depends_on("cxx", type="build")  # generated
-    depends_on("fortran", type="build")  # generated
+    version(
+        "4.9",
+        sha256="90f3d069963d859c142809cfcb034bc83eb951f61ac02ccb967fc8e8d0409854",
+        url="https://sd.llnl.gov/sites/sd/files/2021-01/silo-4.9.tgz",
+    )
+    version(
+        "4.8",
+        sha256="c430c1d33fcb9bc136a99ad473d535d6763bd1357b704a915ba7b1081d58fb21",
+        url="https://sd.llnl.gov/sites/sd/files/2021-01/silo-4.8.tgz",
+    )
 
     variant("python", default=True, description="Enable Python support")
     variant("fortran", default=True, description="Enable Fortran support")
     variant("shared", default=True, description="Build shared libraries")
-    variant("silex", default=False, description="Builds Silex, a GUI for viewing Silo files")
+    variant(
+        "silex",
+        default=False,
+        description="Build Silex, a GUI alternative to text browser for viewing Silo files",
+    )
     variant("pic", default=True, description="Produce position-independent code (for shared libs)")
-    variant("mpi", default=True, description="Compile with MPI Compatibility")
+    variant("mpi", default=False, when="@:4.11", description="(deprecated)")
     variant("hdf5", default=True, description="Support HDF5 for database I/O")
-    variant("hzip", default=True, description="Enable hzip support")
-    variant("fpzip", default=True, description="Enable fpzip support")
+    variant("zfp", default=True, description="Enable zfp compression features")
+    variant("hzip", default=False, description="Enable hzip compression features (!BSD)")
+    variant("fpzip", default=False, description="Enable fpzip compression features (!BSD)")
 
+    # convenience multi-valued 'license mode'
+    variant(
+        "license",
+        values=("llnllegacy", "bsdonly"),
+        default="bsdonly",
+        when="@4.12.0:",
+        description="BSD-only licensed build (disables !BSD compression features)",
+    )
+
+    depends_on("c", type="build")  # generated
+    depends_on("cxx", type="build")  # generated
+    depends_on("fortran", type="build")  # generated
+    depends_on("python", type=("build", "link"), when="+python")
+    # The mkinc tool uses perl. Silo project could elim. this
+    # by relying upon mkinc generated files committed to repo
     depends_on("perl", type="build")
-    depends_on("m4", type="build", when="+shared")
-    depends_on("autoconf", type="build", when="+shared")
-    depends_on("autoconf-archive", type="build", when="+shared")
-    depends_on("automake", type="build", when="+shared")
-    depends_on("libtool", type="build", when="+shared")
-    depends_on("mpi", when="+mpi")
     depends_on("hdf5@1.8:1.10", when="@:4.10+hdf5")
     depends_on("hdf5@1.12:", when="@4.11:+hdf5")
-    depends_on("qt+gui~framework@4.8:4.9", when="+silex")
+    depends_on("qt +gui~framework@4.8:4.9", when="+silex")
+    depends_on("qt-base@6: +gui +widgets", when="@4.12.0: +silex")
+    depends_on("qt@5.0:5", when="@:4.11.1 +silex")
     depends_on("libx11", when="+silex")
     # Xmu dependency is required on Ubuntu 18-20
     depends_on("libxmu", when="+silex")
     depends_on("readline")
     depends_on("zlib-api")
+
+    with when("build_system=autotools"):
+        depends_on("m4", type="build", when="+shared")
+        depends_on("autoconf", type="build", when="+shared")
+        depends_on("autoconf-archive", type="build", when="+shared")
+        depends_on("automake", type="build", when="+shared")
+        depends_on("libtool", type="build", when="+shared")
 
     patch("remove-mpiposix.patch", when="@4.8:4.10.2")
 
@@ -107,15 +139,42 @@ class Silo(AutotoolsPackage):
     patch("hdf5-113.patch", when="@4.11:4.11-bsd +hdf5 ^hdf5@1.13:")
     conflicts("^hdf5@1.13:", when="@:4.10.2-bsd")
 
+    # compression features available only w/ HDF5 driver
+    conflicts("+hzip", when="~hdf5", msg="+hzip requires +hdf5")
+    conflicts("+fpzip", when="~hdf5", msg="+fpzip requires +hdf5")
+    conflicts("+zfp", when="~hdf5", msg="zfp requires +hdf5")
+
     # hzip and fpzip are not available in the BSD releases
-    conflicts("+hzip", when="@4.10.2-bsd,4.11-bsd")
-    conflicts("+fpzip", when="@4.10.2-bsd,4.11-bsd")
+    conflicts("+hzip", when="@4.10.2-bsd,4.11-bsd,4.11.1-bsd")
+    conflicts("+fpzip", when="@4.10.2-bsd,4.11-bsd,4.11.1-bsd")
+
+    # If bsdonly enbabled, hzip and fpzip cannot be enabled
+    conflicts("license=bsdonly", when="+hzip", msg="BSD-only build cannot use +hzip")
+    conflicts("license=bsdonly", when="+fpzip", msg="BSD-only build cannot use +fpzip")
 
     # zfp include missing
     patch("zfp_error.patch", when="@4.11:4.11-bsd +hdf5")
 
     # use /usr/bin/env perl for portability
     patch("mkinc-usr-bin-env-perl.patch", when="@:4.11-bsd")
+
+    # Nameschemes fix for 4.12
+    patch("2026_01_26_silo_ns_patch_pr_515.patch", when="@4.12.0")
+
+    # vfd fix for 4.12 + hdf5 2.0.0 w/ mpi
+    patch("2026_02_18_silo_vfd_fix_pr_517.patch", when="@4.12.0")
+
+    # CMake was introduced in version 4.12.0. Autotools is still
+    # available but deprecated in 4.12.0 and is fully removed after
+    # 4.12.0. So, 4.12.0 is only version where both are available.
+    build_system(
+        conditional("cmake", when="@4.12.0:"),
+        conditional("autotools", when="@:4.12.0"),
+        default="cmake",
+    )
+
+
+class AutotoolsBuilder(autotools.AutotoolsBuilder):
 
     def flag_handler(self, name, flags):
         spec = self.spec
@@ -135,6 +194,8 @@ class Silo(AutotoolsPackage):
             if spec.satisfies("%oneapi"):
                 flags.append("-Wno-error=int")
                 flags.append("-Wno-error=int-conversion")
+            if spec.satisfies("+python"):
+                flags.append(f"-I {spec['python'].headers.directories[0]}")
             if "+hdf5" in spec:
                 # @:4.10 can use up to the 1.10 API
                 if "@:4.10" in spec:
@@ -164,19 +225,18 @@ class Silo(AutotoolsPackage):
                 flags.append("-Wno-implicit-function-declaration")
         return (flags, None, None)
 
-    @when("%clang@9:")
+    @when("@:4.11.1 %clang@9:")
     def patch(self):
         self.clang_9_patch()
 
-    @when("%apple-clang@11.0.3:")
+    @when("@:4.11.1 %apple-clang@11.0.3:")
     def patch(self):
         self.clang_9_patch()
 
     def clang_9_patch(self):
         # Clang 9 and later include macro definitions in <math.h> that conflict
-        # with typedefs DOMAIN and RANGE used in Silo plugins.
-        # It looks like the upstream fpzip repo has been fixed, but that change
-        # hasn't yet made it into silo.
+        # with typedefs DOMAIN and RANGE used in Silo compression libraries.
+        # This change didn't make it into Silo until version 4.12.0.
         # https://github.com/LLNL/fpzip/blob/master/src/pcmap.h
 
         if str(self.spec.version).endswith("-bsd"):
@@ -205,7 +265,11 @@ class Silo(AutotoolsPackage):
     def force_autoreconf(self):
         # Update autoconf's tests whether libtool supports shared libraries.
         # (Otherwise, shared libraries are always disabled on Darwin.)
-        if self.spec.satisfies("@4.11-bsd") or self.spec.satisfies("@4.10.2-bsd"):
+        if (
+            self.spec.satisfies("@4.11.1-bsd")
+            or self.spec.satisfies("@4.11-bsd")
+            or self.spec.satisfies("@4.10.2-bsd")
+        ):
             return False
         else:
             return self.spec.satisfies("+shared")
@@ -220,6 +284,7 @@ class Silo(AutotoolsPackage):
         config_args.extend(self.enable_or_disable("shared"))
         config_args.extend(self.enable_or_disable("hzip"))
         config_args.extend(self.enable_or_disable("fpzip"))
+        config_args.extend(self.enable_or_disable("zfp"))
 
         # Do not specify the prefix of zlib if it is in a system directory
         # (see https://github.com/spack/spack/pull/21900).
@@ -245,14 +310,34 @@ class Silo(AutotoolsPackage):
                 ]
             )
 
-        if "+mpi" in spec:
-            config_args.append("CC=%s" % spec["mpi"].mpicc)
-            config_args.append("CXX=%s" % spec["mpi"].mpicxx)
-            config_args.append("FC=%s" % spec["mpi"].mpifc)
-
         return config_args
 
     @property
     def libs(self):
         shared = "+shared" in self.spec
         return find_libraries("libsilo*", root=self.prefix, shared=shared, recursive=True)
+
+
+class CMakeBuilder(cmake.CMakeBuilder):
+    def cmake_args(self):
+        args = [
+            self.define("SILO_ENABLE_SILOCK", True),
+            self.define("SILO_ENABLE_BROWSER", True),
+            self.define("SILO_ENABLE_INSTALL_LITE_HEADERS", True),
+            self.define_from_variant("SILO_ENABLE_SHARED", "shared"),
+            self.define_from_variant("CMAKE_POSITION_INDEPENDENT_CODE", "pic"),
+            self.define_from_variant("SILO_ENABLE_SILEX", "silex"),
+            self.define_from_variant("SILO_ENABLE_HDF5", "hdf5"),
+            self.define_from_variant("SILO_ENABLE_FORTRAN", "fortran"),
+            self.define_from_variant("SILO_ENABLE_PYTHON_MODULE", "python"),
+            self.define_from_variant("SILO_ENABLE_HZIP", "hzip"),
+            self.define_from_variant("SILO_ENABLE_FPZIP", "fpzip"),
+            self.define_from_variant("SILO_ENABLE_ZFP", "zfp"),
+        ]
+
+        if self.spec.satisfies("license=bsdonly"):
+            args.append(self.define("SILO_BUILD_FOR_BSD_LICENSE", True))
+        else:
+            args.append(self.define("SILO_BUILD_FOR_BSD_LICENSE", False))
+
+        return args
