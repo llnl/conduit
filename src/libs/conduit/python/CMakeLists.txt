@@ -42,7 +42,7 @@ include_directories(${NUMPY_INCLUDE_DIRS})
 PYTHON_ADD_HYBRID_MODULE(NAME          conduit_python
                          DEST_DIR      python-modules
                          PY_MODULE_DIR conduit
-                         PY_SETUP_FILE setup.py
+                         PY_SETUP_FILE pyproject.toml
                          PY_SOURCES    ${conduit_py_python_sources}
                          SOURCES       ${conduit_py_headers}
                                        ${conduit_py_cpp_sources}
