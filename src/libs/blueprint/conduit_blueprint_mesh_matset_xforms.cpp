@@ -64,6 +64,8 @@ namespace detail
 //-----------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------
+// helper for multi-buffer material sets that do not have 
+// material maps.
 void
 create_material_map(const conduit::Node &matset,
                     conduit::Node &material_map)
@@ -1783,71 +1785,6 @@ create_or_reuse_material_map(const conduit::Node &matset,
 }
 
 //-------------------------------------------------------------------------
-void
-renumber_material_ids(const conduit::Node &src_matset,
-                      conduit::Node &dest_matset)
-{
-    // extra seat belt here
-    if (! src_matset.dtype().is_object())
-    {
-        CONDUIT_ERROR("blueprint::mesh::matset::renumber_material_ids"
-                      " passed matset node must be a valid matset tree.");
-    }
-
-    dest_matset.set(src_matset);
-    renumber_material_ids(dest_matset);
-}
-
-//-------------------------------------------------------------------------
-void
-renumber_material_ids(conduit::Node &matset)
-{
-    // extra seat belt here
-    if (! matset.dtype().is_object())
-    {
-        CONDUIT_ERROR("blueprint::mesh::matset::renumber_material_ids"
-                      " passed matset node must be a valid matset tree.");
-    }
-
-    // if we are sparse by element we have more to do
-    if (is_element_dominant(matset) && is_uni_buffer(matset))
-    {
-        // we must have material map in this case
-        std::map<index_t, index_t> old_to_new;
-        const std::vector<std::string> &matnames = matset["material_map"].child_names();
-        const index_t num_mats = static_cast<index_t>(matnames.size());
-        for (index_t i = 0; i < num_mats; i ++)
-        {
-            const std::string &matname = matnames[i];
-            const index_t old = matset["material_map"][matname].to_index_t();
-            matset["material_map"][matname].set(i);
-            old_to_new[old] = i;
-        }
-
-        index_t_accessor mat_ids = matset["material_ids"].as_index_t_accessor();
-        for (index_t i = 0; i < mat_ids.number_of_elements(); i ++)
-        {
-            const int old_mat_id = mat_ids[i];
-            mat_ids.set(i, old_to_new.at(old_mat_id));
-        }
-    }
-    else
-    {
-        // if we have a material map to modify
-        if (matset.has_child("material_map"))
-        {
-            const std::vector<std::string> &matnames = matset["material_map"].child_names();
-            const index_t num_mats = static_cast<index_t>(matnames.size());
-            for (index_t i = 0; i < num_mats; i ++)
-            {
-                const std::string &matname = matnames[i];
-                matset["material_map"][matname].set(i);
-            }
-        }
-    }
-}
-
-//-------------------------------------------------------------------------
 // this will use set if the matmap already exists
 void
 create_or_copy_material_map(const conduit::Node &matset,
@@ -1869,6 +1806,84 @@ create_or_copy_material_map(const conduit::Node &matset,
     else
     {
         detail::create_material_map(matset, material_map);
+    }
+}
+
+//-------------------------------------------------------------------------
+// renumbers material ids to run between 0 and N-1 where N is the number of
+// materials.
+void
+renumber_material_ids(const conduit::Node &src_matset,
+                      conduit::Node &dest_matset)
+{
+    // extra seat belt here
+    if (! src_matset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::matset::renumber_material_ids"
+                      " passed matset node must be a valid matset tree.");
+    }
+
+    dest_matset.set(src_matset);
+    renumber_material_ids(dest_matset);
+}
+
+//-------------------------------------------------------------------------
+// renumbers material ids to run between 0 and N-1 where N is the number of
+// materials.
+void
+renumber_material_ids(conduit::Node &matset)
+{
+    // extra seat belt here
+    if (! matset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::matset::renumber_material_ids"
+                      " passed matset node must be a valid matset tree.");
+    }
+
+    if (is_uni_buffer(matset))
+    {
+        // if we are sparse by element we have more to do
+        if (is_element_dominant(matset))
+        {
+            // we must have material map in this case
+            std::map<index_t, index_t> old_to_new;
+            const std::vector<std::string> &matnames = matset["material_map"].child_names();
+            const index_t num_mats = static_cast<index_t>(matnames.size());
+            for (index_t i = 0; i < num_mats; i ++)
+            {
+                const std::string &matname = matnames[i];
+                const index_t old = matset["material_map"][matname].to_index_t();
+                matset["material_map"][matname].set(i);
+                old_to_new[old] = i;
+            }
+
+            index_t_accessor mat_ids = matset["material_ids"].as_index_t_accessor();
+            for (index_t i = 0; i < mat_ids.number_of_elements(); i ++)
+            {
+                const int old_mat_id = mat_ids[i];
+                mat_ids.set(i, old_to_new.at(old_mat_id));
+            }
+        }
+        // unsupported uni-buffer by material
+        else
+        {
+            CONDUIT_ERROR("conduit::blueprint::mesh::matset::renumber_material_ids() "
+                          "material-dominant uni-buffer material set is unsupported.")
+        }
+    }
+    else // multi-buffer case
+    {
+        // if we have a material map to modify
+        if (matset.has_child("material_map"))
+        {
+            const std::vector<std::string> &matnames = matset["material_map"].child_names();
+            const index_t num_mats = static_cast<index_t>(matnames.size());
+            for (index_t i = 0; i < num_mats; i ++)
+            {
+                const std::string &matname = matnames[i];
+                matset["material_map"][matname].set(i);
+            }
+        }
     }
 }
 
