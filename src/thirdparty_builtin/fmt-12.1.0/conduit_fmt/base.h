@@ -130,7 +130,9 @@
 #  define FMT_USE_CONSTEVAL 0  // consteval is broken in MSVC VS2019 < 16.10.
 #elif defined(__cpp_consteval)
 #  define FMT_USE_CONSTEVAL 1
-#elif FMT_GCC_VERSION >= 1002 || FMT_CLANG_VERSION >= 1101
+// CHANGE FOR CONDUIT
+// gcc 11 has issues with fmt usage of consteval
+#elif FMT_GCC_VERSION >= 1200 || FMT_CLANG_VERSION >= 1101
 #  define FMT_USE_CONSTEVAL 1
 #else
 #  define FMT_USE_CONSTEVAL 0
