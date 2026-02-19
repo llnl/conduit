@@ -1231,59 +1231,71 @@ namespace specset
     index_t CONDUIT_BLUEPRINT_API count_materials_from_specset(const conduit::Node &specset);
 
     //-------------------------------------------------------------------------
-    template <class ForEachZone>
+    template <class ForEachSpeciesValue, class ForEachValue, class ForEachZone>
     void CONDUIT_BLUEPRINT_API walk_matset_specset_by_element(const conduit::Node &specset,
                                                               const conduit::Node &matset,
+                                                              ForEachSpeciesValue &&for_each_species_value,
+                                                              ForEachValue &&for_each_value,
                                                               ForEachZone &&for_each_zone,
                                                               const float64 epsilon = CONDUIT_EPSILON);
     //-------------------------------------------------------------------------
-    template <class ForEachZone>
+    template <class ForEachSpeciesValue, class ForEachValue, class ForEachZone>
     void CONDUIT_BLUEPRINT_API walk_matset_specset_by_element(const conduit::Node &specset,
                                                               const conduit::Node &matset,
                                                               const int num_zones,
+                                                              ForEachSpeciesValue &&for_each_species_value,
+                                                              ForEachValue &&for_each_value,
                                                               ForEachZone &&for_each_zone,
                                                               const float64 epsilon = CONDUIT_EPSILON);
     //-------------------------------------------------------------------------
-    template <class ForEachZone>
+    template <class ForEachSpeciesValue, class ForEachValue, class ForEachZone>
     void CONDUIT_BLUEPRINT_API walk_matset_specset_by_element(const conduit::Node &specset,
                                                               const conduit::Node &matset,
                                                               const conduit::Node &material_map,
+                                                              ForEachSpeciesValue &&for_each_species_value,
+                                                              ForEachValue &&for_each_value,
                                                               ForEachZone &&for_each_zone,
                                                               const float64 epsilon = CONDUIT_EPSILON);
     //-------------------------------------------------------------------------
-    template <class ForEachZone>
+    template <class ForEachSpeciesValue, class ForEachValue, class ForEachZone>
     void CONDUIT_BLUEPRINT_API walk_matset_specset_by_element(const conduit::Node &specset,
                                                               const conduit::Node &matset,
                                                               const conduit::Node &material_map,
                                                               const int num_zones,
+                                                              ForEachSpeciesValue &&for_each_species_value,
+                                                              ForEachValue &&for_each_value,
                                                               ForEachZone &&for_each_zone,
                                                               const float64 epsilon = CONDUIT_EPSILON);
     //-----------------------------------------------------------------------------
-    template <class ForEachValue>
+    template <class ForEachSpeciesValue, class ForEachValue>
     void CONDUIT_BLUEPRINT_API walk_matset_specset_by_element_value(const conduit::Node &specset,
                                                                     const conduit::Node &matset,
+                                                                    ForEachSpeciesValue &&for_each_species_value,
                                                                     ForEachValue &&for_each_value,
                                                                     const float64 epsilon = CONDUIT_EPSILON);
     //-----------------------------------------------------------------------------
-    template <class ForEachValue>
+    template <class ForEachSpeciesValue, class ForEachValue>
     void CONDUIT_BLUEPRINT_API walk_matset_specset_by_element_value(const conduit::Node &specset,
                                                                     const conduit::Node &matset,
                                                                     const int num_zones,
+                                                                    ForEachSpeciesValue &&for_each_species_value,
                                                                     ForEachValue &&for_each_value,
                                                                     const float64 epsilon = CONDUIT_EPSILON);
     //-----------------------------------------------------------------------------
-    template <class ForEachValue>
+    template <class ForEachSpeciesValue, class ForEachValue>
     void CONDUIT_BLUEPRINT_API walk_matset_specset_by_element_value(const conduit::Node &specset,
                                                                     const conduit::Node &matset,
                                                                     const conduit::Node &material_map,
+                                                                    ForEachSpeciesValue &&for_each_species_value,
                                                                     ForEachValue &&for_each_value,
                                                                     const float64 epsilon = CONDUIT_EPSILON);
     //-----------------------------------------------------------------------------
-    template <class ForEachValue>
+    template <class ForEachSpeciesValue, class ForEachValue>
     void CONDUIT_BLUEPRINT_API walk_matset_specset_by_element_value(const conduit::Node &specset,
                                                                     const conduit::Node &matset,
                                                                     const conduit::Node &material_map,
                                                                     const int num_zones,
+                                                                    ForEachSpeciesValue &&for_each_species_value,
                                                                     ForEachValue &&for_each_value,
                                                                     const float64 epsilon = CONDUIT_EPSILON);
     //-------------------------------------------------------------------------
