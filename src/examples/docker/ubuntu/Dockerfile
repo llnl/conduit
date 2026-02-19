@@ -51,14 +51,21 @@ RUN apt-get update && apt-get -y install \
              libreadline-dev \
              libsqlite3-dev \
              libbz2-dev \
-             openmpi-bin \
-             libopenmpi-dev\ 
              nodejs \
              npm \
              vim
 
-RUN rm -rf /var/lib/apt/lists/*
+# manual mpich install
+# https://github.com/actions/runner-images/issues/13204
+RUN curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/28285882/+files/libmpich12_4.2.0-5.1_amd64.deb
+RUN curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/28285882/+files/mpich_4.2.0-5.1_amd64.deb
+RUN curl  -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/28285882/+files/libmpich-dev_4.2.0-5.1_amd64.deb
 
+RUN apt install  -y ./libmpich12_4.2.0-5.1_amd64.deb
+RUN apt install  -y ./mpich_4.2.0-5.1_amd64.deb
+RUN apt install  -y ./libmpich-dev_4.2.0-5.1_amd64.deb
+
+RUN rm -rf /var/lib/apt/lists/*
 
 # untar the current source  (created as part of example_build.sh)
 COPY conduit.docker.src.tar /
@@ -94,12 +101,7 @@ RUN cd conduit && \
 
 # build, test, and install conduit
 RUN cd conduit/build-debug && make
-RUN cd conduit/build-debug && env CTEST_OUTPUT_ON_FAILURE=1 \
-                                  OMPI_ALLOW_RUN_AS_ROOT=1 \
-                                  OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1 \
-                                  OMPI_MCA_rmaps_base_oversubscribe=true \
-                                  PRTE_MCA_rmaps_default_mapping_policy=:oversubscribe \
-                                  make test
+RUN cd conduit/build-debug && env make test
 RUN cd conduit/build-debug && make install
 
 # open port 9000, for use by conduit relay
