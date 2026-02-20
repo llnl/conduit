@@ -55,7 +55,9 @@ jobs:
         submodules: 'recursive'
     - name: Build & Test
       run: |
-        env ENABLE_MPI=ON HDF5_DIR=/usr/ pip install -v . --upgrade pip
+        # we need pip 24 or newer
+        python3 -m pip install --upgrade pip
+        env ENABLE_MPI=ON HDF5_DIR=/usr/ pip install -v .
         rm -rf build
         python3 -c "import conduit;print(conduit.about());"
         python3 -c "import conduit.relay;print(conduit.relay.io.about())"
@@ -112,10 +114,12 @@ jobs:
         submodules: 'recursive'
     - name: Build & Test
       run: |
+        # we need pip 24 or newer
+        python3 -m pip install --upgrade pip
         echo 'set(ENABLE_MPI "ON" CACHE BOOL "")'  >  conduit-config.cmake
         echo 'set(HDF5_DIR "/usr/" CACHE PATH "")' >> conduit-config.cmake
         cat conduit-config.cmake
-        env HOST_CONFIG=`pwd`/conduit-config.cmake pip install -v . --upgrade pip
+        env HOST_CONFIG=`pwd`/conduit-config.cmake pip install -v .
         rm -rf build
         python3 -c "import conduit;print(conduit.about());"
         python3 -c "import conduit.relay;print(conduit.relay.io.about())"
