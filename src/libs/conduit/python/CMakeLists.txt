@@ -29,8 +29,8 @@ SET(conduit_py_python_sources  py_src/__init__.py
                                py_src/blueprint/mpi/mesh/examples/__init__.py)
 
 
-
 SET(conduit_py_headers         conduit_python.hpp
+                               conduit_python_common.h
                                ${CMAKE_CURRENT_BINARY_DIR}/conduit_python_exports.h)
 
 SET(conduit_py_cpp_sources     conduit_python.cpp)
