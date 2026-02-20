@@ -6,20 +6,7 @@
 //-----------------------------------------------------------------------------
 // -- Python includes (these must be included first) -- 
 //-----------------------------------------------------------------------------
-#include <Python.h>
-#include <structmember.h>
-#include "bytesobject.h"
-
-#if PY_MAJOR_VERSION >= 3
-#define IS_PY3K
-#endif
-
-// use  proper strdup
-#ifdef CONDUIT_PLATFORM_WINDOWS
-    #define _conduit_strdup _strdup
-#else
-    #define _conduit_strdup strdup
-#endif
+#include "conduit_python_common.h"
 
 //-----------------------------------------------------------------------------
 // -- standard lib includes -- 
@@ -37,7 +24,6 @@
 
 // conduit python module capi header
 #include "conduit_python.hpp"
-
 
 using namespace conduit;
 
@@ -973,67 +959,67 @@ static PyMethodDef blueprint_mesh_examples_python_funcs[] =
 {
     //-----------------------------------------------------------------------//
     {"generate",
-     (PyCFunction)PyBlueprint_mesh_examples_generate,
+      _PyCFunction_CAST(PyBlueprint_mesh_examples_generate),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_examples_generate_doc_str},
     //-----------------------------------------------------------------------//
     {"generate_default_options",
-     (PyCFunction)PyBlueprint_mesh_examples_generate_default_options,
+      _PyCFunction_CAST(PyBlueprint_mesh_examples_generate_default_options),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_examples_generate_default_options_doc_str},
     //-----------------------------------------------------------------------//
     {"basic",
-     (PyCFunction)PyBlueprint_mesh_examples_basic,
+      _PyCFunction_CAST(PyBlueprint_mesh_examples_basic),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_examples_basic_doc_str},
     //-----------------------------------------------------------------------//
     {"braid",
-     (PyCFunction)PyBlueprint_mesh_examples_braid,
+      _PyCFunction_CAST(PyBlueprint_mesh_examples_braid),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_examples_braid_doc_str},
     //-----------------------------------------------------------------------//
     {"julia",
-     (PyCFunction)PyBlueprint_mesh_examples_julia,
+      _PyCFunction_CAST(PyBlueprint_mesh_examples_julia),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_examples_julia_doc_str},
     //-----------------------------------------------------------------------//
     {"spiral",
-     (PyCFunction)PyBlueprint_mesh_examples_spiral,
+      _PyCFunction_CAST(PyBlueprint_mesh_examples_spiral),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_examples_spiral_doc_str},
     //-----------------------------------------------------------------------//
     {"julia_nestsets_simple",
-     (PyCFunction)PyBlueprint_mesh_examples_julia_nestsets_simple,
+      _PyCFunction_CAST(PyBlueprint_mesh_examples_julia_nestsets_simple),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_examples_julia_nestsets_simple_doc_str},
     //-----------------------------------------------------------------------//
     {"julia_nestsets_complex",
-     (PyCFunction)PyBlueprint_mesh_examples_julia_nestsets_complex,
+      _PyCFunction_CAST(PyBlueprint_mesh_examples_julia_nestsets_complex),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_examples_julia_nestsets_complex_doc_str},
     //-----------------------------------------------------------------------//
     {"venn",
-     (PyCFunction)PyBlueprint_mesh_examples_venn,
+      _PyCFunction_CAST(PyBlueprint_mesh_examples_venn),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_examples_venn_doc_str},
     //-----------------------------------------------------------------------//
     {"polytess",
-     (PyCFunction)PyBlueprint_mesh_examples_polytess,
+      _PyCFunction_CAST(PyBlueprint_mesh_examples_polytess),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_examples_polytess_doc_str},
     //-----------------------------------------------------------------------//
     {"polychain",
-     (PyCFunction)PyBlueprint_mesh_examples_polychain,
+      _PyCFunction_CAST(PyBlueprint_mesh_examples_polychain),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_examples_polychain_doc_str},
     //-----------------------------------------------------------------------//
     {"polystar",
-     (PyCFunction)PyBlueprint_mesh_examples_polystar,
+      _PyCFunction_CAST(PyBlueprint_mesh_examples_polystar),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_examples_polystar_doc_str},
     //-----------------------------------------------------------------------//
     {"strided_structured",
-     (PyCFunction)PyBlueprint_mesh_examples_strided_structured,
+      _PyCFunction_CAST(PyBlueprint_mesh_examples_strided_structured),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_examples_strided_structured_doc_str},
     //-----------------------------------------------------------------------//

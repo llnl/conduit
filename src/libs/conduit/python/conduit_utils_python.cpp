@@ -6,13 +6,7 @@
 //-----------------------------------------------------------------------------
 // -- Python includes (these must be included first) -- 
 //-----------------------------------------------------------------------------
-#include <Python.h>
-#include <structmember.h>
-#include "bytesobject.h"
-
-#if PY_MAJOR_VERSION >= 3
-#define IS_PY3K
-#endif
+#include "conduit_python_common.h"
 
 //-----------------------------------------------------------------------------
 // -- standard lib includes -- 
@@ -144,7 +138,7 @@ static PyMethodDef conduit_utils_python_funcs[] =
 {
     //-----------------------------------------------------------------------//
     {"format",
-     (PyCFunction)PyConduit_Utils_format,
+      _PyCFunction_CAST(PyConduit_Utils_format),
       METH_VARARGS | METH_KEYWORDS,
       PyConduit_utils_format_doc_str},
     //-----------------------------------------------------------------------//
