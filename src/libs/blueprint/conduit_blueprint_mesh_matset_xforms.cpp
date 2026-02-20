@@ -3998,53 +3998,42 @@ walk_matset_specset_by_material(const conduit::Node &specset,
             // need not be within the range [0, N-1).
             for (int mat_order_id = 0; mat_order_id < num_materials; mat_order_id ++)
             {
-                //
-                // NOTE: see note in previous case up above.
-                // 
-                // std::vector<index_t> local_element_ids; // element ids in this zone
-                // std::vector<float64> local_volume_fractions; // volume fractions in this zone
-                std::vector<float64> local_matset_values; // volume fractions in this zone
-
-                // we need to gather info from each value for the zones
-                auto fill_arrays = [&](const index_t mat_id,
-                                       const float64 vol_frac,
-                                       const float64 mset_val,
-                                       const int zone_id)
-                {
-                    (void) mat_id;
-                    (void) vol_frac;
-                    (void) zone_id;
-                    // local_element_ids.push_back(zone_id);
-                    // local_volume_fractions.push_back(vol_frac);
-                    local_matset_values.push_back(mset_val);
-                };
-
                 const std::string &matname = matnames[mat_order_id];
-                const int mat_id = material_map[matname].as_int();
+                const index_t mat_id = material_map[matname].to_index_t();
                 const index_t_accessor elem_ids_for_mat = matset["element_ids"][matname].value();
                 const float64_accessor vol_fracs_for_mat = matset["volume_fractions"][matname].value();
-                const float64_accessor mset_vals_for_mat = specset["matset_values"][matname].value();
                 const index_t num_elems_for_mat = elem_ids_for_mat.number_of_elements();
-                conduit::blueprint::mesh::matset::detail::walk_sbm_matset_specset_material_by_value(
-                    mat_id,
-                    elem_ids_for_mat,
-                    vol_fracs_for_mat,
-                    mset_vals_for_mat,
-                    num_elems_for_mat,
-                    fill_arrays);
+                
+                Node &species_for_mat = specset["matset_values"][matname];
+                const std::vector<std::string> &specnames_for_mat = species_for_mat.child_names();
+
+                for (index_t eid_id = 0; eid_id < num_elems_for_mat; eid_id ++)
+                {
+                    const index_t zone_id = elem_ids_for_mat[eid_id];
+                    const float64 vol_frac = vol_fracs_for_mat[eid_id];
+
+                    index_t spec_idx = 0;
+                    for (const auto &specname : specnames_for_mat)
+                    {
+                        const float64_accessor mass_fractions = species_for_mat[specname].value();
+                        const float64 mf_val = mass_fractions[eid_id];
+                        for_each_species_value(mat_id, mf_val, spec_idx);
+                        spec_idx ++;
+                    }
+
+                    for_each_value(mat_id, vol_frac, zone_id, eid_id);
+                }
 
                 for_each_material(// mat_id,
                                   matname,
-                                  // local_element_ids,
-                                  // local_volume_fractions,
-                                  local_matset_values);
+                                  num_elems_for_mat);
             }
         }
         // mat-dom uni-buffer - currently unsupported
         else
         {
-            CONDUIT_ERROR("blueprint::mesh::matset::walk_matset_by_material_value() "
-                          "material-dominant uni-buffer material set is unsupported.");
+            CONDUIT_ERROR("blueprint::mesh::specset::walk_matset_by_material_value() "
+                          "material-dominant uni-buffer material/species set is unsupported.");
         }
     }
 }
@@ -4423,6 +4412,33 @@ walk_matset_field_by_element(const conduit::Node &field,
     {
         CONDUIT_ERROR("Walking by element is only supported for element-dominant material sets.");
     }
+
+    /////
+
+    matset_accessor m_acc = matset_accessor(matset, field);
+    for (int zone_id = 0; zone_id < num_zones; zone_id ++)
+    {
+        index_t nmats_in_zone = 0;
+
+        for (int mat_order_id = 0; mat_order_id < nmats; mat_order_id ++)
+        {
+            const float64 vol_frac = m_acc.get_vol_frac(zone_id, mat_order_id);
+            if (vol_frac > epsilon)
+            {
+                const index_t mat_id = m_acc.get_mat_id(zone_id, mat_order_id);
+                const float64 mset_val = m_acc.get_mset_val(zone_id, mat_order_id);
+
+                for_each_value(mat_id, vol_frac, mset_val, zone_id, nmats_in_zone);
+                nmats_in_zone ++;
+            }
+        }
+
+        for_each_zone(zone_id, nmats_in_zone);
+    }
+
+    ////
+
+
 
     // full
     if (conduit::blueprint::mesh::matset::is_multi_buffer(matset))
