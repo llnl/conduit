@@ -118,6 +118,10 @@
 // Detect consteval, C++20 constexpr extensions and std::is_constant_evaluated.
 #ifdef FMT_USE_CONSTEVAL
 // Use the provided definition.
+// CHANGE FOR CONDUIT
+#elif FMT_GCC_VERSION < 1200
+// gcc 11 has issues with fmt usage of c++20 features
+#  define FMT_USE_CONSTEVAL 0
 #elif !defined(__cpp_lib_is_constant_evaluated)
 #  define FMT_USE_CONSTEVAL 0
 #elif FMT_CPLUSPLUS < 201709L
@@ -132,9 +136,7 @@
 #  define FMT_USE_CONSTEVAL 0  // consteval is broken in MSVC VS2019 < 16.10.
 #elif defined(__cpp_consteval)
 #  define FMT_USE_CONSTEVAL 1
-// CHANGE FOR CONDUIT
-// gcc 11 has issues with fmt usage of c++20 features
-#elif FMT_GCC_VERSION >= 1200 || FMT_CLANG_VERSION >= 1101
+#elif FMT_GCC_VERSION >= 1002 || FMT_CLANG_VERSION >= 1101
 #  define FMT_USE_CONSTEVAL 1
 #else
 #  define FMT_USE_CONSTEVAL 0
@@ -369,7 +371,9 @@ namespace detail {
 // (void)var does not work on many Intel compilers.
 template <typename... T> FMT_CONSTEXPR void ignore_unused(const T&...) {}
 
-constexpr auto is_constant_evaluated(bool default_value = false) noexcept
+// CHANGE FOR CONDUIT
+// (constexpr was used instead of FMT_CONSTEXPR and need FMT_ALWAYS_INLINE to avoid odr issue)
+FMT_ALWAYS_INLINE FMT_CONSTEXPR auto is_constant_evaluated(bool default_value = false) noexcept
     -> bool {
 // Workaround for incompatibility between clang 14 and libstdc++ consteval-based
 // std::is_constant_evaluated: https://github.com/fmtlib/fmt/issues/3247.
