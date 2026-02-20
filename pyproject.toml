@@ -1,3 +1,4 @@
+
 [build-system]
 requires = [
     "numpy",
@@ -5,54 +6,6 @@ requires = [
     "wheel",
     "pip",
     "cmake<=3.30.0",
+    "ninja",
 ]
 build-backend = "setuptools.build_meta"
-
-# [build-system]
-# requires = ["scikit-build-core", "setuptools", "numpy","pip"]
-# build-backend = "scikit_build_core.setuptools.build_meta"
-
-# [tool.scikit-build]
-# build-dir = "_buildwheel/{wheel_tag}"
-
-# [build-system]
-# requires = ["scikit-build-core>=0.8", "numpy", "setuptools", "wheel", "pip"]
-# build-backend = "scikit_build_core.build"
-#
-# [project]
-# name = "conduit"
-# version = "0.9.5"
-# description = "Simplified Data Exchange for HPC Simulations (Python, C++, C, and Fortran)"
-# authors = [
-#   { name = "Cyrus Harrison", email = "cyrush@llnl.gov" }
-# ]
-# maintainers = [
-#   { name = "Cyrus Harrison", email = "cyrush@llnl.gov" }
-# ]
-# requires-python = ">=3.8"
-# keywords = [
-#   "yaml", "json", "cpp", "fortran", "hpc",
-#   "hdf5", "scientific-computing",
-#   "data-management", "llnl", "radiuss"
-# ]
-#
-# [project.urls]
-# Documentation = "https://llnl-conduit.readthedocs.io/"
-# Source = "https://github.com/llnl/conduit"
-# Tracker = "https://github.com/LLNL/conduit/issues"
-
-# [tool.scikit-build]
-# build-dir = "_buildwheel/{wheel_tag}"
-# wheel.install-dir = "conduit/_install"
-#
-# [tool.scikit-build.cmake]
-# build-type = "Release"
-# source-dir = "src"
-#
-# [tool.scikit-build.cmake.define]
-# BUILD_SHARED_LIBS = "OFF"
-# ENABLE_PYTHON = "ON"
-# ENABLE_TESTS  = "OFF"
-# ENABLE_DOCS   = "OFF"
-# PYTHON_MODULE_INSTALL_PREFIX = { env = "SKBUILD_PLAT_DIR" }
-# CMAKE_INSTALL_PREFIX = { env = "SKBUILD_PLAT_DIR" }

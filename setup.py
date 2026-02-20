@@ -7,9 +7,10 @@
 # Optional Conduit features are enabled via env vars:
 #
 #  HDF5_DIR  {path to hdf5 install}
+#  ENABLE_MPI {enable mpi support}
+#  HOST_CONFIG {host config to pass to cmake}
 #
 # [Caveats]
-#  - Assumes a suitable cmake (3.9 + ) is in your path
 #  - Does not build a relocatable wheel
 #  - Windows untested
 #
@@ -35,6 +36,8 @@ import re
 import sys
 import platform
 import subprocess
+import glob
+import shutil
 
 from os.path import join as pjoin
 
@@ -42,6 +45,11 @@ from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 
 ##############################################################################
+# NOTE 2026/02/20
+# Moved to use pyproject.toml with build-backend = "setuptools.build_meta"
+# as well as ninja. This required extra logic to deal with duplicate
+# .dist-info generation.
+#
 # NOTE 2024/02/16
 # with distutils gone, there is no built-in equivalent to:
 # from distutils.version import LooseVersion
@@ -74,6 +82,12 @@ class CMakeBuild(build_ext):
         for ext in self.extensions:
             self.build_extension(ext)
 
+    def clean_distinfo(self,extdir):
+        fs = glob.glob(pjoin(extdir,"conduit-*.dist-info"))
+        for f in fs:
+            print("REMOVING {0}".format(f))
+            shutil.rmtree(f)
+
     def build_extension(self, ext):
         extdir =self.get_ext_fullpath(ext.name)
         extdir = os.path.abspath(os.path.dirname(extdir))
@@ -85,8 +99,10 @@ class CMakeBuild(build_ext):
         # required for auto-detection of auxiliary "native" libs
         if not extdir.endswith(os.path.sep):
             extdir += os.path.sep
-        cmake_args = ['-DPYTHON_MODULE_INSTALL_PREFIX=' + pjoin(extdir),
-                      '-DCMAKE_INSTALL_PREFIX=' + pjoin(ext.sourcedir,"_install"),
+
+        cmake_args = ['-G', 'Ninja',
+                      '-DPYTHON_MODULE_INSTALL_PREFIX=' + pjoin(extdir),
+                      '-DCMAKE_INSTALL_PREFIX=' + pjoin(extdir,"_install"),
                       '-DPYTHON_EXECUTABLE=' + sys.executable,
                       '-DENABLE_PYTHON:BOOL=ON',
                       '-DBUILD_SHARED_LIBS:BOOL=' + build_shared_libs,
@@ -113,7 +129,6 @@ class CMakeBuild(build_ext):
             build_args += ['--', '/m']
         else:
             cmake_args += ['-DCMAKE_BUILD_TYPE=' + cfg]
-            build_args += ['--', '-j2']
 
         env = os.environ.copy()
         env['CXXFLAGS'] = '{} -DVERSION_INFO=\\"{}\\"'.format(
@@ -130,6 +145,10 @@ class CMakeBuild(build_ext):
         subprocess.check_call(['cmake', '--build', '.', '--target','install'] + build_args,
                                cwd=self.build_temp,
                                env=env)
+        # pip is used to gen the python module install layout
+        # inside our cmake build system, dist-info from this process
+        # will conflict with a pip install, so clean this info
+        self.clean_distinfo(extdir)
 
 #
 # pass options via env vars
@@ -159,6 +178,5 @@ setup(
     },
     ext_modules=[CMakeExtension('conduit_cxx')],
     cmdclass=dict(build_ext=CMakeBuild),
-    zip_safe=False,
     python_requires='>=3.8')
 
