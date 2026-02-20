@@ -160,5 +160,5 @@ setup(
     ext_modules=[CMakeExtension('conduit_cxx')],
     cmdclass=dict(build_ext=CMakeBuild),
     zip_safe=False,
-    python_requires='>=3.6, <3.11')
+    python_requires='>=3.8')
 
