@@ -96,7 +96,9 @@
 // Detect C++14 relaxed constexpr.
 #ifdef FMT_USE_CONSTEXPR
 // Use the provided definition.
-#elif FMT_GCC_VERSION >= 702 && FMT_CPLUSPLUS >= 201402L
+// CHANGE FOR CONDUIT
+// gcc 11 has issues with fmt usage of c++20 features
+#elif FMT_GCC_VERSION >= 1200 && FMT_CPLUSPLUS >= 201402L
 // GCC only allows constexpr member functions in non-literal types since 7.2:
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66297.
 #  define FMT_USE_CONSTEXPR 1
@@ -131,7 +133,7 @@
 #elif defined(__cpp_consteval)
 #  define FMT_USE_CONSTEVAL 1
 // CHANGE FOR CONDUIT
-// gcc 11 has issues with fmt usage of consteval
+// gcc 11 has issues with fmt usage of c++20 features
 #elif FMT_GCC_VERSION >= 1200 || FMT_CLANG_VERSION >= 1101
 #  define FMT_USE_CONSTEVAL 1
 #else
