@@ -4,13 +4,12 @@
 
 //-----------------------------------------------------------------------------
 ///
-/// file: conduit_blueprint_o2mrelation_index.cpp
+/// file: conduit_blueprint_mesh_matset_accessor.cpp
 ///
 //-----------------------------------------------------------------------------
 #include <sstream>
 
-#include "conduit_blueprint_o2mrelation.hpp"
-#include "conduit_blueprint_o2mrelation_index.hpp"
+#include "conduit_blueprint_mesh_matset_accessor.hpp"
 
 #include "conduit_error.hpp"
 #include "conduit_utils.hpp"
@@ -28,182 +27,315 @@ namespace blueprint
 {
 
 //-----------------------------------------------------------------------------
-// -- begin conduit::blueprint::o2mrelation --
+// -- begin conduit::blueprint::mesh --
 //-----------------------------------------------------------------------------
-namespace o2mrelation
+namespace mesh
+{
+
+//-----------------------------------------------------------------------------
+// -- begin conduit::blueprint::mesh::matset --
+//-----------------------------------------------------------------------------
+namespace matset
 {
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-// O2MIndex
+// MatsetAccessor
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// O2MIndex Construction and Destruction
+// MatsetAccessor Construction and Destruction
 //-----------------------------------------------------------------------------
 
 //---------------------------------------------------------------------------//
-O2MIndex::O2MIndex()
+MatsetAccessor::MatsetAccessor()
 {
 // empty //
 }
 
 //---------------------------------------------------------------------------//
-O2MIndex::O2MIndex(const Node *node)
+MatsetAccessor::MatsetAccessor(const Node &matset)
 {
-    if (node->has_child("sizes"))
+    init(matset, nullptr, nullptr);
+}
+
+//---------------------------------------------------------------------------//
+MatsetAccessor::MatsetAccessor(const Node &matset,
+                               const Node &specset_or_field)
+{
+    if (specset_or_field.has_child("topology"))
     {
-        m_sizes_acc = (*node)["sizes"].as_index_t_accessor();
+        // then it is a field
+        Node &field = specset_or_field;
+        init(matset, &field, nullptr);
     }
-    if(node->has_child("indices"))
+    else
     {
-        m_indices_acc = (*node)["indices"].as_index_t_accessor();
-    }
-    if(node->has_child("offsets"))
-    {
-        m_offsets_acc = (*node)["offsets"].as_index_t_accessor();
+        // then it is a specset
+        Node &specset = specset_or_field;
+        init(matset, nullptr, &specset);
     }
 }
 
 //---------------------------------------------------------------------------//
-O2MIndex::O2MIndex(const Node &node)
-: O2MIndex(&node)
-{ }
-
-//---------------------------------------------------------------------------//
-O2MIndex::O2MIndex(const O2MIndex &itr)
-: m_sizes_acc(itr.m_sizes_acc),
-  m_indices_acc(itr.m_indices_acc),
-  m_offsets_acc(itr.m_offsets_acc)
-{ }
-
-//---------------------------------------------------------------------------//
-O2MIndex &
-O2MIndex::operator=(const O2MIndex &itr)
+MatsetAccessor::MatsetAccessor(const Node &matset,
+                               const Node &field,
+                               const Node &specset)
 {
-    if(this != &itr)
+    init(matset, &field, &specset);
+}
+
+//---------------------------------------------------------------------------//
+MatsetAccessor::MatsetAccessor(const MatsetAccessor &m_acc)
+: m_is_uni_buffer(m_acc.m_is_uni_buffer),
+  m_is_element_dominant(m_acc.m_is_element_dominant),
+  m_full_vol_fracs(m_acc.m_full_vol_fracs),
+  m_full_mset_vals(m_acc.m_full_mset_vals),
+  m_full_field_indirection_array(m_acc.m_full_field_indirection_array),
+  m_sbm_vol_fracs(m_acc.m_sbm_vol_fracs),
+  m_sbm_mset_vals(m_acc.m_sbm_mset_vals),
+  m_sbm_elem_ids(m_acc.m_sbm_elem_ids),
+  m_sbe_material_ids(m_acc.m_sbe_material_ids),
+  m_sbe_vol_fracs(m_acc.m_sbe_vol_fracs),
+  m_sbe_mset_vals(m_acc.m_sbe_mset_vals),
+  m_sbe_o2m_idx(m_acc.m_sbe_o2m_idx)
+{ }
+
+//---------------------------------------------------------------------------//
+MatsetAccessor &
+MatsetAccessor::operator=(const MatsetAccessor &m_acc)
+{
+    if(this != &m_acc)
     {
-        m_sizes_acc = itr.m_sizes_acc;
-        m_indices_acc = itr.m_indices_acc;
-        m_offsets_acc = itr.m_offsets_acc;
+        m_is_uni_buffer = m_acc.m_is_uni_buffer;
+        m_is_element_dominant = m_acc.m_is_element_dominant;
+        m_full_vol_fracs = m_acc.m_full_vol_fracs;
+        m_full_mset_vals = m_acc.m_full_mset_vals;
+        m_sbm_vol_fracs = m_acc.m_sbm_vol_fracs;
+        m_sbm_mset_vals = m_acc.m_sbm_mset_vals;
+        m_sbm_elem_ids = m_acc.m_sbm_elem_ids;
+        m_sbm_field_indirection_array = m_acc.m_sbm_field_indirection_array;
+        m_sbe_material_ids = m_acc.m_sbe_material_ids;
+        m_sbe_vol_fracs = m_acc.m_sbe_vol_fracs;
+        m_sbe_mset_vals = m_acc.m_sbe_mset_vals;
+        m_sbe_o2m_idx = m_acc.m_sbe_o2m_idx;
     }
     return *this;
 }
 
 //-----------------------------------------------------------------------------
-/// Human readable info about this iterator
-//-----------------------------------------------------------------------------
-
-//---------------------------------------------------------------------------//
 void
-copy_index_t_acc_to_node(const index_t_accessor& acc, Node& res, const char * label)
+MatsetAccessor::init(const Node &matset,
+                     const Node *field,
+                     const Node *specset)
 {
-    if (acc.number_of_elements() > 0)
+    const bool is_uni_buffer       = is_uni_buffer(matset);
+    const bool is_element_dominant = is_element_dominant(matset);
+
+    if (is_uni_buffer)
     {
-        index_t count = acc.number_of_elements();
-        res[label].set(DataType::index_t(count));
-        index_t* p_output = res[label].as_index_t_ptr();
-        for (index_t i = 0; i < count; ++i)
+        // uni-buffer by element (sparse by element)
+        if (is_element_dominant)
         {
-            p_output[i] = acc[i];
+            m_sbe_material_ids = matset["material_ids"].value();
+            m_sbe_vol_fracs = matset["volume_fractions"].value();
+            m_sbe_o2m_idx = o2mrelation::O2MIndex(matset);
+            if (nullptr != field)
+            {
+                m_sbe_mset_vals = field["matset_values"].value();
+            }
+
+            m_get_mat_id   = &MatsetAccessor::get_sbe_mat_id;
+            m_get_elem_id  = &MatsetAccessor::get_sbe_elem_id;
+            m_get_vol_frac = &MatsetAccessor::get_sbe_vol_frac;
+            m_get_mset_val = &MatsetAccessor::get_sbe_mset_val;
+        }
+        // uni-buffer by material (unsupported)
+        else
+        {
+            CONDUIT_ERROR("conduit::blueprint::mesh::matset::MatsetAccessor "
+                          "uni-buffer by material matset is currently unsupported.");
         }
     }
-}
-void
-O2MIndex::info(Node &res) const
-{
-    res.reset();
-
-    copy_index_t_acc_to_node(m_sizes_acc, res, "sizes");
-    copy_index_t_acc_to_node(m_indices_acc, res, "indices");
-    copy_index_t_acc_to_node(m_offsets_acc, res, "offsets");
-}
-
-//-----------------------------------------------------------------------------
-/// Get info on the "ones" of this index.
-//-----------------------------------------------------------------------------
-
-//---------------------------------------------------------------------------//
-index_t
-O2MIndex::index(index_t one_index, index_t many_index) const
-{
-    index_t index = 0;
-
-    index_t offset = one_index;
-    if(m_offsets_acc.number_of_elements() > 0)
+    else // multi-buffer case
     {
-        offset = m_offsets_acc[one_index];
-    }
+        const std::vector<std::string> &matnames = matset["volume_fractions"].child_names();
+        
+        Node material_map;
+        create_or_reuse_material_map(matset, material_map);
+        const index_t num_materials = static_cast<index_t>(matnames.size());
 
-    index = offset;
-    if(m_indices_acc.number_of_elements() > 0)
-    {
-        index = m_indices_acc[offset + many_index];
-    }
-    else
-    {
-        index += many_index;
-    }
-
-    return index;
-}
-
-
-//---------------------------------------------------------------------------//
-index_t
-O2MIndex::size(index_t one_index) const
-{
-    index_t nelements = 0;
-
-    if(one_index == -1)
-    {
-        if(m_offsets_acc.number_of_elements() > 0)
+        // multi-buffer material index map
+        // we save an indirection array from material order id (the order materials appear
+        // in the matset) to actual material id. Not all material sets are numbered from
+        // 0 to N-1, so we must support this case.
+        m_multi_mat_idx_map.set(DataType::index_t(num_materials));
+        m_multi_mat_idx_map_acc = m_multi_mat_idx_map.value();
+        for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
         {
-            nelements = m_offsets_acc.number_of_elements();
+            m_multi_mat_idx_map_acc[mat_idx] = material_map.child(mat_idx).to_index_t();
         }
-        else if (m_indices_acc.number_of_elements() > 0)
+
+        if (nullptr != field)
         {
-            nelements = m_indices_acc.number_of_elements();
-        }
-    }
-    else
-    {
-        if(m_sizes_acc.number_of_elements() > 0)
-        {
-            nelements = m_sizes_acc[one_index];
+            for (const auto &matname : matnames)
+            {
+                m_multi_vol_fracs.push_back(matset["volume_fractions"][matname].value());
+                m_multi_mset_vals.push_back(field["matset_values"][matname].value());
+            }
         }
         else
         {
-            nelements = 1;
+            for (const auto &matname : matnames)
+            {
+                m_multi_vol_fracs.push_back(matset["volume_fractions"][matname].value());
+            }
+        }
+
+        // multi-buffer by element (full)
+        if (is_element_dominant)
+        {
+            m_get_mat_id   = &MatsetAccessor::get_full_mat_id;
+            m_get_elem_id  = &MatsetAccessor::get_full_elem_id;
+            m_get_vol_frac = &MatsetAccessor::get_full_vol_frac;
+            m_get_mset_val = &MatsetAccessor::get_full_mset_val;
+        }
+        // multi-buffer by material (sparse by material)
+        else
+        {
+            for (const auto &matname : matnames)
+            {
+                m_sbm_elem_ids.push_back(matset["element_ids"][matname].value());
+            }
+
+            m_get_mat_id   = &MatsetAccessor::get_sbm_mat_id;
+            m_get_elem_id  = &MatsetAccessor::get_sbm_elem_id;
+            m_get_vol_frac = &MatsetAccessor::get_sbm_vol_frac;
+            m_get_mset_val = &MatsetAccessor::get_sbm_mset_val;
         }
     }
-
-    return nelements;
 }
 
-//---------------------------------------------------------------------------//
-index_t
-O2MIndex::offset(index_t one_index) const
+
+//-----------------------------------------------------------------------------
+//
+// -- getters for multi-buffer by element (full) matsets --
+//
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_full_mat_id(const index_t zone_idx, const index_t mat_idx) const
 {
-    index_t offset = one_index;
-    if (m_offsets_acc.number_of_elements() > 0)
-    {
-        offset = m_offsets_acc[one_index];
-    }
-    return offset;
+    return m_multi_mat_idx_map_acc[mat_idx];
+}
+
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_full_elem_id(const index_t zone_idx, const index_t mat_idx) const
+{
+    return zone_idx;
+}
+
+//-----------------------------------------------------------------------------
+float64 
+MatsetAccessor::get_full_vol_frac(const index_t zone_idx, const index_t mat_idx) const
+{
+    return m_multi_vol_fracs[mat_idx][zone_idx];
+}
+
+//-----------------------------------------------------------------------------
+float64 
+MatsetAccessor::get_full_mset_val(const index_t zone_idx, const index_t mat_idx) const
+{
+    return m_multi_mset_vals[mat_idx][zone_idx];
+}
+
+//-----------------------------------------------------------------------------
+//
+// -- getters for multi-buffer by material (sparse by material) matsets --
+//
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_sbm_mat_id(const index_t zone_idx, const index_t mat_idx) const
+{
+    return m_multi_mat_idx_map_acc[mat_idx];
+}
+
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_sbm_elem_id(const index_t zone_idx, const index_t mat_idx) const
+{
+    return m_sbm_elem_ids[mat_idx][zone_idx];
+}
+
+//-----------------------------------------------------------------------------
+float64 
+MatsetAccessor::get_sbm_vol_frac(const index_t zone_idx, const index_t mat_idx) const
+{
+    return m_multi_vol_fracs[mat_idx][zone_idx];
+}
+
+//-----------------------------------------------------------------------------
+float64 
+MatsetAccessor::get_sbm_mset_val(const index_t zone_idx, const index_t mat_idx) const
+{
+    return m_multi_mset_vals[mat_idx][zone_idx];
+}
+
+//-----------------------------------------------------------------------------
+//
+// -- getters for uni-buffer by element (sparse by element) matsets --
+//
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_sbe_mat_id(const index_t zone_idx, const index_t mat_idx) const
+{
+    const index_t data_index = o2m_idx.index(zone_id, mat_idx);
+    return m_sbe_material_ids[data_index];
+}
+
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_sbe_elem_id(const index_t zone_idx, const index_t mat_idx) const
+{
+    return zone_idx;
+}
+
+//-----------------------------------------------------------------------------
+float64 
+MatsetAccessor::get_sbe_vol_frac(const index_t zone_idx, const index_t mat_idx) const
+{
+    const index_t data_index = o2m_idx.index(zone_id, mat_idx);
+    return m_sbe_vol_fracs[data_index];
+}
+
+//-----------------------------------------------------------------------------
+float64 
+MatsetAccessor::get_sbe_mset_val(const index_t zone_idx, const index_t mat_idx) const
+{
+    const index_t data_index = o2m_idx.index(zone_id, mat_idx);
+    return m_sbe_mset_vals[data_index];
 }
 
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-// End O2MIndex
+// End MatsetAccessor
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 
 }
 //-----------------------------------------------------------------------------
-// -- end conduit::blueprint::o2mrelation --
+// -- end conduit::blueprint::mesh::matset --
+//-----------------------------------------------------------------------------
+
+
+}
+//-----------------------------------------------------------------------------
+// -- end conduit::blueprint::mesh --
 //-----------------------------------------------------------------------------
 
 
