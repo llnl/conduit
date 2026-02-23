@@ -409,8 +409,9 @@ Under ``src/examples/docker/ubuntu`` there is an example ``Dockerfile`` which ca
 
 Building Conduit with pip
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Conduit provides a setup.py that allows pip to use CMake to build and install
-Conduit and the Conduit Python module. This script assumes that CMake is in your path.
+Conduit provides a pyproject.toml paried with a setup.py that allows pip
+to use CMake to build and install Conduit and the Conduit Python module.
+This requires pip 24.0.0 or newer.
 
 Example Basic Build:
 
