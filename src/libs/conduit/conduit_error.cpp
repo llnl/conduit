@@ -51,6 +51,20 @@ Error::Error(const Error &err)
 }
 
 //---------------------------------------------------------------------------//
+Error &
+Error::operator=(const Error &err)
+{
+    if(this != &err)
+    {
+        m_msg  = err.m_msg;
+        m_file = err.m_file;
+        m_line = err.m_line;
+        m_what = err.m_what;
+    }
+    return *this;
+}
+
+//---------------------------------------------------------------------------//
 Error::Error(const std::string &msg,
              const std::string &file,
              index_t line)
