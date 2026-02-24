@@ -4415,26 +4415,26 @@ walk_matset_field_by_element(const conduit::Node &field,
 
     /////
 
-    matset_accessor m_acc = matset_accessor(matset, field);
-    for (int zone_id = 0; zone_id < num_zones; zone_id ++)
-    {
-        index_t nmats_in_zone = 0;
+    // matset_accessor m_acc = matset_accessor(matset, field);
+    // for (int zone_id = 0; zone_id < num_zones; zone_id ++)
+    // {
+    //     index_t nmats_in_zone = 0;
 
-        for (int mat_order_id = 0; mat_order_id < nmats; mat_order_id ++)
-        {
-            const float64 vol_frac = m_acc.get_vol_frac(zone_id, mat_order_id);
-            if (vol_frac > epsilon)
-            {
-                const index_t mat_id = m_acc.get_mat_id(zone_id, mat_order_id);
-                const float64 mset_val = m_acc.get_mset_val(zone_id, mat_order_id);
+    //     for (int mat_order_id = 0; mat_order_id < nmats; mat_order_id ++)
+    //     {
+    //         const float64 vol_frac = m_acc.get_vol_frac(zone_id, mat_order_id);
+    //         if (vol_frac > epsilon)
+    //         {
+    //             const index_t mat_id = m_acc.get_mat_id(zone_id, mat_order_id);
+    //             const float64 mset_val = m_acc.get_mset_val(zone_id, mat_order_id);
 
-                for_each_value(mat_id, vol_frac, mset_val, zone_id, nmats_in_zone);
-                nmats_in_zone ++;
-            }
-        }
+    //             for_each_value(mat_id, vol_frac, mset_val, zone_id, nmats_in_zone);
+    //             nmats_in_zone ++;
+    //         }
+    //     }
 
-        for_each_zone(zone_id, nmats_in_zone);
-    }
+    //     for_each_zone(zone_id, nmats_in_zone);
+    // }
 
     ////
 

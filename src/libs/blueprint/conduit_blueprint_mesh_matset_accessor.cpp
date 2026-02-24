@@ -13,6 +13,7 @@
 
 #include "conduit_error.hpp"
 #include "conduit_utils.hpp"
+#include "conduit_blueprint_mesh.hpp"
 
 //-----------------------------------------------------------------------------
 // -- begin conduit:: --
@@ -85,13 +86,13 @@ MatsetAccessor::MatsetAccessor(const Node &matset,
     if (specset_or_field.has_child("topology"))
     {
         // then it is a field
-        Node &field = specset_or_field;
+        const Node &field = specset_or_field;
         init(matset, &field, nullptr);
     }
     else
     {
         // then it is a specset
-        Node &specset = specset_or_field;
+        const Node &specset = specset_or_field;
         init(matset, nullptr, &specset);
     }
 }
@@ -160,8 +161,11 @@ MatsetAccessor::init(const Node &matset,
                      const Node *field,
                      const Node *specset)
 {
-    const bool is_uni_buffer       = is_uni_buffer(matset);
-    const bool is_element_dominant = is_element_dominant(matset);
+    // TODO
+    (void) specset;
+
+    const bool is_uni_buffer       = blueprint::mesh::matset::is_uni_buffer(matset);
+    const bool is_element_dominant = blueprint::mesh::matset::is_element_dominant(matset);
 
     if (is_uni_buffer)
     {
@@ -173,7 +177,7 @@ MatsetAccessor::init(const Node &matset,
             m_sbe_o2m_idx = o2mrelation::O2MIndex(matset);
             if (nullptr != field)
             {
-                m_sbe_mset_vals = field["matset_values"].value();
+                m_sbe_mset_vals = (*field)["matset_values"].value();
             }
 
             m_get_mat_id   = &MatsetAccessor::get_sbe_mat_id;
@@ -208,7 +212,7 @@ MatsetAccessor::init(const Node &matset,
         m_multi_mat_idx_map_acc = m_multi_mat_idx_map.value();
         for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
         {
-            m_multi_mat_idx_map_acc[mat_idx] = material_map.child(mat_idx).to_index_t();
+            m_multi_mat_idx_map_acc.set(mat_idx, material_map.child(mat_idx).to_index_t());
         }
 
         if (nullptr != field)
@@ -216,7 +220,7 @@ MatsetAccessor::init(const Node &matset,
             for (const auto &matname : matnames)
             {
                 m_multi_vol_fracs.push_back(matset["volume_fractions"][matname].value());
-                m_multi_mset_vals.push_back(field["matset_values"][matname].value());
+                m_multi_mset_vals.push_back((*field)["matset_values"][matname].value());
             }
         }
         else

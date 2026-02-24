@@ -16,6 +16,11 @@
 //-----------------------------------------------------------------------------
 #include "conduit.hpp"
 #include "conduit_blueprint_exports.h"
+#include "conduit_blueprint_o2mrelation_index.hpp"
+
+using namespace conduit;
+// access one-to-many index types
+namespace o2mrelation = conduit::blueprint::o2mrelation;
 
 
 //-----------------------------------------------------------------------------
