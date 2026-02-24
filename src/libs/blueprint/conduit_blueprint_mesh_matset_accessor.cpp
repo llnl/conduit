@@ -53,7 +53,9 @@ MatsetAccessor::MatsetAccessor()
  : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
    m_get_elem_id(&MatsetAccessor::get_error_elem_id),
    m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
-   m_get_mset_val(&MatsetAccessor::get_error_mset_val)
+   m_get_mset_val(&MatsetAccessor::get_error_mset_val),
+   m_get_nmats_for_zone(&MatsetAccessor::get_error_nmats_for_zone),
+   m_get_nzones_for_mat(&MatsetAccessor::get_error_nzones_for_mat)
 {
 // empty //
 }
@@ -63,7 +65,9 @@ MatsetAccessor::MatsetAccessor(const Node &matset)
  : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
    m_get_elem_id(&MatsetAccessor::get_error_elem_id),
    m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
-   m_get_mset_val(&MatsetAccessor::get_error_mset_val)
+   m_get_mset_val(&MatsetAccessor::get_error_mset_val),
+   m_get_nmats_for_zone(&MatsetAccessor::get_error_nmats_for_zone),
+   m_get_nzones_for_mat(&MatsetAccessor::get_error_nzones_for_mat)
 {
     init(matset, nullptr, nullptr);
 }
@@ -74,7 +78,9 @@ MatsetAccessor::MatsetAccessor(const Node &matset,
  : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
    m_get_elem_id(&MatsetAccessor::get_error_elem_id),
    m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
-   m_get_mset_val(&MatsetAccessor::get_error_mset_val)
+   m_get_mset_val(&MatsetAccessor::get_error_mset_val),
+   m_get_nmats_for_zone(&MatsetAccessor::get_error_nmats_for_zone),
+   m_get_nzones_for_mat(&MatsetAccessor::get_error_nzones_for_mat)
 {
     if (specset_or_field.has_child("topology"))
     {
@@ -97,20 +103,25 @@ MatsetAccessor::MatsetAccessor(const Node &matset,
  : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
    m_get_elem_id(&MatsetAccessor::get_error_elem_id),
    m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
-   m_get_mset_val(&MatsetAccessor::get_error_mset_val)
+   m_get_mset_val(&MatsetAccessor::get_error_mset_val),
+   m_get_nmats_for_zone(&MatsetAccessor::get_error_nmats_for_zone),
+   m_get_nzones_for_mat(&MatsetAccessor::get_error_nzones_for_mat)
 {
     init(matset, &field, &specset);
 }
 
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor(const MatsetAccessor &m_acc)
-: m_is_uni_buffer(m_acc.m_is_uni_buffer),
-  m_is_element_dominant(m_acc.m_is_element_dominant),
-  m_full_vol_fracs(m_acc.m_full_vol_fracs),
-  m_full_mset_vals(m_acc.m_full_mset_vals),
-  m_full_field_indirection_array(m_acc.m_full_field_indirection_array),
-  m_sbm_vol_fracs(m_acc.m_sbm_vol_fracs),
-  m_sbm_mset_vals(m_acc.m_sbm_mset_vals),
+: m_get_mat_id(m_acc.m_get_mat_id),
+  m_get_elem_id(m_acc.m_get_elem_id),
+  m_get_vol_frac(m_acc.m_get_vol_frac),
+  m_get_mset_val(m_acc.m_get_mset_val),
+  m_get_nmats_for_zone(m_acc.m_get_nmats_for_zone),
+  m_get_nzones_for_mat(m_acc.m_get_nzones_for_mat),
+  m_multi_vol_fracs(m_acc.m_multi_vol_fracs),
+  m_multi_mset_vals(m_acc.m_multi_mset_vals),
+  m_multi_mat_idx_map(m_acc.m_multi_mat_idx_map),
+  m_multi_mat_idx_map_acc(m_acc.m_multi_mat_idx_map_acc),
   m_sbm_elem_ids(m_acc.m_sbm_elem_ids),
   m_sbe_material_ids(m_acc.m_sbe_material_ids),
   m_sbe_vol_fracs(m_acc.m_sbe_vol_fracs),
@@ -122,16 +133,19 @@ MatsetAccessor::MatsetAccessor(const MatsetAccessor &m_acc)
 MatsetAccessor &
 MatsetAccessor::operator=(const MatsetAccessor &m_acc)
 {
-    if(this != &m_acc)
+    if (this != &m_acc)
     {
-        m_is_uni_buffer = m_acc.m_is_uni_buffer;
-        m_is_element_dominant = m_acc.m_is_element_dominant;
-        m_full_vol_fracs = m_acc.m_full_vol_fracs;
-        m_full_mset_vals = m_acc.m_full_mset_vals;
-        m_sbm_vol_fracs = m_acc.m_sbm_vol_fracs;
-        m_sbm_mset_vals = m_acc.m_sbm_mset_vals;
+        m_get_mat_id = m_acc.m_get_mat_id;
+        m_get_elem_id = m_acc.m_get_elem_id;
+        m_get_vol_frac = m_acc.m_get_vol_frac;
+        m_get_mset_val = m_acc.m_get_mset_val;
+        m_get_nmats_for_zone = m_acc.m_get_nmats_for_zone;
+        m_get_nzones_for_mat = m_acc.m_get_nzones_for_mat;
+        m_multi_vol_fracs = m_acc.m_multi_vol_fracs;
+        m_multi_mset_vals = m_acc.m_multi_mset_vals;
+        m_multi_mat_idx_map = m_acc.m_multi_mat_idx_map;
+        m_multi_mat_idx_map_acc = m_acc.m_multi_mat_idx_map_acc;
         m_sbm_elem_ids = m_acc.m_sbm_elem_ids;
-        m_sbm_field_indirection_array = m_acc.m_sbm_field_indirection_array;
         m_sbe_material_ids = m_acc.m_sbe_material_ids;
         m_sbe_vol_fracs = m_acc.m_sbe_vol_fracs;
         m_sbe_mset_vals = m_acc.m_sbe_mset_vals;
@@ -169,6 +183,7 @@ MatsetAccessor::init(const Node &matset,
             {
                 m_get_mset_val = &MatsetAccessor::get_sbe_mset_val;
             }
+            m_get_nmats_for_zone = &MatsetAccessor::get_sbe_nmats_for_zone;
         }
         // uni-buffer by material (unsupported)
         else
@@ -238,10 +253,10 @@ MatsetAccessor::init(const Node &matset,
             {
                 m_get_mset_val = &MatsetAccessor::get_sbm_mset_val;
             }
+            m_get_nzones_for_mat = &MatsetAccessor::get_sbm_nzones_for_mat;
         }
     }
 }
-
 
 //-----------------------------------------------------------------------------
 //
@@ -252,6 +267,7 @@ MatsetAccessor::init(const Node &matset,
 index_t 
 MatsetAccessor::get_full_mat_id(const index_t zone_idx, const index_t mat_idx) const
 {
+    (void) zone_idx;
     return m_multi_mat_idx_map_acc[mat_idx];
 }
 
@@ -259,6 +275,7 @@ MatsetAccessor::get_full_mat_id(const index_t zone_idx, const index_t mat_idx) c
 index_t 
 MatsetAccessor::get_full_elem_id(const index_t zone_idx, const index_t mat_idx) const
 {
+    (void) mat_idx;
     return zone_idx;
 }
 
@@ -285,6 +302,7 @@ MatsetAccessor::get_full_mset_val(const index_t zone_idx, const index_t mat_idx)
 index_t 
 MatsetAccessor::get_sbm_mat_id(const index_t zone_idx, const index_t mat_idx) const
 {
+    (void) zone_idx;
     return m_multi_mat_idx_map_acc[mat_idx];
 }
 
@@ -310,6 +328,13 @@ MatsetAccessor::get_sbm_mset_val(const index_t zone_idx, const index_t mat_idx) 
 }
 
 //-----------------------------------------------------------------------------
+index_t
+MatsetAccessor::get_sbm_nzones_for_mat(const index_t mat_idx) const
+{
+    return m_sbm_elem_ids[mat_idx].number_of_elements();
+}
+
+//-----------------------------------------------------------------------------
 //
 // -- getters for uni-buffer by element (sparse by element) matsets --
 //
@@ -318,7 +343,7 @@ MatsetAccessor::get_sbm_mset_val(const index_t zone_idx, const index_t mat_idx) 
 index_t 
 MatsetAccessor::get_sbe_mat_id(const index_t zone_idx, const index_t mat_idx) const
 {
-    const index_t data_index = o2m_idx.index(zone_id, mat_idx);
+    const index_t data_index = m_sbe_o2m_idx.index(zone_idx, mat_idx);
     return m_sbe_material_ids[data_index];
 }
 
@@ -326,6 +351,7 @@ MatsetAccessor::get_sbe_mat_id(const index_t zone_idx, const index_t mat_idx) co
 index_t 
 MatsetAccessor::get_sbe_elem_id(const index_t zone_idx, const index_t mat_idx) const
 {
+    (void) mat_idx;
     return zone_idx;
 }
 
@@ -333,7 +359,7 @@ MatsetAccessor::get_sbe_elem_id(const index_t zone_idx, const index_t mat_idx) c
 float64 
 MatsetAccessor::get_sbe_vol_frac(const index_t zone_idx, const index_t mat_idx) const
 {
-    const index_t data_index = o2m_idx.index(zone_id, mat_idx);
+    const index_t data_index = m_sbe_o2m_idx.index(zone_idx, mat_idx);
     return m_sbe_vol_fracs[data_index];
 }
 
@@ -341,8 +367,15 @@ MatsetAccessor::get_sbe_vol_frac(const index_t zone_idx, const index_t mat_idx) 
 float64 
 MatsetAccessor::get_sbe_mset_val(const index_t zone_idx, const index_t mat_idx) const
 {
-    const index_t data_index = o2m_idx.index(zone_id, mat_idx);
+    const index_t data_index = m_sbe_o2m_idx.index(zone_idx, mat_idx);
     return m_sbe_mset_vals[data_index];
+}
+
+//-----------------------------------------------------------------------------
+index_t
+MatsetAccessor::get_sbe_nmats_for_zone(const index_t zone_idx) const
+{
+    return m_sbe_o2m_idx.size(zone_idx);
 }
 
 //-----------------------------------------------------------------------------
@@ -354,6 +387,8 @@ MatsetAccessor::get_sbe_mset_val(const index_t zone_idx, const index_t mat_idx) 
 index_t 
 MatsetAccessor::get_error_mat_id(const index_t zone_idx, const index_t mat_idx) const
 {
+    (void) zone_idx;
+    (void) mat_idx;
     CONDUIT_ERROR("Impossible to fetch mat_id from material set.");
     return 0;
 }
@@ -362,6 +397,8 @@ MatsetAccessor::get_error_mat_id(const index_t zone_idx, const index_t mat_idx) 
 index_t 
 MatsetAccessor::get_error_elem_id(const index_t zone_idx, const index_t mat_idx) const
 {
+    (void) zone_idx;
+    (void) mat_idx;
     CONDUIT_ERROR("Impossible to fetch elem_id from material set.");
     return 0;
 }
@@ -370,6 +407,8 @@ MatsetAccessor::get_error_elem_id(const index_t zone_idx, const index_t mat_idx)
 float64 
 MatsetAccessor::get_error_vol_frac(const index_t zone_idx, const index_t mat_idx) const
 {
+    (void) zone_idx;
+    (void) mat_idx;
     CONDUIT_ERROR("Impossible to fetch vol_frac from material set.");
     return 0.0;
 }
@@ -378,8 +417,30 @@ MatsetAccessor::get_error_vol_frac(const index_t zone_idx, const index_t mat_idx
 float64 
 MatsetAccessor::get_error_mset_val(const index_t zone_idx, const index_t mat_idx) const
 {
+    (void) zone_idx;
+    (void) mat_idx;
     CONDUIT_ERROR("Impossible to fetch mset_val from field.");
     return 0.0;
+}
+
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_error_nmats_for_zone(const index_t zone_idx) const
+{
+    (void) zone_idx;
+    CONDUIT_ERROR("Impossible to fetch number of materials for zone from "
+                  "non-sparse by element material set.");
+    return 0;
+}
+
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_error_nzones_for_mat(const index_t mat_idx) const
+{
+    (void) mat_idx;
+    CONDUIT_ERROR("Impossible to fetch number of zones for a material from "
+                  "non-sparse by material material set.");
+    return 0;
 }
 
 

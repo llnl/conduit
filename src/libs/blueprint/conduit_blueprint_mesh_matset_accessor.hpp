@@ -64,10 +64,12 @@ public:
 //-----------------------------------------------------------------------------
 /// MatsetAccessor Function pointer types
 //-----------------------------------------------------------------------------
-using GetMatIdPtr   = index_t (MatsetAccessor::*)(index_t, index_t) const;
-using GetElemIdPtr  = index_t (MatsetAccessor::*)(index_t, index_t) const;
-using GetVolFracPtr = double  (MatsetAccessor::*)(index_t, index_t) const;
-using GetMsetValPtr = double  (MatsetAccessor::*)(index_t, index_t) const;
+using GetMatIdPtr        = index_t (MatsetAccessor::*)(index_t, index_t) const;
+using GetElemIdPtr       = index_t (MatsetAccessor::*)(index_t, index_t) const;
+using GetVolFracPtr      = double  (MatsetAccessor::*)(index_t, index_t) const;
+using GetMsetValPtr      = double  (MatsetAccessor::*)(index_t, index_t) const;
+using GetNMatsForZonePtr = index_t (MatsetAccessor::*)(index_t) const;
+using GetNZonesForMatPtr = index_t (MatsetAccessor::*)(index_t) const;
 
 //-----------------------------------------------------------------------------
 /// MatsetAccessor Construction and Destruction
@@ -97,12 +99,18 @@ using GetMsetValPtr = double  (MatsetAccessor::*)(index_t, index_t) const;
 /// Get information about the sizes
 //-----------------------------------------------------------------------------
     // use this for elem-dom sparse matsets
-    index_t     num_mats_for_zone(const index_t zone_idx) const;
-    // TODO implement me
+    inline
+    index_t     num_mats_for_zone(const index_t zone_idx) const
+    {
+        return (this->*m_get_nmats_for_zone)(zone_idx);
+    }
 
     // use this for mat-dom sparse matsets
-    index_t     num_zones_for_mat(const index_t mat_idx) const;
-    // TODO implement me
+    inline
+    index_t     num_zones_for_mat(const index_t mat_idx) const
+    {
+        return (this->*m_get_nzones_for_mat)(mat_idx);
+    }
 
 //-----------------------------------------------------------------------------
 /// Retrieve data
@@ -168,12 +176,14 @@ private:
     index_t get_sbm_elem_id(const index_t zone_idx, const index_t mat_idx) const;
     float64 get_sbm_vol_frac(const index_t zone_idx, const index_t mat_idx) const;
     float64 get_sbm_mset_val(const index_t zone_idx, const index_t mat_idx) const;
+    index_t get_sbm_nzones_for_mat(const index_t mat_idx) const;
 
     // uni-buffer by element (sparse by element)
     index_t get_sbe_mat_id(const index_t zone_idx, const index_t mat_idx) const;
     index_t get_sbe_elem_id(const index_t zone_idx, const index_t mat_idx) const;
     float64 get_sbe_vol_frac(const index_t zone_idx, const index_t mat_idx) const;
     float64 get_sbe_mset_val(const index_t zone_idx, const index_t mat_idx) const;
+    index_t get_sbe_nmats_for_zone(const index_t zone_idx) const;
 
     // uni-buffer by material
     // not implemented; error in constructor
@@ -186,6 +196,8 @@ private:
     index_t get_error_elem_id(const index_t zone_idx, const index_t mat_idx) const;
     float64 get_error_vol_frac(const index_t zone_idx, const index_t mat_idx) const;
     float64 get_error_mset_val(const index_t zone_idx, const index_t mat_idx) const;
+    index_t get_error_nmats_for_zone(const index_t zone_idx) const;
+    index_t get_error_nzones_for_mat(const index_t mat_idx) const;
 
 //-----------------------------------------------------------------------------
 //
@@ -193,10 +205,12 @@ private:
 //
 //-----------------------------------------------------------------------------
 
-    GetMatIdPtr   m_get_mat_id;
-    GetElemIdPtr  m_get_elem_id;
-    GetVolFracPtr m_get_vol_frac;
-    GetMsetValPtr m_get_mset_val;
+    GetMatIdPtr        m_get_mat_id;
+    GetElemIdPtr       m_get_elem_id;
+    GetVolFracPtr      m_get_vol_frac;
+    GetMsetValPtr      m_get_mset_val;
+    GetNMatsForZonePtr m_get_nmats_for_zone;
+    GetNZonesForMatPtr m_get_nzones_for_mat;
 
     // multi-buffer (full AND sparse by material) members
     std::vector<float64_accessor> m_multi_vol_fracs;
