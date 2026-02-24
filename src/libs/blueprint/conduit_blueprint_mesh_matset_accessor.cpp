@@ -50,12 +50,20 @@ namespace matset
 
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor()
+ : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
+   m_get_elem_id(&MatsetAccessor::get_error_elem_id),
+   m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
+   m_get_mset_val(&MatsetAccessor::get_error_mset_val)
 {
 // empty //
 }
 
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor(const Node &matset)
+ : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
+   m_get_elem_id(&MatsetAccessor::get_error_elem_id),
+   m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
+   m_get_mset_val(&MatsetAccessor::get_error_mset_val)
 {
     init(matset, nullptr, nullptr);
 }
@@ -63,6 +71,10 @@ MatsetAccessor::MatsetAccessor(const Node &matset)
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor(const Node &matset,
                                const Node &specset_or_field)
+ : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
+   m_get_elem_id(&MatsetAccessor::get_error_elem_id),
+   m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
+   m_get_mset_val(&MatsetAccessor::get_error_mset_val)
 {
     if (specset_or_field.has_child("topology"))
     {
@@ -82,6 +94,10 @@ MatsetAccessor::MatsetAccessor(const Node &matset,
 MatsetAccessor::MatsetAccessor(const Node &matset,
                                const Node &field,
                                const Node &specset)
+ : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
+   m_get_elem_id(&MatsetAccessor::get_error_elem_id),
+   m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
+   m_get_mset_val(&MatsetAccessor::get_error_mset_val)
 {
     init(matset, &field, &specset);
 }
@@ -149,7 +165,10 @@ MatsetAccessor::init(const Node &matset,
             m_get_mat_id   = &MatsetAccessor::get_sbe_mat_id;
             m_get_elem_id  = &MatsetAccessor::get_sbe_elem_id;
             m_get_vol_frac = &MatsetAccessor::get_sbe_vol_frac;
-            m_get_mset_val = &MatsetAccessor::get_sbe_mset_val;
+            if (nullptr != field)
+            {
+                m_get_mset_val = &MatsetAccessor::get_sbe_mset_val;
+            }
         }
         // uni-buffer by material (unsupported)
         else
@@ -199,7 +218,10 @@ MatsetAccessor::init(const Node &matset,
             m_get_mat_id   = &MatsetAccessor::get_full_mat_id;
             m_get_elem_id  = &MatsetAccessor::get_full_elem_id;
             m_get_vol_frac = &MatsetAccessor::get_full_vol_frac;
-            m_get_mset_val = &MatsetAccessor::get_full_mset_val;
+            if (nullptr != field)
+            {
+                m_get_mset_val = &MatsetAccessor::get_full_mset_val;
+            }
         }
         // multi-buffer by material (sparse by material)
         else
@@ -212,7 +234,10 @@ MatsetAccessor::init(const Node &matset,
             m_get_mat_id   = &MatsetAccessor::get_sbm_mat_id;
             m_get_elem_id  = &MatsetAccessor::get_sbm_elem_id;
             m_get_vol_frac = &MatsetAccessor::get_sbm_vol_frac;
-            m_get_mset_val = &MatsetAccessor::get_sbm_mset_val;
+            if (nullptr != field)
+            {
+                m_get_mset_val = &MatsetAccessor::get_sbm_mset_val;
+            }
         }
     }
 }
@@ -318,6 +343,43 @@ MatsetAccessor::get_sbe_mset_val(const index_t zone_idx, const index_t mat_idx) 
 {
     const index_t data_index = o2m_idx.index(zone_id, mat_idx);
     return m_sbe_mset_vals[data_index];
+}
+
+//-----------------------------------------------------------------------------
+//
+// -- getters for the error case --
+//
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_error_mat_id(const index_t zone_idx, const index_t mat_idx) const
+{
+    CONDUIT_ERROR("Impossible to fetch mat_id from material set.");
+    return 0;
+}
+
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_error_elem_id(const index_t zone_idx, const index_t mat_idx) const
+{
+    CONDUIT_ERROR("Impossible to fetch elem_id from material set.");
+    return 0;
+}
+
+//-----------------------------------------------------------------------------
+float64 
+MatsetAccessor::get_error_vol_frac(const index_t zone_idx, const index_t mat_idx) const
+{
+    CONDUIT_ERROR("Impossible to fetch vol_frac from material set.");
+    return 0.0;
+}
+
+//-----------------------------------------------------------------------------
+float64 
+MatsetAccessor::get_error_mset_val(const index_t zone_idx, const index_t mat_idx) const
+{
+    CONDUIT_ERROR("Impossible to fetch mset_val from field.");
+    return 0.0;
 }
 
 

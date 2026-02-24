@@ -178,10 +178,14 @@ private:
     // uni-buffer by material
     // not implemented; error in constructor
 
-    // TODO make guard rails, make a set of these that just throw errors. Then
-    // if the accessor is used improperly it will throw a helpful error instead
-    // of just a segfault. You can only have the field and specset access
-    // methods get turned on if a field or a specset is provided.
+    // The following methods are guard rails; they just throw errors. If the 
+    // accessor is used improperly users will get a helpful error instead
+    // of just a segfault. The field and specset access methods will only be
+    // turned on if a field or a specset is provided.
+    index_t get_error_mat_id(const index_t zone_idx, const index_t mat_idx) const;
+    index_t get_error_elem_id(const index_t zone_idx, const index_t mat_idx) const;
+    float64 get_error_vol_frac(const index_t zone_idx, const index_t mat_idx) const;
+    float64 get_error_mset_val(const index_t zone_idx, const index_t mat_idx) const;
 
 //-----------------------------------------------------------------------------
 //
@@ -189,10 +193,10 @@ private:
 //
 //-----------------------------------------------------------------------------
 
-    GetMatIdPtr   m_get_mat_id{nullptr};
-    GetElemIdPtr  m_get_elem_id{nullptr};
-    GetVolFracPtr m_get_vol_frac{nullptr};
-    GetMsetValPtr m_get_mset_val{nullptr};
+    GetMatIdPtr   m_get_mat_id;
+    GetElemIdPtr  m_get_elem_id;
+    GetVolFracPtr m_get_vol_frac;
+    GetMsetValPtr m_get_mset_val;
 
     // multi-buffer (full AND sparse by material) members
     std::vector<float64_accessor> m_multi_vol_fracs;
