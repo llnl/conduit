@@ -636,7 +636,7 @@ to_silo(const conduit::Node &matset,
             };
 
             conduit::blueprint::mesh::field::walk_matset_field_by_element(
-                field, matset, material_map, num_zones,
+                field, matset, num_zones,
                 for_each_value, for_each_zone, epsilon);
         }
         else // material dominant
@@ -666,7 +666,7 @@ to_silo(const conduit::Node &matset,
             };
 
             conduit::blueprint::mesh::field::walk_matset_field_by_material_value(
-                field, matset, material_map, for_each_value, epsilon);
+                field, matset, for_each_value, epsilon);
 
             Node n;
             for (int zone_id = 0; zone_id < num_zones; zone_id ++)
@@ -823,7 +823,7 @@ to_silo(const conduit::Node &matset,
                     zone_id, matlist, mix_vf, mix_mat, mix_next, current_position);
             };
 
-            walk_matset_by_element(matset, material_map, num_zones, for_each_value, for_each_zone, epsilon);
+            walk_matset_by_element(matset, num_zones, for_each_value, for_each_zone, epsilon);
         }
         else // material_dominant
         {
@@ -847,7 +847,7 @@ to_silo(const conduit::Node &matset,
                 vol_fracs[zone_id].push_back(vol_frac);
             };
 
-            walk_matset_by_material_value(matset, material_map, for_each_value, epsilon);
+            walk_matset_by_material_value(matset, for_each_value, epsilon);
 
             Node n;
             for (int zone_id = 0; zone_id < num_zones; zone_id ++)
@@ -1380,7 +1380,7 @@ multi_buffer_by_element_to_uni_buffer_by_element_matset(const conduit::Node &src
         offset += nmats;
     };
 
-    walk_matset_by_element(src_matset, material_map, for_each_value, for_each_zone, epsilon);
+    walk_matset_by_element(src_matset, for_each_value, for_each_zone, epsilon);
 
     dest_matset["volume_fractions"].set(vol_fracs);
     dest_matset["material_ids"].set(mat_ids);
@@ -2038,7 +2038,7 @@ multi_buffer_by_material_to_multi_buffer_by_element_matset(const conduit::Node &
         mat_id_to_data[mat_id][zone_id] = vol_frac;
     };
 
-    walk_matset_by_material_value(src_matset, material_map, for_each_value);
+    walk_matset_by_material_value(src_matset, for_each_value);
 }
 
 //-----------------------------------------------------------------------------
@@ -2087,7 +2087,7 @@ multi_buffer_by_material_to_multi_buffer_by_element_field(const conduit::Node &s
     };
 
     conduit::blueprint::mesh::field::walk_matset_field_by_material_value(
-        src_field, src_matset, material_map, for_each_value);
+        src_field, src_matset, for_each_value);
 }
 
 //-----------------------------------------------------------------------------
@@ -2169,7 +2169,7 @@ multi_buffer_by_material_to_uni_buffer_by_element_matset(const conduit::Node &sr
         intermediate_vol_fracs[zone_id].push_back(vol_frac);
     };
 
-    walk_matset_by_material_value(src_matset, material_map, for_each_value);
+    walk_matset_by_material_value(src_matset, for_each_value);
 
     std::vector<float64> vol_fracs;
     std::vector<int64> mat_ids;
@@ -2340,42 +2340,14 @@ walk_matset_by_element_value(const conduit::Node &matset,
                              ForEachValue &&for_each_value,
                              const float64 epsilon)
 {
-    Node material_map;
-    create_or_reuse_material_map(matset, material_map);
     const int num_zones = count_zones_from_matset(matset);
-    walk_matset_by_element_value(matset, material_map, num_zones, for_each_value, epsilon);
+    walk_matset_by_element_value(matset, num_zones, for_each_value, epsilon);
 }
 
 //-----------------------------------------------------------------------------
 template <class ForEachValue>
 void
 walk_matset_by_element_value(const conduit::Node &matset,
-                             const int num_zones,
-                             ForEachValue &&for_each_value,
-                             const float64 epsilon)
-{
-    Node material_map;
-    create_or_reuse_material_map(matset, material_map);
-    walk_matset_by_element_value(matset, material_map, num_zones, for_each_value, epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue>
-void
-walk_matset_by_element_value(const conduit::Node &matset,
-                             const conduit::Node &material_map,
-                             ForEachValue &&for_each_value,
-                             const float64 epsilon)
-{
-    const int num_zones = count_zones_from_matset(matset);
-    walk_matset_by_element_value(matset, material_map, num_zones, for_each_value, epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue>
-void
-walk_matset_by_element_value(const conduit::Node &matset,
-                             const conduit::Node &material_map,
                              const int num_zones,
                              ForEachValue &&for_each_value,
                              const float64 epsilon)
@@ -2387,7 +2359,6 @@ walk_matset_by_element_value(const conduit::Node &matset,
         (void) nmats;
     };
     walk_matset_by_element(matset,
-                           material_map,
                            num_zones,
                            for_each_value,
                            for_each_zone,
@@ -2402,37 +2373,8 @@ walk_matset_by_element(const conduit::Node &matset,
                        ForEachZone &&for_each_zone,
                        const float64 epsilon)
 {
-    Node material_map;
-    create_or_reuse_material_map(matset, material_map);
     const int num_zones = count_zones_from_matset(matset);
-    walk_matset_by_element(matset, material_map, num_zones, for_each_value, for_each_zone, epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue, class ForEachZone>
-void
-walk_matset_by_element(const conduit::Node &matset,
-                       const int num_zones,
-                       ForEachValue &&for_each_value,
-                       ForEachZone &&for_each_zone,
-                       const float64 epsilon)
-{
-    Node material_map;
-    create_or_reuse_material_map(matset, material_map);
-    walk_matset_by_element(matset, material_map, num_zones, for_each_value, for_each_zone, epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue, class ForEachZone>
-void
-walk_matset_by_element(const conduit::Node &matset,
-                       const conduit::Node &material_map,
-                       ForEachValue &&for_each_value,
-                       ForEachZone &&for_each_zone,
-                       const float64 epsilon)
-{
-    const int num_zones = count_zones_from_matset(matset);
-    walk_matset_by_element(matset, material_map, num_zones, for_each_value, for_each_zone, epsilon);
+    walk_matset_by_element(matset, num_zones, for_each_value, for_each_zone, epsilon);
 }
 
 //-----------------------------------------------------------------------------
@@ -2440,7 +2382,6 @@ walk_matset_by_element(const conduit::Node &matset,
 template <class ForEachValue, class ForEachZone>
 void
 walk_matset_by_element(const conduit::Node &matset,
-                       const conduit::Node &material_map,
                        const int num_zones,
                        ForEachValue &&for_each_value,
                        ForEachZone &&for_each_zone,
@@ -2504,11 +2445,8 @@ walk_matset_by_material_value(const conduit::Node &matset,
                               ForEachValue &&for_each_value,
                               const float64 epsilon)
 {
-    Node material_map;
-    create_or_reuse_material_map(matset, material_map);
     const int num_materials = count_materials_from_matset(matset);
     walk_matset_by_material_value(matset,
-                                  material_map,
                                   num_materials,
                                   for_each_value,
                                   epsilon);
@@ -2518,40 +2456,6 @@ walk_matset_by_material_value(const conduit::Node &matset,
 template <class ForEachValue>
 void
 walk_matset_by_material_value(const conduit::Node &matset,
-                              const int num_materials,
-                              ForEachValue &&for_each_value,
-                              const float64 epsilon)
-{
-    Node material_map;
-    create_or_reuse_material_map(matset, material_map);
-    walk_matset_by_material_value(matset,
-                                  material_map,
-                                  num_materials,
-                                  for_each_value,
-                                  epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue>
-void
-walk_matset_by_material_value(const conduit::Node &matset,
-                              const conduit::Node &material_map,
-                              ForEachValue &&for_each_value,
-                              const float64 epsilon)
-{
-    const int num_materials = count_materials_from_matset(matset);
-    walk_matset_by_material_value(matset,
-                                  material_map,
-                                  num_materials,
-                                  for_each_value,
-                                  epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue>
-void
-walk_matset_by_material_value(const conduit::Node &matset,
-                              const conduit::Node &material_map,
                               const int num_materials,
                               ForEachValue &&for_each_value,
                               const float64 epsilon)
@@ -2563,7 +2467,6 @@ walk_matset_by_material_value(const conduit::Node &matset,
         (void) num_elems_for_mat;
     };
     walk_matset_by_material(matset,
-                            material_map,
                             num_materials,
                             for_each_value,
                             for_each_material,
@@ -2578,44 +2481,14 @@ walk_matset_by_material(const conduit::Node &matset,
                         ForEachMaterial &&for_each_material,
                         const float64 epsilon)
 {
-    Node material_map;
-    create_or_reuse_material_map(matset, material_map);
     const int num_materials = count_materials_from_matset(matset);
-    walk_matset_by_material(matset, material_map, num_materials, for_each_value, for_each_material, epsilon);
+    walk_matset_by_material(matset, num_materials, for_each_value, for_each_material, epsilon);
 }
 
 //-----------------------------------------------------------------------------
 template <class ForEachValue, class ForEachMaterial>
 void
 walk_matset_by_material(const conduit::Node &matset,
-                        const int num_materials,
-                        ForEachValue &&for_each_value,
-                        ForEachMaterial &&for_each_material,
-                        const float64 epsilon)
-{
-    Node material_map;
-    create_or_reuse_material_map(matset, material_map);
-    walk_matset_by_material(matset, material_map, num_materials, for_each_value, for_each_material, epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue, class ForEachMaterial>
-void
-walk_matset_by_material(const conduit::Node &matset,
-                        const conduit::Node &material_map,
-                        ForEachValue &&for_each_value,
-                        ForEachMaterial &&for_each_material,
-                        const float64 epsilon)
-{
-    const int num_materials = count_materials_from_matset(matset);
-    walk_matset_by_material(matset, material_map, num_materials, for_each_value, for_each_material, epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue, class ForEachMaterial>
-void
-walk_matset_by_material(const conduit::Node &matset,
-                        const conduit::Node &material_map,
                         const int num_materials,
                         ForEachValue &&for_each_value,
                         ForEachMaterial &&for_each_material,
@@ -4247,10 +4120,8 @@ walk_matset_field_by_element_value(const conduit::Node &field,
                                    ForEachValue &&for_each_value,
                                    const float64 epsilon)
 {
-    Node material_map;
-    conduit::blueprint::mesh::matset::create_or_reuse_material_map(matset, material_map);
     const int num_zones = conduit::blueprint::mesh::matset::count_zones_from_matset(matset);
-    walk_matset_field_by_element_value(field, matset, material_map, num_zones, for_each_value, epsilon);
+    walk_matset_field_by_element_value(field, matset, num_zones, for_each_value, epsilon);
 }
 
 //-----------------------------------------------------------------------------
@@ -4258,34 +4129,6 @@ template <class ForEachValue>
 void
 walk_matset_field_by_element_value(const conduit::Node &field,
                                    const conduit::Node &matset,
-                                   const int num_zones,
-                                   ForEachValue &&for_each_value,
-                                   const float64 epsilon)
-{
-    Node material_map;
-    conduit::blueprint::mesh::matset::create_or_reuse_material_map(matset, material_map);
-    walk_matset_field_by_element_value(field, matset, material_map, num_zones, for_each_value, epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue>
-void
-walk_matset_field_by_element_value(const conduit::Node &field,
-                                   const conduit::Node &matset,
-                                   const conduit::Node &material_map,
-                                   ForEachValue &&for_each_value,
-                                   const float64 epsilon)
-{
-    const int num_zones = conduit::blueprint::mesh::matset::count_zones_from_matset(matset);
-    walk_matset_field_by_element_value(field, matset, material_map, num_zones, for_each_value, epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue>
-void
-walk_matset_field_by_element_value(const conduit::Node &field,
-                                   const conduit::Node &matset,
-                                   const conduit::Node &material_map,
                                    const int num_zones,
                                    ForEachValue &&for_each_value,
                                    const float64 epsilon)
@@ -4298,7 +4141,6 @@ walk_matset_field_by_element_value(const conduit::Node &field,
     };
     walk_matset_field_by_element(field,
                                  matset,
-                                 material_map,
                                  num_zones,
                                  for_each_value,
                                  for_each_zone,
@@ -4310,49 +4152,6 @@ template <class ForEachValue, class ForEachZone>
 void
 walk_matset_field_by_element(const conduit::Node &field,
                              const conduit::Node &matset,
-                             ForEachValue &&for_each_value,
-                             ForEachZone &&for_each_zone,
-                             const float64 epsilon)
-{
-    Node material_map;
-    conduit::blueprint::mesh::matset::create_or_reuse_material_map(matset, material_map);
-    const int num_zones = conduit::blueprint::mesh::matset::count_zones_from_matset(matset);
-    walk_matset_field_by_element(field,
-                                 matset,
-                                 material_map,
-                                 num_zones,
-                                 for_each_value,
-                                 for_each_zone,
-                                 epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue, class ForEachZone>
-void
-walk_matset_field_by_element(const conduit::Node &field,
-                             const conduit::Node &matset,
-                             const int num_zones,
-                             ForEachValue &&for_each_value,
-                             ForEachZone &&for_each_zone,
-                             const float64 epsilon)
-{
-    Node material_map;
-    conduit::blueprint::mesh::matset::create_or_reuse_material_map(matset, material_map);
-    walk_matset_field_by_element(field,
-                                 matset,
-                                 material_map,
-                                 num_zones,
-                                 for_each_value,
-                                 for_each_zone,
-                                 epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue, class ForEachZone>
-void
-walk_matset_field_by_element(const conduit::Node &field,
-                             const conduit::Node &matset,
-                             const conduit::Node &material_map,
                              ForEachValue &&for_each_value,
                              ForEachZone &&for_each_zone,
                              const float64 epsilon)
@@ -4360,7 +4159,6 @@ walk_matset_field_by_element(const conduit::Node &field,
     const int num_zones = conduit::blueprint::mesh::matset::count_zones_from_matset(matset);
     walk_matset_field_by_element(field,
                                  matset,
-                                 material_map,
                                  num_zones,
                                  for_each_value,
                                  for_each_zone,
@@ -4372,8 +4170,6 @@ template <class ForEachValue, class ForEachZone>
 void
 walk_matset_field_by_element(const conduit::Node &field,
                              const conduit::Node &matset,
-                             // TODO we don't need matmap anymore?
-                             const conduit::Node &material_map,
                              const int num_zones,
                              ForEachValue &&for_each_value,
                              ForEachZone &&for_each_zone,
@@ -4447,10 +4243,8 @@ walk_matset_field_by_material_value(const conduit::Node &field,
                                     ForEachValue &&for_each_value,
                                     const float64 epsilon)
 {
-    Node material_map;
-    conduit::blueprint::mesh::matset::create_or_reuse_material_map(matset, material_map);
     const int num_materials = conduit::blueprint::mesh::matset::count_materials_from_matset(matset);
-    walk_matset_field_by_material_value(field, matset, material_map, num_materials, for_each_value, epsilon);
+    walk_matset_field_by_material_value(field, matset, num_materials, for_each_value, epsilon);
 }
 
 //-----------------------------------------------------------------------------
@@ -4458,34 +4252,6 @@ template <class ForEachValue>
 void
 walk_matset_field_by_material_value(const conduit::Node &field,
                                     const conduit::Node &matset,
-                                    const int num_materials,
-                                    ForEachValue &&for_each_value,
-                                    const float64 epsilon)
-{
-    Node material_map;
-    conduit::blueprint::mesh::matset::create_or_reuse_material_map(matset, material_map);
-    walk_matset_field_by_material_value(field, matset, material_map, num_materials, for_each_value, epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue>
-void
-walk_matset_field_by_material_value(const conduit::Node &field,
-                                    const conduit::Node &matset,
-                                    const conduit::Node &material_map,
-                                    ForEachValue &&for_each_value,
-                                    const float64 epsilon)
-{
-    const int num_materials = conduit::blueprint::mesh::matset::count_materials_from_matset(matset);
-    walk_matset_field_by_material_value(field, matset, material_map, num_materials, for_each_value, epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue>
-void
-walk_matset_field_by_material_value(const conduit::Node &field,
-                                    const conduit::Node &matset,
-                                    const conduit::Node &material_map,
                                     const int num_materials,
                                     ForEachValue &&for_each_value,
                                     const float64 epsilon)
@@ -4498,7 +4264,6 @@ walk_matset_field_by_material_value(const conduit::Node &field,
     };
     walk_matset_field_by_material(field,
                                   matset,
-                                  material_map,
                                   num_materials,
                                   for_each_value,
                                   for_each_material,
@@ -4510,49 +4275,6 @@ template <class ForEachValue, class ForEachMaterial>
 void
 walk_matset_field_by_material(const conduit::Node &field,
                               const conduit::Node &matset,
-                              ForEachValue &&for_each_value,
-                              ForEachMaterial &&for_each_material,
-                              const float64 epsilon)
-{
-    Node material_map;
-    conduit::blueprint::mesh::matset::create_or_reuse_material_map(matset, material_map);
-    const int num_materials = conduit::blueprint::mesh::matset::count_materials_from_matset(matset);
-    walk_matset_field_by_material(field,
-                                  matset,
-                                  material_map,
-                                  num_materials,
-                                  for_each_value,
-                                  for_each_material,
-                                  epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue, class ForEachMaterial>
-void
-walk_matset_field_by_material(const conduit::Node &field,
-                              const conduit::Node &matset,
-                              const int num_materials,
-                              ForEachValue &&for_each_value,
-                              ForEachMaterial &&for_each_material,
-                              const float64 epsilon)
-{
-    Node material_map;
-    conduit::blueprint::mesh::matset::create_or_reuse_material_map(matset, material_map);
-    walk_matset_field_by_material(field,
-                                  matset,
-                                  material_map,
-                                  num_materials,
-                                  for_each_value,
-                                  for_each_material,
-                                  epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue, class ForEachMaterial>
-void
-walk_matset_field_by_material(const conduit::Node &field,
-                              const conduit::Node &matset,
-                              const conduit::Node &material_map,
                               ForEachValue &&for_each_value,
                               ForEachMaterial &&for_each_material,
                               const float64 epsilon)
@@ -4560,7 +4282,6 @@ walk_matset_field_by_material(const conduit::Node &field,
     const int num_materials = conduit::blueprint::mesh::matset::count_materials_from_matset(matset);
     walk_matset_field_by_material(field,
                                   matset,
-                                  material_map,
                                   num_materials,
                                   for_each_value,
                                   for_each_material,
@@ -4572,7 +4293,6 @@ template <class ForEachValue, class ForEachMaterial>
 void
 walk_matset_field_by_material(const conduit::Node &field,
                               const conduit::Node &matset,
-                              const conduit::Node &material_map,
                               const int num_materials,
                               ForEachValue &&for_each_value,
                               ForEachMaterial &&for_each_material,
