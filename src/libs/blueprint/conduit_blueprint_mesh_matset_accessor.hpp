@@ -121,15 +121,15 @@ using GetNZonesForMatPtr = index_t (MatsetAccessor::*)(index_t) const;
 /// Retrieve data
 //-----------------------------------------------------------------------------
     inline
-    index_t     get_material_id(const index_t zone_idx,
-                                const index_t mat_idx) const
+    index_t     get_mat_id(const index_t zone_idx,
+                           const index_t mat_idx) const
     {
         return (this->*m_get_mat_id)(zone_idx, mat_idx);
     }
 
     inline
-    index_t     get_element_id(const index_t zone_idx,
-                               const index_t mat_idx) const
+    index_t     get_elem_id(const index_t zone_idx,
+                            const index_t mat_idx) const
     {
         return (this->*m_get_elem_id)(zone_idx, mat_idx);
     }
