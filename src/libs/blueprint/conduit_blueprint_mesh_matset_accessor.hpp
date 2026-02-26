@@ -73,8 +73,10 @@ using GetMatIdPtr        = index_t (MatsetAccessor::*)(index_t, index_t) const;
 using GetElemIdPtr       = index_t (MatsetAccessor::*)(index_t, index_t) const;
 using GetVolFracPtr      = double  (MatsetAccessor::*)(index_t, index_t) const;
 using GetMsetValPtr      = double  (MatsetAccessor::*)(index_t, index_t) const;
+using GetMassFracPtr     = double  (MatsetAccessor::*)(index_t, index_t, index_t) const;
 using GetNMatsForZonePtr = index_t (MatsetAccessor::*)(index_t) const;
 using GetNZonesForMatPtr = index_t (MatsetAccessor::*)(index_t) const;
+using GetNMatSpecPtr     = index_t (MatsetAccessor::*)(index_t) const;
 
 //-----------------------------------------------------------------------------
 /// MatsetAccessor Construction and Destruction
@@ -117,6 +119,12 @@ using GetNZonesForMatPtr = index_t (MatsetAccessor::*)(index_t) const;
         return (this->*m_get_nzones_for_mat)(mat_idx);
     }
 
+    inline
+    index_t     num_spec_for_mat(const index_t mat_idx) const
+    {
+        return (this->*m_get_nspec_for_mat)(mat_idx);
+    }
+
 //-----------------------------------------------------------------------------
 /// Retrieve data
 //-----------------------------------------------------------------------------
@@ -148,6 +156,14 @@ using GetNZonesForMatPtr = index_t (MatsetAccessor::*)(index_t) const;
         return (this->*m_get_mset_val)(zone_idx, mat_idx);
     }
 
+    inline
+    float64     get_mass_frac(const index_t zone_idx,
+                              const index_t mat_idx,
+                              const index_t spec_idx) const
+    {
+        return (this->*m_get_mass_frac)(zone_idx, mat_idx, spec_idx);
+    }
+
 private:
 
 //-----------------------------------------------------------------------------
@@ -175,20 +191,32 @@ private:
     index_t get_full_elem_id(const index_t zone_idx, const index_t mat_idx) const;
     float64 get_full_vol_frac(const index_t zone_idx, const index_t mat_idx) const;
     float64 get_full_mset_val(const index_t zone_idx, const index_t mat_idx) const;
+    float64 get_full_mass_frac(const index_t zone_idx,
+                               const index_t mat_idx,
+                               const index_t spec_idx) const;
+    index_t get_full_nspec_for_mat(const index_t mat_idx) const;
 
     // multi-buffer by material (sparse by material)
     index_t get_sbm_mat_id(const index_t zone_idx, const index_t mat_idx) const;
     index_t get_sbm_elem_id(const index_t zone_idx, const index_t mat_idx) const;
     float64 get_sbm_vol_frac(const index_t zone_idx, const index_t mat_idx) const;
     float64 get_sbm_mset_val(const index_t zone_idx, const index_t mat_idx) const;
+    float64 get_sbm_mass_frac(const index_t zone_idx,
+                              const index_t mat_idx,
+                              const index_t spec_idx) const;
     index_t get_sbm_nzones_for_mat(const index_t mat_idx) const;
+    index_t get_sbm_nspec_for_mat(const index_t mat_idx) const;
 
     // uni-buffer by element (sparse by element)
     index_t get_sbe_mat_id(const index_t zone_idx, const index_t mat_idx) const;
     index_t get_sbe_elem_id(const index_t zone_idx, const index_t mat_idx) const;
     float64 get_sbe_vol_frac(const index_t zone_idx, const index_t mat_idx) const;
     float64 get_sbe_mset_val(const index_t zone_idx, const index_t mat_idx) const;
+    float64 get_sbe_mass_frac(const index_t zone_idx,
+                              const index_t mat_idx,
+                              const index_t spec_idx) const;
     index_t get_sbe_nmats_for_zone(const index_t zone_idx) const;
+    index_t get_sbe_nspec_for_mat(const index_t mat_idx) const;
 
     // uni-buffer by material
     // not implemented; error in constructor
@@ -201,8 +229,12 @@ private:
     index_t get_error_elem_id(const index_t zone_idx, const index_t mat_idx) const;
     float64 get_error_vol_frac(const index_t zone_idx, const index_t mat_idx) const;
     float64 get_error_mset_val(const index_t zone_idx, const index_t mat_idx) const;
+    float64 get_error_mass_frac(const index_t zone_idx, 
+                                const index_t mat_idx,
+                                const index_t spec_idx) const;
     index_t get_error_nmats_for_zone(const index_t zone_idx) const;
     index_t get_error_nzones_for_mat(const index_t mat_idx) const;
+    index_t get_error_nspec_for_mat(const index_t mat_idx) const;
 
 //-----------------------------------------------------------------------------
 //
@@ -214,15 +246,22 @@ private:
     GetElemIdPtr       m_get_elem_id;
     GetVolFracPtr      m_get_vol_frac;
     GetMsetValPtr      m_get_mset_val;
+    GetMassFracPtr     m_get_mass_frac;
     GetNMatsForZonePtr m_get_nmats_for_zone;
     GetNZonesForMatPtr m_get_nzones_for_mat;
+    GetNMatSpecPtr     m_get_nspec_for_mat;
+
+    // universal members
+    Node m_nmatspec;
+    index_t_accessor m_nmatspec_acc;
 
     // multi-buffer (full AND sparse by material) members
     std::vector<float64_accessor> m_multi_vol_fracs;
     std::vector<float64_accessor> m_multi_mset_vals;
     Node m_multi_mat_idx_map; // multi-buffer material index map
     index_t_accessor m_multi_mat_idx_map_acc;
-    // TODO specsets
+    std::vector<float64_accessor> m_multi_mass_fracs;
+    index_t_accessor m_multi_nmatspec_offsets_acc;
     
     // multi-buffer material dominant (sparse by material) members
     std::vector<index_t_accessor> m_sbm_elem_ids;
@@ -232,7 +271,8 @@ private:
     float64_accessor m_sbe_vol_fracs;
     float64_accessor m_sbe_mset_vals;
     o2mrelation::O2MIndex m_sbe_o2m_idx;
-    // TODO specsets
+    float64_accessor m_sbe_mass_fracs;
+    o2mrelation::O2MIndex m_sbe_specset_o2m_idx;
 
     // uni-buffer material-dominant (???) members
     // not implemented; error case in constructor
