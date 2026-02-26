@@ -302,7 +302,6 @@ void to_polytopal(const Node &n,
                   const std::string& name,
                   MPI_Comm comm)
 {
-
     const std::vector<const conduit::Node *> doms = ::conduit::blueprint::mesh::domains(n);
 
     // make sure all topos match
@@ -390,6 +389,29 @@ void to_polytopal(const Node &n,
     {
         CONDUIT_ERROR("to_polytopal only supports structured toplogies");
     }
+
+    /* Test this combine code*/ 
+#if 1
+    std::vector<Node*> domains =
+        conduit::blueprint::mesh::domains(dest);
+    std::vector<const Node*> mesh_ptrs;
+    mesh_ptrs.reserve(domains.size());
+    for(Node *dom : domains)
+    {
+        mesh_ptrs.push_back(dom);
+    }
+    std::vector<index_t> chunk_ids(mesh_ptrs.size());
+    for(index_t i = 0; i < static_cast<index_t>(mesh_ptrs.size()); ++i)
+    {
+        chunk_ids[i] = i;
+    }
+    Node output_mesh; 
+    
+    conduit::blueprint::mesh::Partitioner partitioner;
+    
+    partitioner.combine(0, mesh_ptrs, chunk_ids, output_mesh);
+    dest.move(output_mesh);
+#endif
 }
 
 //-------------------------------------------------------------------------
@@ -753,7 +775,7 @@ void to_polygonal(const Node &n,
                                     }
                                 }
                                 // Add placeholder data at the back
-				// of the buffers
+                                // of the buffers
                                 if (part_hi)
                                 {
                                     xbuffer.insert(xbuffer.end(), part_hi, dbl_max);
@@ -845,8 +867,8 @@ void to_polygonal(const Node &n,
                                 }
 
                                 // If neighbor is local, fill the buffers
-				// directly from the arrays on the neighbor
-				// domain.
+                                // directly from the arrays on the neighbor
+                                // domain.
                                 else
                                 {
                                     const Node& nbr_dom = n[nbr_name];
@@ -882,8 +904,8 @@ void to_polygonal(const Node &n,
                                     const double dbl_max =
                                         std::numeric_limits<double>::max();
 
-				    // Add the placeholder values for
-				    // partial_lo case.
+                                    // Add the placeholder values for
+                                    // partial_lo case.
                                     if (part_lo)
                                     {
                                         if (nbr_size_i > 1)
@@ -916,8 +938,8 @@ void to_polygonal(const Node &n,
                                         }
                                     }
 
-				    // Fill the buffers with vertex data
-				    // values.
+                                    // Fill the buffers with vertex data
+                                    // values.
                                     for (index_t jidx = jstart; jidx < jend; ++jidx)
                                     {
                                         index_t joffset = jidx*nbr_iwidth;
@@ -948,8 +970,8 @@ void to_polygonal(const Node &n,
                                         }
                                     }
 
-				    // Add the placeholder values for the
-				    // partial_hi case.
+                                    // Add the placeholder values for the
+                                    // partial_hi case.
                                     if (part_hi)
                                     {
                                         xbuffer.insert(xbuffer.end(), part_hi, dbl_max);
@@ -963,11 +985,11 @@ void to_polygonal(const Node &n,
                                 }
                             }
 
-			    // Stage 2:  Create the polygonal elements
+                            // Stage 2:  Create the polygonal elements
                             else if (si == 2 && ref_size < nbr_size)
                             {
                                 // Create the elements along the boundary
-				// as quads before they get extra vertex data
+                                // as quads before they get extra vertex data
                                 bputils::connectivity::create_elements_2d(ref_win,
                                                                           i_lo,
                                                                           j_lo,
@@ -1050,11 +1072,11 @@ void to_polygonal(const Node &n,
                                     ref_win.has_child("partial_hi") ?
                                     ref_win["partial_hi"].to_index_t() : 0;
 
-				// Handle cases with differing axis
-				// orientations between the neighboring
-				// domains, for meshes with block rotations.
-				// flip is set to indicate that the buffers
-				// should be traversed in reverse order.
+                                // Handle cases with differing axis
+                                // orientations between the neighboring
+                                // domains, for meshes with block rotations.
+                                // flip is set to indicate that the buffers
+                                // should be traversed in reverse order.
                                 bool flip = false;
                                 if (group.has_child("orientation"))
                                 {
@@ -1127,9 +1149,9 @@ void to_polygonal(const Node &n,
                                     (*vnode.second)["values"].set(vfld);
                                 }
 
-			        // Connect the elements by adding the fine
-				// vertices at the coarse-fine boundaries to
-				// the coarse polygonal lelements.
+                                // Connect the elements by adding the fine
+                                // vertices at the coarse-fine boundaries to
+                                // the coarse polygonal lelements.
                                 bputils::connectivity::connect_elements_2d(ref_win,
                                                                            i_lo,
                                                                            j_lo,
@@ -1144,7 +1166,7 @@ void to_polygonal(const Node &n,
                 }
             }
 
-	    // Finalize the polygonal mesh 
+            // Finalize the polygonal mesh 
             if (si == 2)
             {
                 dest_dom["state"].set(dom["state"]);
@@ -1166,14 +1188,14 @@ void to_polygonal(const Node &n,
                     if (elem_itr == poly_elems.end())
                     {
                         // Add regular quad elements away from the
-			// coarse-fine boundaries.
+                        // coarse-fine boundaries.
                         bputils::connectivity::make_element_2d(connect, elem, iwidth);
                         num_vertices.push_back(4);
                     }
                     else
                     {
                         // Add the polygonal elements that have been
-			// created for the coarse-fine boundaries.
+                        // created for the coarse-fine boundaries.
                         std::vector<index_t>& poly_elem = elem_itr->second;
                         connect.insert(connect.end(), poly_elem.begin(), poly_elem.end());
                         num_vertices.push_back(poly_elem.size());
