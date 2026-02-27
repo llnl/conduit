@@ -961,17 +961,6 @@ namespace field
                                        const float64 epsilon = CONDUIT_EPSILON);
 
     //-------------------------------------------------------------------------
-    template <class ForEachValue, class ForEachZone>
-    void CONDUIT_BLUEPRINT_API walk_matset_field_by_element(const MatsetAccessor &m_acc,
-                                                            ForEachValue &&for_each_value,
-                                                            ForEachZone &&for_each_zone,
-                                                            const float64 epsilon = CONDUIT_EPSILON);
-    //-----------------------------------------------------------------------------
-    template <class ForEachValue>
-    void CONDUIT_BLUEPRINT_API walk_matset_field_by_element_value(const MatsetAccessor &m_acc,
-                                                                  ForEachValue &&for_each_value,
-                                                                  const float64 epsilon = CONDUIT_EPSILON);
-    //-------------------------------------------------------------------------
     template <class ForEachValue, class ForEachMaterial>
     void CONDUIT_BLUEPRINT_API walk_matset_field_by_material(const conduit::Node &field,
                                                              const conduit::Node &matset,
