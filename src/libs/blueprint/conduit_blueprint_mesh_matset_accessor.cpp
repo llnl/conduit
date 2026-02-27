@@ -129,6 +129,8 @@ MatsetAccessor::MatsetAccessor(const MatsetAccessor &m_acc)
   m_get_nmats_for_zone(m_acc.m_get_nmats_for_zone),
   m_get_nzones_for_mat(m_acc.m_get_nzones_for_mat),
   m_get_nspec_for_mat(m_acc.m_get_nspec_for_mat),
+  m_is_uni_buffer(m_acc.m_is_uni_buffer),
+  m_is_element_dominant(m_acc.m_is_element_dominant),
   m_nmatspec(m_acc.m_nmatspec),
   m_nmatspec_acc(m_acc.m_nmatspec_acc),
   m_multi_vol_fracs(m_acc.m_multi_vol_fracs),
@@ -158,6 +160,8 @@ MatsetAccessor::operator=(const MatsetAccessor &m_acc)
         m_get_nmats_for_zone = m_acc.m_get_nmats_for_zone;
         m_get_nzones_for_mat = m_acc.m_get_nzones_for_mat;
         m_get_nspec_for_mat = m_acc.m_get_nspec_for_mat;
+        m_is_uni_buffer = m_acc.m_is_uni_buffer;
+        m_is_element_dominant = m_acc.m_is_element_dominant;
         m_nmatspec = m_acc.m_nmatspec;
         m_nmatspec_acc = m_acc.m_nmatspec_acc;
         m_multi_vol_fracs = m_acc.m_multi_vol_fracs;
@@ -181,18 +185,18 @@ MatsetAccessor::init(const Node &matset,
                      const Node *field,
                      const Node *specset)
 {
-    const bool is_uni_buffer       = blueprint::mesh::matset::is_uni_buffer(matset);
-    const bool is_element_dominant = blueprint::mesh::matset::is_element_dominant(matset);
+    m_is_uni_buffer       = blueprint::mesh::matset::is_uni_buffer(matset);
+    m_is_element_dominant = blueprint::mesh::matset::is_element_dominant(matset);
 
     const index_t num_materials = count_materials_from_matset(matset);
 
     Node material_map;
     create_or_reuse_material_map(matset, material_map);
 
-    if (is_uni_buffer)
+    if (m_is_uni_buffer)
     {
         // uni-buffer by element (sparse by element)
-        if (is_element_dominant)
+        if (m_is_element_dominant)
         {
             // set our accessors
             m_sbe_material_ids = matset["material_ids"].value();
@@ -399,6 +403,7 @@ MatsetAccessor::init(const Node &matset,
                     mat_id_to_nmatspec[mat_id] = nmatspec;
                 }
 
+                // now we can fill the arrays using the information we've collected
                 const index_t num_zones = count_zones_from_matset(matset);
                 for (index_t zone_idx = 0; zone_idx < num_zones; zone_idx ++)
                 {
@@ -522,7 +527,7 @@ MatsetAccessor::init(const Node &matset,
         }
 
         // multi-buffer by element (full)
-        if (is_element_dominant)
+        if (m_is_element_dominant)
         {
             m_get_mat_id   = &MatsetAccessor::get_full_mat_id;
             m_get_elem_id  = &MatsetAccessor::get_full_elem_id;

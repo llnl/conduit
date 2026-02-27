@@ -264,6 +264,8 @@ private:
 //
 //-----------------------------------------------------------------------------
 
+    // function pointer members
+    // these take us to implementations for each layout type
     GetMatIdPtr        m_get_mat_id;
     GetElemIdPtr       m_get_elem_id;
     GetVolFracPtr      m_get_vol_frac;
@@ -273,7 +275,12 @@ private:
     GetNZonesForMatPtr m_get_nzones_for_mat;
     GetNMatSpecPtr     m_get_nspec_for_mat;
 
+    // information members
+    bool m_is_uni_buffer;
+    bool m_is_element_dominant;
+
     // universal members
+    // these are members that are useful for all layout types
     Node m_nmatspec;
     index_t_accessor m_nmatspec_acc;
 
