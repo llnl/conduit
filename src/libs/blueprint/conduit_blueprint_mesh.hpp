@@ -961,35 +961,6 @@ namespace field
                                        const float64 epsilon = CONDUIT_EPSILON);
 
     //-------------------------------------------------------------------------
-    template <class ForEachValue, class ForEachMaterial>
-    void CONDUIT_BLUEPRINT_API walk_matset_field_by_material(const conduit::Node &field,
-                                                             const conduit::Node &matset,
-                                                             ForEachValue &&for_each_value,
-                                                             ForEachMaterial &&for_each_material,
-                                                             const float64 epsilon = CONDUIT_EPSILON);
-    //-------------------------------------------------------------------------
-    template <class ForEachValue, class ForEachMaterial>
-    void CONDUIT_BLUEPRINT_API walk_matset_field_by_material(const conduit::Node &field,
-                                                             const conduit::Node &matset,
-                                                             const int num_materials,
-                                                             ForEachValue &&for_each_value,
-                                                             ForEachMaterial &&for_each_material,
-                                                             const float64 epsilon = CONDUIT_EPSILON);
-    //-----------------------------------------------------------------------------
-    template <class ForEachValue>
-    void CONDUIT_BLUEPRINT_API walk_matset_field_by_material_value(const conduit::Node &field,
-                                                                   const conduit::Node &matset,
-                                                                   ForEachValue &&for_each_value,
-                                                                   const float64 epsilon = CONDUIT_EPSILON);
-    //-----------------------------------------------------------------------------
-    template <class ForEachValue>
-    void CONDUIT_BLUEPRINT_API walk_matset_field_by_material_value(const conduit::Node &field,
-                                                                   const conduit::Node &matset,
-                                                                   const int num_materials,
-                                                                   ForEachValue &&for_each_value,
-                                                                   const float64 epsilon = CONDUIT_EPSILON);
-
-    //-------------------------------------------------------------------------
     // blueprint::mesh::field::index protocol interface
     //-------------------------------------------------------------------------
     namespace index
