@@ -60,7 +60,7 @@ MatsetAccessor::MatsetAccessor()
    m_get_nzones_for_mat(&MatsetAccessor::get_error_nzones_for_mat),
    m_get_nspec_for_mat(&MatsetAccessor::get_error_nspec_for_mat)
 {
-// empty //
+    // empty
 }
 
 //---------------------------------------------------------------------------//
@@ -117,7 +117,7 @@ MatsetAccessor::MatsetAccessor(const Node &matset,
    m_get_nspec_for_mat(&MatsetAccessor::get_error_nspec_for_mat)
 {
     init(matset, &field, &specset);
-}
+}   
 
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor(const MatsetAccessor &m_acc)
@@ -139,7 +139,9 @@ MatsetAccessor::MatsetAccessor(const MatsetAccessor &m_acc)
   m_sbe_material_ids(m_acc.m_sbe_material_ids),
   m_sbe_vol_fracs(m_acc.m_sbe_vol_fracs),
   m_sbe_mset_vals(m_acc.m_sbe_mset_vals),
-  m_sbe_o2m_idx(m_acc.m_sbe_o2m_idx)
+  m_sbe_o2m_idx(m_acc.m_sbe_o2m_idx),
+  m_sbe_mass_fracs(m_acc.m_sbe_mass_fracs),
+  m_sbe_specset_o2m_idx(m_acc.m_sbe_specset_o2m_idx)
 { }
 
 //---------------------------------------------------------------------------//
@@ -167,6 +169,8 @@ MatsetAccessor::operator=(const MatsetAccessor &m_acc)
         m_sbe_vol_fracs = m_acc.m_sbe_vol_fracs;
         m_sbe_mset_vals = m_acc.m_sbe_mset_vals;
         m_sbe_o2m_idx = m_acc.m_sbe_o2m_idx;
+        m_sbe_mass_fracs = m_acc.m_sbe_mass_fracs;
+        m_sbe_specset_o2m_idx = m_acc.m_sbe_specset_o2m_idx;
     }
     return *this;
 }
@@ -369,6 +373,8 @@ MatsetAccessor::init(const Node &matset,
                 // mass fraction for (zone_idx, mat_idx, spec_idx) = (3, 1, 1), 0.45.
 
                 // The following code below creates the nmatspec and nmatspec_offsets arrays.
+                // We pay a price at the start when creating these arrays, but we enable quick
+                // access of species mass fraction data.
 
                 const index_t num_vol_fracs = matset["volume_fractions"].dtype().number_of_elements();
                 m_nmatspec["nmatspec"].set(DataType::index_t(num_vol_fracs));
@@ -393,10 +399,22 @@ MatsetAccessor::init(const Node &matset,
                     mat_id_to_nmatspec[mat_id] = nmatspec;
                 }
 
-                // TODO
-                // walk the zones, then materials w/o using matset accessor
-                // to populate the data arrays
-                // remember that nmatspec_offsets starts over at 0 for every zone
+                const index_t num_zones = count_zones_from_matset(matset);
+                for (index_t zone_idx = 0; zone_idx < num_zones; zone_idx ++)
+                {
+                    const index_t num_mats_in_zone = m_sbe_o2m_idx.size(zone_idx);
+                    index_t nmatspec_offset = 0;
+                    for (index_t mat_idx = 0; mat_idx < num_mats_in_zone; mat_idx ++)
+                    {
+                        const index_t data_index = m_sbe_o2m_idx.index(zone_idx, mat_idx);
+                        const index_t mat_id = m_sbe_material_ids[data_index];
+                        const index_t nmatspec_for_mat = mat_id_to_nmatspec.at(mat_id);
+
+                        m_nmatspec_acc.set(data_index, nmatspec_for_mat);
+                        m_multi_nmatspec_offsets_acc.set(data_index, nmatspec_offset);
+                        nmatspec_offset += nmatspec_for_mat;
+                    }
+                }
             }
 
             // set our fetch methods
@@ -471,7 +489,7 @@ MatsetAccessor::init(const Node &matset,
             const index_t mat_id = matmap_entry.to_index_t();
 
             // save material map entry
-            m_multi_mat_idx_map_acc.set(mat_idx, material_map.child(mat_idx).to_index_t());
+            m_multi_mat_idx_map_acc.set(mat_idx, mat_id);
 
             // save volume fraction array
             m_multi_vol_fracs.push_back(matset["volume_fractions"][matname].value());
@@ -592,8 +610,9 @@ MatsetAccessor::get_full_mass_frac(const index_t zone_idx,
 
 //-----------------------------------------------------------------------------
 index_t
-MatsetAccessor::get_full_nspec_for_mat(const index_t mat_idx) const
+MatsetAccessor::get_full_nspec_for_mat(const index_t zone_idx, const index_t mat_idx) const
 {
+    (void) zone_idx;
     return m_nmatspec_acc[mat_idx];
 }
 
@@ -650,8 +669,9 @@ MatsetAccessor::get_sbm_nzones_for_mat(const index_t mat_idx) const
 
 //-----------------------------------------------------------------------------
 index_t
-MatsetAccessor::get_sbm_nspec_for_mat(const index_t mat_idx) const
+MatsetAccessor::get_sbm_nspec_for_mat(const index_t zone_idx, const index_t mat_idx) const
 {
+    (void) zone_idx;
     return m_nmatspec_acc[mat_idx];
 }
 
@@ -698,23 +718,20 @@ MatsetAccessor::get_sbe_mass_frac(const index_t zone_idx,
                                   const index_t mat_idx,
                                   const index_t spec_idx) const
 {
-    // TODO need to understand how to get material_offset
-    // it is not as simple as using nmatspec, since mat_idx in this case runs 
-    // from 0 to num mats in zone
-    // we can't know how many spec values have come before since we don't know
-    // which materials we have already seen in this zone
+    const index_t data_index = m_sbe_o2m_idx.index(zone_idx, mat_idx);
+    const index_t nmatspec_offset = m_multi_nmatspec_offsets_acc[data_index];
 
     // We need an index that is between 0 and the number of species in this zone.
-    // The way to calculate this is to add our running sum (material_offset)
+    // The way to calculate this is to add out num material species offset
     // with the current species value index, which ranges between 0 and the
     // number of species for this material.
-    const int local_spec_id = material_offset + spec_idx;
+    const index_t local_spec_id = nmatspec_offset + spec_idx;
 
     // Now we can provide the one (element id) to many (species in element)
     // relation with our element id and the local species index, which is
     // an index into the number of species in this element. The result is
     // an index into the "matset_values", which store species mass fractions.
-    const index_t spec_mf_idx = m_sbe_specset_o2m_idx.index(zone_id, local_spec_id);
+    const index_t spec_mf_idx = m_sbe_specset_o2m_idx.index(zone_idx, local_spec_id);
 
     // fetch the species mass fraction
     return m_sbe_mass_fracs[spec_mf_idx];
@@ -729,9 +746,10 @@ MatsetAccessor::get_sbe_nmats_for_zone(const index_t zone_idx) const
 
 //-----------------------------------------------------------------------------
 index_t
-MatsetAccessor::get_sbe_nspec_for_mat(const index_t mat_idx) const
+MatsetAccessor::get_sbe_nspec_for_mat(const index_t zone_idx, const index_t mat_idx) const
 {
-    return m_nmatspec_acc[mat_idx];
+    const index_t data_index = m_sbe_o2m_idx.index(zone_idx, mat_idx);
+    return m_nmatspec_acc[data_index];
 }
 
 //-----------------------------------------------------------------------------
@@ -814,8 +832,9 @@ MatsetAccessor::get_error_nzones_for_mat(const index_t mat_idx) const
 
 //-----------------------------------------------------------------------------
 index_t 
-MatsetAccessor::get_error_nspec_for_mat(const index_t mat_idx) const
+MatsetAccessor::get_error_nspec_for_mat(const index_t zone_idx, const index_t mat_idx) const
 {
+    (void) zone_idx;
     (void) mat_idx;
     CONDUIT_ERROR("Impossible to fetch number of species for a material from "
                   "specset.");

@@ -76,7 +76,7 @@ using GetMsetValPtr      = double  (MatsetAccessor::*)(index_t, index_t) const;
 using GetMassFracPtr     = double  (MatsetAccessor::*)(index_t, index_t, index_t) const;
 using GetNMatsForZonePtr = index_t (MatsetAccessor::*)(index_t) const;
 using GetNZonesForMatPtr = index_t (MatsetAccessor::*)(index_t) const;
-using GetNMatSpecPtr     = index_t (MatsetAccessor::*)(index_t) const;
+using GetNMatSpecPtr     = index_t (MatsetAccessor::*)(index_t, index_t) const;
 
 //-----------------------------------------------------------------------------
 /// MatsetAccessor Construction and Destruction
@@ -120,9 +120,10 @@ using GetNMatSpecPtr     = index_t (MatsetAccessor::*)(index_t) const;
     }
 
     inline
-    index_t     num_spec_for_mat(const index_t mat_idx) const
+    index_t     num_spec_for_mat(const index_t zone_idx,
+                                 const index_t mat_idx) const
     {
-        return (this->*m_get_nspec_for_mat)(mat_idx);
+        return (this->*m_get_nspec_for_mat)(zone_idx, mat_idx);
     }
 
 //-----------------------------------------------------------------------------
@@ -203,7 +204,7 @@ private:
     // omitted because this method is used for knowing how many
     // zones to iterate over in a sparse representation
     // index_t get_full_nzones_for_mat(const index_t mat_idx) const;
-    index_t get_full_nspec_for_mat(const index_t mat_idx) const;
+    index_t get_full_nspec_for_mat(const index_t zone_idx, const index_t mat_idx) const;
 
     // multi-buffer by material (sparse by material)
     // 0 <= zone_idx < num zones for material mat_idx
@@ -220,7 +221,7 @@ private:
     // omitted because this method is used for knowing how many
     // materials to iterate over in a sparse representation
     // index_t get_sbm_nmats_for_zone(const index_t zone_idx) const;
-    index_t get_sbm_nspec_for_mat(const index_t mat_idx) const;
+    index_t get_sbm_nspec_for_mat(const index_t zone_idx, const index_t mat_idx) const;
 
     // uni-buffer by element (sparse by element)
     // 0 <= zone_idx < num zones
@@ -237,7 +238,7 @@ private:
     // zones to iterate over in a sparse representation
     // index_t get_sbe_nzones_for_mat(const index_t mat_idx) const;
     index_t get_sbe_nmats_for_zone(const index_t zone_idx) const;
-    index_t get_sbe_nspec_for_mat(const index_t mat_idx) const;
+    index_t get_sbe_nspec_for_mat(const index_t zone_idx, const index_t mat_idx) const;
 
     // uni-buffer by material
     // not implemented; error in constructor
@@ -255,7 +256,7 @@ private:
                                 const index_t spec_idx) const;
     index_t get_error_nmats_for_zone(const index_t zone_idx) const;
     index_t get_error_nzones_for_mat(const index_t mat_idx) const;
-    index_t get_error_nspec_for_mat(const index_t mat_idx) const;
+    index_t get_error_nspec_for_mat(const index_t zone_idx, const index_t mat_idx) const;
 
 //-----------------------------------------------------------------------------
 //
