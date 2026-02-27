@@ -203,24 +203,200 @@ MatsetAccessor::init(const Node &matset,
                 m_sbe_mass_fracs = (*specset)["matset_values"].value();
                 m_sbe_specset_o2m_idx = o2mrelation::O2MIndex(*specset);
 
-                // number of material species map
-                // we save an array from the material order id (the order materials appear
-                // in the matset) to the number of species for that material.
-                m_nmatspec["nmatspec"].set(DataType::index_t(num_materials));
-                m_nmatspec_acc = m_nmatspec["nmatspec"].value();
+                // For sparse by element material sets, the matset accessor uses the following
+                // ranges:
+                //     0 <= zone_idx < num zones
+                //     0 <= mat_idx < num mats for zone zone_idx
+                //     0 <= spec_idx < num species for material mat_idx in zone zone_idx
+                // To know which species mass fraction to fetch for a given (zone_idx, mat_idx, spec_idx),
+                // we need to know the number of species contained in all of the materials that
+                // appear in zone zone_idx. Consider this example:
 
+                // matset: 
+                //   topology: "topo"
+                //   material_map: 
+                //     circle_a: 1
+                //     circle_b: 2
+                //     circle_c: 3
+                //     background: 4
+                //   volume_fractions: [1.0, 1.0, 1.0, 0.33, 0.33, 0.33]
+                //   material_ids:     [4,   4,   4,   1,    2,    3   ]
+                //   sizes:            [1,   1,   1,   3               ]
+                //   offsets:          [0,   1,   2,   3               ]
+
+                // specset: 
+                //   matset: "matset"
+                //   species_names: 
+                //     background: 
+                //       bg_spec1: 
+                //     circle_a: 
+                //       a_spec1: 
+                //       a_spec2: 
+                //     circle_b: 
+                //       b_spec1: 
+                //       b_spec2: 
+                //     circle_c: 
+                //       c_spec1: 
+                //       c_spec2: 
+                //       c_spec3: 
+                //   matset_values: [1.0, 1.0, 1.0, 0.4, 0.6, 0.55, 0.45, 0.5, 0.375, 0.125]
+                //   sizes:         [1,   1,   1,   7                                      ]
+                //   offsets:       [0,   1,   2,   3                                      ]
+
+                // Let's say I want to extract the mass fraction for
+                // (zone_idx, mat_idx, spec_idx) = (3, 1, 1).
+                // Here is the relevant information for zone 3 (remember that zones start at 0):
+
+                // material information:
+                //   volume_fractions: [0.33, 0.33, 0.33]
+                //   material_ids:     [1,    2,    3   ]
+                //   size:              3
+                //   offset:            3
+                // species information:
+                //   matset_values: [0.4, 0.6, 0.55, 0.45, 0.5, 0.375, 0.125]
+                //   size:           7
+                //   offset:         3
+
+                // We have three materials in zone 3, with material ids 1, 2, and 3.
+                // We have 7 species mass fractions in zone 3.
+
+                // We are looking to get data for (zone_idx, mat_idx, spec_idx) = (3, 1, 1), so
+                // now we want to extract the species data for mat_idx = 1. Because this is a
+                // sparse by element material set, 0 <= mat_idx < num mats for zone zone_idx, so
+                // mat_idx = 1 corresponds in this case to material id 2.
+
+                // I can extract the volume fraction and material id for mat_idx = 1, but I cannot
+                // get the species value of 0.45 for (zone_idx, mat_idx, spec_idx) = (3, 1, 1)
+                // without first knowing how many species there are in the current material and all
+                // the materials that came before mat_idx = 1. I need to know how many species there
+                // were for mat_idx = 0 in this case.
+
+                // One approach would be as follows:
+                //    1. Fetch material ids for the current and previous materials
+                //          "current" material mat_idx = 1 -> material id = 2
+                //          "previous" material mat_idx = 0 -> material id = 1
+                //       Our intention is to somehow look up the number of material species
+                //       for each of these materials.
+                //    2. But how to get the number of material species? We won't have access to the 
+                //       material map or species names during execution, just pointers to data arrays.
+                //       Due to the fact that material ids need not go from 0 to the number of materials
+                //       minus 1, it is very convoluted to create a mapping scheme from material ids
+                //       to the number of material species that can be flattened into data arrays.
+                //       So this approach is not workable.
+
+                // Our approach then is to add two new data arrays that can help us, the
+                // number of material species and the number of material species offsets.
+                // These arrays will encode information that is relevant to each zone's materials.
+                //    "nmatspec" will record the number of material species for material mat_idx
+                //    in zone zone_idx.
+                //    "nmatspec_offsets" will record the number of material species seen thus far
+                //    in the current zone zone_idx up to the current material mat_idx.
+                // The easiest way to explain is via example:
+
+                // matset: 
+                //   topology: "topo"
+                //   material_map: 
+                //     circle_a: 1
+                //     circle_b: 2
+                //     circle_c: 3
+                //     background: 4
+                //   volume_fractions: [1.0, 1.0, 1.0, 0.33, 0.33, 0.33]
+                //   material_ids:     [4,   4,   4,   1,    2,    3   ]
+                //***nmatspec:*********[1,   1,   1,   2,    2,    3   ]****************
+                //***nmatspec_offsets:*[0,   0,   0,   0,    2,    4   ]****************
+                //   sizes:            [1,   1,   1,   3               ]
+                //   offsets:          [0,   1,   2,   3               ]
+
+                // specset: 
+                //   matset: "matset"
+                //   species_names: 
+                //     background: 
+                //       bg_spec1: 
+                //     circle_a: 
+                //       a_spec1: 
+                //       a_spec2: 
+                //     circle_b: 
+                //       b_spec1: 
+                //       b_spec2: 
+                //     circle_c: 
+                //       c_spec1: 
+                //       c_spec2: 
+                //       c_spec3: 
+                //   matset_values: [1.0, 1.0, 1.0, 0.4, 0.6, 0.55, 0.45, 0.5, 0.375, 0.125]
+                //   sizes:         [1,   1,   1,   7                                      ]
+                //   offsets:       [0,   1,   2,   3                                      ]
+
+                // These arrays tell us the answers we are looking for. Let us proceed by taking
+                // another look at our earlier example, mass fraction extraction for 
+                // (zone_idx, mat_idx, spec_idx) = (3, 1, 1).
+
+                // Here is now the relevant information for zone 3 (remember that zones start at 0):
+
+                // material information:
+                //   volume_fractions: [0.33, 0.33, 0.33]
+                //   material_ids:     [1,    2,    3   ]
+                //***nmatspec:*********[2,    2,    3   ]*********
+                //***nmatspec_offsets:*[0,    2,    4   ]*********
+                //   size:              3
+                //   offset:            3 // irrelevant now since we have used the offset to get to the right place
+                // species information:
+                //   matset_values: [0.4, 0.6, 0.55, 0.45, 0.5, 0.375, 0.125]
+                //   size:           7
+                //   offset:         3 // irrelevant now since we have used the offset to get to the right place
+
+                // Now we have what we need to interpret the species values appropriately.
+                // For mat_idx = 1, we see that we are dealing with
+                //    volume fraction = 0.33
+                //    material id     = 2
+                //    num species     = 2
+                //    species offset  = 2
+
+                // So in the matset values array, we need to go to index 2 (species offset) to get
+                // the species data for this material. Additionally, there are num species = 2 values
+                // to read for this material. So now we can move another level down the hierarchy
+                // and only look at information for zone_idx = 3, mat_idx = 1:
+
+                // Here is the relevant information for zone_idx 3, mat_idx 1: (remember that both start at 0):
+                // material information:
+                //   volume_fraction: 0.33
+                //   material_id:     2  
+                //***nmatspec:********2**
+                //***nmatspec_offset:*2** // irrelevant now since we have used the offset to get to the right place
+                // species information:
+                //   matset_values: [0.55, 0.45]
+
+                // Now we can finally extract data for spec_idx = 1, and arrive at our requested
+                // mass fraction for (zone_idx, mat_idx, spec_idx) = (3, 1, 1), 0.45.
+
+                // The following code below creates the nmatspec and nmatspec_offsets arrays.
+
+                const index_t num_vol_fracs = matset["volume_fractions"].dtype().number_of_elements();
+                m_nmatspec["nmatspec"].set(DataType::index_t(num_vol_fracs));
+                m_nmatspec_acc = m_nmatspec["nmatspec"].value();
+                m_nmatspec["nmatspec_offsets"].set(DataType::index_t(num_vol_fracs));
+                m_multi_nmatspec_offsets_acc = m_nmatspec["nmatspec_offsets"].value();
+
+                // create a map from material id to nmatspec
+                std::map<index_t, index_t> mat_id_to_nmatspec;
                 for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
                 {
-                    const std::string matname = material_map.child(mat_idx).name();
+                    const Node &matmap_entry = material_map.child(mat_idx);
+                    const std::string matname = matmap_entry.name();
+                    const index_t mat_id = matmap_entry.to_index_t();
 
-                    // save nmatspec value
                     index_t nmatspec = 0;
                     if ((*specset)["species_names"].has_child(matname))
                     {
                         nmatspec = (*specset)["species_names"][matname].number_of_children();
                     }
-                    m_nmatspec_acc.set(mat_idx, nmatspec);
+
+                    mat_id_to_nmatspec[mat_id] = nmatspec;
                 }
+
+                // TODO
+                // walk the zones, then materials w/o using matset accessor
+                // to populate the data arrays
+                // remember that nmatspec_offsets starts over at 0 for every zone
             }
 
             // set our fetch methods

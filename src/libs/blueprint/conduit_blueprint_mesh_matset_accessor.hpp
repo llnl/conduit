@@ -187,6 +187,9 @@ private:
     //
 
     // multi-buffer by element (full)
+    // 0 <= zone_idx < num zones
+    // 0 <= mat_idx < num mats
+    // 0 <= spec_idx < num species for material mat_idx
     index_t get_full_mat_id(const index_t zone_idx, const index_t mat_idx) const;
     index_t get_full_elem_id(const index_t zone_idx, const index_t mat_idx) const;
     float64 get_full_vol_frac(const index_t zone_idx, const index_t mat_idx) const;
@@ -194,9 +197,18 @@ private:
     float64 get_full_mass_frac(const index_t zone_idx,
                                const index_t mat_idx,
                                const index_t spec_idx) const;
+    // omitted because this method is used for knowing how many
+    // materials to iterate over in a sparse representation
+    // index_t get_full_nmats_for_zone(const index_t zone_idx) const;
+    // omitted because this method is used for knowing how many
+    // zones to iterate over in a sparse representation
+    // index_t get_full_nzones_for_mat(const index_t mat_idx) const;
     index_t get_full_nspec_for_mat(const index_t mat_idx) const;
 
     // multi-buffer by material (sparse by material)
+    // 0 <= zone_idx < num zones for material mat_idx
+    // 0 <= mat_idx < num mats
+    // 0 <= spec_idx < num species for material mat_idx
     index_t get_sbm_mat_id(const index_t zone_idx, const index_t mat_idx) const;
     index_t get_sbm_elem_id(const index_t zone_idx, const index_t mat_idx) const;
     float64 get_sbm_vol_frac(const index_t zone_idx, const index_t mat_idx) const;
@@ -205,9 +217,15 @@ private:
                               const index_t mat_idx,
                               const index_t spec_idx) const;
     index_t get_sbm_nzones_for_mat(const index_t mat_idx) const;
+    // omitted because this method is used for knowing how many
+    // materials to iterate over in a sparse representation
+    // index_t get_sbm_nmats_for_zone(const index_t zone_idx) const;
     index_t get_sbm_nspec_for_mat(const index_t mat_idx) const;
 
     // uni-buffer by element (sparse by element)
+    // 0 <= zone_idx < num zones
+    // 0 <= mat_idx < num mats for zone zone_idx
+    // 0 <= spec_idx < num species for material mat_idx in zone zone_idx
     index_t get_sbe_mat_id(const index_t zone_idx, const index_t mat_idx) const;
     index_t get_sbe_elem_id(const index_t zone_idx, const index_t mat_idx) const;
     float64 get_sbe_vol_frac(const index_t zone_idx, const index_t mat_idx) const;
@@ -215,6 +233,9 @@ private:
     float64 get_sbe_mass_frac(const index_t zone_idx,
                               const index_t mat_idx,
                               const index_t spec_idx) const;
+    // omitted because this method is used for knowing how many
+    // zones to iterate over in a sparse representation
+    // index_t get_sbe_nzones_for_mat(const index_t mat_idx) const;
     index_t get_sbe_nmats_for_zone(const index_t zone_idx) const;
     index_t get_sbe_nspec_for_mat(const index_t mat_idx) const;
 
