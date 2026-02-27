@@ -17,6 +17,10 @@
 #include "conduit.hpp"
 #include "conduit_blueprint_exports.h"
 #include "conduit_blueprint_mesh_utils.hpp"
+#include "conduit_blueprint_mesh_matset_accessor.hpp"
+
+// access material sets, material field data, and species sets
+using MatsetAccessor = conduit::blueprint::mesh::matset::MatsetAccessor;
 
 //-----------------------------------------------------------------------------
 // -- begin conduit --
@@ -855,26 +859,13 @@ namespace matset
                                                    const float64 epsilon = CONDUIT_EPSILON);
     //-------------------------------------------------------------------------
     template <class ForEachValue, class ForEachZone>
-    void CONDUIT_BLUEPRINT_API walk_matset_by_element(const conduit::Node &matset,
-                                                      ForEachValue &&for_each_value,
-                                                      ForEachZone &&for_each_zone,
-                                                      const float64 epsilon = CONDUIT_EPSILON);
-    //-------------------------------------------------------------------------
-    template <class ForEachValue, class ForEachZone>
-    void CONDUIT_BLUEPRINT_API walk_matset_by_element(const conduit::Node &matset,
-                                                      const int num_zones,
+    void CONDUIT_BLUEPRINT_API walk_matset_by_element(const MatsetAccessor &m_acc,
                                                       ForEachValue &&for_each_value,
                                                       ForEachZone &&for_each_zone,
                                                       const float64 epsilon = CONDUIT_EPSILON);
     //-----------------------------------------------------------------------------
     template <class ForEachValue>
-    void CONDUIT_BLUEPRINT_API walk_matset_by_element_value(const conduit::Node &matset,
-                                                            ForEachValue &&for_each_value,
-                                                            const float64 epsilon = CONDUIT_EPSILON);
-    //-----------------------------------------------------------------------------
-    template <class ForEachValue>
-    void CONDUIT_BLUEPRINT_API walk_matset_by_element_value(const conduit::Node &matset,
-                                                            const int num_zones,
+    void CONDUIT_BLUEPRINT_API walk_matset_by_element_value(const MatsetAccessor &m_acc,
                                                             ForEachValue &&for_each_value,
                                                             const float64 epsilon = CONDUIT_EPSILON);
     //-------------------------------------------------------------------------
@@ -971,30 +962,13 @@ namespace field
 
     //-------------------------------------------------------------------------
     template <class ForEachValue, class ForEachZone>
-    void CONDUIT_BLUEPRINT_API walk_matset_field_by_element(const conduit::Node &field,
-                                                            const conduit::Node &matset,
-                                                            ForEachValue &&for_each_value,
-                                                            ForEachZone &&for_each_zone,
-                                                            const float64 epsilon = CONDUIT_EPSILON);
-    //-------------------------------------------------------------------------
-    template <class ForEachValue, class ForEachZone>
-    void CONDUIT_BLUEPRINT_API walk_matset_field_by_element(const conduit::Node &field,
-                                                            const conduit::Node &matset,
-                                                            const int num_zones,
+    void CONDUIT_BLUEPRINT_API walk_matset_field_by_element(const MatsetAccessor &m_acc,
                                                             ForEachValue &&for_each_value,
                                                             ForEachZone &&for_each_zone,
                                                             const float64 epsilon = CONDUIT_EPSILON);
     //-----------------------------------------------------------------------------
     template <class ForEachValue>
-    void CONDUIT_BLUEPRINT_API walk_matset_field_by_element_value(const conduit::Node &field,
-                                                                  const conduit::Node &matset,
-                                                                  ForEachValue &&for_each_value,
-                                                                  const float64 epsilon = CONDUIT_EPSILON);
-    //-----------------------------------------------------------------------------
-    template <class ForEachValue>
-    void CONDUIT_BLUEPRINT_API walk_matset_field_by_element_value(const conduit::Node &field,
-                                                                  const conduit::Node &matset,
-                                                                  const int num_zones,
+    void CONDUIT_BLUEPRINT_API walk_matset_field_by_element_value(const MatsetAccessor &m_acc,
                                                                   ForEachValue &&for_each_value,
                                                                   const float64 epsilon = CONDUIT_EPSILON);
     //-------------------------------------------------------------------------

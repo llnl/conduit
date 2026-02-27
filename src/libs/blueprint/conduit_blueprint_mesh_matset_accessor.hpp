@@ -103,6 +103,45 @@ using GetNMatSpecPtr     = index_t (MatsetAccessor::*)(index_t, index_t) const;
     MatsetAccessor &operator=(const MatsetAccessor &m_acc);
 
 //-----------------------------------------------------------------------------
+/// Get general matset information
+//-----------------------------------------------------------------------------
+    inline
+    bool        is_uni_buffer() const
+    {
+        return m_is_uni_buffer;
+    }
+
+    inline
+    bool        is_multi_buffer() const
+    {
+        return ! m_is_uni_buffer;
+    }
+
+    inline
+    bool        is_element_dominant() const
+    {
+        return m_is_element_dominant;
+    }
+
+    inline
+    bool        is_material_dominant() const
+    {
+        return ! m_is_element_dominant;
+    }
+
+    inline
+    index_t     num_zones() const
+    {
+        return m_num_zones;
+    }
+
+    inline
+    index_t     num_mats() const
+    {
+        return m_num_mats;
+    }
+
+//-----------------------------------------------------------------------------
 /// Get information about the sizes
 //-----------------------------------------------------------------------------
     // use this for elem-dom sparse matsets
@@ -278,6 +317,8 @@ private:
     // information members
     bool m_is_uni_buffer;
     bool m_is_element_dominant;
+    index_t m_num_zones;
+    index_t m_num_mats;
 
     // universal members
     // these are members that are useful for all layout types

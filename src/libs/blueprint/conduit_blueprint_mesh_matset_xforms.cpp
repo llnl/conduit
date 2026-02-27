@@ -447,7 +447,7 @@ to_silo(const conduit::Node &matset,
     // fetch or create the material map
     //
     Node &material_map = dest["material_map"];
-    create_or_reuse_material_map(matset, material_map);
+    create_or_copy_material_map(matset, material_map);
 
     // We declare a map that is only used for writing specsets.
     // Maps actual material numbers to indicies into the material map
@@ -635,9 +635,9 @@ to_silo(const conduit::Node &matset,
                     field_mixvar_values, current_position);
             };
 
+            MatsetAccessor m_acc = MatsetAccessor(matset, field);
             conduit::blueprint::mesh::field::walk_matset_field_by_element(
-                field, matset, num_zones,
-                for_each_value, for_each_zone, epsilon);
+                m_acc, for_each_value, for_each_zone, epsilon);
         }
         else // material dominant
         {
@@ -823,7 +823,8 @@ to_silo(const conduit::Node &matset,
                     zone_id, matlist, mix_vf, mix_mat, mix_next, current_position);
             };
 
-            walk_matset_by_element(matset, num_zones, for_each_value, for_each_zone, epsilon);
+            MatsetAccessor m_acc = MatsetAccessor(matset);
+            walk_matset_by_element(m_acc, for_each_value, for_each_zone, epsilon);
         }
         else // material_dominant
         {
@@ -1348,7 +1349,7 @@ multi_buffer_by_element_to_uni_buffer_by_element_matset(const conduit::Node &src
     dest_matset["topology"].set(src_matset["topology"]);
 
     Node &material_map = dest_matset["material_map"];
-    create_or_reuse_material_map(src_matset, material_map);
+    create_or_copy_material_map(src_matset, material_map);
 
     std::vector<double> vol_fracs;
     std::vector<int> mat_ids;
@@ -1380,7 +1381,8 @@ multi_buffer_by_element_to_uni_buffer_by_element_matset(const conduit::Node &src
         offset += nmats;
     };
 
-    walk_matset_by_element(src_matset, for_each_value, for_each_zone, epsilon);
+    MatsetAccessor m_acc = MatsetAccessor(src_matset);
+    walk_matset_by_element(m_acc, for_each_value, for_each_zone, epsilon);
 
     dest_matset["volume_fractions"].set(vol_fracs);
     dest_matset["material_ids"].set(mat_ids);
@@ -1443,8 +1445,9 @@ multi_buffer_by_element_to_uni_buffer_by_element_field(const conduit::Node &src_
         matset_values.push_back(mset_val);
     };
 
+    MatsetAccessor m_acc = MatsetAccessor(src_matset, src_field);
     conduit::blueprint::mesh::field::walk_matset_field_by_element_value(
-        src_field, src_matset, for_each_value, epsilon);
+        m_acc, for_each_value, epsilon);
 
     dest_field["matset_values"].set(matset_values);
 }
@@ -1561,7 +1564,8 @@ uni_buffer_by_element_to_multi_buffer_by_element_matset(const conduit::Node &src
 
     std::map<std::string, float64_array> new_vol_fracs_map;
 
-    const int num_elems = count_zones_from_matset(src_matset);
+    MatsetAccessor m_acc = MatsetAccessor(src_matset);
+    const index_t num_elems = m_acc.num_zones();
 
     // initialize sizes of the vol frac arrays
     for (const auto & mapitem : reverse_matmap)
@@ -1583,7 +1587,7 @@ uni_buffer_by_element_to_multi_buffer_by_element_matset(const conduit::Node &src
         new_vol_fracs_map[matname][zone_id] = vf;
     };
 
-    walk_matset_by_element_value(src_matset, num_elems, for_each_value);
+    walk_matset_by_element_value(m_acc, for_each_value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1632,8 +1636,9 @@ uni_buffer_by_element_to_multi_buffer_by_element_field(const conduit::Node &src_
         new_mset_vals_map[matname][zone_id] = mset_val;
     };
 
+    MatsetAccessor m_acc = MatsetAccessor(src_matset, src_field);
     conduit::blueprint::mesh::field::walk_matset_field_by_element_value(
-        src_field, src_matset, num_elems, for_each_value);
+        m_acc, for_each_value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1737,7 +1742,8 @@ uni_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &sr
         new_elem_ids[matname].push_back(zone_id);
     };
 
-    walk_matset_by_element_value(src_matset, for_each_value);
+    MatsetAccessor m_acc = MatsetAccessor(src_matset);
+    walk_matset_by_element_value(m_acc, for_each_value);
 
     read_from_map_write_out(new_vol_fracs, dest_matset["volume_fractions"]);
     read_from_map_write_out(new_elem_ids, dest_matset["element_ids"]);
@@ -1777,8 +1783,9 @@ uni_buffer_by_element_to_multi_buffer_by_material_field(const conduit::Node &src
         new_mset_vals[matname].push_back(mset_val);
     };
 
+    MatsetAccessor m_acc = MatsetAccessor(src_matset, src_field);
     conduit::blueprint::mesh::field::walk_matset_field_by_element_value(
-        src_field, src_matset, for_each_value);
+        m_acc, for_each_value);
 
     read_from_map_write_out(new_mset_vals, dest_field["matset_values"]);
 }
@@ -2149,7 +2156,7 @@ multi_buffer_by_material_to_uni_buffer_by_element_matset(const conduit::Node &sr
     dest_matset["topology"].set(src_matset["topology"]);
 
     Node &material_map = dest_matset["material_map"];
-    create_or_reuse_material_map(src_matset, material_map);
+    create_or_copy_material_map(src_matset, material_map);
 
     const int num_elems = determine_num_elems_in_multi_buffer_by_material(src_matset["element_ids"]);
 
@@ -2336,19 +2343,7 @@ multi_buffer_by_material_to_uni_buffer_by_element_specset(const conduit::Node &s
 //-----------------------------------------------------------------------------
 template <class ForEachValue>
 void
-walk_matset_by_element_value(const conduit::Node &matset,
-                             ForEachValue &&for_each_value,
-                             const float64 epsilon)
-{
-    const int num_zones = count_zones_from_matset(matset);
-    walk_matset_by_element_value(matset, num_zones, for_each_value, epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue>
-void
-walk_matset_by_element_value(const conduit::Node &matset,
-                             const int num_zones,
+walk_matset_by_element_value(const MatsetAccessor &m_acc,
                              ForEachValue &&for_each_value,
                              const float64 epsilon)
 {
@@ -2358,57 +2353,36 @@ walk_matset_by_element_value(const conduit::Node &matset,
         (void) zone_id;
         (void) nmats;
     };
-    walk_matset_by_element(matset,
-                           num_zones,
+    walk_matset_by_element(m_acc,
                            for_each_value,
                            for_each_zone,
                            epsilon);
 }
 
 //-----------------------------------------------------------------------------
-template <class ForEachValue, class ForEachZone>
-void
-walk_matset_by_element(const conduit::Node &matset,
-                       ForEachValue &&for_each_value,
-                       ForEachZone &&for_each_zone,
-                       const float64 epsilon)
-{
-    const int num_zones = count_zones_from_matset(matset);
-    walk_matset_by_element(matset, num_zones, for_each_value, for_each_zone, epsilon);
-}
-
-//-----------------------------------------------------------------------------
 // everything is reduced to a single implementation
 template <class ForEachValue, class ForEachZone>
 void
-walk_matset_by_element(const conduit::Node &matset,
-                       const int num_zones,
+walk_matset_by_element(const MatsetAccessor &m_acc,
                        ForEachValue &&for_each_value,
                        ForEachZone &&for_each_zone,
                        const float64 epsilon)
 {
-    // extra seat belt here
-    if (! matset.dtype().is_object())
-    {
-        CONDUIT_ERROR("blueprint::mesh::matset::walk_matset_by_element"
-                      " passed matset node must be a valid matset tree.");
-    }
-
-    if (! is_element_dominant(matset))
+    if (! m_acc.is_element_dominant())
     {
         CONDUIT_ERROR("Walking by element is only supported for element-dominant material sets.");
     }
 
-    MatsetAccessor m_acc = MatsetAccessor(matset);
+    const index_t num_zones = m_acc.num_zones();
 
     // full
-    if (is_multi_buffer(matset))
+    if (m_acc.is_multi_buffer())
     {
-        const index_t nmats = count_materials_from_matset(matset);
-        for (int zone_id = 0; zone_id < num_zones; zone_id ++)
+        const index_t nmats = m_acc.num_mats();
+        for (index_t zone_id = 0; zone_id < num_zones; zone_id ++)
         {
             index_t nmats_in_zone = 0;
-            for (int mat_order_id = 0; mat_order_id < nmats; mat_order_id ++)
+            for (index_t mat_order_id = 0; mat_order_id < nmats; mat_order_id ++)
             {
                 const float64 vol_frac = m_acc.get_vol_frac(zone_id, mat_order_id);
                 if (vol_frac > epsilon)
@@ -2424,10 +2398,10 @@ walk_matset_by_element(const conduit::Node &matset,
     // sparse by element
     else
     {
-        for (int zone_id = 0; zone_id < num_zones; zone_id ++)
+        for (index_t zone_id = 0; zone_id < num_zones; zone_id ++)
         {
             const index_t nmats_in_zone = m_acc.num_mats_for_zone(zone_id);
-            for (int mat_order_id = 0; mat_order_id < nmats_in_zone; mat_order_id ++)
+            for (index_t mat_order_id = 0; mat_order_id < nmats_in_zone; mat_order_id ++)
             {
                 const float64 vol_frac = m_acc.get_vol_frac(zone_id, mat_order_id);
                 const index_t mat_id = m_acc.get_mat_id(zone_id, mat_order_id);
@@ -2709,7 +2683,7 @@ create_or_copy_material_map(const conduit::Node &matset,
     // extra seat belt here
     if (! matset.dtype().is_object())
     {
-        CONDUIT_ERROR("blueprint::mesh::matset::create_or_reuse_material_map"
+        CONDUIT_ERROR("blueprint::mesh::matset::create_or_copy_material_map"
                       " passed matset node must be a valid matset tree.");
     }
 
@@ -4115,21 +4089,7 @@ to_multi_buffer_by_material(const conduit::Node &src_matset,
 //-----------------------------------------------------------------------------
 template <class ForEachValue>
 void
-walk_matset_field_by_element_value(const conduit::Node &field,
-                                   const conduit::Node &matset,
-                                   ForEachValue &&for_each_value,
-                                   const float64 epsilon)
-{
-    const int num_zones = conduit::blueprint::mesh::matset::count_zones_from_matset(matset);
-    walk_matset_field_by_element_value(field, matset, num_zones, for_each_value, epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue>
-void
-walk_matset_field_by_element_value(const conduit::Node &field,
-                                   const conduit::Node &matset,
-                                   const int num_zones,
+walk_matset_field_by_element_value(const MatsetAccessor &m_acc,
                                    ForEachValue &&for_each_value,
                                    const float64 epsilon)
 {
@@ -4139,9 +4099,7 @@ walk_matset_field_by_element_value(const conduit::Node &field,
         (void) zone_id;
         (void) nmats_in_zone;
     };
-    walk_matset_field_by_element(field,
-                                 matset,
-                                 num_zones,
+    walk_matset_field_by_element(m_acc,
                                  for_each_value,
                                  for_each_zone,
                                  epsilon);
@@ -4150,60 +4108,26 @@ walk_matset_field_by_element_value(const conduit::Node &field,
 //-----------------------------------------------------------------------------
 template <class ForEachValue, class ForEachZone>
 void
-walk_matset_field_by_element(const conduit::Node &field,
-                             const conduit::Node &matset,
+walk_matset_field_by_element(const MatsetAccessor &m_acc,
                              ForEachValue &&for_each_value,
                              ForEachZone &&for_each_zone,
                              const float64 epsilon)
 {
-    const int num_zones = conduit::blueprint::mesh::matset::count_zones_from_matset(matset);
-    walk_matset_field_by_element(field,
-                                 matset,
-                                 num_zones,
-                                 for_each_value,
-                                 for_each_zone,
-                                 epsilon);
-}
-
-//-----------------------------------------------------------------------------
-template <class ForEachValue, class ForEachZone>
-void
-walk_matset_field_by_element(const conduit::Node &field,
-                             const conduit::Node &matset,
-                             const int num_zones,
-                             ForEachValue &&for_each_value,
-                             ForEachZone &&for_each_zone,
-                             const float64 epsilon)
-{
-    // extra seat belt here
-    if (! matset.dtype().is_object())
-    {
-        CONDUIT_ERROR("blueprint::mesh::field::walk_matset_field_by_element"
-                      " passed matset node must be a valid matset tree.");
-    }
-
-    // extra seat belt here
-    if (! field.dtype().is_object())
-    {
-        CONDUIT_ERROR("blueprint::mesh::field::walk_matset_field_by_element"
-                      " passed field node must be a valid field tree.");
-    }
-
-    if (! conduit::blueprint::mesh::matset::is_element_dominant(matset))
+    if (! m_acc.is_element_dominant())
     {
         CONDUIT_ERROR("Walking by element is only supported for element-dominant material sets.");
     }
 
-    MatsetAccessor m_acc = MatsetAccessor(matset, field);
+    const index_t num_zones = m_acc.num_zones();
 
     // full
-    if (conduit::blueprint::mesh::matset::is_multi_buffer(matset))
+    if (m_acc.is_multi_buffer())
     {
-        const index_t nmats = conduit::blueprint::mesh::matset::count_materials_from_matset(matset);
-        for (int zone_id = 0; zone_id < num_zones; zone_id ++)
+        const index_t nmats = m_acc.num_mats();
+        for (index_t zone_id = 0; zone_id < num_zones; zone_id ++)
         {
             index_t nmats_in_zone = 0;
-            for (int mat_order_id = 0; mat_order_id < nmats; mat_order_id ++)
+            for (index_t mat_order_id = 0; mat_order_id < nmats; mat_order_id ++)
             {
                 const float64 vol_frac = m_acc.get_vol_frac(zone_id, mat_order_id);
                 if (vol_frac > epsilon)
@@ -4220,10 +4144,10 @@ walk_matset_field_by_element(const conduit::Node &field,
     // sparse by element
     else
     {
-        for (int zone_id = 0; zone_id < num_zones; zone_id ++)
+        for (index_t zone_id = 0; zone_id < num_zones; zone_id ++)
         {
             const index_t nmats_in_zone = m_acc.num_mats_for_zone(zone_id);
-            for (int mat_order_id = 0; mat_order_id < nmats_in_zone; mat_order_id ++)
+            for (index_t mat_order_id = 0; mat_order_id < nmats_in_zone; mat_order_id ++)
             {
                 const float64 vol_frac = m_acc.get_vol_frac(zone_id, mat_order_id);
                 const index_t mat_id = m_acc.get_mat_id(zone_id, mat_order_id);

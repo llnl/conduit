@@ -185,10 +185,34 @@ MatsetAccessor::init(const Node &matset,
                      const Node *field,
                      const Node *specset)
 {
+    // extra seat belts here
+    if (! matset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::matset::MatsetAccessor"
+                      " passed matset node must be a valid matset tree.");
+    }
+    if (nullptr != field)
+    {
+        if (! (*field).dtype().is_object())
+        {
+            CONDUIT_ERROR("blueprint::mesh::matset::MatsetAccessor"
+                          " passed field node must be a valid field tree.");
+        }
+    }
+    if (nullptr != specset)
+    {
+        if (! (*specset).dtype().is_object())
+        {
+            CONDUIT_ERROR("blueprint::mesh::matset::MatsetAccessor"
+                          " passed specset node must be a valid specset tree.");
+        }
+    }
+
     m_is_uni_buffer       = blueprint::mesh::matset::is_uni_buffer(matset);
     m_is_element_dominant = blueprint::mesh::matset::is_element_dominant(matset);
 
-    const index_t num_materials = count_materials_from_matset(matset);
+    m_num_zones = count_zones_from_matset(matset);
+    m_num_mats  = count_materials_from_matset(matset);
 
     Node material_map;
     create_or_reuse_material_map(matset, material_map);
@@ -388,7 +412,7 @@ MatsetAccessor::init(const Node &matset,
 
                 // create a map from material id to nmatspec
                 std::map<index_t, index_t> mat_id_to_nmatspec;
-                for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
+                for (index_t mat_idx = 0; mat_idx < m_num_mats; mat_idx ++)
                 {
                     const Node &matmap_entry = material_map.child(mat_idx);
                     const std::string matname = matmap_entry.name();
@@ -404,8 +428,7 @@ MatsetAccessor::init(const Node &matset,
                 }
 
                 // now we can fill the arrays using the information we've collected
-                const index_t num_zones = count_zones_from_matset(matset);
-                for (index_t zone_idx = 0; zone_idx < num_zones; zone_idx ++)
+                for (index_t zone_idx = 0; zone_idx < m_num_zones; zone_idx ++)
                 {
                     const index_t num_mats_in_zone = m_sbe_o2m_idx.size(zone_idx);
                     index_t nmatspec_offset = 0;
@@ -451,7 +474,7 @@ MatsetAccessor::init(const Node &matset,
         // we save an indirection array from material order id (the order materials appear
         // in the matset) to actual material id. Not all material sets are numbered from
         // 0 to N-1, so we must support this case.
-        m_multi_mat_idx_map.set(DataType::index_t(num_materials));
+        m_multi_mat_idx_map.set(DataType::index_t(m_num_mats));
         m_multi_mat_idx_map_acc = m_multi_mat_idx_map.value();
 
         if (nullptr != specset)
@@ -459,7 +482,7 @@ MatsetAccessor::init(const Node &matset,
             // number of material species map
             // we save an array from the material order id (the order materials appear
             // in the matset) to the number of species for that material.
-            m_nmatspec["nmatspec"].set(DataType::index_t(num_materials));
+            m_nmatspec["nmatspec"].set(DataType::index_t(m_num_mats));
             m_nmatspec_acc = m_nmatspec["nmatspec"].value();
 
             // we save an additional offsets array so we can quickly get the index
@@ -478,7 +501,7 @@ MatsetAccessor::init(const Node &matset,
             //    [3, 2]
             // and the nmatspec offsets array is
             //    [0, 3]
-            m_nmatspec["nmatspec_offsets"].set(DataType::index_t(num_materials));
+            m_nmatspec["nmatspec_offsets"].set(DataType::index_t(m_num_mats));
             m_multi_nmatspec_offsets_acc = m_nmatspec["nmatspec_offsets"].value();
         }
 
@@ -487,7 +510,7 @@ MatsetAccessor::init(const Node &matset,
         // now we loop over materials, saving relevant information as we go
         // we are careful to loop over materials in the order of the matset,
         // as fields and specsets need not have the same material order
-        for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
+        for (index_t mat_idx = 0; mat_idx < m_num_mats; mat_idx ++)
         {
             const Node &matmap_entry = material_map.child(mat_idx);
             const std::string matname = matmap_entry.name();
@@ -545,7 +568,7 @@ MatsetAccessor::init(const Node &matset,
         // multi-buffer by material (sparse by material)
         else
         {
-            for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
+            for (index_t mat_idx = 0; mat_idx < m_num_mats; mat_idx ++)
             {
                 const std::string matname = material_map.child(mat_idx).name();
                 m_sbm_elem_ids.push_back(matset["element_ids"][matname].value());
