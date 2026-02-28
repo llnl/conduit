@@ -103,6 +103,21 @@ using GetNMatSpecPtr     = index_t (MatsetAccessor::*)(index_t, index_t) const;
     MatsetAccessor &operator=(const MatsetAccessor &m_acc);
 
 //-----------------------------------------------------------------------------
+/// Get accessor information
+//-----------------------------------------------------------------------------
+    inline
+    bool        has_field() const
+    {
+        return m_has_field;
+    }
+
+    inline
+    bool        has_specset() const
+    {
+        return m_has_specset;
+    }
+
+//-----------------------------------------------------------------------------
 /// Get general matset information
 //-----------------------------------------------------------------------------
     inline
@@ -319,6 +334,8 @@ private:
     bool m_is_element_dominant;
     index_t m_num_zones;
     index_t m_num_mats;
+    bool m_has_field;
+    bool m_has_specset;
 
     // universal members
     // these are members that are useful for all layout types

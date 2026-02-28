@@ -131,6 +131,10 @@ MatsetAccessor::MatsetAccessor(const MatsetAccessor &m_acc)
   m_get_nspec_for_mat(m_acc.m_get_nspec_for_mat),
   m_is_uni_buffer(m_acc.m_is_uni_buffer),
   m_is_element_dominant(m_acc.m_is_element_dominant),
+  m_num_zones(m_acc.m_num_zones),
+  m_num_mats(m_acc.m_num_mats),
+  m_has_field(m_acc.m_has_field),
+  m_has_specset(m_acc.m_has_specset),
   m_nmatspec(m_acc.m_nmatspec),
   m_nmatspec_acc(m_acc.m_nmatspec_acc),
   m_multi_vol_fracs(m_acc.m_multi_vol_fracs),
@@ -162,6 +166,10 @@ MatsetAccessor::operator=(const MatsetAccessor &m_acc)
         m_get_nspec_for_mat = m_acc.m_get_nspec_for_mat;
         m_is_uni_buffer = m_acc.m_is_uni_buffer;
         m_is_element_dominant = m_acc.m_is_element_dominant;
+        m_num_zones = m_acc.m_num_zones;
+        m_num_mats = m_acc.m_num_mats;
+        m_has_field = m_acc.m_has_field;
+        m_has_specset = m_acc.m_has_specset;
         m_nmatspec = m_acc.m_nmatspec;
         m_nmatspec_acc = m_acc.m_nmatspec_acc;
         m_multi_vol_fracs = m_acc.m_multi_vol_fracs;
@@ -191,6 +199,10 @@ MatsetAccessor::init(const Node &matset,
         CONDUIT_ERROR("blueprint::mesh::matset::MatsetAccessor"
                       " passed matset node must be a valid matset tree.");
     }
+
+    m_has_field = false;
+    m_has_specset = false;
+
     if (nullptr != field)
     {
         if (! (*field).dtype().is_object())
@@ -198,6 +210,8 @@ MatsetAccessor::init(const Node &matset,
             CONDUIT_ERROR("blueprint::mesh::matset::MatsetAccessor"
                           " passed field node must be a valid field tree.");
         }
+
+        m_has_field = true;
     }
     if (nullptr != specset)
     {
@@ -206,6 +220,7 @@ MatsetAccessor::init(const Node &matset,
             CONDUIT_ERROR("blueprint::mesh::matset::MatsetAccessor"
                           " passed specset node must be a valid specset tree.");
         }
+        m_has_specset = true;
     }
 
     m_is_uni_buffer       = blueprint::mesh::matset::is_uni_buffer(matset);
@@ -864,8 +879,12 @@ MatsetAccessor::get_error_nspec_for_mat(const index_t zone_idx, const index_t ma
 {
     (void) zone_idx;
     (void) mat_idx;
-    CONDUIT_ERROR("Impossible to fetch number of species for a material from "
-                  "specset.");
+    // CONDUIT_ERROR("Impossible to fetch number of species for a material from "
+    //               "specset.");
+    // no need to error in this case, as we wish to support looping over 
+    // zones/materials and then species in the case that species
+    // do not exist. Then loops can be more general with minimal performance
+    // costs.
     return 0;
 }
 
