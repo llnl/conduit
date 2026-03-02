@@ -185,7 +185,7 @@ store_material_specset_data_for_zone_to_silo_arrays(
 
         // I can use the material number to determine which part of the speclist to index into
         const int mat_index = mat_id_to_array_index.at(matno);
-        const int num_species_for_this_material = nmatspec[mat_index];
+        const index_t num_species_for_this_material = nmatspec[mat_index];
         if (num_species_for_this_material == 1)
         {
             // This is an optimization for if the material has only one
@@ -241,7 +241,7 @@ store_material_specset_data_for_zone_to_silo_arrays(
                 mix_next.push_back(current_position);
             }
 
-            const int num_species_for_this_material = nmatspec[mat_index];
+            const index_t num_species_for_this_material = nmatspec[mat_index];
             if (num_species_for_this_material == 1)
             {
                 // This is an optimization for if the material has only one
@@ -457,7 +457,7 @@ to_silo(const conduit::Node &matset,
     std::map<int, int> mat_id_to_array_index;
 
     // we need the number of materials
-    const int nmat = count_materials_from_matset(matset);
+    const index_t nmat = count_materials_from_matset(matset);
 
     //
     // specset preprocessing:
@@ -467,7 +467,7 @@ to_silo(const conduit::Node &matset,
     //
     if (transform_specset)
     {
-        const int nmat_specset = conduit::blueprint::mesh::specset::count_materials_from_specset(specset);
+        const index_t nmat_specset = conduit::blueprint::mesh::specset::count_materials_from_specset(specset);
         CONDUIT_ASSERT(nmat >= nmat_specset, "blueprint::mesh::specset::to_silo number of materials in the matset "
                                              "must be greater than or equal to the number of materials in the specset.");
         
@@ -739,17 +739,6 @@ to_silo(const conduit::Node &matset,
         }
         else // material dominant
         {
-            // TODO justin
-            // we are in a pickle
-            // I need to untangle this mess
-            // might be helpful to start over
-            // but the key intuition is that I need num_zones x num_materials mf vals vectors
-            // I place mf vals into each one of these positions
-            // and extract during the loop over zones
-            // loop over the materials in the zone
-            // need mat_idx in [0, num_mats_in_zone) to mat_idx in [0, num_mats_in_matset) map or conversion
-
-
             //
             // create an intermediate representation
             // we could do this for all matset types, but it is less efficient
@@ -759,10 +748,11 @@ to_silo(const conduit::Node &matset,
             std::vector<std::vector<index_t>> material_ids(num_zones);
             // for each zone, the volume fractions of the materials in that zone
             std::vector<std::vector<float64>> vol_fracs(num_zones);
-            // for each zone, the matset vals of the field in that zone
-            std::vector<std::vector<float64>> mset_vals(num_zones);
+            // num_zones by num_materials mf vals vectors
+            std::vector<std::vector<std::vector<float64>>> mf_vals(num_zones, 
+                                                                   std::vector<std::vector<float64>>(nmat));
 
-            MatsetAccessor m_acc = MatsetAccessor(matset, field);
+            MatsetAccessor m_acc = MatsetAccessor(matset, specset);
 
             // for each species mass fraction
             auto for_each_species_value = [&](const index_t zone_idx,
@@ -770,10 +760,11 @@ to_silo(const conduit::Node &matset,
                                               const index_t spec_idx)
             {
                 const index_t real_zone_id = m_acc.get_elem_id(zone_idx, mat_idx);
-                mf_vals[real_zone_id][]
-                m_acc.get_mass_frac(zone_idx, mat_idx, spec_idx);
+                const float64 mf_val = m_acc.get_mass_frac(zone_idx, mat_idx, spec_idx);
+                mf_vals[real_zone_id][mat_idx].push_back(mf_val);
             };
 
+            // for each mat_id vol_frac pair
             auto for_each_value = [&](const index_t mat_idx,
                                       const index_t zone_idx,
                                       const index_t)
@@ -781,10 +772,16 @@ to_silo(const conduit::Node &matset,
                 const index_t real_zone_id = m_acc.get_elem_id(zone_idx, mat_idx);
                 material_ids[real_zone_id].push_back(m_acc.get_mat_id(zone_idx, mat_idx));
                 vol_fracs[real_zone_id].push_back(m_acc.get_vol_frac(zone_idx, mat_idx));
-                mset_vals[real_zone_id].push_back(m_acc.get_mset_val(zone_idx, mat_idx));
             };
 
-            walk_matset_by_material_value(m_acc, for_each_value, epsilon);
+            // nothing to do for each material
+            auto for_each_material = [](const index_t, const index_t){};
+
+            walk_matset_by_material(m_acc,
+                                    for_each_species_value,
+                                    for_each_value,
+                                    for_each_material,
+                                    epsilon);
 
             Node n;
             for (int zone_id = 0; zone_id < num_zones; zone_id ++)
@@ -792,19 +789,21 @@ to_silo(const conduit::Node &matset,
                 const index_t num_mats_in_zone = static_cast<index_t>(material_ids[zone_id].size());
                 n["local_material_ids"].set_external(material_ids[zone_id]);
                 n["local_volume_fractions"].set_external(vol_fracs[zone_id]);
-                n["local_matset_values"].set_external(mset_vals[zone_id]);
                 index_t_array local_material_ids = n["local_material_ids"].value();
                 float64_array local_volume_fractions = n["local_volume_fractions"].value();
-                float64_array local_matset_values = n["local_matset_values"].value();
 
-                for (index_t mat_idx = 0; mat_idx < num_mats_in_zone; mat_idx ++)
+                // iterating over all materials, not just the ones in this zone
+                for (index_t mat_idx = 0; mat_idx < nmat; mat_idx ++)
                 {
-                    for (index_t spec_idx = 0; spec_idx < ???; spec_idx ++)
+                    const index_t nspecs_in_zone_mat = static_cast<index_t>(mf_vals[zone_id][mat_idx].size());
+                    if (0 < nspecs_in_zone_mat)
                     {
-                        species_mf.push_back(???[spec_idx]);
-                    }                    
+                        for (const float64 &mf_val : mf_vals[zone_id][mat_idx])
+                        {
+                            species_mf.push_back(mf_val);
+                        }
+                    }
                 }
-
 
                 store_material_specset_data_for_zone_to_silo_arrays(
                     num_mats_in_zone,
@@ -813,13 +812,13 @@ to_silo(const conduit::Node &matset,
                     mat_id_to_array_index,
                     nmatspec,
                     zone_id,
-                    matlist
-                    mix_vf
-                    mix_mat
-                    mix_next
-                    speclist
-                    mix_spec
-                    current_position
+                    matlist,
+                    mix_vf,
+                    mix_mat,
+                    mix_next,
+                    speclist,
+                    mix_spec,
+                    current_position,
                     current_spec_position);
             }
         }
