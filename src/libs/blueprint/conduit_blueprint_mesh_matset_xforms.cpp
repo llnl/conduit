@@ -755,8 +755,8 @@ to_silo(const conduit::Node &matset,
             MatsetAccessor m_acc = MatsetAccessor(matset, specset);
 
             // for each species mass fraction
-            auto for_each_species_value = [&](const index_t zone_idx,
-                                              const index_t mat_idx,
+            auto for_each_species_value = [&](const index_t mat_idx,
+                                              const index_t zone_idx,
                                               const index_t spec_idx)
             {
                 const index_t real_zone_id = m_acc.get_elem_id(zone_idx, mat_idx);
@@ -2534,7 +2534,7 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
                         // zone_idx is an index over all zones
                         // mat_idx is an index over all materials
                         // num_elems_for_mat is running count of zones for the current material
-                        for_each_value(zone_idx, mat_idx, num_elems_for_mat);
+                        for_each_value(mat_idx, zone_idx, num_elems_for_mat);
                         num_elems_for_mat ++;
                     }
                 }
@@ -2564,7 +2564,7 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
                     // mat_idx is an index over all materials
                     // we pass zone_idx twice because it is also the running count of
                     // zones for the current material
-                    for_each_value(zone_idx, mat_idx, zone_idx);
+                    for_each_value(mat_idx, zone_idx, zone_idx);
                 }
                 for_each_material(mat_idx, num_elems_for_mat);
             }
@@ -2611,13 +2611,13 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
                         const index_t num_spec_for_mat = m_acc.num_spec_for_mat(zone_idx, mat_idx);
                         for (index_t spec_idx = 0; spec_idx < num_spec_for_mat; spec_idx ++)
                         {
-                            for_each_species_value(zone_idx, mat_idx, spec_idx);
+                            for_each_species_value(mat_idx, zone_idx, spec_idx);
                         }
 
                         // zone_idx is an index over all zones
                         // mat_idx is an index over all materials
                         // num_elems_for_mat is running count of zones for the current material
-                        for_each_value(zone_idx, mat_idx, num_elems_for_mat);
+                        for_each_value(mat_idx, zone_idx, num_elems_for_mat);
                         num_elems_for_mat ++;
                     }
                 }
@@ -2646,14 +2646,14 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
                     const index_t num_spec_for_mat = m_acc.num_spec_for_mat(zone_idx, mat_idx);
                     for (index_t spec_idx = 0; spec_idx < num_spec_for_mat; spec_idx ++)
                     {
-                        for_each_species_value(zone_idx, mat_idx, spec_idx);
+                        for_each_species_value(mat_idx, zone_idx, spec_idx);
                     }
                     
                     // zone_idx is an index over all zones the current material is in
                     // mat_idx is an index over all materials
                     // we pass zone_idx twice because it is also the running count of
                     // zones for the current material
-                    for_each_value(zone_idx, mat_idx, zone_idx);
+                    for_each_value(mat_idx, zone_idx, zone_idx);
                 }
                 for_each_material(mat_idx, num_elems_for_mat);
             }
