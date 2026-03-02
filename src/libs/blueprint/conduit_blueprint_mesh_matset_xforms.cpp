@@ -1937,7 +1937,7 @@ multi_buffer_by_element_to_multi_buffer_by_material_field(const conduit::Node &s
     Node material_map;
     create_or_reuse_material_map(src_matset, material_map);
 
-    MatsetAccessor m_acc = MatsetAccessor(src_matset);
+    MatsetAccessor m_acc = MatsetAccessor(src_matset, src_field);
 
     auto for_each_value = [&](const index_t mat_idx,
                               const index_t zone_idx,
@@ -2227,7 +2227,7 @@ multi_buffer_by_material_to_uni_buffer_by_element_field(const conduit::Node &src
     // in which matset values are packed by element. Later we smooth this out.
     std::vector<std::vector<float64>> intermediate_mset_vals(num_elems);
 
-    MatsetAccessor m_acc = MatsetAccessor(src_matset);
+    MatsetAccessor m_acc = MatsetAccessor(src_matset, src_field);
 
     auto for_each_value = [&](const index_t mat_idx,
                               const index_t zone_idx,
