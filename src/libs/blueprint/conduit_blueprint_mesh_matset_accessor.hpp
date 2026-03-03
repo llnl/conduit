@@ -341,6 +341,7 @@ private:
     // these are members that are useful for all layout types
     Node m_nmatspec;
     index_t_accessor m_nmatspec_acc;
+    index_t_accessor m_nmatspec_offsets_acc;
 
     // multi-buffer (full AND sparse by material) members
     std::vector<float64_accessor> m_multi_vol_fracs;
@@ -348,7 +349,6 @@ private:
     Node m_multi_mat_idx_map; // multi-buffer material index map
     index_t_accessor m_multi_mat_idx_map_acc;
     std::vector<float64_accessor> m_multi_mass_fracs;
-    index_t_accessor m_multi_nmatspec_offsets_acc;
     
     // multi-buffer material dominant (sparse by material) members
     std::vector<index_t_accessor> m_sbm_elem_ids;

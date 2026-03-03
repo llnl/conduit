@@ -137,10 +137,12 @@ MatsetAccessor::MatsetAccessor(const MatsetAccessor &m_acc)
   m_has_specset(m_acc.m_has_specset),
   m_nmatspec(m_acc.m_nmatspec),
   m_nmatspec_acc(m_acc.m_nmatspec_acc),
+  m_nmatspec_offsets_acc(m_acc.m_nmatspec_offsets_acc),
   m_multi_vol_fracs(m_acc.m_multi_vol_fracs),
   m_multi_mset_vals(m_acc.m_multi_mset_vals),
   m_multi_mat_idx_map(m_acc.m_multi_mat_idx_map),
   m_multi_mat_idx_map_acc(m_acc.m_multi_mat_idx_map_acc),
+  m_multi_mass_fracs(m_acc.m_multi_mass_fracs),
   m_sbm_elem_ids(m_acc.m_sbm_elem_ids),
   m_sbe_material_ids(m_acc.m_sbe_material_ids),
   m_sbe_vol_fracs(m_acc.m_sbe_vol_fracs),
@@ -172,10 +174,12 @@ MatsetAccessor::operator=(const MatsetAccessor &m_acc)
         m_has_specset = m_acc.m_has_specset;
         m_nmatspec = m_acc.m_nmatspec;
         m_nmatspec_acc = m_acc.m_nmatspec_acc;
+        m_nmatspec_offsets_acc = m_acc.m_nmatspec_offsets_acc;
         m_multi_vol_fracs = m_acc.m_multi_vol_fracs;
         m_multi_mset_vals = m_acc.m_multi_mset_vals;
         m_multi_mat_idx_map = m_acc.m_multi_mat_idx_map;
         m_multi_mat_idx_map_acc = m_acc.m_multi_mat_idx_map_acc;
+        m_multi_mass_fracs = m_acc.m_multi_mass_fracs;
         m_sbm_elem_ids = m_acc.m_sbm_elem_ids;
         m_sbe_material_ids = m_acc.m_sbe_material_ids;
         m_sbe_vol_fracs = m_acc.m_sbe_vol_fracs;
@@ -423,7 +427,7 @@ MatsetAccessor::init(const Node &matset,
                 m_nmatspec["nmatspec"].set(DataType::index_t(num_vol_fracs));
                 m_nmatspec_acc = m_nmatspec["nmatspec"].value();
                 m_nmatspec["nmatspec_offsets"].set(DataType::index_t(num_vol_fracs));
-                m_multi_nmatspec_offsets_acc = m_nmatspec["nmatspec_offsets"].value();
+                m_nmatspec_offsets_acc = m_nmatspec["nmatspec_offsets"].value();
 
                 // create a map from material id to nmatspec
                 std::map<index_t, index_t> mat_id_to_nmatspec;
@@ -454,7 +458,7 @@ MatsetAccessor::init(const Node &matset,
                         const index_t nmatspec_for_mat = mat_id_to_nmatspec.at(mat_id);
 
                         m_nmatspec_acc.set(data_index, nmatspec_for_mat);
-                        m_multi_nmatspec_offsets_acc.set(data_index, nmatspec_offset);
+                        m_nmatspec_offsets_acc.set(data_index, nmatspec_offset);
                         nmatspec_offset += nmatspec_for_mat;
                     }
                 }
@@ -517,7 +521,7 @@ MatsetAccessor::init(const Node &matset,
             // and the nmatspec offsets array is
             //    [0, 3]
             m_nmatspec["nmatspec_offsets"].set(DataType::index_t(m_num_mats));
-            m_multi_nmatspec_offsets_acc = m_nmatspec["nmatspec_offsets"].value();
+            m_nmatspec_offsets_acc = m_nmatspec["nmatspec_offsets"].value();
         }
 
         index_t nmatspec_offset = 0;
@@ -554,7 +558,7 @@ MatsetAccessor::init(const Node &matset,
                 m_nmatspec_acc.set(mat_idx, nmatspec);
 
                 // save nmatspec offset value
-                m_multi_nmatspec_offsets_acc.set(mat_idx, nmatspec_offset);
+                m_nmatspec_offsets_acc.set(mat_idx, nmatspec_offset);
                 nmatspec_offset += nmatspec;
 
                 for (index_t spec_idx = 0; spec_idx < nmatspec; spec_idx ++)
@@ -647,7 +651,7 @@ MatsetAccessor::get_full_mass_frac(const index_t zone_idx,
                                    const index_t mat_idx,
                                    const index_t spec_idx) const
 {
-    const index_t spec_data_index = m_multi_nmatspec_offsets_acc[mat_idx] + spec_idx;
+    const index_t spec_data_index = m_nmatspec_offsets_acc[mat_idx] + spec_idx;
     return m_multi_mass_fracs[spec_data_index][zone_idx];
 }
 
@@ -699,7 +703,7 @@ MatsetAccessor::get_sbm_mass_frac(const index_t zone_idx,
                                   const index_t mat_idx,
                                   const index_t spec_idx) const
 {
-    const index_t spec_data_index = m_multi_nmatspec_offsets_acc[mat_idx] + spec_idx;
+    const index_t spec_data_index = m_nmatspec_offsets_acc[mat_idx] + spec_idx;
     return m_multi_mass_fracs[spec_data_index][zone_idx];
 }
 
@@ -762,7 +766,7 @@ MatsetAccessor::get_sbe_mass_frac(const index_t zone_idx,
                                   const index_t spec_idx) const
 {
     const index_t data_index = m_sbe_o2m_idx.index(zone_idx, mat_idx);
-    const index_t nmatspec_offset = m_multi_nmatspec_offsets_acc[data_index];
+    const index_t nmatspec_offset = m_nmatspec_offsets_acc[data_index];
 
     // We need an index that is between 0 and the number of species in this zone.
     // The way to calculate this is to add out num material species offset
