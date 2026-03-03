@@ -238,5 +238,112 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_sizes_information)
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval)
 {
-    // TODO
+    const index_t nx = 2, ny = 2;
+    const float64 radius = 0.25;
+
+    Node mesh_full, mesh_sbe, mesh_sbm;
+    blueprint::mesh::examples::venn_specsets("full", nx, ny, radius, mesh_full);
+    blueprint::mesh::examples::venn_specsets("sparse_by_element", nx, ny, radius, mesh_sbe);
+    blueprint::mesh::examples::venn_specsets("sparse_by_material", nx, ny, radius, mesh_sbm);
+
+    CONDUIT_INFO("venn full data retrieval");
+    {
+        // index [mat_idx][zone_idx]
+        const std::vector<std::vector<index_t>> mat_ids_baseline = {
+            /* background */ {0, 0, 0, 0},
+            /* circle_a   */ {1, 1, 1, 1},
+            /* circle_b   */ {2, 2, 2, 2},
+            /* circle_c   */ {3, 3, 3, 3},
+        };
+
+        // index [mat_idx][zone_idx]
+        const std::vector<std::vector<float64>> vol_fracs_baseline = {
+            /* background */ {1.0, 1.0, 1.0, 0.0},
+            /* circle_a   */ {0.0, 0.0, 0.0, 0.333333333333333},
+            /* circle_b   */ {0.0, 0.0, 0.0, 0.333333333333333},
+            /* circle_c   */ {0.0, 0.0, 0.0, 0.333333333333333},
+        };
+
+        // index [mat_idx][zone_idx]
+        const std::vector<std::vector<float64>> mset_vals_baseline = {
+            /* background */ {0.0, 0.5, 0.5, 0.0},
+            /* circle_a   */ {0.0, 0.0, 0.0, 0.100000001490116},
+            /* circle_b   */ {0.0, 0.0, 0.0, 0.200000002980232},
+            /* circle_c   */ {0.0, 0.0, 0.0, 0.600000023841858},
+        };
+
+        // index [mat_idx][spec_idx][zone_idx]
+        const std::vector<std::vector<std::vector<float64>>> mf_vals_baseline = {
+            /* background  */ {
+            /*    bg_spec1 */    {1.0, 1.0, 1.0, 1.0},
+            },
+            /* circle_a    */ {
+            /*    a_spec1  */    {0.0, 0.5, 0.0, 0.5},
+            /*    a_spec2  */    {1.0, 0.5, 1.0, 0.5},
+            },
+            /* circle_b    */ {
+            /*    b_spec1  */    {0.0, 0.0, 0.5, 0.5},
+            /*    b_spec2  */    {1.0, 1.0, 0.5, 0.5},
+            },
+            /* circle_c    */ {
+            /*    c_spec1  */    {1.0, 0.75, 0.75, 0.5},
+            /*    c_spec2  */    {0.0, 0.1875, 0.1875, 0.375},
+            /*    c_spec3  */    {0.0, 0.0625, 0.0625, 0.125},
+            },
+        };
+
+        const Node &mset = mesh_full["matsets/matset"];
+        const Node &field = mesh_full["fields/importance"];
+        const Node &sset = mesh_full["specsets/specset"];
+
+        MatsetAccessor m_acc = MatsetAccessor(mset, field, sset);
+
+        const index_t num_zones = m_acc.num_zones();
+        for (index_t zone_idx = 0; zone_idx < num_zones; zone_idx ++)
+        {
+            const index_t num_mats = m_acc.num_mats();
+            for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
+            {
+                const index_t mat_id = m_acc.get_mat_id(zone_idx, mat_idx);
+                const index_t elem_id = m_acc.get_elem_id(zone_idx, mat_idx);
+                const float64 vol_frac = m_acc.get_vol_frac(zone_idx, mat_idx);
+                const float64 mset_val = m_acc.get_mset_val(zone_idx, mat_idx);
+
+                EXPECT_EQ(mat_ids_baseline[mat_idx][zone_idx], mat_id);
+                EXPECT_EQ(zone_idx, elem_id);
+                EXPECT_FLOAT_EQ(vol_fracs_baseline[mat_idx][zone_idx], vol_frac);
+                EXPECT_FLOAT_EQ(mset_vals_baseline[mat_idx][zone_idx], mset_val);
+
+                const index_t num_specs_for_mat = m_acc.num_spec_for_mat(zone_idx, mat_idx);
+                for (index_t spec_idx = 0; spec_idx < num_specs_for_mat; spec_idx ++)
+                {
+                    const float64 mf_val = m_acc.get_mass_frac(zone_idx, mat_idx, spec_idx);
+
+                    EXPECT_EQ(mf_vals_baseline[mat_idx][spec_idx][zone_idx], mf_val);
+                }
+            }
+        }
+    }
+
+    CONDUIT_INFO("venn sparse_by_element layout information");
+    {
+        const Node &mset = mesh_sbe["matsets/matset"];
+        const Node &field = mesh_sbe["fields/importance"];
+        const Node &sset = mesh_sbe["specsets/specset"];
+
+        MatsetAccessor m_acc = MatsetAccessor(mset, field, sset);
+
+        // TODO
+    }
+
+    CONDUIT_INFO("venn sparse_by_material layout information");
+    {
+        const Node &mset = mesh_sbm["matsets/matset"];
+        const Node &field = mesh_sbm["fields/importance"];
+        const Node &sset = mesh_sbm["specsets/specset"];
+
+        MatsetAccessor m_acc = MatsetAccessor(mset, field, sset);
+
+        // TODO
+    }
 }
