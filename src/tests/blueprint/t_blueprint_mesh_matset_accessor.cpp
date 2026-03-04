@@ -45,6 +45,8 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_constructions)
 
         EXPECT_FALSE(m_acc.has_field());
         EXPECT_FALSE(m_acc.has_specset());
+
+        EXPECT_EQ(0, m_acc.num_spec_for_mat(0, 0));
     }
 
     CONDUIT_INFO("construct with matset and field");
@@ -53,6 +55,8 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_constructions)
 
         EXPECT_TRUE(m_acc.has_field());
         EXPECT_FALSE(m_acc.has_specset());
+
+        EXPECT_EQ(0, m_acc.num_spec_for_mat(0, 0));
     }
 
     CONDUIT_INFO("construct with matset and specset");
@@ -61,6 +65,8 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_constructions)
 
         EXPECT_FALSE(m_acc.has_field());
         EXPECT_TRUE(m_acc.has_specset());
+
+        EXPECT_EQ(1, m_acc.num_spec_for_mat(0, 0));
     }
 
     CONDUIT_INFO("construct with matset, field, and specset");
@@ -69,6 +75,8 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_constructions)
 
         EXPECT_TRUE(m_acc.has_field());
         EXPECT_TRUE(m_acc.has_specset());
+
+        EXPECT_EQ(1, m_acc.num_spec_for_mat(0, 0));
     }
 }
 
@@ -95,6 +103,9 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_layout_information)
         EXPECT_FALSE(m_acc.is_material_dominant());
         EXPECT_EQ(16, m_acc.num_zones());
         EXPECT_EQ(4, m_acc.num_mats());
+
+        EXPECT_THROW(m_acc.num_mats_for_zone(0), conduit::Error);
+        EXPECT_THROW(m_acc.num_zones_for_mat(0), conduit::Error);
     }
 
     CONDUIT_INFO("venn sparse_by_element layout information");
@@ -109,6 +120,9 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_layout_information)
         EXPECT_FALSE(m_acc.is_material_dominant());
         EXPECT_EQ(16, m_acc.num_zones());
         EXPECT_EQ(4, m_acc.num_mats());
+
+        EXPECT_NO_THROW(m_acc.num_mats_for_zone(0));
+        EXPECT_THROW(m_acc.num_zones_for_mat(0), conduit::Error);
     }
 
     CONDUIT_INFO("venn sparse_by_material layout information");
@@ -123,6 +137,9 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_layout_information)
         EXPECT_TRUE(m_acc.is_material_dominant());
         EXPECT_EQ(16, m_acc.num_zones());
         EXPECT_EQ(4, m_acc.num_mats());
+
+        EXPECT_THROW(m_acc.num_mats_for_zone(0), conduit::Error);
+        EXPECT_NO_THROW(m_acc.num_zones_for_mat(0));
     }
 }
 
@@ -496,6 +513,138 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval)
     }
 }
 
-// error tests
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_special_cases)
+{
+    // TODO
+    // strange mat_ids, material order different, include matmap
+}
 
-// special case tests (strange mat_ids, material order different, include matmap)
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_errors)
+{
+    const index_t nx = 2, ny = 2;
+    const float64 radius = 0.25;
+
+    Node mesh_full, mesh_sbe, mesh_sbm;
+    blueprint::mesh::examples::venn_specsets("full", nx, ny, radius, mesh_full);
+    blueprint::mesh::examples::venn_specsets("sparse_by_element", nx, ny, radius, mesh_sbe);
+    blueprint::mesh::examples::venn_specsets("sparse_by_material", nx, ny, radius, mesh_sbm);
+
+    CONDUIT_INFO("venn full data retrieval errors");
+    {
+        const Node &mset = mesh_full["matsets/matset"];
+        const Node &field = mesh_full["fields/importance"];
+        const Node &sset = mesh_full["specsets/specset"];
+
+        MatsetAccessor m_acc_only_matset = MatsetAccessor(mset);
+
+        EXPECT_NO_THROW(m_acc_only_matset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_only_matset.get_elem_id(0, 0));
+        EXPECT_NO_THROW(m_acc_only_matset.get_vol_frac(0, 0));
+        EXPECT_THROW(m_acc_only_matset.get_mset_val(0, 0), conduit::Error);
+        EXPECT_THROW(m_acc_only_matset.get_mass_frac(0, 0, 0), conduit::Error);
+
+        MatsetAccessor m_acc_matset_and_field = MatsetAccessor(mset, field);
+
+        EXPECT_NO_THROW(m_acc_matset_and_field.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_field.get_elem_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_field.get_vol_frac(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_field.get_mset_val(0, 0));
+        EXPECT_THROW(m_acc_matset_and_field.get_mass_frac(0, 0, 0), conduit::Error);
+
+        MatsetAccessor m_acc_matset_and_specset = MatsetAccessor(mset, sset);
+
+        EXPECT_NO_THROW(m_acc_matset_and_specset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_specset.get_elem_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_specset.get_vol_frac(0, 0));
+        EXPECT_THROW(m_acc_matset_and_specset.get_mset_val(0, 0), conduit::Error);
+        EXPECT_NO_THROW(m_acc_matset_and_specset.get_mass_frac(0, 0, 0));
+
+        MatsetAccessor m_acc_matset_field_specset = MatsetAccessor(mset, field, sset);
+
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_elem_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_vol_frac(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_mset_val(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_mass_frac(0, 0, 0));
+    }
+
+    CONDUIT_INFO("venn sparse_by_element data retrieval errors");
+    {
+        const Node &mset = mesh_sbe["matsets/matset"];
+        const Node &field = mesh_sbe["fields/importance"];
+        const Node &sset = mesh_sbe["specsets/specset"];
+
+        MatsetAccessor m_acc_only_matset = MatsetAccessor(mset);
+
+        EXPECT_NO_THROW(m_acc_only_matset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_only_matset.get_elem_id(0, 0));
+        EXPECT_NO_THROW(m_acc_only_matset.get_vol_frac(0, 0));
+        EXPECT_THROW(m_acc_only_matset.get_mset_val(0, 0), conduit::Error);
+        EXPECT_THROW(m_acc_only_matset.get_mass_frac(0, 0, 0), conduit::Error);
+
+        MatsetAccessor m_acc_matset_and_field = MatsetAccessor(mset, field);
+
+        EXPECT_NO_THROW(m_acc_matset_and_field.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_field.get_elem_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_field.get_vol_frac(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_field.get_mset_val(0, 0));
+        EXPECT_THROW(m_acc_matset_and_field.get_mass_frac(0, 0, 0), conduit::Error);
+
+        MatsetAccessor m_acc_matset_and_specset = MatsetAccessor(mset, sset);
+
+        EXPECT_NO_THROW(m_acc_matset_and_specset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_specset.get_elem_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_specset.get_vol_frac(0, 0));
+        EXPECT_THROW(m_acc_matset_and_specset.get_mset_val(0, 0), conduit::Error);
+        EXPECT_NO_THROW(m_acc_matset_and_specset.get_mass_frac(0, 0, 0));
+
+        MatsetAccessor m_acc_matset_field_specset = MatsetAccessor(mset, field, sset);
+
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_elem_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_vol_frac(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_mset_val(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_mass_frac(0, 0, 0));
+    }
+
+    CONDUIT_INFO("venn sparse_by_material data retrieval errors");
+    {
+        const Node &mset = mesh_sbm["matsets/matset"];
+        const Node &field = mesh_sbm["fields/importance"];
+        const Node &sset = mesh_sbm["specsets/specset"];
+
+        MatsetAccessor m_acc_only_matset = MatsetAccessor(mset);
+
+        EXPECT_NO_THROW(m_acc_only_matset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_only_matset.get_elem_id(0, 0));
+        EXPECT_NO_THROW(m_acc_only_matset.get_vol_frac(0, 0));
+        EXPECT_THROW(m_acc_only_matset.get_mset_val(0, 0), conduit::Error);
+        EXPECT_THROW(m_acc_only_matset.get_mass_frac(0, 0, 0), conduit::Error);
+
+        MatsetAccessor m_acc_matset_and_field = MatsetAccessor(mset, field);
+
+        EXPECT_NO_THROW(m_acc_matset_and_field.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_field.get_elem_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_field.get_vol_frac(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_field.get_mset_val(0, 0));
+        EXPECT_THROW(m_acc_matset_and_field.get_mass_frac(0, 0, 0), conduit::Error);
+
+        MatsetAccessor m_acc_matset_and_specset = MatsetAccessor(mset, sset);
+
+        EXPECT_NO_THROW(m_acc_matset_and_specset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_specset.get_elem_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_specset.get_vol_frac(0, 0));
+        EXPECT_THROW(m_acc_matset_and_specset.get_mset_val(0, 0), conduit::Error);
+        EXPECT_NO_THROW(m_acc_matset_and_specset.get_mass_frac(0, 0, 0));
+
+        MatsetAccessor m_acc_matset_field_specset = MatsetAccessor(mset, field, sset);
+
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_elem_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_vol_frac(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_mset_val(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_mass_frac(0, 0, 0));
+    }
+}
