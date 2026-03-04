@@ -71,11 +71,11 @@ public:
 //-----------------------------------------------------------------------------
 using GetMatIdPtr        = index_t (MatsetAccessor::*)(index_t, index_t) const;
 using GetElemIdPtr       = index_t (MatsetAccessor::*)(index_t, index_t) const;
-using GetVolFracPtr      = double  (MatsetAccessor::*)(index_t, index_t) const;
-using GetMsetValPtr      = double  (MatsetAccessor::*)(index_t, index_t) const;
-using GetMassFracPtr     = double  (MatsetAccessor::*)(index_t, index_t, index_t) const;
-using GetNMatsForZonePtr = index_t (MatsetAccessor::*)(index_t) const;
-using GetNZonesForMatPtr = index_t (MatsetAccessor::*)(index_t) const;
+using GetVolFracPtr      = float64 (MatsetAccessor::*)(index_t, index_t) const;
+using GetMsetValPtr      = float64 (MatsetAccessor::*)(index_t, index_t) const;
+using GetMassFracPtr     = float64 (MatsetAccessor::*)(index_t, index_t, index_t) const;
+using GetNMatsForElemPtr = index_t (MatsetAccessor::*)(index_t) const;
+using GetNElemsForMatPtr = index_t (MatsetAccessor::*)(index_t) const;
 using GetNMatSpecPtr     = index_t (MatsetAccessor::*)(index_t, index_t) const;
 
 //-----------------------------------------------------------------------------
@@ -145,9 +145,9 @@ using GetNMatSpecPtr     = index_t (MatsetAccessor::*)(index_t, index_t) const;
     }
 
     inline
-    index_t     num_zones() const
+    index_t     num_elems() const
     {
-        return m_num_zones;
+        return m_num_elems;
     }
 
     inline
@@ -161,62 +161,62 @@ using GetNMatSpecPtr     = index_t (MatsetAccessor::*)(index_t, index_t) const;
 //-----------------------------------------------------------------------------
     // use this for elem-dom sparse matsets
     inline
-    index_t     num_mats_for_zone(const index_t zone_idx) const
+    index_t     num_mats_for_elem(const index_t elem_idx) const
     {
-        return (this->*m_get_nmats_for_zone)(zone_idx);
+        return (this->*m_get_nmats_for_elem)(elem_idx);
     }
 
     // use this for mat-dom sparse matsets
     inline
-    index_t     num_zones_for_mat(const index_t mat_idx) const
+    index_t     num_elems_for_mat(const index_t mat_idx) const
     {
-        return (this->*m_get_nzones_for_mat)(mat_idx);
+        return (this->*m_get_nelems_for_mat)(mat_idx);
     }
 
     inline
-    index_t     num_spec_for_mat(const index_t zone_idx,
+    index_t     num_spec_for_mat(const index_t elem_idx,
                                  const index_t mat_idx) const
     {
-        return (this->*m_get_nspec_for_mat)(zone_idx, mat_idx);
+        return (this->*m_get_nspec_for_mat)(elem_idx, mat_idx);
     }
 
 //-----------------------------------------------------------------------------
 /// Retrieve data
 //-----------------------------------------------------------------------------
     inline
-    index_t     get_mat_id(const index_t zone_idx,
+    index_t     get_mat_id(const index_t elem_idx,
                            const index_t mat_idx) const
     {
-        return (this->*m_get_mat_id)(zone_idx, mat_idx);
+        return (this->*m_get_mat_id)(elem_idx, mat_idx);
     }
 
     inline
-    index_t     get_elem_id(const index_t zone_idx,
+    index_t     get_elem_id(const index_t elem_idx,
                             const index_t mat_idx) const
     {
-        return (this->*m_get_elem_id)(zone_idx, mat_idx);
+        return (this->*m_get_elem_id)(elem_idx, mat_idx);
     }
 
     inline
-    float64     get_vol_frac(const index_t zone_idx,
+    float64     get_vol_frac(const index_t elem_idx,
                              const index_t mat_idx) const
     {
-        return (this->*m_get_vol_frac)(zone_idx, mat_idx);
+        return (this->*m_get_vol_frac)(elem_idx, mat_idx);
     }
 
     inline
-    float64     get_mset_val(const index_t zone_idx,
+    float64     get_mset_val(const index_t elem_idx,
                              const index_t mat_idx) const
     {
-        return (this->*m_get_mset_val)(zone_idx, mat_idx);
+        return (this->*m_get_mset_val)(elem_idx, mat_idx);
     }
 
     inline
-    float64     get_mass_frac(const index_t zone_idx,
+    float64     get_mass_frac(const index_t elem_idx,
                               const index_t mat_idx,
                               const index_t spec_idx) const
     {
-        return (this->*m_get_mass_frac)(zone_idx, mat_idx, spec_idx);
+        return (this->*m_get_mass_frac)(elem_idx, mat_idx, spec_idx);
     }
 
 private:
@@ -242,57 +242,57 @@ private:
     //
 
     // multi-buffer by element (full)
-    // 0 <= zone_idx < num zones
+    // 0 <= elem_idx < num elems
     // 0 <= mat_idx < num mats
     // 0 <= spec_idx < num species for material mat_idx
-    index_t get_full_mat_id(const index_t zone_idx, const index_t mat_idx) const;
-    index_t get_full_elem_id(const index_t zone_idx, const index_t mat_idx) const;
-    float64 get_full_vol_frac(const index_t zone_idx, const index_t mat_idx) const;
-    float64 get_full_mset_val(const index_t zone_idx, const index_t mat_idx) const;
-    float64 get_full_mass_frac(const index_t zone_idx,
+    index_t get_full_mat_id(const index_t elem_idx, const index_t mat_idx) const;
+    index_t get_full_elem_id(const index_t elem_idx, const index_t mat_idx) const;
+    float64 get_full_vol_frac(const index_t elem_idx, const index_t mat_idx) const;
+    float64 get_full_mset_val(const index_t elem_idx, const index_t mat_idx) const;
+    float64 get_full_mass_frac(const index_t elem_idx,
                                const index_t mat_idx,
                                const index_t spec_idx) const;
     // omitted because this method is used for knowing how many
     // materials to iterate over in a sparse representation
-    // index_t get_full_nmats_for_zone(const index_t zone_idx) const;
+    // index_t get_full_nmats_for_elem(const index_t elem_idx) const;
     // omitted because this method is used for knowing how many
-    // zones to iterate over in a sparse representation
-    // index_t get_full_nzones_for_mat(const index_t mat_idx) const;
-    index_t get_full_nspec_for_mat(const index_t zone_idx, const index_t mat_idx) const;
+    // elems to iterate over in a sparse representation
+    // index_t get_full_nelems_for_mat(const index_t mat_idx) const;
+    index_t get_full_nspec_for_mat(const index_t elem_idx, const index_t mat_idx) const;
 
     // multi-buffer by material (sparse by material)
-    // 0 <= zone_idx < num zones for material mat_idx
+    // 0 <= elem_idx < num elems for material mat_idx
     // 0 <= mat_idx < num mats
     // 0 <= spec_idx < num species for material mat_idx
-    index_t get_sbm_mat_id(const index_t zone_idx, const index_t mat_idx) const;
-    index_t get_sbm_elem_id(const index_t zone_idx, const index_t mat_idx) const;
-    float64 get_sbm_vol_frac(const index_t zone_idx, const index_t mat_idx) const;
-    float64 get_sbm_mset_val(const index_t zone_idx, const index_t mat_idx) const;
-    float64 get_sbm_mass_frac(const index_t zone_idx,
+    index_t get_sbm_mat_id(const index_t elem_idx, const index_t mat_idx) const;
+    index_t get_sbm_elem_id(const index_t elem_idx, const index_t mat_idx) const;
+    float64 get_sbm_vol_frac(const index_t elem_idx, const index_t mat_idx) const;
+    float64 get_sbm_mset_val(const index_t elem_idx, const index_t mat_idx) const;
+    float64 get_sbm_mass_frac(const index_t elem_idx,
                               const index_t mat_idx,
                               const index_t spec_idx) const;
-    index_t get_sbm_nzones_for_mat(const index_t mat_idx) const;
+    index_t get_sbm_nelems_for_mat(const index_t mat_idx) const;
     // omitted because this method is used for knowing how many
     // materials to iterate over in a sparse representation
-    // index_t get_sbm_nmats_for_zone(const index_t zone_idx) const;
-    index_t get_sbm_nspec_for_mat(const index_t zone_idx, const index_t mat_idx) const;
+    // index_t get_sbm_nmats_for_elem(const index_t elem_idx) const;
+    index_t get_sbm_nspec_for_mat(const index_t elem_idx, const index_t mat_idx) const;
 
     // uni-buffer by element (sparse by element)
-    // 0 <= zone_idx < num zones
-    // 0 <= mat_idx < num mats for zone zone_idx
-    // 0 <= spec_idx < num species for material mat_idx in zone zone_idx
-    index_t get_sbe_mat_id(const index_t zone_idx, const index_t mat_idx) const;
-    index_t get_sbe_elem_id(const index_t zone_idx, const index_t mat_idx) const;
-    float64 get_sbe_vol_frac(const index_t zone_idx, const index_t mat_idx) const;
-    float64 get_sbe_mset_val(const index_t zone_idx, const index_t mat_idx) const;
-    float64 get_sbe_mass_frac(const index_t zone_idx,
+    // 0 <= elem_idx < num elems
+    // 0 <= mat_idx < num mats for elem elem_idx
+    // 0 <= spec_idx < num species for material mat_idx in elem elem_idx
+    index_t get_sbe_mat_id(const index_t elem_idx, const index_t mat_idx) const;
+    index_t get_sbe_elem_id(const index_t elem_idx, const index_t mat_idx) const;
+    float64 get_sbe_vol_frac(const index_t elem_idx, const index_t mat_idx) const;
+    float64 get_sbe_mset_val(const index_t elem_idx, const index_t mat_idx) const;
+    float64 get_sbe_mass_frac(const index_t elem_idx,
                               const index_t mat_idx,
                               const index_t spec_idx) const;
     // omitted because this method is used for knowing how many
-    // zones to iterate over in a sparse representation
-    // index_t get_sbe_nzones_for_mat(const index_t mat_idx) const;
-    index_t get_sbe_nmats_for_zone(const index_t zone_idx) const;
-    index_t get_sbe_nspec_for_mat(const index_t zone_idx, const index_t mat_idx) const;
+    // elems to iterate over in a sparse representation
+    // index_t get_sbe_nelems_for_mat(const index_t mat_idx) const;
+    index_t get_sbe_nmats_for_elem(const index_t elem_idx) const;
+    index_t get_sbe_nspec_for_mat(const index_t elem_idx, const index_t mat_idx) const;
 
     // uni-buffer by material
     // not implemented; error in constructor
@@ -301,16 +301,16 @@ private:
     // accessor is used improperly users will get a helpful error instead
     // of just a segfault. The field and specset access methods will only be
     // turned on if a field or a specset is provided.
-    index_t get_error_mat_id(const index_t zone_idx, const index_t mat_idx) const;
-    index_t get_error_elem_id(const index_t zone_idx, const index_t mat_idx) const;
-    float64 get_error_vol_frac(const index_t zone_idx, const index_t mat_idx) const;
-    float64 get_error_mset_val(const index_t zone_idx, const index_t mat_idx) const;
-    float64 get_error_mass_frac(const index_t zone_idx, 
+    index_t get_error_mat_id(const index_t elem_idx, const index_t mat_idx) const;
+    index_t get_error_elem_id(const index_t elem_idx, const index_t mat_idx) const;
+    float64 get_error_vol_frac(const index_t elem_idx, const index_t mat_idx) const;
+    float64 get_error_mset_val(const index_t elem_idx, const index_t mat_idx) const;
+    float64 get_error_mass_frac(const index_t elem_idx, 
                                 const index_t mat_idx,
                                 const index_t spec_idx) const;
-    index_t get_error_nmats_for_zone(const index_t zone_idx) const;
-    index_t get_error_nzones_for_mat(const index_t mat_idx) const;
-    index_t get_error_nspec_for_mat(const index_t zone_idx, const index_t mat_idx) const;
+    index_t get_error_nmats_for_elem(const index_t elem_idx) const;
+    index_t get_error_nelems_for_mat(const index_t mat_idx) const;
+    index_t get_error_nspec_for_mat(const index_t elem_idx, const index_t mat_idx) const;
 
 //-----------------------------------------------------------------------------
 //
@@ -325,14 +325,14 @@ private:
     GetVolFracPtr      m_get_vol_frac;
     GetMsetValPtr      m_get_mset_val;
     GetMassFracPtr     m_get_mass_frac;
-    GetNMatsForZonePtr m_get_nmats_for_zone;
-    GetNZonesForMatPtr m_get_nzones_for_mat;
+    GetNMatsForElemPtr m_get_nmats_for_elem;
+    GetNElemsForMatPtr m_get_nelems_for_mat;
     GetNMatSpecPtr     m_get_nspec_for_mat;
 
     // information members
     bool m_is_uni_buffer;
     bool m_is_element_dominant;
-    index_t m_num_zones;
+    index_t m_num_elems;
     index_t m_num_mats;
     bool m_has_field;
     bool m_has_specset;
