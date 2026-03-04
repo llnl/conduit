@@ -73,7 +73,7 @@ create_material_map(const conduit::Node &matset,
     // We must be multi-buffer, so we can assume we have a 
     // "volume_fractions" child that is an object.
     const std::vector<std::string> &matnames = matset["volume_fractions"].child_names();
-    int mat_id = 0;
+    index_t mat_id = 0;
     for (const auto &matname : matnames)
     {
         material_map[matname].set(mat_id);
@@ -1925,6 +1925,7 @@ create_reverse_material_map(const conduit::Node &src_material_map)
     }
     return reverse_matmap;
 }
+
 //-------------------------------------------------------------------------
 index_t 
 count_zones_from_matset(const conduit::Node &matset)
@@ -1935,31 +1936,88 @@ count_zones_from_matset(const conduit::Node &matset)
         CONDUIT_ERROR("blueprint::mesh::matset::count_zones_in_matset"
                       " passed matset node must be a valid matset tree.");
     }
-    // full
-    if (is_element_dominant(matset) && is_multi_buffer(matset))
+
+    const bool element_dominant = is_element_dominant(matset);
+    const bool multi_buffer = is_multi_buffer(matset);
+
+    if (element_dominant)
     {
-        if (matset["volume_fractions"].number_of_children() > 0)
+        // venn full
+        if (multi_buffer)
         {
-            return matset["volume_fractions"][0].dtype().number_of_elements();
+            if (matset["volume_fractions"].number_of_children() > 0)
+            {
+                return matset["volume_fractions"][0].dtype().number_of_elements();
+            }
+            else
+            {
+                return 0;
+            }
         }
+        // venn sparse by element
         else
         {
-            return 0;
+            return matset["sizes"].dtype().number_of_elements();
         }
-    }
-    // sparse_by_element
-    else if (is_element_dominant(matset))
-    {
-        return matset["sizes"].dtype().number_of_elements();
-    }
-    // sparse_by_material
-    else if (is_material_dominant(matset))
-    {
-        return detail::determine_num_elems_in_multi_buffer_by_material(matset["element_ids"]);
     }
     else
     {
-        CONDUIT_ERROR("Unknown matset type.");
+        // venn sparse by material
+        if (multi_buffer)
+        {
+            return detail::determine_num_elems_in_multi_buffer_by_material(matset["element_ids"]);
+        }
+        // material-dominant uni-buffer
+        else
+        {
+            CONDUIT_ERROR("blueprint::mesh::matset::count_zones_in_matset() "
+                          "material-dominant uni-buffer material set is unsupported.");
+        }
+    }
+
+    return -1;
+}
+
+//-------------------------------------------------------------------------
+index_t 
+count_materials_from_matset(const conduit::Node &matset)
+{
+    // extra seat belt here
+    if (! matset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::matset::count_materials_from_matset"
+                      " passed matset node must be a valid matset tree.");
+    }
+
+    const bool element_dominant = is_element_dominant(matset);
+    const bool multi_buffer = is_multi_buffer(matset);
+
+    if (element_dominant)
+    {
+        // venn full
+        if (multi_buffer)
+        {
+            return matset["volume_fractions"].number_of_children();
+        }
+        // venn sparse by element
+        else
+        {
+            return matset["material_map"].number_of_children();
+        }
+    }
+    else
+    {
+        // venn sparse by material
+        if (multi_buffer)
+        {
+            return matset["volume_fractions"].number_of_children();
+        }
+        // material-dominant uni-buffer
+        else
+        {
+            CONDUIT_ERROR("blueprint::mesh::matset::count_materials_from_matset() "
+                          "material-dominant uni-buffer material set is unsupported.");
+        }
     }
 
     return -1;
