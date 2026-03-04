@@ -408,12 +408,94 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval)
 
     CONDUIT_INFO("venn sparse_by_material layout information");
     {
+        // index [mat_idx][zone_idx]
+        const std::vector<std::vector<index_t>> mat_ids_baseline = {
+            /* background */ {0, 0, 0},
+            /* circle_a   */ {1},
+            /* circle_b   */ {2},
+            /* circle_c   */ {3},
+        };
+
+        // index [mat_idx][zone_idx]
+        const std::vector<std::vector<index_t>> elem_ids_baseline = {
+            /* background */ {0, 1, 2},
+            /* circle_a   */ {3},
+            /* circle_b   */ {3},
+            /* circle_c   */ {3},
+        };
+
+        // index [mat_idx][zone_idx]
+        const std::vector<std::vector<float64>> vol_fracs_baseline = {
+            /* background */ {1.0, 1.0, 1.0},
+            /* circle_a   */ {0.333333333333333},
+            /* circle_b   */ {0.333333333333333},
+            /* circle_c   */ {0.333333333333333},
+        };
+
+        // index [mat_idx][zone_idx]
+        const std::vector<std::vector<float64>> mset_vals_baseline = {
+            /* background */ {0.0, 0.5, 0.5},
+            /* circle_a   */ {0.100000001490116},
+            /* circle_b   */ {0.200000002980232},
+            /* circle_c   */ {0.600000023841858},
+        };
+
+        // index [mat_idx][spec_idx][zone_idx]
+        const std::vector<std::vector<std::vector<float64>>> mf_vals_baseline = {
+            /* background  */ {
+            /*    bg_spec1 */    {1.0, 1.0, 1.0},
+            },
+            /* circle_a    */ {
+            /*    a_spec1  */    {0.5},
+            /*    a_spec2  */    {0.5},
+            },
+            /* circle_b    */ {
+            /*    b_spec1  */    {0.5},
+            /*    b_spec2  */    {0.5},
+            },
+            /* circle_c    */ {
+            /*    c_spec1  */    {0.5},
+            /*    c_spec2  */    {0.375},
+            /*    c_spec3  */    {0.125},
+            },
+        };
+
         const Node &mset = mesh_sbm["matsets/matset"];
         const Node &field = mesh_sbm["fields/importance"];
         const Node &sset = mesh_sbm["specsets/specset"];
 
         MatsetAccessor m_acc = MatsetAccessor(mset, field, sset);
 
-        // TODO
+        // we iterate over materials
+        const index_t num_mats = m_acc.num_mats();
+        for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
+        {
+            // we ask for the number of zones for this material
+            const index_t num_zones_for_mat = m_acc.num_zones_for_mat(mat_idx);
+            for (index_t zone_idx = 0; zone_idx < num_zones_for_mat; zone_idx ++)
+            {
+                const index_t mat_id = m_acc.get_mat_id(zone_idx, mat_idx);
+                const index_t elem_id = m_acc.get_elem_id(zone_idx, mat_idx);
+                const float64 vol_frac = m_acc.get_vol_frac(zone_idx, mat_idx);
+                const float64 mset_val = m_acc.get_mset_val(zone_idx, mat_idx);
+
+                EXPECT_EQ(mat_ids_baseline[mat_idx][zone_idx], mat_id);
+                EXPECT_EQ(elem_ids_baseline[mat_idx][zone_idx], elem_id);
+                EXPECT_FLOAT_EQ(vol_fracs_baseline[mat_idx][zone_idx], vol_frac);
+                EXPECT_FLOAT_EQ(mset_vals_baseline[mat_idx][zone_idx], mset_val);
+
+                const index_t num_specs_for_mat = m_acc.num_spec_for_mat(zone_idx, mat_idx);
+                for (index_t spec_idx = 0; spec_idx < num_specs_for_mat; spec_idx ++)
+                {
+                    const float64 mf_val = m_acc.get_mass_frac(zone_idx, mat_idx, spec_idx);
+
+                    EXPECT_EQ(mf_vals_baseline[mat_idx][spec_idx][zone_idx], mf_val);
+                }
+            }
+        }
     }
 }
+
+// error tests
+
+// special case tests (strange mat_ids, material order different, include matmap)
