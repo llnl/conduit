@@ -2226,7 +2226,7 @@ index_t
 get_num_species_for_material(const conduit::Node &specset,
                              const std::string &matname)
 {
-    if (blueprint::mesh::specset::is_multi_buffer(specset))
+    if (is_multi_buffer(specset))
     {
         if (specset["matset_values"].has_child(matname))
         {
@@ -2255,7 +2255,14 @@ void
 get_material_names(const conduit::Node &specset,
                    std::vector<std::string> &matnames)
 {
-    if (blueprint::mesh::specset::is_multi_buffer(specset))
+    // extra seat belt here
+    if (! specset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::specset::get_material_names"
+                      " passed specset node must be a valid specset tree.");
+    }
+
+    if (is_multi_buffer(specset))
     {
         matnames = specset["matset_values"].child_names();
     }
@@ -2263,6 +2270,29 @@ get_material_names(const conduit::Node &specset,
     {
         matnames = specset["species_names"].child_names();
     }
+}
+
+//-------------------------------------------------------------------------
+index_t 
+count_materials_from_specset(const conduit::Node &specset)
+{
+    // extra seat belt here
+    if (! specset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::specset::count_materials_from_specset"
+                      " passed specset node must be a valid specset tree.");
+    }
+
+    if (is_multi_buffer(specset))
+    {
+        return specset["matset_values"].number_of_children();
+    }
+    else
+    {
+        return specset["species_names"].number_of_children();
+    }
+
+    return -1;
 }
 
 //-----------------------------------------------------------------------------
