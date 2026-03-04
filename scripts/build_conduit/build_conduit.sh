@@ -47,7 +47,7 @@ build_camp="${build_camp:=true}"
 build_raja="${build_raja:=true}"
 build_umpire="${build_umpire:=true}"
 build_silo="${build_silo:=true}"
-build_zfp="${build_zfp:=true}"
+build_zfp="${build_zfp:=false}"
 
 # conduit options
 build_conduit="${build_conduit:=true}"
