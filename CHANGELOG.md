@@ -27,6 +27,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Added `conduit::blueprint::mesh::specset::to_multi_buffer_full()`, `conduit::blueprint::mesh::specset::to_uni_buffer_by_element()`, and `conduit::blueprint::mesh::specset::to_multi_buffer_by_material()`, which are converters that take species sets between the three supported species set/material set representations.
 - Added `conduit::blueprint::mesh::specset::is_multi_buffer()`, `conduit::blueprint::mesh::specset::is_uni_buffer()`, `conduit::blueprint::mesh::specset::get_num_species_for_material()`, and `conduit::blueprint::mesh::specset::get_material_names()`, which are simple species set utilities.
 - Fixed `conduit::blueprint::mesh::utils::topology::compute_mesh_info()` so it does not generate a floating point exception when processing 1-d meshes under the Intel 25 compiler with C++20.
+- Added `conduit::blueprint::mesh::matset::MatsetAccessor`, a class for fetching material set/field/species set data independent of material set layout. It provides methods that fetch data for zone id and material id pairs (or zone id, material id, species id triples).
 
 ### Changed
 
