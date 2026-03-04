@@ -635,8 +635,17 @@ load(const std::string &path,
                                         file_path,
                                         sub_base);
 
-        hnd.open(file_path);
-        hnd.read(sub_base,node);
+        // Explicitly open as sidre_hdf5; relying on auto-detect can select the
+        // wrong handle for .root/.hdf5 files and break reads.
+        hnd.open(file_path, "sidre_hdf5", options);
+        if(sub_base.empty())
+        {
+            hnd.read(node);
+        }
+        else
+        {
+            hnd.read(sub_base,node);
+        }
         hnd.close();
 #else
         CONDUIT_ERROR("conduit_relay lacks Sidre HDF5 support: " <<

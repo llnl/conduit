@@ -6,20 +6,7 @@
 //-----------------------------------------------------------------------------
 // -- Python includes (these must be included first) -- 
 //-----------------------------------------------------------------------------
-#include <Python.h>
-#include <structmember.h>
-#include "bytesobject.h"
-
-#if PY_MAJOR_VERSION >= 3
-#define IS_PY3K
-#endif
-
-// use  proper strdup
-#ifdef CONDUIT_PLATFORM_WINDOWS
-    #define _conduit_strdup _strdup
-#else
-    #define _conduit_strdup strdup
-#endif
+#include "conduit_python_common.h"
 
 //-----------------------------------------------------------------------------
 // -- standard lib includes -- 
@@ -37,7 +24,6 @@
 
 // conduit python module capi header
 #include "conduit_python.hpp"
-
 
 using namespace conduit;
 
@@ -105,11 +91,11 @@ PyBlueprint_MPI_mesh_verify(PyObject *, //self
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
-    int rank = -1;
-
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
     try
     {
-        rank = relay::mpi::rank(comm);
+        relay::mpi::rank(comm);
     }
     catch(conduit::Error &e)
     {
@@ -117,7 +103,6 @@ PyBlueprint_MPI_mesh_verify(PyObject *, //self
                         e.message().c_str());
         return NULL;
     }
-    
 
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
     Node &info = *PyConduit_Node_Get_Node_Ptr(py_info);
@@ -199,11 +184,11 @@ PyBlueprint_MPI_mesh_generate_index(PyObject *, //self
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
-    int rank = -1;
-
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
     try
     {
-        rank = relay::mpi::rank(comm);
+        relay::mpi::rank(comm);
     }
     catch(conduit::Error &e)
     {
@@ -211,11 +196,9 @@ PyBlueprint_MPI_mesh_generate_index(PyObject *, //self
                         e.message().c_str());
         return NULL;
     }
-    
 
     Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
     Node &dest = *PyConduit_Node_Get_Node_Ptr(py_dest);
-    
 
     blueprint::mpi::mesh::generate_index(mesh,
                                          std::string(ref_path),
@@ -303,11 +286,11 @@ PyBlueprint_MPI_mesh_partition(PyObject *, //self
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
-    int rank = -1;
-
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
     try
     {
-        rank = relay::mpi::rank(comm);
+        relay::mpi::rank(comm);
     }
     catch(conduit::Error &e)
     {
@@ -315,7 +298,6 @@ PyBlueprint_MPI_mesh_partition(PyObject *, //self
                         e.message().c_str());
         return NULL;
     }
-    
 
     Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
     Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
@@ -406,11 +388,11 @@ PyBlueprint_MPI_mesh_flatten(PyObject *, //self
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
-    int rank = -1;
-
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
     try
     {
-        rank = relay::mpi::rank(comm);
+        relay::mpi::rank(comm);
     }
     catch(conduit::Error &e)
     {
@@ -435,21 +417,21 @@ static PyMethodDef blueprint_mpi_mesh_python_funcs[] =
 {
     //-----------------------------------------------------------------------//
     {"verify",
-     (PyCFunction)PyBlueprint_MPI_mesh_verify,
+      _PyCFunction_CAST(PyBlueprint_MPI_mesh_verify),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_MPI_mesh_verify_doc_str},
     {"generate_index",
-     (PyCFunction)PyBlueprint_MPI_mesh_generate_index,
+      _PyCFunction_CAST(PyBlueprint_MPI_mesh_generate_index),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_MPI_mesh_generate_index_doc_str},
     {"partition",
-     (PyCFunction)PyBlueprint_MPI_mesh_partition,
+      _PyCFunction_CAST(PyBlueprint_MPI_mesh_partition),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_MPI_mesh_partition_doc_str},
     {"flatten",
-     (PyCFunction)PyBlueprint_MPI_mesh_flatten,
-     METH_VARARGS | METH_KEYWORDS,
-     PyBlueprint_MPI_mesh_flatten_doc_str},
+      _PyCFunction_CAST(PyBlueprint_MPI_mesh_flatten),
+      METH_VARARGS | METH_KEYWORDS,
+      PyBlueprint_MPI_mesh_flatten_doc_str},
     //-----------------------------------------------------------------------//
     // end methods table
     //-----------------------------------------------------------------------//

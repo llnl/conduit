@@ -61,11 +61,11 @@ include_directories(thirdparty_builtin/libyaml-690a781/include)
 set(CONDUIT_USE_FMT TRUE)
 
 # setup include dirs used during conduit build
-include_directories(thirdparty_builtin/fmt-7.1.0/)
+include_directories(thirdparty_builtin/fmt-12.1.0/)
 
 # setup install of fmt headers for downstream users
 install(DIRECTORY 
-        thirdparty_builtin/fmt-7.1.0/conduit_fmt
+        thirdparty_builtin/fmt-12.1.0/conduit_fmt
         DESTINATION include/conduit/)
 
 ################################

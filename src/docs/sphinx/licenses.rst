@@ -24,7 +24,7 @@ C and C++ Libraries
 - *rapidjson*: src/thirdparty_builtin/rapidjson/license.txt (MIT License)
 - *civetweb*: src/thirdparty_builtin/civetweb-0a95342/LICENSE.md (MIT License)
 - *libyaml*: src/thirdparty_builtin/libyaml-690a781/LICENSE (MIT License)
-- *fmt*: src/thirdparty_builtin/fmt-7.1.0/LICENSE.rst (MIT License)
+- *fmt*: src/thirdparty_builtin/fmt-12.1.0/LICENSE.rst (MIT License)
 
 JavaScript Libraries
 =====================

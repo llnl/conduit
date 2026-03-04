@@ -838,15 +838,21 @@ namespace matset
                                        const float64 epsilon = CONDUIT_EPSILON);
 
     //-------------------------------------------------------------------------
+    // this will use set external if the matmap already exists
     void CONDUIT_BLUEPRINT_API create_or_reuse_material_map(const conduit::Node &matset,
                                                             conduit::Node &material_map);
     //-------------------------------------------------------------------------
+    // this will use set if the matmap already exists
     void CONDUIT_BLUEPRINT_API create_or_copy_material_map(const conduit::Node &matset,
                                                            conduit::Node &material_map);
     //-------------------------------------------------------------------------
+    // renumbers material ids to run between 0 and N-1 where N is the number of
+    // materials.
     void CONDUIT_BLUEPRINT_API renumber_material_ids(const conduit::Node &src_matset,
                                                      conduit::Node &dest_matset);
     //-------------------------------------------------------------------------
+    // renumbers material ids to run between 0 and N-1 where N is the number of
+    // materials.
     void CONDUIT_BLUEPRINT_API renumber_material_ids(conduit::Node &matset);
     //-------------------------------------------------------------------------
     index_t CONDUIT_BLUEPRINT_API count_zones_from_matset(const conduit::Node &matset);

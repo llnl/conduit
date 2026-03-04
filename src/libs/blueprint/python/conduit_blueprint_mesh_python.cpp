@@ -6,21 +6,7 @@
 //-----------------------------------------------------------------------------
 // -- Python includes (these must be included first) -- 
 //-----------------------------------------------------------------------------
-#include <Python.h>
-#include <structmember.h>
-#include "bytesobject.h"
-
-#if PY_MAJOR_VERSION >= 3
-#define IS_PY3K
-#endif
-
-// use  proper strdup
-#ifdef CONDUIT_PLATFORM_WINDOWS
-    #define _conduit_strdup _strdup
-#else
-    #define _conduit_strdup strdup
-#endif
-
+#include "conduit_python_common.h"
 //-----------------------------------------------------------------------------
 // -- standard lib includes -- 
 //-----------------------------------------------------------------------------
@@ -37,7 +23,6 @@
 
 // conduit python module capi header
 #include "conduit_python.hpp"
-
 
 using namespace conduit;
 
@@ -532,29 +517,29 @@ static PyMethodDef blueprint_mesh_python_funcs[] =
 {
     //-----------------------------------------------------------------------//
     {"verify",
-     (PyCFunction)PyBlueprint_mesh_verify,
+      _PyCFunction_CAST(PyBlueprint_mesh_verify),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_verify_doc_str},
     {"generate_index",
-     (PyCFunction)PyBlueprint_mesh_generate_index,
+      _PyCFunction_CAST(PyBlueprint_mesh_generate_index),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_generate_index_doc_str},
     {"convert",
-     (PyCFunction)PyBlueprint_mesh_convert,
+      _PyCFunction_CAST(PyBlueprint_mesh_convert),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_convert_doc_str},
     {"partition",
-     (PyCFunction)PyBlueprint_mesh_partition,
+      _PyCFunction_CAST(PyBlueprint_mesh_partition),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_partition_doc_str},
     {"flatten",
-     (PyCFunction)PyBlueprint_mesh_flatten,
-     METH_VARARGS | METH_KEYWORDS,
-     PyBlueprint_mesh_flatten_doc_str},
+      _PyCFunction_CAST(PyBlueprint_mesh_flatten),
+      METH_VARARGS | METH_KEYWORDS,
+      PyBlueprint_mesh_flatten_doc_str},
     {"paint_adjset",
-     (PyCFunction)PyBlueprint_mesh_paint_adjset,
-     METH_VARARGS | METH_KEYWORDS,
-     PyBlueprint_mesh_paint_adjset_doc_str},
+      _PyCFunction_CAST(PyBlueprint_mesh_paint_adjset),
+      METH_VARARGS | METH_KEYWORDS,
+      PyBlueprint_mesh_paint_adjset_doc_str},
 
     //-----------------------------------------------------------------------//
     // end methods table

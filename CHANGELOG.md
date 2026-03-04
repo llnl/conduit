@@ -27,8 +27,16 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Added `conduit::blueprint::mesh::specset::to_multi_buffer_full()`, `conduit::blueprint::mesh::specset::to_uni_buffer_by_element()`, and `conduit::blueprint::mesh::specset::to_multi_buffer_by_material()`, which are converters that take species sets between the three supported species set/material set representations.
 - Added `conduit::blueprint::mesh::specset::is_multi_buffer()`, `conduit::blueprint::mesh::specset::is_uni_buffer()`, `conduit::blueprint::mesh::specset::get_num_species_for_material()`, and `conduit::blueprint::mesh::specset::get_material_names()`, which are simple species set utilities.
 - Fixed `conduit::blueprint::mesh::utils::topology::compute_mesh_info()` so it does not generate a floating point exception when processing 1-d meshes under the Intel 25 compiler with C++20.
+- Added `conduit::blueprint::mesh::matset::create_or_reuse_material_map()`, which will shallow copy or create a material map for the provided material set.
+- Added `conduit::blueprint::mesh::matset::create_or_copy_material_map()`, which will deep copy or create a material map for the provided material set
+- Added `conduit::blueprint::mesh::matset::renumber_material_ids()`, which renumbers material ids for a material set to be in the range 0 to N - 1, where N is the number of materials.
 
 ### Changed
+
+#### Conduit
+- Updated uberenv to use Spack 1.1.1
+- Updated built in fmt to version 12.1.0.
+- Updated python module build processes to use `pyproject.toml` files. Process now requires pip` 24.0.0 or newer.
 
 #### Blueprint
 - Removed previously deprecated `quads_and_tris` and `hexs_and_tets` mesh types from `braid` in `blueprint::mesh::examples`.
@@ -37,7 +45,9 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Updates to use Silo 4.12 and HDF5 2.0.0.
 - Reworked HDF5 handle managment to avoid resource leaks with exceptions.
 - Relaxed the restriction on float and double volume fractions for data being read from Silo when the length of the mixed arrays is 0 (i.e. no mixed zones/volume fractions are present).
+- Adjusted MPI max tag logic search for cases where large tags are supported.
 - Added logic to enforce Overlink requirements when writing species sets to Overlink files.
+
 
 ### Fixed
 

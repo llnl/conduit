@@ -94,8 +94,7 @@ jobs:
         export LSAN_OPTIONS="suppressions=${CWD}/src/cmake/lsan.supp"
         echo "ASAN_SYMBOLIZER_PATH=${ASAN_SYMBOLIZER_PATH}"
         echo "LSAN_OPTIONS=${LSAN_OPTIONS}"
-        export CTEST_OUTPUT_ON_FAILURE=1
-        ctest --test-dir build
+        ctest --test-dir build --output-on-failure -V
     - name: Install Conduit
       run: |
         echo "**** Installing Conduit"

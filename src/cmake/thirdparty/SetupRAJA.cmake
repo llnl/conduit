@@ -21,14 +21,16 @@ else ()
 endif()
 
 message(STATUS "Looking for RAJA in: ${RAJA_DIR}")
-
 set(RAJA_DIR_ORIG ${RAJA_DIR})
+
 find_package(RAJA REQUIRED
              NO_DEFAULT_PATH
              PATHS ${_RAJA_SEARCH_PATH})
 message(STATUS "Found RAJA in: ${RAJA_DIR}")
 
+# reset RAJA_DIR just in case the find process mangled it
+set(RAJA_DIR ${RAJA_DIR_ORIG})
 if(CONDUIT_ENABLE_TESTS AND WIN32 AND BUILD_SHARED_LIBS)
     # if we are running tests with dlls, we need path to dlls
-    list(APPEND CONDUIT_TPL_DLL_PATHS ${RAJA_DIR_ORIG}/lib/)
+    list(APPEND CONDUIT_TPL_DLL_PATHS ${RAJA_DIR}/lib/)
 endif()

@@ -7,8 +7,8 @@ echo "rm -f conduit.docker.src.tar.gz"
 rm -f conduit.docker.src.tar.gz
 
 # get current copy of the conduit source
-echo "cd ../../../../ && python package.py src/examples/docker/ubuntu/conduit.docker.src.tar"
-cd ../../../../ && python package.py src/examples/docker/ubuntu/conduit.docker.src.tar
+echo "cd ../../../../ && python3 package.py src/examples/docker/ubuntu/conduit.docker.src.tar"
+cd ../../../../ && python3 package.py src/examples/docker/ubuntu/conduit.docker.src.tar
 
 # change back to the dir with our Dockerfile
 echo "cd src/examples/docker/ubuntu/"

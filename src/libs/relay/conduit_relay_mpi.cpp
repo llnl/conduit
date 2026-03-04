@@ -433,13 +433,15 @@ private:
     {
         int tag;
         if((high - low) < 2)
+        {
             tag = low;
+        }
         else
         {
             int rank;
             MPI_Comm_rank(comm, &rank);
 
-            tag = (low + high) / 2;
+            tag = low + (high-low) / 2;
 
             // Try sending with the current tag.
             int srcBuff = 0;
@@ -466,11 +468,12 @@ private:
 
                 MPI_Status statuses[2];
                 MPI_Waitall(2, requests, statuses);
-
-                tag = probeTagUpperBound(tag, high, comm);
+                // good search, we are done.
+                return tag;
             }
             else
             {
+                // keep looking for a lower tag limit
                 tag = probeTagUpperBound(low, tag, comm);
             }
         }

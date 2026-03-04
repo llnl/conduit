@@ -112,7 +112,7 @@ endif()
 
 if(HDF5_FOUND)
     list(APPEND conduit_relay_headers
-         conduit_relay_hdf5.hpp 
+         conduit_relay_hdf5.hpp
          conduit_relay_io_hdf5.hpp
          conduit_relay_io_hdf5_api.hpp
         )
@@ -120,8 +120,8 @@ if(HDF5_FOUND)
 endif()
 
 if(SILO_FOUND)
-    list(APPEND conduit_relay_headers 
-         conduit_relay_silo.hpp 
+    list(APPEND conduit_relay_headers
+         conduit_relay_silo.hpp
          conduit_relay_io_silo.hpp
          conduit_relay_io_silo_api.hpp
         )
@@ -141,7 +141,7 @@ if(ZFP_FOUND)
 endif()
 
 ################################
-# Add fortran interface if 
+# Add fortran interface if
 # fortran support was selected
 ################################
 #
@@ -401,7 +401,7 @@ if(ADIOS_FOUND)
     # Link with parallel versions of ADIOS
     list(APPEND conduit_relay_mpi_io_deps adios_mpi)
 endif()
- 
+
 
 #
 # setup conduit relay mpi io lib
