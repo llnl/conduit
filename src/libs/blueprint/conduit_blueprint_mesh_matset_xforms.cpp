@@ -76,7 +76,7 @@ create_material_map(const conduit::Node &matset,
     // We must be multi-buffer, so we can assume we have a 
     // "volume_fractions" child that is an object.
     const std::vector<std::string> &matnames = matset["volume_fractions"].child_names();
-    int mat_id = 0;
+    index_t mat_id = 0;
     for (const auto &matname : matnames)
     {
         material_map[matname].set(mat_id);
@@ -2442,7 +2442,7 @@ renumber_material_ids(conduit::Node &matset)
             index_t_accessor mat_ids = matset["material_ids"].as_index_t_accessor();
             for (index_t i = 0; i < mat_ids.number_of_elements(); i ++)
             {
-                const int old_mat_id = mat_ids[i];
+                const index_t old_mat_id = mat_ids[i];
                 mat_ids.set(i, old_to_new.at(old_mat_id));
             }
         }
