@@ -37,9 +37,11 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Changed
 
 #### Conduit
-- Updated uberenv to use Spack 1.1.1
+- Conduit now requires CMake 3.26 or newer.
+- Updated uberenv to use Spack 1.1.1.
 - Updated built in fmt to version 12.1.0.
-- Updated python module build processes to use `pyproject.toml` files. Process now requires pip` 24.0.0 or newer.
+- Updated python module build processes to use `pyproject.toml` files. Process now requires pip 24.0.0 or newer.
+- Updated CMake python logic to use CMake Python targets.
 
 #### Blueprint
 - Removed previously deprecated `quads_and_tris` and `hexs_and_tets` mesh types from `braid` in `blueprint::mesh::examples`.
