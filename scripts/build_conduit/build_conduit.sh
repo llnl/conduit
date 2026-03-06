@@ -47,7 +47,7 @@ build_camp="${build_camp:=true}"
 build_raja="${build_raja:=true}"
 build_umpire="${build_umpire:=true}"
 build_silo="${build_silo:=true}"
-build_zfp="${build_zfp:=true}"
+build_zfp="${build_zfp:=false}"
 
 # conduit options
 build_conduit="${build_conduit:=true}"
@@ -416,7 +416,7 @@ if ${build_pyvenv}; then
     echo "**** Creating Python Virtual Env"
     cd ${install_dir} && ${python_exe} -m venv python-venv
     ${venv_python_exe} -m pip install --upgrade pip
-    ${venv_python_exe} -m pip install wheel numpy sphinx sphinx_rtd_theme
+    ${venv_python_exe} -m pip install wheel numpy sphinx sphinx_rtd_theme setuptools
     if ${build_zfp}; then
         ${venv_python_exe} -m pip install cython setuptools
     fi

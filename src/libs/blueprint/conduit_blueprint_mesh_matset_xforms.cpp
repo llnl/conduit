@@ -2837,7 +2837,6 @@ create_or_copy_material_map(const conduit::Node &matset,
     }
 }
 
-
 //-------------------------------------------------------------------------
 index_t 
 count_zones_from_matset(const conduit::Node &matset)
