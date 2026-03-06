@@ -373,7 +373,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval)
         // index [elem_idx][mat_idx][spec_idx]
         const std::vector<std::vector<std::vector<float64>>> mf_vals_baseline = {
             /* element 0     */ {
-            /*    background */     {1.0},
+            /*    background */    {1.0},
             },
             /* element 1     */ {
             /*    background */    {1.0},
@@ -703,7 +703,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
         // index [elem_idx][mat_idx][spec_idx]
         const std::vector<std::vector<std::vector<float64>>> mf_vals_baseline = {
             /* element 0     */ {
-            /*    background */     {1.0},
+            /*    background */    {1.0},
             },
             /* element 1     */ {
             /*    background */    {1.0},

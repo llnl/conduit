@@ -256,7 +256,7 @@ MatsetAccessor::init(const Node &matset,
 
                 // For sparse by element material sets, the matset accessor uses the following
                 // ranges:
-                //     0 <= elem_idx < num elems
+                //     0 <= elem_idx < num elements
                 //     0 <= mat_idx < num mats for element elem_idx
                 //     0 <= spec_idx < num species for material mat_idx in element elem_idx
                 // To know which species mass fraction to fetch for a given (elem_idx, mat_idx, spec_idx),
@@ -768,7 +768,7 @@ MatsetAccessor::get_sbe_mass_frac(const index_t elem_idx,
     const index_t data_index = m_sbe_o2m_idx.index(elem_idx, mat_idx);
     const index_t nmatspec_offset = m_nmatspec_offsets_acc[data_index];
 
-    // We need an index that is between 0 and the number of species in this elem.
+    // We need an index that is between 0 and the number of species in this element.
     // The way to calculate this is to add out num material species offset
     // with the current species value index, which ranges between 0 and the
     // number of species for this material.
@@ -862,7 +862,7 @@ index_t
 MatsetAccessor::get_error_nmats_for_elem(const index_t elem_idx) const
 {
     (void) elem_idx;
-    CONDUIT_ERROR("Impossible to fetch number of materials for elem from "
+    CONDUIT_ERROR("Impossible to fetch number of materials for element from "
                   "non-sparse by element material set.");
     return 0;
 }
@@ -872,7 +872,7 @@ index_t
 MatsetAccessor::get_error_nelems_for_mat(const index_t mat_idx) const
 {
     (void) mat_idx;
-    CONDUIT_ERROR("Impossible to fetch number of elems for a material from "
+    CONDUIT_ERROR("Impossible to fetch number of elements for a material from "
                   "non-sparse by material material set.");
     return 0;
 }
@@ -886,7 +886,7 @@ MatsetAccessor::get_error_nspec_for_mat(const index_t elem_idx, const index_t ma
     // CONDUIT_ERROR("Impossible to fetch number of species for a material from "
     //               "specset.");
     // no need to error in this case, as we wish to support looping over 
-    // elems/materials and then species in the case that species
+    // elements/materials and then species in the case that species
     // do not exist. Then loops can be more general with minimal performance
     // costs.
     return 0;
