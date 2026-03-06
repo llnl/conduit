@@ -79,6 +79,22 @@ if("MPI" IN_LIST Conduit_FIND_COMPONENTS)
     endif()
 endif()
 
+###############################################################################
+# Setup Python
+###############################################################################
+if("Python" IN_LIST Conduit_FIND_COMPONENTS)
+    set(Conduit_Python_NOT_FOUND_MESSAGE "")
+
+    if(NOT CONDUIT_PYTHON_ENABLED)
+        set(Conduit_Python_NOT_FOUND_MESSAGE "Python support is not available")
+    endif()
+
+    set(Conduit_Python_FOUND 1)
+    if(Conduit_Python_NOT_FOUND_MESSAGE)
+        set(Conduit_Python_FOUND 0)
+    endif()
+endif()
+
 
 ###############################################################################
 # Setup Caliper

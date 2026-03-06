@@ -2,22 +2,14 @@
 # Project developers. See top-level LICENSE AND COPYRIGHT files for dates and
 # other details. No copyright assignment is required to contribute to Conduit.
 
-# BLT >= 0.6.0  requires cmake >= 3.21
-cmake_minimum_required(VERSION 3.21)
+# FindPython3 provides `USE_SABI` as of CMake 3.26.
+cmake_minimum_required(VERSION 3.26)
 ################################
 # cmake policy selections
 ################################
-# allow find_packages to use ZZZ_ROOT vars
-if(POLICY CMP0074)
-  cmake_policy(SET CMP0074 NEW)
-endif()
 # allow install path dest normalization (cmake 3.31 +)
 if(POLICY CMP0177)
   cmake_policy(SET CMP0177 NEW)
-endif()
-# use old cmake python find logic
-if(POLICY CMP0148)
-  cmake_policy(SET CMP0148 OLD)
 endif()
 
 ################################

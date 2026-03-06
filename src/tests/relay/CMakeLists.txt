@@ -160,7 +160,7 @@ endif()
 ################################
 # Add optional tests
 ################################
-if(PYTHON_FOUND)
+if(Python3_FOUND)
     add_subdirectory("python")
 else()
     message(STATUS "Python disabled: Skipping conduit relay python module tests")
