@@ -15436,6 +15436,24 @@ Node::as_float64() const
 }
 
 //---------------------------------------------------------------------------//
+index_t
+Node::as_index_t() const
+{
+#ifdef CONDUIT_INDEX_32
+    CONDUIT_CHECK_DTYPE(this,
+                        DataType::INT32_ID,
+                        "as_index_t() const",
+                        0);
+#else
+    CONDUIT_CHECK_DTYPE(this,
+                        DataType::INT64_ID,
+                        "as_index_t() const",
+                        0);
+#endif 
+    return *((index_t*)element_ptr(0));
+}
+
+//---------------------------------------------------------------------------//
 // signed integers via pointers
 //---------------------------------------------------------------------------//
 
