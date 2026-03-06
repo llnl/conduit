@@ -108,52 +108,86 @@ cpp_datatype_ref(const conduit_datatype *cdatatype)
     return *reinterpret_cast<const DataType*>(cdatatype);
 }
 
-struct conduit_schema_impl {};
+struct conduit_schema_impl
+{
+    Schema *schema;
+    bool owns;
+};
 
 //---------------------------------------------------------------------------//
 Schema *
 cpp_schema(conduit_schema *cschema)
 {
-    return reinterpret_cast<Schema*>(cschema);
+    if(cschema == NULL)
+    {
+        return NULL;
+    }
+    return reinterpret_cast<conduit_schema_impl*>(cschema)->schema;
 }
 
 //---------------------------------------------------------------------------//
 conduit_schema *
-c_schema(Schema *schema)
+c_schema(Schema *schema, bool owns)
 {
-    return reinterpret_cast<conduit_schema*>(schema);
+    conduit_schema_impl *handle = new conduit_schema_impl();
+    handle->schema = schema;
+    handle->owns   = owns;
+    return reinterpret_cast<conduit_schema*>(handle);
 }
 
 //---------------------------------------------------------------------------//
 const Schema *
 cpp_schema(const conduit_schema *cschema)
 {
-    return reinterpret_cast<const Schema*>(cschema);
+    if(cschema == NULL)
+    {
+        return NULL;
+    }
+    return reinterpret_cast<const conduit_schema_impl*>(cschema)->schema;
 }
 
 //---------------------------------------------------------------------------//
 const conduit_schema *
-c_schema(const Schema *schema)
+c_schema(const Schema *schema, bool owns)
 {
-    return reinterpret_cast<const conduit_schema*>(schema);
+    conduit_schema_impl *handle = new conduit_schema_impl();
+    handle->schema = const_cast<Schema*>(schema);
+    handle->owns   = owns;
+    return reinterpret_cast<const conduit_schema*>(handle);
 }
 
 //---------------------------------------------------------------------------//
 Schema &
 cpp_schema_ref(conduit_schema *cschema)
 {
-    return *reinterpret_cast<Schema*>(cschema);
+    return *reinterpret_cast<conduit_schema_impl*>(cschema)->schema;
 }
 
 //---------------------------------------------------------------------------//
 const Schema &
 cpp_schema_ref(const conduit_schema *cschema)
 {
-    return *reinterpret_cast<const Schema*>(cschema);
+    return *reinterpret_cast<const conduit_schema_impl*>(cschema)->schema;
+}
+
+//---------------------------------------------------------------------------//
+void
+destroy_cschema(conduit_schema *cschema)
+{
+    if(cschema == NULL)
+    {
+        return;
+    }
+
+    conduit_schema_impl *handle = reinterpret_cast<conduit_schema_impl*>(cschema);
+    if(handle->owns)
+    {
+        delete handle->schema;
+    }
+    delete handle;
 }
 
 }
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-

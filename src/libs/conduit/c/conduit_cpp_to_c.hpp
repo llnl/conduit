@@ -55,17 +55,22 @@ CONDUIT_API const conduit::DataType &cpp_datatype_ref(const conduit_datatype *da
 //---------------------------------------------------------------------------//
 CONDUIT_API conduit::Schema *cpp_schema(conduit_schema *cschema);
 //---------------------------------------------------------------------------//
-CONDUIT_API conduit_schema  *c_schema(conduit::Schema *schema);
+CONDUIT_API conduit_schema  *c_schema(conduit::Schema *schema, bool owns);
 
 //---------------------------------------------------------------------------//
 CONDUIT_API const conduit::Schema *cpp_schema(const conduit_schema *cschema);
 //---------------------------------------------------------------------------//
-CONDUIT_API const conduit_schema  *c_schema(const conduit::Schema *schema);
+CONDUIT_API const conduit_schema  *c_schema(const conduit::Schema *schema, bool owns);
 
 //---------------------------------------------------------------------------//
 CONDUIT_API conduit::Schema &cpp_schema_ref(conduit_schema *cschema);
 //---------------------------------------------------------------------------//
 CONDUIT_API const conduit::Schema &cpp_schema_ref(const conduit_schema *cschema);
+
+//---------------------------------------------------------------------------//
+/// Destroys a schema handle created by c_schema(). If the handle owns the schema,
+/// also deletes the underlying schema object.
+CONDUIT_API void destroy_cschema(conduit_schema *cschema);
 
 }
 //-----------------------------------------------------------------------------

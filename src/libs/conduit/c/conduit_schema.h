@@ -36,8 +36,14 @@ typedef struct conduit_schema_impl conduit_schema;
 // -- conduit_schema creation and destruction --
 //-----------------------------------------------------------------------------
 
+/// Creates a schema handle that owns its underlying schema.
 CONDUIT_API conduit_schema *conduit_schema_create();
+
+/// Destroys a schema handle. For owned handles, also frees the underlying schema.
 CONDUIT_API void           conduit_schema_destroy(conduit_schema *cschema);
+
+/// Const-friendly variant of conduit_schema_destroy().
+CONDUIT_API void           conduit_schema_destroy_const(const conduit_schema *cschema);
 
 //-----------------------------------------------------------------------------
 // -- schema set / reset --
@@ -119,4 +125,3 @@ CONDUIT_API void conduit_schema_string_destroy(char *str);
 //-----------------------------------------------------------------------------
 
 #endif
-

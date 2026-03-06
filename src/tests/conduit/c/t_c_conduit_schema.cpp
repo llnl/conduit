@@ -36,6 +36,7 @@ TEST(c_conduit_schema, basic_use)
     conduit_schema_set(s2, s1);
     EXPECT_EQ(conduit_schema_equals(s2, s1), 1);
 
+    conduit_schema_destroy(a);
     conduit_schema_destroy(s2);
     conduit_schema_destroy(s1);
 }
@@ -54,6 +55,6 @@ TEST(c_conduit_schema, node_schema_access)
     EXPECT_TRUE(json != NULL);
     conduit_schema_string_destroy(json);
 
+    conduit_schema_destroy_const(s);
     conduit_node_destroy(n);
 }
-

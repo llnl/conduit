@@ -4910,7 +4910,7 @@ conduit_node_dtype(const conduit_node *cnode)
 const conduit_schema *
 conduit_node_schema(const conduit_node *cnode)
 {
-    return c_schema(const_cast<Schema*>(&cpp_node_ref(cnode).schema()));
+    return c_schema(&cpp_node_ref(cnode).schema(), false);
 }
 
 }

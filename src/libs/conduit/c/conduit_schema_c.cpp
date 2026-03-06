@@ -16,9 +16,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <mutex>
-#include <unordered_set>
-
 #ifdef CONDUIT_PLATFORM_WINDOWS
     #define _conduit_strdup _strdup
 #else
@@ -35,19 +32,18 @@ using namespace conduit;
 
 namespace
 {
-std::mutex g_conduit_schema_ownership_mutex;
-std::unordered_set<Schema *> g_conduit_schema_owned;
-
-void register_owned_schema(Schema *schema)
+conduit_schema *wrap_schema(Schema *schema, bool owns)
 {
-    std::lock_guard<std::mutex> lock(g_conduit_schema_ownership_mutex);
-    g_conduit_schema_owned.insert(schema);
+    return c_schema(schema, owns);
 }
 
-bool unregister_owned_schema(Schema *schema)
+conduit_schema *wrap_schema_or_null(Schema *schema, bool owns)
 {
-    std::lock_guard<std::mutex> lock(g_conduit_schema_ownership_mutex);
-    return g_conduit_schema_owned.erase(schema) > 0;
+    if(schema == NULL)
+    {
+        return NULL;
+    }
+    return wrap_schema(schema, owns);
 }
 }
 
@@ -56,24 +52,21 @@ conduit_schema *
 conduit_schema_create()
 {
     Schema *schema = new Schema();
-    register_owned_schema(schema);
-    return c_schema(schema);
+    return wrap_schema(schema, true);
 }
 
 //-----------------------------------------------------------------------------
 void
 conduit_schema_destroy(conduit_schema *cschema)
 {
-    Schema *schema = cpp_schema(cschema);
-    if(schema == NULL)
-    {
-        return;
-    }
+    destroy_cschema(cschema);
+}
 
-    if(unregister_owned_schema(schema))
-    {
-        delete schema;
-    }
+//-----------------------------------------------------------------------------
+void
+conduit_schema_destroy_const(const conduit_schema *cschema)
+{
+    conduit_schema_destroy(const_cast<conduit_schema*>(cschema));
 }
 
 //-----------------------------------------------------------------------------
@@ -171,7 +164,7 @@ conduit_schema *
 conduit_schema_fetch(conduit_schema *cschema,
                      const char *path)
 {
-    return c_schema(cpp_schema(cschema)->fetch_ptr(path));
+    return wrap_schema_or_null(cpp_schema(cschema)->fetch_ptr(path), false);
 }
 
 //-----------------------------------------------------------------------------
@@ -179,14 +172,14 @@ conduit_schema *
 conduit_schema_fetch_existing(conduit_schema *cschema,
                               const char *path)
 {
-    return c_schema(&cpp_schema(cschema)->fetch_existing(path));
+    return wrap_schema(&cpp_schema(cschema)->fetch_existing(path), false);
 }
 
 //-----------------------------------------------------------------------------
 conduit_schema *
 conduit_schema_append(conduit_schema *cschema)
 {
-    return c_schema(&cpp_schema(cschema)->append());
+    return wrap_schema(&cpp_schema(cschema)->append(), false);
 }
 
 //-----------------------------------------------------------------------------
@@ -194,7 +187,7 @@ conduit_schema *
 conduit_schema_add_child(conduit_schema *cschema,
                          const char *name)
 {
-    return c_schema(&cpp_schema(cschema)->add_child(name));
+    return wrap_schema(&cpp_schema(cschema)->add_child(name), false);
 }
 
 //-----------------------------------------------------------------------------
@@ -202,7 +195,7 @@ conduit_schema *
 conduit_schema_child(conduit_schema *cschema,
                      conduit_index_t idx)
 {
-    return c_schema(cpp_schema(cschema)->child_ptr(idx));
+    return wrap_schema_or_null(cpp_schema(cschema)->child_ptr(idx), false);
 }
 
 //-----------------------------------------------------------------------------
@@ -210,7 +203,7 @@ conduit_schema *
 conduit_schema_child_by_name(conduit_schema *cschema,
                              const char *name)
 {
-    return c_schema(&cpp_schema(cschema)->child(std::string(name)));
+    return wrap_schema(&cpp_schema(cschema)->child(std::string(name)), false);
 }
 
 //-----------------------------------------------------------------------------
@@ -305,4 +298,3 @@ conduit_schema_string_destroy(char *str)
 }
 
 }
-
