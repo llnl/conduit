@@ -322,10 +322,11 @@ TEST(conduit_node_set, set_bitwidth_int_scalar)
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set, set_path_bitwidth_int_scalar)
 {
-    int8    i8v = -8;
-    int16  i16v = -16;
-    int32  i32v = -32;
-    int64  i64v = -64;
+    int8     i8v = -8;
+    int16   i16v = -16;
+    int32   i32v = -32;
+    int64   i64v = -64;
+    index_t idxv = -64;
 
     Node n;
     // int8
@@ -393,15 +394,37 @@ TEST(conduit_node_set, set_path_bitwidth_int_scalar)
     EXPECT_EQ(nc.dtype().is_floating_point(),false);
     EXPECT_EQ(nc.to_int64(),-64);
 
+    // index_t
+    n.set_path("one/two/three",idxv);
+    n.schema().print();
+    EXPECT_TRUE(n.has_path("one"));
+    EXPECT_TRUE(n["one"].has_path("two/three"));
+    nc = n["one/two/three"];
+    EXPECT_EQ(nc.as_index_t(),idxv);
+#ifdef CONDUIT_INDEX_32
+    EXPECT_EQ(nc.total_strided_bytes(),4);
+    EXPECT_EQ(nc.dtype().element_bytes(),4);
+#else
+    EXPECT_EQ(nc.total_strided_bytes(),8);
+    EXPECT_EQ(nc.dtype().element_bytes(),8);
+#endif
+    EXPECT_EQ(nc.dtype().is_number(),true);
+    EXPECT_EQ(nc.dtype().is_integer(),true);
+    EXPECT_EQ(nc.dtype().is_signed_integer(),true);
+    EXPECT_EQ(nc.dtype().is_unsigned_integer(),false);
+    EXPECT_EQ(nc.dtype().is_floating_point(),false);
+    EXPECT_EQ(nc.to_index_t(),-64);
+
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set, set_external_bitwidth_int_scalar)
 {
-    int8    i8v = -8;
-    int16  i16v = -16;
-    int32  i32v = -32;
-    int64  i64v = -64;
+    int8     i8v = -8;
+    int16   i16v = -16;
+    int32   i32v = -32;
+    int64   i64v = -64;
+    index_t idxv = -64;
 
     Node n;
     // int8
@@ -463,6 +486,26 @@ TEST(conduit_node_set, set_external_bitwidth_int_scalar)
     EXPECT_EQ(n.to_int64(),-64);
     n.set((int64)-1);
     EXPECT_EQ(i64v,-1);
+
+    // index_t
+    n.set_external(&idxv);
+    n.schema().print();
+    EXPECT_EQ(n.as_index_t(),idxv);
+#ifdef CONDUIT_INDEX_32
+    EXPECT_EQ(n.total_strided_bytes(),4);
+    EXPECT_EQ(n.dtype().element_bytes(),4);
+#else
+    EXPECT_EQ(n.total_strided_bytes(),8);
+    EXPECT_EQ(n.dtype().element_bytes(),8);
+#endif
+    EXPECT_EQ(n.dtype().is_number(),true);
+    EXPECT_EQ(n.dtype().is_integer(),true);
+    EXPECT_EQ(n.dtype().is_signed_integer(),true);
+    EXPECT_EQ(n.dtype().is_unsigned_integer(),false);
+    EXPECT_EQ(n.dtype().is_floating_point(),false);
+    EXPECT_EQ(n.to_index_t(),-64);
+    n.set((index_t)-1);
+    EXPECT_EQ(idxv,-1);
 
 }
 
@@ -1222,15 +1265,17 @@ TEST(conduit_node_set, set_path_external_bitwidth_uint_ptr)
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set, set_bitwidth_int_array)
 {
-    int8    i8av[6] = {-2,-4,-8,-16,-32,-64};
-    int16  i16av[6] = {-2,-4,-8,-16,-32,-64};
-    int32  i32av[6] = {-2,-4,-8,-16,-32,-64};
-    int64  i64av[6] = {-2,-4,-8,-16,-32,-64};
+    int8     i8av[6] = {-2,-4,-8,-16,-32,-64};
+    int16   i16av[6] = {-2,-4,-8,-16,-32,-64};
+    int32   i32av[6] = {-2,-4,-8,-16,-32,-64};
+    int64   i64av[6] = {-2,-4,-8,-16,-32,-64};
+    index_t idxav[6] = {-2,-4,-8,-16,-32,-64};
     
-    int8_array  i8av_a(i8av,DataType::int8(6));
-    int16_array i16av_a(i16av,DataType::int16(6));
-    int32_array i32av_a(i32av,DataType::int32(6));
-    int64_array i64av_a(i64av,DataType::int64(6));
+    int8_array    i8av_a(i8av,DataType::int8(6));
+    int16_array   i16av_a(i16av,DataType::int16(6));
+    int32_array   i32av_a(i32av,DataType::int32(6));
+    int64_array   i64av_a(i64av,DataType::int64(6));
+    index_t_array idxav_a(idxav,DataType::index_t(6));
     
     Node n;
     // int8
@@ -1285,6 +1330,24 @@ TEST(conduit_node_set, set_bitwidth_int_array)
         EXPECT_NE(&i64av_ptr[i],&i64av[i]);
     }
     EXPECT_EQ(i64av_ptr[5],-64);
+    // index_t
+    n.set(idxav_a);
+    n.schema().print();
+#ifdef CONDUIT_INDEX_32
+    EXPECT_EQ(n.total_strided_bytes(),6*4);
+    EXPECT_EQ(n.dtype().element_bytes(),4);
+#else
+    EXPECT_EQ(n.total_strided_bytes(),6*8);
+    EXPECT_EQ(n.dtype().element_bytes(),8);
+#endif
+    index_t *idxav_ptr = n.as_index_t_ptr();
+    for(index_t i=0;i<6;i++)
+    {
+        EXPECT_EQ(idxav_ptr[i],idxav[i]);
+        // set(...) semantics imply a copy -- mem addys should differ
+        EXPECT_NE(&idxav_ptr[i],&idxav[i]);
+    }
+    EXPECT_EQ(idxav_ptr[5],-64);
 
 }
 
@@ -1292,10 +1355,11 @@ TEST(conduit_node_set, set_bitwidth_int_array)
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set, set_bitwidth_int_ptr)
 {
-    int8    i8av[6] = {-2,-4,-8,-16,-32,-64};
-    int16  i16av[6] = {-2,-4,-8,-16,-32,-64};
-    int32  i32av[6] = {-2,-4,-8,-16,-32,-64};
-    int64  i64av[6] = {-2,-4,-8,-16,-32,-64};
+    int8     i8av[6] = {-2,-4,-8,-16,-32,-64};
+    int16   i16av[6] = {-2,-4,-8,-16,-32,-64};
+    int32   i32av[6] = {-2,-4,-8,-16,-32,-64};
+    int64   i64av[6] = {-2,-4,-8,-16,-32,-64};
+    index_t idxav[6] = {-2,-4,-8,-16,-32,-64};
         
     Node n;
     // int8
@@ -1350,21 +1414,41 @@ TEST(conduit_node_set, set_bitwidth_int_ptr)
         EXPECT_NE(&i64av_ptr[i],&i64av[i]);
     }
     EXPECT_EQ(i64av_ptr[5],-64);
+    // index_t
+    n.set(idxav,6);
+    n.schema().print();
+#ifdef CONDUIT_INDEX_32
+    EXPECT_EQ(n.total_strided_bytes(),6*4);
+    EXPECT_EQ(n.dtype().element_bytes(),4);
+#else
+    EXPECT_EQ(n.total_strided_bytes(),6*8);
+    EXPECT_EQ(n.dtype().element_bytes(),8);
+#endif
+    index_t *idxav_ptr = n.as_index_t_ptr();
+    for(index_t i=0;i<6;i++)
+    {
+        EXPECT_EQ(idxav_ptr[i],idxav[i]);
+        // set(...) semantics imply a copy -- mem addys should differ
+        EXPECT_NE(&idxav_ptr[i],&idxav[i]);
+    }
+    EXPECT_EQ(idxav_ptr[5],-64);
 
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set, set_path_bitwidth_int_array)
 {
-    int8    i8av[6] = {-2,-4,-8,-16,-32,-64};
-    int16  i16av[6] = {-2,-4,-8,-16,-32,-64};
-    int32  i32av[6] = {-2,-4,-8,-16,-32,-64};
-    int64  i64av[6] = {-2,-4,-8,-16,-32,-64};
+    int8     i8av[6] = {-2,-4,-8,-16,-32,-64};
+    int16   i16av[6] = {-2,-4,-8,-16,-32,-64};
+    int32   i32av[6] = {-2,-4,-8,-16,-32,-64};
+    int64   i64av[6] = {-2,-4,-8,-16,-32,-64};
+    index_t idxav[6] = {-2,-4,-8,-16,-32,-64};
     
-    int8_array  i8av_a(i8av,DataType::int8(6));
-    int16_array i16av_a(i16av,DataType::int16(6));
-    int32_array i32av_a(i32av,DataType::int32(6));
-    int64_array i64av_a(i64av,DataType::int64(6));
+    int8_array    i8av_a(i8av,DataType::int8(6));
+    int16_array   i16av_a(i16av,DataType::int16(6));
+    int32_array   i32av_a(i32av,DataType::int32(6));
+    int64_array   i64av_a(i64av,DataType::int64(6));
+    index_t_array idxav_a(idxav,DataType::index_t(6));
     
     Node n;
     // int8
@@ -1427,16 +1511,37 @@ TEST(conduit_node_set, set_path_bitwidth_int_array)
         EXPECT_NE(&i64av_ptr[i],&i64av[i]);
     }
     EXPECT_EQ(i64av_ptr[5],-64);
+    // index_t
+    n.set_path("two/lvl",idxav_a);
+    n.schema().print();
+    EXPECT_TRUE(n.has_path("two"));
+    EXPECT_TRUE(n["two"].has_path("lvl"));
+#ifdef CONDUIT_INDEX_32
+    EXPECT_EQ(n["two"]["lvl"].total_strided_bytes(),6*4);
+    EXPECT_EQ(n["two"]["lvl"].dtype().element_bytes(),4);
+#else
+    EXPECT_EQ(n["two"]["lvl"].total_strided_bytes(),6*8);
+    EXPECT_EQ(n["two"]["lvl"].dtype().element_bytes(),8);
+#endif
+    index_t *idxav_ptr = n["two/lvl"].as_index_t_ptr();
+    for(index_t i=0;i<6;i++)
+    {
+        EXPECT_EQ(idxav_ptr[i],idxav[i]);
+        // set(...) semantics imply a copy -- mem addys should differ
+        EXPECT_NE(&idxav_ptr[i],&idxav[i]);
+    }
+    EXPECT_EQ(idxav_ptr[5],-64);
 
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set_, set_path_bitwidth_int_ptr)
 {
-    int8    i8av[6] = {-2,-4,-8,-16,-32,-64};
-    int16  i16av[6] = {-2,-4,-8,-16,-32,-64};
-    int32  i32av[6] = {-2,-4,-8,-16,-32,-64};
-    int64  i64av[6] = {-2,-4,-8,-16,-32,-64};
+    int8     i8av[6] = {-2,-4,-8,-16,-32,-64};
+    int16   i16av[6] = {-2,-4,-8,-16,-32,-64};
+    int32   i32av[6] = {-2,-4,-8,-16,-32,-64};
+    int64   i64av[6] = {-2,-4,-8,-16,-32,-64};
+    index_t idxav[6] = {-2,-4,-8,-16,-32,-64};
         
     Node n;
     // int8
@@ -1499,21 +1604,43 @@ TEST(conduit_node_set_, set_path_bitwidth_int_ptr)
         EXPECT_NE(&i64av_ptr[i],&i64av[i]);
     }
     EXPECT_EQ(i64av_ptr[5],-64);
+    // index_t
+    n.set_path("two/lvl",idxav,6);
+    n.schema().print();
+    EXPECT_TRUE(n.has_path("two"));
+    EXPECT_TRUE(n["two"].has_path("lvl"));
+#ifdef CONDUIT_INDEX_32
+    EXPECT_EQ(n["two"]["lvl"].total_strided_bytes(),6*4);
+    EXPECT_EQ(n["two"]["lvl"].dtype().element_bytes(),4);
+#else
+    EXPECT_EQ(n["two"]["lvl"].total_strided_bytes(),6*8);
+    EXPECT_EQ(n["two"]["lvl"].dtype().element_bytes(),8);
+#endif
+    index_t *idxav_ptr = n["two/lvl"].as_index_t_ptr();
+    for(index_t i=0;i<6;i++)
+    {
+        EXPECT_EQ(idxav_ptr[i],idxav[i]);
+        // set(...) semantics imply a copy -- mem addys should differ
+        EXPECT_NE(&idxav_ptr[i],&idxav[i]);
+    }
+    EXPECT_EQ(idxav_ptr[5],-64);
 
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set, set_external_bitwidth_int_array)
 {
-    int8    i8av[6] = {-2,-4,-8,-16,-32,-64};
-    int16  i16av[6] = {-2,-4,-8,-16,-32,-64};
-    int32  i32av[6] = {-2,-4,-8,-16,-32,-64};
-    int64  i64av[6] = {-2,-4,-8,-16,-32,-64};
+    int8     i8av[6] = {-2,-4,-8,-16,-32,-64};
+    int16   i16av[6] = {-2,-4,-8,-16,-32,-64};
+    int32   i32av[6] = {-2,-4,-8,-16,-32,-64};
+    int64   i64av[6] = {-2,-4,-8,-16,-32,-64};
+    index_t idxav[6] = {-2,-4,-8,-16,-32,-64};
     
-    int8_array  i8av_a(i8av,DataType::int8(6));
-    int16_array i16av_a(i16av,DataType::int16(6));
-    int32_array i32av_a(i32av,DataType::int32(6));
-    int64_array i64av_a(i64av,DataType::int64(6));
+    int8_array    i8av_a(i8av,DataType::int8(6));
+    int16_array   i16av_a(i16av,DataType::int16(6));
+    int32_array   i32av_a(i32av,DataType::int32(6));
+    int64_array   i64av_a(i64av,DataType::int64(6));
+    index_t_array idxav_a(idxav,DataType::index_t(6));
     
     Node n;
     // int8
@@ -1584,15 +1711,38 @@ TEST(conduit_node_set, set_external_bitwidth_int_array)
     EXPECT_EQ(i64av[1],-100);
     n.print();
 
+    // index_t
+    n.set_external(idxav_a);
+    n.schema().print();
+#ifdef CONDUIT_INDEX_32
+    EXPECT_EQ(n.total_strided_bytes(),6*4);
+    EXPECT_EQ(n.dtype().element_bytes(),4);
+#else
+    EXPECT_EQ(n.total_strided_bytes(),6*8);
+    EXPECT_EQ(n.dtype().element_bytes(),8);
+#endif
+    index_t *idxav_ptr = n.as_index_t_ptr();
+    for(index_t i=0;i<6;i++)
+    {
+        EXPECT_EQ(idxav_ptr[i],idxav[i]);
+       // set_external(...) semantics imply a ref -- mem addys should match
+        EXPECT_EQ(&idxav_ptr[i],&idxav[i]);
+    }
+    EXPECT_EQ(idxav_ptr[5],-64);
+    idxav_ptr[1] = -100;
+    EXPECT_EQ(idxav[1],-100);
+    n.print();
+
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set_, set_external_bitwidth_int_ptr)
 {
-    int8    i8av[6] = {-2,-4,-8,-16,-32,-64};
-    int16  i16av[6] = {-2,-4,-8,-16,-32,-64};
-    int32  i32av[6] = {-2,-4,-8,-16,-32,-64};
-    int64  i64av[6] = {-2,-4,-8,-16,-32,-64};
+    int8     i8av[6] = {-2,-4,-8,-16,-32,-64};
+    int16   i16av[6] = {-2,-4,-8,-16,-32,-64};
+    int32   i32av[6] = {-2,-4,-8,-16,-32,-64};
+    int64   i64av[6] = {-2,-4,-8,-16,-32,-64};
+    index_t idxav[6] = {-2,-4,-8,-16,-32,-64};
     
     Node n;
     // int8
@@ -1663,20 +1813,44 @@ TEST(conduit_node_set_, set_external_bitwidth_int_ptr)
     EXPECT_EQ(i64av[1],-100);
     n.print();
 
+    // index_t
+    n.set_external(idxav,6);
+    n.schema().print();
+#ifdef CONDUIT_INDEX_32
+    EXPECT_EQ(n.total_strided_bytes(),6*4);
+    EXPECT_EQ(n.dtype().element_bytes(),4);
+#else
+    EXPECT_EQ(n.total_strided_bytes(),6*8);
+    EXPECT_EQ(n.dtype().element_bytes(),8);
+#endif
+    index_t *idxav_ptr = n.as_index_t_ptr();
+    for(index_t i=0;i<6;i++)
+    {
+        EXPECT_EQ(idxav_ptr[i],idxav[i]);
+       // set_external(...) semantics imply a ref -- mem addys should match
+        EXPECT_EQ(&idxav_ptr[i],&idxav[i]);
+    }
+    EXPECT_EQ(idxav_ptr[5],-64);
+    idxav_ptr[1] = -100;
+    EXPECT_EQ(idxav[1],-100);
+    n.print();
+
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set, set_path_external_bitwidth_int_array)
 {
-    int8    i8av[6] = {-2,-4,-8,-16,-32,-64};
-    int16  i16av[6] = {-2,-4,-8,-16,-32,-64};
-    int32  i32av[6] = {-2,-4,-8,-16,-32,-64};
-    int64  i64av[6] = {-2,-4,-8,-16,-32,-64};
+    int8     i8av[6] = {-2,-4,-8,-16,-32,-64};
+    int16   i16av[6] = {-2,-4,-8,-16,-32,-64};
+    int32   i32av[6] = {-2,-4,-8,-16,-32,-64};
+    int64   i64av[6] = {-2,-4,-8,-16,-32,-64};
+    index_t idxav[6] = {-2,-4,-8,-16,-32,-64};
     
-    int8_array  i8av_a(i8av,DataType::int8(6));
-    int16_array i16av_a(i16av,DataType::int16(6));
-    int32_array i32av_a(i32av,DataType::int32(6));
-    int64_array i64av_a(i64av,DataType::int64(6));
+    int8_array    i8av_a(i8av,DataType::int8(6));
+    int16_array   i16av_a(i16av,DataType::int16(6));
+    int32_array   i32av_a(i32av,DataType::int32(6));
+    int64_array   i64av_a(i64av,DataType::int64(6));
+    index_t_array idxav_a(idxav,DataType::index_t(6));
     
     Node n;
     // int8
@@ -1755,15 +1929,40 @@ TEST(conduit_node_set, set_path_external_bitwidth_int_array)
     EXPECT_EQ(i64av[1],-100);
     n.print();
 
+    // index_t
+    n.set_path_external("two/lvl",idxav_a);
+    n.schema().print();
+    EXPECT_TRUE(n.has_path("two"));
+    EXPECT_TRUE(n["two"].has_path("lvl"));
+#ifdef CONDUIT_INDEX_32
+    EXPECT_EQ(n["two"]["lvl"].total_strided_bytes(),6*4);
+    EXPECT_EQ(n["two"]["lvl"].dtype().element_bytes(),4);
+#else
+    EXPECT_EQ(n["two"]["lvl"].total_strided_bytes(),6*8);
+    EXPECT_EQ(n["two"]["lvl"].dtype().element_bytes(),8);
+#endif
+    index_t *idxav_ptr = n["two/lvl"].as_index_t_ptr();
+    for(index_t i=0;i<6;i++)
+    {
+        EXPECT_EQ(idxav_ptr[i],idxav[i]);
+       // set_external(...) semantics imply a ref -- mem addys should match
+        EXPECT_EQ(&idxav_ptr[i],&idxav[i]);
+    }
+    EXPECT_EQ(idxav_ptr[5],-64);
+    idxav_ptr[1] = -100;
+    EXPECT_EQ(idxav[1],-100);
+    n.print();
+
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set, set_path_external_bitwidth_int_ptr)
 {
-    int8    i8av[6] = {-2,-4,-8,-16,-32,-64};
-    int16  i16av[6] = {-2,-4,-8,-16,-32,-64};
-    int32  i32av[6] = {-2,-4,-8,-16,-32,-64};
-    int64  i64av[6] = {-2,-4,-8,-16,-32,-64};
+    int8     i8av[6] = {-2,-4,-8,-16,-32,-64};
+    int16   i16av[6] = {-2,-4,-8,-16,-32,-64};
+    int32   i32av[6] = {-2,-4,-8,-16,-32,-64};
+    int64   i64av[6] = {-2,-4,-8,-16,-32,-64};
+    index_t idxav[6] = {-2,-4,-8,-16,-32,-64};
     
     Node n;
     // int8
@@ -1840,6 +2039,30 @@ TEST(conduit_node_set, set_path_external_bitwidth_int_ptr)
     EXPECT_EQ(i64av_ptr[5],-64);
     i64av_ptr[1] = -100;
     EXPECT_EQ(i64av[1],-100);
+    n.print();
+
+    // index_t
+    n.set_path_external("two/lvl",idxav,6);
+    n.schema().print();
+    EXPECT_TRUE(n.has_path("two"));
+    EXPECT_TRUE(n["two"].has_path("lvl"));
+#ifdef CONDUIT_INDEX_32
+    EXPECT_EQ(n["two"]["lvl"].total_strided_bytes(),6*4);
+    EXPECT_EQ(n["two"]["lvl"].dtype().element_bytes(),4);
+#else
+    EXPECT_EQ(n["two"]["lvl"].total_strided_bytes(),6*8);
+    EXPECT_EQ(n["two"]["lvl"].dtype().element_bytes(),8);
+#endif
+    index_t *idxav_ptr = n["two/lvl"].as_index_t_ptr();
+    for(index_t i=0;i<6;i++)
+    {
+        EXPECT_EQ(idxav_ptr[i],idxav[i]);
+       // set_external(...) semantics imply a ref -- mem addys should match
+        EXPECT_EQ(&idxav_ptr[i],&idxav[i]);
+    }
+    EXPECT_EQ(idxav_ptr[5],-64);
+    idxav_ptr[1] = -100;
+    EXPECT_EQ(idxav[1],-100);
     n.print();
 
 }
