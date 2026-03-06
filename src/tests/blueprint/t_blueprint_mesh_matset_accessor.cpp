@@ -101,11 +101,11 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_layout_information)
         EXPECT_TRUE(m_acc.is_multi_buffer());
         EXPECT_TRUE(m_acc.is_element_dominant());
         EXPECT_FALSE(m_acc.is_material_dominant());
-        EXPECT_EQ(16, m_acc.num_zones());
+        EXPECT_EQ(16, m_acc.num_elems());
         EXPECT_EQ(4, m_acc.num_mats());
 
-        EXPECT_THROW(m_acc.num_mats_for_zone(0), conduit::Error);
-        EXPECT_THROW(m_acc.num_zones_for_mat(0), conduit::Error);
+        EXPECT_THROW(m_acc.num_mats_for_elem(0), conduit::Error);
+        EXPECT_THROW(m_acc.num_elems_for_mat(0), conduit::Error);
     }
 
     CONDUIT_INFO("venn sparse_by_element layout information");
@@ -118,11 +118,11 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_layout_information)
         EXPECT_FALSE(m_acc.is_multi_buffer());
         EXPECT_TRUE(m_acc.is_element_dominant());
         EXPECT_FALSE(m_acc.is_material_dominant());
-        EXPECT_EQ(16, m_acc.num_zones());
+        EXPECT_EQ(16, m_acc.num_elems());
         EXPECT_EQ(4, m_acc.num_mats());
 
-        EXPECT_NO_THROW(m_acc.num_mats_for_zone(0));
-        EXPECT_THROW(m_acc.num_zones_for_mat(0), conduit::Error);
+        EXPECT_NO_THROW(m_acc.num_mats_for_elem(0));
+        EXPECT_THROW(m_acc.num_elems_for_mat(0), conduit::Error);
     }
 
     CONDUIT_INFO("venn sparse_by_material layout information");
@@ -135,11 +135,11 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_layout_information)
         EXPECT_TRUE(m_acc.is_multi_buffer());
         EXPECT_FALSE(m_acc.is_element_dominant());
         EXPECT_TRUE(m_acc.is_material_dominant());
-        EXPECT_EQ(16, m_acc.num_zones());
+        EXPECT_EQ(16, m_acc.num_elems());
         EXPECT_EQ(4, m_acc.num_mats());
 
-        EXPECT_THROW(m_acc.num_mats_for_zone(0), conduit::Error);
-        EXPECT_NO_THROW(m_acc.num_zones_for_mat(0));
+        EXPECT_THROW(m_acc.num_mats_for_elem(0), conduit::Error);
+        EXPECT_NO_THROW(m_acc.num_elems_for_mat(0));
     }
 }
 
@@ -162,16 +162,16 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_sizes_information)
         MatsetAccessor m_acc = MatsetAccessor(mset, sset);
 
         // you cannot ask a full matset for num mats for zone
-        EXPECT_THROW(m_acc.num_mats_for_zone(0), conduit::Error);
-        EXPECT_THROW(m_acc.num_mats_for_zone(1), conduit::Error);
-        EXPECT_THROW(m_acc.num_mats_for_zone(2), conduit::Error);
-        EXPECT_THROW(m_acc.num_mats_for_zone(3), conduit::Error);
+        EXPECT_THROW(m_acc.num_mats_for_elem(0), conduit::Error);
+        EXPECT_THROW(m_acc.num_mats_for_elem(1), conduit::Error);
+        EXPECT_THROW(m_acc.num_mats_for_elem(2), conduit::Error);
+        EXPECT_THROW(m_acc.num_mats_for_elem(3), conduit::Error);
 
         // you cannot ask a full matset for num zones for mat
-        EXPECT_THROW(m_acc.num_zones_for_mat(0), conduit::Error);
-        EXPECT_THROW(m_acc.num_zones_for_mat(1), conduit::Error);
-        EXPECT_THROW(m_acc.num_zones_for_mat(2), conduit::Error);
-        EXPECT_THROW(m_acc.num_zones_for_mat(3), conduit::Error);
+        EXPECT_THROW(m_acc.num_elems_for_mat(0), conduit::Error);
+        EXPECT_THROW(m_acc.num_elems_for_mat(1), conduit::Error);
+        EXPECT_THROW(m_acc.num_elems_for_mat(2), conduit::Error);
+        EXPECT_THROW(m_acc.num_elems_for_mat(3), conduit::Error);
 
         EXPECT_EQ(1, m_acc.num_spec_for_mat(0, 0));
         EXPECT_EQ(1, m_acc.num_spec_for_mat(1, 0));
@@ -198,16 +198,16 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_sizes_information)
 
         MatsetAccessor m_acc = MatsetAccessor(mset, sset);
 
-        EXPECT_EQ(1, m_acc.num_mats_for_zone(0));
-        EXPECT_EQ(1, m_acc.num_mats_for_zone(1));
-        EXPECT_EQ(1, m_acc.num_mats_for_zone(2));
-        EXPECT_EQ(3, m_acc.num_mats_for_zone(3));
+        EXPECT_EQ(1, m_acc.num_mats_for_elem(0));
+        EXPECT_EQ(1, m_acc.num_mats_for_elem(1));
+        EXPECT_EQ(1, m_acc.num_mats_for_elem(2));
+        EXPECT_EQ(3, m_acc.num_mats_for_elem(3));
 
         // you cannot ask a sbe matset for num zones for mat
-        EXPECT_THROW(m_acc.num_zones_for_mat(0), conduit::Error);
-        EXPECT_THROW(m_acc.num_zones_for_mat(1), conduit::Error);
-        EXPECT_THROW(m_acc.num_zones_for_mat(2), conduit::Error);
-        EXPECT_THROW(m_acc.num_zones_for_mat(3), conduit::Error);
+        EXPECT_THROW(m_acc.num_elems_for_mat(0), conduit::Error);
+        EXPECT_THROW(m_acc.num_elems_for_mat(1), conduit::Error);
+        EXPECT_THROW(m_acc.num_elems_for_mat(2), conduit::Error);
+        EXPECT_THROW(m_acc.num_elems_for_mat(3), conduit::Error);
 
         // 1 material in zone 0
         EXPECT_EQ(1, m_acc.num_spec_for_mat(0, 0));
@@ -229,15 +229,15 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_sizes_information)
         MatsetAccessor m_acc = MatsetAccessor(mset, sset);
 
         // you cannot ask a sbm matset for num mats for zone
-        EXPECT_THROW(m_acc.num_mats_for_zone(0), conduit::Error);
-        EXPECT_THROW(m_acc.num_mats_for_zone(1), conduit::Error);
-        EXPECT_THROW(m_acc.num_mats_for_zone(2), conduit::Error);
-        EXPECT_THROW(m_acc.num_mats_for_zone(3), conduit::Error);
+        EXPECT_THROW(m_acc.num_mats_for_elem(0), conduit::Error);
+        EXPECT_THROW(m_acc.num_mats_for_elem(1), conduit::Error);
+        EXPECT_THROW(m_acc.num_mats_for_elem(2), conduit::Error);
+        EXPECT_THROW(m_acc.num_mats_for_elem(3), conduit::Error);
 
-        EXPECT_EQ(3, m_acc.num_zones_for_mat(0));
-        EXPECT_EQ(1, m_acc.num_zones_for_mat(1));
-        EXPECT_EQ(1, m_acc.num_zones_for_mat(2));
-        EXPECT_EQ(1, m_acc.num_zones_for_mat(3));
+        EXPECT_EQ(3, m_acc.num_elems_for_mat(0));
+        EXPECT_EQ(1, m_acc.num_elems_for_mat(1));
+        EXPECT_EQ(1, m_acc.num_elems_for_mat(2));
+        EXPECT_EQ(1, m_acc.num_elems_for_mat(3));
 
         // 3 zones for material 0
         EXPECT_EQ(1, m_acc.num_spec_for_mat(0, 0));
@@ -316,7 +316,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval)
         MatsetAccessor m_acc = MatsetAccessor(mset, field, sset);
 
         // we iterate over zones
-        const index_t num_zones = m_acc.num_zones();
+        const index_t num_zones = m_acc.num_elems();
         for (index_t zone_idx = 0; zone_idx < num_zones; zone_idx ++)
         {
             // we ask for the total number of materials
@@ -395,11 +395,11 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval)
         MatsetAccessor m_acc = MatsetAccessor(mset, field, sset);
 
         // we iterate over zones
-        const index_t num_zones = m_acc.num_zones();
+        const index_t num_zones = m_acc.num_elems();
         for (index_t zone_idx = 0; zone_idx < num_zones; zone_idx ++)
         {
             // we ask for the number of materials in this zone
-            const index_t num_mats_for_zone = m_acc.num_mats_for_zone(zone_idx);
+            const index_t num_mats_for_zone = m_acc.num_mats_for_elem(zone_idx);
             for (index_t mat_idx = 0; mat_idx < num_mats_for_zone; mat_idx ++)
             {
                 const index_t mat_id = m_acc.get_mat_id(zone_idx, mat_idx);
@@ -488,7 +488,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval)
         for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
         {
             // we ask for the number of zones for this material
-            const index_t num_zones_for_mat = m_acc.num_zones_for_mat(mat_idx);
+            const index_t num_zones_for_mat = m_acc.num_elems_for_mat(mat_idx);
             for (index_t zone_idx = 0; zone_idx < num_zones_for_mat; zone_idx ++)
             {
                 const index_t mat_id = m_acc.get_mat_id(zone_idx, mat_idx);
@@ -646,7 +646,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
         MatsetAccessor m_acc = MatsetAccessor(mset, field, sset);
 
         // we iterate over zones
-        const index_t num_zones = m_acc.num_zones();
+        const index_t num_zones = m_acc.num_elems();
         for (index_t zone_idx = 0; zone_idx < num_zones; zone_idx ++)
         {
             // we ask for the total number of materials
@@ -725,11 +725,11 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
         MatsetAccessor m_acc = MatsetAccessor(mset, field, sset);
 
         // we iterate over zones
-        const index_t num_zones = m_acc.num_zones();
+        const index_t num_zones = m_acc.num_elems();
         for (index_t zone_idx = 0; zone_idx < num_zones; zone_idx ++)
         {
             // we ask for the number of materials in this zone
-            const index_t num_mats_for_zone = m_acc.num_mats_for_zone(zone_idx);
+            const index_t num_mats_for_zone = m_acc.num_mats_for_elem(zone_idx);
             for (index_t mat_idx = 0; mat_idx < num_mats_for_zone; mat_idx ++)
             {
                 const index_t mat_id = m_acc.get_mat_id(zone_idx, mat_idx);
@@ -818,7 +818,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
         for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
         {
             // we ask for the number of zones for this material
-            const index_t num_zones_for_mat = m_acc.num_zones_for_mat(mat_idx);
+            const index_t num_zones_for_mat = m_acc.num_elems_for_mat(mat_idx);
             for (index_t zone_idx = 0; zone_idx < num_zones_for_mat; zone_idx ++)
             {
                 const index_t mat_id = m_acc.get_mat_id(zone_idx, mat_idx);

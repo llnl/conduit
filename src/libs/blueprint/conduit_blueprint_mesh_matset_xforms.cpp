@@ -167,7 +167,7 @@ store_material_specset_data_for_zone_to_silo_arrays(
     const index_t &num_mats_in_zone,
     const index_t_array &local_material_ids,
     const float64_array &local_volume_fractions,
-    const std::map<int, int> &mat_id_to_array_index,
+    const std::map<index_t, index_t> &mat_id_to_array_index,
     const index_t_accessor &nmatspec,
     const index_t zone_id,
     index_t_array &matlist,
@@ -182,11 +182,11 @@ store_material_specset_data_for_zone_to_silo_arrays(
     // if zone is clean
     if (1 == num_mats_in_zone)
     {
-        const int matno = local_material_ids[0];
+        const index_t matno = local_material_ids[0];
         matlist[zone_id] = matno;
 
         // I can use the material number to determine which part of the speclist to index into
-        const int mat_index = mat_id_to_array_index.at(matno);
+        const index_t mat_index = mat_id_to_array_index.at(matno);
         const index_t num_species_for_this_material = nmatspec[mat_index];
         if (num_species_for_this_material == 1)
         {
@@ -224,10 +224,10 @@ store_material_specset_data_for_zone_to_silo_arrays(
         // indices: -1 -2 -3 -4 ...
         // become:   0  1  2  3 ...
 
-        for (int mat = 0; mat < num_mats_in_zone; mat ++)
+        for (index_t mat = 0; mat < num_mats_in_zone; mat ++)
         {
-            const int curr_mat_id = local_material_ids[mat];
-            const int mat_index = mat_id_to_array_index.at(curr_mat_id);
+            const index_t curr_mat_id = local_material_ids[mat];
+            const index_t mat_index = mat_id_to_array_index.at(curr_mat_id);
             const float64 curr_vol_frac = local_volume_fractions[mat];
 
             mix_vf.push_back(curr_vol_frac);
@@ -456,7 +456,7 @@ to_silo(const conduit::Node &matset,
     // We need this map so that, no matter what material numbers we see,
     // we can figure out their order in the material map for when we calculate
     // species indices.
-    std::map<int, int> mat_id_to_array_index;
+    std::map<index_t, index_t> mat_id_to_array_index;
 
     // we need the number of materials
     const index_t nmat = count_materials_from_matset(matset);
@@ -486,13 +486,13 @@ to_silo(const conduit::Node &matset,
 
         Node &dest_specnames = dest["specnames"];
 
-        for (int matmap_index = 0; matmap_index < nmat; matmap_index ++)
+        for (index_t matmap_index = 0; matmap_index < nmat; matmap_index ++)
         {
             const Node &matmap_entry = material_map.child(matmap_index);
             const std::string matname = matmap_entry.name();
 
             // save material id correspondence with array position
-            mat_id_to_array_index[matmap_entry.as_int()] = matmap_index;
+            mat_id_to_array_index[matmap_entry.to_index_t()] = matmap_index;
 
             // get the number of species for this material
             const int num_species_for_this_material = 
@@ -1587,7 +1587,7 @@ uni_buffer_by_element_to_multi_buffer_by_element_matset(const conduit::Node &src
     std::map<std::string, float64_array> new_vol_fracs_map;
 
     MatsetAccessor m_acc = MatsetAccessor(src_matset);
-    const index_t num_elems = m_acc.num_zones();
+    const index_t num_elems = m_acc.num_elems();
 
     // initialize sizes of the vol frac arrays
     for (const auto & mapitem : reverse_matmap)
@@ -2373,7 +2373,7 @@ walk_matset_by_element(const MatsetAccessor &m_acc,
         CONDUIT_ERROR("Walking by element is only supported for element-dominant material sets.");
     }
 
-    const index_t num_zones = m_acc.num_zones();
+    const index_t num_zones = m_acc.num_elems();
 
     // full
     if (m_acc.is_multi_buffer())
@@ -2402,7 +2402,7 @@ walk_matset_by_element(const MatsetAccessor &m_acc,
     {
         for (index_t zone_idx = 0; zone_idx < num_zones; zone_idx ++)
         {
-            const index_t nmats_in_zone = m_acc.num_mats_for_zone(zone_idx);
+            const index_t nmats_in_zone = m_acc.num_mats_for_elem(zone_idx);
             for (index_t mat_idx = 0; mat_idx < nmats_in_zone; mat_idx ++)
             {
                 // zone_idx is an index over all zones
@@ -2430,7 +2430,7 @@ walk_matset_by_element(const MatsetAccessor &m_acc,
         CONDUIT_ERROR("Walking by element is only supported for element-dominant material sets.");
     }
 
-    const index_t num_zones = m_acc.num_zones();
+    const index_t num_zones = m_acc.num_elems();
 
     // full
     if (m_acc.is_multi_buffer())
@@ -2465,7 +2465,7 @@ walk_matset_by_element(const MatsetAccessor &m_acc,
     {
         for (index_t zone_idx = 0; zone_idx < num_zones; zone_idx ++)
         {
-            const index_t nmats_in_zone = m_acc.num_mats_for_zone(zone_idx);
+            const index_t nmats_in_zone = m_acc.num_mats_for_elem(zone_idx);
             for (index_t mat_idx = 0; mat_idx < nmats_in_zone; mat_idx ++)
             {
                 const index_t num_spec_for_mat = m_acc.num_spec_for_mat(zone_idx, mat_idx);
@@ -2522,7 +2522,7 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
             // we *can* walk this elem-dom representation by material, and sometimes
             // we have to. But it is not very efficient.
 
-            const index_t num_zones = m_acc.num_zones();
+            const index_t num_zones = m_acc.num_elems();
             // Material ids need not be within in the range [0, N-1), so we iterate
             // over the order materials appear in the matset.
             for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
@@ -2559,7 +2559,7 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
             // over the order materials appear in the matset.
             for (int mat_idx = 0; mat_idx < num_materials; mat_idx ++)
             {
-                const index_t num_elems_for_mat = m_acc.num_zones_for_mat(mat_idx);
+                const index_t num_elems_for_mat = m_acc.num_elems_for_mat(mat_idx);
                 for (index_t zone_idx = 0; zone_idx < num_elems_for_mat; zone_idx ++)
                 {
                     // zone_idx is an index over all zones the current material is in
@@ -2599,7 +2599,7 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
             // we *can* walk this elem-dom representation by material, and sometimes
             // we have to. But it is not very efficient.
 
-            const index_t num_zones = m_acc.num_zones();
+            const index_t num_zones = m_acc.num_elems();
             // Material ids need not be within in the range [0, N-1), so we iterate
             // over the order materials appear in the matset.
             for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
@@ -2642,7 +2642,7 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
             // over the order materials appear in the matset.
             for (int mat_idx = 0; mat_idx < num_materials; mat_idx ++)
             {
-                const index_t num_elems_for_mat = m_acc.num_zones_for_mat(mat_idx);
+                const index_t num_elems_for_mat = m_acc.num_elems_for_mat(mat_idx);
                 for (index_t zone_idx = 0; zone_idx < num_elems_for_mat; zone_idx ++)
                 {
                     const index_t num_spec_for_mat = m_acc.num_spec_for_mat(zone_idx, mat_idx);
@@ -3655,4 +3655,3 @@ to_multi_buffer_by_material(const conduit::Node &src_matset,
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-
