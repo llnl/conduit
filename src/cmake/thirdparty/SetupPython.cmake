@@ -2,6 +2,36 @@
 # Project developers. See top-level LICENSE AND COPYRIGHT files for dates and
 # other details. No copyright assignment is required to contribute to Conduit.
 
+#
+# Downstream packages may configure using PYTHON_DIR or PYTHON_EXECUTABLE
+#
+if(PYTHON_DIR AND NOT PYTHON_EXECUTABLE)
+    if(UNIX)
+        # look for python 3 first
+        set(PYTHON_EXECUTABLE ${PYTHON_DIR}/bin/python3)
+        # if this doesn't exist, look for python
+        if(NOT EXISTS "${PYTHON_EXECUTABLE}")
+            set(PYTHON_EXECUTABLE ${PYTHON_DIR}/bin/python)
+        endif()
+    elseif(WIN32)
+        set(PYTHON_EXECUTABLE ${PYTHON_DIR}/python.exe)
+    endif()
+endif()
+
+# allow PYTHON_EXECUTABLE to init Python3_EXECUTABLE
+if(PYTHON_EXECUTABLE AND NOT Python3_EXECUTABLE)
+    set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
+endif()
+
+find_package(Python3
+             REQUIRED
+             COMPONENTS Interpreter Development NumPy)
+
+# normalize python found to all caps
+if(Python3_FOUND)
+    set(PYTHON_FOUND TRUE)
+endif()
+
 ##############################################################################
 # Macro to use a pure python pip setup script
 ##############################################################################

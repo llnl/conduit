@@ -50,7 +50,7 @@ PYTHON_ADD_HYBRID_MODULE(NAME          conduit_python
 
 # link with the proper libs (beyond python)
 target_link_libraries(conduit_python PRIVATE conduit)
-
+target_link_libraries(conduit_python PRIVATE Python3::NumPy)
 
 #############################################################
 # conduit.utils

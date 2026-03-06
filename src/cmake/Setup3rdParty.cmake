@@ -92,9 +92,6 @@ if(ENABLE_PYTHON)
     # Setup includes for Python & Numpy
     ################################
     include(cmake/thirdparty/SetupPython.cmake)
-    find_package(Python3
-        REQUIRED
-        COMPONENTS Interpreter Development NumPy)
 endif()
 
 

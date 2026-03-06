@@ -55,7 +55,7 @@ add_subdirectory("c")
 ################################
 # Add optional tests
 ################################
-if(Python3_FOUND)
+if(PYTHON_FOUND)
     add_subdirectory("python")
 else()
     message(STATUS "Python disabled: Skipping conduit blueprint python module tests")

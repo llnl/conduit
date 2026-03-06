@@ -74,7 +74,7 @@ else()
 endif()
 
 
-if(Python3_FOUND)
+if(PYTHON_FOUND)
     message(STATUS "Python enabled: Adding related unit tests")
     foreach(TEST t_numpy_smoke)
         add_cpp_test(TEST t_numpy_smoke

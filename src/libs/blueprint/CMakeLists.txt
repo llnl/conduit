@@ -172,7 +172,7 @@ endif()
 # Add python wrappers if python
 # support was selected
 ################################
-if(Python3_FOUND)
+if(PYTHON_FOUND)
     add_subdirectory(python)
 endif()
 
