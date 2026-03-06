@@ -865,7 +865,7 @@ namespace matset
                                                    const float64 epsilon = CONDUIT_EPSILON);
     //-----------------------------------------------------------------------------
     template <class ForEachValue>
-    void CONDUIT_BLUEPRINT_API walk_matset_by_element_value(const MatsetAccessor &m_acc,
+    void CONDUIT_BLUEPRINT_API walk_matset_value_by_element(const MatsetAccessor &m_acc,
                                                             ForEachValue &&for_each_value,
                                                             const float64 epsilon = CONDUIT_EPSILON);
     //-------------------------------------------------------------------------
@@ -876,14 +876,14 @@ namespace matset
                                                       const float64 epsilon = CONDUIT_EPSILON);
     //-------------------------------------------------------------------------
     template <class ForEachSpeciesValue, class ForEachValue, class ForEachElement>
-    void CONDUIT_BLUEPRINT_API walk_matset_by_element(const MatsetAccessor &m_acc,
-                                                      ForEachSpeciesValue &&for_each_species_value,
-                                                      ForEachValue &&for_each_value,
-                                                      ForEachElement &&for_each_element,
-                                                      const float64 epsilon = CONDUIT_EPSILON);
+    void CONDUIT_BLUEPRINT_API walk_matset_species_by_element(const MatsetAccessor &m_acc,
+                                                              ForEachSpeciesValue &&for_each_species_value,
+                                                              ForEachValue &&for_each_value,
+                                                              ForEachElement &&for_each_element,
+                                                              const float64 epsilon = CONDUIT_EPSILON);
     //-------------------------------------------------------------------------
     template <class ForEachValue>
-    void CONDUIT_BLUEPRINT_API walk_matset_by_material_value(const MatsetAccessor &m_acc,
+    void CONDUIT_BLUEPRINT_API walk_matset_value_by_material(const MatsetAccessor &m_acc,
                                                              ForEachValue &&for_each_value,
                                                              const float64 epsilon = CONDUIT_EPSILON);
     //-------------------------------------------------------------------------
@@ -894,11 +894,11 @@ namespace matset
                                                        const float64 epsilon = CONDUIT_EPSILON);
     //-------------------------------------------------------------------------
     template <class ForEachSpeciesValue, class ForEachValue, class ForEachMaterial>
-    void CONDUIT_BLUEPRINT_API walk_matset_by_material(const MatsetAccessor &m_acc,
-                                                       ForEachSpeciesValue &&for_each_species_value,
-                                                       ForEachValue &&for_each_value,
-                                                       ForEachMaterial &&for_each_material,
-                                                       const float64 epsilon = CONDUIT_EPSILON);
+    void CONDUIT_BLUEPRINT_API walk_matset_species_by_material(const MatsetAccessor &m_acc,
+                                                               ForEachSpeciesValue &&for_each_species_value,
+                                                               ForEachValue &&for_each_value,
+                                                               ForEachMaterial &&for_each_material,
+                                                               const float64 epsilon = CONDUIT_EPSILON);
     //-----------------------------------------------------------------------------
     std::map<int, std::string> CONDUIT_BLUEPRINT_API create_reverse_material_map(
         const conduit::Node &src_matset);

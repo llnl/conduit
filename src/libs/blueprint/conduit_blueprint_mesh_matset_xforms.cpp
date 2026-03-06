@@ -664,7 +664,7 @@ to_silo(const conduit::Node &matset,
                 mset_vals[real_zone_id].push_back(m_acc.get_mset_val(zone_idx, mat_idx));
             };
 
-            walk_matset_by_material_value(m_acc, for_each_value, epsilon);
+            walk_matset_value_by_material(m_acc, for_each_value, epsilon);
 
             Node n;
             for (int zone_id = 0; zone_id < num_zones; zone_id ++)
@@ -733,11 +733,11 @@ to_silo(const conduit::Node &matset,
                     current_spec_position);
             };
 
-            walk_matset_by_element(m_acc,
-                                   for_each_species_value,
-                                   for_each_value,
-                                   for_each_element,
-                                   epsilon);
+            walk_matset_species_by_element(m_acc,
+                                           for_each_species_value,
+                                           for_each_value,
+                                           for_each_element,
+                                           epsilon);
         }
         else // material dominant
         {
@@ -779,11 +779,11 @@ to_silo(const conduit::Node &matset,
             // nothing to do for each material
             auto for_each_material = [](const index_t, const index_t){};
 
-            walk_matset_by_material(m_acc,
-                                    for_each_species_value,
-                                    for_each_value,
-                                    for_each_material,
-                                    epsilon);
+            walk_matset_species_by_material(m_acc,
+                                            for_each_species_value,
+                                            for_each_value,
+                                            for_each_material,
+                                            epsilon);
 
             Node n;
             for (int zone_id = 0; zone_id < num_zones; zone_id ++)
@@ -879,7 +879,7 @@ to_silo(const conduit::Node &matset,
                 vol_fracs[real_zone_id].push_back(m_acc.get_vol_frac(zone_idx, mat_idx));
             };
 
-            walk_matset_by_material_value(m_acc, for_each_value, epsilon);
+            walk_matset_value_by_material(m_acc, for_each_value, epsilon);
 
             Node n;
             for (int zone_id = 0; zone_id < num_zones; zone_id ++)
@@ -1469,7 +1469,7 @@ multi_buffer_by_element_to_uni_buffer_by_element_field(const conduit::Node &src_
         matset_values.push_back(m_acc.get_mset_val(zone_idx, mat_idx));
     };
 
-    walk_matset_by_element_value(m_acc, for_each_value, epsilon);
+    walk_matset_value_by_element(m_acc, for_each_value, epsilon);
 
     dest_field["matset_values"].set(matset_values);
 }
@@ -1608,7 +1608,7 @@ uni_buffer_by_element_to_multi_buffer_by_element_matset(const conduit::Node &src
         new_vol_fracs_map[matname][zone_idx] = m_acc.get_vol_frac(zone_idx, mat_idx);
     };
 
-    walk_matset_by_element_value(m_acc, for_each_value);
+    walk_matset_value_by_element(m_acc, for_each_value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1655,7 +1655,7 @@ uni_buffer_by_element_to_multi_buffer_by_element_field(const conduit::Node &src_
         new_mset_vals_map[matname][zone_idx] = m_acc.get_mset_val(zone_idx, mat_idx);
     };
 
-    walk_matset_by_element_value(m_acc, for_each_value);
+    walk_matset_value_by_element(m_acc, for_each_value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1760,7 +1760,7 @@ uni_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &sr
         new_elem_ids[matname].push_back(zone_idx);
     };
 
-    walk_matset_by_element_value(m_acc, for_each_value);
+    walk_matset_value_by_element(m_acc, for_each_value);
 
     read_from_map_write_out(new_vol_fracs, dest_matset["volume_fractions"]);
     read_from_map_write_out(new_elem_ids, dest_matset["element_ids"]);
@@ -1797,7 +1797,7 @@ uni_buffer_by_element_to_multi_buffer_by_material_field(const conduit::Node &src
         new_mset_vals[matname].push_back(m_acc.get_mset_val(zone_idx, mat_idx));
     };
 
-    walk_matset_by_element_value(m_acc, for_each_value);
+    walk_matset_value_by_element(m_acc, for_each_value);
 
     read_from_map_write_out(new_mset_vals, dest_field["matset_values"]);
 }
@@ -1904,7 +1904,7 @@ multi_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &
     };
 
     // TODO justin
-    // [x] you need to port all the walk_matset_by_material and walk_matset_by_material_value
+    // [x] you need to port all the walk_matset_by_material and walk_matset_value_by_material
     //     calls to use the new paradigm.
     // [x] Then you need to update the header file with the new reality.
     // [x] Then you need to do the same for field walkers.
@@ -2052,7 +2052,7 @@ multi_buffer_by_material_to_multi_buffer_by_element_matset(const conduit::Node &
         mat_idx_to_data[mat_idx][real_zone_id] = m_acc.get_vol_frac(zone_idx, mat_idx);
     };
 
-    walk_matset_by_material_value(m_acc, for_each_value);
+    walk_matset_value_by_material(m_acc, for_each_value);
 }
 
 //-----------------------------------------------------------------------------
@@ -2097,7 +2097,7 @@ multi_buffer_by_material_to_multi_buffer_by_element_field(const conduit::Node &s
         mat_idx_to_data[mat_idx][real_zone_id] = m_acc.get_mset_val(zone_idx, mat_idx);;
     };
 
-    walk_matset_by_material_value(m_acc, for_each_value);
+    walk_matset_value_by_material(m_acc, for_each_value);
 }
 
 //-----------------------------------------------------------------------------
@@ -2180,7 +2180,7 @@ multi_buffer_by_material_to_uni_buffer_by_element_matset(const conduit::Node &sr
         intermediate_vol_fracs[real_zone_id].push_back(m_acc.get_vol_frac(zone_idx, mat_idx));
     };
 
-    walk_matset_by_material_value(m_acc, for_each_value);
+    walk_matset_value_by_material(m_acc, for_each_value);
 
     std::vector<float64> vol_fracs;
     std::vector<int64> mat_ids;
@@ -2239,7 +2239,7 @@ multi_buffer_by_material_to_uni_buffer_by_element_field(const conduit::Node &src
         intermediate_mset_vals[real_zone_id].push_back(m_acc.get_mset_val(zone_idx, mat_idx));
     };
 
-    walk_matset_by_material_value(m_acc, for_each_value);
+    walk_matset_value_by_material(m_acc, for_each_value);
 
     std::vector<float64> mset_vals;
 
@@ -2344,7 +2344,7 @@ multi_buffer_by_material_to_uni_buffer_by_element_specset(const conduit::Node &s
 //-----------------------------------------------------------------------------
 template <class ForEachValue>
 void
-walk_matset_by_element_value(const MatsetAccessor &m_acc,
+walk_matset_value_by_element(const MatsetAccessor &m_acc,
                              ForEachValue &&for_each_value,
                              const float64 epsilon)
 {
@@ -2419,11 +2419,11 @@ walk_matset_by_element(const MatsetAccessor &m_acc,
 //-----------------------------------------------------------------------------
 template <class ForEachSpeciesValue, class ForEachValue, class ForEachElement>
 void
-walk_matset_by_element(const MatsetAccessor &m_acc,
-                       ForEachSpeciesValue &&for_each_species_value,
-                       ForEachValue &&for_each_value,
-                       ForEachElement &&for_each_element,
-                       const float64 epsilon)
+walk_matset_species_by_element(const MatsetAccessor &m_acc,
+                               ForEachSpeciesValue &&for_each_species_value,
+                               ForEachValue &&for_each_value,
+                               ForEachElement &&for_each_element,
+                               const float64 epsilon)
 {
     if (! m_acc.is_element_dominant())
     {
@@ -2488,7 +2488,7 @@ walk_matset_by_element(const MatsetAccessor &m_acc,
 //-----------------------------------------------------------------------------
 template <class ForEachValue>
 void
-walk_matset_by_material_value(const MatsetAccessor &m_acc,
+walk_matset_value_by_material(const MatsetAccessor &m_acc,
                               ForEachValue &&for_each_value,
                               const float64 epsilon)
 {
@@ -2546,7 +2546,7 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
         // elem-dom uni-buffer "sparse by element"
         else
         {
-            CONDUIT_ERROR("blueprint::mesh::matset::walk_matset_by_material_value() "
+            CONDUIT_ERROR("blueprint::mesh::matset::walk_matset_value_by_material() "
                           "Walking by material is not supported for element-dominant uni-buffer material sets.");
         }
     }
@@ -2574,7 +2574,7 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
         // mat-dom uni-buffer - currently unsupported
         else
         {
-            CONDUIT_ERROR("blueprint::mesh::matset::walk_matset_by_material_value() "
+            CONDUIT_ERROR("blueprint::mesh::matset::walk_matset_value_by_material() "
                           "material-dominant uni-buffer material set is unsupported.");
         }
     }
@@ -2583,11 +2583,11 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
 //-----------------------------------------------------------------------------
 template <class ForEachSpeciesValue, class ForEachValue, class ForEachMaterial>
 void
-walk_matset_by_material(const MatsetAccessor &m_acc,
-                        ForEachSpeciesValue &&for_each_species_value,
-                        ForEachValue &&for_each_value,
-                        ForEachMaterial &&for_each_material,
-                        const float64 epsilon)
+walk_matset_species_by_material(const MatsetAccessor &m_acc,
+                                ForEachSpeciesValue &&for_each_species_value,
+                                ForEachValue &&for_each_value,
+                                ForEachMaterial &&for_each_material,
+                                const float64 epsilon)
 {
     const index_t num_materials = m_acc.num_mats();
 
@@ -2629,7 +2629,7 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
         // elem-dom uni-buffer "sparse by element"
         else
         {
-            CONDUIT_ERROR("blueprint::mesh::matset::walk_matset_by_material_value() "
+            CONDUIT_ERROR("blueprint::mesh::matset::walk_matset_value_by_material() "
                           "Walking by material is not supported for element-dominant uni-buffer material sets.");
         }
     }
@@ -2663,7 +2663,7 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
         // mat-dom uni-buffer - currently unsupported
         else
         {
-            CONDUIT_ERROR("blueprint::mesh::matset::walk_matset_by_material_value() "
+            CONDUIT_ERROR("blueprint::mesh::matset::walk_matset_value_by_material() "
                           "material-dominant uni-buffer material set is unsupported.");
         }
     }
