@@ -1,0 +1,32 @@
+# https://developers.openai.com/codex/config-reference
+
+#
+# Note: This is for use *only* in isolated environments, such as docker development envs.
+#       Not suitable for use directly on LLNL systems (LC or otherwise).
+#
+#       This should only be used to develop released open source code.
+#
+check_for_update_on_startup = false
+model = "gpt-5.2"
+model_provider = "livai"
+model_reasoning_effort = "medium"
+personality = "pragmatic"
+review_model = "gpt-5.2"
+web_search = "disabled"
+
+[analytics]
+enabled = false
+
+[feedback]
+enabled = false
+
+[model_providers.livai]
+name = "LivAI"
+base_url = "https://livai-api.llnl.gov/v1"
+env_key = "LIVAI_API_KEY"
+query_params = { "api-version" = "preview" }
+wire_api = "responses"
+
+[notice.model_migrations]
+"gpt-5.2" = "gpt-5.3-codex"
+
