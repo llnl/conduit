@@ -627,16 +627,16 @@ to_silo(const conduit::Node &matset,
                 local_matset_values[curr_material_index] = m_acc.get_mset_val(zone_idx, mat_idx);
             };
 
-            auto for_each_zone = [&](const index_t zone_idx,
-                                     const index_t num_mats_in_zone)
+            auto for_each_element = [&](const index_t elem_idx,
+                                        const index_t num_mats_in_zone)
             {
                 store_material_field_data_for_zone_to_silo_arrays(
                     num_mats_in_zone, local_material_ids, local_volume_fractions,
-                    local_matset_values, zone_idx, matlist, mix_vf, mix_mat, mix_next,
+                    local_matset_values, elem_idx, matlist, mix_vf, mix_mat, mix_next,
                     field_mixvar_values, current_position);
             };
 
-            walk_matset_by_element(m_acc, for_each_value, for_each_zone, epsilon);
+            walk_matset_by_element(m_acc, for_each_value, for_each_element, epsilon);
         }
         else // material dominant
         {
@@ -713,8 +713,8 @@ to_silo(const conduit::Node &matset,
                 local_volume_fractions[curr_material_index] = m_acc.get_vol_frac(zone_idx, mat_idx);;
             };
 
-            auto for_each_zone = [&](const index_t zone_idx,
-                                     const index_t num_mats_in_zone)
+            auto for_each_element = [&](const index_t elem_idx,
+                                        const index_t num_mats_in_zone)
             {
                 store_material_specset_data_for_zone_to_silo_arrays(
                     num_mats_in_zone,
@@ -722,7 +722,7 @@ to_silo(const conduit::Node &matset,
                     local_volume_fractions,
                     mat_id_to_array_index,
                     nmatspec,
-                    zone_idx,
+                    elem_idx,
                     matlist,
                     mix_vf,
                     mix_mat,
@@ -736,7 +736,7 @@ to_silo(const conduit::Node &matset,
             walk_matset_by_element(m_acc,
                                    for_each_species_value,
                                    for_each_value,
-                                   for_each_zone,
+                                   for_each_element,
                                    epsilon);
         }
         else // material dominant
@@ -846,15 +846,15 @@ to_silo(const conduit::Node &matset,
                 local_volume_fractions[curr_material_index] = m_acc.get_vol_frac(zone_idx, mat_idx);
             };
 
-            auto for_each_zone = [&](const index_t zone_idx,
-                                     const index_t num_mats_in_zone)
+            auto for_each_element = [&](const index_t elem_idx,
+                                        const index_t num_mats_in_zone)
             {
                 store_material_data_for_zone_to_silo_arrays(
                     num_mats_in_zone, local_material_ids, local_volume_fractions, 
-                    zone_idx, matlist, mix_vf, mix_mat, mix_next, current_position);
+                    elem_idx, matlist, mix_vf, mix_mat, mix_next, current_position);
             };
 
-            walk_matset_by_element(m_acc, for_each_value, for_each_zone, epsilon);
+            walk_matset_by_element(m_acc, for_each_value, for_each_element, epsilon);
         }
         else // material_dominant
         {
@@ -1399,10 +1399,10 @@ multi_buffer_by_element_to_uni_buffer_by_element_matset(const conduit::Node &src
         vol_fracs.push_back(m_acc.get_vol_frac(zone_idx, mat_idx));
     };
 
-    auto for_each_zone = [&](const index_t zone_idx,
-                             const index_t nmats)
+    auto for_each_element = [&](const index_t elem_idx,
+                                const index_t nmats)
     {
-        (void) zone_idx;
+        (void) elem_idx;
         
         // save the size and offset information
         sizes.push_back(nmats);
@@ -1410,7 +1410,7 @@ multi_buffer_by_element_to_uni_buffer_by_element_matset(const conduit::Node &src
         offset += nmats;
     };
 
-    walk_matset_by_element(m_acc, for_each_value, for_each_zone, epsilon);
+    walk_matset_by_element(m_acc, for_each_value, for_each_element, epsilon);
 
     dest_matset["volume_fractions"].set(vol_fracs);
     dest_matset["material_ids"].set(mat_ids);
@@ -2348,24 +2348,24 @@ walk_matset_by_element_value(const MatsetAccessor &m_acc,
                              ForEachValue &&for_each_value,
                              const float64 epsilon)
 {
-    auto for_each_zone = [](const index_t zone_idx,
-                            const index_t nmats)
+    auto for_each_element = [](const index_t elem_idx,
+                               const index_t nmats)
     {
-        (void) zone_idx;
+        (void) elem_idx;
         (void) nmats;
     };
     walk_matset_by_element(m_acc,
                            for_each_value,
-                           for_each_zone,
+                           for_each_element,
                            epsilon);
 }
 
 //-----------------------------------------------------------------------------
-template <class ForEachValue, class ForEachZone>
+template <class ForEachValue, class ForEachElement>
 void
 walk_matset_by_element(const MatsetAccessor &m_acc,
                        ForEachValue &&for_each_value,
-                       ForEachZone &&for_each_zone,
+                       ForEachElement &&for_each_element,
                        const float64 epsilon)
 {
     if (! m_acc.is_element_dominant())
@@ -2379,50 +2379,50 @@ walk_matset_by_element(const MatsetAccessor &m_acc,
     if (m_acc.is_multi_buffer())
     {
         const index_t nmats = m_acc.num_mats();
-        for (index_t zone_idx = 0; zone_idx < num_zones; zone_idx ++)
+        for (index_t elem_idx = 0; elem_idx < num_zones; elem_idx ++)
         {
             index_t nmats_in_zone = 0;
             for (index_t mat_idx = 0; mat_idx < nmats; mat_idx ++)
             {
-                const float64 vol_frac = m_acc.get_vol_frac(zone_idx, mat_idx);
+                const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
                 if (vol_frac > epsilon)
                 {
-                    // zone_idx is an index over all zones
+                    // elem_idx is an index over all elements
                     // mat_idx is an index over all materials
                     // nmats_in_zone is running count of materials in the current zone
-                    for_each_value(zone_idx, mat_idx, nmats_in_zone);
+                    for_each_value(elem_idx, mat_idx, nmats_in_zone);
                     nmats_in_zone ++;
                 }
             }
-            for_each_zone(zone_idx, nmats_in_zone);
+            for_each_element(elem_idx, nmats_in_zone);
         }
     }
     // sparse by element
     else
     {
-        for (index_t zone_idx = 0; zone_idx < num_zones; zone_idx ++)
+        for (index_t elem_idx = 0; elem_idx < num_zones; elem_idx ++)
         {
-            const index_t nmats_in_zone = m_acc.num_mats_for_elem(zone_idx);
+            const index_t nmats_in_zone = m_acc.num_mats_for_elem(elem_idx);
             for (index_t mat_idx = 0; mat_idx < nmats_in_zone; mat_idx ++)
             {
-                // zone_idx is an index over all zones
+                // elem_idx is an index over all elements
                 // mat_idx is an index over all materials in the current zone
                 // we pass it twice because it is also the running count of materials
                 // in the current zone
-                for_each_value(zone_idx, mat_idx, mat_idx);
+                for_each_value(elem_idx, mat_idx, mat_idx);
             }
-            for_each_zone(zone_idx, nmats_in_zone);
+            for_each_element(elem_idx, nmats_in_zone);
         }
     }
 }
 
 //-----------------------------------------------------------------------------
-template <class ForEachSpeciesValue, class ForEachValue, class ForEachZone>
+template <class ForEachSpeciesValue, class ForEachValue, class ForEachElement>
 void
 walk_matset_by_element(const MatsetAccessor &m_acc,
                        ForEachSpeciesValue &&for_each_species_value,
                        ForEachValue &&for_each_value,
-                       ForEachZone &&for_each_zone,
+                       ForEachElement &&for_each_element,
                        const float64 epsilon)
 {
     if (! m_acc.is_element_dominant())
@@ -2436,51 +2436,51 @@ walk_matset_by_element(const MatsetAccessor &m_acc,
     if (m_acc.is_multi_buffer())
     {
         const index_t nmats = m_acc.num_mats();
-        for (index_t zone_idx = 0; zone_idx < num_zones; zone_idx ++)
+        for (index_t elem_idx = 0; elem_idx < num_zones; elem_idx ++)
         {
             index_t nmats_in_zone = 0;
             for (index_t mat_idx = 0; mat_idx < nmats; mat_idx ++)
             {
-                const float64 vol_frac = m_acc.get_vol_frac(zone_idx, mat_idx);
+                const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
                 if (vol_frac > epsilon)
                 {
-                    const index_t num_spec_for_mat = m_acc.num_spec_for_mat(zone_idx, mat_idx);
+                    const index_t num_spec_for_mat = m_acc.num_spec_for_mat(elem_idx, mat_idx);
                     for (index_t spec_idx = 0; spec_idx < num_spec_for_mat; spec_idx ++)
                     {
-                        for_each_species_value(zone_idx, mat_idx, spec_idx);
+                        for_each_species_value(elem_idx, mat_idx, spec_idx);
                     }
 
-                    // zone_idx is an index over all zones
+                    // elem_idx is an index over all elements
                     // mat_idx is an index over all materials
                     // nmats_in_zone is running count of materials in the current zone
-                    for_each_value(zone_idx, mat_idx, nmats_in_zone);
+                    for_each_value(elem_idx, mat_idx, nmats_in_zone);
                     nmats_in_zone ++;
                 }
             }
-            for_each_zone(zone_idx, nmats_in_zone);
+            for_each_element(elem_idx, nmats_in_zone);
         }
     }
     // sparse by element
     else
     {
-        for (index_t zone_idx = 0; zone_idx < num_zones; zone_idx ++)
+        for (index_t elem_idx = 0; elem_idx < num_zones; elem_idx ++)
         {
-            const index_t nmats_in_zone = m_acc.num_mats_for_elem(zone_idx);
+            const index_t nmats_in_zone = m_acc.num_mats_for_elem(elem_idx);
             for (index_t mat_idx = 0; mat_idx < nmats_in_zone; mat_idx ++)
             {
-                const index_t num_spec_for_mat = m_acc.num_spec_for_mat(zone_idx, mat_idx);
+                const index_t num_spec_for_mat = m_acc.num_spec_for_mat(elem_idx, mat_idx);
                 for (index_t spec_idx = 0; spec_idx < num_spec_for_mat; spec_idx ++)
                 {
-                    for_each_species_value(zone_idx, mat_idx, spec_idx);
+                    for_each_species_value(elem_idx, mat_idx, spec_idx);
                 }
 
-                // zone_idx is an index over all zones
+                // elem_idx is an index over all elements
                 // mat_idx is an index over all materials in the current zone
                 // we pass it twice because it is also the running count of materials
                 // in the current zone
-                for_each_value(zone_idx, mat_idx, mat_idx);
+                for_each_value(elem_idx, mat_idx, mat_idx);
             }
-            for_each_zone(zone_idx, nmats_in_zone);
+            for_each_element(elem_idx, nmats_in_zone);
         }
     }
 }
@@ -2528,15 +2528,15 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
             for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
             {
                 index_t num_elems_for_mat = 0;
-                for (index_t zone_idx = 0; zone_idx < num_zones; zone_idx ++)
+                for (index_t elem_idx = 0; elem_idx < num_zones; elem_idx ++)
                 {
-                    const float64 vol_frac = m_acc.get_vol_frac(zone_idx, mat_idx);
+                    const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
                     if (vol_frac > epsilon)
                     {
-                        // zone_idx is an index over all zones
+                        // elem_idx is an index over all elements
                         // mat_idx is an index over all materials
                         // num_elems_for_mat is running count of zones for the current material
-                        for_each_value(mat_idx, zone_idx, num_elems_for_mat);
+                        for_each_value(mat_idx, elem_idx, num_elems_for_mat);
                         num_elems_for_mat ++;
                     }
                 }
@@ -2560,13 +2560,13 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
             for (int mat_idx = 0; mat_idx < num_materials; mat_idx ++)
             {
                 const index_t num_elems_for_mat = m_acc.num_elems_for_mat(mat_idx);
-                for (index_t zone_idx = 0; zone_idx < num_elems_for_mat; zone_idx ++)
+                for (index_t elem_idx = 0; elem_idx < num_elems_for_mat; elem_idx ++)
                 {
-                    // zone_idx is an index over all zones the current material is in
+                    // elem_idx is an index over all elements the current material is in
                     // mat_idx is an index over all materials
-                    // we pass zone_idx twice because it is also the running count of
+                    // we pass elem_idx twice because it is also the running count of
                     // zones for the current material
-                    for_each_value(mat_idx, zone_idx, zone_idx);
+                    for_each_value(mat_idx, elem_idx, elem_idx);
                 }
                 for_each_material(mat_idx, num_elems_for_mat);
             }
@@ -2605,21 +2605,21 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
             for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
             {
                 index_t num_elems_for_mat = 0;
-                for (index_t zone_idx = 0; zone_idx < num_zones; zone_idx ++)
+                for (index_t elem_idx = 0; elem_idx < num_zones; elem_idx ++)
                 {
-                    const float64 vol_frac = m_acc.get_vol_frac(zone_idx, mat_idx);
+                    const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
                     if (vol_frac > epsilon)
                     {
-                        const index_t num_spec_for_mat = m_acc.num_spec_for_mat(zone_idx, mat_idx);
+                        const index_t num_spec_for_mat = m_acc.num_spec_for_mat(elem_idx, mat_idx);
                         for (index_t spec_idx = 0; spec_idx < num_spec_for_mat; spec_idx ++)
                         {
-                            for_each_species_value(mat_idx, zone_idx, spec_idx);
+                            for_each_species_value(mat_idx, elem_idx, spec_idx);
                         }
 
-                        // zone_idx is an index over all zones
+                        // elem_idx is an index over all elements
                         // mat_idx is an index over all materials
                         // num_elems_for_mat is running count of zones for the current material
-                        for_each_value(mat_idx, zone_idx, num_elems_for_mat);
+                        for_each_value(mat_idx, elem_idx, num_elems_for_mat);
                         num_elems_for_mat ++;
                     }
                 }
@@ -2643,19 +2643,19 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
             for (int mat_idx = 0; mat_idx < num_materials; mat_idx ++)
             {
                 const index_t num_elems_for_mat = m_acc.num_elems_for_mat(mat_idx);
-                for (index_t zone_idx = 0; zone_idx < num_elems_for_mat; zone_idx ++)
+                for (index_t elem_idx = 0; elem_idx < num_elems_for_mat; elem_idx ++)
                 {
-                    const index_t num_spec_for_mat = m_acc.num_spec_for_mat(zone_idx, mat_idx);
+                    const index_t num_spec_for_mat = m_acc.num_spec_for_mat(elem_idx, mat_idx);
                     for (index_t spec_idx = 0; spec_idx < num_spec_for_mat; spec_idx ++)
                     {
-                        for_each_species_value(mat_idx, zone_idx, spec_idx);
+                        for_each_species_value(mat_idx, elem_idx, spec_idx);
                     }
                     
-                    // zone_idx is an index over all zones the current material is in
+                    // elem_idx is an index over all elements the current material is in
                     // mat_idx is an index over all materials
-                    // we pass zone_idx twice because it is also the running count of
+                    // we pass elem_idx twice because it is also the running count of
                     // zones for the current material
-                    for_each_value(mat_idx, zone_idx, zone_idx);
+                    for_each_value(mat_idx, elem_idx, elem_idx);
                 }
                 for_each_material(mat_idx, num_elems_for_mat);
             }
