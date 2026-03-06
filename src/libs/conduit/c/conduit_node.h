@@ -19,6 +19,7 @@
 #include "conduit_endianness_types.h"
 #include "conduit_exports.h"
 #include "conduit_datatype.h"
+#include "conduit_schema.h"
 
 //-----------------------------------------------------------------------------
 // -- begin extern C
@@ -2495,6 +2496,11 @@ CONDUIT_API char* conduit_node_to_summary_string_with_options(const conduit_node
     // Get the dtype for the node.
     //-------------------------------------------------------------------------
     CONDUIT_API const conduit_datatype *conduit_node_dtype(const conduit_node *cnode);
+
+    //-------------------------------------------------------------------------
+    // Get the schema for the node (borrowed pointer; do not free).
+    //-------------------------------------------------------------------------
+    CONDUIT_API const conduit_schema *conduit_node_schema(const conduit_node *cnode);
 
 #ifdef __cplusplus
 }

@@ -108,9 +108,52 @@ cpp_datatype_ref(const conduit_datatype *cdatatype)
     return *reinterpret_cast<const DataType*>(cdatatype);
 }
 
+struct conduit_schema_impl {};
+
+//---------------------------------------------------------------------------//
+Schema *
+cpp_schema(conduit_schema *cschema)
+{
+    return reinterpret_cast<Schema*>(cschema);
+}
+
+//---------------------------------------------------------------------------//
+conduit_schema *
+c_schema(Schema *schema)
+{
+    return reinterpret_cast<conduit_schema*>(schema);
+}
+
+//---------------------------------------------------------------------------//
+const Schema *
+cpp_schema(const conduit_schema *cschema)
+{
+    return reinterpret_cast<const Schema*>(cschema);
+}
+
+//---------------------------------------------------------------------------//
+const conduit_schema *
+c_schema(const Schema *schema)
+{
+    return reinterpret_cast<const conduit_schema*>(schema);
+}
+
+//---------------------------------------------------------------------------//
+Schema &
+cpp_schema_ref(conduit_schema *cschema)
+{
+    return *reinterpret_cast<Schema*>(cschema);
+}
+
+//---------------------------------------------------------------------------//
+const Schema &
+cpp_schema_ref(const conduit_schema *cschema)
+{
+    return *reinterpret_cast<const Schema*>(cschema);
+}
+
 }
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-
 

@@ -52,6 +52,21 @@ CONDUIT_API conduit::DataType &cpp_datatype_ref(conduit_datatype *cdatatype);
 //---------------------------------------------------------------------------//
 CONDUIT_API const conduit::DataType &cpp_datatype_ref(const conduit_datatype *datatype);
 
+//---------------------------------------------------------------------------//
+CONDUIT_API conduit::Schema *cpp_schema(conduit_schema *cschema);
+//---------------------------------------------------------------------------//
+CONDUIT_API conduit_schema  *c_schema(conduit::Schema *schema);
+
+//---------------------------------------------------------------------------//
+CONDUIT_API const conduit::Schema *cpp_schema(const conduit_schema *cschema);
+//---------------------------------------------------------------------------//
+CONDUIT_API const conduit_schema  *c_schema(const conduit::Schema *schema);
+
+//---------------------------------------------------------------------------//
+CONDUIT_API conduit::Schema &cpp_schema_ref(conduit_schema *cschema);
+//---------------------------------------------------------------------------//
+CONDUIT_API const conduit::Schema &cpp_schema_ref(const conduit_schema *cschema);
+
 }
 //-----------------------------------------------------------------------------
 // -- end conduit:: --

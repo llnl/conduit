@@ -4906,8 +4906,14 @@ conduit_node_dtype(const conduit_node *cnode)
     return c_datatype(&(cpp_node(cnode)->dtype()));
 }
 
+//-----------------------------------------------------------------------------
+const conduit_schema *
+conduit_node_schema(const conduit_node *cnode)
+{
+    return c_schema(const_cast<Schema*>(&cpp_node_ref(cnode).schema()));
+}
+
 }
 //-----------------------------------------------------------------------------
 // -- end extern C
 //-----------------------------------------------------------------------------
-
