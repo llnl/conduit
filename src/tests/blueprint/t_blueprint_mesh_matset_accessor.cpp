@@ -676,45 +676,6 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
 
     CONDUIT_INFO("venn sparse_by_element complicated data retrieval");
     {
-        // index [zone_idx][mat_idx]
-        const std::vector<std::vector<index_t>> mat_ids_baseline = {
-            /* zone 0 */ {17},
-            /* zone 1 */ {17},
-            /* zone 2 */ {17},
-            /* zone 3 */ {6, 2, 9},
-        };
-
-        // index [zone_idx][mat_idx]
-        const std::vector<std::vector<float64>> vol_fracs_baseline = {
-            /* zone 0 */ {1.0},
-            /* zone 1 */ {1.0},
-            /* zone 2 */ {1.0},
-            /* zone 3 */ {0.333333333333333, 0.333333333333333, 0.333333333333333},
-        };
-
-        // index [zone_idx][mat_idx]
-        const std::vector<std::vector<float64>> mset_vals_baseline = {
-            /* zone 0 */ {0.0},
-            /* zone 1 */ {0.5},
-            /* zone 2 */ {0.5},
-            /* zone 3 */ {0.100000001490116, 0.200000002980232, 0.600000023841858},
-        };
-
-        // index [zone_idx][mat_idx][spec_idx]
-        const std::vector<std::vector<std::vector<float64>>> mf_vals_baseline = {
-            /* zone 0        */ {
-            /*    background */     {1.0},
-            },
-            /* zone 1         */ {
-            /*    background  */    {1.0},
-            },
-            /* zone 2         */ {
-            /*    background  */    {1.0},
-            },
-            /* zone 3         */ {
-            /*    circle_a    */    {0.5, 0.5},
-            /*    circle_b    */    {0.5, 0.5},
-            /*    circle_c    */    {0.5, 0.375, 0.125},
         // index [elem_idx][mat_idx]
         const std::vector<std::vector<index_t>> mat_ids_baseline = {
             /* element 0 */ {17},
