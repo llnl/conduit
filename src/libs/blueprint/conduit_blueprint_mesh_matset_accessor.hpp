@@ -71,9 +71,9 @@ public:
 //-----------------------------------------------------------------------------
 using GetMatIdPtr        = index_t (MatsetAccessor::*)(index_t, index_t) const;
 using GetElemIdPtr       = index_t (MatsetAccessor::*)(index_t, index_t) const;
-using GetVolFracPtr      = double  (MatsetAccessor::*)(index_t, index_t) const;
-using GetMsetValPtr      = double  (MatsetAccessor::*)(index_t, index_t) const;
-using GetMassFracPtr     = double  (MatsetAccessor::*)(index_t, index_t, index_t) const;
+using GetVolFracPtr      = float64 (MatsetAccessor::*)(index_t, index_t) const;
+using GetMsetValPtr      = float64 (MatsetAccessor::*)(index_t, index_t) const;
+using GetMassFracPtr     = float64 (MatsetAccessor::*)(index_t, index_t, index_t) const;
 using GetNMatsForElemPtr = index_t (MatsetAccessor::*)(index_t) const;
 using GetNElemsForMatPtr = index_t (MatsetAccessor::*)(index_t) const;
 using GetNMatSpecPtr     = index_t (MatsetAccessor::*)(index_t, index_t) const;
