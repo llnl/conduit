@@ -181,7 +181,7 @@ using GetNMatSpecPtr     = index_t (MatsetAccessor::*)(index_t, index_t) const;
     }
 
 //-----------------------------------------------------------------------------
-    /// Retrieve data
+/// Retrieve data
 //-----------------------------------------------------------------------------
     inline
     index_t     get_mat_id(const index_t elem_idx,
