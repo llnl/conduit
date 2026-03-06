@@ -239,10 +239,11 @@ TEST(conduit_node_set, set_external_bitwidth_uint_scalar)
 //-----------------------------------------------------------------------------
 TEST(conduit_node_set, set_bitwidth_int_scalar)
 {
-    int8    i8v = -8;
-    int16  i16v = -16;
-    int32  i32v = -32;
-    int64  i64v = -64;
+    int8     i8v = -8;
+    int16   i16v = -16;
+    int32   i32v = -32;
+    int64   i64v = -64;
+    index_t idxv = -64;
 
     Node n;
     // int8
@@ -297,6 +298,24 @@ TEST(conduit_node_set, set_bitwidth_int_scalar)
     EXPECT_EQ(n.dtype().is_unsigned_integer(),false);
     EXPECT_EQ(n.dtype().is_floating_point(),false);
     EXPECT_EQ(n.to_int64(),-64);
+
+    // index_t
+    n.set(idxv);
+    n.schema().print();
+    EXPECT_EQ(n.as_index_t(),idxv);
+#ifdef CONDUIT_INDEX_32
+    EXPECT_EQ(n.total_strided_bytes(),4);
+    EXPECT_EQ(n.dtype().element_bytes(),4);
+#else
+    EXPECT_EQ(n.total_strided_bytes(),8);
+    EXPECT_EQ(n.dtype().element_bytes(),8);
+#endif
+    EXPECT_EQ(n.dtype().is_number(),true);
+    EXPECT_EQ(n.dtype().is_integer(),true);
+    EXPECT_EQ(n.dtype().is_signed_integer(),true);
+    EXPECT_EQ(n.dtype().is_unsigned_integer(),false);
+    EXPECT_EQ(n.dtype().is_floating_point(),false);
+    EXPECT_EQ(n.to_index_t(),-64);
 
 }
 
