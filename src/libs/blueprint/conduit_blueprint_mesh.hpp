@@ -853,6 +853,8 @@ namespace matset
     //-------------------------------------------------------------------------
     index_t CONDUIT_BLUEPRINT_API count_zones_from_matset(const conduit::Node &matset);
     //-------------------------------------------------------------------------
+    index_t CONDUIT_BLUEPRINT_API count_materials_from_matset(const conduit::Node &matset);
+    //-------------------------------------------------------------------------
     bool CONDUIT_BLUEPRINT_API is_material_in_zone(const conduit::Node &matset,
                                                    const std::string &matname,
                                                    const index_t zone_id,
@@ -993,6 +995,9 @@ namespace specset
     //-------------------------------------------------------------------------
     void CONDUIT_BLUEPRINT_API get_material_names(const conduit::Node &specset,
                                                   std::vector<std::string> &matnames);
+
+    //-------------------------------------------------------------------------
+    index_t CONDUIT_BLUEPRINT_API count_materials_from_specset(const conduit::Node &specset);
     
     //-------------------------------------------------------------------------
     // Converts a blueprint specset to the silo style sparse mixed slot 

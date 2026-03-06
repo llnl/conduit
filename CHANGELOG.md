@@ -30,6 +30,8 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Added `conduit::blueprint::mesh::matset::create_or_reuse_material_map()`, which will shallow copy or create a material map for the provided material set.
 - Added `conduit::blueprint::mesh::matset::create_or_copy_material_map()`, which will deep copy or create a material map for the provided material set
 - Added `conduit::blueprint::mesh::matset::renumber_material_ids()`, which renumbers material ids for a material set to be in the range 0 to N - 1, where N is the number of materials.
+- Added `conduit::blueprint::mesh::matset::count_materials_from_matset()`, which counts the number of materials in a given material set, taking into account the various matset layouts.
+- Added `conduit::blueprint::mesh::matset::count_materials_from_specset()`, which counts the number of materials in a given species set, taking into account the various specset layouts.
 
 ### Changed
 
