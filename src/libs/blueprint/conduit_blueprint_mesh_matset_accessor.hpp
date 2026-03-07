@@ -242,7 +242,7 @@ private:
     //
 
     // multi-buffer by element (full)
-    // 0 <= elem_idx < num elems
+    // 0 <= elem_idx < num elements
     // 0 <= mat_idx < num mats
     // 0 <= spec_idx < num species for material mat_idx
     index_t get_full_mat_id(const index_t elem_idx, const index_t mat_idx) const;
@@ -256,12 +256,12 @@ private:
     // materials to iterate over in a sparse representation
     // index_t get_full_nmats_for_elem(const index_t elem_idx) const;
     // omitted because this method is used for knowing how many
-    // elems to iterate over in a sparse representation
+    // elements to iterate over in a sparse representation
     // index_t get_full_nelems_for_mat(const index_t mat_idx) const;
     index_t get_full_nspec_for_mat(const index_t elem_idx, const index_t mat_idx) const;
 
     // multi-buffer by material (sparse by material)
-    // 0 <= elem_idx < num elems for material mat_idx
+    // 0 <= elem_idx < num elements for material mat_idx
     // 0 <= mat_idx < num mats
     // 0 <= spec_idx < num species for material mat_idx
     index_t get_sbm_mat_id(const index_t elem_idx, const index_t mat_idx) const;
@@ -278,9 +278,9 @@ private:
     index_t get_sbm_nspec_for_mat(const index_t elem_idx, const index_t mat_idx) const;
 
     // uni-buffer by element (sparse by element)
-    // 0 <= elem_idx < num elems
-    // 0 <= mat_idx < num mats for elem elem_idx
-    // 0 <= spec_idx < num species for material mat_idx in elem elem_idx
+    // 0 <= elem_idx < num element
+    // 0 <= mat_idx < num mats for element elem_idx
+    // 0 <= spec_idx < num species for material mat_idx in element elem_idx
     index_t get_sbe_mat_id(const index_t elem_idx, const index_t mat_idx) const;
     index_t get_sbe_elem_id(const index_t elem_idx, const index_t mat_idx) const;
     float64 get_sbe_vol_frac(const index_t elem_idx, const index_t mat_idx) const;
@@ -289,7 +289,7 @@ private:
                               const index_t mat_idx,
                               const index_t spec_idx) const;
     // omitted because this method is used for knowing how many
-    // elems to iterate over in a sparse representation
+    // elements to iterate over in a sparse representation
     // index_t get_sbe_nelems_for_mat(const index_t mat_idx) const;
     index_t get_sbe_nmats_for_elem(const index_t elem_idx) const;
     index_t get_sbe_nspec_for_mat(const index_t elem_idx, const index_t mat_idx) const;
@@ -305,7 +305,7 @@ private:
     index_t get_error_elem_id(const index_t elem_idx, const index_t mat_idx) const;
     float64 get_error_vol_frac(const index_t elem_idx, const index_t mat_idx) const;
     float64 get_error_mset_val(const index_t elem_idx, const index_t mat_idx) const;
-    float64 get_error_mass_frac(const index_t elem_idx, 
+    float64 get_error_mass_frac(const index_t elem_idx,
                                 const index_t mat_idx,
                                 const index_t spec_idx) const;
     index_t get_error_nmats_for_elem(const index_t elem_idx) const;
