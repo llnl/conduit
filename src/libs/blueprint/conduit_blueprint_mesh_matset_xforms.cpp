@@ -71,7 +71,7 @@ template <class ForEachValue>
 void
 walk_matset_value_by_element(const MatsetAccessor &m_acc,
                              ForEachValue &&for_each_value,
-                             const float64 epsilon)
+                             const float64 epsilon = CONDUIT_EPSILON)
 {
     auto for_each_element = [](const index_t elem_idx,
                                const index_t nmats)
@@ -91,7 +91,7 @@ void
 walk_matset_by_element(const MatsetAccessor &m_acc,
                        ForEachValue &&for_each_value,
                        ForEachElement &&for_each_element,
-                       const float64 epsilon)
+                       const float64 epsilon = CONDUIT_EPSILON)
 {
     if (! m_acc.is_element_dominant())
     {
@@ -148,7 +148,7 @@ walk_matset_species_by_element(const MatsetAccessor &m_acc,
                                ForEachSpeciesValue &&for_each_species_value,
                                ForEachValue &&for_each_value,
                                ForEachElement &&for_each_element,
-                               const float64 epsilon)
+                               const float64 epsilon = CONDUIT_EPSILON)
 {
     if (! m_acc.is_element_dominant())
     {
@@ -215,7 +215,7 @@ template <class ForEachValue>
 void
 walk_matset_value_by_material(const MatsetAccessor &m_acc,
                               ForEachValue &&for_each_value,
-                              const float64 epsilon)
+                              const float64 epsilon = CONDUIT_EPSILON)
 {
     auto for_each_material = [](const index_t mat_idx,
                                 const index_t num_elems_for_mat)
@@ -235,7 +235,7 @@ void
 walk_matset_by_material(const MatsetAccessor &m_acc,
                         ForEachValue &&for_each_value,
                         ForEachMaterial &&for_each_material,
-                        const float64 epsilon)
+                        const float64 epsilon = CONDUIT_EPSILON)
 {
     const index_t num_materials = m_acc.num_mats();
 
@@ -310,7 +310,7 @@ walk_matset_species_by_material(const MatsetAccessor &m_acc,
                                 ForEachSpeciesValue &&for_each_species_value,
                                 ForEachValue &&for_each_value,
                                 ForEachMaterial &&for_each_material,
-                                const float64 epsilon)
+                                const float64 epsilon = CONDUIT_EPSILON)
 {
     const index_t num_materials = m_acc.num_mats();
 
