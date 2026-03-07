@@ -1049,7 +1049,8 @@ namespace specset
     // https://silo.readthedocs.io/en/latest/
     void CONDUIT_BLUEPRINT_API to_silo(const conduit::Node &specset,
                                        const conduit::Node &matset,
-                                       conduit::Node &dest);
+                                       conduit::Node &dest,
+                                       const float64 epsilon = CONDUIT_EPSILON);
 
     //-------------------------------------------------------------------------
     index_t CONDUIT_BLUEPRINT_API count_materials_from_specset(const conduit::Node &specset);
