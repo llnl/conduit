@@ -17,10 +17,6 @@
 #include "conduit.hpp"
 #include "conduit_blueprint_exports.h"
 #include "conduit_blueprint_mesh_utils.hpp"
-#include "conduit_blueprint_mesh_matset_accessor.hpp"
-
-// access material sets, material field data, and species sets
-using MatsetAccessor = conduit::blueprint::mesh::matset::MatsetAccessor;
 
 //-----------------------------------------------------------------------------
 // -- begin conduit --
