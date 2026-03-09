@@ -4,6 +4,8 @@
 
 FROM ubuntu:24.04
 
+ARG TARGETARCH
+
 #####################
 # base deps
 #####################
@@ -57,13 +59,32 @@ RUN apt-get update && apt-get -y install \
 
 # manual mpich install
 # https://github.com/actions/runner-images/issues/13204
-RUN curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/28285882/+files/libmpich12_4.2.0-5.1_amd64.deb
-RUN curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/28285882/+files/mpich_4.2.0-5.1_amd64.deb
-RUN curl  -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/28285882/+files/libmpich-dev_4.2.0-5.1_amd64.deb
+#
+# amd64: curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/28285882/
+# arm64: curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/28285883/
 
-RUN apt install  -y ./libmpich12_4.2.0-5.1_amd64.deb
-RUN apt install  -y ./mpich_4.2.0-5.1_amd64.deb
-RUN apt install  -y ./libmpich-dev_4.2.0-5.1_amd64.deb
+RUN case "$TARGETARCH" in \
+      "amd64") BUILD_NUM="28285882" ;; \
+      "arm64") BUILD_NUM="28285883" ;; \
+    esac; \
+    curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/${BUILD_NUM}/+files/libmpich12_4.2.0-5.1_${TARGETARCH}.deb
+
+RUN case "$TARGETARCH" in \
+          "amd64") BUILD_NUM="28285882" ;; \
+          "arm64") BUILD_NUM="28285883" ;; \
+    esac; \
+    curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/${BUILD_NUM}/+files/mpich_4.2.0-5.1_${TARGETARCH}.deb
+
+RUN case "$TARGETARCH" in \
+          "amd64") BUILD_NUM="28285882" ;; \
+          "arm64") BUILD_NUM="28285883" ;; \
+    esac; \
+    curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/${BUILD_NUM}/+files/libmpich-dev_4.2.0-5.1_${TARGETARCH}.deb
+
+
+RUN apt install  -y ./libmpich12_4.2.0-5.1_${TARGETARCH}.deb
+RUN apt install  -y ./mpich_4.2.0-5.1_${TARGETARCH}.deb
+RUN apt install  -y ./libmpich-dev_4.2.0-5.1_${TARGETARCH}.deb
 
 RUN rm -rf /var/lib/apt/lists/*
 
@@ -74,13 +95,13 @@ RUN tar -xf conduit.docker.src.tar
 # if you would like to clone conduit directly, you can use:
 #RUN git clone --depth 1 https://github.com/LLNL/conduit.git
 
-# at some sites ssl certs are intercepted, which cases issues fetching 
+# at some sites ssl certs are intercepted, which cases issues fetching
 # tpl sources via https
 
 # to resolve this, either:
-# 1) pass the "-k" option to uberenv (recommended), 
+# 1) pass the "-k" option to uberenv (recommended),
 # 2) install the proper certs into the image, or
-# 3) use  the following commands to disable ssl for git and 
+# 3) use  the following commands to disable ssl for git and
 #    curl (both are used by spack):
 #RUN git config --global http.sslVerify false
 #RUN echo insecure >> ~/.curlrc
