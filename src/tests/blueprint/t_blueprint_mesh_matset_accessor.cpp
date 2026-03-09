@@ -514,7 +514,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval)
 }
 
 //-----------------------------------------------------------------------------
-// the goal here is to test several things at one:
+// the goal here is to test several things at once:
 // 1. random material ids
 // 2. material order is different between matset/field/specset
 // 3. a material map is included for all cases
