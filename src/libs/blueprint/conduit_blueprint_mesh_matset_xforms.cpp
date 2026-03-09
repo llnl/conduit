@@ -271,8 +271,7 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
         // elem-dom uni-buffer "sparse by element"
         else
         {
-            CONDUIT_ERROR("blueprint::mesh::matset::walk_matset_value_by_material() "
-                          "Walking by material is not supported for element-dominant uni-buffer material sets.");
+            CONDUIT_ERROR("Walking by material is not supported for element-dominant uni-buffer material sets.");
         }
     }
     else
@@ -299,8 +298,7 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
         // mat-dom uni-buffer - currently unsupported
         else
         {
-            CONDUIT_ERROR("blueprint::mesh::matset::walk_matset_value_by_material() "
-                          "material-dominant uni-buffer material set is unsupported.");
+            CONDUIT_ERROR("material-dominant uni-buffer material set is unsupported.");
         }
     }
 }
@@ -354,8 +352,7 @@ walk_matset_species_by_material(const MatsetAccessor &m_acc,
         // elem-dom uni-buffer "sparse by element"
         else
         {
-            CONDUIT_ERROR("blueprint::mesh::matset::walk_matset_value_by_material() "
-                          "Walking by material is not supported for element-dominant uni-buffer material sets.");
+            CONDUIT_ERROR("Walking by material is not supported for element-dominant uni-buffer material sets.");
         }
     }
     else
@@ -388,8 +385,7 @@ walk_matset_species_by_material(const MatsetAccessor &m_acc,
         // mat-dom uni-buffer - currently unsupported
         else
         {
-            CONDUIT_ERROR("blueprint::mesh::matset::walk_matset_value_by_material() "
-                          "material-dominant uni-buffer material set is unsupported.");
+            CONDUIT_ERROR("material-dominant uni-buffer material set is unsupported.");
         }
     }
 }

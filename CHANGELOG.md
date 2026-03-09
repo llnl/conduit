@@ -15,6 +15,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Added optional device execution support via RAJA and Umpire.
 - Added `conduit_bin_yaml` protocol case to `Node::load()` and `Node::save()`. Also added `conduit_bin_json`, which does the same thing as `conduit_bin` (creates a json schema file to go with the `conduit_bin` file).
 - Fixed an issue in `Node::swap()` or `Node::move()` where child nodes moved to a new parent did not point to their new parent. This caused operations that call `Node::parent()` to traverse upwards to malfunction.
+- Added `Node::as_index_t()`. 
 
 #### Blueprint
 - Finished `bent_multi_grid_amr` mesh by adding adjacency sets between spatially adjacent domains at the same level of refinement.
