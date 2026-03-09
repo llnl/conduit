@@ -807,6 +807,9 @@ namespace matset
     bool CONDUIT_BLUEPRINT_API is_material_dominant(const conduit::Node &matset);
 
     //-------------------------------------------------------------------------
+    // TODO change me to be to_multi_buffer_by_element
+    // and make a note about how I am not a sparse representation
+    // also add a new method to_uni_buffer_by_material that just throws an error
     void CONDUIT_BLUEPRINT_API to_multi_buffer_full(const conduit::Node &src_matset,
                                                     conduit::Node &dest_matset);
 

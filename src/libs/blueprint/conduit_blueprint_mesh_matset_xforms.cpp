@@ -2669,27 +2669,38 @@ to_multi_buffer_full(const conduit::Node &src_matset,
                       " passed matset node must be a valid matset tree.");
     }
 
-    // full
-    if (is_element_dominant(src_matset) && is_multi_buffer(src_matset))
+    const bool elem_dom = is_element_dominant(src_matset);
+    const bool multi_buf = is_multi_buffer(src_matset);
+
+    if (elem_dom)
     {
-        // nothing to do
-        dest_matset.set(src_matset);
-    }
-    // sparse_by_element
-    else if (is_element_dominant(src_matset))
-    {
-        detail::uni_buffer_by_element_to_multi_buffer_by_element_matset(src_matset, 
-                                                                        dest_matset);
-    }
-    // sparse_by_material
-    else if (is_material_dominant(src_matset))
-    {
-        detail::multi_buffer_by_material_to_multi_buffer_by_element_matset(src_matset,
-                                                                           dest_matset);
+        // multi-buffer element-dominant "full" representation
+        if (multi_buf)
+        {
+            // nothing to do
+            dest_matset.set(src_matset);
+        }
+        // uni-buffer element-dominant "sparse by element" representation
+        else
+        {
+            detail::uni_buffer_by_element_to_multi_buffer_by_element_matset(src_matset, 
+                                                                            dest_matset);
+        }
     }
     else
     {
-        CONDUIT_ERROR("Unknown matset type.");
+        // multi-buffer material-dominant "sparse by material" representation
+        if (multi_buf)
+        {
+            detail::multi_buffer_by_material_to_multi_buffer_by_element_matset(src_matset,
+                                                                               dest_matset);
+        }
+        // uni-buffer material-dominant "???" representation
+        else
+        {
+            CONDUIT_ERROR("blueprint::mesh::matset::to_multi_buffer_full() "
+                          "material-dominant uni-buffer material set is unsupported.");
+        }
     }
 }
 
@@ -2706,28 +2717,39 @@ to_uni_buffer_by_element(const conduit::Node &src_matset,
                       " passed matset node must be a valid matset tree.");
     }
 
-    // full
-    if (is_element_dominant(src_matset) && is_multi_buffer(src_matset))
+    const bool elem_dom = is_element_dominant(src_matset);
+    const bool multi_buf = is_multi_buffer(src_matset);
+
+    if (elem_dom)
     {
-        detail::multi_buffer_by_element_to_uni_buffer_by_element_matset(src_matset, 
-                                                                        dest_matset, 
-                                                                        epsilon);
-    }
-    // sparse_by_element
-    else if (is_element_dominant(src_matset))
-    {
-        // nothing to do
-        dest_matset.set(src_matset);
-    }
-    // sparse_by_material
-    else if (is_material_dominant(src_matset))
-    {
-        detail::multi_buffer_by_material_to_uni_buffer_by_element_matset(src_matset,
-                                                                         dest_matset);
+        // multi-buffer element-dominant "full" representation
+        if (multi_buf)
+        {
+            detail::multi_buffer_by_element_to_uni_buffer_by_element_matset(src_matset, 
+                                                                            dest_matset, 
+                                                                            epsilon);
+        }
+        // uni-buffer element-dominant "sparse by element" representation
+        else
+        {
+            // nothing to do
+            dest_matset.set(src_matset);
+        }
     }
     else
     {
-        CONDUIT_ERROR("Unknown matset type.");
+        // multi-buffer material-dominant "sparse by material" representation
+        if (multi_buf)
+        {
+            detail::multi_buffer_by_material_to_uni_buffer_by_element_matset(src_matset,
+                                                                             dest_matset);
+        }
+        // uni-buffer material-dominant "???" representation
+        else
+        {
+            CONDUIT_ERROR("blueprint::mesh::matset::to_uni_buffer_by_element() "
+                          "material-dominant uni-buffer material set is unsupported.");
+        }
     }
 }
 
@@ -2744,28 +2766,39 @@ to_multi_buffer_by_material(const conduit::Node &src_matset,
                       " passed matset node must be a valid matset tree.");
     }
 
-    // full
-    if (is_element_dominant(src_matset) && is_multi_buffer(src_matset))
+    const bool elem_dom = is_element_dominant(src_matset);
+    const bool multi_buf = is_multi_buffer(src_matset);
+
+    if (elem_dom)
     {
-        detail::multi_buffer_by_element_to_multi_buffer_by_material_matset(src_matset, 
-                                                                           dest_matset, 
-                                                                           epsilon);
-    }
-    // sparse_by_element
-    else if (is_element_dominant(src_matset))
-    {
-        detail::uni_buffer_by_element_to_multi_buffer_by_material_matset(src_matset,
-                                                                         dest_matset);
-    }
-    // sparse_by_material
-    else if (is_material_dominant(src_matset))
-    {
-        // nothing to do
-        dest_matset.set(src_matset);
+        // multi-buffer element-dominant "full" representation
+        if (multi_buf)
+        {
+            detail::multi_buffer_by_element_to_multi_buffer_by_material_matset(src_matset, 
+                                                                               dest_matset, 
+                                                                               epsilon);
+        }
+        // uni-buffer element-dominant "sparse by element" representation
+        else
+        {
+            detail::uni_buffer_by_element_to_multi_buffer_by_material_matset(src_matset,
+                                                                             dest_matset);
+        }
     }
     else
     {
-        CONDUIT_ERROR("Unknown matset type.");
+        // multi-buffer material-dominant "sparse by material" representation
+        if (multi_buf)
+        {
+            // nothing to do
+            dest_matset.set(src_matset);
+        }
+        // uni-buffer material-dominant "???" representation
+        else
+        {
+            CONDUIT_ERROR("blueprint::mesh::matset::to_multi_buffer_by_material() "
+                          "material-dominant uni-buffer material set is unsupported.");
+        }
     }
 }
 
@@ -2784,7 +2817,6 @@ namespace specset
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 void
-// TODO DELETE ME
 to_silo(const conduit::Node &specset,
         const conduit::Node &matset,
         conduit::Node &dest,
@@ -2832,30 +2864,40 @@ to_multi_buffer_full(const conduit::Node &src_matset,
                       " passed specset node must be a valid specset tree.");
     }
 
-    // full
-    if (conduit::blueprint::mesh::matset::is_element_dominant(src_matset) && 
-        conduit::blueprint::mesh::matset::is_multi_buffer(src_matset))
+    const bool elem_dom = conduit::blueprint::mesh::matset::is_element_dominant(src_matset);
+    const bool multi_buf = conduit::blueprint::mesh::matset::is_multi_buffer(src_matset);
+
+    if (elem_dom)
     {
-        // nothing to do
-        dest_specset.set(src_specset);
-        dest_specset["matset"].reset();
-        dest_specset["matset"] = dest_matset_name;
-    }
-    // sparse_by_element
-    else if (conduit::blueprint::mesh::matset::is_element_dominant(src_matset))
-    {
-        conduit::blueprint::mesh::matset::detail::uni_buffer_by_element_to_multi_buffer_by_element_specset(
-            src_matset, src_specset, dest_matset_name, dest_specset);
-    }
-    // sparse_by_material
-    else if (conduit::blueprint::mesh::matset::is_material_dominant(src_matset))
-    {
-        conduit::blueprint::mesh::matset::detail::multi_buffer_by_material_to_multi_buffer_by_element_specset(
-            src_matset, src_specset, dest_matset_name, dest_specset);
+        // multi-buffer element-dominant "full" representation
+        if (multi_buf)
+        {
+            // nothing to do
+            dest_specset.set(src_specset);
+            dest_specset["matset"].reset();
+            dest_specset["matset"] = dest_matset_name;
+        }
+        // uni-buffer element-dominant "sparse by element" representation
+        else
+        {
+            conduit::blueprint::mesh::matset::detail::uni_buffer_by_element_to_multi_buffer_by_element_specset(
+                src_matset, src_specset, dest_matset_name, dest_specset);
+        }
     }
     else
     {
-        CONDUIT_ERROR("Unknown matset type.");
+        // multi-buffer material-dominant "sparse by material" representation
+        if (multi_buf)
+        {
+            conduit::blueprint::mesh::matset::detail::multi_buffer_by_material_to_multi_buffer_by_element_specset(
+                src_matset, src_specset, dest_matset_name, dest_specset);
+        }
+        // uni-buffer material-dominant "???" representation
+        else
+        {
+            CONDUIT_ERROR("blueprint::mesh::specset::to_multi_buffer_full() "
+                          "material-dominant uni-buffer material/species set is unsupported.");
+        }
     }
 }
 
@@ -2880,30 +2922,40 @@ to_uni_buffer_by_element(const conduit::Node &src_matset,
                       " passed specset node must be a valid specset tree.");
     }
 
-    // full
-    if (conduit::blueprint::mesh::matset::is_element_dominant(src_matset) && 
-        conduit::blueprint::mesh::matset::is_multi_buffer(src_matset))
+    const bool elem_dom = conduit::blueprint::mesh::matset::is_element_dominant(src_matset);
+    const bool multi_buf = conduit::blueprint::mesh::matset::is_multi_buffer(src_matset);
+
+    if (elem_dom)
     {
-        conduit::blueprint::mesh::matset::detail::multi_buffer_by_element_to_uni_buffer_by_element_specset(
-            src_matset, src_specset, dest_matset_name, dest_specset, epsilon);
-    }
-    // sparse_by_element
-    else if (conduit::blueprint::mesh::matset::is_element_dominant(src_matset))
-    {
-        // nothing to do
-        dest_specset.set(src_specset);
-        dest_specset["matset"].reset();
-        dest_specset["matset"] = dest_matset_name;
-    }
-    // sparse_by_material
-    else if (conduit::blueprint::mesh::matset::is_material_dominant(src_matset))
-    {
-        conduit::blueprint::mesh::matset::detail::multi_buffer_by_material_to_uni_buffer_by_element_specset(
-            src_matset, src_specset, dest_matset_name, dest_specset);
+        // multi-buffer element-dominant "full" representation
+        if (multi_buf)
+        {
+            conduit::blueprint::mesh::matset::detail::multi_buffer_by_element_to_uni_buffer_by_element_specset(
+                src_matset, src_specset, dest_matset_name, dest_specset, epsilon);
+        }
+        // uni-buffer element-dominant "sparse by element" representation
+        else
+        {
+            // nothing to do
+            dest_specset.set(src_specset);
+            dest_specset["matset"].reset();
+            dest_specset["matset"] = dest_matset_name;
+        }
     }
     else
     {
-        CONDUIT_ERROR("Unknown matset type.");
+        // multi-buffer material-dominant "sparse by material" representation
+        if (multi_buf)
+        {
+            conduit::blueprint::mesh::matset::detail::multi_buffer_by_material_to_uni_buffer_by_element_specset(
+                src_matset, src_specset, dest_matset_name, dest_specset);
+        }
+        // uni-buffer material-dominant "???" representation
+        else
+        {
+            CONDUIT_ERROR("blueprint::mesh::specset::to_uni_buffer_by_element() "
+                          "material-dominant uni-buffer material/species set is unsupported.");
+        }
     }
 }
 
@@ -2928,30 +2980,40 @@ to_multi_buffer_by_material(const conduit::Node &src_matset,
                       " passed specset node must be a valid specset tree.");
     }
 
-    // full
-    if (conduit::blueprint::mesh::matset::is_element_dominant(src_matset) && 
-        conduit::blueprint::mesh::matset::is_multi_buffer(src_matset))
+    const bool elem_dom = conduit::blueprint::mesh::matset::is_element_dominant(src_matset);
+    const bool multi_buf = conduit::blueprint::mesh::matset::is_multi_buffer(src_matset);
+
+    if (elem_dom)
     {
-        conduit::blueprint::mesh::matset::detail::multi_buffer_by_element_to_multi_buffer_by_material_specset(
-            src_matset, src_specset, dest_matset_name, dest_specset, epsilon);
-    }
-    // sparse_by_element
-    else if (conduit::blueprint::mesh::matset::is_element_dominant(src_matset))
-    {
-        conduit::blueprint::mesh::matset::detail::uni_buffer_by_element_to_multi_buffer_by_material_specset(
-            src_matset, src_specset, dest_matset_name, dest_specset);
-    }
-    // sparse_by_material
-    else if (conduit::blueprint::mesh::matset::is_material_dominant(src_matset))
-    {
-        // nothing to do
-        dest_specset.set(src_specset);
-        dest_specset["matset"].reset();
-        dest_specset["matset"] = dest_matset_name;
+        // multi-buffer element-dominant "full" representation
+        if (multi_buf)
+        {
+            conduit::blueprint::mesh::matset::detail::multi_buffer_by_element_to_multi_buffer_by_material_specset(
+                src_matset, src_specset, dest_matset_name, dest_specset, epsilon);
+        }
+        // uni-buffer element-dominant "sparse by element" representation
+        else
+        {
+            conduit::blueprint::mesh::matset::detail::uni_buffer_by_element_to_multi_buffer_by_material_specset(
+                src_matset, src_specset, dest_matset_name, dest_specset);
+        }
     }
     else
     {
-        CONDUIT_ERROR("Unknown matset type.");
+        // multi-buffer material-dominant "sparse by material" representation
+        if (multi_buf)
+        {
+            // nothing to do
+            dest_specset.set(src_specset);
+            dest_specset["matset"].reset();
+            dest_specset["matset"] = dest_matset_name;
+        }
+        // uni-buffer material-dominant "???" representation
+        else
+        {
+            CONDUIT_ERROR("blueprint::mesh::specset::to_multi_buffer_by_material() "
+                          "material-dominant uni-buffer material/species set is unsupported.");
+        }
     }
 }
 
@@ -3103,30 +3165,40 @@ to_multi_buffer_full(const conduit::Node &src_matset,
         return;
     }
 
-    // full
-    if (conduit::blueprint::mesh::matset::is_element_dominant(src_matset) && 
-        conduit::blueprint::mesh::matset::is_multi_buffer(src_matset))
+    const bool elem_dom = conduit::blueprint::mesh::matset::is_element_dominant(src_matset);
+    const bool multi_buf = conduit::blueprint::mesh::matset::is_multi_buffer(src_matset);
+
+    if (elem_dom)
     {
-        // nothing to do
-        dest_field.set(src_field);
-        dest_field["matset"].reset();
-        dest_field["matset"] = dest_matset_name;
-    }
-    // sparse_by_element
-    else if (conduit::blueprint::mesh::matset::is_element_dominant(src_matset))
-    {
-        conduit::blueprint::mesh::matset::detail::uni_buffer_by_element_to_multi_buffer_by_element_field(
-            src_matset, src_field, dest_matset_name, dest_field);
-    }
-    // sparse_by_material
-    else if (conduit::blueprint::mesh::matset::is_material_dominant(src_matset))
-    {
-        conduit::blueprint::mesh::matset::detail::multi_buffer_by_material_to_multi_buffer_by_element_field(
-            src_matset, src_field, dest_matset_name, dest_field);
+        // multi-buffer element-dominant "full" representation
+        if (multi_buf)
+        {
+            // nothing to do
+            dest_field.set(src_field);
+            dest_field["matset"].reset();
+            dest_field["matset"] = dest_matset_name;
+        }
+        // uni-buffer element-dominant "sparse by element" representation
+        else
+        {
+            conduit::blueprint::mesh::matset::detail::uni_buffer_by_element_to_multi_buffer_by_element_field(
+                src_matset, src_field, dest_matset_name, dest_field);
+        }
     }
     else
     {
-        CONDUIT_ERROR("Unknown matset type.");
+        // multi-buffer material-dominant "sparse by material" representation
+        if (multi_buf)
+        {
+            conduit::blueprint::mesh::matset::detail::multi_buffer_by_material_to_multi_buffer_by_element_field(
+                src_matset, src_field, dest_matset_name, dest_field);
+        }
+        // uni-buffer material-dominant "???" representation
+        else
+        {
+            CONDUIT_ERROR("blueprint::mesh::field::to_multi_buffer_full() "
+                          "material-dominant uni-buffer material set/field is unsupported.");
+        }
     }
 }
 
@@ -3161,30 +3233,40 @@ to_uni_buffer_by_element(const conduit::Node &src_matset,
         return;
     }
 
-    // full
-    if (conduit::blueprint::mesh::matset::is_element_dominant(src_matset) && 
-        conduit::blueprint::mesh::matset::is_multi_buffer(src_matset))
+    const bool elem_dom = conduit::blueprint::mesh::matset::is_element_dominant(src_matset);
+    const bool multi_buf = conduit::blueprint::mesh::matset::is_multi_buffer(src_matset);
+
+    if (elem_dom)
     {
-        conduit::blueprint::mesh::matset::detail::multi_buffer_by_element_to_uni_buffer_by_element_field(
-            src_matset, src_field, dest_matset_name, dest_field, epsilon);
-    }
-    // sparse_by_element
-    else if (conduit::blueprint::mesh::matset::is_element_dominant(src_matset))
-    {
-        // nothing to do
-        dest_field.set(src_field);
-        dest_field["matset"].reset();
-        dest_field["matset"] = dest_matset_name;
-    }
-    // sparse_by_material
-    else if (conduit::blueprint::mesh::matset::is_material_dominant(src_matset))
-    {
-        conduit::blueprint::mesh::matset::detail::multi_buffer_by_material_to_uni_buffer_by_element_field(
-            src_matset, src_field, dest_matset_name, dest_field);
+        // multi-buffer element-dominant "full" representation
+        if (multi_buf)
+        {
+            conduit::blueprint::mesh::matset::detail::multi_buffer_by_element_to_uni_buffer_by_element_field(
+                src_matset, src_field, dest_matset_name, dest_field, epsilon);
+        }
+        // uni-buffer element-dominant "sparse by element" representation
+        else
+        {
+            // nothing to do
+            dest_field.set(src_field);
+            dest_field["matset"].reset();
+            dest_field["matset"] = dest_matset_name;
+        }
     }
     else
     {
-        CONDUIT_ERROR("Unknown matset type.");
+        // multi-buffer material-dominant "sparse by material" representation
+        if (multi_buf)
+        {
+            conduit::blueprint::mesh::matset::detail::multi_buffer_by_material_to_uni_buffer_by_element_field(
+                src_matset, src_field, dest_matset_name, dest_field);
+        }
+        // uni-buffer material-dominant "???" representation
+        else
+        {
+            CONDUIT_ERROR("blueprint::mesh::field::to_uni_buffer_by_element() "
+                          "material-dominant uni-buffer material set/field is unsupported.");
+        }
     }
 }
 
@@ -3219,30 +3301,40 @@ to_multi_buffer_by_material(const conduit::Node &src_matset,
         return;
     }
 
-    // full
-    if (conduit::blueprint::mesh::matset::is_element_dominant(src_matset) && 
-        conduit::blueprint::mesh::matset::is_multi_buffer(src_matset))
+    const bool elem_dom = conduit::blueprint::mesh::matset::is_element_dominant(src_matset);
+    const bool multi_buf = conduit::blueprint::mesh::matset::is_multi_buffer(src_matset);
+
+    if (elem_dom)
     {
-        conduit::blueprint::mesh::matset::detail::multi_buffer_by_element_to_multi_buffer_by_material_field(
-            src_matset, src_field, dest_matset_name, dest_field, epsilon);
-    }
-    // sparse_by_element
-    else if (conduit::blueprint::mesh::matset::is_element_dominant(src_matset))
-    {
-        conduit::blueprint::mesh::matset::detail::uni_buffer_by_element_to_multi_buffer_by_material_field(
-            src_matset, src_field, dest_matset_name, dest_field);
-    }
-    // sparse_by_material
-    else if (conduit::blueprint::mesh::matset::is_material_dominant(src_matset))
-    {
-        // nothing to do
-        dest_field.set(src_field);
-        dest_field["matset"].reset();
-        dest_field["matset"] = dest_matset_name;
+        // multi-buffer element-dominant "full" representation
+        if (multi_buf)
+        {
+            conduit::blueprint::mesh::matset::detail::multi_buffer_by_element_to_multi_buffer_by_material_field(
+                src_matset, src_field, dest_matset_name, dest_field, epsilon);
+        }
+        // uni-buffer element-dominant "sparse by element" representation
+        else
+        {
+            conduit::blueprint::mesh::matset::detail::uni_buffer_by_element_to_multi_buffer_by_material_field(
+                src_matset, src_field, dest_matset_name, dest_field);
+        }
     }
     else
     {
-        CONDUIT_ERROR("Unknown matset type.");
+        // multi-buffer material-dominant "sparse by material" representation
+        if (multi_buf)
+        {
+            // nothing to do
+            dest_field.set(src_field);
+            dest_field["matset"].reset();
+            dest_field["matset"] = dest_matset_name;
+        }
+        // uni-buffer material-dominant "???" representation
+        else
+        {
+            CONDUIT_ERROR("blueprint::mesh::specset::to_multi_buffer_by_material() "
+                          "material-dominant uni-buffer material/species set is unsupported.");
+        }
     }
 }
 
