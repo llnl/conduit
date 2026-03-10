@@ -1352,11 +1352,6 @@ multi_buffer_by_element_to_uni_buffer_by_element_matset(const conduit::Node &src
                                                         conduit::Node &dest_matset,
                                                         const float64 epsilon)
 {
-    dest_matset.reset();
-
-    // set the topology
-    dest_matset["topology"].set(src_matset["topology"]);
-
     Node &material_map = dest_matset["material_map"];
     create_or_copy_material_map(src_matset, material_map);
 
@@ -1405,12 +1400,6 @@ multi_buffer_by_element_to_uni_buffer_by_element_field(const conduit::Node &src_
                                                        conduit::Node &dest_field,
                                                        const float64 epsilon)
 {
-    dest_field.reset();
-
-    copy_matset_independent_parts_of_field(src_field,
-                                           dest_matset_name,
-                                           dest_field);
-
     // map material ids to matset values and volume fractions
     std::map<int, float64_accessor> full_vol_fracs;
     std::map<int, float64_accessor> full_matset_vals;
@@ -1551,11 +1540,6 @@ void
 uni_buffer_by_element_to_multi_buffer_by_element_matset(const conduit::Node &src_matset,
                                                         conduit::Node &dest_matset)
 {
-    dest_matset.reset();
-
-    // set the topology
-    dest_matset["topology"].set(src_matset["topology"]);
-
     // map material numbers to material names
     const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
 
@@ -1597,12 +1581,6 @@ uni_buffer_by_element_to_multi_buffer_by_element_field(const conduit::Node &src_
                                                        const std::string &dest_matset_name,
                                                        conduit::Node &dest_field)
 {
-    dest_field.reset();
-
-    copy_matset_independent_parts_of_field(src_field,
-                                           dest_matset_name,
-                                           dest_field);
-
     // map material numbers to material names
     const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
 
@@ -1713,11 +1691,6 @@ void
 uni_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &src_matset,
                                                          conduit::Node &dest_matset)
 {
-    dest_matset.reset();
-
-    // set the topology
-    dest_matset["topology"].set(src_matset["topology"]);
-
     // map material numbers to material names
     const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
 
@@ -1752,12 +1725,6 @@ uni_buffer_by_element_to_multi_buffer_by_material_field(const conduit::Node &src
                                                         const std::string &dest_matset_name,
                                                         conduit::Node &dest_field)
 {
-    dest_field.reset();
-
-    copy_matset_independent_parts_of_field(src_field,
-                                           dest_matset_name,
-                                           dest_field);
-
     // map material numbers to material names
     const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
 
@@ -1838,11 +1805,6 @@ multi_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &
                                                            conduit::Node &dest_matset,
                                                            const float64 epsilon)
 {
-    dest_matset.reset();
-
-    // set the topology
-    dest_matset["topology"].set(src_matset["topology"]);
-
     const int num_zones = count_zones_from_matset(src_matset);
 
     Node material_map;
@@ -1902,12 +1864,6 @@ multi_buffer_by_element_to_multi_buffer_by_material_field(const conduit::Node &s
                                                           conduit::Node &dest_field,
                                                           const float64 epsilon)
 {
-    dest_field.reset();
-
-    copy_matset_independent_parts_of_field(src_field,
-                                           dest_matset_name,
-                                           dest_field);
-
     const int num_zones = count_zones_from_matset(src_matset);
 
     Node n;
@@ -1997,11 +1953,6 @@ void
 multi_buffer_by_material_to_multi_buffer_by_element_matset(const conduit::Node &src_matset,
                                                            conduit::Node &dest_matset)
 {
-    dest_matset.reset();
-
-    // set the topology
-    dest_matset["topology"].set(src_matset["topology"]);
-
     const index_t num_materials = count_materials_from_matset(src_matset);
     const index_t num_elems = count_zones_from_matset(src_matset);
 
@@ -2041,12 +1992,6 @@ multi_buffer_by_material_to_multi_buffer_by_element_field(const conduit::Node &s
                                                           const std::string &dest_matset_name,
                                                           conduit::Node &dest_field)
 {
-    dest_field.reset();
-
-    copy_matset_independent_parts_of_field(src_field,
-                                           dest_matset_name,
-                                           dest_field);
-
     const index_t num_materials = count_materials_from_matset(src_matset);
     const index_t num_elems = count_zones_from_matset(src_matset);
 
@@ -2131,11 +2076,6 @@ void
 multi_buffer_by_material_to_uni_buffer_by_element_matset(const conduit::Node &src_matset,
                                                          conduit::Node &dest_matset)
 {
-    dest_matset.reset();
-
-    // set the topology
-    dest_matset["topology"].set(src_matset["topology"]);
-
     Node &material_map = dest_matset["material_map"];
     create_or_copy_material_map(src_matset, material_map);
 
@@ -2194,12 +2134,6 @@ multi_buffer_by_material_to_uni_buffer_by_element_field(const conduit::Node &src
                                                         const std::string &dest_matset_name,
                                                         conduit::Node &dest_field)
 {
-    dest_field.reset();
-
-    copy_matset_independent_parts_of_field(src_field,
-                                           dest_matset_name,
-                                           dest_field);
-
     const int num_elems = determine_num_elems_in_multi_buffer_by_material(src_matset["element_ids"]);
 
     // There is no way to pack the matset values correctly without
@@ -2669,6 +2603,11 @@ to_multi_buffer_by_element(const conduit::Node &src_matset,
                       " passed matset node must be a valid matset tree.");
     }
 
+    dest_matset.reset();
+
+    // set the topology
+    dest_matset["topology"].set(src_matset["topology"]);
+
     const bool elem_dom = is_element_dominant(src_matset);
     const bool multi_buf = is_multi_buffer(src_matset);
 
@@ -2716,6 +2655,11 @@ to_uni_buffer_by_element(const conduit::Node &src_matset,
         CONDUIT_ERROR("blueprint::mesh::matset::to_uni_buffer_by_element"
                       " passed matset node must be a valid matset tree.");
     }
+
+    dest_matset.reset();
+
+    // set the topology
+    dest_matset["topology"].set(src_matset["topology"]);
 
     const bool elem_dom = is_element_dominant(src_matset);
     const bool multi_buf = is_multi_buffer(src_matset);
@@ -2765,6 +2709,11 @@ to_multi_buffer_by_material(const conduit::Node &src_matset,
         CONDUIT_ERROR("blueprint::mesh::matset::to_multi_buffer_by_material"
                       " passed matset node must be a valid matset tree.");
     }
+
+    dest_matset.reset();
+
+    // set the topology
+    dest_matset["topology"].set(src_matset["topology"]);
 
     const bool elem_dom = is_element_dominant(src_matset);
     const bool multi_buf = is_multi_buffer(src_matset);
@@ -3187,6 +3136,12 @@ to_multi_buffer_by_element(const conduit::Node &src_matset,
         return;
     }
 
+    dest_field.reset();
+    conduit::blueprint::mesh::matset::detail::copy_matset_independent_parts_of_field(
+        src_field,
+        dest_matset_name,
+        dest_field);
+
     const bool elem_dom = conduit::blueprint::mesh::matset::is_element_dominant(src_matset);
     const bool multi_buf = conduit::blueprint::mesh::matset::is_multi_buffer(src_matset);
 
@@ -3255,6 +3210,12 @@ to_uni_buffer_by_element(const conduit::Node &src_matset,
         return;
     }
 
+    dest_field.reset();
+    conduit::blueprint::mesh::matset::detail::copy_matset_independent_parts_of_field(
+        src_field,
+        dest_matset_name,
+        dest_field);
+
     const bool elem_dom = conduit::blueprint::mesh::matset::is_element_dominant(src_matset);
     const bool multi_buf = conduit::blueprint::mesh::matset::is_multi_buffer(src_matset);
 
@@ -3322,6 +3283,12 @@ to_multi_buffer_by_material(const conduit::Node &src_matset,
         dest_field["matset"] = dest_matset_name;
         return;
     }
+
+    dest_field.reset();
+    conduit::blueprint::mesh::matset::detail::copy_matset_independent_parts_of_field(
+        src_field,
+        dest_matset_name,
+        dest_field);
 
     const bool elem_dom = conduit::blueprint::mesh::matset::is_element_dominant(src_matset);
     const bool multi_buf = conduit::blueprint::mesh::matset::is_multi_buffer(src_matset);
