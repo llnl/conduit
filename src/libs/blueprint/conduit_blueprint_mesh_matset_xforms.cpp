@@ -2757,6 +2757,9 @@ to_uni_buffer_by_material(const conduit::Node &src_matset,
                           conduit::Node &dest_matset,
                           const float64 epsilon)
 {
+    (void) src_matset;
+    (void) dest_matset;
+    (void) epsilon;
     CONDUIT_ERROR("blueprint::mesh::matset::to_uni_buffer_by_material() "
                   "converting from a material-dominant uni-buffer material set is unsupported.");
 }
@@ -2984,6 +2987,11 @@ to_uni_buffer_by_material(const conduit::Node &src_matset,
                           conduit::Node &dest_specset,
                           const float64 epsilon)
 {
+    (void) src_matset;
+    (void) src_specset;
+    (void) dest_matset_name;
+    (void) dest_specset;
+    (void) epsilon;
     CONDUIT_ERROR("blueprint::mesh::specset::to_uni_buffer_by_material() "
                   "converting from a material-dominant uni-buffer material/species set is unsupported.");
 }
@@ -3335,6 +3343,11 @@ to_uni_buffer_by_material(const conduit::Node &src_matset,
                           conduit::Node &dest_field,
                           const float64 epsilon)
 {
+    (void) src_matset;
+    (void) src_field;
+    (void) dest_matset_name;
+    (void) dest_field;
+    (void) epsilon;
     CONDUIT_ERROR("blueprint::mesh::field::to_uni_buffer_by_material() "
                   "converting from a material-dominant uni-buffer material set/field is unsupported.");
 }
