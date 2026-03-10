@@ -34,6 +34,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Added `conduit::blueprint::mesh::matset::renumber_material_ids()`, which renumbers material ids for a material set to be in the range 0 to N - 1, where N is the number of materials.
 - Added `conduit::blueprint::mesh::matset::count_materials_from_matset()`, which counts the number of materials in a given material set, taking into account the various matset layouts.
 - Added `conduit::blueprint::mesh::matset::count_materials_from_specset()`, which counts the number of materials in a given species set, taking into account the various specset layouts.
+- Added `conduit::blueprint::mesh::matset::to_multi_buffer_by_material()`, which for now only throws an error, but leaves the door open for future support for this 4th material set layout.
 
 ### Changed
 
@@ -44,6 +45,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 #### Blueprint
 - Removed previously deprecated `quads_and_tris` and `hexs_and_tets` mesh types from `braid` in `blueprint::mesh::examples`.
+- Renamed `conduit::blueprint::mesh::matset::to_multi_buffer_full()` to `conduit::blueprint::mesh::matset::to_multi_buffer_by_element()`.
 
 #### Relay
 - Updates to use Silo 4.12 and HDF5 2.0.0.
@@ -58,6 +60,9 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Conduit
 - Fixed a bug preventing explicit length 0 in `yaml` schema.
 - Fixed a bug where empty objects or lists were not written correctly to `yaml` schema.
+
+#### Blueprint
+- Fixed an issue with material set conversions where uni-buffer by material matsets would incorrectly follow the same path as multi-buffer by material matsets.
 
 #### Relay
 - Fixed a bug preventing multiple species sets from being written when writing to Overlink.
