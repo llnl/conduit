@@ -70,6 +70,7 @@ public:
 /// MatsetAccessor Function pointer types
 //-----------------------------------------------------------------------------
 using GetMatIdPtr        = index_t (MatsetAccessor::*)(index_t, index_t) const;
+using GetMatOrderIdPtr   = index_t (MatsetAccessor::*)(index_t, index_t) const;
 using GetElemIdPtr       = index_t (MatsetAccessor::*)(index_t, index_t) const;
 using GetVolFracPtr      = float64 (MatsetAccessor::*)(index_t, index_t) const;
 using GetMsetValPtr      = float64 (MatsetAccessor::*)(index_t, index_t) const;
@@ -191,6 +192,13 @@ using GetNMatSpecPtr     = index_t (MatsetAccessor::*)(index_t, index_t) const;
     }
 
     inline
+    index_t     get_mat_order_id(const index_t elem_idx,
+                                 const index_t mat_idx) const
+    {
+        return (this->*m_get_mat_order_id)(elem_idx, mat_idx);
+    }
+
+    inline
     index_t     get_elem_id(const index_t elem_idx,
                             const index_t mat_idx) const
     {
@@ -246,6 +254,7 @@ private:
     // 0 <= mat_idx < num mats
     // 0 <= spec_idx < num species for material mat_idx
     index_t get_full_mat_id(const index_t elem_idx, const index_t mat_idx) const;
+    index_t get_full_mat_order_id(const index_t elem_idx, const index_t mat_idx) const;
     index_t get_full_elem_id(const index_t elem_idx, const index_t mat_idx) const;
     float64 get_full_vol_frac(const index_t elem_idx, const index_t mat_idx) const;
     float64 get_full_mset_val(const index_t elem_idx, const index_t mat_idx) const;
@@ -265,6 +274,7 @@ private:
     // 0 <= mat_idx < num mats
     // 0 <= spec_idx < num species for material mat_idx
     index_t get_sbm_mat_id(const index_t elem_idx, const index_t mat_idx) const;
+    index_t get_sbm_mat_order_id(const index_t elem_idx, const index_t mat_idx) const;
     index_t get_sbm_elem_id(const index_t elem_idx, const index_t mat_idx) const;
     float64 get_sbm_vol_frac(const index_t elem_idx, const index_t mat_idx) const;
     float64 get_sbm_mset_val(const index_t elem_idx, const index_t mat_idx) const;
@@ -282,6 +292,7 @@ private:
     // 0 <= mat_idx < num mats for element elem_idx
     // 0 <= spec_idx < num species for material mat_idx in element elem_idx
     index_t get_sbe_mat_id(const index_t elem_idx, const index_t mat_idx) const;
+    index_t get_sbe_mat_order_id(const index_t elem_idx, const index_t mat_idx) const;
     index_t get_sbe_elem_id(const index_t elem_idx, const index_t mat_idx) const;
     float64 get_sbe_vol_frac(const index_t elem_idx, const index_t mat_idx) const;
     float64 get_sbe_mset_val(const index_t elem_idx, const index_t mat_idx) const;
@@ -302,6 +313,7 @@ private:
     // of just a segfault. The field and specset access methods will only be
     // turned on if a field or a specset is provided.
     index_t get_error_mat_id(const index_t elem_idx, const index_t mat_idx) const;
+    index_t get_error_mat_order_id(const index_t elem_idx, const index_t mat_idx) const;
     index_t get_error_elem_id(const index_t elem_idx, const index_t mat_idx) const;
     float64 get_error_vol_frac(const index_t elem_idx, const index_t mat_idx) const;
     float64 get_error_mset_val(const index_t elem_idx, const index_t mat_idx) const;
@@ -321,6 +333,7 @@ private:
     // function pointer members
     // these take us to implementations for each layout type
     GetMatIdPtr        m_get_mat_id;
+    GetMatOrderIdPtr   m_get_mat_order_id;
     GetElemIdPtr       m_get_elem_id;
     GetVolFracPtr      m_get_vol_frac;
     GetMsetValPtr      m_get_mset_val;
@@ -355,6 +368,8 @@ private:
 
     // uni-buffer element-dominant (sparse by element) members
     index_t_accessor m_sbe_material_ids;
+    Node m_sbe_mat_order_ids;
+    index_t_accessor m_sbe_mat_order_ids_acc;
     float64_accessor m_sbe_vol_fracs;
     float64_accessor m_sbe_mset_vals;
     o2mrelation::O2MIndex m_sbe_o2m_idx;

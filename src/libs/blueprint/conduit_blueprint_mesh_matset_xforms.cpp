@@ -1355,14 +1355,14 @@ multi_buffer_by_element_to_uni_buffer_by_element_matset(const conduit::Node &src
     Node &material_map = dest_matset["material_map"];
     create_or_copy_material_map(src_matset, material_map);
 
-    std::vector<double> vol_fracs;
-    std::vector<int> mat_ids;
-    std::vector<int> sizes;
-    std::vector<int> offsets;
+    std::vector<float64> vol_fracs;
+    std::vector<index_t> mat_ids;
+    std::vector<index_t> sizes;
+    std::vector<index_t> offsets;
 
     MatsetAccessor m_acc = MatsetAccessor(src_matset);
 
-    int offset = 0;
+    index_t offset = 0;
     // we need to gather info from each value for the zones
     auto for_each_value = [&](const index_t zone_idx,
                               const index_t mat_idx,
@@ -1396,7 +1396,6 @@ multi_buffer_by_element_to_uni_buffer_by_element_matset(const conduit::Node &src
 void
 multi_buffer_by_element_to_uni_buffer_by_element_field(const conduit::Node &src_matset,
                                                        const conduit::Node &src_field,
-                                                       const std::string &dest_matset_name,
                                                        conduit::Node &dest_field,
                                                        const float64 epsilon)
 {
@@ -1551,10 +1550,11 @@ uni_buffer_by_element_to_multi_buffer_by_element_matset(const conduit::Node &src
     MatsetAccessor m_acc = MatsetAccessor(src_matset);
     const index_t num_elems = m_acc.num_elems();
 
+    const std::vector<std::string> &matnames = src_matset["material_map"].child_names();
+
     // initialize sizes of the vol frac arrays
-    for (const auto & mapitem : reverse_matmap)
+    for (const std::string& matname : matnames)
     {
-        const std::string &matname = mapitem.second;
         new_vol_fracs[matname].set(DataType::float64(num_elems));
         new_vol_fracs_map[matname] = new_vol_fracs[matname].as_float64_array();
         new_vol_fracs_map[matname].fill(0.0);
@@ -1563,9 +1563,8 @@ uni_buffer_by_element_to_multi_buffer_by_element_matset(const conduit::Node &src
     // what we will do for each mat_id/vol_frac we encounter
     auto for_each_value = [&](const index_t zone_idx,
                               const index_t mat_idx,
-                              const index_t curr_material_index)
+                              const index_t)
     {
-        (void) curr_material_index;
         const std::string &matname = reverse_matmap.at(m_acc.get_mat_id(zone_idx, mat_idx));
         new_vol_fracs_map[matname][zone_idx] = m_acc.get_vol_frac(zone_idx, mat_idx);
     };
@@ -1578,7 +1577,6 @@ uni_buffer_by_element_to_multi_buffer_by_element_matset(const conduit::Node &src
 void
 uni_buffer_by_element_to_multi_buffer_by_element_field(const conduit::Node &src_matset,
                                                        const conduit::Node &src_field,
-                                                       const std::string &dest_matset_name,
                                                        conduit::Node &dest_field)
 {
     // map material numbers to material names
@@ -1722,7 +1720,6 @@ uni_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &sr
 void
 uni_buffer_by_element_to_multi_buffer_by_material_field(const conduit::Node &src_matset,
                                                         const conduit::Node &src_field,
-                                                        const std::string &dest_matset_name,
                                                         conduit::Node &dest_field)
 {
     // map material numbers to material names
@@ -1860,11 +1857,10 @@ multi_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &
 void
 multi_buffer_by_element_to_multi_buffer_by_material_field(const conduit::Node &src_matset,
                                                           const conduit::Node &src_field,
-                                                          const std::string &dest_matset_name,
                                                           conduit::Node &dest_field,
                                                           const float64 epsilon)
 {
-    const int num_zones = count_zones_from_matset(src_matset);
+    const index_t num_zones = count_zones_from_matset(src_matset);
 
     Node n;
     n["local_matset_values"].set(DataType::float64(num_zones));
@@ -1989,7 +1985,6 @@ multi_buffer_by_material_to_multi_buffer_by_element_matset(const conduit::Node &
 void
 multi_buffer_by_material_to_multi_buffer_by_element_field(const conduit::Node &src_matset,
                                                           const conduit::Node &src_field,
-                                                          const std::string &dest_matset_name,
                                                           conduit::Node &dest_field)
 {
     const index_t num_materials = count_materials_from_matset(src_matset);
@@ -2131,7 +2126,6 @@ multi_buffer_by_material_to_uni_buffer_by_element_matset(const conduit::Node &sr
 void
 multi_buffer_by_material_to_uni_buffer_by_element_field(const conduit::Node &src_matset,
                                                         const conduit::Node &src_field,
-                                                        const std::string &dest_matset_name,
                                                         conduit::Node &dest_field)
 {
     const int num_elems = determine_num_elems_in_multi_buffer_by_material(src_matset["element_ids"]);
@@ -3167,7 +3161,7 @@ to_multi_buffer_by_element(const conduit::Node &src_matset,
         else
         {
             conduit::blueprint::mesh::matset::detail::uni_buffer_by_element_to_multi_buffer_by_element_field(
-                src_matset, src_field, dest_matset_name, dest_field);
+                src_matset, src_field, dest_field);
         }
     }
     else
@@ -3176,7 +3170,7 @@ to_multi_buffer_by_element(const conduit::Node &src_matset,
         if (multi_buf)
         {
             conduit::blueprint::mesh::matset::detail::multi_buffer_by_material_to_multi_buffer_by_element_field(
-                src_matset, src_field, dest_matset_name, dest_field);
+                src_matset, src_field, dest_field);
         }
         // uni-buffer material-dominant "???" representation
         else
@@ -3233,7 +3227,7 @@ to_uni_buffer_by_element(const conduit::Node &src_matset,
         if (multi_buf)
         {
             conduit::blueprint::mesh::matset::detail::multi_buffer_by_element_to_uni_buffer_by_element_field(
-                src_matset, src_field, dest_matset_name, dest_field, epsilon);
+                src_matset, src_field, dest_field, epsilon);
         }
         // uni-buffer element-dominant "sparse by element" representation
         else
@@ -3250,7 +3244,7 @@ to_uni_buffer_by_element(const conduit::Node &src_matset,
         if (multi_buf)
         {
             conduit::blueprint::mesh::matset::detail::multi_buffer_by_material_to_uni_buffer_by_element_field(
-                src_matset, src_field, dest_matset_name, dest_field);
+                src_matset, src_field, dest_field);
         }
         // uni-buffer material-dominant "???" representation
         else
@@ -3307,13 +3301,13 @@ to_multi_buffer_by_material(const conduit::Node &src_matset,
         if (multi_buf)
         {
             conduit::blueprint::mesh::matset::detail::multi_buffer_by_element_to_multi_buffer_by_material_field(
-                src_matset, src_field, dest_matset_name, dest_field, epsilon);
+                src_matset, src_field, dest_field, epsilon);
         }
         // uni-buffer element-dominant "sparse by element" representation
         else
         {
             conduit::blueprint::mesh::matset::detail::uni_buffer_by_element_to_multi_buffer_by_material_field(
-                src_matset, src_field, dest_matset_name, dest_field);
+                src_matset, src_field, dest_field);
         }
     }
     else

@@ -52,6 +52,7 @@ namespace matset
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor()
  : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
+   m_get_mat_order_id(&MatsetAccessor::get_error_mat_order_id),
    m_get_elem_id(&MatsetAccessor::get_error_elem_id),
    m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
    m_get_mset_val(&MatsetAccessor::get_error_mset_val),
@@ -66,6 +67,7 @@ MatsetAccessor::MatsetAccessor()
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor(const Node &matset)
  : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
+   m_get_mat_order_id(&MatsetAccessor::get_error_mat_order_id),
    m_get_elem_id(&MatsetAccessor::get_error_elem_id),
    m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
    m_get_mset_val(&MatsetAccessor::get_error_mset_val),
@@ -81,6 +83,7 @@ MatsetAccessor::MatsetAccessor(const Node &matset)
 MatsetAccessor::MatsetAccessor(const Node &matset,
                                const Node &specset_or_field)
  : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
+   m_get_mat_order_id(&MatsetAccessor::get_error_mat_order_id),
    m_get_elem_id(&MatsetAccessor::get_error_elem_id),
    m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
    m_get_mset_val(&MatsetAccessor::get_error_mset_val),
@@ -108,6 +111,7 @@ MatsetAccessor::MatsetAccessor(const Node &matset,
                                const Node &field,
                                const Node &specset)
  : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
+   m_get_mat_order_id(&MatsetAccessor::get_error_mat_order_id),
    m_get_elem_id(&MatsetAccessor::get_error_elem_id),
    m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
    m_get_mset_val(&MatsetAccessor::get_error_mset_val),
@@ -122,6 +126,7 @@ MatsetAccessor::MatsetAccessor(const Node &matset,
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor(const MatsetAccessor &m_acc)
 : m_get_mat_id(m_acc.m_get_mat_id),
+  m_get_mat_order_id(m_acc.m_get_mat_order_id),
   m_get_elem_id(m_acc.m_get_elem_id),
   m_get_vol_frac(m_acc.m_get_vol_frac),
   m_get_mset_val(m_acc.m_get_mset_val),
@@ -145,6 +150,8 @@ MatsetAccessor::MatsetAccessor(const MatsetAccessor &m_acc)
   m_multi_mass_fracs(m_acc.m_multi_mass_fracs),
   m_sbm_elem_ids(m_acc.m_sbm_elem_ids),
   m_sbe_material_ids(m_acc.m_sbe_material_ids),
+  m_sbe_mat_order_ids(m_acc.m_sbe_mat_order_ids),
+  m_sbe_mat_order_ids_acc(m_acc.m_sbe_mat_order_ids_acc),
   m_sbe_vol_fracs(m_acc.m_sbe_vol_fracs),
   m_sbe_mset_vals(m_acc.m_sbe_mset_vals),
   m_sbe_o2m_idx(m_acc.m_sbe_o2m_idx),
@@ -159,6 +166,7 @@ MatsetAccessor::operator=(const MatsetAccessor &m_acc)
     if (this != &m_acc)
     {
         m_get_mat_id = m_acc.m_get_mat_id;
+        m_get_mat_order_id = m_acc.m_get_mat_order_id;
         m_get_elem_id = m_acc.m_get_elem_id;
         m_get_vol_frac = m_acc.m_get_vol_frac;
         m_get_mset_val = m_acc.m_get_mset_val;
@@ -182,6 +190,8 @@ MatsetAccessor::operator=(const MatsetAccessor &m_acc)
         m_multi_mass_fracs = m_acc.m_multi_mass_fracs;
         m_sbm_elem_ids = m_acc.m_sbm_elem_ids;
         m_sbe_material_ids = m_acc.m_sbe_material_ids;
+        m_sbe_mat_order_ids = m_acc.m_sbe_mat_order_ids;
+        m_sbe_mat_order_ids_acc = m_acc.m_sbe_mat_order_ids_acc;
         m_sbe_vol_fracs = m_acc.m_sbe_vol_fracs;
         m_sbe_mset_vals = m_acc.m_sbe_mset_vals;
         m_sbe_o2m_idx = m_acc.m_sbe_o2m_idx;
@@ -227,8 +237,8 @@ MatsetAccessor::init(const Node &matset,
         m_has_specset = true;
     }
 
-    m_is_uni_buffer       = blueprint::mesh::matset::is_uni_buffer(matset);
-    m_is_element_dominant = blueprint::mesh::matset::is_element_dominant(matset);
+    m_is_uni_buffer       = matset::is_uni_buffer(matset);
+    m_is_element_dominant = matset::is_element_dominant(matset);
 
     m_num_elems = count_zones_from_matset(matset);
     m_num_mats  = count_materials_from_matset(matset);
@@ -245,6 +255,28 @@ MatsetAccessor::init(const Node &matset,
             m_sbe_material_ids = matset["material_ids"].value();
             m_sbe_vol_fracs = matset["volume_fractions"].value();
             m_sbe_o2m_idx = o2mrelation::O2MIndex(matset);
+
+            //
+            // save material order ids
+            //
+            const index_t num_vol_fracs = matset["volume_fractions"].dtype().number_of_elements();
+            m_sbe_mat_order_ids.set(DataType::index_t(num_vol_fracs));
+            m_sbe_mat_order_ids_acc = m_sbe_mat_order_ids.value();
+            // create a map from material id to material order id
+            std::map<index_t, index_t> mat_id_to_order_id;
+            for (index_t mat_idx = 0; mat_idx < m_num_mats; mat_idx ++)
+            {
+                const index_t mat_id = material_map.child(mat_idx).to_index_t();
+                mat_id_to_order_id[mat_id] = mat_idx;
+            }
+            // now we can fill the mat order id array using the information we've collected
+            for (index_t vf_elem = 0; vf_elem < num_vol_fracs; vf_elem ++)
+            {
+                const index_t mat_id = m_sbe_material_ids[vf_elem];
+                const index_t mat_order_id = mat_id_to_order_id.at(mat_id);
+                m_sbe_mat_order_ids_acc.set(vf_elem, mat_order_id);
+            }
+
             if (nullptr != field)
             {
                 m_sbe_mset_vals = (*field)["matset_values"].value();
@@ -423,7 +455,6 @@ MatsetAccessor::init(const Node &matset,
                 // We pay a price at the start when creating these arrays, but we enable quick
                 // access of species mass fraction data.
 
-                const index_t num_vol_fracs = matset["volume_fractions"].dtype().number_of_elements();
                 m_nmatspec["nmatspec"].set(DataType::index_t(num_vol_fracs));
                 m_nmatspec_acc = m_nmatspec["nmatspec"].value();
                 m_nmatspec["nmatspec_offsets"].set(DataType::index_t(num_vol_fracs));
@@ -465,9 +496,10 @@ MatsetAccessor::init(const Node &matset,
             }
 
             // set our fetch methods
-            m_get_mat_id   = &MatsetAccessor::get_sbe_mat_id;
-            m_get_elem_id  = &MatsetAccessor::get_sbe_elem_id;
-            m_get_vol_frac = &MatsetAccessor::get_sbe_vol_frac;
+            m_get_mat_id       = &MatsetAccessor::get_sbe_mat_id;
+            m_get_mat_order_id = &MatsetAccessor::get_sbe_mat_order_id;
+            m_get_elem_id      = &MatsetAccessor::get_sbe_elem_id;
+            m_get_vol_frac     = &MatsetAccessor::get_sbe_vol_frac;
             if (nullptr != field)
             {
                 m_get_mset_val = &MatsetAccessor::get_sbe_mset_val;
@@ -571,9 +603,10 @@ MatsetAccessor::init(const Node &matset,
         // multi-buffer by element (full)
         if (m_is_element_dominant)
         {
-            m_get_mat_id   = &MatsetAccessor::get_full_mat_id;
-            m_get_elem_id  = &MatsetAccessor::get_full_elem_id;
-            m_get_vol_frac = &MatsetAccessor::get_full_vol_frac;
+            m_get_mat_id       = &MatsetAccessor::get_full_mat_id;
+            m_get_mat_order_id = &MatsetAccessor::get_full_mat_order_id;
+            m_get_elem_id      = &MatsetAccessor::get_full_elem_id;
+            m_get_vol_frac     = &MatsetAccessor::get_full_vol_frac;
             if (nullptr != field)
             {
                 m_get_mset_val = &MatsetAccessor::get_full_mset_val;
@@ -593,9 +626,10 @@ MatsetAccessor::init(const Node &matset,
                 m_sbm_elem_ids.push_back(matset["element_ids"][matname].value());
             }
 
-            m_get_mat_id   = &MatsetAccessor::get_sbm_mat_id;
-            m_get_elem_id  = &MatsetAccessor::get_sbm_elem_id;
-            m_get_vol_frac = &MatsetAccessor::get_sbm_vol_frac;
+            m_get_mat_id       = &MatsetAccessor::get_sbm_mat_id;
+            m_get_mat_order_id = &MatsetAccessor::get_sbm_mat_order_id;
+            m_get_elem_id      = &MatsetAccessor::get_sbm_elem_id;
+            m_get_vol_frac     = &MatsetAccessor::get_sbm_vol_frac;
             if (nullptr != field)
             {
                 m_get_mset_val = &MatsetAccessor::get_sbm_mset_val;
@@ -621,6 +655,14 @@ MatsetAccessor::get_full_mat_id(const index_t elem_idx, const index_t mat_idx) c
 {
     (void) elem_idx;
     return m_multi_mat_idx_map_acc[mat_idx];
+}
+
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_full_mat_order_id(const index_t elem_idx, const index_t mat_idx) const
+{
+    (void) elem_idx;
+    return mat_idx;
 }
 
 //-----------------------------------------------------------------------------
@@ -674,6 +716,14 @@ MatsetAccessor::get_sbm_mat_id(const index_t elem_idx, const index_t mat_idx) co
 {
     (void) elem_idx;
     return m_multi_mat_idx_map_acc[mat_idx];
+}
+
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_sbm_mat_order_id(const index_t elem_idx, const index_t mat_idx) const
+{
+    (void) elem_idx;
+    return mat_idx;
 }
 
 //-----------------------------------------------------------------------------
@@ -733,6 +783,14 @@ MatsetAccessor::get_sbe_mat_id(const index_t elem_idx, const index_t mat_idx) co
 {
     const index_t data_index = m_sbe_o2m_idx.index(elem_idx, mat_idx);
     return m_sbe_material_ids[data_index];
+}
+
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_sbe_mat_order_id(const index_t elem_idx, const index_t mat_idx) const
+{
+    const index_t data_index = m_sbe_o2m_idx.index(elem_idx, mat_idx);
+    return m_sbe_mat_order_ids_acc[data_index];
 }
 
 //-----------------------------------------------------------------------------
@@ -811,6 +869,16 @@ MatsetAccessor::get_error_mat_id(const index_t elem_idx, const index_t mat_idx) 
     (void) elem_idx;
     (void) mat_idx;
     CONDUIT_ERROR("Impossible to fetch mat_id from material set.");
+    return 0;
+}
+
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_error_mat_order_id(const index_t elem_idx, const index_t mat_idx) const
+{
+    (void) elem_idx;
+    (void) mat_idx;
+    CONDUIT_ERROR("Impossible to fetch mat_order_id from material set.");
     return 0;
 }
 
