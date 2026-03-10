@@ -278,7 +278,7 @@ private:
     index_t get_sbm_nspec_for_mat(const index_t elem_idx, const index_t mat_idx) const;
 
     // uni-buffer by element (sparse by element)
-    // 0 <= elem_idx < num element
+    // 0 <= elem_idx < num elements
     // 0 <= mat_idx < num mats for element elem_idx
     // 0 <= spec_idx < num species for material mat_idx in element elem_idx
     index_t get_sbe_mat_id(const index_t elem_idx, const index_t mat_idx) const;
