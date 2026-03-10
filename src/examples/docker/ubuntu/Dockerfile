@@ -109,21 +109,22 @@ RUN tar -xf conduit.docker.src.tar
 # bootstrap third party libs using spack and uberenv
 RUN cd conduit && python3 scripts/uberenv/uberenv.py \
     -k \
+    --prefix=/uberenv_libs
     --spec "+mpi%gcc" \
     --spack-env-file=scripts/uberenv_configs/spack_configs/envs/ubuntu-24.04/spack.yaml
 
 # configure a debug build with cmake
 RUN cd conduit && \
-    uberenv_libs/spack/opt/spack/*/cmake-*/bin/cmake \
-    -DCMAKE_BUILD_TYPE=Debug \
-    -DCMAKE_INSTALL_PREFIX=/conduit/install-debug \
-    -C /conduit/uberenv_libs/*-patch.cmake \
-    -B build-debug -S src
+    /uberenv_libs/spack/opt/spack/*/cmake-*/bin/cmake \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/conduit/install \
+    -C /uberenv_libs/*-patch.cmake \
+    -B build -S src
 
 # build, test, and install conduit
-RUN cd conduit/build-debug && make
-RUN cd conduit/build-debug && env make test
-RUN cd conduit/build-debug && make install
+RUN cmake --build conduit/build --config Release
+RUN cmake -E env CTEST_OUTPUT_ON_FAILURE=1 cmake --build conduit/build
+RUN cmake --install conduit/build --config Release
 
 # open port 9000, for use by conduit relay
 EXPOSE 9000
