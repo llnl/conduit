@@ -1539,34 +1539,28 @@ void
 uni_buffer_by_element_to_multi_buffer_by_element_matset(const conduit::Node &src_matset,
                                                         conduit::Node &dest_matset)
 {
-    // map material numbers to material names
-    const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
-
     // create container for new volume fractions
     Node &new_vol_fracs = dest_matset["volume_fractions"];
 
-    std::map<std::string, float64_array> new_vol_fracs_map;
-
     MatsetAccessor m_acc = MatsetAccessor(src_matset);
-    const index_t num_elems = m_acc.num_elems();
+    const index_t num_mats = m_acc.num_mats();
 
-    const std::vector<std::string> &matnames = src_matset["material_map"].child_names();
-
+    std::vector<float64_array> new_vol_fracs_vec(num_mats);
     // initialize sizes of the vol frac arrays
-    for (const std::string& matname : matnames)
+    for (index_t mat_order_id = 0; mat_order_id < num_mats; mat_order_id)
     {
-        new_vol_fracs[matname].set(DataType::float64(num_elems));
-        new_vol_fracs_map[matname] = new_vol_fracs[matname].as_float64_array();
-        new_vol_fracs_map[matname].fill(0.0);
+        const std::string &matname = src_matset["material_map"].child(mat_order_id).name();
+        new_vol_fracs_vec[mat_order_id] = new_vol_fracs[matname].as_float64_array();
+        new_vol_fracs_vec[mat_order_id].fill(0.0);
     }
 
     // what we will do for each mat_id/vol_frac we encounter
-    auto for_each_value = [&](const index_t zone_idx,
+    auto for_each_value = [&](const index_t elem_idx,
                               const index_t mat_idx,
                               const index_t)
     {
-        const std::string &matname = reverse_matmap.at(m_acc.get_mat_id(zone_idx, mat_idx));
-        new_vol_fracs_map[matname][zone_idx] = m_acc.get_vol_frac(zone_idx, mat_idx);
+        const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
+        new_vol_fracs_vec[mat_order_id][elem_idx] = m_acc.get_vol_frac(elem_idx, mat_idx);
     };
 
     walk_matset_value_by_element(m_acc, for_each_value);
