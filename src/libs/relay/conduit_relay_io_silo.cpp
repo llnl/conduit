@@ -2398,10 +2398,10 @@ read_variable_domain(const int vartype,
         }
         else if (opts_matset_style == "multi_buffer_full")
         {
-            conduit::blueprint::mesh::field::to_multi_buffer_full(original_matset,
-                                                                  intermediate_field,
-                                                                  matset_name,
-                                                                  field_out);
+            conduit::blueprint::mesh::field::to_multi_buffer_by_element(original_matset,
+                                                                        intermediate_field,
+                                                                        matset_name,
+                                                                        field_out);
         }
         else // "multi_buffer_by_material"
         {
@@ -2799,7 +2799,7 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
     }
     else if (opts_matset_style == "multi_buffer_full")
     {
-        conduit::blueprint::mesh::matset::to_multi_buffer_full(intermediate_matset, matset_out);
+        conduit::blueprint::mesh::matset::to_multi_buffer_by_element(intermediate_matset, matset_out);
 
         // we only need to stash the matset for use in converters later if we need
         // a different flavor of matset

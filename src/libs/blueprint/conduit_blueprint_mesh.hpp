@@ -807,23 +807,26 @@ namespace matset
     bool CONDUIT_BLUEPRINT_API is_material_dominant(const conduit::Node &matset);
 
     //-------------------------------------------------------------------------
-    // TODO change me to be to_multi_buffer_by_element
-    // and make a note about how I am not a sparse representation
-    // also add a new method to_uni_buffer_by_material that just throws an error
-    void CONDUIT_BLUEPRINT_API to_multi_buffer_full(const conduit::Node &src_matset,
-                                                    conduit::Node &dest_matset);
+    // creates a multi-buffer non-sparse case
+    void CONDUIT_BLUEPRINT_API to_multi_buffer_by_element(const conduit::Node &src_matset,
+                                                          conduit::Node &dest_matset);
 
     //-------------------------------------------------------------------------
-    // creates a unibuffer case with 1st index into elements
+    // creates a unibuffer sparse case with 1st index into elements
     void CONDUIT_BLUEPRINT_API to_uni_buffer_by_element(const conduit::Node &src_matset,
                                                         conduit::Node &dest_matset,
                                                         const float64 epsilon = CONDUIT_EPSILON);
 
     //-------------------------------------------------------------------------
-    // covers both the sparse and non sparse case
+    // creates a multi-buffer sparse case with 1st index into materials
     void CONDUIT_BLUEPRINT_API to_multi_buffer_by_material(const conduit::Node &src_matset,
                                                            conduit::Node &dest_matset,
                                                            const float64 epsilon = CONDUIT_EPSILON);
+    //-------------------------------------------------------------------------
+    // throws an error as this case is not supported
+    void CONDUIT_BLUEPRINT_API to_uni_buffer_by_material(const conduit::Node &src_matset,
+                                                         conduit::Node &dest_matset,
+                                                         const float64 epsilon = CONDUIT_EPSILON);
 
     //-------------------------------------------------------------------------
     // Converts a blueprint matset to the silo style sparse mixed slot 
@@ -896,13 +899,14 @@ namespace field
                                               std::map<std::string, std::string>& matset_names);
 
     //-------------------------------------------------------------------------
-    void CONDUIT_BLUEPRINT_API to_multi_buffer_full(const conduit::Node &src_matset,
-                                                    const conduit::Node &src_field,
-                                                    const std::string &dest_matset_name,
-                                                    conduit::Node &dest_field);
+    // creates a multi-buffer non-sparse case
+    void CONDUIT_BLUEPRINT_API to_multi_buffer_by_element(const conduit::Node &src_matset,
+                                                          const conduit::Node &src_field,
+                                                          const std::string &dest_matset_name,
+                                                          conduit::Node &dest_field);
 
     //-------------------------------------------------------------------------
-    // creates a unibuffer case with 1st index into elements
+    // creates a unibuffer sparse case with 1st index into elements
     void CONDUIT_BLUEPRINT_API to_uni_buffer_by_element(const conduit::Node &src_matset,
                                                         const conduit::Node &src_field,
                                                         const std::string &dest_matset_name,
@@ -910,12 +914,19 @@ namespace field
                                                         const float64 epsilon = CONDUIT_EPSILON);
 
     //-------------------------------------------------------------------------
-    // covers both the sparse and non sparse case
+    // creates a multi-buffer sparse case with 1st index into materials
     void CONDUIT_BLUEPRINT_API to_multi_buffer_by_material(const conduit::Node &src_matset,
                                                            const conduit::Node &src_field,
                                                            const std::string &dest_matset_name,
                                                            conduit::Node &dest_field,
                                                            const float64 epsilon = CONDUIT_EPSILON);
+    //-------------------------------------------------------------------------
+    // throws an error as this case is not supported
+    void CONDUIT_BLUEPRINT_API to_uni_buffer_by_material(const conduit::Node &src_matset,
+                                                         const conduit::Node &src_field,
+                                                         const std::string &dest_matset_name,
+                                                         conduit::Node &dest_field,
+                                                         const float64 epsilon = CONDUIT_EPSILON);
 
     //-------------------------------------------------------------------------
     // Given a blueprint field and matset, converts the matset and the field
@@ -970,13 +981,14 @@ namespace specset
     bool CONDUIT_BLUEPRINT_API is_uni_buffer(const conduit::Node &specset);
 
     //-------------------------------------------------------------------------
-    void CONDUIT_BLUEPRINT_API to_multi_buffer_full(const conduit::Node &src_matset,
-                                                    const conduit::Node &src_specset,
-                                                    const std::string &dest_matset_name,
-                                                    conduit::Node &dest_specset);
+    // creates a multi-buffer non-sparse case
+    void CONDUIT_BLUEPRINT_API to_multi_buffer_by_element(const conduit::Node &src_matset,
+                                                          const conduit::Node &src_specset,
+                                                          const std::string &dest_matset_name,
+                                                          conduit::Node &dest_specset);
 
     //-------------------------------------------------------------------------
-    // creates a unibuffer case with 1st index into elements
+    // creates a unibuffer sparse case with 1st index into elements
     void CONDUIT_BLUEPRINT_API to_uni_buffer_by_element(const conduit::Node &src_matset,
                                                         const conduit::Node &src_specset,
                                                         const std::string &dest_matset_name,
@@ -984,13 +996,21 @@ namespace specset
                                                         const float64 epsilon = CONDUIT_EPSILON);
 
     //-------------------------------------------------------------------------
-    // covers both the sparse and non sparse case
+    // creates a multi-buffer sparse case with 1st index into materials
     void CONDUIT_BLUEPRINT_API to_multi_buffer_by_material(const conduit::Node &src_matset,
                                                            const conduit::Node &src_specset,
                                                            const std::string &dest_matset_name,
                                                            conduit::Node &dest_specset,
                                                            const float64 epsilon = CONDUIT_EPSILON);
     
+    //-------------------------------------------------------------------------
+    // throws an error as this case is not supported
+    void CONDUIT_BLUEPRINT_API to_uni_buffer_by_material(const conduit::Node &src_matset,
+                                                         const conduit::Node &src_specset,
+                                                         const std::string &dest_matset_name,
+                                                         conduit::Node &dest_specset,
+                                                         const float64 epsilon = CONDUIT_EPSILON);
+
     //-------------------------------------------------------------------------
     index_t CONDUIT_BLUEPRINT_API get_num_species_for_material(
                                             const conduit::Node &specset,

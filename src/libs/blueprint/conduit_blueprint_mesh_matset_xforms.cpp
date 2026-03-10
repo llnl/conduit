@@ -2659,13 +2659,13 @@ is_material_in_zone(const conduit::Node &matset,
 
 //-----------------------------------------------------------------------------
 void
-to_multi_buffer_full(const conduit::Node &src_matset,
-                     conduit::Node &dest_matset)
+to_multi_buffer_by_element(const conduit::Node &src_matset,
+                           conduit::Node &dest_matset)
 {
     // extra seat belt here
     if (! src_matset.dtype().is_object())
     {
-        CONDUIT_ERROR("blueprint::mesh::matset::to_multi_buffer_full"
+        CONDUIT_ERROR("blueprint::mesh::matset::to_multi_buffer_by_element"
                       " passed matset node must be a valid matset tree.");
     }
 
@@ -2698,7 +2698,7 @@ to_multi_buffer_full(const conduit::Node &src_matset,
         // uni-buffer material-dominant "???" representation
         else
         {
-            CONDUIT_ERROR("blueprint::mesh::matset::to_multi_buffer_full() "
+            CONDUIT_ERROR("blueprint::mesh::matset::to_multi_buffer_by_element() "
                           "material-dominant uni-buffer material set is unsupported.");
         }
     }
@@ -2803,6 +2803,16 @@ to_multi_buffer_by_material(const conduit::Node &src_matset,
 }
 
 //-----------------------------------------------------------------------------
+void
+to_uni_buffer_by_material(const conduit::Node &src_matset,
+                          conduit::Node &dest_matset,
+                          const float64 epsilon)
+{
+    CONDUIT_ERROR("blueprint::mesh::matset::to_uni_buffer_by_material() "
+                  "converting from a material-dominant uni-buffer material set is unsupported.");
+}
+
+//-----------------------------------------------------------------------------
 
 }
 //-----------------------------------------------------------------------------
@@ -2846,21 +2856,21 @@ to_silo(const conduit::Node &specset,
 
 //-----------------------------------------------------------------------------
 void
-to_multi_buffer_full(const conduit::Node &src_matset,
-                     const conduit::Node &src_specset,
-                     const std::string &dest_matset_name,
-                     conduit::Node &dest_specset)
+to_multi_buffer_by_element(const conduit::Node &src_matset,
+                           const conduit::Node &src_specset,
+                           const std::string &dest_matset_name,
+                           conduit::Node &dest_specset)
 {
     // extra seat belt here
     if (! src_matset.dtype().is_object())
     {
-        CONDUIT_ERROR("blueprint::mesh::specset::to_multi_buffer_full"
+        CONDUIT_ERROR("blueprint::mesh::specset::to_multi_buffer_by_element"
                       " passed matset node must be a valid matset tree.");
     }
 
     if (! src_specset.dtype().is_object())
     {
-        CONDUIT_ERROR("blueprint::mesh::specset::to_multi_buffer_full"
+        CONDUIT_ERROR("blueprint::mesh::specset::to_multi_buffer_by_element"
                       " passed specset node must be a valid specset tree.");
     }
 
@@ -2895,7 +2905,7 @@ to_multi_buffer_full(const conduit::Node &src_matset,
         // uni-buffer material-dominant "???" representation
         else
         {
-            CONDUIT_ERROR("blueprint::mesh::specset::to_multi_buffer_full() "
+            CONDUIT_ERROR("blueprint::mesh::specset::to_multi_buffer_by_element() "
                           "material-dominant uni-buffer material/species set is unsupported.");
         }
     }
@@ -3018,6 +3028,18 @@ to_multi_buffer_by_material(const conduit::Node &src_matset,
 }
 
 //-----------------------------------------------------------------------------
+void
+to_uni_buffer_by_material(const conduit::Node &src_matset,
+                          const conduit::Node &src_specset,
+                          const std::string &dest_matset_name,
+                          conduit::Node &dest_specset,
+                          const float64 epsilon)
+{
+    CONDUIT_ERROR("blueprint::mesh::specset::to_uni_buffer_by_material() "
+                  "converting from a material-dominant uni-buffer material/species set is unsupported.");
+}
+
+//-----------------------------------------------------------------------------
 index_t
 get_num_species_for_material(const conduit::Node &specset,
                              const std::string &matname)
@@ -3137,21 +3159,21 @@ to_silo(const conduit::Node &field,
 
 //-----------------------------------------------------------------------------
 void
-to_multi_buffer_full(const conduit::Node &src_matset,
-                     const conduit::Node &src_field,
-                     const std::string &dest_matset_name,
-                     conduit::Node &dest_field)
+to_multi_buffer_by_element(const conduit::Node &src_matset,
+                           const conduit::Node &src_field,
+                           const std::string &dest_matset_name,
+                           conduit::Node &dest_field)
 {
     // extra seat belt here
     if (! src_matset.dtype().is_object())
     {
-        CONDUIT_ERROR("blueprint::mesh::field::to_multi_buffer_full"
+        CONDUIT_ERROR("blueprint::mesh::field::to_multi_buffer_by_element"
                       " passed matset node must be a valid matset tree.");
     }
 
     if (! src_field.dtype().is_object())
     {
-        CONDUIT_ERROR("blueprint::mesh::field::to_multi_buffer_full"
+        CONDUIT_ERROR("blueprint::mesh::field::to_multi_buffer_by_element"
                       " passed field node must be a valid field tree.");
     }
 
@@ -3196,7 +3218,7 @@ to_multi_buffer_full(const conduit::Node &src_matset,
         // uni-buffer material-dominant "???" representation
         else
         {
-            CONDUIT_ERROR("blueprint::mesh::field::to_multi_buffer_full() "
+            CONDUIT_ERROR("blueprint::mesh::field::to_multi_buffer_by_element() "
                           "material-dominant uni-buffer material set/field is unsupported.");
         }
     }
@@ -3332,10 +3354,22 @@ to_multi_buffer_by_material(const conduit::Node &src_matset,
         // uni-buffer material-dominant "???" representation
         else
         {
-            CONDUIT_ERROR("blueprint::mesh::specset::to_multi_buffer_by_material() "
-                          "material-dominant uni-buffer material/species set is unsupported.");
+            CONDUIT_ERROR("blueprint::mesh::field::to_multi_buffer_by_material() "
+                          "material-dominant uni-buffer material set/field is unsupported.");
         }
     }
+}
+
+//-----------------------------------------------------------------------------
+void
+to_uni_buffer_by_material(const conduit::Node &src_matset,
+                          const conduit::Node &src_field,
+                          const std::string &dest_matset_name,
+                          conduit::Node &dest_field,
+                          const float64 epsilon)
+{
+    CONDUIT_ERROR("blueprint::mesh::field::to_uni_buffer_by_material() "
+                  "converting from a material-dominant uni-buffer material set/field is unsupported.");
 }
 
 //-----------------------------------------------------------------------------
