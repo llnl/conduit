@@ -109,7 +109,7 @@ RUN tar -xf conduit.docker.src.tar
 # bootstrap third party libs using spack and uberenv
 RUN cd conduit && python3 scripts/uberenv/uberenv.py \
     -k \
-    --prefix=/uberenv_libs
+    --prefix=/uberenv_libs \
     --spec "+mpi%gcc" \
     --spack-env-file=scripts/uberenv_configs/spack_configs/envs/ubuntu-24.04/spack.yaml
 
