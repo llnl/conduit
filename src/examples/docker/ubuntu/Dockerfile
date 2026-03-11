@@ -88,7 +88,7 @@ RUN apt install  -y ./libmpich-dev_4.2.0-5.1_${TARGETARCH}.deb
 
 RUN rm -rf /var/lib/apt/lists/*
 
-# untar the current source  (created as part of example_build.sh)
+# untar the current source  (created as part of build.sh)
 COPY conduit.docker.src.tar /
 RUN tar -xf conduit.docker.src.tar
 
