@@ -1226,100 +1226,6 @@ determine_num_elems_in_multi_buffer_by_material(const conduit::Node &elem_ids)
 }
 
 //-----------------------------------------------------------------------------
-template <typename SaveFunc>
-void
-walk_uni_buffer_by_element_to_multi_buffer_by_element_specset(
-    const conduit::Node &src_matset,
-    const conduit::Node &src_specset,
-    const std::map<int, std::string> &reverse_matmap,
-    float64_accessor &matset_values,
-    int64_accessor &material_ids,
-    SaveFunc save)
-{
-    // Create one to many index objects to index into the sparse by element 
-    // matset and specset.
-    auto o2m_matset_idx = o2mrelation::O2MIndex(src_matset);
-    auto o2m_specset_idx = o2mrelation::O2MIndex(src_specset);
-
-    const int num_elems = o2m_matset_idx.size();
-
-    // iterate through matset
-    for (int elem_id = 0; elem_id < num_elems; elem_id ++)
-    {
-        // Based on the element id, we can query how many materials there
-        // are in the current zone.
-        const index_t num_mats_in_zone = o2m_matset_idx.size(elem_id);
-
-        // Each time we step through a material, we need to track how far
-        // in the species matset_values we have read for that zone.
-        // So if a zone has some number of materials and each have a
-        // different number of species, then we need to track how many
-        // values we have read for the materials that came before.
-        int material_offset = 0;
-
-        // iterate through the materials in this zone
-        for (index_t local_mat_id = 0; local_mat_id < num_mats_in_zone; local_mat_id ++)
-        {
-            // what is the index into the material ids array
-            const index_t material_ids_index = o2m_matset_idx.index(elem_id, local_mat_id);
-
-            // what is the real material id
-            const int mat_id = material_ids[material_ids_index];
-
-            // fetch the material name
-            const std::string &matname = reverse_matmap.at(mat_id);
-
-            // fetch the number of species for this material
-            const int num_species_for_this_material = src_specset["species_names"][matname].number_of_children();
-
-            // iterate through each species for the current material
-            for (int spec_val_idx = 0; spec_val_idx < num_species_for_this_material; spec_val_idx ++)
-            {
-                // fetch the species name from the original specset (based on the order 
-                // the names appear in the species_names)
-                const std::string &specname = src_specset["species_names"][matname].child(spec_val_idx).name();
-
-                // We need an index that is between 0 and the number of species in this zone.
-                // The way to calculate this is to add our running sum (material_offset)
-                // with the current species value index, which ranges between 0 and the
-                // number of species for this material.
-                const int local_spec_id = material_offset + spec_val_idx;
-
-                // Now we can provide the one (element id) to many (species in element)
-                // relation with our element id and the local species index, which is
-                // an index into the number of species in this element. The result is
-                // an index into the "matset_values", which store species mass fractions.
-                const index_t spec_mf_idx = o2m_specset_idx.index(elem_id, local_spec_id);
-
-                // fetch the species mass fraction
-                const float64 val = matset_values[spec_mf_idx];
-
-                // save the species mass fraction in its new home
-                save(matname, specname, elem_id, val);
-            }
-
-            // we have read num species, now we must move our offset
-            material_offset += num_species_for_this_material;
-        }
-    }
-}
-
-//-----------------------------------------------------------------------------
-template<typename T>
-void
-read_from_map_write_out(std::map<std::string, std::vector<T>> &datamap,
-                        conduit::Node &destination)
-{
-    for (auto & mapitem : datamap)
-    {
-        const std::string &key = mapitem.first;
-        const std::vector<T> &data_vector = mapitem.second;
-
-        destination[key].set(data_vector);
-    }
-}
-
-//-----------------------------------------------------------------------------
 // takes sparse by material data and stores it in a map
 void
 create_sbm_specset_rep(const conduit::Node &elem_id_src,
@@ -1459,11 +1365,11 @@ multi_buffer_by_element_to_uni_buffer_by_element_specset(const conduit::Node &sr
 
     index_t offset = 0;
     // for each species mass fraction
-    auto for_each_species_value = [&](const index_t zone_idx,
+    auto for_each_species_value = [&](const index_t elem_idx,
                                       const index_t mat_idx,
                                       const index_t spec_idx)
     {
-        matset_values.push_back(m_acc.get_mass_frac(zone_idx, mat_idx, spec_idx));
+        matset_values.push_back(m_acc.get_mass_frac(elem_idx, mat_idx, spec_idx));
     };
 
     auto for_each_value = [](const index_t, const index_t, const index_t){};
@@ -1521,7 +1427,6 @@ uni_buffer_by_element_to_multi_buffer_by_element_matset(const conduit::Node &src
         const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
         new_vol_fracs_vec[mat_order_id][elem_idx] = m_acc.get_vol_frac(elem_idx, mat_idx);
     };
-
     walk_matset_value_by_element(m_acc, for_each_value);
 }
 
@@ -1532,34 +1437,30 @@ uni_buffer_by_element_to_multi_buffer_by_element_field(const conduit::Node &src_
                                                        const conduit::Node &src_field,
                                                        conduit::Node &dest_field)
 {
-    // map material numbers to material names
-    const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
-
     // create container for new matset vals
-    Node &new_matset_vals = dest_field["matset_values"];
+    Node &new_mset_vals = dest_field["matset_values"];
 
-    std::map<std::string, float64_array> new_mset_vals_map;
-
-    const int num_elems = count_zones_from_matset(src_matset);
-
-    // initialize sizes
-    for (const auto & mapitem : reverse_matmap)
-    {
-        const std::string &matname = mapitem.second;
-        new_matset_vals[matname].set(DataType::float64(num_elems));
-        new_mset_vals_map[matname] = new_matset_vals[matname].as_float64_array();
-        new_mset_vals_map[matname].fill(0.0);
-    }
-    
     MatsetAccessor m_acc = MatsetAccessor(src_matset, src_field);
+    const index_t num_mats = m_acc.num_mats();
+    const index_t num_elems = m_acc.num_elems();
+
+    std::vector<float64_array> new_mset_vals_vec(num_mats);
+    // initialize sizes
+    for (index_t mat_order_id = 0; mat_order_id < num_mats; mat_order_id ++)
+    {
+        const std::string &matname = src_matset["material_map"].child(mat_order_id).name();
+        new_mset_vals[matname].set(DataType::float64(num_elems));
+        new_mset_vals_vec[mat_order_id] = new_mset_vals[matname].as_float64_array();
+        new_mset_vals_vec[mat_order_id].fill(0.0);
+    }
 
     // what we will do for each mat_id/mset_val we encounter
-    auto for_each_value = [&](const index_t zone_idx,
+    auto for_each_value = [&](const index_t elem_idx,
                               const index_t mat_idx,
                               const index_t)
     {
-        const std::string &matname = reverse_matmap.at(m_acc.get_mat_id(zone_idx, mat_idx));
-        new_mset_vals_map[matname][zone_idx] = m_acc.get_mset_val(zone_idx, mat_idx);
+        const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
+        new_mset_vals_vec[mat_order_id][elem_idx] = m_acc.get_mset_val(elem_idx, mat_idx);
     };
 
     walk_matset_value_by_element(m_acc, for_each_value);
@@ -1572,63 +1473,50 @@ uni_buffer_by_element_to_multi_buffer_by_element_specset(const conduit::Node &sr
                                                          const conduit::Node &src_specset,
                                                          conduit::Node &dest_specset)
 {
-    // map material numbers to material names
-    const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
+    Node &new_mset_vals = dest_specset["matset_values"];
 
-    const int num_elems = src_matset["sizes"].dtype().number_of_elements();
+    MatsetAccessor m_acc = MatsetAccessor(src_matset, src_specset);
+    const index_t num_mats = m_acc.num_mats();
+    const index_t num_elems = m_acc.num_elems();
 
-    // The output (full representation) matset_values
-    Node &full_matset_vals = dest_specset["matset_values"];
-    // We create a map that will reference the output specset, which we will write to
-    std::map<std::string, std::map<std::string, float64_array>> new_matset_vals;
-    
-    // fetch the sparse by element species names child
-    const Node &sbe_species_names = src_specset["species_names"];
-    
-    // grab the material names from the species_names tree
-    const std::vector<std::string> &matnames = sbe_species_names.child_names();
-    
-    // iterate over material names
-    for (int mat_id = 0; mat_id < static_cast<int>(matnames.size()); mat_id ++)
+    std::vector<std::vector<float64_array>> new_mset_vals_vec(num_mats);
+    // initialize sizes of the matset values arrays
+    for (index_t mat_order_id = 0; mat_order_id < num_mats; mat_order_id ++)
     {
-        // grab current material name
-        const std::string &matname = matnames[mat_id];
-        
-        // get the species names associated with this material
-        const std::vector<std::string> &specnames_for_mat = sbe_species_names[matname].child_names();
-        
-        // iterate through the species names
-        for (const auto &specname : specnames_for_mat)
+        const std::string &matname = src_matset["material_map"].child(mat_order_id).name();
+        if (src_specset["species_names"].has_child(matname))
         {
-            // create an output array in the right spot with the total number of elements
-            full_matset_vals[matname][specname].set(DataType::float64(num_elems));
-            
-            // save a pointer to the output arrays in the c++ map we created
-            new_matset_vals[matname][specname] = full_matset_vals[matname][specname].value();
+            const std::vector<std::string> &specnames_for_mat = 
+                src_specset["species_names"][matname].child_names();
+
+            const index_t num_spec_for_mat = static_cast<index_t>(specnames_for_mat.size());
+            for (index_t spec_idx = 0; spec_idx < num_spec_for_mat; spec_idx ++)
+            {
+                const std::string &specname = specnames_for_mat[spec_idx];
+
+                new_mset_vals[matname][specname].set(DataType::float64(num_elems));
+                new_mset_vals_vec[mat_order_id].push_back(
+                    new_mset_vals[matname][specname].as_float64_array());
+                new_mset_vals_vec[mat_order_id][spec_idx].fill(0.0);
+            }
         }
     }
 
-    // Get ptr to matset values and mat ids
-    float64_accessor matset_values = src_specset["matset_values"].value();
-    int64_accessor material_ids = src_matset["material_ids"].value();
-
-    auto save_function = [&](const std::string &matname,
-                             const std::string &specname,
-                             const int elem_id,
-                             const float64 val)
+    // for each species mass fraction
+    auto for_each_species_value = [&](const index_t elem_idx,
+                                      const index_t mat_idx,
+                                      const index_t spec_idx)
     {
-        new_matset_vals.at(matname).at(specname)[elem_id] = val;
+        const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
+        const float64 spec_mf = m_acc.get_mass_frac(elem_idx, mat_idx, spec_idx);
+        new_mset_vals_vec[mat_order_id][spec_idx][elem_idx] = spec_mf;
     };
-
-    walk_uni_buffer_by_element_to_multi_buffer_by_element_specset(src_matset,
-                                                                  src_specset,
-                                                                  reverse_matmap,
-                                                                  matset_values,
-                                                                  material_ids,
-                                                                  save_function);
-
-    // There is nothing more to do as we took care to save species mass fractions
-    // in the right place.
+    auto for_each_value = [](const index_t, const index_t, const index_t){};
+    auto for_each_element = [](const index_t, const index_t, const index_t){};
+    walk_matset_species_by_element(m_acc,
+                                   for_each_species_value,
+                                   for_each_value,
+                                   for_each_element);
 }
 
 //-----------------------------------------------------------------------------
@@ -1640,30 +1528,32 @@ uni_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &sr
     // copy material map since we have it
     dest_matset["material_map"].set(src_matset["material_map"]);
 
-    // map material numbers to material names
-    const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
-
-    // create containers for new vol fracs and elem ids
-    std::map<std::string, std::vector<float64>> new_vol_fracs;
-    std::map<std::string, std::vector<int64>> new_elem_ids;
-
     MatsetAccessor m_acc = MatsetAccessor(src_matset);
+    const index_t num_mats = m_acc.num_mats();
+
+    std::vector<std::vector<float64>> new_vol_fracs_vec(num_mats);
+    std::vector<std::vector<index_t>> new_elem_ids_vec(num_mats);
 
     // what we will do for each mat_id/vol_frac we encounter
-    auto for_each_value = [&](const index_t zone_idx,
+    auto for_each_value = [&](const index_t elem_idx,
                               const index_t mat_idx,
-                              const index_t curr_material_index)
+                              const index_t)
     {
-        (void) curr_material_index;
-        const std::string &matname = reverse_matmap.at(m_acc.get_mat_id(zone_idx, mat_idx));
-        new_vol_fracs[matname].push_back(m_acc.get_vol_frac(zone_idx, mat_idx));
-        new_elem_ids[matname].push_back(zone_idx);
+        const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
+        new_vol_fracs_vec[mat_order_id].push_back(m_acc.get_vol_frac(elem_idx, mat_idx));
+        new_elem_ids_vec[mat_order_id].push_back(elem_idx);
     };
-
     walk_matset_value_by_element(m_acc, for_each_value);
 
-    read_from_map_write_out(new_vol_fracs, dest_matset["volume_fractions"]);
-    read_from_map_write_out(new_elem_ids, dest_matset["element_ids"]);
+    // create containers for new vol fracs and elem ids
+    Node &new_vol_fracs = dest_matset["volume_fractions"];
+    Node &new_elem_ids = dest_matset["element_ids"];
+    for (index_t mat_order_id = 0; mat_order_id < num_mats; mat_order_id ++)
+    {
+        const std::string &matname = src_matset["material_map"].child(mat_order_id).name();
+        new_vol_fracs[matname].set(new_vol_fracs_vec[mat_order_id]);
+        new_elem_ids[matname].set(new_elem_ids_vec[mat_order_id]);
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -1673,26 +1563,29 @@ uni_buffer_by_element_to_multi_buffer_by_material_field(const conduit::Node &src
                                                         const conduit::Node &src_field,
                                                         conduit::Node &dest_field)
 {
-    // map material numbers to material names
-    const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
+    MatsetAccessor m_acc = MatsetAccessor(src_matset, src_field);
+    const index_t num_mats = m_acc.num_mats();
 
     // create container for new matset vals
-    std::map<std::string, std::vector<float64>> new_mset_vals;
-
-    MatsetAccessor m_acc = MatsetAccessor(src_matset, src_field);
+    std::vector<std::vector<float64>> new_mset_vals_vec(num_mats);
 
     // what we will do for each mat_id/mset_val we encounter
-    auto for_each_value = [&](const index_t zone_idx,
+    auto for_each_value = [&](const index_t elem_idx,
                               const index_t mat_idx,
                               const index_t)
     {
-        const std::string &matname = reverse_matmap.at(m_acc.get_mat_id(zone_idx, mat_idx));
-        new_mset_vals[matname].push_back(m_acc.get_mset_val(zone_idx, mat_idx));
+        const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
+        new_mset_vals_vec[mat_order_id].push_back(m_acc.get_mset_val(elem_idx, mat_idx));
     };
-
     walk_matset_value_by_element(m_acc, for_each_value);
 
-    read_from_map_write_out(new_mset_vals, dest_field["matset_values"]);
+    // create containers for new vol fracs and elem ids
+    Node &new_mset_vals = dest_field["matset_values"];
+    for (index_t mat_order_id = 0; mat_order_id < num_mats; mat_order_id ++)
+    {
+        const std::string &matname = src_matset["material_map"].child(mat_order_id).name();
+        new_mset_vals[matname].set(new_mset_vals_vec[mat_order_id]);
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -1702,42 +1595,56 @@ uni_buffer_by_element_to_multi_buffer_by_material_specset(const conduit::Node &s
                                                           const conduit::Node &src_specset,
                                                           conduit::Node &dest_specset)
 {
-    // map material numbers to material names
-    const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
+    MatsetAccessor m_acc = MatsetAccessor(src_matset, src_specset);
+    const index_t num_mats = m_acc.num_mats();
 
-    // We create a map that we will write to
-    std::map<std::string, std::map<std::string, std::vector<float64>>> new_matset_vals;
-    
-    // Get ptr to matset values and mat ids
-    float64_accessor matset_values = src_specset["matset_values"].value();
-    int64_accessor material_ids = src_matset["material_ids"].value();
-
-    auto save_function = [&](const std::string &matname,
-                             const std::string &specname,
-                             const int elem_id,
-                             const float64 val)
+    // create container for new matset vals
+    // index [mat_order_id][spec_idx][mass fraction id]
+    std::vector<std::vector<std::vector<float64>>> new_mset_vals_vec(num_mats);
+    for (index_t mat_order_id = 0; mat_order_id < num_mats; mat_order_id ++)
     {
-        (void) elem_id;
-        new_matset_vals[matname][specname].push_back(val);
+        const std::string &matname = src_matset["material_map"].child(mat_order_id).name();
+        if (src_specset["species_names"].has_child(matname))
+        {
+            const index_t num_spec_for_mat = 
+                src_specset["species_names"][matname].number_of_children();
+            new_mset_vals_vec[mat_order_id].resize(num_spec_for_mat);
+        }
+    }
+
+    // for each species mass fraction
+    auto for_each_species_value = [&](const index_t elem_idx,
+                                      const index_t mat_idx,
+                                      const index_t spec_idx)
+    {
+        const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
+        const float64 spec_mf = m_acc.get_mass_frac(elem_idx, mat_idx, spec_idx);
+        new_mset_vals_vec[mat_order_id][spec_idx].push_back(spec_mf);
     };
+    auto for_each_value = [](const index_t, const index_t, const index_t){};
+    auto for_each_element = [](const index_t, const index_t, const index_t){};
+    walk_matset_species_by_element(m_acc,
+                                   for_each_species_value,
+                                   for_each_value,
+                                   for_each_element);
 
-    walk_uni_buffer_by_element_to_multi_buffer_by_element_specset(src_matset,
-                                                                  src_specset,
-                                                                  reverse_matmap,
-                                                                  matset_values,
-                                                                  material_ids,
-                                                                  save_function);
-
-    // fetch the sparse by element species names child
-    const Node &sbe_species_names = src_specset["species_names"];
-    
-    // grab the material names from the species_names tree
-    const std::vector<std::string> &matnames = sbe_species_names.child_names();
-
-    // for each material, save the species mass fractions for each species
-    for (const auto &matname : matnames)
+    // create containers for new vol fracs and elem ids
+    Node &new_mset_vals = dest_specset["matset_values"];
+    for (index_t mat_order_id = 0; mat_order_id < num_mats; mat_order_id ++)
     {
-        read_from_map_write_out(new_matset_vals.at(matname), dest_specset["matset_values"][matname]);
+        const std::string &matname = src_matset["material_map"].child(mat_order_id).name();
+        if (src_specset["species_names"].has_child(matname))
+        {
+            const std::vector<std::string> &specnames_for_mat = 
+                src_specset["species_names"][matname].child_names();
+
+            const index_t num_spec_for_mat = static_cast<index_t>(specnames_for_mat.size());
+            for (index_t spec_idx = 0; spec_idx < num_spec_for_mat; spec_idx ++)
+            {
+                const std::string &specname = specnames_for_mat[spec_idx];
+                new_mset_vals[matname][specname].set(new_mset_vals_vec[mat_order_id][spec_idx]);
+            }
+        }
     }
 }
 
