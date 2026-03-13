@@ -252,13 +252,13 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
             // we *can* walk this elem-dom representation by material, and sometimes
             // we have to. But it is not very efficient.
 
-            const index_t num_zones = m_acc.num_elems();
+            const index_t num_elems = m_acc.num_elems();
             // Material ids need not be within in the range [0, N-1), so we iterate
             // over the order materials appear in the matset.
             for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
             {
                 index_t num_elems_for_mat = 0;
-                for (index_t elem_idx = 0; elem_idx < num_zones; elem_idx ++)
+                for (index_t elem_idx = 0; elem_idx < num_elems; elem_idx ++)
                 {
                     const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
                     if (vol_frac > epsilon)
@@ -327,13 +327,13 @@ walk_matset_species_by_material(const MatsetAccessor &m_acc,
             // we *can* walk this elem-dom representation by material, and sometimes
             // we have to. But it is not very efficient.
 
-            const index_t num_zones = m_acc.num_elems();
+            const index_t num_elems = m_acc.num_elems();
             // Material ids need not be within in the range [0, N-1), so we iterate
             // over the order materials appear in the matset.
             for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
             {
                 index_t num_elems_for_mat = 0;
-                for (index_t elem_idx = 0; elem_idx < num_zones; elem_idx ++)
+                for (index_t elem_idx = 0; elem_idx < num_elems; elem_idx ++)
                 {
                     const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
                     if (vol_frac > epsilon)
@@ -1655,30 +1655,32 @@ multi_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &
                                                            conduit::Node &dest_matset,
                                                            const float64 epsilon)
 {
+    Node material_map;
     if (src_matset.has_child("material_map"))
     {
         dest_matset["material_map"].set(src_matset["material_map"]);
+        material_map.set_external(dest_matset["material_map"]);
+    }
+    else
+    {
+        create_or_reuse_material_map(src_matset, material_map);
     }
 
-    const int num_zones = count_zones_from_matset(src_matset);
-
-    Node material_map;
-    create_or_reuse_material_map(src_matset, material_map);
+    MatsetAccessor m_acc = MatsetAccessor(src_matset);
+    const index_t num_elems = m_acc.num_elems();
 
     Node n;
-    n["local_element_ids"].set(DataType::index_t(num_zones));
-    n["local_volume_fractions"].set(DataType::float64(num_zones));
+    n["local_element_ids"].set(DataType::index_t(num_elems));
+    n["local_volume_fractions"].set(DataType::float64(num_elems));
     index_t_array local_element_ids = n["local_element_ids"].value();
     float64_array local_volume_fractions = n["local_volume_fractions"].value();
 
-    MatsetAccessor m_acc = MatsetAccessor(src_matset);
-
     auto for_each_value = [&](const index_t mat_idx,
-                              const index_t zone_idx,
+                              const index_t elem_idx,
                               const index_t eid_id)
     {
-        local_element_ids[eid_id] = zone_idx;
-        local_volume_fractions[eid_id] = m_acc.get_vol_frac(zone_idx, mat_idx);
+        local_element_ids[eid_id] = elem_idx;
+        local_volume_fractions[eid_id] = m_acc.get_vol_frac(elem_idx, mat_idx);
     };
 
     // what we will do for each material's elem_ids/vol_fracs
@@ -1709,22 +1711,21 @@ multi_buffer_by_element_to_multi_buffer_by_material_field(const conduit::Node &s
                                                           conduit::Node &dest_field,
                                                           const float64 epsilon)
 {
-    const index_t num_zones = count_zones_from_matset(src_matset);
-
-    Node n;
-    n["local_matset_values"].set(DataType::float64(num_zones));
-    float64_array local_matset_values = n["local_matset_values"].value();
-
     Node material_map;
     create_or_reuse_material_map(src_matset, material_map);
 
     MatsetAccessor m_acc = MatsetAccessor(src_matset, src_field);
+    const index_t num_elems = m_acc.num_elems();
+
+    Node n;
+    n["local_matset_values"].set(DataType::float64(num_elems));
+    float64_array local_matset_values = n["local_matset_values"].value();
 
     auto for_each_value = [&](const index_t mat_idx,
-                              const index_t zone_idx,
+                              const index_t elem_idx,
                               const index_t eid_id)
     {
-        local_matset_values[eid_id] = m_acc.get_mset_val(zone_idx, mat_idx);
+        local_matset_values[eid_id] = m_acc.get_mset_val(elem_idx, mat_idx);
     };
 
     // what we will do for each material's mset_vals
@@ -1732,12 +1733,11 @@ multi_buffer_by_element_to_multi_buffer_by_material_field(const conduit::Node &s
                                  const index_t num_elems_for_mat)
     {
         const std::string matname = material_map.child(mat_idx).name();
-        Node &result_mset_vals = dest_field["matset_values"][matname];
-        result_mset_vals.set(DataType::float64(num_elems_for_mat));
-        float64_array result_mset_vals_arr = result_mset_vals.value();
+        dest_field["matset_values"][matname].set(DataType::float64(num_elems_for_mat));
+        float64_array matset_values = dest_field["matset_values"][matname].value();
         for (index_t eid_id = 0; eid_id < num_elems_for_mat; eid_id ++)
         {
-            result_mset_vals_arr[eid_id] = local_matset_values[eid_id];
+            matset_values[eid_id] = local_matset_values[eid_id];
         }
     };
 
@@ -1752,6 +1752,10 @@ multi_buffer_by_element_to_multi_buffer_by_material_specset(const conduit::Node 
                                                             conduit::Node &dest_specset,
                                                             const float64 epsilon)
 {
+    // TODO justin I am stumped here
+    // I should probably make a new walk method
+    // that walks by materials, species, and then elements
+
     auto mat_itr = src_matset["volume_fractions"].children();
     auto smat_itr = src_specset["matset_values"].children();
     while (mat_itr.has_next() && smat_itr.has_next())
