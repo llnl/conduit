@@ -421,6 +421,9 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms)
     blueprint::mesh::examples::venn_specsets("sparse_by_element", nx, ny, radius, mesh_sbe);
     blueprint::mesh::examples::venn_specsets("sparse_by_material", nx, ny, radius, mesh_sbm);
 
+    Node material_map;
+    material_map.set(mesh_sbe["matsets/matset/material_map"]);
+
     CONDUIT_INFO("venn full -> full");
     {
         // diff full -> full with full
@@ -554,6 +557,7 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms)
         const Node &sset = mesh_sbe["specsets/specset"];
         Node full_mset_baseline, full_field_baseline, full_sset_baseline;
         full_mset_baseline.set(mesh_full["matsets/matset"]);
+        full_mset_baseline["material_map"].set(material_map);
         full_field_baseline.set(mesh_full["fields/importance"]);
         full_sset_baseline.set(mesh_full["specsets/specset"]);
 
@@ -598,6 +602,7 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms)
         const Node &sset = mesh_sbe["specsets/specset"];
         Node sbm_mset_baseline, sbm_field_baseline, sbm_sset_baseline;
         sbm_mset_baseline.set(mesh_sbm["matsets/matset"]);
+        sbm_mset_baseline["material_map"].set(material_map);
         sbm_field_baseline.set(mesh_sbm["fields/importance"]);
         sbm_sset_baseline.set(mesh_sbm["specsets/specset"]);
 
