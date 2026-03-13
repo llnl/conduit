@@ -1449,10 +1449,6 @@ multi_buffer_by_element_to_uni_buffer_by_element_specset(const conduit::Node &sr
                                                          conduit::Node &dest_specset,
                                                          const float64 epsilon)
 {
-    dest_specset.reset();
-
-    dest_specset["matset"] = dest_matset_name;
-
     // map from material id to volume fractions in the full representation
     std::map<int, float64_accessor> full_vol_fracs;
     // map from material ids to a map from species ids to matset values in the full representation
@@ -1539,6 +1535,9 @@ void
 uni_buffer_by_element_to_multi_buffer_by_element_matset(const conduit::Node &src_matset,
                                                         conduit::Node &dest_matset)
 {
+    // copy material map since we have it
+    dest_matset["material_map"].set(src_matset["material_map"]);
+
     // create container for new volume fractions
     Node &new_vol_fracs = dest_matset["volume_fractions"];
 
@@ -1614,10 +1613,6 @@ uni_buffer_by_element_to_multi_buffer_by_element_specset(const conduit::Node &sr
                                                          const std::string &dest_matset_name,
                                                          conduit::Node &dest_specset)
 {
-    dest_specset.reset();
-
-    dest_specset["matset"] = dest_matset_name;
-
     // map material numbers to material names
     const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
 
@@ -1683,6 +1678,9 @@ void
 uni_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &src_matset,
                                                          conduit::Node &dest_matset)
 {
+    // copy material map since we have it
+    dest_matset["material_map"].set(src_matset["material_map"]);
+
     // map material numbers to material names
     const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
 
@@ -1746,10 +1744,6 @@ uni_buffer_by_element_to_multi_buffer_by_material_specset(const conduit::Node &s
                                                           const std::string &dest_matset_name,
                                                           conduit::Node &dest_specset)
 {
-    dest_specset.reset();
-
-    dest_specset["matset"] = dest_matset_name;
-
     // map material numbers to material names
     const std::map<int, std::string> reverse_matmap = create_reverse_material_map(src_matset["material_map"]);
 
@@ -1796,6 +1790,11 @@ multi_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &
                                                            conduit::Node &dest_matset,
                                                            const float64 epsilon)
 {
+    if (src_matset.has_child("material_map"))
+    {
+        dest_matset["material_map"].set(src_matset["material_map"]);
+    }
+
     const int num_zones = count_zones_from_matset(src_matset);
 
     Node material_map;
@@ -1833,15 +1832,6 @@ multi_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &
             volume_fractions[eid_id] = local_volume_fractions[eid_id];
         }
     };
-
-    // TODO justin
-    // [x] you need to port all the walk_matset_by_material and walk_matset_value_by_material
-    //     calls to use the new paradigm.
-    // [x] Then you need to update the header file with the new reality.
-    // [x] Then you need to do the same for field walkers.
-    // [ ] Then you need to see what you built for specsets and retool it for the new paradigm,
-    //     based on use. But you did already build some stuff, so see what it is and how it can be used.
-    // [ ] can I have one walk API that matsets, fields, and specsets use?
 
     walk_matset_by_material(m_acc, for_each_value, for_each_material, epsilon);
 }
@@ -1898,10 +1888,6 @@ multi_buffer_by_element_to_multi_buffer_by_material_specset(const conduit::Node 
                                                             conduit::Node &dest_specset,
                                                             const float64 epsilon)
 {
-    dest_specset.reset();
-
-    dest_specset["matset"] = dest_matset_name;
-
     auto mat_itr = src_matset["volume_fractions"].children();
     auto smat_itr = src_specset["matset_values"].children();
     while (mat_itr.has_next() && smat_itr.has_next())
@@ -1943,6 +1929,11 @@ void
 multi_buffer_by_material_to_multi_buffer_by_element_matset(const conduit::Node &src_matset,
                                                            conduit::Node &dest_matset)
 {
+    if (src_matset.has_child("material_map"))
+    {
+        dest_matset["material_map"].set(src_matset["material_map"]);
+    }
+
     const index_t num_materials = count_materials_from_matset(src_matset);
     const index_t num_elems = count_zones_from_matset(src_matset);
 
@@ -2020,10 +2011,6 @@ multi_buffer_by_material_to_multi_buffer_by_element_specset(const conduit::Node 
                                                             const std::string &dest_matset_name,
                                                             conduit::Node &dest_specset)
 {
-    dest_specset.reset();
-
-    dest_specset["matset"] = dest_matset_name;
-
     // sparse by material representation
     // we map material names to element ids and maps from species names to mass fractions
     std::map<std::string, std::pair<int64_accessor, std::map<std::string, float64_accessor>>> sbm_rep;
@@ -2164,10 +2151,6 @@ multi_buffer_by_material_to_uni_buffer_by_element_specset(const conduit::Node &s
                                                           const std::string &dest_matset_name,
                                                           conduit::Node &dest_specset)
 {
-    dest_specset.reset();
-
-    dest_specset["matset"] = dest_matset_name;
-
     // sparse by material representation
     // we map material names to element ids and maps from species names to mass fractions
     std::map<std::string, std::pair<int64_accessor, std::map<std::string, float64_accessor>>> sbm_rep;
@@ -2814,6 +2797,11 @@ to_multi_buffer_by_element(const conduit::Node &src_matset,
                       " passed specset node must be a valid specset tree.");
     }
 
+    dest_specset.reset();
+
+    // set the matset
+    dest_specset["matset"] = dest_matset_name;
+
     const bool elem_dom = conduit::blueprint::mesh::matset::is_element_dominant(src_matset);
     const bool multi_buf = conduit::blueprint::mesh::matset::is_multi_buffer(src_matset);
 
@@ -2872,6 +2860,11 @@ to_uni_buffer_by_element(const conduit::Node &src_matset,
                       " passed specset node must be a valid specset tree.");
     }
 
+    dest_specset.reset();
+
+    // set the matset
+    dest_specset["matset"] = dest_matset_name;
+
     const bool elem_dom = conduit::blueprint::mesh::matset::is_element_dominant(src_matset);
     const bool multi_buf = conduit::blueprint::mesh::matset::is_multi_buffer(src_matset);
 
@@ -2929,6 +2922,11 @@ to_multi_buffer_by_material(const conduit::Node &src_matset,
         CONDUIT_ERROR("blueprint::mesh::specset::to_multi_buffer_by_material"
                       " passed specset node must be a valid specset tree.");
     }
+
+    dest_specset.reset();
+
+    // set the matset
+    dest_specset["matset"] = dest_matset_name;
 
     const bool elem_dom = conduit::blueprint::mesh::matset::is_element_dominant(src_matset);
     const bool multi_buf = conduit::blueprint::mesh::matset::is_multi_buffer(src_matset);
