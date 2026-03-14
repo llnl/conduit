@@ -274,6 +274,14 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval)
         };
 
         // index [mat_idx][elem_idx]
+        const std::vector<std::vector<index_t>> mat_order_ids_baseline = {
+            /* background */ {0, 0, 0, 0},
+            /* circle_a   */ {1, 1, 1, 1},
+            /* circle_b   */ {2, 2, 2, 2},
+            /* circle_c   */ {3, 3, 3, 3},
+        };
+
+        // index [mat_idx][elem_idx]
         const std::vector<std::vector<float64>> vol_fracs_baseline = {
             /* background */ {1.0, 1.0, 1.0, 0.0},
             /* circle_a   */ {0.0, 0.0, 0.0, 0.333333333333333},
@@ -324,11 +332,13 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval)
             for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
             {
                 const index_t mat_id = m_acc.get_mat_id(elem_idx, mat_idx);
+                const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
                 const index_t elem_id = m_acc.get_elem_id(elem_idx, mat_idx);
                 const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
                 const float64 mset_val = m_acc.get_mset_val(elem_idx, mat_idx);
 
                 EXPECT_EQ(mat_ids_baseline[mat_idx][elem_idx], mat_id);
+                EXPECT_EQ(mat_order_ids_baseline[mat_idx][elem_idx], mat_order_id);
                 EXPECT_EQ(elem_idx, elem_id);
                 EXPECT_FLOAT_EQ(vol_fracs_baseline[mat_idx][elem_idx], vol_frac);
                 EXPECT_FLOAT_EQ(mset_vals_baseline[mat_idx][elem_idx], mset_val);
@@ -352,6 +362,14 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval)
             /* element 1 */ {0},
             /* element 2 */ {0},
             /* element 3 */ {1, 2, 3},
+        };
+
+        // index [elem_idx][mat_idx]
+        const std::vector<std::vector<index_t>> mat_order_ids_baseline = {
+            /* element 0 */ {3},
+            /* element 1 */ {3},
+            /* element 2 */ {3},
+            /* element 3 */ {0, 1, 2},
         };
 
         // index [elem_idx][mat_idx]
@@ -403,11 +421,13 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval)
             for (index_t mat_idx = 0; mat_idx < num_mats_for_elem; mat_idx ++)
             {
                 const index_t mat_id = m_acc.get_mat_id(elem_idx, mat_idx);
+                const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
                 const index_t elem_id = m_acc.get_elem_id(elem_idx, mat_idx);
                 const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
                 const float64 mset_val = m_acc.get_mset_val(elem_idx, mat_idx);
 
                 EXPECT_EQ(mat_ids_baseline[elem_idx][mat_idx], mat_id);
+                EXPECT_EQ(mat_order_ids_baseline[elem_idx][mat_idx], mat_order_id);
                 EXPECT_EQ(elem_idx, elem_id);
                 EXPECT_FLOAT_EQ(vol_fracs_baseline[elem_idx][mat_idx], vol_frac);
                 EXPECT_FLOAT_EQ(mset_vals_baseline[elem_idx][mat_idx], mset_val);
@@ -427,6 +447,14 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval)
     {
         // index [mat_idx][elem_idx]
         const std::vector<std::vector<index_t>> mat_ids_baseline = {
+            /* background */ {0, 0, 0},
+            /* circle_a   */ {1},
+            /* circle_b   */ {2},
+            /* circle_c   */ {3},
+        };
+
+        // index [mat_idx][elem_idx]
+        const std::vector<std::vector<index_t>> mat_order_ids_baseline = {
             /* background */ {0, 0, 0},
             /* circle_a   */ {1},
             /* circle_b   */ {2},
@@ -492,11 +520,13 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval)
             for (index_t elem_idx = 0; elem_idx < num_elems_for_mat; elem_idx ++)
             {
                 const index_t mat_id = m_acc.get_mat_id(elem_idx, mat_idx);
+                const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
                 const index_t elem_id = m_acc.get_elem_id(elem_idx, mat_idx);
                 const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
                 const float64 mset_val = m_acc.get_mset_val(elem_idx, mat_idx);
 
                 EXPECT_EQ(mat_ids_baseline[mat_idx][elem_idx], mat_id);
+                EXPECT_EQ(mat_order_ids_baseline[mat_idx][elem_idx], mat_order_id);
                 EXPECT_EQ(elem_ids_baseline[mat_idx][elem_idx], elem_id);
                 EXPECT_FLOAT_EQ(vol_fracs_baseline[mat_idx][elem_idx], vol_frac);
                 EXPECT_FLOAT_EQ(mset_vals_baseline[mat_idx][elem_idx], mset_val);
@@ -604,6 +634,14 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
         };
 
         // index [mat_idx][elem_idx]
+        const std::vector<std::vector<index_t>> mat_order_ids_baseline = {
+            /* circle_a   */ {0, 0, 0, 0},
+            /* circle_b   */ {1, 1, 1, 1},
+            /* circle_c   */ {2, 2, 2, 2},
+            /* background */ {3, 3, 3, 3},
+        };
+
+        // index [mat_idx][elem_idx]
         const std::vector<std::vector<float64>> vol_fracs_baseline = {
             /* circle_a   */ {0.0, 0.0, 0.0, 0.333333333333333},
             /* circle_b   */ {0.0, 0.0, 0.0, 0.333333333333333},
@@ -654,11 +692,13 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
             {
                 const index_t mat_id = m_acc.get_mat_id(elem_idx, mat_idx);
+                const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
                 const index_t elem_id = m_acc.get_elem_id(elem_idx, mat_idx);
                 const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
                 const float64 mset_val = m_acc.get_mset_val(elem_idx, mat_idx);
 
                 EXPECT_EQ(mat_ids_baseline[mat_idx][elem_idx], mat_id);
+                EXPECT_EQ(mat_order_ids_baseline[mat_idx][elem_idx], mat_order_id);
                 EXPECT_EQ(elem_idx, elem_id);
                 EXPECT_FLOAT_EQ(vol_fracs_baseline[mat_idx][elem_idx], vol_frac);
                 EXPECT_FLOAT_EQ(mset_vals_baseline[mat_idx][elem_idx], mset_val);
@@ -682,6 +722,14 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* element 1 */ {17},
             /* element 2 */ {17},
             /* element 3 */ {6, 2, 9},
+        };
+
+        // index [elem_idx][mat_idx]
+        const std::vector<std::vector<index_t>> mat_order_ids_baseline = {
+            /* element 0 */ {3},
+            /* element 1 */ {3},
+            /* element 2 */ {3},
+            /* element 3 */ {0, 1, 2},
         };
 
         // index [elem_idx][mat_idx]
@@ -733,11 +781,13 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             for (index_t mat_idx = 0; mat_idx < num_mats_for_elem; mat_idx ++)
             {
                 const index_t mat_id = m_acc.get_mat_id(elem_idx, mat_idx);
+                const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
                 const index_t elem_id = m_acc.get_elem_id(elem_idx, mat_idx);
                 const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
                 const float64 mset_val = m_acc.get_mset_val(elem_idx, mat_idx);
 
                 EXPECT_EQ(mat_ids_baseline[elem_idx][mat_idx], mat_id);
+                EXPECT_EQ(mat_order_ids_baseline[elem_idx][mat_idx], mat_order_id);
                 EXPECT_EQ(elem_idx, elem_id);
                 EXPECT_FLOAT_EQ(vol_fracs_baseline[elem_idx][mat_idx], vol_frac);
                 EXPECT_FLOAT_EQ(mset_vals_baseline[elem_idx][mat_idx], mset_val);
@@ -761,6 +811,14 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_b   */ {2},
             /* circle_c   */ {9},
             /* background */ {17, 17, 17},
+        };
+
+        // index [mat_idx][elem_idx]
+        const std::vector<std::vector<index_t>> mat_order_ids_baseline = {
+            /* circle_a   */ {0},
+            /* circle_b   */ {1},
+            /* circle_c   */ {2},
+            /* background */ {3, 3, 3},
         };
 
         // index [mat_idx][elem_idx]
@@ -822,11 +880,13 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             for (index_t elem_idx = 0; elem_idx < num_elems_for_mat; elem_idx ++)
             {
                 const index_t mat_id = m_acc.get_mat_id(elem_idx, mat_idx);
+                const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
                 const index_t elem_id = m_acc.get_elem_id(elem_idx, mat_idx);
                 const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
                 const float64 mset_val = m_acc.get_mset_val(elem_idx, mat_idx);
 
                 EXPECT_EQ(mat_ids_baseline[mat_idx][elem_idx], mat_id);
+                EXPECT_EQ(mat_order_ids_baseline[mat_idx][elem_idx], mat_order_id);
                 EXPECT_EQ(elem_ids_baseline[mat_idx][elem_idx], elem_id);
                 EXPECT_FLOAT_EQ(vol_fracs_baseline[mat_idx][elem_idx], vol_frac);
                 EXPECT_FLOAT_EQ(mset_vals_baseline[mat_idx][elem_idx], mset_val);
@@ -863,6 +923,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_erro
         MatsetAccessor m_acc_only_matset = MatsetAccessor(mset);
 
         EXPECT_NO_THROW(m_acc_only_matset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_only_matset.get_mat_order_id(0, 0));
         EXPECT_NO_THROW(m_acc_only_matset.get_elem_id(0, 0));
         EXPECT_NO_THROW(m_acc_only_matset.get_vol_frac(0, 0));
         EXPECT_THROW(m_acc_only_matset.get_mset_val(0, 0), conduit::Error);
@@ -871,6 +932,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_erro
         MatsetAccessor m_acc_matset_and_field = MatsetAccessor(mset, field);
 
         EXPECT_NO_THROW(m_acc_matset_and_field.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_field.get_mat_order_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_and_field.get_elem_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_and_field.get_vol_frac(0, 0));
         EXPECT_NO_THROW(m_acc_matset_and_field.get_mset_val(0, 0));
@@ -879,6 +941,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_erro
         MatsetAccessor m_acc_matset_and_specset = MatsetAccessor(mset, sset);
 
         EXPECT_NO_THROW(m_acc_matset_and_specset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_specset.get_mat_order_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_and_specset.get_elem_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_and_specset.get_vol_frac(0, 0));
         EXPECT_THROW(m_acc_matset_and_specset.get_mset_val(0, 0), conduit::Error);
@@ -887,6 +950,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_erro
         MatsetAccessor m_acc_matset_field_specset = MatsetAccessor(mset, field, sset);
 
         EXPECT_NO_THROW(m_acc_matset_field_specset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_mat_order_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_field_specset.get_elem_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_field_specset.get_vol_frac(0, 0));
         EXPECT_NO_THROW(m_acc_matset_field_specset.get_mset_val(0, 0));
@@ -902,6 +966,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_erro
         MatsetAccessor m_acc_only_matset = MatsetAccessor(mset);
 
         EXPECT_NO_THROW(m_acc_only_matset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_only_matset.get_mat_order_id(0, 0));
         EXPECT_NO_THROW(m_acc_only_matset.get_elem_id(0, 0));
         EXPECT_NO_THROW(m_acc_only_matset.get_vol_frac(0, 0));
         EXPECT_THROW(m_acc_only_matset.get_mset_val(0, 0), conduit::Error);
@@ -910,6 +975,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_erro
         MatsetAccessor m_acc_matset_and_field = MatsetAccessor(mset, field);
 
         EXPECT_NO_THROW(m_acc_matset_and_field.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_field.get_mat_order_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_and_field.get_elem_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_and_field.get_vol_frac(0, 0));
         EXPECT_NO_THROW(m_acc_matset_and_field.get_mset_val(0, 0));
@@ -918,6 +984,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_erro
         MatsetAccessor m_acc_matset_and_specset = MatsetAccessor(mset, sset);
 
         EXPECT_NO_THROW(m_acc_matset_and_specset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_specset.get_mat_order_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_and_specset.get_elem_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_and_specset.get_vol_frac(0, 0));
         EXPECT_THROW(m_acc_matset_and_specset.get_mset_val(0, 0), conduit::Error);
@@ -926,6 +993,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_erro
         MatsetAccessor m_acc_matset_field_specset = MatsetAccessor(mset, field, sset);
 
         EXPECT_NO_THROW(m_acc_matset_field_specset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_mat_order_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_field_specset.get_elem_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_field_specset.get_vol_frac(0, 0));
         EXPECT_NO_THROW(m_acc_matset_field_specset.get_mset_val(0, 0));
@@ -941,6 +1009,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_erro
         MatsetAccessor m_acc_only_matset = MatsetAccessor(mset);
 
         EXPECT_NO_THROW(m_acc_only_matset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_only_matset.get_mat_order_id(0, 0));
         EXPECT_NO_THROW(m_acc_only_matset.get_elem_id(0, 0));
         EXPECT_NO_THROW(m_acc_only_matset.get_vol_frac(0, 0));
         EXPECT_THROW(m_acc_only_matset.get_mset_val(0, 0), conduit::Error);
@@ -949,6 +1018,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_erro
         MatsetAccessor m_acc_matset_and_field = MatsetAccessor(mset, field);
 
         EXPECT_NO_THROW(m_acc_matset_and_field.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_field.get_mat_order_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_and_field.get_elem_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_and_field.get_vol_frac(0, 0));
         EXPECT_NO_THROW(m_acc_matset_and_field.get_mset_val(0, 0));
@@ -957,6 +1027,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_erro
         MatsetAccessor m_acc_matset_and_specset = MatsetAccessor(mset, sset);
 
         EXPECT_NO_THROW(m_acc_matset_and_specset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_and_specset.get_mat_order_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_and_specset.get_elem_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_and_specset.get_vol_frac(0, 0));
         EXPECT_THROW(m_acc_matset_and_specset.get_mset_val(0, 0), conduit::Error);
@@ -965,6 +1036,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_erro
         MatsetAccessor m_acc_matset_field_specset = MatsetAccessor(mset, field, sset);
 
         EXPECT_NO_THROW(m_acc_matset_field_specset.get_mat_id(0, 0));
+        EXPECT_NO_THROW(m_acc_matset_field_specset.get_mat_order_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_field_specset.get_elem_id(0, 0));
         EXPECT_NO_THROW(m_acc_matset_field_specset.get_vol_frac(0, 0));
         EXPECT_NO_THROW(m_acc_matset_field_specset.get_mset_val(0, 0));
