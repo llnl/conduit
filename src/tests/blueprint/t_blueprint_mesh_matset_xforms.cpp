@@ -499,15 +499,15 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms)
 
         Node converted_mset, converted_field, converted_sset;
         std::string converted_matset_name = "matset2";
-        blueprint::mesh::matset::to_multi_buffer_full(mset, converted_mset);
-        blueprint::mesh::field::to_multi_buffer_full(mset, 
-                                                     field, 
-                                                     converted_matset_name, 
-                                                     converted_field);
-        blueprint::mesh::specset::to_multi_buffer_full(mset, 
-                                                       sset, 
-                                                       converted_matset_name, 
-                                                       converted_sset);
+        blueprint::mesh::matset::to_multi_buffer_by_element(mset, converted_mset);
+        blueprint::mesh::field::to_multi_buffer_by_element(mset, 
+                                                           field, 
+                                                           converted_matset_name, 
+                                                           converted_field);
+        blueprint::mesh::specset::to_multi_buffer_by_element(mset, 
+                                                             sset, 
+                                                             converted_matset_name, 
+                                                             converted_sset);
         std::cout << converted_mset.to_yaml() << std::endl;
         std::cout << converted_field.to_yaml() << std::endl;
         std::cout << converted_sset.to_yaml() << std::endl;
@@ -625,15 +625,15 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms)
 
         Node converted_mset, converted_field, converted_sset;
         std::string converted_matset_name = "matset2";
-        blueprint::mesh::matset::to_multi_buffer_full(mset, converted_mset);
-        blueprint::mesh::field::to_multi_buffer_full(mset, 
-                                                     field, 
-                                                     converted_matset_name, 
-                                                     converted_field);
-        blueprint::mesh::specset::to_multi_buffer_full(mset, 
-                                                       sset, 
-                                                       converted_matset_name, 
-                                                       converted_sset);
+        blueprint::mesh::matset::to_multi_buffer_by_element(mset, converted_mset);
+        blueprint::mesh::field::to_multi_buffer_by_element(mset, 
+                                                           field, 
+                                                           converted_matset_name, 
+                                                           converted_field);
+        blueprint::mesh::specset::to_multi_buffer_by_element(mset, 
+                                                             sset, 
+                                                             converted_matset_name, 
+                                                             converted_sset);
         std::cout << converted_mset.to_yaml() << std::endl;
         std::cout << converted_field.to_yaml() << std::endl;
         std::cout << converted_sset.to_yaml() << std::endl;
@@ -710,15 +710,15 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms)
 
         Node converted_mset, converted_field, converted_sset;
         std::string converted_matset_name = "matset2";
-        blueprint::mesh::matset::to_multi_buffer_full(mset, converted_mset);
-        blueprint::mesh::field::to_multi_buffer_full(mset, 
-                                                     field, 
-                                                     converted_matset_name, 
-                                                     converted_field);
-        blueprint::mesh::specset::to_multi_buffer_full(mset, 
-                                                       sset, 
-                                                       converted_matset_name, 
-                                                       converted_sset);
+        blueprint::mesh::matset::to_multi_buffer_by_element(mset, converted_mset);
+        blueprint::mesh::field::to_multi_buffer_by_element(mset, 
+                                                           field, 
+                                                           converted_matset_name, 
+                                                           converted_field);
+        blueprint::mesh::specset::to_multi_buffer_by_element(mset, 
+                                                             sset, 
+                                                             converted_matset_name, 
+                                                             converted_sset);
         std::cout << converted_mset.to_yaml() << std::endl;
         std::cout << converted_field.to_yaml() << std::endl;
         std::cout << converted_sset.to_yaml() << std::endl;
@@ -772,6 +772,75 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms)
         EXPECT_FALSE(converted_mset.diff(sbe_mset_baseline, info, CONDUIT_EPSILON, true));
         EXPECT_FALSE(converted_field.diff(sbe_field_baseline, info, CONDUIT_EPSILON, true));
         EXPECT_FALSE(converted_sset.diff(sbe_sset_baseline, info, CONDUIT_EPSILON, true));
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_unsupported_transforms)
+{
+    const int nx = 4, ny = 4;
+    const double radius = 0.25;
+
+    Node mesh_full, mesh_sbe, mesh_sbm, info;
+    blueprint::mesh::examples::venn_specsets("full", nx, ny, radius, mesh_full);
+    blueprint::mesh::examples::venn_specsets("sparse_by_element", nx, ny, radius, mesh_sbe);
+    blueprint::mesh::examples::venn_specsets("sparse_by_material", nx, ny, radius, mesh_sbm);
+
+    CONDUIT_INFO("venn full -> uni-buffer by material");
+    {
+        const Node &mset = mesh_full["matsets/matset"];
+        const Node &field = mesh_full["fields/importance"];
+        const Node &sset = mesh_full["specsets/specset"];
+
+        Node converted_mset, converted_field, converted_sset;
+        std::string converted_matset_name = "matset2";
+        EXPECT_THROW(blueprint::mesh::matset::to_uni_buffer_by_material(mset, converted_mset), conduit::Error);
+        EXPECT_THROW(blueprint::mesh::field::to_uni_buffer_by_material(mset, 
+                                                                       field, 
+                                                                       converted_matset_name, 
+                                                                       converted_field), conduit::Error);
+        EXPECT_THROW(blueprint::mesh::specset::to_uni_buffer_by_material(mset, 
+                                                                         sset, 
+                                                                         converted_matset_name, 
+                                                                         converted_sset), conduit::Error);
+    }
+
+    CONDUIT_INFO("venn sparse_by_element -> uni-buffer by material");
+    {
+        const Node &mset = mesh_sbe["matsets/matset"];
+        const Node &field = mesh_sbe["fields/importance"];
+        const Node &sset = mesh_sbe["specsets/specset"];
+
+        Node converted_mset, converted_field, converted_sset;
+        std::string converted_matset_name = "matset2";
+        EXPECT_THROW(blueprint::mesh::matset::to_uni_buffer_by_material(mset, converted_mset), conduit::Error);
+        EXPECT_THROW(blueprint::mesh::field::to_uni_buffer_by_material(mset, 
+                                                                       field, 
+                                                                       converted_matset_name, 
+                                                                       converted_field), conduit::Error);
+        EXPECT_THROW(blueprint::mesh::specset::to_uni_buffer_by_material(mset, 
+                                                                         sset, 
+                                                                         converted_matset_name, 
+                                                                         converted_sset), conduit::Error);
+    }
+
+    CONDUIT_INFO("venn sparse_by_material -> full");
+    {
+        const Node &mset = mesh_sbm["matsets/matset"];
+        const Node &field = mesh_sbm["fields/importance"];
+        const Node &sset = mesh_sbm["specsets/specset"];
+
+        Node converted_mset, converted_field, converted_sset;
+        std::string converted_matset_name = "matset2";
+        EXPECT_THROW(blueprint::mesh::matset::to_uni_buffer_by_material(mset, converted_mset), conduit::Error);
+        EXPECT_THROW(blueprint::mesh::field::to_uni_buffer_by_material(mset, 
+                                                                       field, 
+                                                                       converted_matset_name, 
+                                                                       converted_field), conduit::Error);
+        EXPECT_THROW(blueprint::mesh::specset::to_uni_buffer_by_material(mset, 
+                                                                         sset, 
+                                                                         converted_matset_name, 
+                                                                         converted_sset), conduit::Error);
     }
 }
 
