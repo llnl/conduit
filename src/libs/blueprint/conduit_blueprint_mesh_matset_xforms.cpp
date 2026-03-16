@@ -1586,8 +1586,6 @@ uni_buffer_by_element_to_multi_buffer_by_material_field(const conduit::Node &src
         const std::string &matname = src_matset["material_map"].child(mat_order_id).name();
         new_mset_vals[matname].set(new_mset_vals_vec[mat_order_id]);
     }
-
-    read_from_map_write_out(new_mset_vals, dest_field["matset_values"]);
 }
 
 //-----------------------------------------------------------------------------
@@ -2922,23 +2920,6 @@ count_materials_from_specset(const conduit::Node &specset)
     }
 
     return -1;
-}
-
-//-----------------------------------------------------------------------------
-void
-to_uni_buffer_by_material(const conduit::Node &src_matset,
-                          const conduit::Node &src_specset,
-                          const std::string &dest_matset_name,
-                          conduit::Node &dest_specset,
-                          const float64 epsilon)
-{
-    (void) src_matset;
-    (void) src_specset;
-    (void) dest_matset_name;
-    (void) dest_specset;
-    (void) epsilon;
-    CONDUIT_ERROR("blueprint::mesh::specset::to_uni_buffer_by_material() "
-                  "converting from a material-dominant uni-buffer material/species set is unsupported.");
 }
 
 //-----------------------------------------------------------------------------
