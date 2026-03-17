@@ -32,6 +32,7 @@
 #include <assert.h>
 #include <cmath>
 #include <limits>
+#include <unordered_set>
 #include <list>
 // access conduit blueprint mesh utilities
 namespace bputils = conduit::blueprint::mesh::utils;
@@ -390,8 +391,9 @@ void to_polytopal(const Node &n,
         CONDUIT_ERROR("to_polytopal only supports structured toplogies");
     }
 
-    /* Test this combine code*/ 
-#if 1
+    // Use conduit::blueprint::mesh::Partitioner::combine to combine
+    // polytopal domains into a single domain per rank.
+
     std::vector<Node*> domains =
         conduit::blueprint::mesh::domains(dest);
     std::vector<const Node*> mesh_ptrs;
@@ -406,12 +408,11 @@ void to_polytopal(const Node &n,
         chunk_ids[i] = i;
     }
     Node output_mesh; 
-    
+
     conduit::blueprint::mesh::Partitioner partitioner;
-    
+
     partitioner.combine(0, mesh_ptrs, chunk_ids, output_mesh);
     dest.move(output_mesh);
-#endif
 }
 
 //-------------------------------------------------------------------------
@@ -471,6 +472,12 @@ void to_polygonal(const Node &n,
     // reference and neighbor domains.
     std::map<index_t, std::map<index_t, std::map< std::string, std::vector<double> > > > dom_to_nbr_to_vtxfields;
 
+    // dom_to_nbr_to_new_vids:
+    // Tracks new vertex ids appended to a *coarse* domain during stage 2
+    // (generate_polygons) for each neighbor *domain id*. These are the fine
+    // vertices inserted along coarse-fine boundaries, which need to be
+    // added to the output adjsets
+    std::map<index_t, std::map<index_t, std::vector<index_t>>> dom_to_nbr_to_new_vids;
 
     // 3-stage algorithm overview for loop of index_t si:
     // 0. Send vertex data from finer domains to coarser neighbors
@@ -1121,6 +1128,28 @@ void to_polygonal(const Node &n,
                                 out_cset["values"]["x"].set(new_x);
                                 out_cset["values"]["y"].set(new_y);
 
+                                // Record new vertex ids appended due to this
+                                // neighbor. These vertices are appended
+                                // contiguously starting at new_vertex.
+                                if(group.has_child("neighbors") &&
+                                   group["neighbors"].dtype().number_of_elements() >= 2)
+                                {
+                                    temp.reset();
+                                    temp.set_external(DataType(group["neighbors"].dtype().id(), 1),
+                                                      (void*)group["neighbors"].element_ptr(1));
+                                    const index_t nbr_id = temp.to_index_t();
+                                    const index_t added_count =
+                                        static_cast<index_t>(new_x.size()) - out_x_size;
+                                    auto &new_vids =
+                                        dom_to_nbr_to_new_vids[domain_id][nbr_id];
+                                    new_vids.reserve(new_vids.size() +
+                                                     static_cast<size_t>(added_count));
+                                    for(index_t i = 0; i < added_count; ++i)
+                                    {
+                                        new_vids.push_back(new_vertex + i);
+                                    }
+                                }
+
                                 for (auto& vnode: out_vtxfields)
                                 {
                                     auto& vbuffer = vtxbuffer[vnode.first];
@@ -1209,6 +1238,222 @@ void to_polygonal(const Node &n,
                 out_topo["elements/sizes"].set(num_vertices);
                 out_topo["elements/offsets"].set(elem_offsets);
 
+                // Add vertex-based adjsets (maxshare-style) to this output domain,
+                // based on the input structured adjset windows.
+                if(dom.has_path("adjsets/adjset/groups"))
+                {
+                    const index_t my_rank = relay::mpi::rank(comm);
+                    const index_t niwidth = iwidth + 1;
+                    const index_t num_verts =
+                        out_cset["values"]["x"].dtype().number_of_elements();
+
+                    std::map<index_t, std::vector<index_t>> vids_by_rank;
+                    for(const Node &group : dom["adjsets/adjset/groups"].children())
+                    {
+                        if(!group.has_child("rank") || !group.has_child("windows"))
+                        {
+                            continue;
+                        }
+
+                        const index_t nbr_rank = group["rank"].to_index_t();
+                        if(nbr_rank == my_rank)
+                        {
+                            continue;
+                        }
+                        const Node &windows = group["windows"];
+                        if(!windows.has_child(ref_name))
+                        {
+                            continue;
+                        }
+
+                        const Node &ref_win = windows[ref_name];
+                        // Determine coarse/fine relationship using the
+                        // neighbor window's level.
+                        //
+                        // "partial_lo/partial_hi" pad the fine-side window of
+                        // a coarse-fine adjacency when fine window is not
+                        // an exact refinement of the coarse window.
+                        // 
+                        // The true overlap on the fine side is therefore:
+                        //   [partial_lo, dims - partial_hi)
+                        index_t nbr_id = -1;
+                        if(group.has_child("neighbors") &&
+                           group["neighbors"].dtype().number_of_elements() >= 2)
+                        {
+                            temp.reset();
+                            temp.set_external(DataType(group["neighbors"].dtype().id(), 1),
+                                              (void*)group["neighbors"].element_ptr(1));
+                            nbr_id = temp.to_index_t();
+                        }
+                        const std::string nbr_win_name =
+                            (nbr_id >= 0) ? gen_default_name("window", nbr_id) : std::string();
+                        const index_t ref_level =
+                            ref_win.has_child("level_id") ? ref_win["level_id"].to_index_t() : 0;
+                        const index_t nbr_level =
+                            (nbr_id >= 0 && windows.has_child(nbr_win_name) &&
+                             windows[nbr_win_name].has_child("level_id"))
+                                ? windows[nbr_win_name]["level_id"].to_index_t()
+                                : ref_level;
+                        const index_t origin_i = ref_win["origin/i"].to_index_t();
+                        const index_t origin_j = ref_win["origin/j"].to_index_t();
+                        const index_t dims_i   = ref_win["dims/i"].to_index_t();
+                        const index_t dims_j   = ref_win["dims/j"].to_index_t();
+                        index_t part_lo = 0;
+                        index_t part_hi = 0;
+                        // partial_lo/partial_hi represent padded endpoints in the
+                        // window description; for vertex selection we trim those
+                        // endpoints from the enumerated vertex list.
+                        if(ref_level != nbr_level)
+                        {
+                            part_lo = ref_win.has_child("partial_lo") ?
+                                ref_win["partial_lo"].to_index_t() : 0;
+                            part_hi = ref_win.has_child("partial_hi") ?
+                                ref_win["partial_hi"].to_index_t() : 0;
+                        }
+
+                        auto &vids = vids_by_rank[nbr_rank];
+
+                        // Use orientation hints to traverse the boundary in a
+                        // way that matches the neighbor's sense of direction.
+                        // The adjset semantics are set-based, but keeping a
+                        // consistent ordering improves debuggability
+                        // and downstream comparisons.
+                        bool flip = false;
+                        if(group.has_child("orientation"))
+                        {
+                            const auto &orientation = group["orientation"].as_int_array();
+                            if(dims_i == 1 && orientation.number_of_elements() > 0 &&
+                               orientation[0] < 0)
+                            {
+                                flip = true;
+                            }
+                            if(dims_j == 1 && orientation.number_of_elements() > 1 &&
+                               orientation[1] < 0)
+                            {
+                                flip = true;
+                            }
+                        }
+
+                        // Find the vertex ids along the adjacency boundary
+                        // for both cases of dims_i == 1 or dims_j == 1.
+                        if(dims_i == 1 && dims_j != 1)
+                        {
+                            const index_t jstart = origin_j + part_lo;
+                            const index_t jend   = origin_j + dims_j - part_hi;
+                            const index_t i = origin_i;
+                            if(flip)
+                            {
+                                for(index_t j = jend; j-- > jstart;)
+                                {
+                                    const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
+                                    if(vid >= 0 && vid < num_verts)
+                                    {
+                                        vids.push_back(vid);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                for(index_t j = jstart; j < jend; ++j)
+                                {
+                                    const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
+                                    if(vid >= 0 && vid < num_verts)
+                                    {
+                                        vids.push_back(vid);
+                                    }
+                                }
+                            }
+                        }
+                        else if(dims_j == 1 && dims_i != 1)
+                        {
+                            const index_t istart = origin_i + part_lo;
+                            const index_t iend   = origin_i + dims_i - part_hi;
+                            const index_t j = origin_j;
+                            if(flip)
+                            {
+                                for(index_t i = iend; i-- > istart;)
+                                {
+                                    const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
+                                    if(vid >= 0 && vid < num_verts)
+                                    {
+                                        vids.push_back(vid);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                for(index_t i = istart; i < iend; ++i)
+                                {
+                                    const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
+                                    if(vid >= 0 && vid < num_verts)
+                                    {
+                                        vids.push_back(vid);
+                                    }
+                                }
+                            }
+                        }
+
+                        // If this domain is coarse relative to this neighbor,
+                        // include any new vertices that were appended during
+                        // coarse-fine processing.
+                        auto dom_it = dom_to_nbr_to_new_vids.find(domain_id);
+                        if(ref_level < nbr_level &&
+                           dom_it != dom_to_nbr_to_new_vids.end() &&
+                           nbr_id >= 0)
+                        {
+                            auto nbr_it = dom_it->second.find(nbr_id);
+                            if(nbr_it != dom_it->second.end())
+                            {
+                                vids.insert(vids.end(),
+                                            nbr_it->second.begin(),
+                                            nbr_it->second.end());
+                            }
+                        }
+                    }
+
+                    if(!vids_by_rank.empty())
+                    {
+                        const std::string adjset_name = name + "_adjset";
+                        Node &adjset = dest_dom["adjsets"][adjset_name];
+                        adjset["topology"] = name;
+                        adjset["association"] = "vertex";
+                        Node &groups = adjset["groups"];
+                        groups.reset();
+
+                        for(auto &kv : vids_by_rank)
+                        {
+                            const index_t nbr_rank = kv.first;
+                            std::vector<index_t> &vids = kv.second;
+                            if(vids.empty())
+                            {
+                                continue;
+                            }
+
+                            // De-duplicate while preserving order.
+                            std::unordered_set<index_t> seen;
+                            seen.reserve(static_cast<size_t>(vids.size()));
+                            std::vector<index_t> ordered_unique;
+                            ordered_unique.reserve(vids.size());
+                            for(const index_t v : vids)
+                            {
+                                if(v < 0 || v >= num_verts)
+                                {
+                                    continue;
+                                }
+                                if(seen.insert(v).second)
+                                {
+                                    ordered_unique.push_back(v);
+                                }
+                            }
+
+                            // Store groups as a list as expected by
+                            // Partitioner::combine() 
+                            Node &grp = groups.append();
+                            grp["neighbors"].set(nbr_rank);
+                            grp["values"].set(ordered_unique);
+                        }
+                    }
+                }
             }
         }
     }
