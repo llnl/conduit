@@ -1034,6 +1034,8 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_misc)
 //     }
 // }
 
+// TODO test for create_or_reuse_species_names
+
 // //-----------------------------------------------------------------------------
 // TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_create_or_reuse_matmap)
 // {
