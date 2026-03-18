@@ -1024,6 +1024,15 @@ namespace specset
     index_t CONDUIT_BLUEPRINT_API count_materials_from_specset(const conduit::Node &specset);
     
     //-------------------------------------------------------------------------
+    // this will use set external if the species_names already exist
+    void CONDUIT_BLUEPRINT_API create_or_reuse_species_names(const conduit::Node &specset,
+                                                             conduit::Node &species_names);
+    
+    //-------------------------------------------------------------------------
+    // this will use set if the species_names already exist
+    void CONDUIT_BLUEPRINT_API create_or_copy_species_names(const conduit::Node &specset,
+                                                            conduit::Node &species_names);
+    //-------------------------------------------------------------------------
     // Converts a blueprint specset to the silo style sparse mixed slot 
     // representation.
     //
@@ -1034,18 +1043,6 @@ namespace specset
                                        const conduit::Node &matset,
                                        conduit::Node &dest,
                                        const float64 epsilon = CONDUIT_EPSILON);
-
-    //-------------------------------------------------------------------------
-    // this will use set external if the species_names already exist
-    void CONDUIT_BLUEPRINT_API create_or_reuse_species_names(const conduit::Node &specset,
-                                                             conduit::Node &species_names);
-    //-------------------------------------------------------------------------
-    // this will use set if the species_names already exist
-    void CONDUIT_BLUEPRINT_API create_or_copy_species_names(const conduit::Node &specset,
-                                                            conduit::Node &species_names);
-    //-------------------------------------------------------------------------
-    index_t CONDUIT_BLUEPRINT_API count_materials_from_specset(const conduit::Node &specset);
-
     //-------------------------------------------------------------------------
     // blueprint::mesh::specset::index protocol interface
     //-------------------------------------------------------------------------
