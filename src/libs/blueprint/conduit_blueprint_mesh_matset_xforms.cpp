@@ -306,7 +306,7 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
         {
             // Material ids need not be within in the range [0, N-1), so we iterate
             // over the order materials appear in the matset.
-            for (int mat_idx = 0; mat_idx < num_materials; mat_idx ++)
+            for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
             {
                 const index_t num_elems_for_mat = m_acc.num_elems_for_mat(mat_idx);
                 for (index_t elem_idx = 0; elem_idx < num_elems_for_mat; elem_idx ++)
@@ -393,7 +393,7 @@ walk_matset_species_by_material(const MatsetAccessor &m_acc,
         {
             // Material ids need not be within in the range [0, N-1), so we iterate
             // over the order materials appear in the matset.
-            for (int mat_idx = 0; mat_idx < num_materials; mat_idx ++)
+            for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
             {
                 const index_t num_elems_for_mat = m_acc.num_elems_for_mat(mat_idx);
                 for (index_t elem_idx = 0; elem_idx < num_elems_for_mat; elem_idx ++)
@@ -488,7 +488,7 @@ walk_matset_element_by_material_species(const MatsetAccessor &m_acc,
         {
             // Material ids need not be within in the range [0, N-1), so we iterate
             // over the order materials appear in the matset.
-            for (int mat_idx = 0; mat_idx < num_materials; mat_idx ++)
+            for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
             {
                 const index_t num_spec_for_mat = m_acc.num_spec_for_mat(0, mat_idx);
                 for (index_t spec_idx = 0; spec_idx < num_spec_for_mat; spec_idx ++)
@@ -1447,7 +1447,7 @@ multi_buffer_by_element_to_uni_buffer_by_element_specset(const conduit::Node &sr
 {
     // create the species_names
     Node &species_names = dest_specset["species_names"];
-    specset::create_or_copy_species_names(src_matset, species_names);
+    specset::create_or_copy_species_names(src_specset, species_names);
 
     MatsetAccessor m_acc = MatsetAccessor(src_matset, src_specset);
     const index_t num_elems = m_acc.num_elems();
@@ -1975,7 +1975,7 @@ multi_buffer_by_material_to_multi_buffer_by_element_specset(const conduit::Node 
     Node species_names;
     specset::create_or_reuse_species_names(src_specset, species_names);
 
-    MatsetAccessor m_acc = MatsetAccessor(src_matset);
+    MatsetAccessor m_acc = MatsetAccessor(src_matset, src_specset);
     const index_t num_elems = m_acc.num_elems();
 
     Node n;
@@ -2112,7 +2112,7 @@ multi_buffer_by_material_to_uni_buffer_by_element_specset(const conduit::Node &s
     Node &species_names = dest_specset["species_names"];
     specset::create_or_copy_species_names(src_specset, species_names);
 
-    MatsetAccessor m_acc = MatsetAccessor(src_matset);
+    MatsetAccessor m_acc = MatsetAccessor(src_matset, src_specset);
     const index_t num_elems = m_acc.num_elems();
 
     // There is no way to pack the matset values correctly without
