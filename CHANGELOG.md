@@ -48,6 +48,8 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Blueprint
 - Removed previously deprecated `quads_and_tris` and `hexs_and_tets` mesh types from `braid` in `blueprint::mesh::examples`.
 - Renamed `conduit::blueprint::mesh::matset::to_multi_buffer_full()` to `conduit::blueprint::mesh::matset::to_multi_buffer_by_element()`.
+- Material Set conversion routines (`to_multi_buffer_by_element()`, `to_uni_buffer_by_element()`, and `to_multi_buffer_by_material()`) are now sensitive to optionally included material maps for all cases. If included, they will provide converted matsets with the material map.
+- Field/Species Set conversion routines (`to_multi_buffer_by_element()`, `to_uni_buffer_by_element()`, and `to_multi_buffer_by_material()`) previously forced materials to appear in the same order in fields/specsets as they do in the associated material set. This restriction has been relaxed.
 
 #### Relay
 - Updates to use Silo 4.12 and HDF5 2.0.0.
