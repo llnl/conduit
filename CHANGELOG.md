@@ -29,8 +29,10 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Added `conduit::blueprint::mesh::specset::is_multi_buffer()`, `conduit::blueprint::mesh::specset::is_uni_buffer()`, `conduit::blueprint::mesh::specset::get_num_species_for_material()`, and `conduit::blueprint::mesh::specset::get_material_names()`, which are simple species set utilities.
 - Fixed `conduit::blueprint::mesh::utils::topology::compute_mesh_info()` so it does not generate a floating point exception when processing 1-d meshes under the Intel 25 compiler with C++20.
 - Added `conduit::blueprint::mesh::matset::MatsetAccessor`, a class for fetching material set/field/species set data independent of material set layout. It provides methods that fetch data for zone id and material id pairs (or zone id, material id, species id triples).
-- Added `conduit::blueprint::mesh::matset::create_or_reuse_material_map()`, which will shallow copy or create a material map for the provided material set.
-- Added `conduit::blueprint::mesh::matset::create_or_copy_material_map()`, which will deep copy or create a material map for the provided material set
+- Added `conduit::blueprint::mesh::matset::create_or_reuse_material_map()`, which will shallow copy or create a material map for a provided material set.
+- Added `conduit::blueprint::mesh::matset::create_or_copy_material_map()`, which will deep copy or create a material map for a provided material set.
+- Added `conduit::blueprint::mesh::specset::create_or_reuse_species_names()`, which will shallow copy or create species names for a provided species set.
+- Added `conduit::blueprint::mesh::specset::create_or_copy_species_names()`, which will deep copy or create species names for a provided species set.
 - Added `conduit::blueprint::mesh::matset::renumber_material_ids()`, which renumbers material ids for a material set to be in the range 0 to N - 1, where N is the number of materials.
 - Added `conduit::blueprint::mesh::matset::count_materials_from_matset()`, which counts the number of materials in a given material set, taking into account the various matset layouts.
 - Added `conduit::blueprint::mesh::matset::count_materials_from_specset()`, which counts the number of materials in a given species set, taking into account the various specset layouts.
