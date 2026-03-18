@@ -1122,6 +1122,48 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_create_or_reuse_matmap)
 }
 
 //-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_create_or_reuse_species_names)
+{
+    const int nx = 4, ny = 4;
+    const double radius = 0.25;
+
+    Node info;
+    std::vector<Node> venn_examples(3);
+    blueprint::mesh::examples::venn_specsets("full", nx, ny, radius, venn_examples[0]);
+    blueprint::mesh::examples::venn_specsets("sparse_by_element", nx, ny, radius, venn_examples[1]);
+    blueprint::mesh::examples::venn_specsets("sparse_by_material", nx, ny, radius, venn_examples[2]);
+
+    const std::string yaml_text = 
+        "species_names: \n"
+        "  background: \n"
+        "     bg_spec1: \n"
+        "  circle_a: \n"
+        "     a_spec1: \n"
+        "     a_spec2: \n"
+        "  circle_b: \n"
+        "     b_spec1: \n"
+        "     b_spec2: \n"
+        "  circle_c: \n"
+        "     c_spec1: \n"
+        "     c_spec2: \n"
+        "     c_spec3: \n";
+    Node baseline;
+    baseline.parse(yaml_text, "yaml");
+
+    for (const Node &venn_example : venn_examples)
+    {
+        const Node &sset = venn_example["specsets/specset"];
+        Node species_names;
+        Node species_names_copy;
+        blueprint::mesh::specset::create_or_reuse_species_names(sset, species_names);
+        blueprint::mesh::specset::create_or_copy_species_names(sset, species_names_copy);
+
+        EXPECT_FALSE(species_names.diff(baseline["species_names"], info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(species_names_copy.diff(baseline["species_names"], info, CONDUIT_EPSILON, true));
+    }
+}
+
+//-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_renumber_mat_ids)
 {
     // multi-buffer test
