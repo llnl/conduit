@@ -1036,40 +1036,81 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_misc)
 
 // TODO test for create_or_reuse_species_names
 
-// //-----------------------------------------------------------------------------
-// TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_create_or_reuse_matmap)
-// {
-//     const int nx = 4, ny = 4;
-//     const double radius = 0.25;
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_create_or_reuse_matmap)
+{
+    const int nx = 4, ny = 4;
+    const double radius = 0.25;
 
-//     Node info;
-//     std::vector<Node> venn_examples(3);
-//     blueprint::mesh::examples::venn("full", nx, ny, radius, venn_examples[0]);
-//     blueprint::mesh::examples::venn("sparse_by_element", nx, ny, radius, venn_examples[1]);
-//     blueprint::mesh::examples::venn("sparse_by_material", nx, ny, radius, venn_examples[2]);
+    Node info;
+    std::vector<Node> venn_examples(3);
+    blueprint::mesh::examples::venn("full", nx, ny, radius, venn_examples[0]);
+    blueprint::mesh::examples::venn("sparse_by_element", nx, ny, radius, venn_examples[1]);
+    blueprint::mesh::examples::venn("sparse_by_material", nx, ny, radius, venn_examples[2]);
 
+    const std::string yaml_text = 
+        "material_map: \n"
+        "  circle_a: 1\n"
+        "  circle_b: 2\n"
+        "  circle_c: 3\n"
+        "  background: 0\n";
+    Node baseline;
+    baseline.parse(yaml_text, "yaml");
 
-//     const std::string yaml_text = 
-//         "material_map: \n"
-//         "  circle_a: 1\n"
-//         "  circle_b: 2\n"
-//         "  circle_c: 3\n"
-//         "  background: 0\n";
-//     Node baseline;
-//     baseline.parse(yaml_text, "yaml");
+    for (const Node &venn_example : venn_examples)
+    {
+        const Node &mset = venn_example["matsets/matset"];
+        Node matmap;
+        Node matmap_copy;
+        blueprint::mesh::matset::create_or_reuse_material_map(mset, matmap);
+        blueprint::mesh::matset::create_or_copy_material_map(mset, matmap_copy);
 
-//     for (const Node &venn_example : venn_examples)
-//     {
-//         const Node &mset = venn_example["matsets/matset"];
-//         Node matmap;
-//         Node matmap_copy;
-//         blueprint::mesh::matset::create_or_reuse_material_map(mset, matmap);
-//         blueprint::mesh::matset::create_or_copy_material_map(mset, matmap_copy);
+        EXPECT_FALSE(matmap.diff(baseline["material_map"], info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(matmap_copy.diff(baseline["material_map"], info, CONDUIT_EPSILON, true));
+    }
+}
 
-//         EXPECT_FALSE(matmap.diff(baseline["material_map"], info, CONDUIT_EPSILON, true));
-//         EXPECT_FALSE(matmap_copy.diff(baseline["material_map"], info, CONDUIT_EPSILON, true));
-//     }
-// }
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_create_or_reuse_species_names)
+{
+    const int nx = 4, ny = 4;
+    const double radius = 0.25;
+
+    Node info;
+    std::vector<Node> venn_examples(3);
+    blueprint::mesh::examples::venn_specsets("full", nx, ny, radius, venn_examples[0]);
+    blueprint::mesh::examples::venn_specsets("sparse_by_element", nx, ny, radius, venn_examples[1]);
+    blueprint::mesh::examples::venn_specsets("sparse_by_material", nx, ny, radius, venn_examples[2]);
+
+    const std::string yaml_text = 
+        "species_names: \n"
+        "  background: \n"
+        "     bg_spec1: \n"
+        "  circle_a: \n"
+        "     a_spec1: \n"
+        "     a_spec2: \n"
+        "  circle_b: \n"
+        "     b_spec1: \n"
+        "     b_spec2: \n"
+        "  circle_c: \n"
+        "     c_spec1: \n"
+        "     c_spec2: \n"
+        "     c_spec3: \n";
+    Node baseline;
+    baseline.parse(yaml_text, "yaml");
+
+    for (const Node &venn_example : venn_examples)
+    {
+        const Node &sset = venn_example["specsets/specset"];
+        Node species_names;
+        Node species_names_copy;
+        blueprint::mesh::specset::create_or_reuse_species_names(sset, species_names);
+        blueprint::mesh::specset::create_or_copy_species_names(sset, species_names_copy);
+
+        EXPECT_FALSE(species_names.diff(baseline["species_names"], info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(species_names_copy.diff(baseline["species_names"], info, CONDUIT_EPSILON, true));
+    }
+}
 
 // //-----------------------------------------------------------------------------
 // TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_renumber_mat_ids)
