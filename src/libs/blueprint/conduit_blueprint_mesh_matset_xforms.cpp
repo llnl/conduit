@@ -67,6 +67,9 @@ namespace detail
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
+// for each element:
+//     for each material:
+//         do_for_each_material()
 template <class ForEachValue>
 void
 walk_matset_value_by_element(const MatsetAccessor &m_acc,
@@ -86,6 +89,10 @@ walk_matset_value_by_element(const MatsetAccessor &m_acc,
 }
 
 //-----------------------------------------------------------------------------
+// for each element:
+//     for each material:
+//         do_for_each_material()
+//     do_for_each_elem()
 template <class ForEachValue, class ForEachElement>
 void
 walk_matset_by_element(const MatsetAccessor &m_acc,
@@ -142,6 +149,12 @@ walk_matset_by_element(const MatsetAccessor &m_acc,
 }
 
 //-----------------------------------------------------------------------------
+// for each element:
+//     for each material:
+//         for each species:
+//             do_for_each_species()
+//         do_for_each_material()
+//     do_for_each_elem()
 template <class ForEachSpeciesValue, class ForEachValue, class ForEachElement>
 void
 walk_matset_species_by_element(const MatsetAccessor &m_acc,
@@ -164,6 +177,7 @@ walk_matset_species_by_element(const MatsetAccessor &m_acc,
         for (index_t elem_idx = 0; elem_idx < num_elems; elem_idx ++)
         {
             index_t nmats_in_elem = 0;
+            index_t nspec_in_elem = 0;
             for (index_t mat_idx = 0; mat_idx < nmats; mat_idx ++)
             {
                 const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
@@ -180,9 +194,10 @@ walk_matset_species_by_element(const MatsetAccessor &m_acc,
                     // nmats_in_elem is running count of materials in the current zone
                     for_each_value(elem_idx, mat_idx, nmats_in_elem);
                     nmats_in_elem ++;
+                    nspec_in_elem += num_spec_for_mat;
                 }
             }
-            for_each_element(elem_idx, nmats_in_elem);
+            for_each_element(elem_idx, nmats_in_elem, nspec_in_elem);
         }
     }
     // sparse by element
@@ -191,6 +206,7 @@ walk_matset_species_by_element(const MatsetAccessor &m_acc,
         for (index_t elem_idx = 0; elem_idx < num_elems; elem_idx ++)
         {
             const index_t nmats_in_elem = m_acc.num_mats_for_elem(elem_idx);
+            index_t nspec_in_elem = 0;
             for (index_t mat_idx = 0; mat_idx < nmats_in_elem; mat_idx ++)
             {
                 const index_t num_spec_for_mat = m_acc.num_spec_for_mat(elem_idx, mat_idx);
@@ -204,13 +220,18 @@ walk_matset_species_by_element(const MatsetAccessor &m_acc,
                 // we pass it twice because it is also the running count of materials
                 // in the current zone
                 for_each_value(elem_idx, mat_idx, mat_idx);
+
+                nspec_in_elem += num_spec_for_mat;
             }
-            for_each_element(elem_idx, nmats_in_elem);
+            for_each_element(elem_idx, nmats_in_elem, nspec_in_elem);
         }
     }
 }
 
 //-----------------------------------------------------------------------------
+// for each material:
+//     for each element:
+//         do_for_each_elem()
 template <class ForEachValue>
 void
 walk_matset_value_by_material(const MatsetAccessor &m_acc,
@@ -230,6 +251,10 @@ walk_matset_value_by_material(const MatsetAccessor &m_acc,
 }
 
 //-----------------------------------------------------------------------------
+// for each material:
+//     for each element:
+//         do_for_each_elem()
+//     do_for_each_material()
 template <class ForEachValue, class ForEachMaterial>
 void
 walk_matset_by_material(const MatsetAccessor &m_acc,
@@ -247,13 +272,13 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
             // we *can* walk this elem-dom representation by material, and sometimes
             // we have to. But it is not very efficient.
 
-            const index_t num_zones = m_acc.num_elems();
+            const index_t num_elems = m_acc.num_elems();
             // Material ids need not be within in the range [0, N-1), so we iterate
             // over the order materials appear in the matset.
             for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
             {
                 index_t num_elems_for_mat = 0;
-                for (index_t elem_idx = 0; elem_idx < num_zones; elem_idx ++)
+                for (index_t elem_idx = 0; elem_idx < num_elems; elem_idx ++)
                 {
                     const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
                     if (vol_frac > epsilon)
@@ -281,7 +306,7 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
         {
             // Material ids need not be within in the range [0, N-1), so we iterate
             // over the order materials appear in the matset.
-            for (int mat_idx = 0; mat_idx < num_materials; mat_idx ++)
+            for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
             {
                 const index_t num_elems_for_mat = m_acc.num_elems_for_mat(mat_idx);
                 for (index_t elem_idx = 0; elem_idx < num_elems_for_mat; elem_idx ++)
@@ -304,6 +329,12 @@ walk_matset_by_material(const MatsetAccessor &m_acc,
 }
 
 //-----------------------------------------------------------------------------
+// for each material:
+//     for each element:
+//         for each species:
+//             do_for_each_species()
+//         do_for_each_elem()
+//     do_for_each_material()
 template <class ForEachSpeciesValue, class ForEachValue, class ForEachMaterial>
 void
 walk_matset_species_by_material(const MatsetAccessor &m_acc,
@@ -322,13 +353,13 @@ walk_matset_species_by_material(const MatsetAccessor &m_acc,
             // we *can* walk this elem-dom representation by material, and sometimes
             // we have to. But it is not very efficient.
 
-            const index_t num_zones = m_acc.num_elems();
+            const index_t num_elems = m_acc.num_elems();
             // Material ids need not be within in the range [0, N-1), so we iterate
             // over the order materials appear in the matset.
             for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
             {
                 index_t num_elems_for_mat = 0;
-                for (index_t elem_idx = 0; elem_idx < num_zones; elem_idx ++)
+                for (index_t elem_idx = 0; elem_idx < num_elems; elem_idx ++)
                 {
                     const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
                     if (vol_frac > epsilon)
@@ -362,7 +393,7 @@ walk_matset_species_by_material(const MatsetAccessor &m_acc,
         {
             // Material ids need not be within in the range [0, N-1), so we iterate
             // over the order materials appear in the matset.
-            for (int mat_idx = 0; mat_idx < num_materials; mat_idx ++)
+            for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
             {
                 const index_t num_elems_for_mat = m_acc.num_elems_for_mat(mat_idx);
                 for (index_t elem_idx = 0; elem_idx < num_elems_for_mat; elem_idx ++)
@@ -390,6 +421,101 @@ walk_matset_species_by_material(const MatsetAccessor &m_acc,
     }
 }
 
+//-----------------------------------------------------------------------------
+// for each material:
+//     for each species:
+//         for each element:
+//             do_for_each_elem()
+//         do_for_each_species()
+//     do_for_each_material()
+template <class ForEachElementValue,
+          class ForEachMaterialSpecies,
+          class ForEachMaterial>
+void
+walk_matset_element_by_material_species(const MatsetAccessor &m_acc,
+                                        ForEachElementValue &&for_each_element_value,
+                                        ForEachMaterialSpecies &&for_each_material_species,
+                                        ForEachMaterial &&for_each_material,
+                                        const float64 epsilon = CONDUIT_EPSILON)
+{
+    const index_t num_materials = m_acc.num_mats();
+
+    if (m_acc.is_element_dominant())
+    {
+        // elem-dom multi-buffer "full"
+        if (m_acc.is_multi_buffer())
+        {
+            // we *can* walk this elem-dom representation by material, and sometimes
+            // we have to. But it is not very efficient.
+
+            const index_t num_elems = m_acc.num_elems();
+            // Material ids need not be within in the range [0, N-1), so we iterate
+            // over the order materials appear in the matset.
+            for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
+            {
+                const index_t num_spec_for_mat = m_acc.num_spec_for_mat(0, mat_idx);
+                for (index_t spec_idx = 0; spec_idx < num_spec_for_mat; spec_idx ++)
+                {
+                    index_t num_elems_for_spec = 0;
+                    for (index_t elem_idx = 0; elem_idx < num_elems; elem_idx ++)
+                    {
+                        const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
+                        if (vol_frac > epsilon)
+                        {
+                            // mat_idx is an index over all materials
+                            // spec_idx is an index over all species for material mat_idx
+                            // elem_idx is an index over all elements
+                            // num_elems_for_spec is running count of elements for the current species
+                            for_each_element_value(mat_idx, spec_idx, elem_idx, num_elems_for_spec);
+                            num_elems_for_spec ++;
+                        }
+                    }
+                    for_each_material_species(mat_idx, spec_idx, num_elems_for_spec);
+                }
+                for_each_material(mat_idx, num_spec_for_mat);
+            }
+        }
+        // elem-dom uni-buffer "sparse by element"
+        else
+        {
+            CONDUIT_ERROR("Walking by material is not supported for element-dominant uni-buffer material sets.");
+        }
+    }
+    else
+    {
+        // mat-dom multi-buffer "sparse by material"
+        if (m_acc.is_multi_buffer())
+        {
+            // Material ids need not be within in the range [0, N-1), so we iterate
+            // over the order materials appear in the matset.
+            for (index_t mat_idx = 0; mat_idx < num_materials; mat_idx ++)
+            {
+                const index_t num_spec_for_mat = m_acc.num_spec_for_mat(0, mat_idx);
+                for (index_t spec_idx = 0; spec_idx < num_spec_for_mat; spec_idx ++)
+                {
+                    const index_t num_elems_for_spec = m_acc.num_elems_for_mat(mat_idx);
+                    for (index_t elem_idx = 0; elem_idx < num_elems_for_spec; elem_idx ++)
+                    {
+                        // mat_idx is an index over all materials
+                        // spec_idx is an index over all species for material mat_idx
+                        // elem_idx is an index over all elements the material is in
+                        // we pass elem_idx twice because it is also the running count of
+                        // elements for the current material species
+                        for_each_element_value(mat_idx, spec_idx, elem_idx, elem_idx);
+                    }
+                    for_each_material_species(mat_idx, spec_idx, num_elems_for_spec);
+                }
+                for_each_material(mat_idx, num_spec_for_mat);
+            }
+        }
+        // mat-dom uni-buffer - currently unsupported
+        else
+        {
+            CONDUIT_ERROR("material-dominant uni-buffer material set is unsupported.");
+        }
+    }
+}
+
 //-------------------------------------------------------------------------
 // helper for multi-buffer material sets that do not have 
 // material maps.
@@ -405,6 +531,27 @@ create_material_map(const conduit::Node &matset,
     {
         material_map[matname].set(mat_id);
         mat_id ++;
+    }
+}
+
+//-------------------------------------------------------------------------
+// helper for multi-buffer species sets that do not have 
+// species_names.
+void
+create_species_names(const conduit::Node &specset,
+                     conduit::Node &species_names)
+{
+    // We must be multi-buffer, so we can assume we have a 
+    // "matset_values" child that is an object.
+    const std::vector<std::string> &matnames = specset["matset_values"].child_names();
+    for (const auto &matname : matnames)
+    {
+        const std::vector<std::string> &specnames = 
+            specset["matset_values"][matname].child_names();
+        for (const auto &specname : specnames)
+        {
+            species_names[matname][specname];
+        }
     }
 }
 
@@ -2507,6 +2654,56 @@ get_material_names(const conduit::Node &specset,
     else // uni buffer
     {
         matnames = specset["species_names"].child_names();
+    }
+}
+
+//-------------------------------------------------------------------------
+// this will use set external if the species_names already exist
+void
+create_or_reuse_species_names(const conduit::Node &specset,
+                             conduit::Node &species_names)
+{
+    // extra seat belt here
+    if (! specset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::specset::create_or_reuse_species_names"
+                      " passed specset node must be a valid specset tree.");
+    }
+
+    species_names.reset();
+
+    if (specset.has_child("species_names"))
+    {
+        species_names.set_external(specset["species_names"]);
+    }
+    else
+    {
+        conduit::blueprint::mesh::matset::detail::create_species_names(specset, species_names);
+    }
+}
+
+//-------------------------------------------------------------------------
+// this will use set if the species_names already exist
+void
+create_or_copy_species_names(const conduit::Node &specset,
+                            conduit::Node &species_names)
+{
+    // extra seat belt here
+    if (! specset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::specset::create_or_copy_species_names"
+                      " passed specset node must be a valid specset tree.");
+    }
+
+    species_names.reset();
+
+    if (specset.has_child("species_names"))
+    {
+        species_names.set(specset["species_names"]);
+    }
+    else
+    {
+        conduit::blueprint::mesh::matset::detail::create_species_names(specset, species_names);
     }
 }
 

@@ -1010,7 +1010,7 @@ namespace specset
                                                          const std::string &dest_matset_name,
                                                          conduit::Node &dest_specset,
                                                          const float64 epsilon = CONDUIT_EPSILON);
-    
+
     //-------------------------------------------------------------------------
     index_t CONDUIT_BLUEPRINT_API get_num_species_for_material(
                                             const conduit::Node &specset,
@@ -1023,6 +1023,15 @@ namespace specset
     //-------------------------------------------------------------------------
     index_t CONDUIT_BLUEPRINT_API count_materials_from_specset(const conduit::Node &specset);
     
+    //-------------------------------------------------------------------------
+    // this will use set external if the species_names already exist
+    void CONDUIT_BLUEPRINT_API create_or_reuse_species_names(const conduit::Node &specset,
+                                                             conduit::Node &species_names);
+    
+    //-------------------------------------------------------------------------
+    // this will use set if the species_names already exist
+    void CONDUIT_BLUEPRINT_API create_or_copy_species_names(const conduit::Node &specset,
+                                                            conduit::Node &species_names);
     //-------------------------------------------------------------------------
     // Converts a blueprint specset to the silo style sparse mixed slot 
     // representation.
