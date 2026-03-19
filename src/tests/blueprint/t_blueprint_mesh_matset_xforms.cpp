@@ -798,6 +798,9 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_misc)
     const Node &matset = mesh["matsets/mesh"];
     const Node &specset = mesh["specsets/mesh"];
 
+    matset.print();
+    specset.print();
+
     Node silo_rep, silo_rep_matset, info;
 
     const std::string yaml_text = 
