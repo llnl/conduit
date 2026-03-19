@@ -1025,29 +1025,6 @@ copy_matset_independent_parts_of_field(const conduit::Node &src_field,
 }
 
 //-----------------------------------------------------------------------------
-// load the element ids into a set to find out how many there are
-int
-determine_num_elems_in_multi_buffer_by_material(const conduit::Node &elem_ids)
-{
-    std::set<int> elem_ids_set;
-
-    auto eid_itr = elem_ids.children();
-    while (eid_itr.has_next())
-    {
-        const Node &mat_elem_ids = eid_itr.next();
-        const std::string matname = eid_itr.name();
-        int64_accessor mat_elem_ids_vals = mat_elem_ids.value();
-        const int num_vf = mat_elem_ids_vals.dtype().number_of_elements();
-        for (int i = 0; i < num_vf; i ++)
-        {
-            elem_ids_set.insert(mat_elem_ids_vals[i]);
-        }
-    }
-
-    return static_cast<int>(elem_ids_set.size());
-}
-
-//-----------------------------------------------------------------------------
 void
 walk_uni_buffer_by_element_to_multi_buffer_by_element(
     const conduit::Node &src_matset,
@@ -1814,7 +1791,7 @@ multi_buffer_by_material_to_multi_buffer_by_element_matset(const conduit::Node &
 
     create_sbm_rep(src_matset["element_ids"], src_matset["volume_fractions"], sbm_rep);
 
-    const int num_elems = determine_num_elems_in_multi_buffer_by_material(src_matset["element_ids"]);
+    const int num_elems = count_zones_from_matset(src_matset);
 
     sbm_rep_to_full(sbm_rep, num_elems, dest_matset["volume_fractions"]);
 }
@@ -1832,7 +1809,7 @@ multi_buffer_by_material_to_multi_buffer_by_element_field(const conduit::Node &s
 
     create_sbm_rep(src_matset["element_ids"], src_field["matset_values"], sbm_rep);
 
-    const int num_elems = determine_num_elems_in_multi_buffer_by_material(src_matset["element_ids"]);
+    const int num_elems = count_zones_from_matset(src_matset);
 
     sbm_rep_to_full(sbm_rep, num_elems, dest_field["matset_values"]);
 }
@@ -1850,7 +1827,7 @@ multi_buffer_by_material_to_multi_buffer_by_element_specset(const conduit::Node 
 
     create_sbm_specset_rep(src_matset["element_ids"], src_specset["matset_values"], sbm_rep);
 
-    const int num_elems = determine_num_elems_in_multi_buffer_by_material(src_matset["element_ids"]);
+    const int num_elems = count_zones_from_matset(src_matset);
 
     for (const auto &mapitem : sbm_rep)
     {
@@ -1900,7 +1877,7 @@ multi_buffer_by_material_to_uni_buffer_by_element_matset(const conduit::Node &sr
 
     create_sbm_rep(src_matset["element_ids"], src_matset["volume_fractions"], sbm_rep);
 
-    const int num_elems = determine_num_elems_in_multi_buffer_by_material(src_matset["element_ids"]);
+    const int num_elems = count_zones_from_matset(src_matset);
 
     // There is no way to pack the volume fractions correctly without
     // first knowing the sizes. So we create an intermediate representation
@@ -1966,7 +1943,7 @@ multi_buffer_by_material_to_uni_buffer_by_element_field(const conduit::Node &src
 
     create_sbm_rep(src_matset["element_ids"], src_field["matset_values"], sbm_rep);
 
-    const int num_elems = determine_num_elems_in_multi_buffer_by_material(src_matset["element_ids"]);
+    const int num_elems = count_zones_from_matset(src_matset);
 
     // There is no way to pack the matset values correctly without
     // first knowing the sizes. So we create an intermediate representation
@@ -2028,7 +2005,7 @@ multi_buffer_by_material_to_uni_buffer_by_element_specset(const conduit::Node &s
     }
 
     // fetch the number of elements
-    const int num_elems = determine_num_elems_in_multi_buffer_by_material(src_matset["element_ids"]);
+    const int num_elems = count_zones_from_matset(src_matset);
 
     // There is no way to pack the matset values correctly without
     // first knowing the sizes. So we create an intermediate representation
@@ -2083,54 +2060,44 @@ multi_buffer_by_material_to_uni_buffer_by_element_specset(const conduit::Node &s
 // -- end conduit::blueprint::mesh::matset::detail --
 //-----------------------------------------------------------------------------
 
-//-------------------------------------------------------------------------
-// this will use set external if the matmap already exists
+//-----------------------------------------------------------------------------
 void
-create_or_reuse_material_map(const conduit::Node &matset,
-                             conduit::Node &material_map)
+to_silo(const conduit::Node &matset,
+        conduit::Node &dest,
+        const float64 epsilon)
 {
-    // extra seat belt here
-    if (! matset.dtype().is_object())
+    // extra seat belt here b/c we want to avoid folks entering
+    // the detail version of to_silo with surprising results.
+
+    if(!matset.dtype().is_object() )
     {
-        CONDUIT_ERROR("blueprint::mesh::matset::create_or_reuse_material_map"
-                      " passed matset node must be a valid matset tree.");
+        CONDUIT_ERROR("blueprint::mesh::matset::to_silo passed matset node"
+                      " must be a valid matset tree.");
     }
 
-    material_map.reset();
+    conduit::Node field;
 
-    if (matset.has_child("material_map"))
-    {
-        material_map.set_external(matset["material_map"]);
-    }
-    else
-    {
-        detail::create_material_map(matset, material_map);
-    }
+    detail::to_silo(field,
+                    matset,
+                    dest,
+                    epsilon);
 }
 
-//-------------------------------------------------------------------------
-// this will use set if the matmap already exists
-void
-create_or_copy_material_map(const conduit::Node &matset,
-                            conduit::Node &material_map)
+//-----------------------------------------------------------------------------
+// TODO I want this function gone
+std::map<int, std::string>
+create_reverse_material_map(const conduit::Node &src_material_map)
 {
-    // extra seat belt here
-    if (! matset.dtype().is_object())
+    std::map<int, std::string> reverse_matmap;
+    // fill out map
+    auto matmap_itr = src_material_map.children();
+    while (matmap_itr.has_next())
     {
-        CONDUIT_ERROR("blueprint::mesh::matset::create_or_reuse_material_map"
-                      " passed matset node must be a valid matset tree.");
+        const Node &matmap_entry = matmap_itr.next();
+        const std::string matname = matmap_itr.name();
+        reverse_matmap[matmap_entry.to_int()] = matname;
     }
-
-    material_map.reset();
-
-    if (matset.has_child("material_map"))
-    {
-        material_map.set(matset["material_map"]);
-    }
-    else
-    {
-        detail::create_material_map(matset, material_map);
-    }
+    return reverse_matmap;
 }
 
 //-------------------------------------------------------------------------
@@ -2184,7 +2151,7 @@ renumber_material_ids(conduit::Node &matset)
             index_t_accessor mat_ids = matset["material_ids"].as_index_t_accessor();
             for (index_t i = 0; i < mat_ids.number_of_elements(); i ++)
             {
-                const int old_mat_id = mat_ids[i];
+                const index_t old_mat_id = mat_ids[i];
                 mat_ids.set(i, old_to_new.at(old_mat_id));
             }
         }
@@ -2192,7 +2159,7 @@ renumber_material_ids(conduit::Node &matset)
         else
         {
             CONDUIT_ERROR("conduit::blueprint::mesh::matset::renumber_material_ids() "
-                          "material-dominant uni-buffer material set is unsupported.")
+                          "material-dominant uni-buffer material set is unsupported.");
         }
     }
     else // multi-buffer case
@@ -2211,43 +2178,54 @@ renumber_material_ids(conduit::Node &matset)
     }
 }
 
-//-----------------------------------------------------------------------------
+//-------------------------------------------------------------------------
+// this will use set external if the matmap already exists
 void
-to_silo(const conduit::Node &matset,
-        conduit::Node &dest,
-        const float64 epsilon)
+create_or_reuse_material_map(const conduit::Node &matset,
+                             conduit::Node &material_map)
 {
-    // extra seat belt here b/c we want to avoid folks entering
-    // the detail version of to_silo with surprising results.
-
-    if(!matset.dtype().is_object() )
+    // extra seat belt here
+    if (! matset.dtype().is_object())
     {
-        CONDUIT_ERROR("blueprint::mesh::matset::to_silo passed matset node"
-                      " must be a valid matset tree.");
+        CONDUIT_ERROR("blueprint::mesh::matset::create_or_reuse_material_map"
+                      " passed matset node must be a valid matset tree.");
     }
 
-    conduit::Node field;
+    material_map.reset();
 
-    detail::to_silo(field,
-                    matset,
-                    dest,
-                    epsilon);
+    if (matset.has_child("material_map"))
+    {
+        material_map.set_external(matset["material_map"]);
+    }
+    else
+    {
+        detail::create_material_map(matset, material_map);
+    }
 }
 
-//-----------------------------------------------------------------------------
-std::map<int, std::string>
-create_reverse_material_map(const conduit::Node &src_material_map)
+//-------------------------------------------------------------------------
+// this will use set if the matmap already exists
+void
+create_or_copy_material_map(const conduit::Node &matset,
+                            conduit::Node &material_map)
 {
-    std::map<int, std::string> reverse_matmap;
-    // fill out map
-    auto matmap_itr = src_material_map.children();
-    while (matmap_itr.has_next())
+    // extra seat belt here
+    if (! matset.dtype().is_object())
     {
-        const Node &matmap_entry = matmap_itr.next();
-        const std::string matname = matmap_itr.name();
-        reverse_matmap[matmap_entry.to_int()] = matname;
+        CONDUIT_ERROR("blueprint::mesh::matset::create_or_copy_material_map"
+                      " passed matset node must be a valid matset tree.");
     }
-    return reverse_matmap;
+
+    material_map.reset();
+
+    if (matset.has_child("material_map"))
+    {
+        material_map.set(matset["material_map"]);
+    }
+    else
+    {
+        detail::create_material_map(matset, material_map);
+    }
 }
 
 //-------------------------------------------------------------------------
@@ -2289,7 +2267,23 @@ count_zones_from_matset(const conduit::Node &matset)
         // venn sparse by material
         if (multi_buffer)
         {
-            return detail::determine_num_elems_in_multi_buffer_by_material(matset["element_ids"]);
+            // take the maximum element id
+            index_t running_max = 0;
+
+            auto eid_itr = matset["element_ids"].children();
+            while (eid_itr.has_next())
+            {
+                const Node &mat_elem_ids = eid_itr.next();
+                index_t_accessor mat_elem_ids_vals = mat_elem_ids.value();
+                const index_t num_vf = mat_elem_ids_vals.dtype().number_of_elements();
+                for (index_t i = 0; i < num_vf; i ++)
+                {
+                    const index_t element_id = mat_elem_ids_vals[i];
+                    running_max = std::max(running_max, element_id + 1);
+                }
+            }
+
+            return running_max;
         }
         // material-dominant uni-buffer
         else
@@ -2351,7 +2345,7 @@ count_materials_from_matset(const conduit::Node &matset)
 bool 
 is_material_in_zone(const conduit::Node &matset,
                     const std::string &matname,
-                    const index_t zone_id,
+                    const index_t elem_id,
                     const float64 epsilon)
 {
     // extra seat belt here
@@ -2360,64 +2354,76 @@ is_material_in_zone(const conduit::Node &matset,
         CONDUIT_ERROR("blueprint::mesh::matset::is_material_in_zone"
                       " passed matset node must be a valid matset tree.");
     }
-    // full
-    if (is_element_dominant(matset) && is_multi_buffer(matset))
+
+    if (is_uni_buffer(matset))
     {
-        if (matset["volume_fractions"].has_child(matname))
+        if (is_element_dominant(matset))
         {
-            const float64_accessor vfs = matset["volume_fractions"][matname].value();
-            return vfs[zone_id] > epsilon;
-        }
-        else
-        {
-            // obviously the material is not present in the zone; it is not
-            // present in the matset
-            return false;
-        }
-    }
-    // sparse_by_element
-    else if (is_element_dominant(matset))
-    {
-        const index_t_accessor sizes = matset["sizes"].value();
-        const index_t_accessor offsets = matset["offsets"].value();
-        const index_t_accessor material_ids = matset["material_ids"].value();
-        const index_t size = sizes[zone_id];
-        const index_t offset = offsets[zone_id];
-        std::map<int, std::string> reverse_matmap = mesh::matset::create_reverse_material_map(matset["material_map"]);
-        // look at materials in this zone
-        for (index_t idx = 0; idx < size; idx ++)
-        {
-            const index_t mat_id = material_ids[idx + offset];
-            const std::string &curr_matname = reverse_matmap.at(mat_id);
-            if (curr_matname == matname)
+            if (matset["material_map"].has_child(matname))
             {
-                // we found the right material in this zone
-                return true;
+                const index_t mat_id = matset["material_map"][matname].to_index_t();
+                MatsetAccessor m_acc = MatsetAccessor(matset);
+                const index_t num_mats_in_elem = m_acc.num_mats_for_elem(elem_id);
+                for (index_t mat_idx = 0; mat_idx < num_mats_in_elem; mat_idx ++)
+                {
+                    const index_t curr_mat_id = m_acc.get_mat_id(elem_id, mat_idx);
+                    if (curr_mat_id == mat_id)
+                    {
+                        // we found the right material in this zone
+                        return true;
+                    }
+                }
+                // not found in this zone
+                return false;
+            }
+            else
+            {
+                // obviously the material is not present in the zone; it is not
+                // present in the matset
+                return false;
             }
         }
-        // not found in this zone
-        return false;
-    }
-    // sparse_by_material
-    else if (is_material_dominant(matset))
-    {
-        if (matset["element_ids"].has_child(matname))
+        else // material-dominant
         {
-            const index_t_accessor elem_ids = matset["element_ids"][matname].value();
-            return elem_ids.count(zone_id) > 0;
-        }
-        else
-        {
-            // obviously the material is not present in the zone; it is not
-            // present in the matset
+            // unsupported uni-buffer by material
+            CONDUIT_ERROR("conduit::blueprint::mesh::matset::is_material_in_zone() "
+                          "material-dominant uni-buffer material set is unsupported.");
             return false;
         }
     }
-    else
+    else // multi-buffer
     {
-        CONDUIT_ERROR("Unknown matset type.");
+        if (is_element_dominant(matset))
+        {
+            // full
+            if (matset["volume_fractions"].has_child(matname))
+            {
+                const float64_accessor vfs = matset["volume_fractions"][matname].value();
+                return vfs[elem_id] > epsilon;
+            }
+            else
+            {
+                // obviously the material is not present in the zone; it is not
+                // present in the matset
+                return false;
+            }
+        }
+        else // material-dominant
+        {
+            // sparse_by_material
+            if (matset["element_ids"].has_child(matname))
+            {
+                const index_t_accessor elem_ids = matset["element_ids"][matname].value();
+                return elem_ids.count(elem_id) > 0;
+            }
+            else
+            {
+                // obviously the material is not present in the zone; it is not
+                // present in the matset
+                return false;
+            }
+        }
     }
-    return false;
 }
 
 //-----------------------------------------------------------------------------
@@ -2606,130 +2612,6 @@ to_uni_buffer_by_material(const conduit::Node &src_matset,
 namespace specset
 {
 //-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-index_t
-get_num_species_for_material(const conduit::Node &specset,
-                             const std::string &matname)
-{
-    if (is_multi_buffer(specset))
-    {
-        if (specset["matset_values"].has_child(matname))
-        {
-            return specset["matset_values"][matname].number_of_children();
-        }
-        else
-        {
-            return 0;
-        }
-    }
-    else // uni buffer
-    {
-        if (specset["species_names"].has_child(matname))
-        {
-            return specset["species_names"][matname].number_of_children();
-        }
-        else
-        {
-            return 0;
-        }
-    }
-}
-
-//-----------------------------------------------------------------------------
-void
-get_material_names(const conduit::Node &specset,
-                   std::vector<std::string> &matnames)
-{
-    // extra seat belt here
-    if (! specset.dtype().is_object())
-    {
-        CONDUIT_ERROR("blueprint::mesh::specset::get_material_names"
-                      " passed specset node must be a valid specset tree.");
-    }
-
-    if (is_multi_buffer(specset))
-    {
-        matnames = specset["matset_values"].child_names();
-    }
-    else // uni buffer
-    {
-        matnames = specset["species_names"].child_names();
-    }
-}
-
-//-------------------------------------------------------------------------
-// this will use set external if the species_names already exist
-void
-create_or_reuse_species_names(const conduit::Node &specset,
-                             conduit::Node &species_names)
-{
-    // extra seat belt here
-    if (! specset.dtype().is_object())
-    {
-        CONDUIT_ERROR("blueprint::mesh::specset::create_or_reuse_species_names"
-                      " passed specset node must be a valid specset tree.");
-    }
-
-    species_names.reset();
-
-    if (specset.has_child("species_names"))
-    {
-        species_names.set_external(specset["species_names"]);
-    }
-    else
-    {
-        conduit::blueprint::mesh::matset::detail::create_species_names(specset, species_names);
-    }
-}
-
-//-------------------------------------------------------------------------
-// this will use set if the species_names already exist
-void
-create_or_copy_species_names(const conduit::Node &specset,
-                            conduit::Node &species_names)
-{
-    // extra seat belt here
-    if (! specset.dtype().is_object())
-    {
-        CONDUIT_ERROR("blueprint::mesh::specset::create_or_copy_species_names"
-                      " passed specset node must be a valid specset tree.");
-    }
-
-    species_names.reset();
-
-    if (specset.has_child("species_names"))
-    {
-        species_names.set(specset["species_names"]);
-    }
-    else
-    {
-        conduit::blueprint::mesh::matset::detail::create_species_names(specset, species_names);
-    }
-}
-
-//-------------------------------------------------------------------------
-index_t 
-count_materials_from_specset(const conduit::Node &specset)
-{
-    // extra seat belt here
-    if (! specset.dtype().is_object())
-    {
-        CONDUIT_ERROR("blueprint::mesh::specset::count_materials_from_specset"
-                      " passed specset node must be a valid specset tree.");
-    }
-
-    if (is_multi_buffer(specset))
-    {
-        return specset["matset_values"].number_of_children();
-    }
-    else
-    {
-        return specset["species_names"].number_of_children();
-    }
-
-    return -1;
-}
-
 //-----------------------------------------------------------------------------
 void
 to_silo(const conduit::Node &specset,
@@ -3268,6 +3150,130 @@ to_uni_buffer_by_material(const conduit::Node &src_matset,
     (void) epsilon;
     CONDUIT_ERROR("blueprint::mesh::specset::to_uni_buffer_by_material() "
                   "converting from a material-dominant uni-buffer material/species set is unsupported.");
+}
+
+//-----------------------------------------------------------------------------
+index_t
+get_num_species_for_material(const conduit::Node &specset,
+                             const std::string &matname)
+{
+    if (is_multi_buffer(specset))
+    {
+        if (specset["matset_values"].has_child(matname))
+        {
+            return specset["matset_values"][matname].number_of_children();
+        }
+        else
+        {
+            return 0;
+        }
+    }
+    else // uni buffer
+    {
+        if (specset["species_names"].has_child(matname))
+        {
+            return specset["species_names"][matname].number_of_children();
+        }
+        else
+        {
+            return 0;
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+void
+get_material_names(const conduit::Node &specset,
+                   std::vector<std::string> &matnames)
+{
+    // extra seat belt here
+    if (! specset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::specset::get_material_names"
+                      " passed specset node must be a valid specset tree.");
+    }
+
+    if (is_multi_buffer(specset))
+    {
+        matnames = specset["matset_values"].child_names();
+    }
+    else // uni buffer
+    {
+        matnames = specset["species_names"].child_names();
+    }
+}
+
+//-------------------------------------------------------------------------
+// this will use set external if the species_names already exist
+void
+create_or_reuse_species_names(const conduit::Node &specset,
+                             conduit::Node &species_names)
+{
+    // extra seat belt here
+    if (! specset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::specset::create_or_reuse_species_names"
+                      " passed specset node must be a valid specset tree.");
+    }
+
+    species_names.reset();
+
+    if (specset.has_child("species_names"))
+    {
+        species_names.set_external(specset["species_names"]);
+    }
+    else
+    {
+        conduit::blueprint::mesh::matset::detail::create_species_names(specset, species_names);
+    }
+}
+
+//-------------------------------------------------------------------------
+// this will use set if the species_names already exist
+void
+create_or_copy_species_names(const conduit::Node &specset,
+                            conduit::Node &species_names)
+{
+    // extra seat belt here
+    if (! specset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::specset::create_or_copy_species_names"
+                      " passed specset node must be a valid specset tree.");
+    }
+
+    species_names.reset();
+
+    if (specset.has_child("species_names"))
+    {
+        species_names.set(specset["species_names"]);
+    }
+    else
+    {
+        conduit::blueprint::mesh::matset::detail::create_species_names(specset, species_names);
+    }
+}
+
+//-------------------------------------------------------------------------
+index_t 
+count_materials_from_specset(const conduit::Node &specset)
+{
+    // extra seat belt here
+    if (! specset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::specset::count_materials_from_specset"
+                      " passed specset node must be a valid specset tree.");
+    }
+
+    if (is_multi_buffer(specset))
+    {
+        return specset["matset_values"].number_of_children();
+    }
+    else
+    {
+        return specset["species_names"].number_of_children();
+    }
+
+    return -1;
 }
 
 //-----------------------------------------------------------------------------
