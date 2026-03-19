@@ -249,8 +249,6 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_basic)
     }
     Node &mset = mesh["matsets/matset"];
 
-    mset.print();
-
     Node silo, info;
     blueprint::mesh::matset::to_silo(mset, silo);
     std::cout << silo.to_yaml() << std::endl;
