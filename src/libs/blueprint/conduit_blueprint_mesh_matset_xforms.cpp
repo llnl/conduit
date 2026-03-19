@@ -573,7 +573,7 @@ store_material_specset_data_for_elem_to_silo_arrays(
     index_t &current_position,
     index_t &current_spec_position)
 {
-    // if zone is clean
+    // if element is clean
     if (1 == num_mats_in_elem)
     {
         const index_t matno = local_material_ids[0];
@@ -601,7 +601,7 @@ store_material_specset_data_for_elem_to_silo_arrays(
         }
         current_spec_position += num_species_for_this_material;
     }
-    // if zone is mixed
+    // if element is mixed
     else
     {
         // a negated 1-index into the mixed arrays
@@ -612,7 +612,7 @@ store_material_specset_data_for_elem_to_silo_arrays(
         // (same as the matlist array)
         speclist[elem_id] = matlist_entry;
 
-        // for mixed zones, the numbers in the speclist are negated 1-indices into
+        // for mixed elements, the numbers in the speclist are negated 1-indices into
         // the silo mixed data arrays. To turn them into zero-indices, we must add
         // 1 and negate the result. Example:
         // indices: -1 -2 -3 -4 ...
@@ -675,11 +675,12 @@ store_material_field_data_for_elem_to_silo_arrays(
     std::vector<float64> &field_mixvar_values,
     index_t &current_position)
 {
-    // if zone is clean
+    // if element is clean
     if (1 == num_mats_in_elem)
     {
         matlist[elem_id] = local_material_ids[0];
     }
+    // if element is mixed
     else
     {
         // a negated 1-index into the mixed arrays
@@ -721,11 +722,12 @@ store_material_data_for_elem_to_silo_arrays(
     std::vector<index_t> &mix_next,
     index_t &current_position)
 {
-    // if zone is clean
+    // if element is clean
     if (1 == num_mats_in_elem)
     {
         matlist[elem_id] = local_material_ids[0];
     }
+    // if element is mixed
     else
     {
         // a negated 1-index into the mixed arrays
