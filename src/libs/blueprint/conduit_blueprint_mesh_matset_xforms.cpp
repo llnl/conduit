@@ -557,6 +557,100 @@ create_species_names(const conduit::Node &specset,
 
 //-----------------------------------------------------------------------------
 void
+store_material_data_for_elem_to_silo_arrays(
+    const index_t &num_mats_in_elem,
+    const index_t_array &local_material_ids,
+    const float64_array &local_volume_fractions,
+    const index_t elem_id,
+    index_t_array &matlist,
+    std::vector<float64> &mix_vf,
+    std::vector<index_t> &mix_mat,
+    std::vector<index_t> &mix_next,
+    index_t &current_position)
+{
+    // if element is clean
+    if (1 == num_mats_in_elem)
+    {
+        matlist[elem_id] = local_material_ids[0];
+    }
+    // if element is mixed
+    else
+    {
+        // a negated 1-index into the mixed arrays
+        matlist[elem_id] = -1 * current_position;
+
+        for (index_t mat = 0; mat < num_mats_in_elem; mat ++)
+        {
+            const index_t curr_mat_id = local_material_ids[mat];
+            const float64 curr_vol_frac = local_volume_fractions[mat];
+
+            mix_vf.push_back(curr_vol_frac);
+            mix_mat.push_back(curr_mat_id);
+
+            current_position ++;
+            if (mat + 1 == num_mats_in_elem)
+            {
+                mix_next.push_back(0);
+            }
+            else
+            {
+                mix_next.push_back(current_position);
+            }
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+void
+store_material_field_data_for_elem_to_silo_arrays(
+    const index_t &num_mats_in_elem,
+    const index_t_array &local_material_ids,
+    const float64_array &local_volume_fractions,
+    const float64_array &local_matset_values,
+    const index_t elem_id,
+    index_t_array &matlist,
+    std::vector<float64> &mix_vf,
+    std::vector<index_t> &mix_mat,
+    std::vector<index_t> &mix_next,
+    std::vector<float64> &field_mixvar_values,
+    index_t &current_position)
+{
+    // if element is clean
+    if (1 == num_mats_in_elem)
+    {
+        matlist[elem_id] = local_material_ids[0];
+    }
+    // if element is mixed
+    else
+    {
+        // a negated 1-index into the mixed arrays
+        matlist[elem_id] = -1 * current_position;
+
+        for (index_t mat = 0; mat < num_mats_in_elem; mat ++)
+        {
+            const index_t curr_mat_id = local_material_ids[mat];
+            const float64 curr_vol_frac = local_volume_fractions[mat];
+            const float64 curr_mset_val = local_matset_values[mat];
+
+            mix_vf.push_back(curr_vol_frac);
+            mix_mat.push_back(curr_mat_id);
+            field_mixvar_values.push_back(curr_mset_val);
+
+            current_position ++;
+            if (mat + 1 == num_mats_in_elem)
+            {
+                mix_next.push_back(0);
+            }
+            else
+            {
+                mix_next.push_back(current_position);
+            }
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+void
 store_material_specset_data_for_elem_to_silo_arrays(
     const index_t &num_mats_in_elem,
     const index_t_array &local_material_ids,
@@ -656,100 +750,6 @@ store_material_specset_data_for_elem_to_silo_arrays(
                 mix_spec.push_back(current_spec_position);
             }
             current_spec_position += num_species_for_this_material;
-        }
-    }
-}
-
-//-----------------------------------------------------------------------------
-void
-store_material_field_data_for_elem_to_silo_arrays(
-    const index_t &num_mats_in_elem,
-    const index_t_array &local_material_ids,
-    const float64_array &local_volume_fractions,
-    const float64_array &local_matset_values,
-    const index_t elem_id,
-    index_t_array &matlist,
-    std::vector<float64> &mix_vf,
-    std::vector<index_t> &mix_mat,
-    std::vector<index_t> &mix_next,
-    std::vector<float64> &field_mixvar_values,
-    index_t &current_position)
-{
-    // if element is clean
-    if (1 == num_mats_in_elem)
-    {
-        matlist[elem_id] = local_material_ids[0];
-    }
-    // if element is mixed
-    else
-    {
-        // a negated 1-index into the mixed arrays
-        matlist[elem_id] = -1 * current_position;
-
-        for (index_t mat = 0; mat < num_mats_in_elem; mat ++)
-        {
-            const index_t curr_mat_id = local_material_ids[mat];
-            const float64 curr_vol_frac = local_volume_fractions[mat];
-            const float64 curr_mset_val = local_matset_values[mat];
-
-            mix_vf.push_back(curr_vol_frac);
-            mix_mat.push_back(curr_mat_id);
-            field_mixvar_values.push_back(curr_mset_val);
-
-            current_position ++;
-            if (mat + 1 == num_mats_in_elem)
-            {
-                mix_next.push_back(0);
-            }
-            else
-            {
-                mix_next.push_back(current_position);
-            }
-        }
-    }
-}
-
-//-----------------------------------------------------------------------------
-void
-store_material_data_for_elem_to_silo_arrays(
-    const index_t &num_mats_in_elem,
-    const index_t_array &local_material_ids,
-    const float64_array &local_volume_fractions,
-    const index_t elem_id,
-    index_t_array &matlist,
-    std::vector<float64> &mix_vf,
-    std::vector<index_t> &mix_mat,
-    std::vector<index_t> &mix_next,
-    index_t &current_position)
-{
-    // if element is clean
-    if (1 == num_mats_in_elem)
-    {
-        matlist[elem_id] = local_material_ids[0];
-    }
-    // if element is mixed
-    else
-    {
-        // a negated 1-index into the mixed arrays
-        matlist[elem_id] = -1 * current_position;
-
-        for (index_t mat = 0; mat < num_mats_in_elem; mat ++)
-        {
-            const index_t curr_mat_id = local_material_ids[mat];
-            const float64 curr_vol_frac = local_volume_fractions[mat];
-
-            mix_vf.push_back(curr_vol_frac);
-            mix_mat.push_back(curr_mat_id);
-
-            current_position ++;
-            if (mat + 1 == num_mats_in_elem)
-            {
-                mix_next.push_back(0);
-            }
-            else
-            {
-                mix_next.push_back(current_position);
-            }
         }
     }
 }
