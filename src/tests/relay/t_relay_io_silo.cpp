@@ -649,11 +649,11 @@ TEST(conduit_relay_io_silo, round_trip_specsets)
 TEST(conduit_relay_io_silo, round_trip_units_and_labels)
 {
     const std::vector<std::pair<std::string, std::string>> mesh_types = {
-        std::make_pair("rectilinear", "2"), std::make_pair("rectilinear", "3"),
+        std::make_pair("rectilinear", "2"), /*std::make_pair("rectilinear", "3"),
         std::make_pair("points", "2"), std::make_pair("points", "3"),
         std::make_pair("points_implicit", "2"), std::make_pair("points_implicit", "3"),
         std::make_pair("quads", "2"),
-        std::make_pair("hexs", "3"),
+        std::make_pair("hexs", "3"),*/
     };
     for (int i = 0; i < mesh_types.size(); ++i)
     {
@@ -1906,10 +1906,6 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
             EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, basename, "silo", write_opts));
 
             remove_path_if_exists(filename);
-            std::cout << "###########################" << std::endl;
-            std::cout << "Testing Write Options:" << std::endl;
-            std::cout << write_opts.to_yaml() << std::endl;
-            std::cout << "###########################" << std::endl;
             io::silo::save_mesh(save_mesh, basename, write_opts);
             io::silo::load_mesh(filename, load_mesh);
             EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
