@@ -27,7 +27,6 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Added field data to the `conduit::blueprint::mpi::mesh::to_polygonal()` transformation, including communication of vertex data on hanging nodes.
 - Added `conduit::blueprint::mesh::specset::to_multi_buffer_full()`, `conduit::blueprint::mesh::specset::to_uni_buffer_by_element()`, and `conduit::blueprint::mesh::specset::to_multi_buffer_by_material()`, which are converters that take species sets between the three supported species set/material set representations.
 - Added `conduit::blueprint::mesh::specset::is_multi_buffer()`, `conduit::blueprint::mesh::specset::is_uni_buffer()`, `conduit::blueprint::mesh::specset::get_num_species_for_material()`, and `conduit::blueprint::mesh::specset::get_material_names()`, which are simple species set utilities.
-- Fixed `conduit::blueprint::mesh::utils::topology::compute_mesh_info()` so it does not generate a floating point exception when processing 1-d meshes under the Intel 25 compiler with C++20.
 - Added `conduit::blueprint::mesh::matset::MatsetAccessor`, a class for fetching material set/field/species set data independent of material set layout. It provides methods that fetch data for zone id and material id pairs (or zone id, material id, species id triples).
 - Added `conduit::blueprint::mesh::matset::create_or_reuse_material_map()`, which will shallow copy or create a material map for a provided material set.
 - Added `conduit::blueprint::mesh::matset::create_or_copy_material_map()`, which will deep copy or create a material map for a provided material set.
@@ -48,6 +47,8 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Blueprint
 - Removed previously deprecated `quads_and_tris` and `hexs_and_tets` mesh types from `braid` in `blueprint::mesh::examples`.
 - Renamed `conduit::blueprint::mesh::matset::to_multi_buffer_full()` to `conduit::blueprint::mesh::matset::to_multi_buffer_by_element()`.
+- Material Set conversion routines (`to_multi_buffer_by_element()`, `to_uni_buffer_by_element()`, and `to_multi_buffer_by_material()`) are now sensitive to optionally included material maps for all cases. If included, they will provide converted matsets with the material map.
+- Field/Species Set conversion routines (`to_multi_buffer_by_element()`, `to_uni_buffer_by_element()`, and `to_multi_buffer_by_material()`) previously forced materials to appear in the same order in fields/specsets as they do in the associated material set. This restriction has been relaxed.
 
 #### Relay
 - Updates to use Silo 4.12 and HDF5 2.0.0.
@@ -65,6 +66,8 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 #### Blueprint
 - Fixed an issue with material set conversions where uni-buffer by material matsets would incorrectly follow the same path as multi-buffer by material matsets.
+- Fixed `conduit::blueprint::mesh::utils::topology::compute_mesh_info()` so it does not generate a floating point exception when processing 1-d meshes under the Intel 25 compiler with C++20.
+- Modified all material set transforms and helper functions to make them robust to all 4 material set layout types.
 
 #### Relay
 - Fixed a bug preventing multiple species sets from being written when writing to Overlink.

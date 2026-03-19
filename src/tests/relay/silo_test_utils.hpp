@@ -128,6 +128,13 @@ silo_name_changer(const std::string &mmesh_name,
 
             const std::string old_topo_name = n_matset["topology"].as_string();
 
+            if (! n_matset.has_child("material_map"))
+            {
+                Node material_map;
+                conduit::blueprint::mesh::matset::create_or_reuse_material_map(n_matset, material_map);
+                n_matset["material_map"].set(material_map);
+            }
+
             if (old_to_new_names.find(old_topo_name) == old_to_new_names.end())
             {
                 continue;
@@ -370,6 +377,13 @@ overlink_name_changer(conduit::Node &save_mesh)
         // really can only have one. So we assume one.
         Node &n_matset = save_mesh["matsets"].children().next();
         const std::string matset_name = n_matset.name();
+
+        if (! n_matset.has_child("material_map"))
+        {
+            Node material_map;
+            conduit::blueprint::mesh::matset::create_or_reuse_material_map(n_matset, material_map);
+            n_matset["material_map"].set(material_map);
+        }
 
         // use new topo name
         n_matset["topology"].reset();
