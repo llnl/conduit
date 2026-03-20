@@ -6533,10 +6533,9 @@ bool silo_write_matset(DBfile *dbfile,
     const std::string silo_meshname = write_overlink ? "MESH" : topo_name;
 
     // use to_silo utility to create the needed silo arrays
-    // cache all of these for later (in case we are writing specsets. If not, it doesn't hurt)
-    Node &silo_matset = n_mesh_info["matsets"][matset_name]["silo_matset"];
-    Node &silo_matset_compact = n_mesh_info["matsets"][matset_name]["silo_matset_compact"];
-    Node &silo_mix_vfs_final = n_mesh_info["matsets"][matset_name]["silo_mix_vfs_final"];
+    Node silo_matset;
+    Node silo_matset_compact;
+    Node silo_mix_vfs_final;
     conduit::blueprint::mesh::matset::to_silo(n_matset, silo_matset);
 
     // compact the arrays if necessary
@@ -6636,6 +6635,7 @@ bool silo_write_matset(DBfile *dbfile,
 void silo_write_specset(DBfile *dbfile,
                         const std::string &specset_name,
                         const Node &n_specset,
+                        const Node &n_matset,
                         const std::string &matset_name,
                         const bool write_overlink,
                         const int local_num_domains,
@@ -6686,11 +6686,9 @@ void silo_write_specset(DBfile *dbfile,
         return;
     }
 
-    const Node &silo_matset = n_mesh_info["matsets"][matset_name]["silo_matset_compact"];
-
     // TODO remove this once we add support for all specset flavors to to_silo
-    if (silo_matset["buffer_style"].as_string() != "multi" ||
-        silo_matset["dominance"].as_string() != "element")
+    if (conduit::blueprint::mesh::matset::is_uni_buffer(n_matset) ||
+        conduit::blueprint::mesh::matset::is_material_dominant(n_matset))
     {
         CONDUIT_INFO("TODO Currently specsets can only be saved to silo if "
                      "they are multi_buffer + element_dominant.");
@@ -6698,7 +6696,7 @@ void silo_write_specset(DBfile *dbfile,
     }
 
     Node silo_specset;
-    conduit::blueprint::mesh::specset::to_silo(n_specset, silo_matset, silo_specset);
+    conduit::blueprint::mesh::specset::to_silo(n_specset, n_matset, silo_specset);
 
     // get the datatype of the species_mf
     const int datatype = DB_DOUBLE; // to_silo produces species_mf data using float64s
@@ -6938,12 +6936,14 @@ void silo_mesh_write(DBfile *dbfile,
                               << "/matset: " << matset_name);
                 continue;
             }
+            const Node &n_matset = mesh_domain["matsets"][matset_name];
             const std::string topo_name = n_mesh_info["matsets"][matset_name]["topo_name"].as_string();
             if (! write_overlink || topo_name == ovl_topo_name)
             {
                 silo_write_specset(dbfile,
                                    specset_name,
                                    n_specset,
+                                   n_matset,
                                    matset_name,
                                    write_overlink,
                                    local_num_domains,

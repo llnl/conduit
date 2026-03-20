@@ -2270,12 +2270,12 @@ create_or_copy_material_map(const conduit::Node &matset,
 
 //-------------------------------------------------------------------------
 index_t 
-count_zones_from_matset(const conduit::Node &matset)
+count_elements_from_matset(const conduit::Node &matset)
 {
     // extra seat belt here
     if (! matset.dtype().is_object())
     {
-        CONDUIT_ERROR("blueprint::mesh::matset::count_zones_in_matset"
+        CONDUIT_ERROR("blueprint::mesh::matset::count_elements_from_matset"
                       " passed matset node must be a valid matset tree.");
     }
 
@@ -2299,6 +2299,31 @@ count_zones_from_matset(const conduit::Node &matset)
         // venn sparse by element
         else
         {
+            o2mrelation::O2MIndex o2m_idx = o2mrelation::O2MIndex(matset);
+            const index_t o2m_size = o2m_idx.size();
+            if (o2m_size == 0)
+            {
+                // is the size actually zero, or is it just that
+                // the o2m_idx doesn't have sufficient information
+                // to get the real size?
+                if (! matset.has_child("sizes") &&
+                    ! matset.has_child("offsets") &&
+                    ! matset.has_child("indices"))
+                {
+                    // the o2m_idx has no way of knowing the true
+                    // size since we are in the trivial o2m case
+                    return matset["volume_fractions"].dtype().number_of_elements();
+                }
+                else
+                {
+                    // the size really was zero, so we can return zero.
+                    return o2m_size;
+                }
+            }
+            else
+            {
+                return o2m_size;
+            }
             return matset["sizes"].dtype().number_of_elements();
         }
     }
@@ -2328,7 +2353,7 @@ count_zones_from_matset(const conduit::Node &matset)
         // material-dominant uni-buffer
         else
         {
-            CONDUIT_ERROR("blueprint::mesh::matset::count_zones_in_matset() "
+            CONDUIT_ERROR("blueprint::mesh::matset::count_elements_from_matset() "
                           "material-dominant uni-buffer material set is unsupported.");
         }
     }
