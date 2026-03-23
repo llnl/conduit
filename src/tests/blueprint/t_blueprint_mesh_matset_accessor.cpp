@@ -14,6 +14,7 @@
 #include "conduit_blueprint_mesh_matset_accessor.hpp"
 
 #include <algorithm>
+#include <memory>
 #include <vector>
 #include <string>
 #include "gtest/gtest.h"
@@ -78,6 +79,39 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_constructions)
 
         EXPECT_EQ(1, m_acc.num_spec_for_mat(0, 0));
     }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_copy_lifetime)
+{
+    const index_t nx = 4, ny = 4;
+    const float64 radius = 0.25;
+
+    Node mesh;
+    blueprint::mesh::examples::venn_specsets("full", nx, ny, radius, mesh);
+
+    const Node &mset = mesh["matsets/matset"];
+    const Node &sset = mesh["specsets/specset"];
+
+    std::unique_ptr<MatsetAccessor> copied;
+    MatsetAccessor assigned;
+
+    {
+        MatsetAccessor source(mset, sset);
+        copied.reset(new MatsetAccessor(source));
+        assigned = source;
+    }
+
+    for (index_t mat_idx = 0; mat_idx < copied->num_mats(); mat_idx ++)
+    {
+        EXPECT_EQ(mat_idx, copied->get_mat_id(0, mat_idx));
+        EXPECT_EQ(mat_idx, assigned.get_mat_id(0, mat_idx));
+    }
+
+    EXPECT_EQ(1, copied->num_spec_for_mat(0, 0));
+    EXPECT_EQ(1, assigned.num_spec_for_mat(0, 0));
+    EXPECT_EQ(2, copied->num_spec_for_mat(0, 1));
+    EXPECT_EQ(2, assigned.num_spec_for_mat(0, 1));
 }
 
 //-----------------------------------------------------------------------------
