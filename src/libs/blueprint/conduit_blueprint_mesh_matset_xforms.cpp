@@ -1253,7 +1253,6 @@ to_silo(const conduit::Node &matset,
     //
     // save the results
     //
-    dest["matlist"].set(matlist);
     dest["mix_vf"].set(mix_vf);
     dest["mix_mat"].set(mix_mat);
     dest["mix_next"].set(mix_next);
