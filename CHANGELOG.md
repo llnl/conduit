@@ -69,6 +69,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Fixed an issue with material set conversions where uni-buffer by material matsets would incorrectly follow the same path as multi-buffer by material matsets.
 - Fixed `conduit::blueprint::mesh::utils::topology::compute_mesh_info()` so it does not generate a floating point exception when processing 1-d meshes under the Intel 25 compiler with C++20.
 - Modified all material set transforms and helper functions to make them robust to all 4 material set layout types.
+- Fixed a bug with the `conduit::blueprint::mesh::partition()` partitioner where providing multi-buffer element-dominant material sets yielded malformed multi-buffer material-dominant resulting material sets.
 - Fixed a bug with `conduit::blueprint::mesh::matset::count_elements_from_matset()` where uni-buffer by element-matsets with a trivial one-to-many relationship would throw an error instead of correctly computing the number of elements.
 
 #### Relay
