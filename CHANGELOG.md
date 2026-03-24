@@ -51,6 +51,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Field/Species Set conversion routines (`to_multi_buffer_by_element()`, `to_uni_buffer_by_element()`, and `to_multi_buffer_by_material()`) previously forced materials to appear in the same order in fields/specsets as they do in the associated material set. This restriction has been relaxed.
 - Renamed `conduit::blueprint::mesh::matset::count_zones_from_matset()` to `conduit::blueprint::mesh::matset::count_elements_from_matset()`.
 - Updated `conduit::blueprint::o2mrelation::O2MIndex` such that the number of "ones" in the one-to-many relationship is precomputed when the object is created. The number of "ones" is computed by using the `size()` method from an `O2MIndex`. If an `O2MIndex` is created but `sizes`, `offsets`, and `indices` are not present, then the `O2MIndex` constructor will examine the provided `Node` and search for data arrays to determine the number of "ones". If all data arrays in the provided `Node` have the same number of elements, then that number is assumed to be the number of "ones". If there is disagreement or there are no data arrays present, then the `O2MIndex` throws an error, as the number of "ones" is ambiguous or unknowable.
+- TODO note about to_silo
 
 #### Relay
 - Updates to use Silo 4.12 and HDF5 2.0.0.
