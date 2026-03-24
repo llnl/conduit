@@ -353,9 +353,9 @@ private:
 
     // universal members
     // these are members that are useful for all layout types
-    Node m_nmatspec;
-    index_t_accessor m_nmatspec_acc;
-    index_t_accessor m_nmatspec_offsets_acc;
+    Node m_internal_data;
+    index_t_accessor m_internal_nmatspec;
+    index_t_accessor m_internal_nmatspec_offsets;
 
     // multi-buffer (full AND sparse by material) members
     std::vector<float64_accessor> m_multi_vol_fracs;
