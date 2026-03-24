@@ -8,6 +8,7 @@
 ///
 //-----------------------------------------------------------------------------
 #include <sstream>
+#include <set>
 
 #include "conduit_blueprint_o2mrelation.hpp"
 #include "conduit_blueprint_o2mrelation_index.hpp"
@@ -52,17 +53,55 @@ O2MIndex::O2MIndex()
 //---------------------------------------------------------------------------//
 O2MIndex::O2MIndex(const Node *node)
 {
-    if (node->has_child("sizes"))
+    if (! node->has_child("sizes") &&
+        ! node->has_child("offsets") &&
+        ! node->has_child("indices"))
     {
-        m_sizes_acc = (*node)["sizes"].as_index_t_accessor();
+        std::set<index_t> candidate_sizes;
+        auto nodeIter = node->children();
+        while (nodeIter.has_next())
+        {
+            const Node &child = nodeIter.next();
+            if (child.dtype().is_number())
+            {
+                candidate_sizes.insert(child.dtype().number_of_elements());
+            }
+        }
+        if (candidate_sizes.size() == 1)
+        {
+            num_ones = *candidate_sizes.begin();
+        }
+        else
+        {
+            // we couldn't compute a size
+            CONDUIT_ERROR("O2MIndex::O2MIndex(): failed to compute the number "
+                          "of ones in the o2m relation. o2m relation is ambiguous "
+                          "or poorly specified.");
+        }
     }
-    if(node->has_child("indices"))
+    else
     {
-        m_indices_acc = (*node)["indices"].as_index_t_accessor();
-    }
-    if(node->has_child("offsets"))
-    {
-        m_offsets_acc = (*node)["offsets"].as_index_t_accessor();
+        if (node->has_child("sizes"))
+        {
+            m_sizes_acc = (*node)["sizes"].as_index_t_accessor();
+        }
+        if(node->has_child("indices"))
+        {
+            m_indices_acc = (*node)["indices"].as_index_t_accessor();
+        }
+        if(node->has_child("offsets"))
+        {
+            m_offsets_acc = (*node)["offsets"].as_index_t_accessor();
+        }
+
+        if(m_offsets_acc.number_of_elements() > 0)
+        {
+            num_ones = m_offsets_acc.number_of_elements();
+        }
+        else if (m_indices_acc.number_of_elements() > 0)
+        {
+            num_ones = m_indices_acc.number_of_elements();
+        }
     }
 }
 
@@ -128,15 +167,13 @@ O2MIndex::info(Node &res) const
 index_t
 O2MIndex::index(index_t one_index, index_t many_index) const
 {
-    index_t index = 0;
-
     index_t offset = one_index;
     if(m_offsets_acc.number_of_elements() > 0)
     {
         offset = m_offsets_acc[one_index];
     }
 
-    index = offset;
+    index_t index = offset;
     if(m_indices_acc.number_of_elements() > 0)
     {
         index = m_indices_acc[offset + many_index];
@@ -158,14 +195,7 @@ O2MIndex::size(index_t one_index) const
 
     if(one_index == -1)
     {
-        if(m_offsets_acc.number_of_elements() > 0)
-        {
-            nelements = m_offsets_acc.number_of_elements();
-        }
-        else if (m_indices_acc.number_of_elements() > 0)
-        {
-            nelements = m_indices_acc.number_of_elements();
-        }
+        return num_ones;
     }
     else
     {
@@ -217,5 +247,3 @@ O2MIndex::offset(index_t one_index) const
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-
-
