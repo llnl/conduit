@@ -140,13 +140,12 @@ MatsetAccessor::MatsetAccessor(const MatsetAccessor &m_acc)
   m_num_mats(m_acc.m_num_mats),
   m_has_field(m_acc.m_has_field),
   m_has_specset(m_acc.m_has_specset),
+  m_internal_data(m_acc.m_internal_data),
   m_multi_vol_fracs(m_acc.m_multi_vol_fracs),
   m_multi_mset_vals(m_acc.m_multi_mset_vals),
-  m_multi_mat_idx_map(m_acc.m_multi_mat_idx_map),
   m_multi_mass_fracs(m_acc.m_multi_mass_fracs),
   m_sbm_elem_ids(m_acc.m_sbm_elem_ids),
   m_sbe_material_ids(m_acc.m_sbe_material_ids),
-  m_sbe_mat_order_ids(m_acc.m_sbe_mat_order_ids),
   m_sbe_vol_fracs(m_acc.m_sbe_vol_fracs),
   m_sbe_mset_vals(m_acc.m_sbe_mset_vals),
   m_sbe_o2m_idx(m_acc.m_sbe_o2m_idx),
@@ -177,13 +176,12 @@ MatsetAccessor::operator=(const MatsetAccessor &m_acc)
         m_num_mats = m_acc.m_num_mats;
         m_has_field = m_acc.m_has_field;
         m_has_specset = m_acc.m_has_specset;
+        m_internal_data = m_acc.m_internal_data;
         m_multi_vol_fracs = m_acc.m_multi_vol_fracs;
         m_multi_mset_vals = m_acc.m_multi_mset_vals;
-        m_multi_mat_idx_map = m_acc.m_multi_mat_idx_map;
         m_multi_mass_fracs = m_acc.m_multi_mass_fracs;
         m_sbm_elem_ids = m_acc.m_sbm_elem_ids;
         m_sbe_material_ids = m_acc.m_sbe_material_ids;
-        m_sbe_mat_order_ids = m_acc.m_sbe_mat_order_ids;
         m_sbe_vol_fracs = m_acc.m_sbe_vol_fracs;
         m_sbe_mset_vals = m_acc.m_sbe_mset_vals;
         m_sbe_o2m_idx = m_acc.m_sbe_o2m_idx;
@@ -209,11 +207,11 @@ MatsetAccessor::rebind_internal_accessors()
     }
     if (m_internal_data.has_child("multi_mat_idx_map"))
     {
-        m_multi_mat_idx_map_acc = m_internal_data["multi_mat_idx_map"].value();
+        m_internal_multi_mat_idx_map = m_internal_data["multi_mat_idx_map"].value();
     }
-    if (m_internal_data.has_child("nmatspec_offsets"))
+    if (m_internal_data.has_child("sbe_mat_order_ids"))
     {
-        m_sbe_mat_order_ids_acc = m_internal_data["sbe_mat_order_ids"].value();
+        m_internal_sbe_mat_order_ids = m_internal_data["sbe_mat_order_ids"].value();
     }
 }
 
@@ -276,8 +274,8 @@ MatsetAccessor::init(const Node &matset,
             // save material order ids
             //
             const index_t num_vol_fracs = matset["volume_fractions"].dtype().number_of_elements();
-            m_sbe_mat_order_ids.set(DataType::index_t(num_vol_fracs));
-            m_sbe_mat_order_ids_acc = m_sbe_mat_order_ids.value();
+            m_internal_data["sbe_mat_order_ids"].set(DataType::index_t(num_vol_fracs));
+            m_internal_sbe_mat_order_ids = m_internal_data["sbe_mat_order_ids"].value();
             // create a map from material id to material order id
             std::map<index_t, index_t> mat_id_to_order_id;
             for (index_t mat_idx = 0; mat_idx < m_num_mats; mat_idx ++)
@@ -290,7 +288,7 @@ MatsetAccessor::init(const Node &matset,
             {
                 const index_t mat_id = m_sbe_material_ids[vf_elem];
                 const index_t mat_order_id = mat_id_to_order_id.at(mat_id);
-                m_sbe_mat_order_ids_acc.set(vf_elem, mat_order_id);
+                m_internal_sbe_mat_order_ids.set(vf_elem, mat_order_id);
             }
 
             if (nullptr != field)
@@ -541,8 +539,8 @@ MatsetAccessor::init(const Node &matset,
         // we save an indirection array from material order id (the order materials appear
         // in the matset) to actual material id. Not all material sets are numbered from
         // 0 to N-1, so we must support this case.
-        m_multi_mat_idx_map.set(DataType::index_t(m_num_mats));
-        m_multi_mat_idx_map_acc = m_multi_mat_idx_map.value();
+        m_internal_data["multi_mat_idx_map"].set(DataType::index_t(m_num_mats));
+        m_internal_multi_mat_idx_map = m_internal_data["multi_mat_idx_map"].value();
 
         if (nullptr != specset)
         {
@@ -584,7 +582,7 @@ MatsetAccessor::init(const Node &matset,
             const index_t mat_id = matmap_entry.to_index_t();
 
             // save material map entry
-            m_multi_mat_idx_map_acc.set(mat_idx, mat_id);
+            m_internal_multi_mat_idx_map.set(mat_idx, mat_id);
 
             // save volume fraction array
             m_multi_vol_fracs.push_back(matset["volume_fractions"][matname].value());
@@ -670,7 +668,7 @@ index_t
 MatsetAccessor::get_full_mat_id(const index_t elem_idx, const index_t mat_idx) const
 {
     (void) elem_idx;
-    return m_multi_mat_idx_map_acc[mat_idx];
+    return m_internal_multi_mat_idx_map[mat_idx];
 }
 
 //-----------------------------------------------------------------------------
@@ -731,7 +729,7 @@ index_t
 MatsetAccessor::get_sbm_mat_id(const index_t elem_idx, const index_t mat_idx) const
 {
     (void) elem_idx;
-    return m_multi_mat_idx_map_acc[mat_idx];
+    return m_internal_multi_mat_idx_map[mat_idx];
 }
 
 //-----------------------------------------------------------------------------
@@ -806,7 +804,7 @@ index_t
 MatsetAccessor::get_sbe_mat_order_id(const index_t elem_idx, const index_t mat_idx) const
 {
     const index_t data_index = m_sbe_o2m_idx.index(elem_idx, mat_idx);
-    return m_sbe_mat_order_ids_acc[data_index];
+    return m_internal_sbe_mat_order_ids[data_index];
 }
 
 //-----------------------------------------------------------------------------
