@@ -1991,12 +1991,12 @@ create_or_copy_material_map(const conduit::Node &matset,
 
 //-------------------------------------------------------------------------
 index_t 
-count_zones_from_matset(const conduit::Node &matset)
+count_elements_from_matset(const conduit::Node &matset)
 {
     // extra seat belt here
     if (! matset.dtype().is_object())
     {
-        CONDUIT_ERROR("blueprint::mesh::matset::count_zones_in_matset"
+        CONDUIT_ERROR("blueprint::mesh::matset::count_elements_from_matset"
                       " passed matset node must be a valid matset tree.");
     }
 
@@ -2050,7 +2050,7 @@ count_zones_from_matset(const conduit::Node &matset)
         // material-dominant uni-buffer
         else
         {
-            CONDUIT_ERROR("blueprint::mesh::matset::count_zones_in_matset() "
+            CONDUIT_ERROR("blueprint::mesh::matset::count_elements_from_matset() "
                           "material-dominant uni-buffer material set is unsupported.");
         }
     }

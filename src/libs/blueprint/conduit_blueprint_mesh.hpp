@@ -857,7 +857,7 @@ namespace matset
     // materials.
     void CONDUIT_BLUEPRINT_API renumber_material_ids(conduit::Node &matset);
     //-------------------------------------------------------------------------
-    index_t CONDUIT_BLUEPRINT_API count_zones_from_matset(const conduit::Node &matset);
+    index_t CONDUIT_BLUEPRINT_API count_elements_from_matset(const conduit::Node &matset);
     //-------------------------------------------------------------------------
     index_t CONDUIT_BLUEPRINT_API count_materials_from_matset(const conduit::Node &matset);
     //-------------------------------------------------------------------------

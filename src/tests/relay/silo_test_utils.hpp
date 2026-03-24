@@ -183,7 +183,7 @@ silo_name_changer(const std::string &mmesh_name,
 
             const std::string &new_matset_name = old_to_new_names[old_matset_name];
             const Node &n_matset = save_mesh["matsets"][new_matset_name];
-            const int num_zones = blueprint::mesh::matset::count_zones_from_matset(n_matset);
+            const int num_zones = blueprint::mesh::matset::count_elements_from_matset(n_matset);
             Node &matset_values = n_specset["matset_values"];
 
             // we must modify the specset; see note below
@@ -409,7 +409,7 @@ overlink_name_changer(conduit::Node &save_mesh)
             // later, we will need to add functionality here
 
             const Node &n_matset = save_mesh["matsets"]["MMATERIAL"];
-            const int num_zones = blueprint::mesh::matset::count_zones_from_matset(n_matset);
+            const int num_zones = blueprint::mesh::matset::count_elements_from_matset(n_matset);
             Node &matset_values = n_specset["matset_values"];
 
             // we must modify the specset; see note below
