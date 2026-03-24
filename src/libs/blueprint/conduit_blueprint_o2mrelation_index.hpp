@@ -106,7 +106,7 @@ private:
 //-----------------------------------------------------------------------------
 
     // we precompute the number of ones so we can quickly return it later
-    index_t num_ones;
+    index_t m_num_ones;
 
 //-----------------------------------------------------------------------------
 /// Index state/fields.
