@@ -49,8 +49,8 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Renamed `conduit::blueprint::mesh::matset::to_multi_buffer_full()` to `conduit::blueprint::mesh::matset::to_multi_buffer_by_element()`.
 - Material Set conversion routines (`to_multi_buffer_by_element()`, `to_uni_buffer_by_element()`, and `to_multi_buffer_by_material()`) are now sensitive to optionally included material maps for all cases. If included, they will provide converted matsets with the material map.
 - Field/Species Set conversion routines (`to_multi_buffer_by_element()`, `to_uni_buffer_by_element()`, and `to_multi_buffer_by_material()`) previously forced materials to appear in the same order in fields/specsets as they do in the associated material set. This restriction has been relaxed.
-- Renamed `conduit::blueprint::mesh::matset::count_zones_from_matset()` to `conduit::blueprint::mesh::matset::count_elements_from_matset()`.
 - Updated `conduit::blueprint::o2mrelation::O2MIndex` such that the number of "ones" in the one-to-many relationship is precomputed when the object is created. The number of "ones" is computed by using the `size()` method from an `O2MIndex`. If an `O2MIndex` is created but `sizes`, `offsets`, and `indices` are not present, then the `O2MIndex` constructor will examine the provided `Node` and search for data arrays to determine the number of "ones". If all data arrays in the provided `Node` have the same number of elements, then that number is assumed to be the number of "ones". If there is disagreement or there are no data arrays present, then the `O2MIndex` throws an error, as the number of "ones" is ambiguous or unknowable.
+- Renamed `conduit::blueprint::mesh::matset::count_zones_from_matset()` to `conduit::blueprint::mesh::matset::count_elements_from_matset()`.
 - TODO note about to_silo
 
 #### Relay
@@ -71,8 +71,8 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Fixed an issue with material set conversions where uni-buffer by material matsets would incorrectly follow the same path as multi-buffer by material matsets.
 - Fixed `conduit::blueprint::mesh::utils::topology::compute_mesh_info()` so it does not generate a floating point exception when processing 1-d meshes under the Intel 25 compiler with C++20.
 - Modified all material set transforms and helper functions to make them robust to all 4 material set layout types.
-- Fixed a bug with `conduit::blueprint::mesh::matset::count_elements_from_matset()` where uni-buffer by element-matsets with a trivial one-to-many relationship would throw an error instead of correctly computing the number of elements.
 - Fixed a bug with the `conduit::blueprint::mesh::partition()` partitioner where providing multi-buffer element-dominant material sets yielded malformed multi-buffer material-dominant resulting material sets.
+- Fixed a bug with `conduit::blueprint::mesh::matset::count_elements_from_matset()` where uni-buffer by element-matsets with a trivial one-to-many relationship would throw an error instead of correctly computing the number of elements.
 
 #### Relay
 - Fixed a bug preventing multiple species sets from being written when writing to Overlink.

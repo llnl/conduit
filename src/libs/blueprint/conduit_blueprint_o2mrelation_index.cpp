@@ -53,6 +53,7 @@ O2MIndex::O2MIndex()
 //---------------------------------------------------------------------------//
 O2MIndex::O2MIndex(const Node *node)
 {
+    m_num_ones = 0;
     if (! node->has_child("sizes") &&
         ! node->has_child("offsets") &&
         ! node->has_child("indices"))
@@ -69,7 +70,7 @@ O2MIndex::O2MIndex(const Node *node)
         }
         if (candidate_sizes.size() == 1)
         {
-            num_ones = *candidate_sizes.begin();
+            m_num_ones = *candidate_sizes.begin();
         }
         else
         {
@@ -96,11 +97,11 @@ O2MIndex::O2MIndex(const Node *node)
 
         if(m_offsets_acc.number_of_elements() > 0)
         {
-            num_ones = m_offsets_acc.number_of_elements();
+            m_num_ones = m_offsets_acc.number_of_elements();
         }
         else if (m_indices_acc.number_of_elements() > 0)
         {
-            num_ones = m_indices_acc.number_of_elements();
+            m_num_ones = m_indices_acc.number_of_elements();
         }
     }
 }
@@ -112,7 +113,8 @@ O2MIndex::O2MIndex(const Node &node)
 
 //---------------------------------------------------------------------------//
 O2MIndex::O2MIndex(const O2MIndex &itr)
-: m_sizes_acc(itr.m_sizes_acc),
+: m_num_ones(itr.m_num_ones),
+  m_sizes_acc(itr.m_sizes_acc),
   m_indices_acc(itr.m_indices_acc),
   m_offsets_acc(itr.m_offsets_acc)
 { }
@@ -123,6 +125,7 @@ O2MIndex::operator=(const O2MIndex &itr)
 {
     if(this != &itr)
     {
+        m_num_ones = itr.m_num_ones;
         m_sizes_acc = itr.m_sizes_acc;
         m_indices_acc = itr.m_indices_acc;
         m_offsets_acc = itr.m_offsets_acc;
@@ -195,7 +198,7 @@ O2MIndex::size(index_t one_index) const
 
     if(one_index == -1)
     {
-        return num_ones;
+        return m_num_ones;
     }
     else
     {
@@ -247,5 +250,3 @@ O2MIndex::offset(index_t one_index) const
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-
-
