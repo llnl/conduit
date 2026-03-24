@@ -244,6 +244,7 @@ private:
     void init(const Node &matset,
               const Node *field,
               const Node *specset);
+    void rebind_internal_accessors();
 
     //
     // Per layout implementations, only declarations here

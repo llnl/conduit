@@ -141,23 +141,21 @@ MatsetAccessor::MatsetAccessor(const MatsetAccessor &m_acc)
   m_has_field(m_acc.m_has_field),
   m_has_specset(m_acc.m_has_specset),
   m_nmatspec(m_acc.m_nmatspec),
-  m_nmatspec_acc(m_acc.m_nmatspec_acc),
-  m_nmatspec_offsets_acc(m_acc.m_nmatspec_offsets_acc),
   m_multi_vol_fracs(m_acc.m_multi_vol_fracs),
   m_multi_mset_vals(m_acc.m_multi_mset_vals),
   m_multi_mat_idx_map(m_acc.m_multi_mat_idx_map),
-  m_multi_mat_idx_map_acc(m_acc.m_multi_mat_idx_map_acc),
   m_multi_mass_fracs(m_acc.m_multi_mass_fracs),
   m_sbm_elem_ids(m_acc.m_sbm_elem_ids),
   m_sbe_material_ids(m_acc.m_sbe_material_ids),
   m_sbe_mat_order_ids(m_acc.m_sbe_mat_order_ids),
-  m_sbe_mat_order_ids_acc(m_acc.m_sbe_mat_order_ids_acc),
   m_sbe_vol_fracs(m_acc.m_sbe_vol_fracs),
   m_sbe_mset_vals(m_acc.m_sbe_mset_vals),
   m_sbe_o2m_idx(m_acc.m_sbe_o2m_idx),
   m_sbe_mass_fracs(m_acc.m_sbe_mass_fracs),
   m_sbe_specset_o2m_idx(m_acc.m_sbe_specset_o2m_idx)
-{ }
+{
+    rebind_internal_accessors();
+}
 
 //---------------------------------------------------------------------------//
 MatsetAccessor &
@@ -181,24 +179,44 @@ MatsetAccessor::operator=(const MatsetAccessor &m_acc)
         m_has_field = m_acc.m_has_field;
         m_has_specset = m_acc.m_has_specset;
         m_nmatspec = m_acc.m_nmatspec;
-        m_nmatspec_acc = m_acc.m_nmatspec_acc;
-        m_nmatspec_offsets_acc = m_acc.m_nmatspec_offsets_acc;
         m_multi_vol_fracs = m_acc.m_multi_vol_fracs;
         m_multi_mset_vals = m_acc.m_multi_mset_vals;
         m_multi_mat_idx_map = m_acc.m_multi_mat_idx_map;
-        m_multi_mat_idx_map_acc = m_acc.m_multi_mat_idx_map_acc;
         m_multi_mass_fracs = m_acc.m_multi_mass_fracs;
         m_sbm_elem_ids = m_acc.m_sbm_elem_ids;
         m_sbe_material_ids = m_acc.m_sbe_material_ids;
         m_sbe_mat_order_ids = m_acc.m_sbe_mat_order_ids;
-        m_sbe_mat_order_ids_acc = m_acc.m_sbe_mat_order_ids_acc;
         m_sbe_vol_fracs = m_acc.m_sbe_vol_fracs;
         m_sbe_mset_vals = m_acc.m_sbe_mset_vals;
         m_sbe_o2m_idx = m_acc.m_sbe_o2m_idx;
         m_sbe_mass_fracs = m_acc.m_sbe_mass_fracs;
         m_sbe_specset_o2m_idx = m_acc.m_sbe_specset_o2m_idx;
+        rebind_internal_accessors();
     }
     return *this;
+}
+
+//-----------------------------------------------------------------------------
+void
+MatsetAccessor::rebind_internal_accessors()
+{
+    // Rebind accessors that point into Nodes owned by this accessor instance.
+    if (m_nmatspec.has_child("nmatspec"))
+    {
+        m_nmatspec_acc = m_nmatspec["nmatspec"].value();
+    }
+    if (m_nmatspec.has_child("nmatspec_offsets"))
+    {
+        m_nmatspec_offsets_acc = m_nmatspec["nmatspec_offsets"].value();
+    }
+    if (! m_multi_mat_idx_map.dtype().is_empty())
+    {
+        m_multi_mat_idx_map_acc = m_multi_mat_idx_map.value();
+    }
+    if (! m_sbe_mat_order_ids.dtype().is_empty())
+    {
+        m_sbe_mat_order_ids_acc = m_sbe_mat_order_ids.value();
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -988,4 +1006,3 @@ MatsetAccessor::get_error_nspec_for_mat(const index_t elem_idx, const index_t ma
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-
