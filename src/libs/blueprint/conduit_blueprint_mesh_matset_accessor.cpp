@@ -124,69 +124,69 @@ MatsetAccessor::MatsetAccessor(const Node &matset,
 }   
 
 //---------------------------------------------------------------------------//
-MatsetAccessor::MatsetAccessor(const MatsetAccessor &m_acc)
-: m_get_mat_id(m_acc.m_get_mat_id),
-  m_get_mat_order_id(m_acc.m_get_mat_order_id),
-  m_get_elem_id(m_acc.m_get_elem_id),
-  m_get_vol_frac(m_acc.m_get_vol_frac),
-  m_get_mset_val(m_acc.m_get_mset_val),
-  m_get_mass_frac(m_acc.m_get_mass_frac),
-  m_get_nmats_for_elem(m_acc.m_get_nmats_for_elem),
-  m_get_nelems_for_mat(m_acc.m_get_nelems_for_mat),
-  m_get_nspec_for_mat(m_acc.m_get_nspec_for_mat),
-  m_is_uni_buffer(m_acc.m_is_uni_buffer),
-  m_is_element_dominant(m_acc.m_is_element_dominant),
-  m_num_elems(m_acc.m_num_elems),
-  m_num_mats(m_acc.m_num_mats),
-  m_has_field(m_acc.m_has_field),
-  m_has_specset(m_acc.m_has_specset),
-  m_internal_data(m_acc.m_internal_data),
-  m_multi_vol_fracs(m_acc.m_multi_vol_fracs),
-  m_multi_mset_vals(m_acc.m_multi_mset_vals),
-  m_multi_mass_fracs(m_acc.m_multi_mass_fracs),
-  m_sbm_elem_ids(m_acc.m_sbm_elem_ids),
-  m_sbe_material_ids(m_acc.m_sbe_material_ids),
-  m_sbe_vol_fracs(m_acc.m_sbe_vol_fracs),
-  m_sbe_mset_vals(m_acc.m_sbe_mset_vals),
-  m_sbe_o2m_idx(m_acc.m_sbe_o2m_idx),
-  m_sbe_mass_fracs(m_acc.m_sbe_mass_fracs),
-  m_sbe_specset_o2m_idx(m_acc.m_sbe_specset_o2m_idx)
+MatsetAccessor::MatsetAccessor(const MatsetAccessor &other_matset_accessor)
+: m_get_mat_id(other_matset_accessor.m_get_mat_id),
+  m_get_mat_order_id(other_matset_accessor.m_get_mat_order_id),
+  m_get_elem_id(other_matset_accessor.m_get_elem_id),
+  m_get_vol_frac(other_matset_accessor.m_get_vol_frac),
+  m_get_mset_val(other_matset_accessor.m_get_mset_val),
+  m_get_mass_frac(other_matset_accessor.m_get_mass_frac),
+  m_get_nmats_for_elem(other_matset_accessor.m_get_nmats_for_elem),
+  m_get_nelems_for_mat(other_matset_accessor.m_get_nelems_for_mat),
+  m_get_nspec_for_mat(other_matset_accessor.m_get_nspec_for_mat),
+  m_is_uni_buffer(other_matset_accessor.m_is_uni_buffer),
+  m_is_element_dominant(other_matset_accessor.m_is_element_dominant),
+  m_num_elems(other_matset_accessor.m_num_elems),
+  m_num_mats(other_matset_accessor.m_num_mats),
+  m_has_field(other_matset_accessor.m_has_field),
+  m_has_specset(other_matset_accessor.m_has_specset),
+  m_internal_data(other_matset_accessor.m_internal_data),
+  m_multi_vol_fracs(other_matset_accessor.m_multi_vol_fracs),
+  m_multi_mset_vals(other_matset_accessor.m_multi_mset_vals),
+  m_multi_mass_fracs(other_matset_accessor.m_multi_mass_fracs),
+  m_sbm_elem_ids(other_matset_accessor.m_sbm_elem_ids),
+  m_sbe_material_ids(other_matset_accessor.m_sbe_material_ids),
+  m_sbe_vol_fracs(other_matset_accessor.m_sbe_vol_fracs),
+  m_sbe_mset_vals(other_matset_accessor.m_sbe_mset_vals),
+  m_sbe_o2m_idx(other_matset_accessor.m_sbe_o2m_idx),
+  m_sbe_mass_fracs(other_matset_accessor.m_sbe_mass_fracs),
+  m_sbe_specset_o2m_idx(other_matset_accessor.m_sbe_specset_o2m_idx)
 {
     rebind_internal_accessors();
 }
 
 //---------------------------------------------------------------------------//
 MatsetAccessor &
-MatsetAccessor::operator=(const MatsetAccessor &m_acc)
+MatsetAccessor::operator=(const MatsetAccessor &other_matset_accessor)
 {
-    if (this != &m_acc)
+    if (this != &other_matset_accessor)
     {
-        m_get_mat_id = m_acc.m_get_mat_id;
-        m_get_mat_order_id = m_acc.m_get_mat_order_id;
-        m_get_elem_id = m_acc.m_get_elem_id;
-        m_get_vol_frac = m_acc.m_get_vol_frac;
-        m_get_mset_val = m_acc.m_get_mset_val;
-        m_get_mass_frac = m_acc.m_get_mass_frac;
-        m_get_nmats_for_elem = m_acc.m_get_nmats_for_elem;
-        m_get_nelems_for_mat = m_acc.m_get_nelems_for_mat;
-        m_get_nspec_for_mat = m_acc.m_get_nspec_for_mat;
-        m_is_uni_buffer = m_acc.m_is_uni_buffer;
-        m_is_element_dominant = m_acc.m_is_element_dominant;
-        m_num_elems = m_acc.m_num_elems;
-        m_num_mats = m_acc.m_num_mats;
-        m_has_field = m_acc.m_has_field;
-        m_has_specset = m_acc.m_has_specset;
-        m_internal_data = m_acc.m_internal_data;
-        m_multi_vol_fracs = m_acc.m_multi_vol_fracs;
-        m_multi_mset_vals = m_acc.m_multi_mset_vals;
-        m_multi_mass_fracs = m_acc.m_multi_mass_fracs;
-        m_sbm_elem_ids = m_acc.m_sbm_elem_ids;
-        m_sbe_material_ids = m_acc.m_sbe_material_ids;
-        m_sbe_vol_fracs = m_acc.m_sbe_vol_fracs;
-        m_sbe_mset_vals = m_acc.m_sbe_mset_vals;
-        m_sbe_o2m_idx = m_acc.m_sbe_o2m_idx;
-        m_sbe_mass_fracs = m_acc.m_sbe_mass_fracs;
-        m_sbe_specset_o2m_idx = m_acc.m_sbe_specset_o2m_idx;
+        m_get_mat_id = other_matset_accessor.m_get_mat_id;
+        m_get_mat_order_id = other_matset_accessor.m_get_mat_order_id;
+        m_get_elem_id = other_matset_accessor.m_get_elem_id;
+        m_get_vol_frac = other_matset_accessor.m_get_vol_frac;
+        m_get_mset_val = other_matset_accessor.m_get_mset_val;
+        m_get_mass_frac = other_matset_accessor.m_get_mass_frac;
+        m_get_nmats_for_elem = other_matset_accessor.m_get_nmats_for_elem;
+        m_get_nelems_for_mat = other_matset_accessor.m_get_nelems_for_mat;
+        m_get_nspec_for_mat = other_matset_accessor.m_get_nspec_for_mat;
+        m_is_uni_buffer = other_matset_accessor.m_is_uni_buffer;
+        m_is_element_dominant = other_matset_accessor.m_is_element_dominant;
+        m_num_elems = other_matset_accessor.m_num_elems;
+        m_num_mats = other_matset_accessor.m_num_mats;
+        m_has_field = other_matset_accessor.m_has_field;
+        m_has_specset = other_matset_accessor.m_has_specset;
+        m_internal_data = other_matset_accessor.m_internal_data;
+        m_multi_vol_fracs = other_matset_accessor.m_multi_vol_fracs;
+        m_multi_mset_vals = other_matset_accessor.m_multi_mset_vals;
+        m_multi_mass_fracs = other_matset_accessor.m_multi_mass_fracs;
+        m_sbm_elem_ids = other_matset_accessor.m_sbm_elem_ids;
+        m_sbe_material_ids = other_matset_accessor.m_sbe_material_ids;
+        m_sbe_vol_fracs = other_matset_accessor.m_sbe_vol_fracs;
+        m_sbe_mset_vals = other_matset_accessor.m_sbe_mset_vals;
+        m_sbe_o2m_idx = other_matset_accessor.m_sbe_o2m_idx;
+        m_sbe_mass_fracs = other_matset_accessor.m_sbe_mass_fracs;
+        m_sbe_specset_o2m_idx = other_matset_accessor.m_sbe_specset_o2m_idx;
         rebind_internal_accessors();
     }
     return *this;
