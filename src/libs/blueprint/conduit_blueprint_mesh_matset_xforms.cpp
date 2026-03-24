@@ -2020,7 +2020,8 @@ count_elements_from_matset(const conduit::Node &matset)
         // venn sparse by element
         else
         {
-            return matset["sizes"].dtype().number_of_elements();
+            o2mrelation::O2MIndex o2m_idx = o2mrelation::O2MIndex(matset);
+            return o2m_idx.size();
         }
     }
     else
