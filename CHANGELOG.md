@@ -49,6 +49,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Renamed `conduit::blueprint::mesh::matset::to_multi_buffer_full()` to `conduit::blueprint::mesh::matset::to_multi_buffer_by_element()`.
 - Material Set conversion routines (`to_multi_buffer_by_element()`, `to_uni_buffer_by_element()`, and `to_multi_buffer_by_material()`) are now sensitive to optionally included material maps for all cases. If included, they will provide converted matsets with the material map.
 - Field/Species Set conversion routines (`to_multi_buffer_by_element()`, `to_uni_buffer_by_element()`, and `to_multi_buffer_by_material()`) previously forced materials to appear in the same order in fields/specsets as they do in the associated material set. This restriction has been relaxed.
+- Renamed `conduit::blueprint::mesh::matset::count_zones_from_matset()` to `conduit::blueprint::mesh::matset::count_elements_from_matset()`.
 
 #### Relay
 - Updates to use Silo 4.12 and HDF5 2.0.0.
@@ -69,6 +70,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Fixed `conduit::blueprint::mesh::utils::topology::compute_mesh_info()` so it does not generate a floating point exception when processing 1-d meshes under the Intel 25 compiler with C++20.
 - Modified all material set transforms and helper functions to make them robust to all 4 material set layout types.
 - Fixed a bug with the `conduit::blueprint::mesh::partition()` partitioner where providing multi-buffer element-dominant material sets yielded malformed multi-buffer material-dominant resulting material sets.
+- Fixed a bug with `conduit::blueprint::mesh::matset::count_elements_from_matset()` where uni-buffer by element-matsets with a trivial one-to-many relationship would throw an error instead of correctly computing the number of elements.
 
 #### Relay
 - Fixed a bug preventing multiple species sets from being written when writing to Overlink.

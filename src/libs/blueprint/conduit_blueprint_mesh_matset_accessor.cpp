@@ -240,7 +240,7 @@ MatsetAccessor::init(const Node &matset,
     m_is_uni_buffer       = matset::is_uni_buffer(matset);
     m_is_element_dominant = matset::is_element_dominant(matset);
 
-    m_num_elems = count_zones_from_matset(matset);
+    m_num_elems = count_elements_from_matset(matset);
     m_num_mats  = count_materials_from_matset(matset);
 
     Node material_map;
