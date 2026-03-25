@@ -353,15 +353,14 @@ private:
 
     // universal members
     // these are members that are useful for all layout types
-    Node m_nmatspec;
-    index_t_accessor m_nmatspec_acc;
-    index_t_accessor m_nmatspec_offsets_acc;
+    Node m_internal_data;
+    index_t_accessor m_internal_nmatspec; // points to internal data
+    index_t_accessor m_internal_nmatspec_offsets; // points to internal data
 
     // multi-buffer (full AND sparse by material) members
     std::vector<float64_accessor> m_multi_vol_fracs;
     std::vector<float64_accessor> m_multi_mset_vals;
-    Node m_multi_mat_idx_map; // multi-buffer material index map
-    index_t_accessor m_multi_mat_idx_map_acc;
+    index_t_accessor m_internal_multi_mat_idx_map; // points to internal data
     std::vector<float64_accessor> m_multi_mass_fracs;
     
     // multi-buffer material dominant (sparse by material) members
@@ -369,8 +368,7 @@ private:
 
     // uni-buffer element-dominant (sparse by element) members
     index_t_accessor m_sbe_material_ids;
-    Node m_sbe_mat_order_ids;
-    index_t_accessor m_sbe_mat_order_ids_acc;
+    index_t_accessor m_internal_sbe_mat_order_ids; // points to internal data
     float64_accessor m_sbe_vol_fracs;
     float64_accessor m_sbe_mset_vals;
     o2mrelation::O2MIndex m_sbe_o2m_idx;
