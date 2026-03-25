@@ -10,6 +10,7 @@
 
 //-----------------------------------------------------------------------------
 // std lib includes
+//-----------------------------------------------------------------------------
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -25,6 +26,7 @@
 #include "conduit_blueprint_o2mrelation_iterator.hpp"
 #include "conduit_blueprint_o2mrelation_index.hpp"
 #include "conduit_blueprint_mesh_matset_accessor.hpp"
+#include "conduit_annotations.hpp"
 
 using namespace conduit;
 // access conduit blueprint mesh utilities
@@ -769,6 +771,8 @@ to_silo(const conduit::Node &matset,
         conduit::Node &dest,
         const float64 epsilon)
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+
     // output includes the following:
     // for matsets:
     //  - topology

@@ -11,6 +11,7 @@
 #include "conduit.hpp"
 #include "conduit_blueprint.hpp"
 #include "conduit_log.hpp"
+#include "conduit_annotations.hpp"
 
 #include <algorithm>
 #include <vector>
@@ -1250,4 +1251,82 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_renumber_mat_ids)
         EXPECT_FALSE(renumbered_matset.diff(baseline, info, CONDUIT_EPSILON, true));
         EXPECT_FALSE(matset.diff(baseline, info, CONDUIT_EPSILON, true));
     }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_venn_to_silo_speed_test)
+{
+    auto to_silo_timings = [](int nx, int ny)
+    {
+        Node full_mesh, sbe_mesh, sbm_mesh;
+        const double radius = 0.25;
+
+        blueprint::mesh::examples::venn("full", nx, ny, radius, full_mesh);
+        blueprint::mesh::examples::venn("sparse_by_element", nx, ny, radius, sbe_mesh);
+        blueprint::mesh::examples::venn("sparse_by_material", nx, ny, radius, sbm_mesh);
+        
+        const Node &full_mset = full_mesh["matsets/matset"];
+        const Node &full_field = full_mesh["fields/importance"];
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+
+        CONDUIT_INFO("full")
+        {
+            annotations::initialize(cali_opts);
+
+            Node mset_silo, mset_silo_field;
+            blueprint::mesh::matset::to_silo(full_mset, mset_silo);
+            blueprint::mesh::field::to_silo(full_field,
+                                            full_mset,
+                                            mset_silo_field);
+
+            annotations::flush();
+            annotations::finalize();
+        }
+
+        const Node &sbe_mset = sbe_mesh["matsets/matset"];
+        const Node &sbe_field = sbe_mesh["fields/importance"];
+
+        CONDUIT_INFO("sparse_by_element")
+        {
+            annotations::initialize(cali_opts);
+
+            Node mset_silo, mset_silo_field;
+            blueprint::mesh::matset::to_silo(sbe_mset, mset_silo);
+            blueprint::mesh::field::to_silo(sbe_field,
+                                            sbe_mset,
+                                            mset_silo_field);
+
+            annotations::flush();
+            annotations::finalize();
+        }
+
+        const Node &sbm_mset = sbm_mesh["matsets/matset"];
+        const Node &sbm_field = sbm_mesh["fields/importance"];
+
+        CONDUIT_INFO("sparse_by_material")
+        {
+            annotations::initialize(cali_opts);
+
+            Node mset_silo, mset_silo_field;
+            blueprint::mesh::matset::to_silo(sbm_mset, mset_silo);
+            blueprint::mesh::field::to_silo(sbm_field,
+                                            sbm_mset,
+                                            mset_silo_field);
+
+            annotations::flush();
+            annotations::finalize();
+        }
+    };
+
+
+    CONDUIT_INFO("venn to silo 10x10");
+    to_silo_timings(10, 10);
+
+    CONDUIT_INFO("venn to silo 100x100");
+    to_silo_timings(100, 100);
+
+    CONDUIT_INFO("venn to silo 1000x1000");
+    to_silo_timings(1000, 1000);
 }
