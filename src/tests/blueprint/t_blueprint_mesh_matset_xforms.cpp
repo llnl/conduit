@@ -1254,6 +1254,124 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_renumber_mat_ids)
 }
 
 //-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_matset_xforms, mixed_field_vector_error)
+{
+    // multi-buffer case
+    {
+        Node matset, field;
+        const std::string yaml_text1 = 
+            "topology: \"topo\"\n"
+            "volume_fractions: \n"
+            "  background: [1.0, 1.0, 1.0, 0.0]\n"
+            "  circle_a: [0.0, 0.0, 0.0, 0.333333333333333]\n"
+            "  circle_b: [0.0, 0.0, 0.0, 0.333333333333333]\n"
+            "  circle_c: [0.0, 0.0, 0.0, 0.333333333333333]\n";
+        matset.parse(yaml_text1, "yaml");
+
+        const std::string yaml_text2 = 
+            "association: \"element\"\n"
+            "topology: \"topo\"\n"
+            "matset: \"matset\"\n"
+            "values:\n"
+            "  a: [0.0, 0.5, 0.5, 0.300000009437402]\n"
+            "  b: [0.0, 0.5, 0.5, 0.300000009437402]\n"
+            "matset_values: \n"
+            "  a:\n"
+            "    background: [0.0, 0.5, 0.5, 0.0]\n"
+            "    circle_a: [0.0, 0.0, 0.0, 0.100000001490116]\n"
+            "    circle_b: [0.0, 0.0, 0.0, 0.200000002980232]\n"
+            "    circle_c: [0.0, 0.0, 0.0, 0.600000023841858]\n"
+            "  b:\n"
+            "    background: [0.0, 0.5, 0.5, 0.0]\n"
+            "    circle_a: [0.0, 0.0, 0.0, 0.100000001490116]\n"
+            "    circle_b: [0.0, 0.0, 0.0, 0.200000002980232]\n"
+            "    circle_c: [0.0, 0.0, 0.0, 0.600000023841858]\n";
+        field.parse(yaml_text2, "yaml");
+
+        Node converted_field, matset_silo;
+        const std::string converted_matset_name = "matset2";
+
+        EXPECT_THROW(blueprint::mesh::field::to_multi_buffer_by_element(matset, 
+                                                                        field, 
+                                                                        converted_matset_name, 
+                                                                        converted_field),
+                     conduit::Error);
+
+        EXPECT_THROW(blueprint::mesh::field::to_multi_buffer_by_material(matset, 
+                                                                         field, 
+                                                                         converted_matset_name, 
+                                                                         converted_field),
+                     conduit::Error);
+
+        EXPECT_THROW(blueprint::mesh::field::to_uni_buffer_by_element(matset, 
+                                                                      field, 
+                                                                      converted_matset_name, 
+                                                                      converted_field),
+                     conduit::Error);
+
+        EXPECT_THROW(blueprint::mesh::field::to_silo(field,
+                                                     matset,
+                                                     matset_silo),
+                     conduit::Error);
+    }
+
+    // uni-buffer case
+    {
+        Node matset, field;
+        const std::string yaml_text1 = 
+            "topology: \"topo\"\n"
+            "material_map: \n"
+            "  circle_a: 1\n"
+            "  circle_b: 2\n"
+            "  circle_c: 3\n"
+            "  background: 0\n"
+            "volume_fractions: [1.0, 1.0, 1.0, 0.333333333333333, 0.333333333333333, 0.333333333333333]\n"
+            "material_ids: [0, 0, 0, 1, 2, 3]\n"
+            "sizes: [1, 1, 1, 3]\n"
+            "offsets: [0, 1, 2, 3]\n";
+        matset.parse(yaml_text1, "yaml");
+
+        const std::string yaml_text2 = 
+            "association: \"element\"\n"
+            "topology: \"topo\"\n"
+            "matset: \"matset\"\n"
+            "values:\n"
+            "  a: [0.0, 0.5, 0.5, 0.300000009437402]\n"
+            "  b: [0.0, 0.5, 0.5, 0.300000009437402]\n"
+            "matset_values:\n"
+            "  a: [0.0, 0.5, 0.5, 0.100000001490116, 0.200000002980232, 0.600000023841858]\n"
+            "  b: [0.0, 0.5, 0.5, 0.100000001490116, 0.200000002980232, 0.600000023841858]\n";
+        field.parse(yaml_text2, "yaml");
+
+        Node converted_field, matset_silo;
+        const std::string converted_matset_name = "matset2";
+
+        EXPECT_THROW(blueprint::mesh::field::to_multi_buffer_by_element(matset, 
+                                                                        field, 
+                                                                        converted_matset_name, 
+                                                                        converted_field),
+                     conduit::Error);
+
+        EXPECT_THROW(blueprint::mesh::field::to_multi_buffer_by_material(matset, 
+                                                                         field, 
+                                                                         converted_matset_name, 
+                                                                         converted_field),
+                     conduit::Error);
+
+        EXPECT_THROW(blueprint::mesh::field::to_uni_buffer_by_element(matset, 
+                                                                      field, 
+                                                                      converted_matset_name, 
+                                                                      converted_field),
+                     conduit::Error);
+
+        EXPECT_THROW(blueprint::mesh::field::to_silo(field,
+                                                     matset,
+                                                     matset_silo),
+                     conduit::Error);
+    }
+}
+
+//-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_venn_to_silo_speed_test)
 {
     auto to_silo_timings = [](int nx, int ny)
