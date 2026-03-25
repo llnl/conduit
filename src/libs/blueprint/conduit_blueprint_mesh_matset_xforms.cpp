@@ -555,6 +555,102 @@ create_species_names(const conduit::Node &specset,
     }
 }
 
+//-------------------------------------------------------------------------
+// returns true if we are in this case:
+// (multi-buffer case where vector components are first class)
+// field:
+//    topology: "topo"
+//    association: "element"
+//    values:
+//       a: [1,2,5,4,4,5,8,6]
+//       b: [1,2,5,4,4,5,8,6]
+//       ...
+//    matset: "mset"
+//    matset_values:
+//       a: 
+//          mat1: [1,1,234,32,4545,...]
+//          mat2: [1,1,234,32,4545,...]
+//       b:
+//          mat1: [1,1,234,32,4545,...]
+//          mat2: [1,1,234,32,4545,...]
+//       ...
+// OR
+// (multi-buffer case where materials are first class)
+// field:
+//    topology: "topo"
+//    association: "element"
+//    values:
+//       a: [1,2,5,4,4,5,8,6]
+//       b: [1,2,5,4,4,5,8,6]
+//       ...
+//    matset: "mset"
+//    matset_values:
+//       mat1:
+//          a: [1,1,234,32,4545,...]
+//          b: [1,1,234,32,4545,...]
+//          ...
+//       mat2: 
+//          a: [1,1,234,32,4545,...]
+//          b: [1,1,234,32,4545,...]
+//          ...
+// OR
+// (uni-buffer case with vector components)
+// field:
+//    topology: "topo"
+//    association: "element"
+//    values:
+//       a: [1,2,5,4,4,5,8,6]
+//       b: [1,2,5,4,4,5,8,6]
+//       ...
+//    matset: "mset"
+//    matset_values:
+//       a: [1,1,234,32,4545,...]
+//       b: [1,1,234,32,4545,...]
+//       ...
+bool
+detect_mixed_vector_field(const conduit::Node &matset,
+                          const conduit::Node &field)
+{
+    // extra seat belt here
+    if (! matset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::field::detect_mixed_vector_field"
+                      " passed matset node must be a valid matset tree.");
+    }
+
+    if (! field.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::field::detect_mixed_vector_field"
+                      " passed field node must be a valid field tree.");
+    }
+
+    // if this field is NOT material dependent
+    if (! field.has_child("matset_values"))
+    {
+        return false;
+    }
+
+    if (conduit::blueprint::mesh::matset::is_multi_buffer(matset))
+    {
+        if (field["matset_values"].number_of_children() > 0)
+        {
+            // it should be sufficient to check the first child
+            if (field["matset_values"].child(0).dtype().is_object())
+            {
+                return true;
+            }
+        }
+    }
+    else // uni-buffer
+    {
+        if (field["matset_values"].dtype().is_object())
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 //-----------------------------------------------------------------------------
 // Single implementation that supports the case where just matset
 // is passed, and the case where the field is passed.
@@ -3073,6 +3169,13 @@ to_silo(const conduit::Node &field,
                       " must be a valid matset tree.");
     }
 
+    if (conduit::blueprint::mesh::matset::detail::detect_mixed_vector_field(matset, field))
+    {
+        CONDUIT_ERROR("blueprint::mesh::field::to_silo"
+                      " Mixed (material-based) field with vector components is unsupported."
+                      " Please contact a Conduit developer.");
+    }
+
     conduit::blueprint::mesh::matset::detail::to_silo(field,
                                                       matset,
                                                       dest,
@@ -3107,6 +3210,13 @@ to_multi_buffer_by_element(const conduit::Node &src_matset,
         dest_field["matset"].reset();
         dest_field["matset"] = dest_matset_name;
         return;
+    }
+
+    if (conduit::blueprint::mesh::matset::detail::detect_mixed_vector_field(src_matset, src_field))
+    {
+        CONDUIT_ERROR("blueprint::mesh::field::to_multi_buffer_by_element"
+                      " Mixed (material-based) field with vector components is unsupported."
+                      " Please contact a Conduit developer.");
     }
 
     dest_field.reset();
@@ -3183,6 +3293,13 @@ to_uni_buffer_by_element(const conduit::Node &src_matset,
         return;
     }
 
+    if (conduit::blueprint::mesh::matset::detail::detect_mixed_vector_field(src_matset, src_field))
+    {
+        CONDUIT_ERROR("blueprint::mesh::field::to_uni_buffer_by_element"
+                      " Mixed (material-based) field with vector components is unsupported."
+                      " Please contact a Conduit developer.");
+    }
+
     dest_field.reset();
     conduit::blueprint::mesh::matset::detail::copy_matset_independent_parts_of_field(
         src_field,
@@ -3255,6 +3372,13 @@ to_multi_buffer_by_material(const conduit::Node &src_matset,
         dest_field["matset"].reset();
         dest_field["matset"] = dest_matset_name;
         return;
+    }
+
+    if (conduit::blueprint::mesh::matset::detail::detect_mixed_vector_field(src_matset, src_field))
+    {
+        CONDUIT_ERROR("blueprint::mesh::field::to_multi_buffer_by_material"
+                      " Mixed (material-based) field with vector components is unsupported."
+                      " Please contact a Conduit developer.");
     }
 
     dest_field.reset();
