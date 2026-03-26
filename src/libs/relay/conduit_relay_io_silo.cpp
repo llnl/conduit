@@ -5964,7 +5964,9 @@ void silo_write_ucd_zonelist(DBfile *dbfile,
     detail::conditional_compact(n_conn, n_conn_compact);
 
     const int conn_len = n_conn_compact.dtype().number_of_elements();
-    int *conn_ptr = n_conn_compact.value();
+
+    Node int_arrays;
+    detail::convert_to_c_int_array(n_conn_compact, int_arrays["conn_compact"]);
 
     n_mesh_info[topo_name]["num_elems"] = total_num_elems;
 
@@ -5974,20 +5976,20 @@ void silo_write_ucd_zonelist(DBfile *dbfile,
     const int ndims = n_mesh_info[topo_name]["ndims"].as_int();
 
     CONDUIT_CHECK_SILO_ERROR(
-        DBPutZonelist2(dbfile,             // silo file
-                       zlist_name.c_str(), // silo obj name
-                       total_num_elems,    // number of elements
-                       ndims,              // spatial dims
-                       conn_ptr,           // connectivity array
-                       conn_len,           // len of connectivity array
-                       0,                  // base offset
-                       0,                  // # ghosts low
-                       0,                  // # ghosts high
-                       shapetype.data(),   // list of shapes ids
-                       shapesize.data(),   // number of points per shape id
-                       shapecnt.data(),    // number of elements each shape id is used for
-                       num_shapes,         // number of shapes ids
-                       NULL),              // optlist
+        DBPutZonelist2(dbfile,                             // silo file
+                       zlist_name.c_str(),                 // silo obj name
+                       total_num_elems,                    // number of elements
+                       ndims,                              // spatial dims
+                       int_arrays["conn_compact"].value(), // connectivity array
+                       conn_len,                           // len of connectivity array
+                       0,                                  // base offset
+                       0,                                  // # ghosts low
+                       0,                                  // # ghosts high
+                       shapetype.data(),                   // list of shapes ids
+                       shapesize.data(),                   // number of points per shape id
+                       shapecnt.data(),                    // number of elements each shape id is used for
+                       num_shapes,                         // number of shapes ids
+                       NULL),                              // optlist
         "after saving ucd " + topo_shape + " topology");
 }
 
