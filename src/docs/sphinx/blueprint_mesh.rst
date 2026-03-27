@@ -548,13 +548,227 @@ Material Sets
 
 Materials Sets contain material name and volume fraction information defined over a specified mesh topology.
 
-A material set is a type of **o2mrelation** that houses per-material, per-element volume fractions that are defined over a referenced source topology.
 Each material set conforms to a schema variant based on:
 
- * The layout of its per-material buffers.
- * The indexing scheme used to associate volume fractions with topological elements.
+ * Single or multiple buffers for volume fraction data.
+ * Element or material dominance.
 
-The options for each of these variants are detailed in the following sections.
+These two choices yield four material set schema variants: **multi-buffer element-dominant** material sets, **multi-buffer material-dominant** material sets, **uni-buffer element-dominant** material sets, and **uni-buffer material-dominant** material sets.
+
+These variants are detailed in the following sections.
+All of the ensuing examples in this section were created using the ``venn`` Mesh Blueprint example:
+
+.. code:: cpp
+
+  Node mesh;
+  int nx = 4;
+  int ny = 4;
+  float64 radius = 0.25;
+  std::string matset_type = "full"; // "sparse_by_element", "sparse_by_material"
+  conduit::blueprint::mesh::examples::venn(matset_type, nx, ny, radius, mesh);
+
+Multi-Buffer Element-Dominant Material Sets
+===================================================
+
+A **multi-buffer** material set is a material set variant wherein the volume fraction data is split such that one buffer exists per material.
+An **element-dominant** material set is a material set variant wherein the volume fractions and material ids are grouped by element.
+It is easy to fetch information grouped by element and much harder to fetch information grouped by material in an **element-dominant** material set.
+The schema for this variant dictates that each material be presented as an *Object* entry of the ``volume_fractions`` field with the material name as the entry key and the material volume fractions as the entry value.
+**Multi-buffer element-dominant** material sets are a *non-sparse* representation, as they contain a volume fraction entry for each element.
+**Multi-buffer** material sets also support an optional ``material_map``, which is an *Object* that maps human-readable material names to unique integer material identifiers.
+If omitted, the map from material names to ids is inferred from the order of the material names in the ``volume_fractions`` node, with ids running from ``0`` to ``N - 1``, where ``N`` is the number of materials in the material set.
+If the ``material_map`` is provided, children of the ``volume_fractions`` node are a subset of the children of the children of the ``material_map`` node, which is to say that a material map may reference materials for which we do not have volume fractions, but the volume fractions may not reference a material that is not present in the material map.
+
+To conform to protocol, each ``matsets`` child of this type must be an *Object* that contains the following information:
+
+   * matsets/matset/topology: "topo"
+   * matsets/matset/volume_fractions: (object)
+   * matsets/matset/material_map: (optional, object with integer leaves)
+
+The following plot and representative ``YAML`` illustrate a simple **multi-buffer element-dominant** material set example:
+
+.. figure:: venn_matsets.png
+    :width: 600px
+    :align: center
+
+    A plot of a 3x3 ``venn``'s material boundaries with meshlines and element ids shown. Cyan represents the ``background``, red represents ``circle_a``, green represents ``circle_b``, and blue represents ``circle_c``.
+
+.. code:: yaml
+
+  matset: 
+    topology: "topo"
+    volume_fractions: 
+      background: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
+      circle_a: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.333333333333333, 0.0, 0.0, 1.0, 0.5, 0.0]
+      circle_b: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.333333333333333, 1.0, 0.0, 0.0, 0.5, 1.0]
+      circle_c: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.333333333333333, 0.0, 0.0, 0.0, 0.0, 0.0]
+    material_map: # (optional)
+      circle_a: 1
+      circle_b: 2
+      circle_c: 3
+      background: 0
+
+Again, **multi-buffer element-dominant** material sets contain a volume fraction entry for each element.
+To find out what the volume fractions are for each material for a specific element, we simply look at values for the associated element index.
+For example, for element 0, we take the 0th index of each array: ``background`` has a value of ``1.0``, ``circle_a`` has a value of ``0.0``, ``circle_b`` has a value of ``0.0``, and ``circle_c`` has a value of ``0.0``. To determine if a material is in a element, we must check that it has a nonzero volume fraction for that element. Therefore, we can infer that element 0 is 100% the ``background`` material, and the other materials are not present.
+If we want to see the volume fractions for element 10, we go to the 10th index of each array: ``background`` has a value of ``0.0``, ``circle_a`` has a value of ``0.333333333333333``, ``circle_b`` has a value of ``0.333333333333333``, and ``circle_c`` has a value of ``0.333333333333333``.
+Therefore we can infer that element 10 is evenly split between the circle materials and there is no ``background`` material present.
+If we want to know the material ids of the materials in a specific element, we can examine the material map entry for each material in that element that has a volume fraction greater than ``0.0``.
+If no material map is present, we can infer the material id from the order of the material volume fraction arrays under the ``volume_fractions`` node.
+
+Multi-Buffer Material-Dominant Material Sets
+===================================================
+
+A **multi-buffer** material set is a material set variant wherein the volume fraction data is split such that one buffer exists per material.
+A **material-dominant** material set is a material set variant wherein the volume fractions and element ids are grouped by material.
+It is easy to fetch information grouped by material and much harder to fetch information grouped by element in a **material-dominant** material set.
+The schema for this variant dictates that each material be presented as an *Object* entry of both the ``volume_fractions`` field and the ``element_ids`` field with the material name as the entry key and the material volume fractions as the entry value for the former and the per-material element ids as the latter.
+**Multi-buffer material-dominant** material sets are a *sparse* representation, as they only include volume fraction data for elements that have greater than 0% volume.
+**Multi-buffer** material sets also support an optional ``material_map``, which is an *Object* that maps human-readable material names to unique integer material identifiers.
+If omitted, the map from material names to ids is inferred from the order of the material names in the ``volume_fractions`` node, with ids running from ``0`` to ``N - 1``, where ``N`` is the number of materials in the material set.
+If the ``material_map`` is provided, children of the ``volume_fractions`` node are a subset of the children of the children of the ``material_map`` node, which is to say that a material map may reference materials for which we do not have volume fractions, but the volume fractions may not reference a material that is not present in the material map.
+
+To conform to protocol, each ``matsets`` child of this type must be an *Object* that contains the following information:
+
+   * matsets/matset/topology: "topo"
+   * matsets/matset/volume_fractions: (object)
+   * matsets/matset/element_ids: (object)
+   * matsets/matset/material_map: (optional, object with integer leaves)
+
+The following plot and representative ``YAML`` illustrate a simple **multi-buffer material-dominant** material set example:
+
+.. figure:: venn_matsets.png
+    :width: 600px
+    :align: center
+
+    A plot of a 3x3 ``venn``'s material boundaries with meshlines and element ids shown. Cyan represents the ``background``, red represents ``circle_a``, green represents ``circle_b``, and blue represents ``circle_c``.
+
+.. code:: yaml
+
+  matset: 
+    topology: "topo"
+    volume_fractions: 
+      background: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+      circle_a: [1.0, 0.333333333333333, 1.0, 0.5]
+      circle_b: [0.333333333333333, 1.0, 0.5, 1.0]
+      circle_c: [1.0, 0.333333333333333]
+    element_ids: 
+      background: [0, 1, 2, 3, 4, 5, 7, 8, 12]
+      circle_a: [9, 10, 13, 14]
+      circle_b: [10, 11, 14, 15]
+      circle_c: [6, 10]
+    material_map: # (optional)
+      circle_a: 1
+      circle_b: 2
+      circle_c: 3
+      background: 0
+
+
+**Multi-buffer material-dominant** material sets are sparsely organized by material.
+To find out what the volume fractions are for each element for a specific material, we simply look at associated element ids and volume fractions for that material.
+For example, for ``circle_c``, we see that it is present in element ``6``, where it has a volume fraction of ``1.0``, by which we can infer that it represents the entirety of that element.
+We also can see that ``circle_c`` is present in element 10, where it has a volume fraction of ``0.333333333333333``.
+If we want to know the material id for a material, we can examine the material map entry for that material.
+If no material map is present, we can infer the material id from the order of the material volume fraction arrays under the ``volume_fractions`` node.
+
+Uni-Buffer Element-Dominant Material Sets
+===================================================
+
+A **uni-buffer** material set is one that presents all of its volume fraction data in a single data buffer.
+An **element-dominant** material set is a material set variant wherein the volume fractions and material ids are grouped by element.
+It is easy to fetch information grouped by element and much harder to fetch information grouped by material in an **element-dominant** material set.
+In this case, the material set schema must include a volume fraction data buffer, a parallel buffer associating each volume with a material identifier, and an *Object* (the ``material_map``) that maps human-readable material names to unique integer material identifiers.
+Additionally, the top-level of this schema is an **o2mrelation** that sources from the volume fraction/material identifier buffers and targets the material topology.
+**Uni-buffer element-dominant** material sets are a *sparse* representation, as they only include volume fraction data for elements that have greater than 0% volume.
+
+To conform to protocol, each ``matsets`` child of this type must be an *Object* that contains the following information:
+
+   * matsets/matset/topology: "topo"
+   * matsets/matset/material_map: (object with integer leaves)
+   * matsets/matset/material_ids: (integer array)
+   * matsets/matset/volume_fractions: (floating-point array)
+
+As an **o2mrelation**, the following values may also be present:
+
+   * matsets/matset/sizes: (integer array)
+   * matsets/matset/offsets: (integer array)
+   * matsets/matset/indices: (integer array)
+
+.. note::
+  It can help to think of how the data are traversed when understanding this structure. An
+  element's size and offset can be obtained by indexing the ``sizes`` and ``offsets`` with the
+  element id. These are used to look up a tuple of data from ``indices``. The resulting
+  indices for the element are array indices into the ``material_ids`` and ``volume_fractions``
+  arrays for the current element.
+
+The following plot and representative ``YAML`` illustrate a simple **uni-buffer element-dominant** material set example:
+
+.. figure:: venn_matsets.png
+    :width: 600px
+    :align: center
+
+    A plot of a 3x3 ``venn``'s material boundaries with meshlines and element ids shown. Cyan represents the ``background``, red represents ``circle_a``, green represents ``circle_b``, and blue represents ``circle_c``.
+
+.. code:: yaml
+
+  matset: 
+    topology: "topo"
+    material_map: 
+      circle_a: 1
+      circle_b: 2
+      circle_c: 3
+      background: 0
+    volume_fractions: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.333333333333333, 0.333333333333333, 0.333333333333333, 1.0, 1.0, 1.0, 0.5, 0.5, 1.0]
+    material_ids: [0, 0, 0, 0, 0, 0, 3, 0, 0, 1, 1, 2, 3, 2, 0, 1, 1, 2, 2]
+    sizes: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 1, 1, 1, 2, 1]
+    offsets: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 13, 14, 15, 16, 18]
+    indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] # (optional)
+
+Again, **uni-buffer element-dominant** material sets are sparsely organized by element.
+We can use information from the **o2mrelation** to understand the ``volume_fractions`` and ``material_ids`` arrays.
+Let's say we want to know the material ids and volume fractions of materials in element 0.
+First, we examine the **o2mrelation** arrays. We see that our size is ``1``, meaning there is one material present in this element.
+Our offset is ``0``, meaning our starting index into the ``indices`` array is zero.
+The 0th entry in ``indices`` is also ``0``, meaning that the 0th values in both the ``volume_fractions`` and ``material_ids`` arrays correspond to data in element 0.
+If indices are not present, then we use the ``sizes`` and ``offsets`` information to get the starting index directly into the ``volume_fractions`` and ``material_ids`` arrays.
+If ``sizes`` and ``offsets`` are not present, then it is assumed that all sizes are ``1`` and ``offsets`` is a trivial prefix sum.
+For element 0, we see that the only material id is ``0`` and the volume fraction is ``1.0``.
+Looking at the material map, we can see that ``background`` is the material corresponding to material id ``0``.
+Therefore, element 0 is wholly filled with the ``background`` material.
+
+If we want to know which materials are in element 10, we first go to the 10th index in the ``sizes`` and ``offsets`` arrays.
+We can see that the size is ``3`` and the offset is ``10``.
+Therefore, we know there are three entries in each of the ``volume_fractions``, ``material_ids``, and ``indices`` arrays, corresponding to three materials in element 10.
+The ``indices`` for element 10 are ``10``, ``11``, and ``12``, telling us to look in ``volume_fractions`` and ``material_ids`` at those array indices to find the relevant information.
+If ``indices`` were not present, then we would use ``offsets`` to find the starting index into the data arrays, and the ``sizes`` to know how many elements to read.
+If ``sizes`` and ``offsets`` are not present, then it is assumed that all sizes are ``1`` and ``offsets`` is a trivial prefix sum.
+For element 10, we can see that the three material ids are ``1``, ``2``, and ``3``, and the volume fractions are ``0.333333333333333``, ``0.333333333333333``, and ``0.333333333333333``.
+Looking at the material map, we can see that ``circle_a`` is the material corresponding to material id ``1``, ``circle_b`` is the material corresponding to material id ``2``, and ``circle_c`` is the material corresponding to material id ``3``.
+Therefore, element 10 is split evenly between the circle materials.
+
+//////
+
+
+uni-buffer material-dominant
+ - spec
+ - example
+ - unsupported
+
+how do I know what I am?
+
+info:
+ - mat ids need not be in a normal range
+ - multi-buffer volfracs children must be a subset of material map children
+ - material map children can be in any order with any material ids; vol frac children do not need to be in the same order. But the order of the material map is the order the materials appeare in the matset for things like matset accessors
+ - o2m relation options (having indices, having no sizes, no offsets, no indices)
+
+matset accessors help you walk these structures
+
+helpers to convert between them
+
+to_silo?
+
+//////
 
 
 Material Set Buffer Variants
