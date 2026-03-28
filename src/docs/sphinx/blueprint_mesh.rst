@@ -746,13 +746,121 @@ For element 10, we can see that the three material ids are ``1``, ``2``, and ``3
 Looking at the material map, we can see that ``circle_a`` is the material corresponding to material id ``1``, ``circle_b`` is the material corresponding to material id ``2``, and ``circle_c`` is the material corresponding to material id ``3``.
 Therefore, element 10 is split evenly between the circle materials.
 
+Here is another example showing the basic structure:
+
+.. code:: yaml
+
+  matset: 
+    topology: "topo"
+    material_map: 
+      mat0: 0
+      mat1: 1
+      ...
+    volume_fractions: [vfs_for_elem0, vfs_for_elem1, ...]
+    material_ids: [mats_for_elem0, mats_for_elem1, ...]
+    sizes: [number_of_mats_in_elem0, number_of_mats_in_elem1, ...]
+    offsets: [offsets for the sizes]
+    indices: [indirection array into the volume_fractions and material_ids]
+
+Even though volume fractions and material ids are flattened into a single buffer, they are still grouped by element, and the **o2mrelation** data tells us how to interpret the uni-buffer data.
+
+Uni-Buffer Material-Dominant Material Sets
+===================================================
+
+.. note::
+  **Uni-buffer material-dominant** are currently unsupported in Conduit Blueprint, but it is still possible to create and reason about data in this layout. We may add support in the future as needed.
+
+A **uni-buffer** material set is one that presents all of its volume fraction data in a single data buffer.
+A **material-dominant** material set is a material set variant wherein the volume fractions and element ids are grouped by material.
+It is easy to fetch information grouped by material and much harder to fetch information grouped by element in a **material-dominant** material set.
+In this case, the material set schema must include a volume fraction data buffer, a parallel buffer associating each volume with an element id, and an *Object* (the ``material_map``) that maps human-readable material names to unique integer material identifiers.
+Additionally, the top-level of this schema is an **o2mrelation** that sources from the volume fraction/element identifier buffers and targets the material topology.
+**Uni-buffer material-dominant** material sets are a *sparse* representation, as they only include volume fraction data for elements that have greater than 0% volume.
+
+To conform to protocol, each ``matsets`` child of this type must be an *Object* that contains the following information:
+
+   * matsets/matset/topology: "topo"
+   * matsets/matset/material_map: (object with integer leaves)
+   * matsets/matset/element_ids: (integer array)
+   * matsets/matset/volume_fractions: (floating-point array)
+
+As an **o2mrelation**, the following values may also be present:
+
+   * matsets/matset/sizes: (integer array)
+   * matsets/matset/offsets: (integer array)
+   * matsets/matset/indices: (integer array)
+
+.. note::
+  It can help to think of how the data are traversed when understanding this structure. A
+  material's size and offset can be obtained by indexing the ``sizes`` and ``offsets`` with the
+  material index. These are used to look up a tuple of data from ``indices``. The resulting
+  indices for the element are array indices into the ``element_ids`` and ``volume_fractions``
+  arrays for the current material.
+
+The following plot and representative ``YAML`` illustrate a simple **uni-buffer material-dominant** material set example:
+
+.. figure:: venn_matsets.png
+    :width: 600px
+    :align: center
+
+    A plot of a 3x3 ``venn``'s material boundaries with meshlines and element ids shown. Cyan represents the ``background``, red represents ``circle_a``, green represents ``circle_b``, and blue represents ``circle_c``.
+
+.. code:: yaml
+
+  matset: 
+    topology: "topo"
+    material_map: 
+      circle_a: 1
+      circle_b: 2
+      circle_c: 3
+      background: 0
+    volume_fractions: [1.0, 0.333333333333333, 1.0, 0.5, 0.333333333333333, 1.0, 0.5, 1.0, 1.0, 0.333333333333333, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    element_ids: [9, 10, 13, 14, 10, 11, 14, 15, 6, 10, 0, 1, 2, 3, 4, 5, 7, 8, 12]
+    sizes: [4, 4, 2, 9]
+    offsets: [0, 4, 8, 10]
+    indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+
+Again, **uni-buffer material-dominant** material sets are sparsely organized by material.
+We can use information from the **o2mrelation** to understand the ``volume_fractions`` and ``element_ids`` arrays.
+Let's say we want to know the element ids and volume fractions for the first material.
+The first material is the first material to appear in the material map, so our first (0th) material is ``circle_a``.
+First, we examine the **o2mrelation** arrays. We see that our size is ``4``, meaning there are four elements containing this material.
+Our offset is ``0``, meaning our starting index into the ``indices`` array is zero.
+The 0th entry in ``indices`` is also ``0``, meaning that the 0th values in both the ``volume_fractions`` and ``element_ids`` arrays correspond to data for the first material (``circle_a``).
+If indices are not present, then we use the ``sizes`` and ``offsets`` information to get the starting index directly into the ``volume_fractions`` and ``element_ids`` arrays.
+If ``sizes`` and ``offsets`` are not present, then it is assumed that all sizes are ``1`` and ``offsets`` is a trivial prefix sum.
+For ``circle_a``, we see that the element ids are ``9``, ``10``, ``13``, and ``14``, and the volume fractions are ``1.0``, ``0.333333333333333``, ``1.0``, and ``0.5``.
+That means that ``circle_a`` is present in element ``9`` with a volume fraction of ``1.0``, present in element ``10`` with a volume fraction of ``0.333333333333333``, present in element ``13`` with a volume fraction of ``1.0``, and present in element ``14`` with a volume fraction of ``0.5``.
+
+If we want to know the element ids and volume fractions for the third material, we first go to the third index in the ``sizes`` and ``offsets`` arrays.
+The third material is the third material to appear in the material map, so our third (0th) material is ``circle_c``.
+We can see that the size is ``2``, meaning there are two elements containing this material.
+Our offset is ``8``, meaning our starting index into the ``indices`` array is eight.
+The 8th entry in ``indices`` is ``8``, meaning that the 8th values in both the ``volume_fractions`` and ``element_ids`` arrays correspond to data for the third material (``circle_c``).
+If indices are not present, then we use the ``sizes`` and ``offsets`` information to get the starting index directly into the ``volume_fractions`` and ``element_ids`` arrays.
+If ``sizes`` and ``offsets`` are not present, then it is assumed that all sizes are ``1`` and ``offsets`` is a trivial prefix sum.
+For ``circle_c``, we see that the element ids are ``6`` and ``10``, and the volume fractions are ``1.0`` and ``0.333333333333333``.
+That means that ``circle_c`` is present in element ``6`` with a volume fraction of ``1.0``, present in element ``10`` with a volume fraction of ``0.333333333333333``.
+
+Here is another example showing the basic structure:
+
+.. code:: yaml
+
+  matset: 
+    topology: "topo"
+    material_map: 
+      mat0: 0
+      mat1: 1
+      ...
+    volume_fractions: [vfs_for_mat0, vfs_for_mat1, ...]
+    element_ids: [elems_for_mat0, elems_for_mat1, ...]
+    sizes: [number_of_elems_mat0_is_in, number_of_elems_mat1_is_in, ...]
+    offsets: [offsets for the sizes]
+    indices: [indirection array into the volume_fractions and element_ids]
+
+Even though volume fractions and element ids are flattened into a single buffer, they are still grouped by material, and the **o2mrelation** data tells us how to interpret the uni-buffer data.
+
 //////
-
-
-uni-buffer material-dominant
- - spec
- - example
- - unsupported
 
 how do I know what I am?
 
