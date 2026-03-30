@@ -463,31 +463,6 @@ TEST(conduit_relay_io_silo, round_trip_venn_modded_matnos)
     save_mesh["fields"]["mat_check"]["values"].set_external(mat_check_new_values);
     save_mesh["fields"]["mat_check"]["matset_values"].set_external(mat_check_new_matset_values);
 
-    // to_silo is going to reorder mixed materials least to greatest
-    // so we must do the same
-    int_array mat_ids = save_mesh["matsets"]["matset"]["material_ids"].value();
-    const auto mat_id10 = mat_ids[10];
-    const auto mat_id11 = mat_ids[11];
-    const auto mat_id12 = mat_ids[12];
-    mat_ids[10] = mat_id12;
-    mat_ids[11] = mat_id10;
-    mat_ids[12] = mat_id11;
-    auto field_itr = save_mesh["fields"].children();
-    while (field_itr.has_next())
-    {
-        const Node &n_field = field_itr.next();
-        if (n_field.has_child("matset"))
-        {
-            double_array matset_vals = n_field["matset_values"].value();
-            const auto matset_val10 = matset_vals[10];
-            const auto matset_val11 = matset_vals[11];
-            const auto matset_val12 = matset_vals[12];
-            matset_vals[10] = matset_val12;
-            matset_vals[11] = matset_val10;
-            matset_vals[12] = matset_val11;
-        }
-    }
-
     silo_name_changer("mesh", save_mesh);
 
     // the loaded mesh will be in the multidomain format

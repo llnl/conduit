@@ -1041,8 +1041,8 @@ namespace specset
     // https://silo.readthedocs.io/en/latest/
     void CONDUIT_BLUEPRINT_API to_silo(const conduit::Node &specset,
                                        const conduit::Node &matset,
-                                       conduit::Node &dest);
-
+                                       conduit::Node &dest,
+                                       const float64 epsilon = CONDUIT_EPSILON);
     //-------------------------------------------------------------------------
     // blueprint::mesh::specset::index protocol interface
     //-------------------------------------------------------------------------
