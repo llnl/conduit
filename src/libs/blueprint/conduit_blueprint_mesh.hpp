@@ -812,7 +812,7 @@ namespace matset
                                                           conduit::Node &dest_matset);
 
     //-------------------------------------------------------------------------
-    // creates a unibuffer sparse case with 1st index into elements
+    // creates a uni-buffer sparse case with 1st index into elements
     void CONDUIT_BLUEPRINT_API to_uni_buffer_by_element(const conduit::Node &src_matset,
                                                         conduit::Node &dest_matset,
                                                         const float64 epsilon = CONDUIT_EPSILON);
@@ -861,10 +861,10 @@ namespace matset
     //-------------------------------------------------------------------------
     index_t CONDUIT_BLUEPRINT_API count_materials_from_matset(const conduit::Node &matset);
     //-------------------------------------------------------------------------
-    bool CONDUIT_BLUEPRINT_API is_material_in_zone(const conduit::Node &matset,
-                                                   const std::string &matname,
-                                                   const index_t zone_id,
-                                                   const float64 epsilon = CONDUIT_EPSILON);
+    bool CONDUIT_BLUEPRINT_API is_material_in_element(const conduit::Node &matset,
+                                                      const std::string &matname,
+                                                      const index_t elem_id,
+                                                      const float64 epsilon = CONDUIT_EPSILON);
     //-----------------------------------------------------------------------------
     std::map<int, std::string> CONDUIT_BLUEPRINT_API create_reverse_material_map(
         const conduit::Node &src_matset);

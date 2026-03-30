@@ -548,6 +548,9 @@ Material Sets
 
 Materials Sets contain material name and volume fraction information defined over a specified mesh topology.
 
+Material Set Layout Variants
+=================================
+
 Each material set conforms to a schema variant based on:
 
  * Single or multiple buffers for volume fraction data.
@@ -568,7 +571,7 @@ All of the ensuing examples in this section were created using the ``venn`` Mesh
   conduit::blueprint::mesh::examples::venn(matset_type, nx, ny, radius, mesh);
 
 Multi-Buffer Element-Dominant Material Sets
-===================================================
+**************************************************
 
 A **multi-buffer** material set is a material set variant wherein the volume fraction data is split such that one buffer exists per material.
 An **element-dominant** material set is a material set variant wherein the volume fractions and material ids are grouped by element.
@@ -617,7 +620,7 @@ If we want to know the material ids of the materials in a specific element, we c
 If no material map is present, we can infer the material id from the order of the material volume fraction arrays under the ``volume_fractions`` node.
 
 Multi-Buffer Material-Dominant Material Sets
-===================================================
+**************************************************
 
 A **multi-buffer** material set is a material set variant wherein the volume fraction data is split such that one buffer exists per material.
 A **material-dominant** material set is a material set variant wherein the volume fractions and element ids are grouped by material.
@@ -672,7 +675,7 @@ If we want to know the material id for a material, we can examine the material m
 If no material map is present, we can infer the material id from the order of the material volume fraction arrays under the ``volume_fractions`` node.
 
 Uni-Buffer Element-Dominant Material Sets
-===================================================
+**************************************************
 
 A **uni-buffer** material set is one that presents all of its volume fraction data in a single data buffer.
 An **element-dominant** material set is a material set variant wherein the volume fractions and material ids are grouped by element.
@@ -765,7 +768,7 @@ Here is another example showing the basic structure:
 Even though volume fractions and material ids are flattened into a single buffer, they are still grouped by element, and the **o2mrelation** data tells us how to interpret the uni-buffer data.
 
 Uni-Buffer Material-Dominant Material Sets
-===================================================
+**************************************************
 
 .. note::
   **Uni-buffer material-dominant** are currently unsupported in Conduit Blueprint, but it is still possible to create and reason about data in this layout. We may add support in the future as needed.
@@ -860,207 +863,420 @@ Here is another example showing the basic structure:
 
 Even though volume fractions and element ids are flattened into a single buffer, they are still grouped by material, and the **o2mrelation** data tells us how to interpret the uni-buffer data.
 
-//////
 
-how do I know what I am?
-
-info:
- - mat ids need not be in a normal range
- - multi-buffer volfracs children must be a subset of material map children
- - material map children can be in any order with any material ids; vol frac children do not need to be in the same order. But the order of the material map is the order the materials appeare in the matset for things like matset accessors
- - o2m relation options (having indices, having no sizes, no offsets, no indices)
-
-matset accessors help you walk these structures
-
-helpers to convert between them
-
-to_silo?
-
-//////
-
-
-Material Set Buffer Variants
+Material Set Quick Facts
 =================================
 
-Each material set follows one of two variants based on the presented structure of its volume fractions.
-These variants cover volume fractions presented in a single, unified buffer (called **uni-buffer** presentation) and in multiple, per-material buffers (called **multi-buffer** presentation).
-Both of these variants and their corresponding schemas are outlined in the subsections below.
+Several important details about Conduit Blueprint material sets are collected here for easy disambiguation:
+
+ * If a ``material_map`` is included, mapping human-readable material names to unique integer material identifiers, the material identifiers need not be in the range ``[0, N)``, where ``N`` is the number of materials.
+ Material identifiers can be any set of integers.
+ There are no restrictions on them other than that they are unique.
+ * In the case of **multi-buffer** material sets, where the ``volume_fractions`` node is an *Object* for which material names are the names of the children, if a ``material_map`` is included, the order of material names in the ``volume_fractions``  and in the ``material_map`` need not be the same.
+ The ``volume_fractions`` may have less children than the ``material_map``, but the ``material_map`` may not have less children than the ``volume_fractions``.
+ * For **uni-buffer** material sets, the **o2mrelation** rules apply.
+ Therefore, a valid **uni-buffer** material set may have
+   * no ``sizes``, ``offsets``, or ``indices``
+     * for **element-dominant** material sets, this means that every element is assumed to have a single material present.
+     The number of elements in ``volume_fractions`` and ``material_ids`` are the number of elements in the mesh.
+     * for **material-dominant** material sets, this means that every material is assumed to be present in a single element.
+     The number of elements in ``volume_fractions`` and ``element_ids`` are the number of materials in the mesh.
+   * ``sizes`` and ``offsets``, but no ``indices``
+     * for **element-dominant** material sets, this means that the number of materials in element ``i`` is ``sizes[i]``.
+     The offset into the ``volume_fractions`` and ``material_ids`` for element ``i`` is given by ``offsets[i]``.
+     * for **material-dominant** material sets, this means that the number of elements for material ``i`` is ``sizes[i]``.
+     The offset into the ``volume_fractions`` and ``element_ids`` for material ``i`` is given by ``offsets[i]``.
+   * ``indices``, but no ``sizes`` nor ``offsets``
+     * for **element-dominant** material sets, this means that every element is assumed to have a single material present.
+     The index into the ``volume_fractions`` and ``material_ids`` for element ``i`` is ``indices[i]``.
+     * for **material-dominant** material sets, this means that every material is assumed to be present in a single element.
+     The index into the ``volume_fractions`` and ``element_ids`` for material ``i`` is ``indices[i]``.
+   * all three of ``sizes``, ``offsets``, and ``indices``
+     * for **element-dominant** material sets, this means that the number of materials in element ``i`` is ``sizes[i]``.
+     The offset into the ``indices`` for element ``i`` is given by ``offsets[i]``.
+     The index into the ``volume_fractions`` and ``material_ids`` for element ``i`` is ``indices[offsets[i]]``.
+     * for **material-dominant** material sets, this means that the number of elements for material ``i`` is ``sizes[i]``.
+     The offset into the ``indices`` for material ``i`` is given by ``offsets[i]``.
+     The index into the ``volume_fractions`` and ``element_ids`` for material ``i`` is ``indices[offsets[i]]``.
+ * Material sets are **multi-buffer** if the ``volume_fractions`` child is an *Object*, and they are **uni-buffer** otherwise.
+ * Material sets are **material-dominant** if they have a child called ``element_ids``, and they are **element-dominant** otherwise.
 
 
-Uni-Buffer Material Sets
-*********************************
+Material Set Tools
+=======================
 
-A **uni-buffer** material set is one that presents all of its volume fraction data in a single data buffer.
-In this case, the material set schema must include this volume fraction data buffer, a parallel buffer associating each volume with a material identifier, and an *Object* that maps human-readable material names to unique integer material identifiers.
-Additionally, the top-level of this schema is an **o2mrelation** that sources from the volume fraction/material identifier buffers and targets the material topology.
-To conform to protocol, each ``matsets`` child of this type must be an *Object* that contains the following information:
+Conduit provides several tools for working with material sets, as working with multiple layout specifications can be unwieldy.
 
-   * matsets/matset/topology: "topo"
-   * matsets/matset/material_map: (object with integer leaves)
-   * matsets/matset/material_ids: (integer array)
-   * matsets/matset/volume_fractions: (floating-point array)
+The first set of tools are functions that can be used to determine what sort of material set is being worked with:
 
-As an **o2mrelation**, the following values must also be present:
+.. code:: cpp
 
-   * matsets/matset/sizes: (integer array)
-   * matsets/matset/offsets: (integer array)
-   * matsets/matset/indices: (integer array)
+  //-------------------------------------------------------------------------
+  bool CONDUIT_BLUEPRINT_API is_multi_buffer(const conduit::Node &matset);
 
-.. note::
-  It can help to think of how the data are traversed when understanding this structure. An
-  element's size and offset can be obtained by indexing the ``sizes`` and ``offsets`` with the
-  element id. These are used to look up a tuple of data from ``indices``. The resulting
-  indices for the element are array indices into the ``material_ids`` and ``volume_fractions``
-  arrays for the current element.
+  //-------------------------------------------------------------------------
+  bool CONDUIT_BLUEPRINT_API is_uni_buffer(const conduit::Node &matset);
 
-The following diagram illustrates a simple **uni-buffer** material set example.
-Note that the ``material_ids`` and ``volume_fractions`` data arrays in this example contain
-some elements that are not referenced by the ``indices`` array. This shows how the format
-can selectively pull from data arrays that may contain other information.
+  //-------------------------------------------------------------------------
+  bool CONDUIT_BLUEPRINT_API is_element_dominant(const conduit::Node &matset);
 
-  .. code:: yaml
-
-      #     z0       z1       z2
-      # +--------+--------+--------+
-      # | a0     | a1 ___/|        |
-      # |___-----|----    |   b2   |
-      # |     b0 |     b1 |        |
-      # +--------+--------+--------+
-      #
-
-      matsets:
-        matset:
-          topology: topology
-          material_map:
-            a: 1
-            b: 2
-            c: 0
-          material_ids: [0, 1, 2, 2, 2, 0, 1, 0]
-          volume_fractions: [0, a0, b2, b1, b0, 0, a1, 0]
-          sizes: [2, 2, 1]
-          offsets: [0, 2, 4]
-          indices: [1, 4, 6, 3, 2]
+  //-------------------------------------------------------------------------
+  bool CONDUIT_BLUEPRINT_API is_material_dominant(const conduit::Node &matset);
 
 
+It is simple to ask what the layout representation is, and often code will branch like so:
+
+.. code:: cpp
+
+  // for some matset `matset`
+
+  if (is_element_dominant(matset))
+  {
+      if (is_multi_buffer(matset))
+      {
+          // multi-buffer element-dominant case
+      }
+      else
+      {
+          // uni-buffer element-dominant case
+      }
+  }
+  else
+  {
+      if (is_multi_buffer(matset))
+      {
+          // multi-buffer material-dominant case
+      }
+      else
+      {
+          // uni-buffer material-dominant case
+      }
+  }
+
+The next tool in the tool box are material set conversions.
+A material set conforming to any of the material set layout types can be provided and converted into a material set with a different layout type:
+
+.. code:: cpp
+
+  //-------------------------------------------------------------------------
+  // creates a multi-buffer non-sparse case
+  void CONDUIT_BLUEPRINT_API to_multi_buffer_by_element(const conduit::Node &src_matset,
+                                                        conduit::Node &dest_matset);
+
+  //-------------------------------------------------------------------------
+  // creates a uni-buffer sparse case with 1st index into elements
+  void CONDUIT_BLUEPRINT_API to_uni_buffer_by_element(const conduit::Node &src_matset,
+                                                      conduit::Node &dest_matset,
+                                                      const float64 epsilon = CONDUIT_EPSILON);
+
+  //-------------------------------------------------------------------------
+  // creates a multi-buffer sparse case with 1st index into materials
+  void CONDUIT_BLUEPRINT_API to_multi_buffer_by_material(const conduit::Node &src_matset,
+                                                         conduit::Node &dest_matset,
+                                                         const float64 epsilon = CONDUIT_EPSILON);
+  //-------------------------------------------------------------------------
+  // throws an error as this case is not supported
+  void CONDUIT_BLUEPRINT_API to_uni_buffer_by_material(const conduit::Node &src_matset,
+                                                       conduit::Node &dest_matset,
+                                                       const float64 epsilon = CONDUIT_EPSILON);
+
+These are similarly simple to use:
+
+.. code:: cpp
+
+  // for some matset `matset` and some std::string `desired_matset_type`
+
+  Node converted_matset;
+  if (desired_matset_type == "multi-buffer-by-element")
+  {
+      to_multi_buffer_by_element(matset, converted_matset);
+  }
+  else if (desired_matset_type == "multi-buffer-by-material")
+  {
+      to_multi_buffer_by_material(matset, converted_matset);
+  }
+  else if (desired_matset_type == "uni-buffer-by-element")
+  {
+      to_uni_buffer_by_element(matset, converted_matset);
+  }
+  else if (desired_matset_type == "uni-buffer-by-material")
+  {
+      to_uni_buffer_by_material(matset, converted_matset);
+  }
+
+It is also possible to convert material sets to a `Silo <https://silo.readthedocs.io/en/latest/>`_-like mixed slot representation:
+
+.. code:: cpp
+
+  //-------------------------------------------------------------------------
+  void CONDUIT_BLUEPRINT_API to_silo(const conduit::Node &matset,
+                                     conduit::Node &dest,
+                                     const float64 epsilon = CONDUIT_EPSILON);
 
 
-Multi-Buffer Material Sets
-*********************************
+This will create an output with the following information:
 
-A **multi-buffer** material set is a material set variant wherein the volume fraction data is split such that one buffer exists per material.
-The schema for this variant dictates that each material be presented as an *Object* entry of the ``volume_fractions`` field with the material name as the entry key and the material volume fractions as the entry value.
-**Multi-buffer** material sets also support an optional ``material_map``, which is an *Object* that maps human-readable material names to unique integer material identifiers.
-If omitted, the map from material names to ids is inferred from the order of the material names in the ``volume_fractions`` node.
+ * for matsets:
+   * topology
+   * material_map
+   * matlist
+   * mix_next
+   * mix_mat
+   * mix_vf
+   * buffer_style
+   * dominance
+ * for fields:
+   * field_mixvar_values
+   * field_values (optional)
+ * for specsets:
+   * nmatspec
+   * specnames
+   * speclist
+   * nmat
+   * nspecies_mf
+   * species_mf
+   * mix_spec
+   * mixlen
 
-Optionally, the value for each such entry can be specified as an **o2mrelation** instead of a flat array to enable greater specification flexibility.
-To conform to protocol, each ``matsets`` child of this type must be an *Object* that contains the following information:
+Conduit also provides tools for creating/fetching material maps:
 
-   * matsets/matset/topology: "topo"
-   * matsets/matset/volume_fractions: (object)
-   * matsets/matset/material_map: (optional, object with integer leaves)
+.. code:: cpp
 
-The following diagram illustrates a simple **multi-buffer** material set example:
+  //-------------------------------------------------------------------------
+  // this will use set external if the matmap already exists
+  void CONDUIT_BLUEPRINT_API create_or_reuse_material_map(const conduit::Node &matset,
+                                                          conduit::Node &material_map);
+  //-------------------------------------------------------------------------
+  // this will use set if the matmap already exists
+  void CONDUIT_BLUEPRINT_API create_or_copy_material_map(const conduit::Node &matset,
+                                                         conduit::Node &material_map);
 
-  .. code:: yaml
+And tools for renumbering material ids to be in the range ``[0, N-1]``, where ``N`` is the number of materials:
 
-      #     z0       z1       z2
-      # +--------+--------+--------+
-      # | a0     | a1 ___/|        |
-      # |___-----|----    |   b2   |
-      # |     b0 |     b1 |        |
-      # +--------+--------+--------+
-      #
+.. code:: cpp
 
-      matsets:
-        matset:
-          topology: topology
-          volume_fractions:
-            a:
-              values: [0, 0, 0, a1, 0, a0]
-              indices: [5, 3]
-            b:
-              values: [0, b0, b2, b1, 0]
-              indices: [1, 3, 2]
-          material_map: # (optional)
-            a: 0
-            b: 1
+  //-------------------------------------------------------------------------
+  // renumbers material ids to run between 0 and N-1 where N is the number of
+  // materials.
+  void CONDUIT_BLUEPRINT_API renumber_material_ids(const conduit::Node &src_matset,
+                                                   conduit::Node &dest_matset);
+  //-------------------------------------------------------------------------
+  // renumbers material ids to run between 0 and N-1 where N is the number of
+  // materials.
+  void CONDUIT_BLUEPRINT_API renumber_material_ids(conduit::Node &matset);
 
+Conduit also provides some general information methods:
 
-Material Set Indexing Variants
-=================================
+.. code:: cpp
 
-Material sets can also vary in how volume fractions are associated with topological elements.
-This associative variance leads to two additional schema variants: **element-dominant** (elements/volumes have the same ordering) and **material-dominant** (elements/volumes have independent orderings).
-Both of these variants and their corresponding schemas are outlined in the subsections below.
-
-
-Element-Dominant Material Sets
-*********************************
-
-In an **element-dominant** material set, the volume fraction data order matches the topological element order.
-In other words, the volume fraction group at ``i`` (e.g. ``matset/volume_fractions/mat[i]``) contains the volume fraction data for topological element ``i``.
-This variant is assumed in all material sets that don't have an ``element_ids`` child.
-
-The following diagram illustrates a simple **element-dominant** material set example:
-
-  .. code:: yaml
-
-      #     z0       z1       z2
-      # +--------+--------+--------+
-      # | a0     | a1 ___/|\___ c2 |
-      # |___-----|----    |    ----|
-      # |     b0 |     b1 | b2     |
-      # +--------+--------+--------+
-      #
-
-      matsets:
-        matset:
-          topology: topology
-          volume_fractions:
-            a: [a0, a1, 0]
-            b: [b0, b1, b2]
-            c: [0, 0, c2]
-          material_map: # (optional)
-            a: 0
-            b: 1
-            c: 2
+  //-------------------------------------------------------------------------
+  // renumbers material ids to run between 0 and N-1 where N is the number of
+  // materials.
+  void CONDUIT_BLUEPRINT_API renumber_material_ids(conduit::Node &matset);
+  //-------------------------------------------------------------------------
+  index_t CONDUIT_BLUEPRINT_API count_elements_from_matset(const conduit::Node &matset);
+  //-------------------------------------------------------------------------
+  index_t CONDUIT_BLUEPRINT_API count_materials_from_matset(const conduit::Node &matset);
+  //-------------------------------------------------------------------------
+  bool CONDUIT_BLUEPRINT_API is_material_in_element(const conduit::Node &matset,
+                                                    const std::string &matname,
+                                                    const index_t elem_id,
+                                                    const float64 epsilon = CONDUIT_EPSILON);
 
 
-Material-Dominant Material Sets
-*********************************
 
-In a **material-dominant** material set, the orders for the volume fractions and topological elements are mismatched and need to be bridged via indirection arrays.
-For these schemas, the ``element_ids`` field hosts these indirection arrays per material (with just one indirection array for uni-buffer material sets).
-In explicit terms, the **material-dominant** volume fraction group at ``i`` (e.g. ``matset/volume_fractions/mat[i]``) contains the volume fraction data for the indirected topological element ``i`` (e.g. ``matset/element_ids/mat[i]``).
-Complementary to the **element-dominant** variant, the **material-dominant** variant applies to all material sets that have an ``element_ids`` child.
+Material Set Accessors
+==========================
 
-The following diagram illustrates a simple **material-dominant** material set example:
+The problem remains that supporting all four material set layout types is cumbersome, even with helpers, converters, and information functions.
+It is useful to be able to walk these structures in uniform ways, which is where ``MatsetAccessor``s come into play.
 
-  .. code:: yaml
+The general idea with a ``MatsetAccessor`` is that it can consume a ``matset``, a ``matset`` and a ``specset``, a ``matset`` and a ``field``, or all three, and it can provide data corresponding to element ``i`` and material ``j`` (and species ``k``).
+``MatsetAccessor``s know which layout type their underlying ``matset`` is and how to access information in it, abstracting away the difficulty of working with multiple material set layouts.
 
-      #     z0       z1       z2
-      # +--------+--------+--------+
-      # | a0     | a1 ___/|\___ c2 |
-      # |___-----|----    |    ----|
-      # |     b0 |     b1 | b2     |
-      # +--------+--------+--------+
-      #
+We can ask questions about how the ``MatsetAccessor`` was created:
 
-      matsets:
-        matset:
-          topology: topology
-          volume_fractions:
-            a: [a0, a1]
-            b: [b0, b1, b2]
-            c: [c2]
-          element_ids:
-            a: [0, 1]
-            b: [0, 1, 2]
-            c: [2]
-          material_map: # (optional)
-            a: 0
-            b: 1
-            c: 2
+.. code:: cpp
+
+  // for some matset `matset`, field `field`, and specset `specset`
+  
+  MatsetAccessor m_acc1 = MatsetAccessor(matset);
+  if (m_acc1.has_field())
+  {
+      std::cout << "matset accessor 1 has field" << std::endl;
+  }
+  if (m_acc1.has_specset())
+  {
+      std::cout << "matset accessor 1 has specset" << std::endl;
+  }
+
+  MatsetAccessor m_acc2 = MatsetAccessor(matset, field);
+  if (m_acc2.has_field())
+  {
+      std::cout << "matset accessor 2 has field" << std::endl;
+  }
+  if (m_acc2.has_specset())
+  {
+      std::cout << "matset accessor 2 has specset" << std::endl;
+  }
+
+  MatsetAccessor m_acc3 = MatsetAccessor(matset, specset);
+  if (m_acc3.has_field())
+  {
+      std::cout << "matset accessor 3 has field" << std::endl;
+  }
+  if (m_acc3.has_specset())
+  {
+      std::cout << "matset accessor 3 has specset" << std::endl;
+  }
+
+  MatsetAccessor m_acc4 = MatsetAccessor(matset, field, specset);
+  if (m_acc4.has_field())
+  {
+      std::cout << "matset accessor 4 has field" << std::endl;
+  }
+  if (m_acc4.has_specset())
+  {
+      std::cout << "matset accessor 4 has specset" << std::endl;
+  }
+
+This produces the following:
+
+.. code:: cpp
+
+  matset accessor 2 has field
+  matset accessor 3 has specset
+  matset accessor 4 has field
+  matset accessor 4 has specset
+
+We can also ask about general matset information:
+
+.. code:: cpp
+
+  // for some matset `matset`
+
+  MatsetAccessor m_acc = MatsetAccessor(matset);
+  // buffer style
+  bool is_uni_buffer        = m_acc.is_uni_buffer();
+  bool is_multi_buffer      = m_acc.is_multi_buffer();
+
+  // dominance
+  bool is_element_dominant  = m_acc.is_element_dominant();
+  bool is_material_dominant = m_acc.is_material_dominant();
+
+  // number of elements
+  index_t num_elems = m_acc.num_elems();
+  // number of materials
+  index_t num_mats  = m_acc.num_mats();
+
+Once we start writing loops over elements and materials, the indices of those loops matter.
+An element index means something different depending on what matset layout we are working with, as does a material index.
+ * For a **multi-buffer** **element-dominant** material set
+   * elements range from ``0`` to the number of elements
+   * materials range from ``0`` to the number of materials (these are material indices, not material identifiers)
+   * species range from ``0`` to the number of species for a given material
+ * For a **multi-buffer** **material-dominant** material set
+   * elements range from ``0`` to the number of elements for a given material
+   * materials range from ``0`` to the number of materials (these are material indices, not material identifiers)
+   * species range from ``0`` to the number of species for a given material
+ * For a **uni-buffer** **element-dominant** material set
+   * elements range from ``0`` to the number of elements
+   * materials range from ``0`` to the number of materials in a given element (these are material indices, not material identifiers)
+   * species range from ``0`` to the number of species for a given material in a given element
+ * For a **uni-buffer** **mateiral-dominant** material set
+   * indexing does not matter currently as this case is unsupported
+
+**Element-dominant** material sets are easiest to walk by element, and **material-dominant** material sets are easiest to walk by material.
+Here is an example of walking a material set and performing data retrieval using a ``MatsetAccessor``:
+
+.. code:: cpp
+
+  // for some matset `matset`, field `field`, and specset `specset`
+  MatsetAccessor m_acc = MatsetAccessor(matset, field, specset);
+
+  if (m_acc.is_element_dominant() && m_acc.is_multi_buffer())
+  {
+      // we iterate over elements
+      const index_t num_elems = m_acc.num_elems();
+      for (index_t elem_idx = 0; elem_idx < num_elems; elem_idx ++)
+      {
+          // we ask for the total number of materials
+          const index_t num_mats = m_acc.num_mats();
+          for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
+          {
+              const index_t mat_id = m_acc.get_mat_id(elem_idx, mat_idx);
+              const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
+              const index_t elem_id = m_acc.get_elem_id(elem_idx, mat_idx);
+              const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
+              const float64 mset_val = m_acc.get_mset_val(elem_idx, mat_idx);
+
+              const index_t num_specs_for_mat = m_acc.num_spec_for_mat(elem_idx, mat_idx);
+              for (index_t spec_idx = 0; spec_idx < num_specs_for_mat; spec_idx ++)
+              {
+                  const float64 mf_val = m_acc.get_mass_frac(elem_idx, mat_idx, spec_idx);
+              }
+          }
+      }
+  }
+  else if (m_acc.is_material_dominant() && m_acc.is_multi_buffer())
+  {
+      // we iterate over materials
+      const index_t num_mats = m_acc.num_mats();
+      for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
+      {
+          // we ask for the number of elements for this material
+          const index_t num_elems_for_mat = m_acc.num_elems_for_mat(mat_idx);
+          for (index_t elem_idx = 0; elem_idx < num_elems_for_mat; elem_idx ++)
+          {
+              const index_t mat_id = m_acc.get_mat_id(elem_idx, mat_idx);
+              const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
+              const index_t elem_id = m_acc.get_elem_id(elem_idx, mat_idx);
+              const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
+              const float64 mset_val = m_acc.get_mset_val(elem_idx, mat_idx);
+
+              const index_t num_specs_for_mat = m_acc.num_spec_for_mat(elem_idx, mat_idx);
+              for (index_t spec_idx = 0; spec_idx < num_specs_for_mat; spec_idx ++)
+              {
+                  const float64 mf_val = m_acc.get_mass_frac(elem_idx, mat_idx, spec_idx);
+              }
+          }
+      }
+  }
+  else if (m_acc.is_element_dominant() && m_acc.is_uni_buffer())
+  {
+      // we iterate over elements
+      const index_t num_elems = m_acc.num_elems();
+      for (index_t elem_idx = 0; elem_idx < num_elems; elem_idx ++)
+      {
+          // we ask for the number of materials in this element
+          const index_t num_mats_for_elem = m_acc.num_mats_for_elem(elem_idx);
+          for (index_t mat_idx = 0; mat_idx < num_mats_for_elem; mat_idx ++)
+          {
+              const index_t mat_id = m_acc.get_mat_id(elem_idx, mat_idx);
+              const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
+              const index_t elem_id = m_acc.get_elem_id(elem_idx, mat_idx);
+              const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
+              const float64 mset_val = m_acc.get_mset_val(elem_idx, mat_idx);
+
+              const index_t num_specs_for_mat = m_acc.num_spec_for_mat(elem_idx, mat_idx);
+              for (index_t spec_idx = 0; spec_idx < num_specs_for_mat; spec_idx ++)
+              {
+                  const float64 mf_val = m_acc.get_mass_frac(elem_idx, mat_idx, spec_idx);
+              }
+          }
+      }
+  }
+  else // (m_acc.is_material_dominant() && m_acc.is_uni_buffer())
+  {
+      CONDUIT_ERROR("Currently unsupported case.");
+  }
+
+When walking by materials either in an inner or an outer loop, what does the ``mat_idx`` represent?
+ * If walking in an outer loop, the ``mat_idx`` iterates over the materials in the order they appear in the ``material_map``, if it is present.
+   If it is not present, then the ``matset`` must be **multi-buffer**, so the order of materials is the order in which they appear as children under the ``volume_fractions`` node.
+ * If walking in an inner loop, then it depends on the material set layout.
+   For **multi-buffer** material sets, this order is always the order the materials appear in the ``matset``, as discussed in the previous bullet.
+   For **uni-buffer** **element-dominant** material sets, the order of materials is the order in which they appear in a given element.
 
 
 Fields
