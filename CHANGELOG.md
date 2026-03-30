@@ -76,6 +76,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 #### Relay
 - Fixed a bug preventing multiple species sets from being written when writing to Overlink.
+- Fixed an issue where `int64` unstructured topoology connectivity information would cause The Silo writer to crash.
 
 ## [0.9.5] - Released 2025-09-10
 
