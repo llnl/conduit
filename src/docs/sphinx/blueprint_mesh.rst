@@ -870,34 +870,34 @@ Material Set Quick Facts
 Several important details about Conduit Blueprint material sets are collected here for easy disambiguation:
 
  * If a ``material_map`` is included, mapping human-readable material names to unique integer material identifiers, the material identifiers need not be in the range ``[0, N)``, where ``N`` is the number of materials.
- Material identifiers can be any set of integers.
- There are no restrictions on them other than that they are unique.
+   Material identifiers can be any set of integers.
+   There are no restrictions on them other than that they are unique.
  * In the case of **multi-buffer** material sets, where the ``volume_fractions`` node is an *Object* for which material names are the names of the children, if a ``material_map`` is included, the order of material names in the ``volume_fractions``  and in the ``material_map`` need not be the same.
- The ``volume_fractions`` may have less children than the ``material_map``, but the ``material_map`` may not have less children than the ``volume_fractions``.
+   The ``volume_fractions`` may have less children than the ``material_map``, but the ``material_map`` may not have less children than the ``volume_fractions``.
  * For **uni-buffer** material sets, the **o2mrelation** rules apply.
- Therefore, a valid **uni-buffer** material set may have
+   Therefore, a valid **uni-buffer** material set may have
    * no ``sizes``, ``offsets``, or ``indices``
      * for **element-dominant** material sets, this means that every element is assumed to have a single material present.
-     The number of elements in ``volume_fractions`` and ``material_ids`` are the number of elements in the mesh.
+       The number of elements in ``volume_fractions`` and ``material_ids`` are the number of elements in the mesh.
      * for **material-dominant** material sets, this means that every material is assumed to be present in a single element.
-     The number of elements in ``volume_fractions`` and ``element_ids`` are the number of materials in the mesh.
+       The number of elements in ``volume_fractions`` and ``element_ids`` are the number of materials in the mesh.
    * ``sizes`` and ``offsets``, but no ``indices``
      * for **element-dominant** material sets, this means that the number of materials in element ``i`` is ``sizes[i]``.
-     The offset into the ``volume_fractions`` and ``material_ids`` for element ``i`` is given by ``offsets[i]``.
+       The offset into the ``volume_fractions`` and ``material_ids`` for element ``i`` is given by ``offsets[i]``.
      * for **material-dominant** material sets, this means that the number of elements for material ``i`` is ``sizes[i]``.
-     The offset into the ``volume_fractions`` and ``element_ids`` for material ``i`` is given by ``offsets[i]``.
+       The offset into the ``volume_fractions`` and ``element_ids`` for material ``i`` is given by ``offsets[i]``.
    * ``indices``, but no ``sizes`` nor ``offsets``
      * for **element-dominant** material sets, this means that every element is assumed to have a single material present.
-     The index into the ``volume_fractions`` and ``material_ids`` for element ``i`` is ``indices[i]``.
+       The index into the ``volume_fractions`` and ``material_ids`` for element ``i`` is ``indices[i]``.
      * for **material-dominant** material sets, this means that every material is assumed to be present in a single element.
-     The index into the ``volume_fractions`` and ``element_ids`` for material ``i`` is ``indices[i]``.
+       The index into the ``volume_fractions`` and ``element_ids`` for material ``i`` is ``indices[i]``.
    * all three of ``sizes``, ``offsets``, and ``indices``
      * for **element-dominant** material sets, this means that the number of materials in element ``i`` is ``sizes[i]``.
-     The offset into the ``indices`` for element ``i`` is given by ``offsets[i]``.
-     The index into the ``volume_fractions`` and ``material_ids`` for element ``i`` is ``indices[offsets[i]]``.
+       The offset into the ``indices`` for element ``i`` is given by ``offsets[i]``.
+       The index into the ``volume_fractions`` and ``material_ids`` for element ``i`` is ``indices[offsets[i]]``.
      * for **material-dominant** material sets, this means that the number of elements for material ``i`` is ``sizes[i]``.
-     The offset into the ``indices`` for material ``i`` is given by ``offsets[i]``.
-     The index into the ``volume_fractions`` and ``element_ids`` for material ``i`` is ``indices[offsets[i]]``.
+       The offset into the ``indices`` for material ``i`` is given by ``offsets[i]``.
+       The index into the ``volume_fractions`` and ``element_ids`` for material ``i`` is ``indices[offsets[i]]``.
  * Material sets are **multi-buffer** if the ``volume_fractions`` child is an *Object*, and they are **uni-buffer** otherwise.
  * Material sets are **material-dominant** if they have a child called ``element_ids``, and they are **element-dominant** otherwise.
 
@@ -1016,7 +1016,8 @@ It is also possible to convert material sets to a `Silo <https://silo.readthedoc
 
 This will create an output with the following information:
 
- * for matsets:
+ * for ``matset``s:
+
    * topology
    * material_map
    * matlist
@@ -1025,10 +1026,12 @@ This will create an output with the following information:
    * mix_vf
    * buffer_style
    * dominance
- * for fields:
+ * for ``field``s:
+
    * field_mixvar_values
    * field_values (optional)
- * for specsets:
+ * for ``specset``s:
+
    * nmatspec
    * specnames
    * speclist
@@ -1171,6 +1174,7 @@ We can also ask about general matset information:
 
 Once we start writing loops over elements and materials, the indices of those loops matter.
 An element index means something different depending on what matset layout we are working with, as does a material index.
+
  * For a **multi-buffer** **element-dominant** material set
    * elements range from ``0`` to the number of elements
    * materials range from ``0`` to the number of materials (these are material indices, not material identifiers)
