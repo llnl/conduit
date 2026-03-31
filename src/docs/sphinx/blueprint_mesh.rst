@@ -965,29 +965,11 @@ It is simple to ask what the layout representation is, and often code will branc
 The next tool in the tool box are material set conversions.
 A material set conforming to any of the material set layout types can be provided and converted into a material set with a different layout type:
 
-.. code:: cpp
-
-  //-------------------------------------------------------------------------
-  // creates a multi-buffer non-sparse case
-  void CONDUIT_BLUEPRINT_API to_multi_buffer_by_element(const conduit::Node &src_matset,
-                                                        conduit::Node &dest_matset);
-
-  //-------------------------------------------------------------------------
-  // creates a uni-buffer sparse case with 1st index into elements
-  void CONDUIT_BLUEPRINT_API to_uni_buffer_by_element(const conduit::Node &src_matset,
-                                                      conduit::Node &dest_matset,
-                                                      const float64 epsilon = CONDUIT_EPSILON);
-
-  //-------------------------------------------------------------------------
-  // creates a multi-buffer sparse case with 1st index into materials
-  void CONDUIT_BLUEPRINT_API to_multi_buffer_by_material(const conduit::Node &src_matset,
-                                                         conduit::Node &dest_matset,
-                                                         const float64 epsilon = CONDUIT_EPSILON);
-  //-------------------------------------------------------------------------
-  // throws an error as this case is not supported
-  void CONDUIT_BLUEPRINT_API to_uni_buffer_by_material(const conduit::Node &src_matset,
-                                                       conduit::Node &dest_matset,
-                                                       const float64 epsilon = CONDUIT_EPSILON);
+.. literalinclude:: ../../libs/blueprint/conduit_blueprint_mesh.hpp
+   :start-after: _matset_layout_conversions_start
+   :end-before:  _matset_layout_conversions_end
+   :language: cpp
+   :dedent: 4
 
 These are similarly simple to use:
 
@@ -1015,13 +997,11 @@ These are similarly simple to use:
 
 It is also possible to convert material sets to a `Silo <https://silo.readthedocs.io/en/latest/>`_-like mixed slot representation:
 
-.. code:: cpp
-
-  //-------------------------------------------------------------------------
-  void CONDUIT_BLUEPRINT_API to_silo(const conduit::Node &matset,
-                                     conduit::Node &dest,
-                                     const float64 epsilon = CONDUIT_EPSILON);
-
+.. literalinclude:: ../../libs/blueprint/conduit_blueprint_mesh.hpp
+   :start-after: _matset_to_silo_start
+   :end-before:  _matset_to_silo_end
+   :language: cpp
+   :dedent: 4
 
 This will create an output with the following information:
 
@@ -1054,49 +1034,27 @@ This will create an output with the following information:
 
 Conduit also provides tools for creating/fetching material maps:
 
-.. code:: cpp
-
-  //-------------------------------------------------------------------------
-  // this will use set external if the matmap already exists
-  void CONDUIT_BLUEPRINT_API create_or_reuse_material_map(const conduit::Node &matset,
-                                                          conduit::Node &material_map);
-  //-------------------------------------------------------------------------
-  // this will use set if the matmap already exists
-  void CONDUIT_BLUEPRINT_API create_or_copy_material_map(const conduit::Node &matset,
-                                                         conduit::Node &material_map);
+.. literalinclude:: ../../libs/blueprint/conduit_blueprint_mesh.hpp
+   :start-after: _matset_create_matmap_methods_start
+   :end-before:  _matset_create_matmap_methods_end
+   :language: cpp
+   :dedent: 4
 
 And tools for renumbering material ids to be in the range ``[0, N-1]``, where ``N`` is the number of materials:
 
-.. code:: cpp
+.. literalinclude:: ../../libs/blueprint/conduit_blueprint_mesh.hpp
+   :start-after: _matset_renumber_mat_ids_start
+   :end-before:  _matset_renumber_mat_ids_end
+   :language: cpp
+   :dedent: 4
 
-  //-------------------------------------------------------------------------
-  // renumbers material ids to run between 0 and N-1 where N is the number of
-  // materials.
-  void CONDUIT_BLUEPRINT_API renumber_material_ids(const conduit::Node &src_matset,
-                                                   conduit::Node &dest_matset);
-  //-------------------------------------------------------------------------
-  // renumbers material ids to run between 0 and N-1 where N is the number of
-  // materials.
-  void CONDUIT_BLUEPRINT_API renumber_material_ids(conduit::Node &matset);
+Conduit Blueprint also provides some general information methods:
 
-Conduit also provides some general information methods:
-
-.. code:: cpp
-
-  //-------------------------------------------------------------------------
-  // renumbers material ids to run between 0 and N-1 where N is the number of
-  // materials.
-  void CONDUIT_BLUEPRINT_API renumber_material_ids(conduit::Node &matset);
-  //-------------------------------------------------------------------------
-  index_t CONDUIT_BLUEPRINT_API count_elements_from_matset(const conduit::Node &matset);
-  //-------------------------------------------------------------------------
-  index_t CONDUIT_BLUEPRINT_API count_materials_from_matset(const conduit::Node &matset);
-  //-------------------------------------------------------------------------
-  bool CONDUIT_BLUEPRINT_API is_material_in_element(const conduit::Node &matset,
-                                                    const std::string &matname,
-                                                    const index_t elem_id,
-                                                    const float64 epsilon = CONDUIT_EPSILON);
-
+.. literalinclude:: ../../libs/blueprint/conduit_blueprint_mesh.hpp
+   :start-after: _matset_info_methods_start
+   :end-before:  _matset_info_methods_end
+   :language: cpp
+   :dedent: 4
 
 
 Material Set Accessors
@@ -1116,47 +1074,31 @@ We can ask questions about how the ``MatsetAccessor`` was created:
   
   MatsetAccessor m_acc1 = MatsetAccessor(matset);
   if (m_acc1.has_field())
-  {
       std::cout << "matset accessor 1 has field" << std::endl;
-  }
   if (m_acc1.has_specset())
-  {
       std::cout << "matset accessor 1 has specset" << std::endl;
-  }
 
   MatsetAccessor m_acc2 = MatsetAccessor(matset, field);
   if (m_acc2.has_field())
-  {
       std::cout << "matset accessor 2 has field" << std::endl;
-  }
   if (m_acc2.has_specset())
-  {
       std::cout << "matset accessor 2 has specset" << std::endl;
-  }
 
   MatsetAccessor m_acc3 = MatsetAccessor(matset, specset);
   if (m_acc3.has_field())
-  {
       std::cout << "matset accessor 3 has field" << std::endl;
-  }
   if (m_acc3.has_specset())
-  {
       std::cout << "matset accessor 3 has specset" << std::endl;
-  }
 
   MatsetAccessor m_acc4 = MatsetAccessor(matset, field, specset);
   if (m_acc4.has_field())
-  {
       std::cout << "matset accessor 4 has field" << std::endl;
-  }
   if (m_acc4.has_specset())
-  {
       std::cout << "matset accessor 4 has specset" << std::endl;
-  }
 
 This produces the following:
 
-.. code:: cpp
+.. code:: text
 
   matset accessor 2 has field
   matset accessor 3 has specset
@@ -1171,8 +1113,8 @@ We can also ask about general matset information:
 
   MatsetAccessor m_acc = MatsetAccessor(matset);
   // buffer style
-  bool is_uni_buffer        = m_acc.is_uni_buffer();
-  bool is_multi_buffer      = m_acc.is_multi_buffer();
+  bool is_uni_buffer   = m_acc.is_uni_buffer();
+  bool is_multi_buffer = m_acc.is_multi_buffer();
 
   // dominance
   bool is_element_dominant  = m_acc.is_element_dominant();
@@ -1187,18 +1129,25 @@ Once we start writing loops over elements and materials, the indices of those lo
 An element index means something different depending on what matset layout we are working with, as does a material index.
 
  * For a **multi-buffer** **element-dominant** material set
+
    * elements range from ``0`` to the number of elements
    * materials range from ``0`` to the number of materials (these are material indices, not material identifiers)
    * species range from ``0`` to the number of species for a given material
+
  * For a **multi-buffer** **material-dominant** material set
+
    * elements range from ``0`` to the number of elements for a given material
    * materials range from ``0`` to the number of materials (these are material indices, not material identifiers)
    * species range from ``0`` to the number of species for a given material
+
  * For a **uni-buffer** **element-dominant** material set
+
    * elements range from ``0`` to the number of elements
    * materials range from ``0`` to the number of materials in a given element (these are material indices, not material identifiers)
    * species range from ``0`` to the number of species for a given material in a given element
+
  * For a **uni-buffer** **mateiral-dominant** material set
+
    * indexing does not matter currently as this case is unsupported
 
 **Element-dominant** material sets are easiest to walk by element, and **material-dominant** material sets are easiest to walk by material.
@@ -1219,16 +1168,21 @@ Here is an example of walking a material set and performing data retrieval using
           const index_t num_mats = m_acc.num_mats();
           for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
           {
-              const index_t mat_id = m_acc.get_mat_id(elem_idx, mat_idx);
-              const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
-              const index_t elem_id = m_acc.get_elem_id(elem_idx, mat_idx);
+              // in a multi-buffer by element matset, these values
+              // only have meaning if vol_frac > 0
               const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
-              const float64 mset_val = m_acc.get_mset_val(elem_idx, mat_idx);
-
-              const index_t num_specs_for_mat = m_acc.num_spec_for_mat(elem_idx, mat_idx);
-              for (index_t spec_idx = 0; spec_idx < num_specs_for_mat; spec_idx ++)
+              if (vol_frac > 0.0)
               {
-                  const float64 mf_val = m_acc.get_mass_frac(elem_idx, mat_idx, spec_idx);
+                  const index_t mat_id = m_acc.get_mat_id(elem_idx, mat_idx);
+                  const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
+                  const index_t elem_id = m_acc.get_elem_id(elem_idx, mat_idx);
+                  const float64 mset_val = m_acc.get_mset_val(elem_idx, mat_idx);
+
+                  const index_t num_specs_for_mat = m_acc.num_spec_for_mat(elem_idx, mat_idx);
+                  for (index_t spec_idx = 0; spec_idx < num_specs_for_mat; spec_idx ++)
+                  {
+                      const float64 mf_val = m_acc.get_mass_frac(elem_idx, mat_idx, spec_idx);
+                  }              
               }
           }
       }
@@ -1240,6 +1194,7 @@ Here is an example of walking a material set and performing data retrieval using
       for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
       {
           // we ask for the number of elements for this material
+          // this method is only valid for material dominant matsets
           const index_t num_elems_for_mat = m_acc.num_elems_for_mat(mat_idx);
           for (index_t elem_idx = 0; elem_idx < num_elems_for_mat; elem_idx ++)
           {
@@ -1264,6 +1219,7 @@ Here is an example of walking a material set and performing data retrieval using
       for (index_t elem_idx = 0; elem_idx < num_elems; elem_idx ++)
       {
           // we ask for the number of materials in this element
+          // this method is only valid for sparse element dominant matsets
           const index_t num_mats_for_elem = m_acc.num_mats_for_elem(elem_idx);
           for (index_t mat_idx = 0; mat_idx < num_mats_for_elem; mat_idx ++)
           {
