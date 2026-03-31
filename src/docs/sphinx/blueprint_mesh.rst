@@ -1136,15 +1136,15 @@ An element index means something different depending on what matset layout we ar
 
  * For a **multi-buffer** **material-dominant** material set
 
-   * elements range from ``0`` to the number of elements for a given material
+   * elements range from ``0`` to the number of elements *for a given material*
    * materials range from ``0`` to the number of materials (these are material indices, not material identifiers)
    * species range from ``0`` to the number of species for a given material
 
  * For a **uni-buffer** **element-dominant** material set
 
    * elements range from ``0`` to the number of elements
-   * materials range from ``0`` to the number of materials in a given element (these are material indices, not material identifiers)
-   * species range from ``0`` to the number of species for a given material in a given element
+   * materials range from ``0`` to the number of materials *in a given element* (these are material indices, not material identifiers)
+   * species range from ``0`` to the number of species for a given material *in a given element*
 
  * For a **uni-buffer** **mateiral-dominant** material set
 
@@ -1168,11 +1168,11 @@ Here is an example of walking a material set and performing data retrieval using
           const index_t num_mats = m_acc.num_mats();
           for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
           {
-              // in a multi-buffer by element matset, these values
-              // only have meaning if vol_frac > 0
               const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
               if (vol_frac > 0.0)
               {
+                // in a multi-buffer by element matset, these values
+                // only have meaning if vol_frac > 0
                   const index_t mat_id = m_acc.get_mat_id(elem_idx, mat_idx);
                   const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
                   const index_t elem_id = m_acc.get_elem_id(elem_idx, mat_idx);
