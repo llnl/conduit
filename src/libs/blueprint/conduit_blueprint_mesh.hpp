@@ -794,6 +794,7 @@ namespace matset
     bool CONDUIT_BLUEPRINT_API verify(const conduit::Node &matset,
                                       conduit::Node &info);
 
+    // _matset_layout_determination_methods_start
     //-------------------------------------------------------------------------
     bool CONDUIT_BLUEPRINT_API is_multi_buffer(const conduit::Node &matset);
 
@@ -805,6 +806,7 @@ namespace matset
 
     //-------------------------------------------------------------------------
     bool CONDUIT_BLUEPRINT_API is_material_dominant(const conduit::Node &matset);
+    // _matset_layout_determination_methods_end
 
     //-------------------------------------------------------------------------
     // creates a multi-buffer non-sparse case

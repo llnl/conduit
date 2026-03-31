@@ -927,20 +927,11 @@ Conduit provides several tools for working with material sets, as working with t
 
 The first set of tools are functions that can be used to determine what sort of material set is being worked with:
 
-.. code:: cpp
-
-  //-------------------------------------------------------------------------
-  bool CONDUIT_BLUEPRINT_API is_multi_buffer(const conduit::Node &matset);
-
-  //-------------------------------------------------------------------------
-  bool CONDUIT_BLUEPRINT_API is_uni_buffer(const conduit::Node &matset);
-
-  //-------------------------------------------------------------------------
-  bool CONDUIT_BLUEPRINT_API is_element_dominant(const conduit::Node &matset);
-
-  //-------------------------------------------------------------------------
-  bool CONDUIT_BLUEPRINT_API is_material_dominant(const conduit::Node &matset);
-
+.. literalinclude:: ../../libs/blueprint/docs/conduit_blueprint_mesh.hpp
+   :start-after: _matset_layout_determination_methods_start
+   :end-before:  _matset_layout_determination_methods_end
+   :language: cpp
+   :dedent: 4
 
 It is simple to ask what the layout representation is, and often code will branch like so:
 
