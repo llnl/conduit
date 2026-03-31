@@ -876,22 +876,26 @@ Several important details about Conduit Blueprint material sets are collected he
    The ``volume_fractions`` may have less children than the ``material_map``, but the ``material_map`` may not have less children than the ``volume_fractions``.
  * For **uni-buffer** material sets, the **o2mrelation** rules apply.
    Therefore, a valid **uni-buffer** material set may have
+
    * no ``sizes``, ``offsets``, or ``indices``
      * for **element-dominant** material sets, this means that every element is assumed to have a single material present.
        The number of elements in ``volume_fractions`` and ``material_ids`` are the number of elements in the mesh.
      * for **material-dominant** material sets, this means that every material is assumed to be present in a single element.
        The number of elements in ``volume_fractions`` and ``element_ids`` are the number of materials in the mesh.
    * ``sizes`` and ``offsets``, but no ``indices``
+
      * for **element-dominant** material sets, this means that the number of materials in element ``i`` is ``sizes[i]``.
        The offset into the ``volume_fractions`` and ``material_ids`` for element ``i`` is given by ``offsets[i]``.
      * for **material-dominant** material sets, this means that the number of elements for material ``i`` is ``sizes[i]``.
        The offset into the ``volume_fractions`` and ``element_ids`` for material ``i`` is given by ``offsets[i]``.
    * ``indices``, but no ``sizes`` nor ``offsets``
+
      * for **element-dominant** material sets, this means that every element is assumed to have a single material present.
        The index into the ``volume_fractions`` and ``material_ids`` for element ``i`` is ``indices[i]``.
      * for **material-dominant** material sets, this means that every material is assumed to be present in a single element.
        The index into the ``volume_fractions`` and ``element_ids`` for material ``i`` is ``indices[i]``.
    * all three of ``sizes``, ``offsets``, and ``indices``
+
      * for **element-dominant** material sets, this means that the number of materials in element ``i`` is ``sizes[i]``.
        The offset into the ``indices`` for element ``i`` is given by ``offsets[i]``.
        The index into the ``volume_fractions`` and ``material_ids`` for element ``i`` is ``indices[offsets[i]]``.
