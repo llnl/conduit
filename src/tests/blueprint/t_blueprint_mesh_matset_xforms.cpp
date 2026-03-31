@@ -47,7 +47,7 @@ modify_full_specset_to_clear_irrelevant_zone_mass_fractions(const Node &full_mat
             {
                 // if the material is not in the zone, the species mass fraction
                 // must be 0.
-                if (! blueprint::mesh::matset::is_material_in_zone(full_matset,
+                if (! blueprint::mesh::matset::is_material_in_element(full_matset,
                                                                    matname,
                                                                    zone_id,
                                                                    CONDUIT_EPSILON))
@@ -183,7 +183,7 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_count_materials_from_specse
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_is_material_in_zone)
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_is_material_in_element)
 {
     const int nx = 2, ny = 2;
     const double radius = 0.25;
@@ -194,8 +194,8 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_is_material_in_zone)
         blueprint::mesh::examples::venn("full", nx, ny, radius, mesh);
         const Node &mset = mesh["matsets/matset"];
 
-        EXPECT_FALSE(blueprint::mesh::matset::is_material_in_zone(mset, "circle_c", 0));
-        EXPECT_TRUE(blueprint::mesh::matset::is_material_in_zone(mset, "circle_c", 3));
+        EXPECT_FALSE(blueprint::mesh::matset::is_material_in_element(mset, "circle_c", 0));
+        EXPECT_TRUE(blueprint::mesh::matset::is_material_in_element(mset, "circle_c", 3));
     }
 
     CONDUIT_INFO("venn sparse_by_material check mat in zone");
@@ -204,8 +204,8 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_is_material_in_zone)
         blueprint::mesh::examples::venn("sparse_by_material", nx, ny, radius, mesh);
         const Node &mset = mesh["matsets/matset"];
 
-        EXPECT_FALSE(blueprint::mesh::matset::is_material_in_zone(mset, "circle_c", 0));
-        EXPECT_TRUE(blueprint::mesh::matset::is_material_in_zone(mset, "circle_c", 3));
+        EXPECT_FALSE(blueprint::mesh::matset::is_material_in_element(mset, "circle_c", 0));
+        EXPECT_TRUE(blueprint::mesh::matset::is_material_in_element(mset, "circle_c", 3));
     }
 
     CONDUIT_INFO("venn sparse_by_element check mat in zone");
@@ -214,8 +214,8 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_is_material_in_zone)
         blueprint::mesh::examples::venn("sparse_by_element", nx, ny, radius, mesh);
         const Node &mset = mesh["matsets/matset"];
 
-        EXPECT_FALSE(blueprint::mesh::matset::is_material_in_zone(mset, "circle_c", 0));
-        EXPECT_TRUE(blueprint::mesh::matset::is_material_in_zone(mset, "circle_c", 3));
+        EXPECT_FALSE(blueprint::mesh::matset::is_material_in_element(mset, "circle_c", 0));
+        EXPECT_TRUE(blueprint::mesh::matset::is_material_in_element(mset, "circle_c", 3));
     }
 }
 
