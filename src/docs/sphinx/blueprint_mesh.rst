@@ -923,7 +923,7 @@ Several important details about Conduit Blueprint material sets are collected he
 Material Set Tools
 =======================
 
-Conduit provides several tools for working with material sets, as working with multiple layout specifications can be unwieldy.
+Conduit provides several tools for working with material sets, as working with the multiple layout specifications can be unwieldy.
 
 The first set of tools are functions that can be used to determine what sort of material set is being worked with:
 
@@ -1107,7 +1107,7 @@ Conduit also provides some general information methods:
 
 
 Material Set Accessors
-==========================
+*************************
 
 The problem remains that supporting all four material set layout types is cumbersome, even with helpers, converters, and information functions.
 It is useful to be able to walk these structures in uniform ways, which is where ``MatsetAccessor``s come into play.
