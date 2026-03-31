@@ -619,7 +619,7 @@ To find out what the volume fractions are for each material for a specific eleme
 For example, for element 0, we take the 0th index of each array: ``background`` has a value of ``1.0``, ``circle_a`` has a value of ``0.0``, ``circle_b`` has a value of ``0.0``, and ``circle_c`` has a value of ``0.0``. To determine if a material is in a element, we must check that it has a nonzero volume fraction for that element. Therefore, we can infer that element 0 is 100% the ``background`` material, and the other materials are not present.
 
 If we want to see the volume fractions for element 10, we go to the 10th index of each array: ``background`` has a value of ``0.0``, ``circle_a`` has a value of ``0.333333333333333``, ``circle_b`` has a value of ``0.333333333333333``, and ``circle_c`` has a value of ``0.333333333333333``.
-Therefore we can infer that element 10 is evenly split between the circle materials and there is no ``background`` material present.
+Therefore, we can infer that element 10 is evenly split between the circle materials and there is no ``background`` material present.
 
 If we want to know the material ids of the materials in a specific element, we can examine the material map entry for each material in that element that has a volume fraction greater than ``0.0``.
 If no material map is present, we can infer the material id from the order of the material volume fraction arrays under the ``volume_fractions`` node.
@@ -1032,7 +1032,7 @@ This will create an output with the following information:
    * mix_spec
    * mixlen
 
-Conduit also provides tools for creating/fetching material maps:
+Conduit Blueprint also provides tools for creating/fetching material maps:
 
 .. literalinclude:: ../../libs/blueprint/conduit_blueprint_mesh.hpp
    :start-after: _matset_create_matmap_methods_start
@@ -1105,7 +1105,7 @@ This produces the following:
   matset accessor 4 has field
   matset accessor 4 has specset
 
-We can also ask about general matset information:
+We can also ask about general ``matset`` information:
 
 .. code:: cpp
 
@@ -1126,7 +1126,7 @@ We can also ask about general matset information:
   index_t num_mats  = m_acc.num_mats();
 
 Once we start writing loops over elements and materials, the indices of those loops matter.
-An element index means something different depending on what matset layout we are working with, as does a material index.
+An element index means something different depending on what ``matset`` layout we are working with, as does a material index.
 
  * For a **multi-buffer** **element-dominant** material set
 
@@ -1156,6 +1156,7 @@ Here is an example of walking a material set and performing data retrieval using
 .. code:: cpp
 
   // for some matset `matset`, field `field`, and specset `specset`
+
   MatsetAccessor m_acc = MatsetAccessor(matset, field, specset);
 
   if (m_acc.is_element_dominant() && m_acc.is_multi_buffer())
