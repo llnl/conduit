@@ -559,7 +559,7 @@ Each material set conforms to a schema variant based on:
 These two choices yield four material set schema variants: **multi-buffer element-dominant** material sets, **multi-buffer material-dominant** material sets, **uni-buffer element-dominant** material sets, and **uni-buffer material-dominant** material sets.
 
 These variants are detailed in the following sections.
-All of the ensuing examples in this section were created using the ``venn`` Mesh Blueprint example:
+All of the examples in this section were created using the ``venn`` Mesh Blueprint example:
 
 .. code:: cpp
 
