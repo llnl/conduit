@@ -927,7 +927,7 @@ Conduit provides several tools for working with material sets, as working with t
 
 The first set of tools are functions that can be used to determine what sort of material set is being worked with:
 
-.. literalinclude:: ../../libs/blueprint/docs/conduit_blueprint_mesh.hpp
+.. literalinclude:: ../../libs/blueprint/conduit_blueprint_mesh.hpp
    :start-after: _matset_layout_determination_methods_start
    :end-before:  _matset_layout_determination_methods_end
    :language: cpp
@@ -1025,7 +1025,7 @@ It is also possible to convert material sets to a `Silo <https://silo.readthedoc
 
 This will create an output with the following information:
 
- * for ``matset``s:
+ * for material sets:
 
    * topology
    * material_map
@@ -1035,11 +1035,13 @@ This will create an output with the following information:
    * mix_vf
    * buffer_style
    * dominance
- * for ``field``s:
+
+ * for fields:
 
    * field_mixvar_values
    * field_values (optional)
- * for ``specset``s:
+
+ * for species sets:
 
    * nmatspec
    * specnames
