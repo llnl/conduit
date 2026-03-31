@@ -76,6 +76,7 @@ TEST(blueprint_mpi_parmetis, basic)
     // paint a field with parmetis result (WIP)
     Node part_opts;
     part_opts["partitions"] = 2;
+    part_opts["verbose"] = 1;
     conduit::blueprint::mpi::mesh::generate_partition_field(mesh,
                                                             part_opts,
                                                             MPI_COMM_WORLD);
