@@ -916,8 +916,8 @@ Several important details about Conduit Blueprint material sets are collected he
      * for **material-dominant** material sets, this means that the number of elements for material ``i`` is ``sizes[i]``.
        The offset into the ``indices`` for material ``i`` is given by ``offsets[i]``.
        The index into the ``volume_fractions`` and ``element_ids`` for material ``i`` is ``indices[offsets[i]]``.
- * Material sets are **multi-buffer** if the ``volume_fractions`` child is an *Object*, and they are **uni-buffer** otherwise.
- * Material sets are **material-dominant** if they have a child called ``element_ids``, and they are **element-dominant** otherwise.
+ * Material sets are **multi-buffer** if the ``volume_fractions`` child is an *Object*; they are **uni-buffer** otherwise.
+ * Material sets are **material-dominant** if they have a child called ``element_ids``; they are **element-dominant** otherwise.
 
 
 Material Set Tools
@@ -1005,7 +1005,7 @@ It is also possible to convert material sets to a `Silo <https://silo.readthedoc
 
 This will create an output with the following information:
 
- * for material sets:
+ * for ``matset``\s:
 
    * topology
    * material_map
@@ -1016,12 +1016,12 @@ This will create an output with the following information:
    * buffer_style
    * dominance
 
- * for fields:
+ * for ``field``\s:
 
    * field_mixvar_values
    * field_values (optional)
 
- * for species sets:
+ * for ``specset``\s:
 
    * nmatspec
    * specnames
@@ -1061,10 +1061,10 @@ Material Set Accessors
 *************************
 
 The problem remains that supporting all four material set layout types is cumbersome, even with helpers, converters, and information functions.
-It is useful to be able to walk these structures in uniform ways, which is where ``MatsetAccessor``s come into play.
+It is useful to be able to walk these structures in uniform ways, which is where ``MatsetAccessor``\s come into play.
 
 The general idea with a ``MatsetAccessor`` is that it can consume a ``matset``, a ``matset`` and a ``specset``, a ``matset`` and a ``field``, or all three, and it can provide data corresponding to element ``i`` and material ``j`` (and species ``k``).
-``MatsetAccessor``s know which layout type their underlying ``matset`` is and how to access information in it, abstracting away the difficulty of working with multiple material set layouts.
+``MatsetAccessor``\s know which layout type their underlying ``matset`` is and how to access information in it, abstracting away the difficulty of working with multiple material set layouts.
 
 We can ask questions about how the ``MatsetAccessor`` was created:
 
@@ -1171,8 +1171,8 @@ Here is an example of walking a material set and performing data retrieval using
               const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
               if (vol_frac > 0.0)
               {
-                // in a multi-buffer by element matset, these values
-                // only have meaning if vol_frac > 0
+                  // in a multi-buffer by element matset, these values
+                  // only have meaning if vol_frac > 0
                   const index_t mat_id = m_acc.get_mat_id(elem_idx, mat_idx);
                   const index_t mat_order_id = m_acc.get_mat_order_id(elem_idx, mat_idx);
                   const index_t elem_id = m_acc.get_elem_id(elem_idx, mat_idx);
