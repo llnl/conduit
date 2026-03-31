@@ -794,6 +794,7 @@ namespace matset
     bool CONDUIT_BLUEPRINT_API verify(const conduit::Node &matset,
                                       conduit::Node &info);
 
+    // _matset_layout_determination_methods_start
     //-------------------------------------------------------------------------
     bool CONDUIT_BLUEPRINT_API is_multi_buffer(const conduit::Node &matset);
 
@@ -805,14 +806,16 @@ namespace matset
 
     //-------------------------------------------------------------------------
     bool CONDUIT_BLUEPRINT_API is_material_dominant(const conduit::Node &matset);
+    // _matset_layout_determination_methods_end
 
+    // _matset_layout_conversions_start
     //-------------------------------------------------------------------------
     // creates a multi-buffer non-sparse case
     void CONDUIT_BLUEPRINT_API to_multi_buffer_by_element(const conduit::Node &src_matset,
                                                           conduit::Node &dest_matset);
 
     //-------------------------------------------------------------------------
-    // creates a unibuffer sparse case with 1st index into elements
+    // creates a uni-buffer sparse case with 1st index into elements
     void CONDUIT_BLUEPRINT_API to_uni_buffer_by_element(const conduit::Node &src_matset,
                                                         conduit::Node &dest_matset,
                                                         const float64 epsilon = CONDUIT_EPSILON);
@@ -827,7 +830,9 @@ namespace matset
     void CONDUIT_BLUEPRINT_API to_uni_buffer_by_material(const conduit::Node &src_matset,
                                                          conduit::Node &dest_matset,
                                                          const float64 epsilon = CONDUIT_EPSILON);
+    // _matset_layout_conversions_end
 
+    // _matset_to_silo_start
     //-------------------------------------------------------------------------
     // Converts a blueprint matset to the silo style sparse mixed slot 
     // representation.
@@ -838,7 +843,9 @@ namespace matset
     void CONDUIT_BLUEPRINT_API to_silo(const conduit::Node &matset,
                                        conduit::Node &dest,
                                        const float64 epsilon = CONDUIT_EPSILON);
+    // _matset_to_silo_end
 
+    // _matset_create_matmap_methods_start
     //-------------------------------------------------------------------------
     // this will use set external if the matmap already exists
     void CONDUIT_BLUEPRINT_API create_or_reuse_material_map(const conduit::Node &matset,
@@ -847,6 +854,8 @@ namespace matset
     // this will use set if the matmap already exists
     void CONDUIT_BLUEPRINT_API create_or_copy_material_map(const conduit::Node &matset,
                                                            conduit::Node &material_map);
+    // _matset_create_matmap_methods_end
+    // _matset_renumber_mat_ids_start
     //-------------------------------------------------------------------------
     // renumbers material ids to run between 0 and N-1 where N is the number of
     // materials.
@@ -856,15 +865,18 @@ namespace matset
     // renumbers material ids to run between 0 and N-1 where N is the number of
     // materials.
     void CONDUIT_BLUEPRINT_API renumber_material_ids(conduit::Node &matset);
+    // _matset_renumber_mat_ids_end
+    // _matset_info_methods_start
     //-------------------------------------------------------------------------
     index_t CONDUIT_BLUEPRINT_API count_elements_from_matset(const conduit::Node &matset);
     //-------------------------------------------------------------------------
     index_t CONDUIT_BLUEPRINT_API count_materials_from_matset(const conduit::Node &matset);
     //-------------------------------------------------------------------------
-    bool CONDUIT_BLUEPRINT_API is_material_in_zone(const conduit::Node &matset,
-                                                   const std::string &matname,
-                                                   const index_t zone_id,
-                                                   const float64 epsilon = CONDUIT_EPSILON);
+    bool CONDUIT_BLUEPRINT_API is_material_in_element(const conduit::Node &matset,
+                                                      const std::string &matname,
+                                                      const index_t elem_id,
+                                                      const float64 epsilon = CONDUIT_EPSILON);
+    // _matset_info_methods_end
     //-----------------------------------------------------------------------------
     std::map<int, std::string> CONDUIT_BLUEPRINT_API create_reverse_material_map(
         const conduit::Node &src_matset);

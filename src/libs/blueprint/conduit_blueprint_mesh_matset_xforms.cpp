@@ -2483,15 +2483,15 @@ count_materials_from_matset(const conduit::Node &matset)
 
 //-------------------------------------------------------------------------
 bool 
-is_material_in_zone(const conduit::Node &matset,
-                    const std::string &matname,
-                    const index_t elem_id,
-                    const float64 epsilon)
+is_material_in_element(const conduit::Node &matset,
+                       const std::string &matname,
+                       const index_t elem_id,
+                       const float64 epsilon)
 {
     // extra seat belt here
     if (! matset.dtype().is_object())
     {
-        CONDUIT_ERROR("blueprint::mesh::matset::is_material_in_zone"
+        CONDUIT_ERROR("blueprint::mesh::matset::is_material_in_element"
                       " passed matset node must be a valid matset tree.");
     }
 
@@ -2526,7 +2526,7 @@ is_material_in_zone(const conduit::Node &matset,
         else // material-dominant
         {
             // unsupported uni-buffer by material
-            CONDUIT_ERROR("conduit::blueprint::mesh::matset::is_material_in_zone() "
+            CONDUIT_ERROR("conduit::blueprint::mesh::matset::is_material_in_element() "
                           "material-dominant uni-buffer material set is unsupported.");
             return false;
         }

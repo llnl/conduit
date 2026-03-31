@@ -194,7 +194,7 @@ silo_name_changer(const std::string &mmesh_name,
                 {
                     Node &mat = mat_itr.next();
                     const std::string matname = mat_itr.name();
-                    if (! blueprint::mesh::matset::is_material_in_zone(n_matset, matname, zone_id))
+                    if (! blueprint::mesh::matset::is_material_in_element(n_matset, matname, zone_id))
                     {
                         // if this material is not present in the zone, then we need
                         // to change the species mass fractions to all zero to pass
@@ -420,7 +420,7 @@ overlink_name_changer(conduit::Node &save_mesh)
                 {
                     Node &mat = mat_itr.next();
                     const std::string matname = mat_itr.name();
-                    if (! blueprint::mesh::matset::is_material_in_zone(n_matset, matname, zone_id))
+                    if (! blueprint::mesh::matset::is_material_in_element(n_matset, matname, zone_id))
                     {
                         // if this material is not present in the zone, then we need
                         // to change the species mass fractions to all zero to pass
