@@ -2350,14 +2350,17 @@ std::vector<Block> BlockSplitter::split(const Block &whole, IndexType nblocks) c
     std::cout << "  whole: " << whole << std::endl;
     std::cout << "  nblocks: " << nblocks << std::endl;
     std::cout << "  factors: " << f << std::endl;
+    std::cout << "  whole.size: " << whole.size() << std::endl;
 #endif
 
-    if(f.size() == 1 && f[0] == 1)
+    const auto wholeSize = whole.size();
+
+    if((f.size() == 1 && f[0] == 1) || wholeSize == 1)
     {
         // Single Block
         blocks.push_back(whole);
     }
-    else if(options.curveSplitting && whole.size() <= options.maximumSize)
+    else if(options.curveSplitting && wholeSize <= options.maximumSize)
     {
         // Hilbert curve splitting is enabled so do it.
         auto newblocks = split_hilbert(whole, nblocks);
@@ -3115,12 +3118,13 @@ TopDownTiler::generate(conduit::index_t nx, conduit::index_t ny, conduit::index_
 #ifdef CONDUIT_WRITE_BLOCKS
     std::vector<Block> writeBlocks;
 #endif
+    const bool threeD = nz > 0;
     if(m_selectedDomains.empty())
     {
         const bool multi = (blocks.size() > 1);
         for(size_t bi = 0; bi < blocks.size(); bi++)
         {
-            auto selectedBlock = neighbors(blocks, bi, dims[2] > 1);
+            auto selectedBlock = neighbors(blocks, bi, threeD);
             generateDomain(nx, ny, nz, multi ? res.append() : res, selectedBlock,
                            static_cast<IndexType>(bi), options);
 #ifdef CONDUIT_WRITE_BLOCKS
@@ -3133,7 +3137,7 @@ TopDownTiler::generate(conduit::index_t nx, conduit::index_t ny, conduit::index_
         const bool multi = (m_selectedDomains.size() > 1);
         for(const auto bi : m_selectedDomains)
         {
-            auto selectedBlock = neighbors(blocks, bi, dims[2] > 1);
+            auto selectedBlock = neighbors(blocks, bi, threeD);
             generateDomain(nx, ny, nz, multi ? res.append() : res, selectedBlock,
                            static_cast<IndexType>(bi), options);
 #ifdef CONDUIT_WRITE_BLOCKS
