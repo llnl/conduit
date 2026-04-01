@@ -534,8 +534,6 @@ TEST(conduit_blueprint_mpi_mesh_utils, topdown_size_1_1_1)
 
   // There was a single domain so no adjsets.
   EXPECT_FALSE(res.has_path("adjsets"));
-
-  conduit::relay::io::blueprint::save_mesh(res, "tiled", "hdf5");
 }
 
 //-----------------------------------------------------------------------------
