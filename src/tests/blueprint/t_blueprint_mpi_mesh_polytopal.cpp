@@ -252,7 +252,7 @@ void test_polytopal_create_fine_domain_2d(Node& domain)
         xcoords.push_back(1.625);
         xcoords.push_back(1.75);
         xcoords.push_back(1.875);
-        xcoords.push_back(1.0);
+        xcoords.push_back(2.0);
     }
     std::vector<double> ycoords;
     double yval = 0.0;
@@ -351,7 +351,7 @@ void test_polytopal_create_fine_domain_3d(Node& domain)
             xcoords.push_back(1.625);
             xcoords.push_back(1.75);
             xcoords.push_back(1.875);
-            xcoords.push_back(1.0);
+            xcoords.push_back(2.0);
         }
     }
 

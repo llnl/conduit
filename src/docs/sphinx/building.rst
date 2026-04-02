@@ -403,14 +403,15 @@ Under ``src/examples`` there are examples demonstrating how to use Conduit in a 
 Building Conduit in a Docker Container
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Under ``src/examples/docker/ubuntu`` there is an example ``Dockerfile`` which can be used to create an ubuntu-based docker image with a build of the Conduit. There is also a script that demonstrates how to build a Docker image from the Dockerfile (``example_build.sh``) and a script that runs this image in a Docker container (``example_run.sh``). The Conduit repo is cloned into the image's file system at ``/conduit``, the build directory is ``/conduit/build-debug``, and the install directory is ``/conduit/install-debug``.
+Under ``src/examples/docker/ubuntu`` there is an example ``Dockerfile`` which can be used to create an ubuntu-based docker image with a build of the Conduit. There is also a script that demonstrates how to build a Docker image from the Dockerfile (``build.sh``) and a script that runs this image in a Docker container (``run.sh``). The Conduit repo is cloned into the image's file system at ``/conduit``, the build directory is ``/conduit/build``, and the install directory is ``/conduit/install``.
 
 .. _building_with_pip:
 
 Building Conduit with pip
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Conduit provides a setup.py that allows pip to use CMake to build and install
-Conduit and the Conduit Python module. This script assumes that CMake is in your path.
+Conduit provides a pyproject.toml paried with a setup.py that allows pip
+to use CMake to build and install Conduit and the Conduit Python module.
+This requires pip 24.0.0 or newer.
 
 Example Basic Build:
 

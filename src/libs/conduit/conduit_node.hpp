@@ -4066,6 +4066,9 @@ public:
     float32          as_float32() const;
     float64          as_float64() const;
 
+    // index type
+    index_t          as_index_t() const;
+
     // signed integers via pointers
     int8            *as_int8_ptr();
     int16           *as_int16_ptr();

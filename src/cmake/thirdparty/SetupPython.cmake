@@ -163,6 +163,35 @@ if(PYTHONINTERP_FOUND)
                     endif()
                 endif()
             endif()
+
+            # fallback: some python distributions (e.g. conda) may report a static
+            # archive (libpythonX.Y.a) via sysconfig, but only ship shared libs.
+            if(NOT EXISTS ${PYTHON_LIBRARY})
+                if(PYTHON_CONFIG_LDLIBRARY MATCHES "\\.a$")
+                    string(REGEX REPLACE "\\.a$" ".so" _PYTHON_CONFIG_LDLIBRARY_SO "${PYTHON_CONFIG_LDLIBRARY}")
+                    foreach(_py_lib_search_dir ${PYTHON_CONFIG_LIBDIR} ${PYTHON_CONFIG_LIBPL})
+                        if(IS_DIRECTORY ${_py_lib_search_dir})
+                            set(_PYTHON_LIBRARY_TEST  "${_py_lib_search_dir}/${_PYTHON_CONFIG_LDLIBRARY_SO}")
+                            message(STATUS "Checking for python library at: ${_PYTHON_LIBRARY_TEST}")
+                            if(EXISTS ${_PYTHON_LIBRARY_TEST})
+                                set(PYTHON_LIBRARY ${_PYTHON_LIBRARY_TEST})
+                                break()
+                            endif()
+
+                            file(GLOB _PYTHON_SO_CANDIDATES "${_py_lib_search_dir}/libpython${PYTHON_CONFIG_VERSION}.so*")
+                            list(LENGTH _PYTHON_SO_CANDIDATES _PYTHON_SO_CANDIDATES_LEN)
+                            if(_PYTHON_SO_CANDIDATES_LEN GREATER 0)
+                                list(GET _PYTHON_SO_CANDIDATES 0 _PYTHON_SO_CANDIDATE)
+                                message(STATUS "Checking for python library at: ${_PYTHON_SO_CANDIDATE}")
+                                if(EXISTS ${_PYTHON_SO_CANDIDATE})
+                                    set(PYTHON_LIBRARY ${_PYTHON_SO_CANDIDATE})
+                                    break()
+                                endif()
+                            endif()
+                        endif()
+                    endforeach()
+                endif()
+            endif()
         else() # windows 
             get_filename_component(PYTHON_ROOT_DIR ${PYTHON_EXECUTABLE} DIRECTORY)
             # Note: this assumes that two versions of python are not installed in the same dest dir
@@ -453,6 +482,5 @@ FUNCTION(PYTHON_ADD_HYBRID_MODULE)
     target_link_libraries("${args_NAME}" PRIVATE "${args_NAME}_py_setup")
 
 ENDFUNCTION(PYTHON_ADD_HYBRID_MODULE)
-
 
 

@@ -97,6 +97,18 @@ if(ENABLE_OPENMP)
 endif()
 
 ################################
+# Device Support
+################################
+set(CONDUIT_USE_CUDA FALSE)
+set(CONDUIT_USE_CUDA FALSE)
+
+if(ENABLE_CUDA)
+    set(CONDUIT_USE_CUDA TRUE)
+elseif( ENABLE_HIP)
+    set(CONDUIT_USE_HIP TRUE)
+endif()
+
+################################
 # Examples and Utils Flags
 ################################
 if(ENABLE_EXAMPLES)

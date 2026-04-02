@@ -43,6 +43,7 @@
 #include "conduit_blueprint_mesh_utils_iterate_elements.hpp"
 #include "conduit_blueprint_mesh.hpp"
 #include "conduit_blueprint_o2mrelation_iterator.hpp"
+#include "conduit_blueprint_mesh_matset_accessor.hpp"
 #include "conduit_log.hpp"
 
 #include "conduit_fmt/conduit_fmt.h"
@@ -67,6 +68,9 @@
 using index_t=conduit::index_t;
 using std::cout;
 using std::endl;
+
+// access material sets, material field data, and species sets
+using MatsetAccessor = conduit::blueprint::mesh::matset::MatsetAccessor;
 
 extern void grid_ijk_to_id(const index_t *ijk, const index_t *dims, index_t &grid_id);
 extern void grid_id_to_ijk(const index_t id, const index_t *dims, index_t *grid_ijk);
@@ -2664,19 +2668,29 @@ Partitioner::copy_matsets(const std::string &topology,
         }
 
         // Check if material based
-        if(n_matset.has_child("element_ids"))
+        if (blueprint::mesh::matset::is_material_dominant(n_matset))
         {
-            copy_material_based_matset(element_ids, n_matset, out_matset);
+            if (blueprint::mesh::matset::is_uni_buffer(n_matset))
+            {
+                CONDUIT_ERROR("Partitioner::copy_matsets() "
+                              "material-dominant uni-buffer material set is unsupported.");
+            }
+            else
+            {
+                copy_material_based_matset(element_ids, n_matset, out_matset);
+            }
         }
-        else if(blueprint::mesh::matset::is_multi_buffer(n_matset))
-        {
-            // Element based
-            copy_multi_buffer_matset(element_ids, n_matset, out_matset);
-        }
+        // Element based
         else
         {
-            // Element based
-            copy_uni_buffer_matset(element_ids, n_matset, out_matset);
+            if (blueprint::mesh::matset::is_uni_buffer(n_matset))
+            {
+                copy_uni_buffer_matset(element_ids, n_matset, out_matset);
+            }
+            else
+            {
+                copy_multi_buffer_matset(element_ids, n_matset, out_matset);
+            }
         }
     }
 }
@@ -9484,12 +9498,14 @@ template<bool is_elem_based>
 static void
 handle_multi_buffer(const Node &n_matset,
                     const std::vector<index_t> &elem_map,
-                    std::map<std::string, vf_id_pair_t> &out_vfracts_eids)
+                    std::map<std::string, vf_id_pair_t> &out_vfracts_eids,
+                    const float64 epsilon = CONDUIT_EPSILON)
 {
-    auto vfract_itr = n_matset["volume_fractions"].children();
-    while(vfract_itr.has_next())
+    MatsetAccessor m_acc = MatsetAccessor(n_matset);
+    const index_t nmats = m_acc.num_mats();
+    for (index_t mat_idx = 0; mat_idx < nmats; mat_idx ++)
     {
-        const Node &n_volume_fractions = vfract_itr.next();
+        const Node &n_volume_fractions = n_matset["volume_fractions"].child(mat_idx);
         const std::string mat_name = n_volume_fractions.name();
 
         if(n_volume_fractions.dtype().is_empty())
@@ -9508,51 +9524,35 @@ handle_multi_buffer(const Node &n_matset,
             }
         }
 
-        // NOTE: According the spec, the volume_fractions could be an o2m relation
-        Node temp_vfracts;
-        if(n_volume_fractions.dtype().is_object())
-        {
-            temp_vfracts.set_external(n_volume_fractions);
-        }
-        else // if(!n_volume_fractions.dtype().is_object())
-        {
-            temp_vfracts["values"].set_external(n_volume_fractions);
-        }
-
-        // Temporary node that points to volume fraction data array.
-        Node vfract_data;
-        {
-            const std::string data_path =
-                blueprint::o2mrelation::data_paths(temp_vfracts).front();
-            vfract_data.set_external(temp_vfracts[data_path]);
-        }
-        const DataAccessor<double> volume_fractions = vfract_data.value();
-
-        if(!is_elem_based && (element_ids.get() != nullptr)
-            && volume_fractions.number_of_elements() != element_ids->number_of_elements())
-        {
-            CONDUIT_ERROR("element_ids and volume_fractions to not contain the same "
-                << "number of elements for matset " << conduit::utils::log::quote(mat_name));
-            continue;
-        }
-
         auto &out_pair = out_vfracts_eids[mat_name];
-        blueprint::o2mrelation::O2MIterator itr(temp_vfracts);
-        itr.to_front();
-        // Iterate the volume fraction data, still need i for indexing into element ids
-        for(index_t i = 0; itr.has_next(); i++)
+        if (is_elem_based)
         {
-            itr.next();
-            const index_t idx = itr.index();
-            out_pair.first.push_back(volume_fractions[idx]);
-            // Material based will use element_ids array
-            if(!is_elem_based && (element_ids.get() != nullptr))
+            const index_t num_elems = m_acc.num_elems();
+            for (index_t elem_idx = 0; elem_idx < num_elems; elem_idx ++)
             {
-                out_pair.second.push_back(elem_map[element_ids->element(i)]);
+                const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
+                if (vol_frac > epsilon)
+                {
+                    out_pair.first.push_back(vol_frac);
+                    out_pair.second.push_back(elem_map[elem_idx]);
+                }
             }
-            else
+        }
+        else
+        {
+            const index_t num_elems_for_mat = m_acc.num_elems_for_mat(mat_idx);
+            for (index_t elem_idx = 0; elem_idx < num_elems_for_mat; elem_idx ++)
             {
-                out_pair.second.push_back(elem_map[i]);
+                const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
+                out_pair.first.push_back(vol_frac);
+                if (element_ids.get() != nullptr)
+                {
+                    out_pair.second.push_back(elem_map[element_ids->element(elem_idx)]);
+                }
+                else
+                {
+                    out_pair.second.push_back(elem_map[elem_idx]);
+                }
             }
         }
     }
@@ -9621,7 +9621,9 @@ combine(const std::vector<Node> &inputs,
             }
             else
             {
-                handle_uni_buffer<false>(n_matset, elem_map[dom_idx], material_map, out_vfracts_eids);
+                CONDUIT_ERROR("Partitioner::matset::combine() "
+                              "material-dominant uni-buffer material set is unsupported.");
+                // handle_uni_buffer<false>(n_matset, elem_map[dom_idx], material_map, out_vfracts_eids);
             }
         }
         else // if(!is_uni_buffer)

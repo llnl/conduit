@@ -11,6 +11,10 @@ cmake_minimum_required(VERSION 3.21)
 if(POLICY CMP0074)
   cmake_policy(SET CMP0074 NEW)
 endif()
+# allow install path dest normalization (cmake 3.31 +)
+if(POLICY CMP0177)
+  cmake_policy(SET CMP0177 NEW)
+endif()
 # use old cmake python find logic
 if(POLICY CMP0148)
   cmake_policy(SET CMP0148 OLD)
@@ -32,7 +36,6 @@ option(ENABLE_UTILS            "Build Utilities"                ON)
 option(ENABLE_DOCS             "Build conduit documentation"    ON)
 option(ENABLE_RELAY_WEBSERVER  "Build Relay Web Server Support" ON)
 
-
 option(ENABLE_COVERAGE    "Build with coverage flags"   OFF)
 
 option(ENABLE_PYTHON      "Build Python Support"        OFF)
@@ -40,6 +43,8 @@ option(ENABLE_FORTRAN     "Build Fortran Support"       OFF)
 
 option(ENABLE_MPI         "Build MPI Support"           OFF)
 option(ENABLE_OPENMP      "Build OpenMP Support"        OFF)
+option(ENABLE_CUDA        "Build CUDA Support"          OFF)
+option(ENABLE_HIP         "Build HIP Support"           OFF)
 
 option(ENABLE_YYJSON      "Use yyjson for JSON Parsing" ON)
 

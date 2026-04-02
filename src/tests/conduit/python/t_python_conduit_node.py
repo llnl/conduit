@@ -549,7 +549,7 @@ class Test_Conduit_Node(unittest.TestCase):
     def test_access_to_strided_leaf(self):
         # this test demonsrates that strided leaves
         # are properly exposed via the numpy array views
-        # we return 
+        # we return
         s = Schema()
         s["a"] = DataType.float64(4)
         s["b"] = DataType.float64(2,0,16)
@@ -562,7 +562,7 @@ class Test_Conduit_Node(unittest.TestCase):
         v_b = n.fetch("b").value()
         self.assertEqual(v_b[0],1.0)
         self.assertEqual(v_b[1],2.0)
-    
+
     def test_describe(self):
         n = Node()
         n["a"] = [1,2,3,4,5];
@@ -708,7 +708,7 @@ g: [2.0, 4.0]
         c_vals[:] = 100
         # show values
         print(n)
-        
+
         # also test with direct numpy ndarray views of the ra
         np_a_arr = np.frombuffer(ra, dtype=np.dtype("float64"))
         print(np_a_arr[:5])
@@ -745,11 +745,11 @@ g: [2.0, 4.0]
         n_shared = Node()
         n_shared.set_external(s_compact,ra)
         print(n)
-        # copy values from the original node into the node back 
+        # copy values from the original node into the node back
         # by shared memory
         n_shared.update(n)
         print(n)
-        
+
         # also test with direct numpy ndarray views of the ra
         np_a_arr = np.frombuffer(ra, dtype=np.dtype("float64"))
         print(np_a_arr[:5])
@@ -758,7 +758,7 @@ g: [2.0, 4.0]
         np_b_arr = np.frombuffer(ra, dtype=np.dtype("int64"))
         print(np_a_arr[5:10])
         self.assertEqual(sum(np_b_arr[5:10]), -42.0 * 5)
-        
+
         np_c_arr = np.frombuffer(ra, dtype=np.dtype("uint32"))
         print(np_c_arr[20:])
         self.assertEqual(sum(np_c_arr[20:]), 100 * 10)

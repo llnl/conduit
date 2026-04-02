@@ -6,8 +6,8 @@ on:
 
 jobs:
   build_basic:
-    name: Ubuntu Build Conduit GCC
-    runs-on: ubuntu-22.04
+    name: Ubuntu GCC
+    runs-on: ubuntu-24.04
     env:
       CC: gcc
       CXX: g++
@@ -16,7 +16,8 @@ jobs:
     - name: Install System Deps
       run: |
            sudo apt-get update
-           sudo apt-get install binutils \
+           sudo env DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata
+           sudo apt-get install -y binutils \
                                 gcc \
                                 g++ \
                                 gfortran \
@@ -72,13 +73,16 @@ jobs:
       run: |
         echo "**** Building Conduit"
         cmake --build build -j2
+    - name: Run Conduit Unit Tests
+      run: |
+        echo "**** Conduit Unit Tests"
+        ctest --test-dir build --output-on-failure -V
     - name: Install Conduit
       run: |
         echo "**** Installing Conduit"
         cmake --install build
     - name: Check Install
       run: |
-        echo "**** Checking Conduit using-with-cmake-mpi example"
         export CC=/usr/bin/mpicc
         export CXX=/usr/bin/mpicxx
         cd install/examples/conduit/using-with-cmake-mpi
@@ -86,8 +90,8 @@ jobs:
         cmake --build build --verbose -j2
         mpiexec -n 2 ./build/conduit_mpi_example
   build_basic_pyvenv:
-    name: Ubuntu Build Conduit GCC with Python VENV
-    runs-on: ubuntu-22.04
+    name: Ubuntu GCC with Python VENV
+    runs-on: ubuntu-24.04
     env:
       CC: gcc
       CXX: g++
@@ -96,7 +100,8 @@ jobs:
     - name: Install System Deps
       run: |
            sudo apt-get update
-           sudo apt-get install binutils \
+           sudo env DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata
+           sudo apt-get install -y binutils \
                                 gcc \
                                 g++ \
                                 gfortran \

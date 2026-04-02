@@ -44,6 +44,7 @@ set(blueprint_headers
     conduit_blueprint_mesh_examples_venn.hpp
     conduit_blueprint_mesh_flatten.hpp
     conduit_blueprint_mesh_kdtree.hpp
+    conduit_blueprint_mesh_matset_accessor.hpp
     conduit_blueprint_mesh_topology_metadata.hpp
     conduit_blueprint_mesh_utils.hpp
     conduit_blueprint_mesh_utils_iterate_elements.hpp
@@ -81,6 +82,7 @@ set(blueprint_sources
     conduit_blueprint_mesh_utils.cpp
     conduit_blueprint_mesh_topology_metadata.cpp
     conduit_blueprint_mesh_matset_xforms.cpp
+    conduit_blueprint_mesh_matset_accessor.cpp
     conduit_blueprint_mesh_examples.cpp
     conduit_blueprint_mesh_examples_julia.cpp
     conduit_blueprint_mesh_examples_venn.cpp

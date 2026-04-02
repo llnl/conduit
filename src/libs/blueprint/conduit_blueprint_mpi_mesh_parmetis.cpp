@@ -626,6 +626,12 @@ void generate_partition_field(conduit::Node &mesh,
     // we need the total number of local eles
     // the total number of element to vers entries
 
+    // Get verbose settings.
+    idx_t verbose = 0;
+    if(options.has_child("verbose"))
+    {
+        verbose = static_cast<idx_t>(options["verbose"].as_int() != 0);
+    }
 
     index_t local_total_num_eles =0;
     index_t local_total_ele_to_verts_size = 0;
@@ -787,13 +793,13 @@ void generate_partition_field(conduit::Node &mesh,
 
     // options == extra output
     idx_t parmetis_opts[] = {1,
-                       PARMETIS_DBGLVL_TIME |
-                       PARMETIS_DBGLVL_INFO |
-                       PARMETIS_DBGLVL_PROGRESS |
-                       PARMETIS_DBGLVL_REFINEINFO |
-                       PARMETIS_DBGLVL_MATCHINFO |
-                       PARMETIS_DBGLVL_RMOVEINFO |
-                       PARMETIS_DBGLVL_REMAP,
+                       verbose * (PARMETIS_DBGLVL_TIME |
+                                  PARMETIS_DBGLVL_INFO |
+                                  PARMETIS_DBGLVL_PROGRESS |
+                                  PARMETIS_DBGLVL_REFINEINFO |
+                                  PARMETIS_DBGLVL_MATCHINFO |
+                                  PARMETIS_DBGLVL_RMOVEINFO |
+                                  PARMETIS_DBGLVL_REMAP),
                        0};
     // outputs
     idx_t edgecut = 0; // will hold # of cut edges

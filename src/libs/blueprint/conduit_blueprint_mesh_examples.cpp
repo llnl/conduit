@@ -143,8 +143,6 @@ braid_2d_only_shape_type(const std::string& mesh_type)
     if ( mesh_type == "tris"  ||
          mesh_type == "quads" ||
          mesh_type == "quads_poly" ||
-         mesh_type == "quads_and_tris" ||
-         mesh_type == "quads_and_tris_offsets" ||
          mesh_type == "mixed_2d")
     {
         return true;
@@ -162,7 +160,6 @@ braid_3d_only_shape_type(const std::string& mesh_type)
     if( mesh_type == "tets" ||
         mesh_type == "hexs" ||
         mesh_type == "hexs_poly" ||
-        mesh_type == "hexs_and_tets" ||
         mesh_type == "wedges" ||
         mesh_type == "pyramids" ||
         mesh_type == "mixed")
@@ -1826,261 +1823,6 @@ braid_bent_quads(const Node & spec, Node &res)
 
 //---------------------------------------------------------------------------//
 void
-braid_quads_and_tris(index_t npts_x,
-                     index_t npts_y,
-                     Node &res)
-{
-    CONDUIT_INFO("This braid example is deprecated in favor of mixed_2d.")
-
-    // TODO remove in conduit 0.9.4
-
-    res.reset();
-
-    int32 nele_x = (int32)(npts_x - 1);
-    int32 nele_y = (int32)(npts_y - 1);
-
-    braid_init_example_state(res);
-    braid_init_explicit_coordset(npts_x,
-                                 npts_y,
-                                 1,
-                                 res["coordsets/coords"]);
-
-    res["topologies/mesh/type"] = "unstructured";
-    res["topologies/mesh/coordset"] = "coords";
-
-    Node &elems = res["topologies/mesh/elements"];
-    elems["element_types/quads/stream_id"] = 9; // VTK_QUAD
-    elems["element_types/quads/shape"]     = "quad";
-    elems["element_types/tris/stream_id"]  = 5; // VTK_TRIANGLE
-    elems["element_types/tris/shape"]      = "tri";
-
-    // Fill in stream IDs and calculate size of the connectivity array
-    int32 count   = 0;
-    int32 ielem   = 0;
-    std::vector< int32 > stream_ids_buffer;
-    std::vector< int32 > stream_lengths;
-
-    for(int32 j = 0; j < nele_y ; j++)
-    {
-        for(int32 i = 0; i < nele_x; i++)
-        {
-             if ( ielem % 2 == 0 )
-             {
-                 // QUAD
-                 stream_ids_buffer.push_back( 9 );
-                 stream_lengths.push_back( 1 );
-                 count += 4;
-             }
-             else
-             {
-                 // TRIANGLE
-                 stream_ids_buffer.push_back( 5 );
-                 count += 6;
-                 stream_lengths.push_back( 2 );
-             }
-
-             ++ielem;
-
-        } // END for all i
-    } // END for all j
-
-
-    elems["element_index/stream_ids"].set(stream_ids_buffer);
-    elems["element_index/element_counts"].set(stream_lengths);
-
-    // Allocate connectivity array
-    elems["stream"].set(DataType::int32(count));
-    int32* conn = elems["stream"].value();
-
-    // Fill in connectivity array
-    int32 idx = 0;
-    int32 elem  = 0;
-    for(int32 j = 0; j < nele_y ; j++)
-    {
-        for(int32 i = 0; i < nele_x; i++)
-        {
-            int32 n1 = j * npts_x + i;
-            int32 n2 = j * npts_x + i + 1;
-            int32 n3 = (j+1) * npts_x + i + 1;
-            int32 n4 = (j+1) * npts_x + i;
-
-            if ( elem % 2 == 0 )
-            {
-                conn[idx  ] = n1;
-                conn[idx+1] = n2;
-                conn[idx+2] = n3;
-                conn[idx+3] = n4;
-                idx+=4;
-            }
-            else
-            {
-               conn[idx   ] = n1;
-               conn[idx+1 ] = n2;
-               conn[idx+2 ] = n4;
-               idx+=3;
-
-               conn[idx   ] = n2;
-               conn[idx+1 ] = n3;
-               conn[idx+2 ] = n4;
-               idx+=3;
-            }
-
-            ++elem;
-
-        } // END for all i
-
-    } // END for all j
-
-
-    Node &fields = res["fields"];
-
-    braid_init_example_point_scalar_field(npts_x,
-                                          npts_y,
-                                          1,
-                                          fields["braid"]);
-
-    braid_init_example_point_vector_field(npts_x,
-                                          npts_y,
-                                          1,
-                                          fields["vel"]);
-
-    // braid_init_example_element_scalar_field(nele_x,
-    //                                         nele_y,
-    //                                         0,
-    //                                         fields["radial"]);
-}
-
-
-//---------------------------------------------------------------------------//
-void
-braid_quads_and_tris_offsets(index_t npts_x,
-                             index_t npts_y,
-                             Node &res)
-{
-    CONDUIT_INFO("This braid example is deprecated in favor of mixed_2d.")
-
-    // TODO remove in conduit 0.9.4
-
-    res.reset();
-
-    int32 nele_x = (int32)(npts_x - 1);
-    int32 nele_y = (int32)(npts_y - 1);
-
-    braid_init_example_state(res);
-    braid_init_explicit_coordset(npts_x,
-                                 npts_y,
-                                 1,
-                                 res["coordsets/coords"]);
-
-    res["topologies/mesh/type"] = "unstructured";
-    res["topologies/mesh/coordset"] = "coords";
-
-    Node &elems = res["topologies/mesh/elements"];
-    elems["element_types/quads/stream_id"] = 9; // VTK_QUAD
-    elems["element_types/quads/shape"]     = "quad";
-    elems["element_types/tris/stream_id"]  = 5; // VTK_TRIANGLE
-    elems["element_types/tris/shape"]      = "tri";
-
-    // Fill in stream IDs and calculate size of the connectivity array
-    int32 count   = 0;
-    int32 ielem   = 0;
-    std::vector< int32 > stream_ids;
-    std::vector< int32 > stream_offsets;
-    stream_offsets.push_back( 0 );
-
-    for(int32 j = 0; j < nele_y ; j++)
-    {
-        for(int32 i = 0; i < nele_x; i++)
-        {
-            int32 next = stream_offsets.back();
-
-             if ( ielem % 2 == 0 )
-             {
-                 // QUAD
-                 stream_offsets.push_back( next+4 );
-                 stream_ids.push_back( 9 );
-                 count += 4;
-             }
-             else
-             {
-                 // TRIANGLE
-                 stream_offsets.push_back( next+3 );
-                 stream_offsets.push_back( next+6 );
-                 stream_ids.push_back( 5 );
-                 stream_ids.push_back( 5 );
-                 count += 6;
-             }
-
-             ++ielem;
-
-        } // END for all i
-
-    } // END for all j
-
-
-    elems["element_index/stream_ids"].set(stream_ids);
-    elems["element_index/offsets"].set(stream_offsets);
-
-    // Allocate connectivity array
-    elems["stream"].set(DataType::int32(count));
-    int32* conn = elems["stream"].value();
-
-    // Fill in connectivity array
-    int32 idx = 0;
-    int32 elem  = 0;
-    for(int32 j = 0; j < nele_y ; j++)
-    {
-        for(int32 i = 0; i < nele_x; i++)
-        {
-            int32 n1 = j * npts_x + i;
-            int32 n2 = j * npts_x + i + 1;
-            int32 n3 = (j+1) * npts_x + i + 1;
-            int32 n4 = (j+1) * npts_x + i;
-
-            if ( elem % 2 == 0 )
-            {
-                conn[idx  ] = n1;
-                conn[idx+1] = n2;
-                conn[idx+2] = n3;
-                conn[idx+3] = n4;
-                idx+=4;
-            }
-            else
-            {
-               conn[idx   ] = n1;
-               conn[idx+1 ] = n2;
-               conn[idx+2 ] = n4;
-               idx+=3;
-
-               conn[idx   ] = n2;
-               conn[idx+1 ] = n3;
-               conn[idx+2 ] = n4;
-               idx+=3;
-            }
-
-            ++elem;
-
-        } // END for all i
-
-    } // END for all j
-
-
-    Node &fields = res["fields"];
-
-    braid_init_example_point_scalar_field(npts_x,
-                                          npts_y,
-                                          1,
-                                          fields["braid"]);
-
-    braid_init_example_point_vector_field(npts_x,
-                                          npts_y,
-                                          1,
-                                          fields["vel"]);
-}
-
-
-//---------------------------------------------------------------------------//
-void
 braid_lines_2d(index_t npts_x,
                index_t npts_y,
                Node &res)
@@ -3029,176 +2771,6 @@ braid_lines_3d(index_t npts_x,
                                           npts_z,
                                           fields["vel"]);
 
-}
-
-
-
-//---------------------------------------------------------------------------//
-void
-braid_hexs_and_tets(index_t npts_x,
-                    index_t npts_y,
-                    index_t npts_z,
-                    Node &res)
-{
-    CONDUIT_INFO("This braid example is deprecated in favor of mixed.")
-
-    // TODO remove in conduit 0.9.4
-
-    // WARNING -- The code below is UNTESTED.
-    //            The SILO writer is missing an implementation for
-    //            unstructured indexed_stream meshes in 3D.
-
-    res.reset();
-
-    int32 nele_hexs_x = (int32)(npts_x - 1);
-    int32 nele_hexs_y = (int32)(npts_y - 1);
-    int32 nele_hexs_z = (int32)(npts_z - 1);
-    int32 nele_hexs = nele_hexs_x * nele_hexs_y * nele_hexs_z;
-
-
-    // Set the number of voxels containing hexs and tets
-    int32 n_hex_hexs = (nele_hexs > 1)? nele_hexs / 2 : nele_hexs;
-    int32 n_hex_tets = nele_hexs - n_hex_hexs;
-
-    // Compute the sizes of the connectivity array for each element type
-    int32 hexs_per_hex = 1;
-    int32 verts_per_hex = 8;
-    int32 n_hexs_verts = n_hex_hexs * hexs_per_hex * verts_per_hex;
-
-    int32 tets_per_hex = 6;
-    int32 verts_per_tet = 4;
-    int32 n_tets_verts = n_hex_tets * tets_per_hex * verts_per_tet;
-
-
-    braid_init_example_state(res);
-    braid_init_explicit_coordset(npts_x,
-                                 npts_y,
-                                 npts_z,
-                                 res["coordsets/coords"]);
-
-    // Setup mesh as unstructured indexed_stream mesh of hexs and tets
-    res["topologies/mesh/type"] = "unstructured";
-    res["topologies/mesh/coordset"] = "coords";
-
-    res["topologies/mesh/elements/element_types/hexs/stream_id"] = 0;
-    res["topologies/mesh/elements/element_types/hexs/shape"] = "hex";
-
-    res["topologies/mesh/elements/element_types/tets/stream_id"] = 1;
-    res["topologies/mesh/elements/element_types/tets/shape"] = "tet";
-
-    res["topologies/mesh/elements/element_index/stream_ids"].set(DataType::int32(4));
-
-    res["topologies/mesh/elements/stream"].set( DataType::int32(n_hexs_verts + n_tets_verts) );
-    int32* conn = res["topologies/mesh/elements/stream"].value();
-
-    std::vector<int32> ele_counts;
-    std::vector<int32> stream_ids;
-    int32 idx = 0;
-    int32 elem_count = 0;
-    for(int32 k = 0; k < nele_hexs_z ; k++)
-    {
-        int32 zoff = k * (nele_hexs_x+1)*(nele_hexs_y+1);
-        int32 zoff_n = (k+1) * (nele_hexs_x+1)*(nele_hexs_y+1);
-
-        for(int32 j = 0; j < nele_hexs_y ; j++)
-        {
-            int32 yoff = j * (nele_hexs_x+1);
-            int32 yoff_n = (j+1) * (nele_hexs_x+1);
-
-
-            for(int32 i = 0; i < nele_hexs_x; i++)
-            {
-                // Create a local array of the vertex indices
-                // ordering is same as VTK_HEXAHEDRON
-                int32 vidx[8] = {zoff + yoff + i
-                                  ,zoff + yoff + i + 1
-                                  ,zoff + yoff_n + i + 1
-                                  ,zoff + yoff_n + i
-                                  ,zoff_n + yoff + i
-                                  ,zoff_n + yoff + i + 1
-                                  ,zoff_n + yoff_n + i + 1
-                                  ,zoff_n + yoff_n + i};
-
-                bool isHex = (elem_count == 0)
-                          || (elem_count > 1 && elem_count <= n_hex_hexs);
-
-
-                if(isHex)
-                {
-                    conn[idx++] = vidx[0];
-                    conn[idx++] = vidx[1];
-                    conn[idx++] = vidx[2];
-                    conn[idx++] = vidx[3];
-
-                    conn[idx++] = vidx[4];
-                    conn[idx++] = vidx[5];
-                    conn[idx++] = vidx[6];
-                    conn[idx++] = vidx[7];
-                    ele_counts.push_back(1);
-                    stream_ids.push_back(0);
-                }
-                else // it is a tet
-                {
-                    // Create six tets all sharing diagonal from vertex 0 to 6
-                    // Uses SILO convention for vertex order (normals point in)
-                    conn[idx++] = vidx[0];
-                    conn[idx++] = vidx[2];
-                    conn[idx++] = vidx[1];
-                    conn[idx++] = vidx[6];
-
-                    conn[idx++] = vidx[0];
-                    conn[idx++] = vidx[3];
-                    conn[idx++] = vidx[2];
-                    conn[idx++] = vidx[6];
-
-                    conn[idx++] = vidx[0];
-                    conn[idx++] = vidx[7];
-                    conn[idx++] = vidx[3];
-                    conn[idx++] = vidx[6];
-
-                    conn[idx++] = vidx[0];
-                    conn[idx++] = vidx[4];
-                    conn[idx++] = vidx[7];
-                    conn[idx++] = vidx[6];
-
-                    conn[idx++] = vidx[0];
-                    conn[idx++] = vidx[5];
-                    conn[idx++] = vidx[4];
-                    conn[idx++] = vidx[6];
-
-                    conn[idx++] = vidx[0];
-                    conn[idx++] = vidx[1];
-                    conn[idx++] = vidx[5];
-                    conn[idx++] = vidx[6];
-                    ele_counts.push_back(6);
-                    stream_ids.push_back(1);
-                }
-
-                elem_count++;
-            }
-        }
-    }
-    res["topologies/mesh/elements/element_index/element_counts"].set(ele_counts);
-    res["topologies/mesh/elements/element_index/stream_ids"].set(stream_ids);
-
-    Node &fields = res["fields"];
-
-    braid_init_example_point_scalar_field(npts_x,
-                                          npts_y,
-                                          npts_z,
-                                          fields["braid"]);
-
-    braid_init_example_point_vector_field(npts_x,
-                                          npts_y,
-                                          npts_z,
-                                          fields["vel"]);
-
-//    // Omit for now -- the function assumes a uniform element type
-//    braid_init_example_element_scalar_field(nele_hexs_x,
-//                                            nele_hexs_y,
-//                                            nele_hexs_z,
-//                                            fields["radial"],
-//                                            tets_per_hex);
 }
 
 
@@ -4215,7 +3787,7 @@ braid(const std::string &mesh_type,
                           "npts_x > 1 for 1D, "
                           "npts_x > 1 and npts_y > 1 for 2D"
                           " and for mesh_type={\"tets\", \"hexs\", \"wedges\", \"pyramids\","
-                          " \"hexs_poly\", \"hexs_and_tets\" or \"mixed\""
+                          " \"hexs_poly\", or \"mixed\""
                           " npts_z must be > 1" << std::endl <<
                           "values provided:" << std::endl <<
                           " mesh_type: " << mesh_type << std::endl <<
@@ -4257,14 +3829,6 @@ braid(const std::string &mesh_type,
         braid_quads(npts_x,npts_y,res);
         braid_to_poly(res);
     }
-    else if(mesh_type == "quads_and_tris")
-    {
-        braid_quads_and_tris(npts_x,npts_y,res);
-    }
-    else if(mesh_type == "quads_and_tris_offsets")
-    {
-        braid_quads_and_tris_offsets(npts_x,npts_y,res);
-    }
     else if(mesh_type == "tets")
     {
         braid_tets(npts_x,npts_y,npts_z,res);
@@ -4277,10 +3841,6 @@ braid(const std::string &mesh_type,
     {
         braid_hexs(npts_x,npts_y,npts_z,res);
         braid_to_poly(res);
-    }
-    else if(mesh_type == "hexs_and_tets")
-    {
-        braid_hexs_and_tets(npts_x,npts_y,npts_z,res);
     }
     else if(mesh_type == "points")
     {

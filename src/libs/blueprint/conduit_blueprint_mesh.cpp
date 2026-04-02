@@ -6694,7 +6694,9 @@ mesh::matset::verify(const Node &matset,
 
                 if(mat.dtype().is_object())
                 {
-                    vfs_res &= verify_o2mrelation_field(protocol, vfs, vfs_info, mat_name);
+                    log::error(info, protocol,
+                        "material volume fractions must be a scalar array, not an object with children");
+                    res &= false;
                 }
                 else
                 {
@@ -6723,24 +6725,24 @@ mesh::matset::verify(const Node &matset,
 
         res &= verify_matset_material_map(protocol,matset,info);
 
-        // for cases where vfs are an object, we expect the material_map child
-        // names to be a subset of the volume_fractions child names
+        // for cases where vfs are an object, we expect the volume_fractions child
+        // names to be a subset of the material_map child names
         if(matset.has_child("volume_fractions") &&
            matset["volume_fractions"].dtype().is_object())
         {
-            NodeConstIterator itr =  matset["material_map"].children();
+            NodeConstIterator itr =  matset["volume_fractions"].children();
             while(itr.has_next())
             {
                 itr.next();
                 std::string curr_name = itr.name();
-                if(!matset["volume_fractions"].has_child(curr_name))
+                if(!matset["material_map"].has_child(curr_name))
                 {
                     std::ostringstream oss;
-                    oss << "'material_map' hierarchy must be a subset of "
-                           "'volume_fractions'. "
-                           " 'volume_fractions' is missing child '"
+                    oss << "'volume_fractions' material names must be a subset of "
+                           "'material_map'. "
+                           " 'material_map' is missing child '"
                            << curr_name
-                           <<"' which exists in 'material_map`" ;
+                           <<"' which exists in 'volume_fractions`" ;
                     log::error(info, protocol,oss.str());
                     res &= false;
                 }
@@ -7106,6 +7108,20 @@ bool verify_specset_species_names(const std::string &protocol,
     log::validation(info, res);
 
     return res;
+}
+
+//-------------------------------------------------------------------------
+bool
+mesh::specset::is_multi_buffer(const Node &specset)
+{
+    return specset.child("matset_values").dtype().is_object();
+}
+
+//-------------------------------------------------------------------------
+bool
+mesh::specset::is_uni_buffer(const Node &specset)
+{
+    return specset.child("matset_values").dtype().is_number();
 }
 
 //-----------------------------------------------------------------------------

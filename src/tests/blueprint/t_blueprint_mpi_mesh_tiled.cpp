@@ -509,6 +509,34 @@ translate:
 }
 
 //-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mpi_mesh_utils, topdown_size_1_1_1)
+{
+  double extents[] = {0., 1., 0., 1., 0., 1.};
+  conduit::Node res, bopts;
+  bopts["meshname"] = "main";
+  bopts["datatype"] = "int32";
+  bopts["numDomains"] = 2;
+  bopts["extents"].set(extents, 6);
+  bopts["curveSplitting"] = 0;
+
+  // This makes a single tile due to 1, 1, 1 size.
+  conduit::blueprint::mesh::examples::tiled(1, 1, 1, res, bopts);
+
+  // See if that's what we got.
+  EXPECT_TRUE(res.has_path("coordsets/coords"));
+  EXPECT_EQ(res.fetch_existing("coordsets/coords/values/x").dtype().number_of_elements(), 66);
+  EXPECT_TRUE(res.has_path("topologies/main/elements/shape"));
+  EXPECT_EQ(res.fetch_existing("topologies/main/elements/shape").as_string(), "hex");
+  EXPECT_EQ(res.fetch_existing("topologies/main/elements/sizes").dtype().number_of_elements(), 24);
+  EXPECT_TRUE(res.has_path("topologies/boundary/elements/shape"));
+  EXPECT_EQ(res.fetch_existing("topologies/boundary/elements/shape").as_string(), "quad");
+  EXPECT_EQ(res.fetch_existing("topologies/boundary/elements/sizes").dtype().number_of_elements(), 64);
+
+  // There was a single domain so no adjsets.
+  EXPECT_FALSE(res.has_path("adjsets"));
+}
+
+//-----------------------------------------------------------------------------
 int main(int argc, char* argv[])
 {
     int result = 0;

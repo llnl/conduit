@@ -56,6 +56,7 @@ void CONDUIT_BLUEPRINT_API generate_partition_field(conduit::Node &mesh,
 /// opts:
 ///      partitions:  # of partitions to use (integer) 
 ///         (default ==> # of MPI Tasks)
+///      verbose: number  # 1 for verbose output, 0 for quiet output.
 //-------------------------------------------------------------------------
 void CONDUIT_BLUEPRINT_API generate_partition_field(conduit::Node &mesh,
                                                     const conduit::Node &opts,
