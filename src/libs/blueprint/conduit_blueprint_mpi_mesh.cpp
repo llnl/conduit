@@ -298,6 +298,63 @@ time(const conduit::Node &mesh, MPI_Comm comm)
 }
 
 //-------------------------------------------------------------------------
+// Helper function for trivial case where a mesh is passed into
+// Partitioner::combine with a single domain.  Sets original_vertex_ids
+// field as 1-1 mapping of the vertex ids of the single domain.
+static void
+set_single_domain_original_vertex_ids(Node &mesh,
+                                      const std::string &topo_name)
+{
+    std::vector<Node*> domains = conduit::blueprint::mesh::domains(mesh);
+    if(domains.size() != 1)
+    {
+        return;
+    }
+
+    Node &dom = *domains.front();
+    if(dom.has_path("fields/original_vertex_ids"))
+    {
+        return;
+    }
+
+    std::string coordset_name = "coords";
+    if(dom.has_path("topologies") && dom["topologies"].number_of_children() > 0)
+    {
+        const Node &topo = dom["topologies"][0];
+        if(topo.has_child("coordset"))
+        {
+            coordset_name = topo["coordset"].as_string();
+        }
+    }
+
+    if(!dom.has_path("coordsets/" + coordset_name))
+    {
+        return;
+    }
+
+    const index_t nverts =
+        conduit::blueprint::mesh::coordset::length(dom["coordsets"][coordset_name]);
+    const index_t orig_domain_id =
+        dom.has_path("state/domain_id")
+            ? dom["state/domain_id"].to_index_t()
+            : 0;
+
+    std::vector<index_t> orig_domains(static_cast<std::size_t>(nverts),
+                                      orig_domain_id);
+    std::vector<index_t> orig_ids(static_cast<std::size_t>(nverts));
+    for(index_t i = 0; i < nverts; ++i)
+    {
+        orig_ids[static_cast<std::size_t>(i)] = i;
+    }
+
+    Node &out_field = dom["fields/original_vertex_ids"];
+    out_field["topology"].set(topo_name);
+    out_field["association"].set("vertex");
+    out_field["values/domains"].set(orig_domains);
+    out_field["values/ids"].set(orig_ids);
+}
+
+//-------------------------------------------------------------------------
 void to_polytopal(const Node &n,
                   Node &dest,
                   const std::string& name,
@@ -396,6 +453,8 @@ void to_polytopal(const Node &n,
 
     std::vector<Node*> domains =
         conduit::blueprint::mesh::domains(dest);
+    set_single_domain_original_vertex_ids(dest, name);
+    domains = conduit::blueprint::mesh::domains(dest);
     std::vector<const Node*> mesh_ptrs;
     mesh_ptrs.reserve(domains.size());
     for(Node *dom : domains)
@@ -1101,6 +1160,18 @@ void to_polygonal(const Node &n,
                                 }
 
                                 index_t buf_size = (index_t)xbuffer.size();
+                                // Build the list of fine-side vertices
+                                // that should actually become new
+                                // coordset points.
+                                //
+                                // For partial_lo/partial_hi cases,
+                                // connect_elements_2d() only consumes
+                                // the subset that lies in the true overlap.
+                                // Trim the vertex list here to match that
+                                // usage.
+                                std::vector<index_t> appended_idx;
+                                appended_idx.reserve(static_cast<size_t>(added));
+
                                 if (flip)
                                 {
                                     for (index_t ni = buf_size-1-part_hi;
@@ -1108,8 +1179,7 @@ void to_polygonal(const Node &n,
                                     {
                                         if (ni % use_ratio)
                                         {
-                                            new_x.push_back(xbuffer[ni]);
-                                            new_y.push_back(ybuffer[ni]);
+                                            appended_idx.push_back(ni);
                                         }
                                     }
                                 }
@@ -1119,27 +1189,73 @@ void to_polygonal(const Node &n,
                                     {
                                         if (ni % use_ratio)
                                         {
-                                            new_x.push_back(xbuffer[ni]);
-                                            new_y.push_back(ybuffer[ni]);
+                                            appended_idx.push_back(ni);
                                         }
                                     }
+                                }
+
+                                index_t trim_front = 0;
+                                index_t trim_back = 0;
+                                if (part_lo > 1)
+                                {
+                                    (flip ? trim_back : trim_front) += use_ratio - part_lo;
+                                }
+                                if (part_hi > 1)
+                                {
+                                    (flip ? trim_front : trim_back) += use_ratio - part_hi;
+                                }
+                                // Tie-breaker for ratio=2 partial corner
+                                // cases.  If a coarse element's hanging
+                                // vertex is at the location of the corners
+                                // of two adjacent fine domains, trim
+                                // the contribution of one of the neighbors
+                                // so that the vertex isn't contributed twice.
+                                //
+                                // Heuristic:  Trim the contriburtion 
+                                // from the neighbor with the high-end
+                                // corner.
+                                if(use_ratio == 2 && part_hi == 1)
+                                {
+                                    (flip ? trim_front : trim_back) += 1;
+                                }
+
+                                const size_t append_begin =
+                                    std::min(static_cast<size_t>(trim_front), appended_idx.size());
+                                const size_t append_end =
+                                    (trim_back >= static_cast<index_t>(appended_idx.size() - append_begin))
+                                        ? append_begin
+                                        : appended_idx.size() - static_cast<size_t>(trim_back);
+
+                                for (size_t ai = append_begin; ai < append_end; ++ai)
+                                {
+                                    const index_t ni = appended_idx[ai];
+                                    new_x.push_back(xbuffer[ni]);
+                                    new_y.push_back(ybuffer[ni]);
                                 }
 
                                 out_cset["values"]["x"].set(new_x);
                                 out_cset["values"]["y"].set(new_y);
 
+                                for (auto& vnode: out_vtxfields)
+                                {
+                                    auto& vbuffer = vtxbuffer[vnode.first];
+                                    auto& vfld = new_vfld[vnode.first];
+                                    for (size_t ai = append_begin; ai < append_end; ++ai)
+                                    {
+                                        const index_t ni = appended_idx[ai];
+                                        vfld.push_back(vbuffer[ni]);
+                                    }
+                                    (*vnode.second)["values"].set(vfld);
+                                }
+
                                 // Record new vertex ids appended due to this
                                 // neighbor. These vertices are appended
                                 // contiguously starting at new_vertex.
+                                const index_t added_count =
+                                    static_cast<index_t>(append_end - append_begin);
                                 if(group.has_child("neighbors") &&
                                    group["neighbors"].dtype().number_of_elements() >= 2)
                                 {
-                                    temp.reset();
-                                    temp.set_external(DataType(group["neighbors"].dtype().id(), 1),
-                                                      (void*)group["neighbors"].element_ptr(1));
-                                    const index_t nbr_id = temp.to_index_t();
-                                    const index_t added_count =
-                                        static_cast<index_t>(new_x.size()) - out_x_size;
                                     auto &new_vids =
                                         dom_to_nbr_to_new_vids[domain_id][nbr_id];
                                     new_vids.reserve(new_vids.size() +
@@ -1148,34 +1264,6 @@ void to_polygonal(const Node &n,
                                     {
                                         new_vids.push_back(new_vertex + i);
                                     }
-                                }
-
-                                for (auto& vnode: out_vtxfields)
-                                {
-                                    auto& vbuffer = vtxbuffer[vnode.first];
-                                    auto& vfld = new_vfld[vnode.first];
-                                    if (flip)
-                                    {
-                                        for (index_t ni = buf_size-1-part_hi;
-                                             ni >= part_lo; --ni)
-                                        {
-                                            if (ni % use_ratio)
-                                            {
-                                                vfld.push_back(vbuffer[ni]);
-                                            }
-                                        }
-                                    }
-                                    else
-                                    {
-                                        for (index_t ni = part_lo; ni < buf_size-part_hi; ++ni)
-                                        {
-                                            if (ni % use_ratio)
-                                            {
-                                                vfld.push_back(vbuffer[ni]);
-                                            }
-                                        }
-                                    }
-                                    (*vnode.second)["values"].set(vfld);
                                 }
 
                                 // Connect the elements by adding the fine
@@ -1298,17 +1386,38 @@ void to_polygonal(const Node &n,
                         const index_t origin_j = ref_win["origin/j"].to_index_t();
                         const index_t dims_i   = ref_win["dims/i"].to_index_t();
                         const index_t dims_j   = ref_win["dims/j"].to_index_t();
-                        index_t part_lo = 0;
-                        index_t part_hi = 0;
-                        // partial_lo/partial_hi represent padded endpoints in the
-                        // window description; for vertex selection we trim those
-                        // endpoints from the enumerated vertex list.
-                        if(ref_level != nbr_level)
+                        const index_t raw_part_lo =
+                            ref_win.has_child("partial_lo") ?
+                            ref_win["partial_lo"].to_index_t() : 0;
+                        const index_t raw_part_hi =
+                            ref_win.has_child("partial_hi") ?
+                            ref_win["partial_hi"].to_index_t() : 0;
+                        index_t structured_trim_lo = 0;
+                        index_t structured_trim_hi = 0;
+                        const bool coarse_side = ref_level < nbr_level;
+                        const bool fine_side = ref_level > nbr_level;
+                        // partial_lo/partial_hi count padded fine-side samples.
+                        //
+                        // When this domain is the fine side of a coarse-fine
+                        // adjacency, the structured boundary walk is already
+                        // in the fine-side vertex space, so it should honor
+                        // the raw counts directly.
+                        //
+                        // When this domain is the coarse side, the structured
+                        // walk only visits coarse boundary vertices and the
+                        // rest of the overlap is represented by appended
+                        // hanging-node vertices, so at most one coarse
+			// endpoint can be trimmed
+                        // away on each side.
+                        if(fine_side)
                         {
-                            part_lo = ref_win.has_child("partial_lo") ?
-                                ref_win["partial_lo"].to_index_t() : 0;
-                            part_hi = ref_win.has_child("partial_hi") ?
-                                ref_win["partial_hi"].to_index_t() : 0;
+                            structured_trim_lo = raw_part_lo;
+                            structured_trim_hi = raw_part_hi;
+                        }
+                        else if(coarse_side)
+                        {
+                            structured_trim_lo = (raw_part_lo > 0) ? 1 : 0;
+                            structured_trim_hi = (raw_part_hi > 0) ? 1 : 0;
                         }
 
                         auto &vids = vids_by_rank[nbr_rank];
@@ -1334,64 +1443,86 @@ void to_polygonal(const Node &n,
                             }
                         }
 
+                        const auto append_boundary_vids =
+                            [&](index_t lo_trim,
+                                index_t hi_trim,
+                                std::vector<index_t> &dst)
+                        {
+                            if(dims_i == 1 && dims_j == 1)
+                            {
+                                if(lo_trim + hi_trim < 1)
+                                {
+                                    const index_t vid =
+                                        (origin_j - j_lo) * niwidth + (origin_i - i_lo);
+                                    if(vid >= 0 && vid < num_verts)
+                                    {
+                                        dst.push_back(vid);
+                                    }
+                                }
+                            }
+                            if(dims_i == 1 && dims_j != 1)
+                            {
+                                const index_t jstart = origin_j + lo_trim;
+                                const index_t jend   = origin_j + dims_j - hi_trim;
+                                const index_t i = origin_i;
+                                if(flip)
+                                {
+                                    for(index_t j = jend; j-- > jstart;)
+                                    {
+                                        const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
+                                        if(vid >= 0 && vid < num_verts)
+                                        {
+                                            dst.push_back(vid);
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    for(index_t j = jstart; j < jend; ++j)
+                                    {
+                                        const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
+                                        if(vid >= 0 && vid < num_verts)
+                                        {
+                                            dst.push_back(vid);
+                                        }
+                                    }
+                                }
+                            }
+                            else if(dims_j == 1 && dims_i != 1)
+                            {
+                                const index_t istart = origin_i + lo_trim;
+                                const index_t iend   = origin_i + dims_i - hi_trim;
+                                const index_t j = origin_j;
+                                if(flip)
+                                {
+                                    for(index_t i = iend; i-- > istart;)
+                                    {
+                                        const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
+                                        if(vid >= 0 && vid < num_verts)
+                                        {
+                                            dst.push_back(vid);
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    for(index_t i = istart; i < iend; ++i)
+                                    {
+                                        const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
+                                        if(vid >= 0 && vid < num_verts)
+                                        {
+                                            dst.push_back(vid);
+                                        }
+                                    }
+                                }
+                            }
+                        };
+
                         // Find the vertex ids along the adjacency boundary
                         // for both cases of dims_i == 1 or dims_j == 1.
-                        if(dims_i == 1 && dims_j != 1)
-                        {
-                            const index_t jstart = origin_j + part_lo;
-                            const index_t jend   = origin_j + dims_j - part_hi;
-                            const index_t i = origin_i;
-                            if(flip)
-                            {
-                                for(index_t j = jend; j-- > jstart;)
-                                {
-                                    const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
-                                    if(vid >= 0 && vid < num_verts)
-                                    {
-                                        vids.push_back(vid);
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                for(index_t j = jstart; j < jend; ++j)
-                                {
-                                    const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
-                                    if(vid >= 0 && vid < num_verts)
-                                    {
-                                        vids.push_back(vid);
-                                    }
-                                }
-                            }
-                        }
-                        else if(dims_j == 1 && dims_i != 1)
-                        {
-                            const index_t istart = origin_i + part_lo;
-                            const index_t iend   = origin_i + dims_i - part_hi;
-                            const index_t j = origin_j;
-                            if(flip)
-                            {
-                                for(index_t i = iend; i-- > istart;)
-                                {
-                                    const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
-                                    if(vid >= 0 && vid < num_verts)
-                                    {
-                                        vids.push_back(vid);
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                for(index_t i = istart; i < iend; ++i)
-                                {
-                                    const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
-                                    if(vid >= 0 && vid < num_verts)
-                                    {
-                                        vids.push_back(vid);
-                                    }
-                                }
-                            }
-                        }
+                        append_boundary_vids(structured_trim_lo,
+                                             structured_trim_hi,
+                                             vids);
 
                         // If this domain is coarse relative to this neighbor,
                         // include any new vertices that were appended during

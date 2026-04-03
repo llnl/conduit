@@ -9356,9 +9356,16 @@ combine(const std::vector<const Node*>& in_adjsets,
     Node tmp_dom;
     for(size_t iadj = 0; iadj < in_adjsets.size(); iadj++)
     {
-        const Node& adjset = *in_adjsets[iadj];
-        local_cnk_idx[in_chunk_ids[iadj]] = iadj;
-        attach_chunk_adjset_to_single_dom(tmp_dom, in_chunk_ids[iadj], &adjset);
+        local_cnk_idx[in_chunk_ids[iadj]] = static_cast<index_t>(iadj);
+
+        const Node *adjset = in_adjsets[iadj];
+        if(adjset == nullptr)
+        {
+            // Valid: this input chunk has no adjsets to contribute.
+            continue;
+        }
+
+        attach_chunk_adjset_to_single_dom(tmp_dom, in_chunk_ids[iadj], adjset);
     }
 
     for (const auto& adjset : tmp_dom["adjsets"].children())

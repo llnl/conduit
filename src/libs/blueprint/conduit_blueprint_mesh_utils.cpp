@@ -1181,7 +1181,6 @@ connectivity::connect_elements_2d(const Node& ref_win,
             else
             {
                 ++jstart;
-                new_vertex += ratio - part_lo; 
             }
         }
         if (part_hi > 1)
@@ -1189,7 +1188,6 @@ connectivity::connect_elements_2d(const Node& ref_win,
             if (flip)
             {
                 ++jstart;
-                new_vertex += ratio - part_hi;
             }
             else
             {
@@ -1264,7 +1262,6 @@ connectivity::connect_elements_2d(const Node& ref_win,
             else
             {
                 ++istart;
-                new_vertex += ratio - part_lo;
             }
         }
         if (part_hi > 1)
@@ -1272,7 +1269,6 @@ connectivity::connect_elements_2d(const Node& ref_win,
             if (flip)
             {
                 ++istart;
-                new_vertex += ratio - part_hi;
             }
             else
             {
@@ -5071,4 +5067,3 @@ void CONDUIT_BLUEPRINT_API lerp(const Node& As,
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-
