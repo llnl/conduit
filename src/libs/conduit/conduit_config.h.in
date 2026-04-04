@@ -57,9 +57,17 @@
 
 #cmakedefine CONDUIT_USE_CALIPER
 
-#cmakedefine CONDUIT_USE_RAJA
+#cmakedefine01 RAJA_FOUND
 
-#cmakedefine CONDUIT_USE_UMPIRE
+#if RAJA_FOUND
+#define CONDUIT_USE_RAJA
+#endif
+
+#cmakedefine01 UMPIRE_FOUND
+
+#if UMPIRE_FOUND
+#define CONDUIT_USE_UMPIRE
+#endif
 
 #cmakedefine CONDUIT_USE_OPENMP
 
@@ -75,5 +83,7 @@
 #define CONDUIT_DEVICE_SUPPORT_ENABLED
 #endif
 
-#endif
+#undef RAJA_FOUND
+#undef UMPIRE_FOUND
 
+#endif

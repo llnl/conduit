@@ -220,7 +220,6 @@ if(RAJA_DIR)  # optional for now
     if(NOT RAJA_FOUND)
         message(FATAL_ERROR "RAJA_DIR is set, but RAJA wasn't found.")
     endif()
-    set(CONDUIT_USE_RAJA TRUE)
 endif()
 
 ################################
@@ -231,7 +230,6 @@ if(UMPIRE_DIR) # optional for now
     if(NOT UMPIRE_FOUND)
         message(FATAL_ERROR "UMPIRE_DIR is set, but Umpire wasn't found.")
     endif()
-    set(CONDUIT_USE_UMPIRE TRUE)
 endif()
 
 ################################
