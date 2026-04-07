@@ -13,6 +13,14 @@
 // conduit includes
 //-----------------------------------------------------------------------------
 
+#if defined(CONDUIT_USE_CUDA)
+#include <cuda_runtime.h>
+#endif
+
+#if defined(CONDUIT_USE_HIP)
+#include <hip/hip_runtime.h>
+#endif
+
 
 //-----------------------------------------------------------------------------
 // -- begin conduit --
@@ -272,7 +280,7 @@ ExecutionPolicy::policy_id_to_name(const PolicyID policy_id)
 void
 init_device_memory_handlers()
 {
-#if defined(CONDUIT_DEVICE_ENABLED)
+#if defined(CONDUIT_DEVICE_SUPPORT_ENABLED)
     // we only need to override the mem handlers in the
     // presence of cuda or hip
     conduit::utils::set_memcpy_handler(MagicMemory::copy);
@@ -326,4 +334,3 @@ device_error_check(ExecutionPolicy policy, const char *file, const int line)
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-

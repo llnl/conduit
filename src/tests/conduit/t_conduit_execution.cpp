@@ -263,11 +263,13 @@ TEST(conduit_execution, for_all_and_dispatch)
         test_exec_policy(openmp);
     }
 
+    #if defined(__CUDACC__) || defined(__HIPCC__)
     if (ExecutionPolicy::is_device_enabled())
     {
         ExecutionPolicy device = ExecutionPolicy::device();
         test_exec_policy(device);
     }
+    #endif
 }
 
 //-----------------------------------------------------------------------------
@@ -484,5 +486,4 @@ TEST(conduit_execution, strawman)
     //     acc_des.sync(node["des"]); 
     // }
 }
-
 

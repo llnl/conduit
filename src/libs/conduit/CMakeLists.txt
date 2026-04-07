@@ -170,6 +170,10 @@ if(UMPIRE_FOUND)
     list(APPEND conduit_thirdparty_libs umpire)
 endif()
 
+if(HIP_FOUND)
+    list(APPEND conduit_thirdparty_libs blt::hip_runtime)
+endif()
+
 if(OPENMP_FOUND)
     list(APPEND conduit_thirdparty_libs ${conduit_blt_openmp_deps})
 endif()
@@ -230,4 +234,3 @@ if(FORTRAN_FOUND)
    ${CMAKE_Fortran_MODULE_DIRECTORY}/
    DESTINATION include/conduit)
 endif()
-

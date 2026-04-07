@@ -84,5 +84,3 @@ if(FORTRAN_FOUND)
 else()
     message(STATUS "Fortran disabled: Skipping conduit fortran interface tests")
 endif()
-
-

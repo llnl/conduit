@@ -15,14 +15,23 @@
 #include "conduit_config.h"
 #include "conduit_utils.hpp"
 
-#if defined(CONDUIT_UMPIRE_ENABLED)
+#if defined(CONDUIT_USE_UMPIRE)
 #include <umpire/Umpire.hpp>
 #include <umpire/util/MemoryResourceTraits.hpp>
 #include <umpire/strategy/DynamicPoolList.hpp>
 #endif
+
+#if defined(CONDUIT_USE_CUDA)
+#include <cuda_runtime.h>
+#endif
+
+#if defined(CONDUIT_USE_HIP)
+#include <hip/hip_runtime.h>
+#endif
+
 #include <cstring> // memcpy
 
-#if defined(CONDUIT_HIP_ENABLED)
+#if defined(CONDUIT_USE_HIP)
 #if HIP_VERSION_MAJOR >= 6
 #define TYPE_ATTR type
 #else
@@ -35,6 +44,37 @@
 //-----------------------------------------------------------------------------
 namespace conduit
 {
+
+#if defined(CONDUIT_USE_UMPIRE)
+namespace
+{
+
+umpire::Allocator
+host_allocator()
+{
+    auto &rm = umpire::ResourceManager::getInstance();
+    static umpire::Allocator alloc =
+        rm.makeAllocator<umpire::strategy::DynamicPoolList>(
+            "CONDUIT_HOST_POOL",
+            rm.getAllocator("HOST"),
+            1024ul * 1024ul * 1024ul + 1);
+    return alloc;
+}
+
+umpire::Allocator
+device_allocator()
+{
+    auto &rm = umpire::ResourceManager::getInstance();
+    static umpire::Allocator alloc =
+        rm.makeAllocator<umpire::strategy::DynamicPoolList>(
+            "CONDUIT_DEVICE_POOL",
+            rm.getAllocator("DEVICE"),
+            1024ul * 1024ul * 1024ul + 1);
+    return alloc;
+}
+
+}
+#endif
 
 //-----------------------------------------------------------------------------
 // -- begin conduit::execution --
@@ -62,11 +102,8 @@ HostMemory::allocate(size_t bytes)
 {
     m_total_bytes_alloced += bytes;
     m_alloc_count ++;
-#if defined(CONDUIT_UMPIRE_ENABLED)
-    auto &rm = umpire::ResourceManager::getInstance ();
-    const int allocator_id = AllocationManager::host_allocator_id();
-    umpire::Allocator host_allocator = rm.getAllocator (allocator_id);
-    return host_allocator.allocate(bytes);
+#if defined(CONDUIT_USE_UMPIRE)
+    return conduit::host_allocator().allocate(bytes);
 #else
     return malloc(bytes);
 #endif
@@ -84,11 +121,8 @@ void
 HostMemory::deallocate(void *data_ptr)
 {
     m_free_count ++;
-#if defined(CONDUIT_UMPIRE_ENABLED)
-    auto &rm = umpire::ResourceManager::getInstance ();
-    const int allocator_id = AllocationManager::host_allocator_id();
-    umpire::Allocator host_allocator = rm.getAllocator (allocator_id);
-    host_allocator.deallocate(data_ptr);
+#if defined(CONDUIT_USE_UMPIRE)
+    conduit::host_allocator().deallocate(data_ptr);
 #else
     return free(data_ptr);
 #endif
@@ -107,18 +141,15 @@ size_t DeviceMemory::m_free_count = 0;
 void *
 DeviceMemory::allocate(size_t bytes)
 {
-#if !defined(CONDUIT_UMPIRE_ENABLED)
+#if !defined(CONDUIT_USE_UMPIRE)
     CONDUIT_ERROR("Conduit was built without Umpire support. "
                    "Cannot use DeviceMemory::alloc().");
 #endif
 
-#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_UMPIRE_ENABLED)
+#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_UMPIRE)
     m_total_bytes_alloced += bytes;
     m_alloc_count ++;
-    auto &rm = umpire::ResourceManager::getInstance ();
-    const int allocator_id = AllocationManager::device_allocator_id();
-    umpire::Allocator device_allocator = rm.getAllocator (allocator_id);
-    return device_allocator.allocate(bytes);
+    return conduit::device_allocator().allocate(bytes);
 #else
     (void) bytes; // unused
     CONDUIT_ERROR("Calling device allocator when no device is present.");
@@ -137,17 +168,14 @@ DeviceMemory::allocate(size_t items, size_t item_size)
 void
 DeviceMemory::deallocate(void *data_ptr)
 {
-#if !defined(CONDUIT_UMPIRE_ENABLED)
+#if !defined(CONDUIT_USE_UMPIRE)
     CONDUIT_ERROR("Conduit was built without Umpire support. "
                   "Cannot use DeviceMemory::free().");
 #endif
 
-#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_UMPIRE_ENABLED)
+#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_UMPIRE)
     m_free_count++;
-    auto &rm = umpire::ResourceManager::getInstance ();
-    const int allocator_id = AllocationManager::device_allocator_id();
-    umpire::Allocator device_allocator = rm.getAllocator (allocator_id);
-    device_allocator.deallocate (data_ptr);
+    conduit::device_allocator().deallocate(data_ptr);
 #else
     (void) data_ptr;
     CONDUIT_ERROR("Calling device allocator when no device is present.");
@@ -162,7 +190,7 @@ DeviceMemory::is_device_ptr(const void *ptr, bool &is_gpu, bool &is_unified)
 {
     is_gpu = false;
     is_unified = false;
-#if defined(CONDUIT_CUDA_ENABLED)
+#if defined(CONDUIT_USE_CUDA)
     cudaPointerAttributes atts;
     const cudaError_t perr = cudaPointerGetAttributes(&atts, ptr);
 
@@ -177,7 +205,7 @@ DeviceMemory::is_device_ptr(const void *ptr, bool &is_gpu, bool &is_unified)
               atts.type == cudaMemoryTypeManaged   );
 
     is_unified = cudaSuccess && atts.type == cudaMemoryTypeDevice;
-#elif defined(CONDUIT_HIP_ENABLED)
+#elif defined(CONDUIT_USE_HIP)
     hipPointerAttribute_t atts;
     const hipError_t perr = hipPointerGetAttributes(&atts, ptr);
 
@@ -203,7 +231,7 @@ DeviceMemory::is_device_ptr(const void *ptr, bool &is_gpu, bool &is_unified)
 bool
 DeviceMemory::is_device_ptr(const void *ptr)
 {
-#if defined(CONDUIT_CUDA_ENABLED)
+#if defined(CONDUIT_USE_CUDA)
     cudaPointerAttributes atts;
     const cudaError_t perr = cudaPointerGetAttributes(&atts, ptr);
     // clear last error so other error checking does
@@ -213,7 +241,7 @@ DeviceMemory::is_device_ptr(const void *ptr)
                 (atts.type == cudaMemoryTypeDevice ||
                  atts.type == cudaMemoryTypeManaged);
 
-#elif defined(CONDUIT_HIP_ENABLED)
+#elif defined(CONDUIT_USE_HIP)
     hipPointerAttribute_t atts;
     const hipError_t perr = hipPointerGetAttributes(&atts, ptr);
     // clear last error so other error checking does
@@ -242,9 +270,9 @@ MagicMemory::set(void * ptr, int value, size_t num )
     bool is_device = DeviceMemory::is_device_ptr(ptr);
     if (is_device)
     {
-#if defined(CONDUIT_CUDA_ENABLED)
+#if defined(CONDUIT_USE_CUDA)
         cudaMemset(ptr,value,num);
-#elif defined(CONDUIT_HIP_ENABLED)
+#elif defined(CONDUIT_USE_HIP)
         hipMemset(ptr,value,num);
 #endif
     }
@@ -266,25 +294,25 @@ MagicMemory::copy(void * destination, const void * source, size_t num)
     bool dst_is_gpu = DeviceMemory::is_device_ptr(destination);
     if (src_is_gpu && dst_is_gpu)
     {
-#if defined(CONDUIT_CUDA_ENABLED)
+#if defined(CONDUIT_USE_CUDA)
         cudaMemcpy(destination, source, num, cudaMemcpyDeviceToDevice);
-#elif defined(CONDUIT_HIP_ENABLED)
+#elif defined(CONDUIT_USE_HIP)
         hipMemcpy(destination, source, num, hipMemcpyDeviceToDevice);
 #endif
     }
     else if (src_is_gpu && !dst_is_gpu)
     {
-#if defined(CONDUIT_CUDA_ENABLED)
+#if defined(CONDUIT_USE_CUDA)
         cudaMemcpy(destination, source, num, cudaMemcpyDeviceToHost);
-#elif defined(CONDUIT_HIP_ENABLED)
+#elif defined(CONDUIT_USE_HIP)
         hipMemcpy(destination, source, num, hipMemcpyDeviceToHost);
 #endif
     }
     else if (!src_is_gpu && dst_is_gpu)
     {
-#if defined(CONDUIT_CUDA_ENABLED)
+#if defined(CONDUIT_USE_CUDA)
         cudaMemcpy(destination, source, num, cudaMemcpyHostToDevice);
-#elif defined(CONDUIT_HIP_ENABLED)
+#elif defined(CONDUIT_USE_HIP)
         hipMemcpy(destination, source, num, hipMemcpyHostToDevice);
 #endif
     }

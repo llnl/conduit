@@ -22,6 +22,7 @@
 #include "conduit_memory_manager.hpp"
 #include "conduit_node.hpp"
 #include "conduit_data_array.hpp"
+#include "conduit_execution.hpp"
 
 //-----------------------------------------------------------------------------
 // -- begin conduit:: --
@@ -1408,4 +1409,3 @@ template class DataAccessor<double>;
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-

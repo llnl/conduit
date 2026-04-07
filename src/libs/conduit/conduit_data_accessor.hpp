@@ -18,7 +18,6 @@
 #include "conduit_core.hpp"
 #include "conduit_data_type.hpp"
 #include "conduit_utils.hpp"
-#include "conduit_execution.hpp"
 
 
 //-----------------------------------------------------------------------------
@@ -26,6 +25,11 @@
 //-----------------------------------------------------------------------------
 namespace conduit
 {
+
+namespace execution
+{
+class ExecutionPolicy;
+}
 
 //-----------------------------------------------------------------------------
 // -- forward declarations required for conduit::DataAccessor --
