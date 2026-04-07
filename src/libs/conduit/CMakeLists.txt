@@ -105,6 +105,9 @@ set(conduit_sources
     conduit_annotations.cpp
     )
 
+set(conduit_device_sources
+    conduit_execution.cpp)
+
 if(TOTALVIEW_FOUND)
   list(APPEND conduit_sources debug/conduit_node_totalview.cpp)
   if(NOT CONDUIT_EXCLUDE_TV_DATA_DISPLAY)
@@ -160,6 +163,24 @@ set(conduit_thirdparty_libs "")
 
 if(CALIPER_FOUND)
     list(APPEND conduit_thirdparty_libs caliper)
+endif()
+
+if(RAJA_FOUND)
+    list(APPEND conduit_thirdparty_libs RAJA)
+endif()
+
+if(UMPIRE_FOUND)
+    list(APPEND conduit_thirdparty_libs umpire)
+endif()
+
+if(CUDA_FOUND)
+    list(APPEND conduit_thirdparty_libs cuda)
+    set_source_files_properties(${conduit_device_sources} PROPERTIES LANGUAGE CUDA)
+endif()
+
+if(HIP_FOUND)
+    list(APPEND conduit_thirdparty_libs blt::hip)
+    set_source_files_properties(${conduit_device_sources} PROPERTIES LANGUAGE HIP)
 endif()
 
 if(OPENMP_FOUND)
@@ -222,4 +243,3 @@ if(FORTRAN_FOUND)
    ${CMAKE_Fortran_MODULE_DIRECTORY}/
    DESTINATION include/conduit)
 endif()
-

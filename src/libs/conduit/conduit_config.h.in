@@ -57,6 +57,18 @@
 
 #cmakedefine CONDUIT_USE_CALIPER
 
+#cmakedefine01 RAJA_FOUND
+
+#if RAJA_FOUND
+#define CONDUIT_USE_RAJA
+#endif
+
+#cmakedefine01 UMPIRE_FOUND
+
+#if UMPIRE_FOUND
+#define CONDUIT_USE_UMPIRE
+#endif
+
 #cmakedefine CONDUIT_USE_OPENMP
 
 #cmakedefine CONDUIT_USE_PARMETIS
@@ -67,10 +79,27 @@
 
 #cmakedefine CONDUIT_USE_HIP
 
+#if defined(CONDUIT_USE_OPENMP) && defined(CONDUIT_USE_RAJA)
+#define CONDUIT_RAJA_OPENMP_ENABLED
+#endif
+
+#if defined(CONDUIT_USE_CUDA) && defined(CONDUIT_USE_RAJA)
+#define CONDUIT_RAJA_DEVICE_ENABLED
+#define CONDUIT_RAJA_CUDA_ENABLED
+#endif
+
+#if defined(CONDUIT_USE_HIP) && defined(CONDUIT_USE_RAJA)
+#define CONDUIT_RAJA_DEVICE_ENABLED
+#define CONDUIT_RAJA_HIP_ENABLED
+#endif
+
 #if defined(CONDUIT_USE_CUDA) || defined(CONDUIT_USE_HIP)
+#define CONDUIT_DEVICE_ENABLED
 #define CONDUIT_DEVICE_SUPPORT_ENABLED
 #endif
 
-#endif
+#undef RAJA_FOUND
+#undef UMPIRE_FOUND
 
+#endif
 

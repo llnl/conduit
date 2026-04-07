@@ -54,6 +54,18 @@ set(BASIC_TESTS t_conduit_smoke
                 t_conduit_fixed_size_vector
                 t_conduit_geometry_vector)
 
+set(conduit_device_test_deps)
+
+if(CUDA_FOUND)
+    set_source_files_properties(t_conduit_execution.cpp PROPERTIES LANGUAGE CUDA)
+    list(APPEND conduit_device_test_deps cuda)
+endif()
+
+if(HIP_FOUND)
+    set_source_files_properties(t_conduit_execution.cpp PROPERTIES LANGUAGE HIP)
+    list(APPEND conduit_device_test_deps blt::hip)
+endif()
+
 
 ################################
 # Add our tests
@@ -64,6 +76,10 @@ foreach(TEST ${BASIC_TESTS})
                  DEPENDS_ON conduit
                  FOLDER tests/conduit)
 endforeach()
+
+if(conduit_device_test_deps)
+    target_link_libraries(t_conduit_execution PUBLIC ${conduit_device_test_deps})
+endif()
 
 ################################
 # Add c interface tests
@@ -84,5 +100,4 @@ if(FORTRAN_FOUND)
 else()
     message(STATUS "Fortran disabled: Skipping conduit fortran interface tests")
 endif()
-
 

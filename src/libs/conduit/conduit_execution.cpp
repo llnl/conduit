@@ -13,6 +13,14 @@
 // conduit includes
 //-----------------------------------------------------------------------------
 
+#if defined(CONDUIT_USE_CUDA)
+#include <cuda_runtime.h>
+#endif
+
+#if defined(CONDUIT_USE_HIP)
+#include <hip/hip_runtime.h>
+#endif
+
 
 //-----------------------------------------------------------------------------
 // -- begin conduit --
@@ -286,7 +294,7 @@ device_error_check(ExecutionPolicy policy, const char *file, const int line)
 {
     if (policy.is_hip())
     {
-#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_HIP)
+#if defined(CONDUIT_RAJA_HIP_ACTIVE)
         hipError_t err = hipGetLastError();
         if ( hipSuccess != err )
         {
@@ -294,13 +302,16 @@ device_error_check(ExecutionPolicy policy, const char *file, const int line)
             std::cerr<<" : "<<hipGetErrorName(err)<<"\n";
             //exit( -1 );
         }
+#elif defined(CONDUIT_RAJA_HIP_ENABLED)
+        CONDUIT_ERROR("Conduit was built with HIP, but conduit_execution.cpp "
+                      "was not compiled with HIP support.");
 #else
         CONDUIT_ERROR("Conduit was not built with HIP.");
 #endif
     }
     else if (policy.is_cuda())
     {
-#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_CUDA)
+#if defined(CONDUIT_RAJA_CUDA_ACTIVE)
         cudaError err = cudaGetLastError();
         if ( cudaSuccess != err )
         {
@@ -308,6 +319,9 @@ device_error_check(ExecutionPolicy policy, const char *file, const int line)
             std::cerr<<" : "<<cudaGetErrorString(err)<<"\n";
             //exit( -1 );
         }
+#elif defined(CONDUIT_RAJA_CUDA_ENABLED)
+        CONDUIT_ERROR("Conduit was built with CUDA, but conduit_execution.cpp "
+                      "was not compiled with CUDA support.");
 #else
         CONDUIT_ERROR("Conduit was not built with CUDA.");
 #endif
@@ -326,4 +340,3 @@ device_error_check(ExecutionPolicy policy, const char *file, const int line)
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-
