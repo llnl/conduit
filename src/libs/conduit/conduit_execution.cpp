@@ -302,7 +302,7 @@ device_error_check(ExecutionPolicy policy, const char *file, const int line)
             std::cerr<<" : "<<hipGetErrorName(err)<<"\n";
             //exit( -1 );
         }
-#elif defined(CONDUIT_RAJA_HIP_ENABLED)
+#elif defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_HIP)
         CONDUIT_ERROR("Conduit was built with HIP, but conduit_execution.cpp "
                       "was not compiled with HIP support.");
 #else
@@ -319,7 +319,7 @@ device_error_check(ExecutionPolicy policy, const char *file, const int line)
             std::cerr<<" : "<<cudaGetErrorString(err)<<"\n";
             //exit( -1 );
         }
-#elif defined(CONDUIT_RAJA_CUDA_ENABLED)
+#elif defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_CUDA)
         CONDUIT_ERROR("Conduit was built with CUDA, but conduit_execution.cpp "
                       "was not compiled with CUDA support.");
 #else

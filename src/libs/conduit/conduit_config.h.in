@@ -79,20 +79,6 @@
 
 #cmakedefine CONDUIT_USE_HIP
 
-#if defined(CONDUIT_USE_OPENMP) && defined(CONDUIT_USE_RAJA)
-#define CONDUIT_RAJA_OPENMP_ENABLED
-#endif
-
-#if defined(CONDUIT_USE_CUDA) && defined(CONDUIT_USE_RAJA)
-#define CONDUIT_RAJA_DEVICE_ENABLED
-#define CONDUIT_RAJA_CUDA_ENABLED
-#endif
-
-#if defined(CONDUIT_USE_HIP) && defined(CONDUIT_USE_RAJA)
-#define CONDUIT_RAJA_DEVICE_ENABLED
-#define CONDUIT_RAJA_HIP_ENABLED
-#endif
-
 #if defined(CONDUIT_USE_CUDA) || defined(CONDUIT_USE_HIP)
 #define CONDUIT_DEVICE_ENABLED
 #define CONDUIT_DEVICE_SUPPORT_ENABLED
@@ -102,4 +88,3 @@
 #undef UMPIRE_FOUND
 
 #endif
-

@@ -40,12 +40,16 @@
 //-----------------------------------------------------------------------------
 #define CONDUIT_DEVICE_ERROR_CHECK( policy ) conduit::execution::device_error_check(policy, __FILE__, __LINE__);
 
-#if defined(CONDUIT_RAJA_CUDA_ENABLED) && defined(RAJA_CUDA_ACTIVE)
+#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_CUDA) && defined(RAJA_CUDA_ACTIVE)
 #define CONDUIT_RAJA_CUDA_ACTIVE
 #endif
 
-#if defined(CONDUIT_RAJA_HIP_ENABLED) && defined(RAJA_HIP_ACTIVE)
+#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_HIP) && defined(RAJA_HIP_ACTIVE)
 #define CONDUIT_RAJA_HIP_ACTIVE
+#endif
+
+#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_OPENMP) && defined(RAJA_ENABLE_OPENMP)
+#define CONDUIT_RAJA_OPENMP_ACTIVE
 #endif
 
 #if defined(CONDUIT_RAJA_CUDA_ACTIVE) || defined(CONDUIT_RAJA_HIP_ACTIVE)
@@ -202,11 +206,11 @@ struct EmptyPolicy
 //---------------------------------------------------------------------------//
 // RAJA_ON policies for when raja is on
 //---------------------------------------------------------------------------//
-#if defined(CONDUIT_RAJA_CUDA_ENABLED)
+#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_CUDA)
 #define CUDA_BLOCK_SIZE 128
 #endif
 
-#if defined(CONDUIT_RAJA_HIP_ENABLED)
+#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_HIP)
 #define HIP_BLOCK_SIZE 256
 #endif
 
@@ -252,7 +256,7 @@ struct HipExec
 };
 #endif
 
-#if defined(CONDUIT_RAJA_OPENMP_ENABLED)
+#if defined(CONDUIT_RAJA_OPENMP_ACTIVE)
 //---------------------------------------------------------------------------
 struct OpenMPExec
 {
@@ -497,7 +501,7 @@ dispatch(ExecutionPolicy policy, Function&& func)
 #if defined(CONDUIT_RAJA_CUDA_ACTIVE)
         CudaExec ce;
         invoke(ce, func);
-#elif defined(CONDUIT_RAJA_CUDA_ENABLED)
+#elif defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_CUDA)
         CONDUIT_ERROR("Conduit was built with CUDA, but this translation unit "
                       "was not compiled with CUDA support.");
 #else
@@ -509,7 +513,7 @@ dispatch(ExecutionPolicy policy, Function&& func)
 #if defined(CONDUIT_RAJA_HIP_ACTIVE)
         HipExec he;
         invoke(he, func);
-#elif defined(CONDUIT_RAJA_HIP_ENABLED)
+#elif defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_HIP)
         CONDUIT_ERROR("Conduit was built with HIP, but this translation unit "
                       "was not compiled with HIP support.");
 #else
@@ -518,7 +522,7 @@ dispatch(ExecutionPolicy policy, Function&& func)
     }
     else if (policy.is_openmp())
     {
-#if defined(CONDUIT_RAJA_OPENMP_ENABLED)
+#if defined(CONDUIT_RAJA_OPENMP_ACTIVE)
         OpenMPExec ompe;
         invoke(ompe, func);
 #elif !defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_OPENMP)
@@ -561,7 +565,7 @@ forall(ExecutionPolicy &policy,
 #if defined(CONDUIT_RAJA_CUDA_ACTIVE)
         forall<typename CudaExec::for_policy>(begin, end,
                                               std::forward<Kernel>(kernel));
-#elif defined(CONDUIT_RAJA_CUDA_ENABLED)
+#elif defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_CUDA)
         CONDUIT_ERROR("Conduit was built with CUDA, but this translation unit "
                       "was not compiled with CUDA support.");
 #else
@@ -573,7 +577,7 @@ forall(ExecutionPolicy &policy,
 #if defined(CONDUIT_RAJA_HIP_ACTIVE)
         forall<typename HipExec::for_policy>(begin, end,
                                              std::forward<Kernel>(kernel));
-#elif defined(CONDUIT_RAJA_HIP_ENABLED)
+#elif defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_HIP)
         CONDUIT_ERROR("Conduit was built with HIP, but this translation unit "
                       "was not compiled with HIP support.");
 #else
@@ -582,7 +586,7 @@ forall(ExecutionPolicy &policy,
     }
     else if (policy.is_openmp())
     {
-#if defined(CONDUIT_RAJA_OPENMP_ENABLED)
+#if defined(CONDUIT_RAJA_OPENMP_ACTIVE)
         forall<typename OpenMPExec::for_policy>(begin, end,
                                                 std::forward<Kernel>(kernel));
 #elif !defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_OPENMP)
@@ -623,7 +627,7 @@ sort(ExecutionPolicy &policy,
     }
     else if (policy.is_openmp())
     {
-#if defined(CONDUIT_RAJA_OPENMP_ENABLED) || (!defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_OPENMP))
+#if defined(CONDUIT_RAJA_OPENMP_ACTIVE) || (!defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_OPENMP))
         sort<OpenMPExec>(begin, end);
 #elif defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_OPENMP)
         CONDUIT_ERROR("Conduit was built with OpenMP, but RAJA OpenMP support "
@@ -662,7 +666,7 @@ sort(ExecutionPolicy &policy,
     }
     else if (policy.is_openmp())
     {
-#if defined(CONDUIT_RAJA_OPENMP_ENABLED) || (!defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_OPENMP))
+#if defined(CONDUIT_RAJA_OPENMP_ACTIVE) || (!defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_OPENMP))
         sort<OpenMPExec>(begin, end, std::forward<Predicate>(predicate));
 #elif defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_OPENMP)
         CONDUIT_ERROR("Conduit was built with OpenMP, but RAJA OpenMP support "
