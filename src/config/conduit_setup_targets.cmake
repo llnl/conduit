@@ -76,6 +76,11 @@ set_property(TARGET conduit::conduit
              PROPERTY INTERFACE_LINK_LIBRARIES
              conduit conduit_relay conduit_blueprint)
 
+add_library(conduit::conduit_execution INTERFACE IMPORTED)
+set_property(TARGET conduit::conduit_execution
+             PROPERTY INTERFACE_LINK_LIBRARIES
+             conduit_execution)
+
 
 if(CONDUIT_PYTHON_ENABLED)
     # create convenience target that exposes the header file for the
@@ -118,8 +123,8 @@ if(NOT Conduit_FIND_QUIETLY)
     message(STATUS "CONDUIT_USE_FMT             = ${CONDUIT_USE_FMT}")
     message(STATUS "CONDUIT_USE_CALIPER         = ${CONDUIT_USE_CALIPER}")
     message(STATUS "CONDUIT_USE_OPENMP          = ${CONDUIT_USE_OPENMP}")
-    message(STATUS "CONDUIT_CUDA_ENABLED        = ${CONDUIT_CUDA_ENABLED}")
-    message(STATUS "CONDUIT_HIP_ENABLED         = ${CONDUIT_HIP_ENABLED}")
+    message(STATUS "CONDUIT_USE_CUDA            = ${CONDUIT_USE_CUDA}")
+    message(STATUS "CONDUIT_USE_HIP             = ${CONDUIT_USE_HIP}")
     message(STATUS "CONDUIT_INCLUDE_DIRS        = ${CONDUIT_INCLUDE_DIRS}")
     message(STATUS "CONDUIT_FORTRAN_ENABLED     = ${CONDUIT_FORTRAN_ENABLED}")
     message(STATUS "CONDUIT_PYTHON_ENABLED      = ${CONDUIT_PYTHON_ENABLED}")
@@ -137,7 +142,7 @@ if(NOT Conduit_FIND_QUIETLY)
     message(STATUS " CONDUIT_RELAY_MPI_ENABLED       = ${CONDUIT_RELAY_MPI_ENABLED}")
     message(STATUS " CONDUIT_USE_CMAKE_MPI_TARGETS   = ${CONDUIT_USE_CMAKE_MPI_TARGETS}")
 
-    set(_print_targets "conduit::conduit")
+    set(_print_targets "conduit::conduit conduit::conduit_execution")
 
     if(CONDUIT_PYTHON_ENABLED)
         set(_print_targets "${_print_targets} conduit::conduit_python")
@@ -150,5 +155,4 @@ if(NOT Conduit_FIND_QUIETLY)
     message(STATUS "Conduit imported targets: ${_print_targets}")
     unset(_print_targets)
 endif()
-
 

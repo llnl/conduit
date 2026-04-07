@@ -39,6 +39,7 @@
 // cpp lib includes
 //-----------------------------------------------------------------------------
 #include <algorithm>
+#include <type_traits>
 
 //-----------------------------------------------------------------------------
 //
@@ -205,6 +206,10 @@ void device_error_check(ExecutionPolicy policy, const char *file, const int line
 struct EmptyPolicy
 {};
 
+template<typename ExecPolicyTag>
+struct exec_policy_is_device : std::false_type
+{};
+
 #if defined(CONDUIT_USE_RAJA)
 //---------------------------------------------------------------------------//
 // RAJA_ON policies for when raja is on
@@ -237,6 +242,10 @@ struct CudaExec
     using sort_policy = EmptyPolicy;
     static std::string memory_space;
 };
+
+template<>
+struct exec_policy_is_device<CudaExec> : std::true_type
+{};
 #endif
 
 #if defined(CONDUIT_EXEC_COMPILED_WITH_HIP)
@@ -249,6 +258,10 @@ struct HipExec
     using sort_policy = EmptyPolicy;
     static std::string memory_space;
 };
+
+template<>
+struct exec_policy_is_device<HipExec> : std::true_type
+{};
 #endif
 
 #if defined(CONDUIT_USE_OPENMP)
@@ -482,6 +495,45 @@ inline void invoke(ExecPolicyTag &exec, Function&& func) noexcept
     func(exec);
 }
 
+template <typename ExecPolicyTag, typename HostKernel, typename DeviceKernel>
+inline void
+forall_impl(std::false_type,
+            const int& begin,
+            const int& end,
+            HostKernel&& host_kernel,
+            DeviceKernel&& device_kernel) noexcept
+{
+    (void)device_kernel;
+    forall<ExecPolicyTag>(begin, end, std::forward<HostKernel>(host_kernel));
+}
+
+template <typename ExecPolicyTag, typename HostKernel, typename DeviceKernel>
+inline void
+forall_impl(std::true_type,
+            const int& begin,
+            const int& end,
+            HostKernel&& host_kernel,
+            DeviceKernel&& device_kernel) noexcept
+{
+    (void)host_kernel;
+    forall<ExecPolicyTag>(begin, end, std::forward<DeviceKernel>(device_kernel));
+}
+
+template <typename ExecPolicyTag, typename HostKernel, typename DeviceKernel>
+inline void
+forall(const int& begin,
+       const int& end,
+       HostKernel&& host_kernel,
+       DeviceKernel&& device_kernel) noexcept
+{
+    using is_device = exec_policy_is_device<ExecPolicyTag>;
+    forall_impl<ExecPolicyTag>(is_device{},
+                               begin,
+                               end,
+                               std::forward<HostKernel>(host_kernel),
+                               std::forward<DeviceKernel>(device_kernel));
+}
+
 //---------------------------------------------------------------------------//
 // runtime to concrete template tag dispatch of a functor
 //---------------------------------------------------------------------------//
@@ -561,6 +613,60 @@ forall(ExecutionPolicy &policy,
     {
 #if defined(CONDUIT_USE_OPENMP)
         forall<OpenMPExec>(begin, end, std::forward<Kernel>(kernel));
+#else
+        CONDUIT_ERROR("Conduit was not built with OpenMP.");
+#endif
+    }
+    else // policy.is_empty()
+    {
+        CONDUIT_ERROR("Cannot call forall with an empty policy.");
+    }
+}
+
+template <typename HostKernel, typename DeviceKernel>
+inline void
+forall(ExecutionPolicy &policy,
+       const int& begin,
+       const int& end,
+       HostKernel&& host_kernel,
+       DeviceKernel&& device_kernel) noexcept
+{
+    if (policy.is_serial())
+    {
+        forall<SerialExec>(begin,
+                           end,
+                           std::forward<HostKernel>(host_kernel),
+                           std::forward<DeviceKernel>(device_kernel));
+    }
+    else if (policy.is_cuda())
+    {
+#if defined(CONDUIT_EXEC_COMPILED_WITH_CUDA)
+        forall<CudaExec>(begin,
+                         end,
+                         std::forward<HostKernel>(host_kernel),
+                         std::forward<DeviceKernel>(device_kernel));
+#else
+        CONDUIT_ERROR("Conduit was not built with CUDA.");
+#endif
+    }
+    else if (policy.is_hip())
+    {
+#if defined(CONDUIT_EXEC_COMPILED_WITH_HIP)
+        forall<HipExec>(begin,
+                        end,
+                        std::forward<HostKernel>(host_kernel),
+                        std::forward<DeviceKernel>(device_kernel));
+#else
+        CONDUIT_ERROR("Conduit was not built with HIP.");
+#endif
+    }
+    else if (policy.is_openmp())
+    {
+#if defined(CONDUIT_USE_OPENMP)
+        forall<OpenMPExec>(begin,
+                           end,
+                           std::forward<HostKernel>(host_kernel),
+                           std::forward<DeviceKernel>(device_kernel));
 #else
         CONDUIT_ERROR("Conduit was not built with OpenMP.");
 #endif

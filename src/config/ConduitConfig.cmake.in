@@ -34,6 +34,8 @@ set(CONDUIT_USE_RAJA    "@RAJA_FOUND@")
 set(CONDUIT_USE_UMPIRE  "@UMPIRE_FOUND@")
 set(CONDUIT_USE_MPI     "@ENABLE_MPI@")
 set(CONDUIT_USE_OPENMP  "@ENABLE_OPENMP@")
+set(CONDUIT_USE_CUDA    "@ENABLE_CUDA@")
+set(CONDUIT_USE_HIP     "@ENABLE_HIP@")
 set(CONDUIT_INSTALL_PREFIX "@CONDUIT_INSTALL_PREFIX@")
 set(CONDUIT_ZLIB_DIR  "@ZLIB_DIR@")
 set(CONDUIT_HDF5_DIR  "@HDF5_DIR@")
@@ -56,6 +58,9 @@ get_filename_component(CONDUIT_CMAKE_CONFIG_DIR "${CMAKE_CURRENT_LIST_FILE}" PAT
 
 # setup dependent pkgs
 include(${CONDUIT_CMAKE_CONFIG_DIR}/conduit_setup_deps.cmake)
+
+# setup execution target helpers
+include(${CONDUIT_CMAKE_CONFIG_DIR}/conduit_setup_execution.cmake)
 
 # include targets exported by cmake
 include(${CONDUIT_CMAKE_CONFIG_DIR}/conduit.cmake)
