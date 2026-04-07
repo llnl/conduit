@@ -91,7 +91,6 @@ set(conduit_sources
     conduit_core.cpp
     conduit_error.cpp
     conduit_endianness.cpp
-    conduit_execution.cpp
     conduit_memory_manager.cpp
     conduit_data_type.cpp
     conduit_data_array.cpp
@@ -191,6 +190,18 @@ if(ENABLE_YYJSON)
     list(APPEND conduit_sources $<TARGET_OBJECTS:conduit_yyjson>)
 endif()
 
+add_library(conduit_execution_device OBJECT ${conduit_device_sources})
+
+target_include_directories(conduit_execution_device
+                           PRIVATE
+                           ${CMAKE_CURRENT_SOURCE_DIR}
+                           ${CMAKE_CURRENT_BINARY_DIR}
+                           $<$<BOOL:TOTALVIEW_FOUND>:${TOTALVIEW_INCLUDE_DIRECTORIES}>)
+
+target_link_libraries(conduit_execution_device
+                      PRIVATE
+                      ${conduit_thirdparty_libs})
+
 #
 # Setup the conduit lib
 #
@@ -198,6 +209,7 @@ add_compiled_library(NAME   conduit
                      EXPORT conduit
                      HEADERS ${conduit_headers} ${conduit_c_headers}
                      SOURCES ${conduit_sources} ${conduit_c_sources} ${conduit_fortran_sources}
+                             $<TARGET_OBJECTS:conduit_execution_device>
                              $<TARGET_OBJECTS:conduit_b64>
                              $<TARGET_OBJECTS:conduit_libyaml>
                      HEADERS_DEST_DIR include/conduit
