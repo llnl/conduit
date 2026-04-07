@@ -162,6 +162,14 @@ if(CALIPER_FOUND)
     list(APPEND conduit_thirdparty_libs caliper)
 endif()
 
+if(RAJA_FOUND)
+    list(APPEND conduit_thirdparty_libs RAJA)
+endif()
+
+if(UMPIRE_FOUND)
+    list(APPEND conduit_thirdparty_libs umpire)
+endif()
+
 if(OPENMP_FOUND)
     list(APPEND conduit_thirdparty_libs ${conduit_blt_openmp_deps})
 endif()
