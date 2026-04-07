@@ -56,10 +56,10 @@ struct MyFunctor
     void operator()(ComboPolicyTag &exec)
     {
         std::cout << typeid(ComboPolicyTag).name() << std::endl;
-        using thetag = typename ComboPolicyTag::for_policy;
-        std::cout << typeid(thetag).name() << std::endl;
+        using for_policy = typename ComboPolicyTag::for_policy;
+        std::cout << typeid(for_policy).name() << std::endl;
         res = 0;
-        conduit::execution::forall<thetag>(0, size, [=] (int i)
+        conduit::execution::forall<ComboPolicyTag>(0, size, [=] (int i)
         {
             std::cout << i << std::endl;
             res ++;
@@ -101,10 +101,10 @@ struct MySpecialFunctor
         // in this case we use an object
         // that is templated on a concrete tag
         // (like a RAJA Reduction Object)
-        using thetag = typename ComboPolicyTag::for_policy;
+        using for_policy = typename ComboPolicyTag::for_policy;
         res = 0;
-        MySpecialClass<thetag> s(10);
-        conduit::execution::forall<thetag>(0, size, [=] (int i)
+        MySpecialClass<for_policy> s(10);
+        conduit::execution::forall<ComboPolicyTag>(0, size, [=] (int i)
         {
             s.exec(i);
             res ++;
@@ -241,9 +241,9 @@ TEST(conduit_execution, for_all_and_dispatch)
 
         conduit::execution::dispatch(policy, [&] <typename ComboPolicyTag>(ComboPolicyTag &exec)
         {
-            using thetag = typename ComboPolicyTag::for_policy;
-            MySpecialClass<thetag> s(10);
-            conduit::execution::forall<thetag>(0, size, [=] (int i)
+            using for_policy = typename ComboPolicyTag::for_policy;
+            MySpecialClass<for_policy> s(10);
+            conduit::execution::forall<ComboPolicyTag>(0, size, [=] (int i)
             {
                 s.exec(i);
             });
@@ -486,4 +486,3 @@ TEST(conduit_execution, strawman)
     //     acc_des.sync(node["des"]); 
     // }
 }
-

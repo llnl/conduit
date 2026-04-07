@@ -26,17 +26,16 @@
 namespace conduit
 {
 
-namespace execution
-{
-class ExecutionPolicy;
-}
-
 //-----------------------------------------------------------------------------
 // -- forward declarations required for conduit::DataArray --
 //-----------------------------------------------------------------------------
 class Node;
 template <typename T>
 class DataAccessor;
+namespace execution
+{
+    class ExecutionPolicy;
+}
 
 //-----------------------------------------------------------------------------
 // -- begin conduit::DataArray --

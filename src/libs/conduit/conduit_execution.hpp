@@ -73,27 +73,6 @@ namespace conduit
 namespace execution
 {
 
-template <typename... Types>
-struct make_void
-{
-    using type = void;
-};
-
-template <typename... Types>
-using void_t = typename make_void<Types...>::type;
-
-template <typename ExecutionPolicy, typename = void>
-struct exec_policy_traits
-{
-    using for_policy = ExecutionPolicy;
-};
-
-template <typename ExecutionPolicy>
-struct exec_policy_traits<ExecutionPolicy, void_t<typename ExecutionPolicy::for_policy>>
-{
-    using for_policy = typename ExecutionPolicy::for_policy;
-};
-
 //-----------------------------------------------------------------------------
 // -- begin conduit::execution::ExecutionPolicy --
 //-----------------------------------------------------------------------------
@@ -302,7 +281,7 @@ forall(const int& begin,
        const int& end,
        Kernel&& kernel) noexcept
 {
-    RAJA::forall<typename exec_policy_traits<ExecutionPolicy>::for_policy>(
+    RAJA::forall<typename ExecutionPolicy::for_policy>(
         RAJA::RangeSegment(begin, end),
         std::forward<Kernel>(kernel));
 }
