@@ -225,12 +225,12 @@ forall(ExecutionPolicy &policy,
 {
     if (policy.is_serial())
     {
-        detail::forall_exec(SerialExec{}, begin, end, std::forward<Kernel>(kernel));
+        forall<SerialExec>(begin, end, std::forward<Kernel>(kernel));
     }
     else if (policy.is_cuda())
     {
 #if defined(CONDUIT_EXEC_TU_HAS_CUDA)
-        detail::forall_exec(CudaExec{}, begin, end, std::forward<Kernel>(kernel));
+        forall<CudaExec>(begin, end, std::forward<Kernel>(kernel));
 #else
         CONDUIT_ERROR("Conduit was not built with CUDA.");
 #endif
@@ -238,7 +238,7 @@ forall(ExecutionPolicy &policy,
     else if (policy.is_hip())
     {
 #if defined(CONDUIT_EXEC_TU_HAS_HIP)
-        detail::forall_exec(HipExec{}, begin, end, std::forward<Kernel>(kernel));
+        forall<HipExec>(begin, end, std::forward<Kernel>(kernel));
 #else
         CONDUIT_ERROR("Conduit was not built with HIP.");
 #endif
@@ -246,7 +246,7 @@ forall(ExecutionPolicy &policy,
     else if (policy.is_openmp())
     {
 #if defined(CONDUIT_USE_OPENMP)
-        detail::forall_exec(OpenMPExec{}, begin, end, std::forward<Kernel>(kernel));
+        forall<OpenMPExec>(begin, end, std::forward<Kernel>(kernel));
 #else
         CONDUIT_ERROR("Conduit was not built with OpenMP.");
 #endif
@@ -265,7 +265,7 @@ sort(ExecutionPolicy &policy,
 {
     if (policy.is_serial())
     {
-        detail::sort_exec(SerialExec{}, begin, end);
+        sort<SerialExec>(begin, end);
     }
     else if (policy.is_cuda())
     {
@@ -278,7 +278,7 @@ sort(ExecutionPolicy &policy,
     else if (policy.is_openmp())
     {
 #if defined(CONDUIT_USE_OPENMP)
-        detail::sort_exec(OpenMPExec{}, begin, end);
+        sort<OpenMPExec>(begin, end);
 #else
         CONDUIT_ERROR("Conduit was not built with OpenMP.");
 #endif
@@ -298,7 +298,7 @@ sort(ExecutionPolicy &policy,
 {
     if (policy.is_serial())
     {
-        detail::sort_exec(SerialExec{}, begin, end, std::forward<Predicate>(predicate));
+        sort<SerialExec>(begin, end, std::forward<Predicate>(predicate));
     }
     else if (policy.is_cuda())
     {
@@ -311,7 +311,7 @@ sort(ExecutionPolicy &policy,
     else if (policy.is_openmp())
     {
 #if defined(CONDUIT_USE_OPENMP)
-        detail::sort_exec(OpenMPExec{}, begin, end, std::forward<Predicate>(predicate));
+        sort<OpenMPExec>(begin, end, std::forward<Predicate>(predicate));
 #else
         CONDUIT_ERROR("Conduit was not built with OpenMP.");
 #endif
