@@ -185,7 +185,7 @@ dispatch(ExecutionPolicy policy, Function&& func)
     }
     else if (policy.is_cuda())
     {
-#if defined(CONDUIT_EXEC_COMPILED_WITH_CUDA)
+#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
         CudaExec ce;
         invoke(ce, func);
 #else
@@ -194,7 +194,7 @@ dispatch(ExecutionPolicy policy, Function&& func)
     }
     else if (policy.is_hip())
     {
-#if defined(CONDUIT_EXEC_COMPILED_WITH_HIP)
+#if defined(CONDUIT_EXEC_TU_HAS_HIP)
         HipExec he;
         invoke(he, func);
 #else
@@ -229,7 +229,7 @@ forall(ExecutionPolicy &policy,
     }
     else if (policy.is_cuda())
     {
-#if defined(CONDUIT_EXEC_COMPILED_WITH_CUDA)
+#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
         detail::forall_exec(CudaExec{}, begin, end, std::forward<Kernel>(kernel));
 #else
         CONDUIT_ERROR("Conduit was not built with CUDA.");
@@ -237,7 +237,7 @@ forall(ExecutionPolicy &policy,
     }
     else if (policy.is_hip())
     {
-#if defined(CONDUIT_EXEC_COMPILED_WITH_HIP)
+#if defined(CONDUIT_EXEC_TU_HAS_HIP)
         detail::forall_exec(HipExec{}, begin, end, std::forward<Kernel>(kernel));
 #else
         CONDUIT_ERROR("Conduit was not built with HIP.");
