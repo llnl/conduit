@@ -65,6 +65,8 @@ foreach(TEST ${BASIC_TESTS})
                  FOLDER tests/conduit)
 endforeach()
 
+conduit_enable_execution_target(t_conduit_execution)
+
 ################################
 # Add c interface tests
 ################################
@@ -84,5 +86,3 @@ if(FORTRAN_FOUND)
 else()
     message(STATUS "Fortran disabled: Skipping conduit fortran interface tests")
 endif()
-
-

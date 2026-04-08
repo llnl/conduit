@@ -18,7 +18,6 @@
 #include "conduit_core.hpp"
 #include "conduit_data_type.hpp"
 #include "conduit_utils.hpp"
-#include "conduit_execution.hpp"
 
 
 //-----------------------------------------------------------------------------
@@ -33,6 +32,10 @@ namespace conduit
 class Node;
 template <typename T>
 class DataArray;
+namespace execution
+{
+    class ExecutionPolicy;
+}
 
 //-----------------------------------------------------------------------------
 // -- begin conduit::DataArray --

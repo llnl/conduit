@@ -19,6 +19,18 @@
 #include "conduit_utils.hpp"
 #include "conduit_memory_manager.hpp"
 
+#if defined(CONDUIT_USE_RAJA)
+#include <RAJA/RAJA.hpp>
+#endif
+
+#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_CUDA) && defined(__CUDACC__)
+#define CONDUIT_EXEC_COMPILED_WITH_CUDA
+#endif
+
+#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_HIP) && defined(__HIPCC__)
+#define CONDUIT_EXEC_COMPILED_WITH_HIP
+#endif
+
 #if defined(CONDUIT_USE_OPENMP)
 #include <omp.h>
 #endif
@@ -35,10 +47,18 @@
 //-----------------------------------------------------------------------------
 #define CONDUIT_DEVICE_ERROR_CHECK( policy ) conduit::execution::device_error_check(policy, __FILE__, __LINE__);
 
-#if defined(CONDUIT_USE_RAJA) && (defined(CONDUIT_USE_CUDA) || defined(CONDUIT_USE_HIP))
+#if defined(CONDUIT_EXEC_COMPILED_WITH_CUDA) || defined(CONDUIT_EXEC_COMPILED_WITH_HIP)
 #define EXEC_LAMBDA __device__ __host__
 #else
 #define EXEC_LAMBDA 
+#endif
+
+#if defined(CONDUIT_USE_CUDA)
+#define CUDA_BLOCK_SIZE 128
+#endif
+
+#if defined(CONDUIT_USE_HIP)
+#define HIP_BLOCK_SIZE 256
 #endif
 
 //-----------------------------------------------------------------------------
@@ -192,12 +212,12 @@ struct EmptyPolicy
 struct SerialExec
 {
     using for_policy = RAJA::seq_exec;
-#if defined(CONDUIT_USE_CUDA)
+#if defined(CONDUIT_EXEC_COMPILED_WITH_CUDA)
     // the cuda/hip policy for reductions can be used
     // by other backends, and this should suppress
     // erroneous host device warnings
     using reduce_policy = RAJA::cuda_reduce;
-#elif  defined(CONDUIT_USE_HIP)
+#elif  defined(CONDUIT_EXEC_COMPILED_WITH_HIP)
     using reduce_policy = RAJA::hip_reduce;
 #else
     using reduce_policy = RAJA::seq_reduce;
@@ -208,7 +228,7 @@ struct SerialExec
 };
 
 //---------------------------------------------------------------------------
-#if defined(CONDUIT_USE_CUDA)
+#if defined(CONDUIT_EXEC_COMPILED_WITH_CUDA)
 struct CudaExec
 {
     using for_policy    = RAJA::cuda_exec<CUDA_BLOCK_SIZE>;
@@ -217,9 +237,10 @@ struct CudaExec
     using sort_policy = EmptyPolicy;
     static std::string memory_space;
 };
+
 #endif
 
-#if defined(CONDUIT_USE_HIP)
+#if defined(CONDUIT_EXEC_COMPILED_WITH_HIP)
 //---------------------------------------------------------------------------
 struct HipExec
 {
@@ -229,6 +250,7 @@ struct HipExec
     using sort_policy = EmptyPolicy;
     static std::string memory_space;
 };
+
 #endif
 
 #if defined(CONDUIT_USE_OPENMP)
@@ -236,12 +258,12 @@ struct HipExec
 struct OpenMPExec
 {
     using for_policy = RAJA::omp_parallel_for_exec;
-#if defined(CONDUIT_USE_CUDA)
+#if defined(CONDUIT_EXEC_COMPILED_WITH_CUDA)
     // the cuda policy for reductions can be used
     // by other backends, and this should suppress
     // erroneous host device warnings
     using reduce_policy = RAJA::cuda_reduce;
-#elif defined(CONDUIT_USE_HIP)
+#elif defined(CONDUIT_EXEC_COMPILED_WITH_HIP)
     using reduce_policy = RAJA::hip_reduce;
 #else
     using reduce_policy = RAJA::omp_reduce;
@@ -251,6 +273,47 @@ struct OpenMPExec
     static std::string memory_space;
 };
 #endif
+
+//---------------------------------------------------------------------------//
+// RAJA exec interfaces for when RAJA is enabled
+//---------------------------------------------------------------------------//
+namespace detail
+{
+
+template <typename ExecutionPolicy, typename Kernel>
+inline void
+forall_exec(ExecutionPolicy,
+            const int& begin,
+            const int& end,
+            Kernel&& kernel) noexcept
+{
+    RAJA::forall<typename ExecutionPolicy::for_policy>(
+        RAJA::RangeSegment(begin, end),
+        std::forward<Kernel>(kernel));
+}
+
+//---------------------------------------------------------------------------//
+template <typename ExecutionPolicy, typename Iterator>
+inline void
+sort_exec(ExecutionPolicy,
+          Iterator begin,
+          Iterator end) noexcept
+{
+    std::sort(begin, end);
+}
+
+//---------------------------------------------------------------------------//
+template <typename ExecutionPolicy, typename Iterator, typename Predicate>
+inline void
+sort_exec(ExecutionPolicy,
+          Iterator begin,
+          Iterator end,
+          Predicate &&predicate) noexcept
+{
+    std::sort(begin, end, std::forward<Predicate>(predicate));
+}
+
+} // namespace detail
 
 
 #else
@@ -287,6 +350,9 @@ struct OpenMPExec
 //---------------------------------------------------------------------------//
 // mock up of a raja like forall implementation 
 //---------------------------------------------------------------------------//
+namespace detail
+{
+
 template <typename ExecutionPolicy, typename Kernel>
 inline void
 forall_exec(ExecutionPolicy,
@@ -319,18 +385,6 @@ forall_exec(OpenMPExec,
     }
 }
 #endif
-
-//---------------------------------------------------------------------------//
-// invoke forall with concrete template tag
-//---------------------------------------------------------------------------//
-template <typename ExecutionPolicy, typename Kernel>
-inline void
-forall(const int& begin,
-       const int& end,
-       Kernel&& kernel) noexcept
-{
-    forall_exec(ExecutionPolicy{}, begin, end, std::forward<Kernel>(kernel));
-}
 
 //---------------------------------------------------------------------------//
 // mock up of a raja like sort implementation 
@@ -392,19 +446,38 @@ sort_exec(OpenMPExec,
 }
 #endif
 
+} // namespace detail
+
+#endif
 //---------------------------------------------------------------------------//
-// invoke sort with concrete template tag
+// end RAJA_OFF
 //---------------------------------------------------------------------------//
-template <typename ExecutionPolicy, typename Iterator>
+
+//---------------------------------------------------------------------------//
+// public concrete-tag forall entry point
+//---------------------------------------------------------------------------//
+template <typename ExecutionPolicy, typename Kernel>
 inline void
-sort(Iterator begin, 
-     Iterator end) noexcept
+forall(const int& begin,
+       const int& end,
+       Kernel&& kernel) noexcept
 {
-    sort_exec(ExecutionPolicy{}, begin, end);
+    detail::forall_exec(ExecutionPolicy{}, begin, end, std::forward<Kernel>(kernel));
 }
 
 //---------------------------------------------------------------------------//
-// invoke sort with concrete template tag
+// public concrete-tag sort entry point
+//---------------------------------------------------------------------------//
+template <typename ExecutionPolicy, typename Iterator>
+inline void
+sort(Iterator begin,
+     Iterator end) noexcept
+{
+    detail::sort_exec(ExecutionPolicy{}, begin, end);
+}
+
+//---------------------------------------------------------------------------//
+// public concrete-tag sort entry point
 //---------------------------------------------------------------------------//
 template <typename ExecutionPolicy, typename Iterator, typename Predicate>
 inline void
@@ -412,13 +485,8 @@ sort(Iterator begin,
      Iterator end,
      Predicate &&predicate) noexcept
 {
-    sort_exec(ExecutionPolicy{}, begin, end, std::forward<Predicate>(predicate));
+    detail::sort_exec(ExecutionPolicy{}, begin, end, std::forward<Predicate>(predicate));
 }
-
-#endif
-//---------------------------------------------------------------------------//
-// end RAJA_OFF
-//---------------------------------------------------------------------------//
 
 //---------------------------------------------------------------------------//
 // invoke functor with concrete template tag
@@ -443,7 +511,7 @@ dispatch(ExecutionPolicy policy, Function&& func)
     }
     else if (policy.is_cuda())
     {
-#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_CUDA)
+#if defined(CONDUIT_EXEC_COMPILED_WITH_CUDA)
         CudaExec ce;
         invoke(ce, func);
 #else
@@ -452,7 +520,7 @@ dispatch(ExecutionPolicy policy, Function&& func)
     }
     else if (policy.is_hip())
     {
-#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_HIP)
+#if defined(CONDUIT_EXEC_COMPILED_WITH_HIP)
         HipExec he;
         invoke(he, func);
 #else
@@ -486,20 +554,20 @@ forall(ExecutionPolicy &policy,
 {
     if (policy.is_serial())
     {
-        forall<SerialExec>(begin, end, std::forward<Kernel>(kernel));
+        detail::forall_exec(SerialExec{}, begin, end, std::forward<Kernel>(kernel));
     }
     else if (policy.is_cuda())
     {
-#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_CUDA)
-        forall<CudaExec>(begin, end, std::forward<Kernel>(kernel));
+#if defined(CONDUIT_EXEC_COMPILED_WITH_CUDA)
+        detail::forall_exec(CudaExec{}, begin, end, std::forward<Kernel>(kernel));
 #else
         CONDUIT_ERROR("Conduit was not built with CUDA.");
 #endif
     }
     else if (policy.is_hip())
     {
-#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_HIP)
-        forall<HipExec>(begin, end, std::forward<Kernel>(kernel));
+#if defined(CONDUIT_EXEC_COMPILED_WITH_HIP)
+        detail::forall_exec(HipExec{}, begin, end, std::forward<Kernel>(kernel));
 #else
         CONDUIT_ERROR("Conduit was not built with HIP.");
 #endif
@@ -507,7 +575,7 @@ forall(ExecutionPolicy &policy,
     else if (policy.is_openmp())
     {
 #if defined(CONDUIT_USE_OPENMP)
-        forall<OpenMPExec>(begin, end, std::forward<Kernel>(kernel));
+        detail::forall_exec(OpenMPExec{}, begin, end, std::forward<Kernel>(kernel));
 #else
         CONDUIT_ERROR("Conduit was not built with OpenMP.");
 #endif
@@ -529,7 +597,7 @@ sort(ExecutionPolicy &policy,
 {
     if (policy.is_serial())
     {
-        sort<SerialExec>(begin, end);
+        detail::sort_exec(SerialExec{}, begin, end);
     }
     else if (policy.is_cuda())
     {
@@ -542,7 +610,7 @@ sort(ExecutionPolicy &policy,
     else if (policy.is_openmp())
     {
 #if defined(CONDUIT_USE_OPENMP)
-        sort<OpenMPExec>(begin, end);
+        detail::sort_exec(OpenMPExec{}, begin, end);
 #else
         CONDUIT_ERROR("Conduit was not built with OpenMP.");
 #endif
@@ -565,7 +633,7 @@ sort(ExecutionPolicy &policy,
 {
     if (policy.is_serial())
     {
-        sort<SerialExec>(begin, end, std::forward<Predicate>(predicate));
+        detail::sort_exec(SerialExec{}, begin, end, std::forward<Predicate>(predicate));
     }
     else if (policy.is_cuda())
     {
@@ -578,7 +646,7 @@ sort(ExecutionPolicy &policy,
     else if (policy.is_openmp())
     {
 #if defined(CONDUIT_USE_OPENMP)
-        sort<OpenMPExec>(begin, end, std::forward<Predicate>(predicate));
+        detail::sort_exec(OpenMPExec{}, begin, end, std::forward<Predicate>(predicate));
 #else
         CONDUIT_ERROR("Conduit was not built with OpenMP.");
 #endif

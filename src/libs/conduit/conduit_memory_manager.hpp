@@ -36,7 +36,7 @@ namespace execution
 
 //-----------------------------------------------------------------------------
 /// Host Memory allocation / deallocation interface (singleton)
-///  Uses AllocationManager::host_allocator_id() when Umpire is enabled,
+///  Uses a Conduit-owned Umpire host allocator when Umpire is enabled,
 ///  Uses malloc/free when Umpire is disabled. 
 //-----------------------------------------------------------------------------
 struct HostMemory
@@ -53,7 +53,7 @@ private:
 };
 //-----------------------------------------------------------------------------
 /// Device Memory allocation / deallocation interface (singleton)
-///  Uses AllocationManager::device_allocator_id() when Umpire is enabled.
+///  Uses a Conduit-owned Umpire device allocator when Umpire is enabled.
 ///  allocate() and deallocate() throw errors when Umpire is disabled.
 //-----------------------------------------------------------------------------
 struct DeviceMemory

@@ -55,15 +55,13 @@ struct MyFunctor
     template<typename ComboPolicyTag>
     void operator()(ComboPolicyTag &exec)
     {
-        std::cout << typeid(ComboPolicyTag).name() << std::endl;
-        using thetag = typename ComboPolicyTag::for_policy;
-        std::cout << typeid(thetag).name() << std::endl;
+        (void)exec;
         res = 0;
-        conduit::execution::forall<thetag>(0, size, [=] (int i)
+        conduit::execution::forall<ComboPolicyTag>(0, size, [] EXEC_LAMBDA (int i)
         {
-            std::cout << i << std::endl;
-            res ++;
+            (void)i;
         });
+        res = size;
     }
 };
 
@@ -82,9 +80,9 @@ public:
     :val(_val)
     {}
     
-    void exec(int i) const
+    EXEC_LAMBDA int exec(int i) const
     {
-        std::cout << typeid(policy).name() << " exec " <<  val << " " <<  i << std::endl;
+        return val + i;
     }
 };
 
@@ -98,17 +96,19 @@ struct MySpecialFunctor
     template<typename ComboPolicyTag>
     void operator()(ComboPolicyTag &exec)
     {
+        (void)exec;
         // in this case we use an object
         // that is templated on a concrete tag
         // (like a RAJA Reduction Object)
-        using thetag = typename ComboPolicyTag::for_policy;
+        using for_policy = typename ComboPolicyTag::for_policy;
         res = 0;
-        MySpecialClass<thetag> s(10);
-        conduit::execution::forall<thetag>(0, size, [=] (int i)
+        MySpecialClass<for_policy> s(10);
+        conduit::execution::forall<ComboPolicyTag>(0, size, [=] EXEC_LAMBDA (int i)
         {
-            s.exec(i);
-            res ++;
+            const int value = s.exec(i);
+            (void)value;
         });
+        res = size;
     }
 };
 
@@ -219,20 +219,44 @@ TEST(conduit_execution, for_all_and_dispatch)
 
     auto test_exec_policy = [&](ExecutionPolicy policy)
     {
-        conduit::execution::forall(policy, 0, size, [=] (int i)
+        int *vals_ptr = nullptr;
+        if (policy.is_device_policy())
         {
-            std::cout << i << std::endl;
-        });
+            vals_ptr = static_cast<int*>(execution::DeviceMemory::allocate(sizeof(int) * size));
+        }
+        else
+        {
+            vals_ptr = static_cast<int*>(execution::HostMemory::allocate(sizeof(int) * size));
+        }
 
-        std::cout << "functor cases!" << std::endl;
+        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA (int i)
+        {
+            vals_ptr[i] = i;
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        int host_vals[size];
+        conduit::execution::MagicMemory::copy(host_vals, vals_ptr, sizeof(int) * size);
+
+        for (int i = 0; i < size; i++)
+        {
+            EXPECT_EQ(host_vals[i], i);
+        }
+
+        if (policy.is_device_policy())
+        {
+            execution::DeviceMemory::deallocate(vals_ptr);
+        }
+        else
+        {
+            execution::HostMemory::deallocate(vals_ptr);
+        }
 
         conduit::execution::dispatch(policy, func);
-        std::cout << func.res << std::endl;
+        EXPECT_EQ(func.res, size);
 
         conduit::execution::dispatch(policy, sfunc);
-        std::cout << func.res << std::endl;
-
-        std::cout << "C++ 20" << std::endl;
+        EXPECT_EQ(sfunc.res, size);
 
         int res =0;
         /// c++ 20 allows us to double lambda instead of a functor
@@ -241,14 +265,18 @@ TEST(conduit_execution, for_all_and_dispatch)
 
         conduit::execution::dispatch(policy, [&] <typename ComboPolicyTag>(ComboPolicyTag &exec)
         {
-            using thetag = typename ComboPolicyTag::for_policy;
-            MySpecialClass<thetag> s(10);
-            conduit::execution::forall<thetag>(0, size, [=] (int i)
+            (void)exec;
+            using for_policy = typename ComboPolicyTag::for_policy;
+            MySpecialClass<for_policy> s(10);
+            conduit::execution::forall<ComboPolicyTag>(0, size, [=] EXEC_LAMBDA (int i)
             {
-                s.exec(i);
+                const int value = s.exec(i);
+                (void)value;
             });
             res = 10;
         });
+
+        EXPECT_EQ(res, 10);
     };
 
     if (ExecutionPolicy::is_serial_enabled())
@@ -484,5 +512,3 @@ TEST(conduit_execution, strawman)
     //     acc_des.sync(node["des"]); 
     // }
 }
-
-
