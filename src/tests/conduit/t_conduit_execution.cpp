@@ -57,17 +57,10 @@ struct MyFunctor
     {
         (void)exec;
         res = 0;
-        conduit::execution::forall<ComboPolicyTag>(
-            0,
-            size,
-            [=] (int i)
-            {
-                std::cout << i << std::endl;
-            },
-            [] EXEC_LAMBDA (int i)
-            {
-                (void)i;
-            });
+        conduit::execution::forall<ComboPolicyTag>(0, size, [] EXEC_LAMBDA (int i)
+        {
+            (void)i;
+        });
         res = size;
     }
 };
@@ -110,18 +103,11 @@ struct MySpecialFunctor
         using for_policy = typename ComboPolicyTag::for_policy;
         res = 0;
         MySpecialClass<for_policy> s(10);
-        conduit::execution::forall<ComboPolicyTag>(
-            0,
-            size,
-            [=] (int i)
-            {
-                std::cout << s.exec(i) << std::endl;
-            },
-            [=] EXEC_LAMBDA (int i)
-            {
-                const int value = s.exec(i);
-                (void)value;
-            });
+        conduit::execution::forall<ComboPolicyTag>(0, size, [=] EXEC_LAMBDA (int i)
+        {
+            const int value = s.exec(i);
+            (void)value;
+        });
         res = size;
     }
 };
@@ -243,19 +229,10 @@ TEST(conduit_execution, for_all_and_dispatch)
             vals_ptr = static_cast<int*>(execution::HostMemory::allocate(sizeof(int) * size));
         }
 
-        conduit::execution::forall(
-            policy,
-            0,
-            size,
-            [=] (int i)
-            {
-                std::cout << i << std::endl;
-                vals_ptr[i] = i;
-            },
-            [=] EXEC_LAMBDA (int i)
-            {
-                vals_ptr[i] = i;
-            });
+        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA (int i)
+        {
+            vals_ptr[i] = i;
+        });
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
         int host_vals[size];
@@ -291,18 +268,11 @@ TEST(conduit_execution, for_all_and_dispatch)
             (void)exec;
             using for_policy = typename ComboPolicyTag::for_policy;
             MySpecialClass<for_policy> s(10);
-            conduit::execution::forall<ComboPolicyTag>(
-                0,
-                size,
-                [=] (int i)
-                {
-                    std::cout << s.exec(i) << std::endl;
-                },
-                [=] EXEC_LAMBDA (int i)
-                {
-                    const int value = s.exec(i);
-                    (void)value;
-                });
+            conduit::execution::forall<ComboPolicyTag>(0, size, [=] EXEC_LAMBDA (int i)
+            {
+                const int value = s.exec(i);
+                (void)value;
+            });
             res = 10;
         });
 
