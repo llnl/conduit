@@ -147,6 +147,11 @@ public:
         m_value_ptr[0] += value;
     }
 
+    EXEC_LAMBDA void sum(const T value) const
+    {
+        m_value_ptr[0] += value;
+    }
+
     T get()
     {
         return m_value_ptr[0];
@@ -451,14 +456,46 @@ atomic_max_exec(T *acc, T value)
 #endif
 
 //-----------------------------------------------------------------------------
+inline void
+validate_runtime_policy(const ExecutionPolicy &policy,
+                        const char *context)
+{
+    if (policy.is_empty())
+    {
+        CONDUIT_ERROR(context << " does not support an empty policy.");
+    }
+
+    if (policy.is_openmp())
+    {
+#if !defined(CONDUIT_USE_OPENMP)
+        CONDUIT_ERROR(context << " requires OpenMP support in this translation unit.");
+#endif
+    }
+    else if (policy.is_cuda())
+    {
+#if !defined(CONDUIT_EXEC_TU_HAS_CUDA)
+        CONDUIT_ERROR(context << " requires CUDA support in this translation unit.");
+#endif
+    }
+    else if (policy.is_hip())
+    {
+#if !defined(CONDUIT_EXEC_TU_HAS_HIP)
+        CONDUIT_ERROR(context << " requires HIP support in this translation unit.");
+#endif
+    }
+}
+
+//-----------------------------------------------------------------------------
 template <typename T>
 class ReduceSum
 {
 public:
+    //-----------------------------------------------------------------------------
     explicit ReduceSum(ExecutionPolicy policy)
     : ReduceSum(policy, T(0))
     {}
 
+    //-----------------------------------------------------------------------------
     ReduceSum(ExecutionPolicy policy, T v_start)
     : m_policy_id(policy.policy_id()),
       m_serial_reduce(v_start)
@@ -471,7 +508,9 @@ public:
 #if defined(CONDUIT_EXEC_TU_HAS_HIP)
     , m_hip_reduce(v_start)
 #endif
-    {}
+    {
+        validate_runtime_policy(policy, "ReduceSum");
+    }
 
     EXEC_LAMBDA void operator+=(const T value) const
     {
@@ -548,10 +587,12 @@ template <typename T>
 class ReduceMin
 {
 public:
+    //-----------------------------------------------------------------------------
     explicit ReduceMin(ExecutionPolicy policy)
     : ReduceMin(policy, std::numeric_limits<T>::max())
     {}
 
+    //-----------------------------------------------------------------------------
     ReduceMin(ExecutionPolicy policy, T v_start)
     : m_policy_id(policy.policy_id()),
       m_serial_reduce(v_start)
@@ -564,7 +605,9 @@ public:
 #if defined(CONDUIT_EXEC_TU_HAS_HIP)
     , m_hip_reduce(v_start)
 #endif
-    {}
+    {
+        validate_runtime_policy(policy, "ReduceMin");
+    }
 
     EXEC_LAMBDA void min(const T value) const
     {
@@ -636,10 +679,12 @@ template <typename T>
 class ReduceMinLoc
 {
 public:
+    //-----------------------------------------------------------------------------
     explicit ReduceMinLoc(ExecutionPolicy policy)
     : ReduceMinLoc(policy, std::numeric_limits<T>::max(), -1)
     {}
 
+    //-----------------------------------------------------------------------------
     ReduceMinLoc(ExecutionPolicy policy, T v_start, index_t i_start)
     : m_policy_id(policy.policy_id()),
       m_serial_reduce(v_start, i_start)
@@ -652,7 +697,9 @@ public:
 #if defined(CONDUIT_EXEC_TU_HAS_HIP)
     , m_hip_reduce(v_start, i_start)
 #endif
-    {}
+    {
+        validate_runtime_policy(policy, "ReduceMinLoc");
+    }
 
     EXEC_LAMBDA void minloc(const T value, index_t index) const
     {
@@ -748,10 +795,12 @@ template <typename T>
 class ReduceMax
 {
 public:
+    //-----------------------------------------------------------------------------
     explicit ReduceMax(ExecutionPolicy policy)
     : ReduceMax(policy, std::numeric_limits<T>::lowest())
     {}
 
+    //-----------------------------------------------------------------------------
     ReduceMax(ExecutionPolicy policy, T v_start)
     : m_policy_id(policy.policy_id()),
       m_serial_reduce(v_start)
@@ -764,7 +813,9 @@ public:
 #if defined(CONDUIT_EXEC_TU_HAS_HIP)
     , m_hip_reduce(v_start)
 #endif
-    {}
+    {
+        validate_runtime_policy(policy, "ReduceMax");
+    }
 
     EXEC_LAMBDA void max(const T value) const
     {
@@ -836,10 +887,12 @@ template <typename T>
 class ReduceMaxLoc
 {
 public:
+    //-----------------------------------------------------------------------------
     explicit ReduceMaxLoc(ExecutionPolicy policy)
     : ReduceMaxLoc(policy, std::numeric_limits<T>::lowest(), -1)
     {}
 
+    //-----------------------------------------------------------------------------
     ReduceMaxLoc(ExecutionPolicy policy, T v_start, index_t i_start)
     : m_policy_id(policy.policy_id()),
       m_serial_reduce(v_start, i_start)
@@ -852,7 +905,9 @@ public:
 #if defined(CONDUIT_EXEC_TU_HAS_HIP)
     , m_hip_reduce(v_start, i_start)
 #endif
-    {}
+    {
+        validate_runtime_policy(policy, "ReduceMaxLoc");
+    }
 
     EXEC_LAMBDA void maxloc(const T value, index_t index) const
     {
@@ -977,6 +1032,9 @@ template <typename T>
 EXEC_LAMBDA T
 atomic_add(ExecutionPolicy policy, T *acc, T value)
 {
+#if !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__)
+    validate_runtime_policy(policy, "atomic_add");
+#endif
     const auto policy_id = policy.policy_id();
     if (policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
     {
@@ -1005,6 +1063,9 @@ template <typename T>
 EXEC_LAMBDA T
 atomic_min(ExecutionPolicy policy, T *acc, T value)
 {
+#if !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__)
+    validate_runtime_policy(policy, "atomic_min");
+#endif
     const auto policy_id = policy.policy_id();
     if (policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
     {
@@ -1033,6 +1094,9 @@ template <typename T>
 EXEC_LAMBDA T
 atomic_max(ExecutionPolicy policy, T *acc, T value)
 {
+#if !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__)
+    validate_runtime_policy(policy, "atomic_max");
+#endif
     const auto policy_id = policy.policy_id();
     if (policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
     {
