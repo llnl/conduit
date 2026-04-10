@@ -18,15 +18,26 @@
 #include <typeinfo>
 #include <utility>
 
+//-----------------------------------------------------------------------------
+// -- begin conduit --
+//-----------------------------------------------------------------------------
 namespace conduit
 {
+
+//-----------------------------------------------------------------------------
+// -- begin conduit::execution --
+//-----------------------------------------------------------------------------
 namespace execution
 {
 
 #if defined(CONDUIT_USE_RAJA)
+//-----------------------------------------------------------------------------
+// -- begin conduit::execution::detail --
+//-----------------------------------------------------------------------------
 namespace detail
 {
 
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Kernel>
 inline void
 forall_exec(ExecPolicyTag,
@@ -39,6 +50,7 @@ forall_exec(ExecPolicyTag,
         std::forward<Kernel>(kernel));
 }
 
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Iterator>
 inline void
 sort_exec(ExecPolicyTag,
@@ -48,6 +60,7 @@ sort_exec(ExecPolicyTag,
     std::sort(begin, end);
 }
 
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Iterator, typename Predicate>
 inline void
 sort_exec(ExecPolicyTag,
@@ -58,12 +71,19 @@ sort_exec(ExecPolicyTag,
     std::sort(begin, end, std::forward<Predicate>(predicate));
 }
 
-} // namespace detail
+}
+//-----------------------------------------------------------------------------
+// -- end conduit::execution::detail --
+//-----------------------------------------------------------------------------
 
 #else
+//-----------------------------------------------------------------------------
+// -- begin conduit::execution::detail --
+//-----------------------------------------------------------------------------
 namespace detail
 {
 
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Kernel>
 inline void
 forall_exec(ExecPolicyTag,
@@ -79,6 +99,7 @@ forall_exec(ExecPolicyTag,
     std::cout << typeid(ExecPolicyTag).name() << "  END" << std::endl;
 }
 
+//-----------------------------------------------------------------------------
 #if defined(CONDUIT_USE_OPENMP)
 template <typename Kernel>
 inline void
@@ -95,6 +116,7 @@ forall_exec(OpenMPExec,
 }
 #endif
 
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Iterator>
 inline void
 sort_exec(ExecPolicyTag,
@@ -106,6 +128,7 @@ sort_exec(ExecPolicyTag,
     std::cout << typeid(ExecPolicyTag).name() << "  END" << std::endl;
 }
 
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Iterator, typename Predicate>
 inline void
 sort_exec(ExecPolicyTag,
@@ -118,6 +141,7 @@ sort_exec(ExecPolicyTag,
     std::cout << typeid(ExecPolicyTag).name() << "  END" << std::endl;
 }
 
+//-----------------------------------------------------------------------------
 #if defined(CONDUIT_USE_OPENMP)
 template <typename Iterator>
 inline void
@@ -128,6 +152,7 @@ sort_exec(OpenMPExec,
     std::sort(begin, end);
 }
 
+//-----------------------------------------------------------------------------
 template <typename Iterator, typename Predicate>
 inline void
 sort_exec(OpenMPExec,
@@ -139,9 +164,13 @@ sort_exec(OpenMPExec,
 }
 #endif
 
-} // namespace detail
+}
+//-----------------------------------------------------------------------------
+// -- end conduit::execution::detail --
+//-----------------------------------------------------------------------------
 #endif
 
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Kernel>
 inline void
 forall(const int& begin,
@@ -151,6 +180,7 @@ forall(const int& begin,
     detail::forall_exec(ExecPolicyTag{}, begin, end, std::forward<Kernel>(kernel));
 }
 
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Iterator>
 inline void
 sort(Iterator begin,
@@ -159,6 +189,7 @@ sort(Iterator begin,
     detail::sort_exec(ExecPolicyTag{}, begin, end);
 }
 
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Iterator, typename Predicate>
 inline void
 sort(Iterator begin,
@@ -168,12 +199,14 @@ sort(Iterator begin,
     detail::sort_exec(ExecPolicyTag{}, begin, end, std::forward<Predicate>(predicate));
 }
 
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Function>
 inline void invoke(ExecPolicyTag &exec_policy_tag, Function&& func) noexcept
 {
     func(exec_policy_tag);
 }
 
+//-----------------------------------------------------------------------------
 template <typename Function>
 void
 dispatch(ExecutionPolicy policy, Function&& func)
@@ -216,6 +249,7 @@ dispatch(ExecutionPolicy policy, Function&& func)
     }
 }
 
+//-----------------------------------------------------------------------------
 template <typename Kernel>
 inline void
 forall(ExecutionPolicy &policy,
@@ -257,6 +291,7 @@ forall(ExecutionPolicy &policy,
     }
 }
 
+//-----------------------------------------------------------------------------
 template <typename Iterator>
 inline void
 sort(ExecutionPolicy &policy,
@@ -289,6 +324,7 @@ sort(ExecutionPolicy &policy,
     }
 }
 
+//-----------------------------------------------------------------------------
 template <typename Iterator, typename Predicate>
 inline void
 sort(ExecutionPolicy &policy,
@@ -323,6 +359,13 @@ sort(ExecutionPolicy &policy,
 }
 
 }
+//-----------------------------------------------------------------------------
+// -- end conduit::execution --
+//-----------------------------------------------------------------------------
+
 }
+//-----------------------------------------------------------------------------
+// -- end conduit:: --
+//-----------------------------------------------------------------------------
 
 #endif
