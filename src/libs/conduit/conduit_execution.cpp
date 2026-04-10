@@ -110,35 +110,8 @@ ExecutionPolicy::openmp()
 // Construction and Destruction
 //-----------------------------------------------------------------------------
 //---------------------------------------------------------------------------//
-ExecutionPolicy::ExecutionPolicy()
-: m_policy_id(PolicyID::EMPTY_ID)
-{}
-
-//---------------------------------------------------------------------------//
-ExecutionPolicy::ExecutionPolicy(const ExecutionPolicy& exec_policy)
-: m_policy_id(exec_policy.m_policy_id)
-{}
-
-//---------------------------------------------------------------------------//
-ExecutionPolicy& ExecutionPolicy::operator=(const ExecutionPolicy& exec_policy)
-{
-    m_policy_id = exec_policy.m_policy_id;
-
-    return *this;
-}
-
-//---------------------------------------------------------------------------//
-ExecutionPolicy::ExecutionPolicy(PolicyID policy_id)
-: m_policy_id(policy_id)
-{}
-
-//---------------------------------------------------------------------------//
 ExecutionPolicy::ExecutionPolicy(const std::string &policy_name)
 : m_policy_id(name_to_policy_id(policy_name))
-{}
-
-//---------------------------------------------------------------------------//
-ExecutionPolicy::~ExecutionPolicy()
 {}
 
 //-----------------------------------------------------------------------------
