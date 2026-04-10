@@ -27,30 +27,30 @@ namespace execution
 namespace detail
 {
 
-template <typename ExecutionPolicy, typename Kernel>
+template <typename ExecPolicyTag, typename Kernel>
 inline void
-forall_exec(ExecutionPolicy,
+forall_exec(ExecPolicyTag,
             const int& begin,
             const int& end,
             Kernel&& kernel) noexcept
 {
-    RAJA::forall<typename ExecutionPolicy::for_policy>(
+    RAJA::forall<typename ExecPolicyTag::for_policy>(
         RAJA::RangeSegment(begin, end),
         std::forward<Kernel>(kernel));
 }
 
-template <typename ExecutionPolicy, typename Iterator>
+template <typename ExecPolicyTag, typename Iterator>
 inline void
-sort_exec(ExecutionPolicy,
+sort_exec(ExecPolicyTag,
           Iterator begin,
           Iterator end) noexcept
 {
     std::sort(begin, end);
 }
 
-template <typename ExecutionPolicy, typename Iterator, typename Predicate>
+template <typename ExecPolicyTag, typename Iterator, typename Predicate>
 inline void
-sort_exec(ExecutionPolicy,
+sort_exec(ExecPolicyTag,
           Iterator begin,
           Iterator end,
           Predicate &&predicate) noexcept
@@ -64,19 +64,19 @@ sort_exec(ExecutionPolicy,
 namespace detail
 {
 
-template <typename ExecutionPolicy, typename Kernel>
+template <typename ExecPolicyTag, typename Kernel>
 inline void
-forall_exec(ExecutionPolicy,
+forall_exec(ExecPolicyTag,
             const int& begin,
             const int& end,
             Kernel&& kernel) noexcept
 {
-    std::cout << typeid(ExecutionPolicy).name() << "  START" << std::endl;
+    std::cout << typeid(ExecPolicyTag).name() << "  START" << std::endl;
     for (int i = begin; i < end; i ++)
     {
         kernel(i);
     }
-    std::cout << typeid(ExecutionPolicy).name() << "  END" << std::endl;
+    std::cout << typeid(ExecPolicyTag).name() << "  END" << std::endl;
 }
 
 #if defined(CONDUIT_USE_OPENMP)
@@ -95,27 +95,27 @@ forall_exec(OpenMPExec,
 }
 #endif
 
-template <typename ExecutionPolicy, typename Iterator>
+template <typename ExecPolicyTag, typename Iterator>
 inline void
-sort_exec(ExecutionPolicy,
+sort_exec(ExecPolicyTag,
           Iterator begin,
           Iterator end) noexcept
 {
-    std::cout << typeid(ExecutionPolicy).name() << "  START" << std::endl;
+    std::cout << typeid(ExecPolicyTag).name() << "  START" << std::endl;
     std::sort(begin, end);
-    std::cout << typeid(ExecutionPolicy).name() << "  END" << std::endl;
+    std::cout << typeid(ExecPolicyTag).name() << "  END" << std::endl;
 }
 
-template <typename ExecutionPolicy, typename Iterator, typename Predicate>
+template <typename ExecPolicyTag, typename Iterator, typename Predicate>
 inline void
-sort_exec(ExecutionPolicy,
+sort_exec(ExecPolicyTag,
           Iterator begin,
           Iterator end,
           Predicate &&predicate) noexcept
 {
-    std::cout << typeid(ExecutionPolicy).name() << "  START" << std::endl;
+    std::cout << typeid(ExecPolicyTag).name() << "  START" << std::endl;
     std::sort(begin, end, predicate);
-    std::cout << typeid(ExecutionPolicy).name() << "  END" << std::endl;
+    std::cout << typeid(ExecPolicyTag).name() << "  END" << std::endl;
 }
 
 #if defined(CONDUIT_USE_OPENMP)
@@ -142,36 +142,36 @@ sort_exec(OpenMPExec,
 } // namespace detail
 #endif
 
-template <typename ExecutionPolicy, typename Kernel>
+template <typename ExecPolicyTag, typename Kernel>
 inline void
 forall(const int& begin,
        const int& end,
        Kernel&& kernel) noexcept
 {
-    detail::forall_exec(ExecutionPolicy{}, begin, end, std::forward<Kernel>(kernel));
+    detail::forall_exec(ExecPolicyTag{}, begin, end, std::forward<Kernel>(kernel));
 }
 
-template <typename ExecutionPolicy, typename Iterator>
+template <typename ExecPolicyTag, typename Iterator>
 inline void
 sort(Iterator begin,
      Iterator end) noexcept
 {
-    detail::sort_exec(ExecutionPolicy{}, begin, end);
+    detail::sort_exec(ExecPolicyTag{}, begin, end);
 }
 
-template <typename ExecutionPolicy, typename Iterator, typename Predicate>
+template <typename ExecPolicyTag, typename Iterator, typename Predicate>
 inline void
 sort(Iterator begin,
      Iterator end,
      Predicate &&predicate) noexcept
 {
-    detail::sort_exec(ExecutionPolicy{}, begin, end, std::forward<Predicate>(predicate));
+    detail::sort_exec(ExecPolicyTag{}, begin, end, std::forward<Predicate>(predicate));
 }
 
 template <typename ExecPolicyTag, typename Function>
-inline void invoke(ExecPolicyTag &exec, Function&& func) noexcept
+inline void invoke(ExecPolicyTag &exec_policy_tag, Function&& func) noexcept
 {
-    func(exec);
+    func(exec_policy_tag);
 }
 
 template <typename Function>
