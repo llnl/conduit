@@ -13,6 +13,7 @@
 #include "conduit_memory_manager.hpp"
 
 #include <iostream>
+#include <type_traits>
 #include "gtest/gtest.h"
 
 using namespace conduit;
@@ -229,10 +230,13 @@ TEST(conduit_execution, for_all_and_dispatch)
             vals_ptr = static_cast<int*>(execution::HostMemory::allocate(sizeof(int) * size));
         }
 
-        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA (int i)
+        // Use runtime forall(policy, ...) when one portable kernel works for
+        // every backend that may be selected in this translation unit.
+        auto portable_kernel = [=] EXEC_LAMBDA (int i)
         {
             vals_ptr[i] = i;
-        });
+        };
+        conduit::execution::forall(policy, 0, size, portable_kernel);
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
         int host_vals[size];
@@ -258,23 +262,22 @@ TEST(conduit_execution, for_all_and_dispatch)
         conduit::execution::dispatch(policy, sfunc);
         EXPECT_EQ(sfunc.res, size);
 
-        int res =0;
-        /// c++ 20 allows us to double lambda instead of a functor
-
-        // apparently this works just fine with cpp14...?
-
-        conduit::execution::dispatch(policy, [&] <typename ComboPolicyTag>(ComboPolicyTag &exec)
+        // Use dispatch(policy, ...) when the concrete execution tag is needed
+        // to instantiate backend-specific helper types or call forall<Tag>(...).
+        int res = 0;
+        auto concrete_kernel = [&](auto &exec)
         {
-            (void)exec;
-            using for_policy = typename ComboPolicyTag::for_policy;
+            using combo_policy = typename std::decay<decltype(exec)>::type;
+            using for_policy = typename combo_policy::for_policy;
             MySpecialClass<for_policy> s(10);
-            conduit::execution::forall<ComboPolicyTag>(0, size, [=] EXEC_LAMBDA (int i)
+            conduit::execution::forall<combo_policy>(0, size, [=] EXEC_LAMBDA (int i)
             {
                 const int value = s.exec(i);
                 (void)value;
             });
             res = 10;
-        });
+        };
+        conduit::execution::dispatch(policy, concrete_kernel);
 
         EXPECT_EQ(res, 10);
     };
