@@ -20,27 +20,191 @@
 using namespace conduit;
 using conduit::execution::ExecutionPolicy;
 
-void *device_alloc(index_t bytes)
-{
-#if defined(CONDUIT_USE_RAJA)
-    return execution::DeviceMemory::allocate(bytes);
-#else
-    return execution::HostMemory::allocate(bytes);
-#endif
-}
-
-void device_free(void *ptr)
-{
-#if defined(CONDUIT_USE_RAJA)
-    return execution::DeviceMemory::deallocate(ptr);
-#else
-    return execution::HostMemory::deallocate(ptr);
-#endif
-}
-
 void conduit_device_prepare()
 {
     execution::init_device_memory_handlers();
+}
+
+template <typename Function>
+void for_each_enabled_policy(Function &&func)
+{
+    if (ExecutionPolicy::is_serial_enabled())
+    {
+        ExecutionPolicy serial = ExecutionPolicy::serial();
+        func(serial);
+    }
+
+    if (ExecutionPolicy::is_openmp_enabled())
+    {
+        ExecutionPolicy openmp = ExecutionPolicy::openmp();
+        func(openmp);
+    }
+
+    if (ExecutionPolicy::is_device_enabled())
+    {
+        ExecutionPolicy device = ExecutionPolicy::device();
+        func(device);
+    }
+}
+
+void *allocate_for_policy(ExecutionPolicy policy, index_t bytes)
+{
+    if (policy.is_device_policy())
+    {
+        return execution::DeviceMemory::allocate(bytes);
+    }
+
+    return execution::HostMemory::allocate(bytes);
+}
+
+void deallocate_for_policy(ExecutionPolicy policy, void *ptr)
+{
+    if (policy.is_device_policy())
+    {
+        execution::DeviceMemory::deallocate(ptr);
+    }
+    else
+    {
+        execution::HostMemory::deallocate(ptr);
+    }
+}
+
+void test_forall_ported(ExecutionPolicy policy)
+{
+    const index_t size = 10;
+    index_t host_vals[size];
+    index_t *vals_ptr = static_cast<index_t*>(allocate_for_policy(policy, sizeof(index_t) * size));
+
+    conduit::execution::dispatch(policy, [&](auto &exec)
+    {
+        using combo_policy = typename std::decay<decltype(exec)>::type;
+        conduit::execution::forall<combo_policy>(0, size, [=] EXEC_LAMBDA (index_t i)
+        {
+            vals_ptr[i] = i;
+        });
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+    execution::MagicMemory::copy(host_vals, vals_ptr, sizeof(index_t) * size);
+
+    for (index_t i = 0; i < size; i++)
+    {
+        EXPECT_EQ(host_vals[i], i);
+    }
+
+    deallocate_for_policy(policy, vals_ptr);
+}
+
+void test_reductions_ported(ExecutionPolicy policy)
+{
+    const index_t size = 4;
+    const index_t host_vals[size] = {0, -10, 10, 5};
+    index_t *vals_ptr = static_cast<index_t*>(allocate_for_policy(policy, sizeof(index_t) * size));
+
+    execution::MagicMemory::copy(vals_ptr, host_vals, sizeof(index_t) * size);
+
+    conduit::execution::dispatch(policy, [&](auto &exec)
+    {
+        using combo_policy = typename std::decay<decltype(exec)>::type;
+        using reduce_policy = typename combo_policy::reduce_policy;
+
+        conduit::execution::ReduceSum<reduce_policy, index_t> sum_reducer;
+        conduit::execution::forall<combo_policy>(0, size, [=] EXEC_LAMBDA (index_t i)
+        {
+            sum_reducer += vals_ptr[i];
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        EXPECT_EQ(sum_reducer.get(), 5);
+
+        conduit::execution::ReduceMin<reduce_policy, index_t> min_reducer;
+        conduit::execution::forall<combo_policy>(0, size, [=] EXEC_LAMBDA (index_t i)
+        {
+            min_reducer.min(vals_ptr[i]);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        EXPECT_EQ(min_reducer.get(), -10);
+
+        conduit::execution::ReduceMinLoc<reduce_policy, index_t> minloc_reducer;
+        conduit::execution::forall<combo_policy>(0, size, [=] EXEC_LAMBDA (index_t i)
+        {
+            minloc_reducer.minloc(vals_ptr[i], i);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        EXPECT_EQ(minloc_reducer.get(), -10);
+        EXPECT_EQ(minloc_reducer.getLoc(), 1);
+
+        conduit::execution::ReduceMax<reduce_policy, index_t> max_reducer;
+        conduit::execution::forall<combo_policy>(0, size, [=] EXEC_LAMBDA (index_t i)
+        {
+            max_reducer.max(vals_ptr[i]);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        EXPECT_EQ(max_reducer.get(), 10);
+
+        conduit::execution::ReduceMaxLoc<reduce_policy, index_t> maxloc_reducer;
+        conduit::execution::forall<combo_policy>(0, size, [=] EXEC_LAMBDA (index_t i)
+        {
+            maxloc_reducer.maxloc(vals_ptr[i], i);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        EXPECT_EQ(maxloc_reducer.get(), 10);
+        EXPECT_EQ(maxloc_reducer.getLoc(), 2);
+    });
+
+    deallocate_for_policy(policy, vals_ptr);
+}
+
+void test_atomics_ported(ExecutionPolicy policy)
+{
+    const index_t size = 4;
+    index_t host_vals[size] = {0, -1, -2, -3};
+    index_t *vals_ptr = static_cast<index_t*>(allocate_for_policy(policy, sizeof(index_t) * size));
+
+    execution::MagicMemory::copy(vals_ptr, host_vals, sizeof(index_t) * size);
+
+    conduit::execution::dispatch(policy, [&](auto &exec)
+    {
+        using combo_policy = typename std::decay<decltype(exec)>::type;
+        using atomic_policy = typename combo_policy::atomic_policy;
+
+        conduit::execution::forall<combo_policy>(0, size, [=] EXEC_LAMBDA (index_t i)
+        {
+            conduit::execution::atomic_add<atomic_policy>(vals_ptr + i, i);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        execution::MagicMemory::copy(host_vals, vals_ptr, sizeof(index_t) * size);
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(host_vals[i], 0);
+        }
+
+        conduit::execution::forall<combo_policy>(0, size, [=] EXEC_LAMBDA (index_t i)
+        {
+            conduit::execution::atomic_min<atomic_policy>(vals_ptr + i, static_cast<index_t>(-10));
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        execution::MagicMemory::copy(host_vals, vals_ptr, sizeof(index_t) * size);
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(host_vals[i], -10);
+        }
+
+        conduit::execution::forall<combo_policy>(0, size, [=] EXEC_LAMBDA (index_t i)
+        {
+            conduit::execution::atomic_max<atomic_policy>(vals_ptr + i, static_cast<index_t>(10));
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        execution::MagicMemory::copy(host_vals, vals_ptr, sizeof(index_t) * size);
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(host_vals[i], 10);
+        }
+    });
+
+    deallocate_for_policy(policy, vals_ptr);
 }
 
 // TODO someday we want allocator to make sense for nodes when we are done with them
@@ -115,98 +279,14 @@ struct MySpecialFunctor
 };
 
 //-----------------------------------------------------------------------------
-TEST(conduit_execution, test_forall)
+TEST(conduit_execution, forall_ported_from_ascent)
 {
     conduit_device_prepare();
-    const index_t size = 10;
-
-    index_t host_vals[size];
-    index_t *dev_vals_ptr = static_cast<index_t*>(device_alloc(sizeof(index_t) * size));
-
-    ExecutionPolicy serial = ExecutionPolicy::serial();
-    conduit::execution::forall(serial, 0, size, [=](index_t i)
+    for_each_enabled_policy([](ExecutionPolicy policy)
     {
-        dev_vals_ptr[i] = i;
+        test_forall_ported(policy);
     });
-    CONDUIT_DEVICE_ERROR_CHECK(serial);
-    
-    conduit::execution::MagicMemory::copy(&host_vals[0], dev_vals_ptr, sizeof(index_t) * size);
-
-    for (index_t i = 0; i < size; i ++)
-    {
-        EXPECT_EQ(host_vals[i],i);
-    }
-
-    device_free(dev_vals_ptr);
 }
-
-// //-----------------------------------------------------------------------------
-// TEST(conduit_execution, test_reductions)
-// {
-//     Conduit::execution::ExecPolicy SerialPolicy(conduit::execution::policy::Serial);
-//     const index_t size = 4;
-//     index_t host_vals[size] = {0,-10,10, 5};
-//     index_t *dev_vals_ptr = static_cast<index_t*>(device_alloc(sizeof(index_t) * size));
-//     MagicMemory::copy(dev_vals_ptr, &host_vals[0], sizeof(index_t) * size);
-
-
-//     // sum
-//     // ascent::ReduceSum<reduce_policy,index_t> sum_reducer;
-//     using reduce_policy = typename conduit::execution::policy::Serial::reduce_policy;
-//     conduit::execution::forall<reduce_policy>(0, size, [=](index_t i)
-//     {
-//         sum_reducer += dev_vals_ptr[i];
-//     });
-//     // CONDUIT_DEVICE_ERROR_CHECK();
-
-//     EXPECT_EQ(sum_reducer.get(),5);
-
-
-//     // // min
-//     // ascent::ReduceMin<reduce_policy,index_t> min_reducer;
-//     // conduit::execution::forall<reduce_policy>(0, size, [=](index_t i)
-//     // {
-//     //     min_reducer.min(dev_vals_ptr[i]);
-//     // });
-//     // // CONDUIT_DEVICE_ERROR_CHECK();
-
-//     // EXPECT_EQ(min_reducer.get(),-10);
-
-//     // // minloc
-//     // ascent::ReduceMinLoc<reduce_policy,index_t> minloc_reducer;
-//     // conduit::execution::forall<reduce_policy>(0, size, [=](index_t i)
-//     // {
-//     //     minloc_reducer.minloc(dev_vals_ptr[i],i);
-//     // });
-//     // // CONDUIT_DEVICE_ERROR_CHECK();
-
-//     // EXPECT_EQ(minloc_reducer.get(),-10);
-//     // EXPECT_EQ(minloc_reducer.getLoc(),1);
-
-
-//     // // max
-//     // ascent::ReduceMax<reduce_policy,index_t> max_reducer;
-//     // conduit::execution::forall<reduce_policy>(0, size, [=](index_t i)
-//     // {
-//     //     max_reducer.max(dev_vals_ptr[i]);
-//     // });
-//     // // CONDUIT_DEVICE_ERROR_CHECK();
-
-//     // EXPECT_EQ(max_reducer.get(),10);
-
-//     // // maxloc
-//     // ascent::ReduceMaxLoc<reduce_policy,index_t> maxloc_reducer;
-//     // conduit::execution::forall<reduce_policy>(0, size, [=](index_t i)
-//     // {
-//     //     maxloc_reducer.maxloc(dev_vals_ptr[i],i);
-//     // });
-//     // // CONDUIT_DEVICE_ERROR_CHECK();
-
-//     // EXPECT_EQ(maxloc_reducer.get(),10);
-//     // EXPECT_EQ(maxloc_reducer.getLoc(),2);
-
-//     device_free(dev_vals_ptr);
-// }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, for_all_and_dispatch)
@@ -303,126 +383,23 @@ TEST(conduit_execution, for_all_and_dispatch)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_execution, reductions_and_atomics)
+TEST(conduit_execution, reductions_ported_from_ascent)
 {
     conduit_device_prepare();
-
-    const index_t size = 4;
-    const index_t input[size] = {0, -10, 10, 5};
-
-    auto test_exec_policy = [&](ExecutionPolicy policy)
+    for_each_enabled_policy([](ExecutionPolicy policy)
     {
-        index_t *vals_ptr = nullptr;
-        if (policy.is_device_policy())
-        {
-            vals_ptr = static_cast<index_t*>(execution::DeviceMemory::allocate(sizeof(index_t) * size));
-        }
-        else
-        {
-            vals_ptr = static_cast<index_t*>(execution::HostMemory::allocate(sizeof(index_t) * size));
-        }
-        execution::MagicMemory::copy(vals_ptr, input, sizeof(index_t) * size);
+        test_reductions_ported(policy);
+    });
+}
 
-        conduit::execution::dispatch(policy, [&](auto &exec)
-        {
-            using combo_policy = typename std::decay<decltype(exec)>::type;
-            using reduce_policy = typename combo_policy::reduce_policy;
-            using atomic_policy = typename combo_policy::atomic_policy;
-
-            conduit::execution::ReduceSum<reduce_policy, index_t> sum(0);
-            conduit::execution::ReduceMin<reduce_policy, index_t> min_reducer(
-                std::numeric_limits<index_t>::max());
-            conduit::execution::ReduceMinLoc<reduce_policy, index_t> minloc_reducer(
-                std::numeric_limits<index_t>::max(), -1);
-            conduit::execution::ReduceMax<reduce_policy, index_t> max_reducer(
-                std::numeric_limits<index_t>::lowest());
-            conduit::execution::ReduceMaxLoc<reduce_policy, index_t> maxloc_reducer(
-                std::numeric_limits<index_t>::lowest(), -1);
-
-            conduit::execution::forall<combo_policy>(0, size, [=] EXEC_LAMBDA (index_t i)
-            {
-                const index_t value = vals_ptr[i];
-                sum += value;
-                min_reducer.min(value);
-                minloc_reducer.minloc(value, i);
-                max_reducer.max(value);
-                maxloc_reducer.maxloc(value, i);
-            });
-
-            EXPECT_EQ(sum.get(), 5);
-            EXPECT_EQ(min_reducer.get(), -10);
-            EXPECT_EQ(minloc_reducer.get(), -10);
-            EXPECT_EQ(minloc_reducer.getLoc(), 1);
-            EXPECT_EQ(max_reducer.get(), 10);
-            EXPECT_EQ(maxloc_reducer.get(), 10);
-            EXPECT_EQ(maxloc_reducer.getLoc(), 2);
-
-            index_t atomic_init[3] = {0, 100, -100};
-            index_t *atomic_ptr = nullptr;
-            if (policy.is_device_policy())
-            {
-                atomic_ptr = static_cast<index_t*>(execution::DeviceMemory::allocate(sizeof(atomic_init)));
-            }
-            else
-            {
-                atomic_ptr = static_cast<index_t*>(execution::HostMemory::allocate(sizeof(atomic_init)));
-            }
-            execution::MagicMemory::copy(atomic_ptr, atomic_init, sizeof(atomic_init));
-
-            conduit::execution::forall<combo_policy>(0, size, [=] EXEC_LAMBDA (index_t i)
-            {
-                const index_t value = vals_ptr[i];
-                conduit::execution::atomic_add<atomic_policy>(atomic_ptr, value);
-                conduit::execution::atomic_min<atomic_policy>(atomic_ptr + 1, value);
-                conduit::execution::atomic_max<atomic_policy>(atomic_ptr + 2, value);
-            });
-
-            index_t atomic_res[3];
-            execution::MagicMemory::copy(atomic_res, atomic_ptr, sizeof(atomic_res));
-
-            EXPECT_EQ(atomic_res[0], 5);
-            EXPECT_EQ(atomic_res[1], -10);
-            EXPECT_EQ(atomic_res[2], 10);
-
-            if (policy.is_device_policy())
-            {
-                execution::DeviceMemory::deallocate(atomic_ptr);
-            }
-            else
-            {
-                execution::HostMemory::deallocate(atomic_ptr);
-            }
-        });
-
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-        if (policy.is_device_policy())
-        {
-            execution::DeviceMemory::deallocate(vals_ptr);
-        }
-        else
-        {
-            execution::HostMemory::deallocate(vals_ptr);
-        }
-    };
-
-    if (ExecutionPolicy::is_serial_enabled())
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, atomics_ported_from_ascent)
+{
+    conduit_device_prepare();
+    for_each_enabled_policy([](ExecutionPolicy policy)
     {
-        ExecutionPolicy serial = ExecutionPolicy::serial();
-        test_exec_policy(serial);
-    }
-
-    if (ExecutionPolicy::is_openmp_enabled())
-    {
-        ExecutionPolicy openmp = ExecutionPolicy::openmp();
-        test_exec_policy(openmp);
-    }
-
-    if (ExecutionPolicy::is_device_enabled())
-    {
-        ExecutionPolicy device = ExecutionPolicy::device();
-        test_exec_policy(device);
-    }
+        test_atomics_ported(policy);
+    });
 }
 
 //-----------------------------------------------------------------------------
