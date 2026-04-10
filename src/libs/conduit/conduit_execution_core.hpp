@@ -1032,9 +1032,6 @@ template <typename T>
 EXEC_LAMBDA T
 atomic_add(ExecutionPolicy policy, T *acc, T value)
 {
-#if !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__)
-    validate_runtime_policy(policy, "atomic_add");
-#endif
     const auto policy_id = policy.policy_id();
     if (policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
     {
@@ -1063,9 +1060,6 @@ template <typename T>
 EXEC_LAMBDA T
 atomic_min(ExecutionPolicy policy, T *acc, T value)
 {
-#if !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__)
-    validate_runtime_policy(policy, "atomic_min");
-#endif
     const auto policy_id = policy.policy_id();
     if (policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
     {
@@ -1094,9 +1088,6 @@ template <typename T>
 EXEC_LAMBDA T
 atomic_max(ExecutionPolicy policy, T *acc, T value)
 {
-#if !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__)
-    validate_runtime_policy(policy, "atomic_max");
-#endif
     const auto policy_id = policy.policy_id();
     if (policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
     {
