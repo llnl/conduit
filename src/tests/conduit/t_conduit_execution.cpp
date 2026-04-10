@@ -19,6 +19,7 @@
 using namespace conduit;
 using conduit::execution::ExecutionPolicy;
 
+//-----------------------------------------------------------------------------
 void *
 allocate_for_policy(ExecutionPolicy policy, index_t bytes)
 {
@@ -30,6 +31,7 @@ allocate_for_policy(ExecutionPolicy policy, index_t bytes)
     return execution::HostMemory::allocate(bytes);
 }
 
+//-----------------------------------------------------------------------------
 void
 free_for_policy(ExecutionPolicy policy, void *ptr)
 {
@@ -42,6 +44,7 @@ free_for_policy(ExecutionPolicy policy, void *ptr)
     execution::HostMemory::deallocate(ptr);
 }
 
+//-----------------------------------------------------------------------------
 template <typename Func>
 void
 for_each_enabled_policy(Func &&func)
@@ -65,6 +68,7 @@ for_each_enabled_policy(Func &&func)
     }
 }
 
+//-----------------------------------------------------------------------------
 void
 conduit_device_prepare()
 {

@@ -87,6 +87,7 @@ sort_exec(ExecPolicyTag,
     std::sort(begin, end, std::forward<Predicate>(predicate));
 }
 
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename T>
 EXEC_LAMBDA T
 atomic_add_exec(T *acc, T value)
@@ -94,6 +95,7 @@ atomic_add_exec(T *acc, T value)
     return RAJA::atomicAdd(typename ExecPolicyTag::atomic_policy{}, acc, value);
 }
 
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename T>
 EXEC_LAMBDA T
 atomic_min_exec(T *acc, T value)
@@ -101,6 +103,7 @@ atomic_min_exec(T *acc, T value)
     return RAJA::atomicMin(typename ExecPolicyTag::atomic_policy{}, acc, value);
 }
 
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename T>
 EXEC_LAMBDA T
 atomic_max_exec(T *acc, T value)
@@ -411,6 +414,7 @@ sort_exec(OpenMPExec,
 }
 #endif
 
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename T>
 EXEC_LAMBDA T
 atomic_add_exec(T *acc, T value)
@@ -420,6 +424,7 @@ atomic_add_exec(T *acc, T value)
     return res;
 }
 
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename T>
 EXEC_LAMBDA T
 atomic_min_exec(T *acc, T value)
@@ -429,6 +434,7 @@ atomic_min_exec(T *acc, T value)
     return res;
 }
 
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename T>
 EXEC_LAMBDA T
 atomic_max_exec(T *acc, T value)
@@ -444,6 +450,7 @@ atomic_max_exec(T *acc, T value)
 //-----------------------------------------------------------------------------
 #endif
 
+//-----------------------------------------------------------------------------
 template <typename T>
 class ReduceSum
 {
@@ -536,6 +543,7 @@ private:
 #endif
 };
 
+//-----------------------------------------------------------------------------
 template <typename T>
 class ReduceMin
 {
@@ -623,6 +631,7 @@ private:
 #endif
 };
 
+//-----------------------------------------------------------------------------
 template <typename T>
 class ReduceMinLoc
 {
@@ -734,6 +743,7 @@ private:
 #endif
 };
 
+//-----------------------------------------------------------------------------
 template <typename T>
 class ReduceMax
 {
@@ -821,6 +831,7 @@ private:
 #endif
 };
 
+//-----------------------------------------------------------------------------
 template <typename T>
 class ReduceMaxLoc
 {
