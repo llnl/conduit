@@ -15,6 +15,7 @@
 //-----------------------------------------------------------------------------
 // -- conduit  includes -- 
 //-----------------------------------------------------------------------------
+#include "conduit_device_annotations.hpp"
 #include "conduit_core.hpp"
 #include "conduit_data_type.hpp"
 #include "conduit_memory_manager.hpp"

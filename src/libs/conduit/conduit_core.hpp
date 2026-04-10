@@ -21,16 +21,7 @@
 // -- configure time defines -- 
 //-----------------------------------------------------------------------------
 #include "conduit_config.hpp"
-
-//-----------------------------------------------------------------------------
-// -- host + device annotation helper --
-//-----------------------------------------------------------------------------
-#if (defined(CONDUIT_USE_CUDA) && defined(__CUDACC__)) || \
-    (defined(CONDUIT_USE_HIP) && defined(__HIPCC__))
-#define CONDUIT_EXEC_HOST_DEVICE __host__ __device__
-#else
-#define CONDUIT_EXEC_HOST_DEVICE
-#endif
+#include "conduit_device_annotations.hpp"
 
 //-----------------------------------------------------------------------------
 // -- define proper lib exports for various platforms -- 
