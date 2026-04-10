@@ -386,214 +386,116 @@ TEST(conduit_execution, for_all_and_dispatch)
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, strawman)
 {
-    // // TODO are there other cases in the notes?
-    // //------------------------------------------------------
-    // // forall cases
-    // //------------------------------------------------------
+    conduit_device_prepare();
 
-    // //------------------------------------------------------
-    // // run on device
-    // //------------------------------------------------------
-    // if (ExecutionPolicy::is_device_enabled())
-    // {
-    //     Node node;
-    //     std::vector<int64> data_src = {0, 1, 2, 3};
-    //     node["src"].set(data_src);
-    //     std::vector<int64> data_des = {0, 0, 0, 0};
-    //     node["src"].set(data_des);
-    //     ExecutionAccessor<float64> acc_src(node["src"]);
-    //     ExecutionAccessor<float64> acc_des(node["des"]);
+    //-----------------------------------------------------------------------------
+    auto verify_doubled_values = [](float64_accessor &acc)
+    {
+        EXPECT_EQ(acc.number_of_elements(), 4);
+        EXPECT_EQ(acc[0], 2.0);
+        EXPECT_EQ(acc[1], 4.0);
+        EXPECT_EQ(acc[2], 6.0);
+        EXPECT_EQ(acc[3], 8.0);
+    };
 
-    //     ExecutionPolicy policy = ExecutionPolicy::device();
+    //-----------------------------------------------------------------------------
+    // run wherever the source data is
+    //-----------------------------------------------------------------------------
+    {
+        Node node;
+        float64 src_vals[4] = {1.0, 2.0, 3.0, 4.0};
+        float64 des_vals[4] = {0.0, 0.0, 0.0, 0.0};
+        node["src"].set(src_vals, 4);
+        node["des"].set(des_vals, 4);
 
-    //     acc_src.use_with(policy);
-    //     acc_des.use_with(policy);
+        float64_accessor acc_src(node["src"]);
+        float64_accessor acc_des(node["des"]);
 
-    //     index_t size = acc_src.number_of_elements();
+        ExecutionPolicy policy = acc_src.active_space();
+        EXPECT_TRUE(policy.is_host_policy());
 
-    //     forall(policy, 0, size, [=] EXEC_LAMBDA(index_t idx)
-    //     {
-    //         const float64 val = 2.0 * acc_src[idx];
-    //         acc_des.set(idx,val);
-    //     });
-    //     CONDUIT_DEVICE_ERROR_CHECK();
+        acc_src.use_with(policy);
+        acc_des.use_with(policy);
 
-    //     // sync values to node["des"]
-    //     // (no op if node["des"] was originally device memory)
-    //     acc_des.sync();
-    // }
+        index_t size = acc_src.number_of_elements();
+        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t idx)
+        {
+            const float64 val = 2.0 * acc_src[idx];
+            acc_des.set(idx, val);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
 
-    // //------------------------------------------------------
-    // // run on device, 
-    // // result stays on device and is owned by node["des"],
-    // // even if not on the device before hand
-    // //------------------------------------------------------
-    // {
-    //     Node node;
-    //     ExecutionAccessor<float64> acc_src(node["src"]);
-    //     ExecutionAccessor<float64> acc_des(node["des"]);
+        acc_des.sync();
 
-    //     ExecutionPolicy policy = ExecutionPolicy::device();
+        float64_accessor verify(node["des"]);
+        verify_doubled_values(verify);
+    }
 
-    //     acc_src.use_with(policy);
-    //     acc_des.use_with(policy);
+    //-----------------------------------------------------------------------------
+    // run on device
+    //-----------------------------------------------------------------------------
+    if (ExecutionPolicy::is_device_enabled())
+    {
+        Node node;
+        float64 src_vals[4] = {1.0, 2.0, 3.0, 4.0};
+        float64 des_vals[4] = {0.0, 0.0, 0.0, 0.0};
+        node["src"].set(src_vals, 4);
+        node["des"].set(des_vals, 4);
 
-    //     index_t size = acc_src.number_of_elements();
+        float64_accessor acc_src(node["src"]);
+        float64_accessor acc_des(node["des"]);
 
-    //     forall(policy, 0, size, [=] EXEC_LAMBDA(index_t idx)
-    //     {
-    //         const float64 val = 2.0 * acc_src[idx];
-    //         acc_des.set(idx,val);
-    //     });
-    //     CONDUIT_DEVICE_ERROR_CHECK();
+        ExecutionPolicy policy = ExecutionPolicy::device();
 
-    //     // move results to be owned by node["des"]
-    //     // (no op if node["des"] was originally device memory)
-    //     acc_des.move(node["des"]); 
-    // }
+        acc_src.use_with(policy);
+        acc_des.use_with(policy);
 
-    // //------------------------------------------------------
-    // // run where the src data is
-    // //------------------------------------------------------
-    // {
-    //     Node node;
-    //     ExecutionAccessor<float64> acc_src(node["src"]);
-    //     ExecutionAccessor<float64> acc_des(node["des"]);
+        index_t size = acc_src.number_of_elements();
+        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t idx)
+        {
+            const float64 val = 2.0 * acc_src[idx];
+            acc_des.set(idx, val);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
 
-    //     ExecutionPolicy policy = acc_src.active_space().execution_policy();
-    //     acc_des.use_with(policy);
-    //     acc_des.use_with(policy);
+        acc_des.sync();
 
-    //     index_t size = acc_src.number_of_elements();
+        float64_accessor verify(node["des"]);
+        verify_doubled_values(verify);
+    }
 
-    //     forall(policy, 0, size, [=] EXEC_LAMBDA(index_t idx)
-    //     {
-    //         const float64 val = 2.0 * acc_src[idx];
-    //         acc_des.set(idx,val);
-    //     });
-    //     CONDUIT_DEVICE_ERROR_CHECK();
+    //-----------------------------------------------------------------------------
+    // run on device and leave the result on the device
+    //-----------------------------------------------------------------------------
+    if (ExecutionPolicy::is_device_enabled())
+    {
+        Node node;
+        float64 src_vals[4] = {1.0, 2.0, 3.0, 4.0};
+        float64 des_vals[4] = {0.0, 0.0, 0.0, 0.0};
+        node["src"].set(src_vals, 4);
+        node["des"].set(des_vals, 4);
 
-    //     // sync values to node["des"], 
-    //     // (no op if node["des"] was originally in 
-    //     //  same memory space as node["src"] )
-    //     acc_des.sync(node["des"]); 
-    // }
+        float64_accessor acc_src(node["src"]);
+        float64_accessor acc_des(node["des"]);
 
-    // //------------------------------------------------------
-    // // more complex cases
-    // //------------------------------------------------------
+        ExecutionPolicy policy = ExecutionPolicy::device();
 
-    // //------------------------------------------------------
-    // // complex run on device 
-    // // double lambda forwarding concrete template tag
-    // // for use in lambda
-    // //
-    // // ( requires c++ 20 b/c of templated lambda)
-    // //------------------------------------------------------
-    // {
-    //     Node node;
-    //     ExecutionAccessor<float64> acc_src(node["src"]);
-    //     ExecutionAccessor<float64> acc_des(node["des"]);
+        acc_src.use_with(policy);
+        acc_des.use_with(policy);
 
-    //     ExecutionPolicy policy = ExecutionPolicy::device();
-    //     acc_des.use_with(policy);
-    //     acc_des.use_with(policy);
+        index_t size = acc_src.number_of_elements();
+        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t idx)
+        {
+            const float64 val = 2.0 * acc_src[idx];
+            acc_des.set(idx, val);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
 
-    //     index_t size = acc_src.number_of_elements();
+        acc_des.assume();
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
-    //     index_t min_loc = -1;
-    //     float64 min_val = 0;
-
-    //     dispatch(policy, [&] <typename Exec>(Exec &exec)
-    //     {
-    //         float64 identity = std::numeric_limits<float64>::max();
-    //         using for_policy    = typename Exec::for_policy;
-    //         using reduce_policy = typename Exec::reduce_policy;
-
-    //         ReduceMinLoc<reduce_policy,float64> reducer(identity,-1);
-
-    //         forall<for_policy>(0, size, [=] EXEC_LAMBDA (int i)
-    //         {
-    //             const float64 val = 2.0 * acc_src[idx];
-    //             reducer.minloc(val,i);
-    //             acc_des.set(idx,val);
-    //         });
-    //         CONDUIT_DEVICE_ERROR_CHECK();
-
-    //         min_val = reducer.get();
-    //         min_loc = reducer.getLoc();
-    //     });
-
-    //     // sync values to node["des"], 
-    //     // (no op if node["des"] was originally in
-    //     //  same memory space as node["src"] )
-    //     acc_des.sync(node["des"]); 
-    // }
-
-    // //------------------------------------------------------
-    // // complex run on device using functor
-    // // (functor implementation)
-    // //------------------------------------------------------
-    // struct ExecFunctor
-    // {
-    //     float64 min_val;
-    //     index_t min_loc;
-
-    //     ExecutionAccessor<float64> acc_src;
-    //     ExecutionAccessor<float64> acc_des;
-
-    //     template<typename Exec>
-    //     void operator()(Exec &exec)
-    //     {
-    //         float64 identity = std::numeric_limits<float64>::max();
-    //         using for_policy    = typename Exec::for_policy;
-    //         using reduce_policy = typename Exec::reduce_policy;
-
-    //         ReduceMinLoc<reduce_policy,float64> reducer(identity, -1);
-
-    //         forall<for_policy>(0, size, [=] (int i)
-    //         {
-    //             const float64 val = 2.0 * acc_src[idx];
-    //             reducer.minloc(val,i);
-    //             acc_des.set(idx,val);
-    //         });
-    //         CONDUIT_DEVICE_ERROR_CHECK();
-
-    //         min_val = reducer.get();
-    //         min_loc = reducer.getLoc();
-    //     }
-    // };
-
-    // //------------------------------------------------------
-    // // complex run on device using functor 
-    // // (functor dispatch)
-    // //------------------------------------------------------
-    // {
-    //     Node node;
-    //     ExecutionAccessor<float64> acc_src(node["src"]);
-    //     ExecutionAccessor<float64> acc_des(node["des"]);
-
-    //     ExecutionPolicy policy = ExecutionPolicy::device();
-    //     acc_des.use_with(policy);
-    //     acc_des.use_with(policy);
-
-    //     index_t size = acc_src.number_of_elements();
-
-    //     ExecFunctor f();
-
-    //     // init functor
-    //     f.acc_src = acc_src;
-    //     f.acc_des = acc_des;
-
-    //     dispatch(policy,f);
-
-    //     // get results stored in functor
-    //     float64 min_val = f.min_val;
-    //     index_t min_loc = f.min_loc;
-
-    //     // sync values to node["des"], 
-    //     // (no op if node["des"] was originally in
-    //     //  same memory space as node["src"])
-    //     acc_des.sync(node["des"]); 
-    // }
+        float64_accessor verify(node["des"]);
+        verify.use_with(ExecutionPolicy::host());
+        verify_doubled_values(verify);
+    }
 }

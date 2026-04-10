@@ -17,7 +17,10 @@
 //-----------------------------------------------------------------------------
 #include "conduit_core.hpp"
 #include "conduit_data_type.hpp"
+#include "conduit_memory_manager.hpp"
 #include "conduit_utils.hpp"
+
+#include <type_traits>
 
 
 //-----------------------------------------------------------------------------
@@ -65,7 +68,16 @@ public:
         /// Default constructor
         DataAccessor();
         /// Copy constructor
-        DataAccessor(const DataAccessor<T> &accessor);
+        CONDUIT_EXEC_HOST_DEVICE DataAccessor(const DataAccessor<T> &accessor)
+        : m_data(accessor.m_data),
+          m_dtype(accessor.m_dtype),
+          m_node_ptr(accessor.m_node_ptr),
+          m_other_ptr(accessor.m_other_ptr),
+          m_other_dtype(accessor.m_other_dtype),
+          m_do_i_own_it(false),
+          m_offset(accessor.m_offset),
+          m_stride(accessor.m_stride)
+        {}
         /// Access a pointer to raw data according to dtype description.
         DataAccessor(void *data, const DataType &dtype);
         /// Access a const pointer to raw data according to dtype description.
@@ -79,7 +91,22 @@ public:
         /// Access a const pointer to node data according to node dtype description.
         DataAccessor(const Node *node);
         /// Destructor.
-        ~DataAccessor();
+        CONDUIT_EXEC_HOST_DEVICE ~DataAccessor()
+        {
+#if !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__)
+            if (m_do_i_own_it)
+            {
+                if (execution::DeviceMemory::is_device_ptr(m_other_ptr))
+                {
+                    execution::DeviceMemory::deallocate(m_other_ptr);
+                }
+                else
+                {
+                    execution::HostMemory::deallocate(m_other_ptr);
+                }
+            }
+#endif
+        }
 
     ///
     /// Summary Stats Helpers
@@ -93,26 +120,136 @@ public:
     index_t         count(T value) const;
 
     /// Assignment operator
-    DataAccessor<T>   &operator=(const DataAccessor<T> &accessor);
+    CONDUIT_EXEC_HOST_DEVICE DataAccessor<T> &operator=(const DataAccessor<T> &accessor)
+    {
+        if(this != &accessor)
+        {
+            m_data  = accessor.m_data;
+            m_dtype = accessor.m_dtype;
+            m_node_ptr = accessor.m_node_ptr;
+            m_other_ptr = accessor.m_other_ptr;
+            m_other_dtype = accessor.m_other_dtype;
+            m_do_i_own_it = false;
+            m_offset = accessor.m_offset;
+            m_stride = accessor.m_stride;
+        }
+        return *this;
+    }
 
 //-----------------------------------------------------------------------------
 // Data and Info Access
 //-----------------------------------------------------------------------------
-    T              operator[](index_t idx) const
+    CONDUIT_EXEC_HOST_DEVICE T operator[](index_t idx) const
                     {return element(idx);}
 
-    T              element(index_t idx) const;
+    CONDUIT_EXEC_HOST_DEVICE T element(index_t idx) const
+    {
+        switch(dtype().id())
+        {
+            case DataType::INT8_ID:
+                return (T)(*(int8*)(element_ptr(idx)));
+            case DataType::INT16_ID:
+                return (T)(*(int16*)(element_ptr(idx)));
+            case DataType::INT32_ID:
+                return (T)(*(int32*)(element_ptr(idx)));
+            case DataType::INT64_ID:
+                return (T)(*(int64*)(element_ptr(idx)));
+            case DataType::UINT8_ID:
+                return (T)(*(uint8*)(element_ptr(idx)));
+            case DataType::UINT16_ID:
+                return (T)(*(uint16*)(element_ptr(idx)));
+            case DataType::UINT32_ID:
+                return (T)(*(uint32*)(element_ptr(idx)));
+            case DataType::UINT64_ID:
+                return (T)(*(uint64*)(element_ptr(idx)));
+            case DataType::FLOAT32_ID:
+                return (T)(*(float32*)(element_ptr(idx)));
+            case DataType::FLOAT64_ID:
+                return (T)(*(float64*)(element_ptr(idx)));
+            default:
+            {
+#if !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__)
+                CONDUIT_ERROR("DataAccessor does not support dtype: "
+                              << dtype().name());
+#endif
+                return (T)0;
+            }
+        }
+    }
 
     // Without the SFINAE features, the compiler doesn't know which of the two
     // set methods to call. We need to restrict them based on if the type is a 
     // pointer or not so that it is unambiguous which method should be called.
     template <typename U = T>
+    CONDUIT_EXEC_HOST_DEVICE
     typename std::enable_if<!std::is_pointer<U>::value, void>::type
-                    set(index_t idx, T value);
+                    set(index_t idx, T value) const
+    {
+        switch(dtype().id())
+        {
+            case DataType::INT8_ID:
+            {
+                (*(int8*)(element_ptr(idx))) = static_cast<int8>(value);
+                break;
+            }
+            case DataType::INT16_ID:
+            {
+                (*(int16*)(element_ptr(idx))) = static_cast<int16>(value);
+                break;
+            }
+            case DataType::INT32_ID:
+            {
+                (*(int32*)(element_ptr(idx))) = static_cast<int32>(value);
+                break;
+            }
+            case DataType::INT64_ID:
+            {
+                (*(int64*)(element_ptr(idx))) = static_cast<int64>(value);
+                break;
+            }
+            case DataType::UINT8_ID:
+            {
+                (*(uint8*)(element_ptr(idx))) = static_cast<uint8>(value);
+                break;
+            }
+            case DataType::UINT16_ID:
+            {
+                (*(uint16*)(element_ptr(idx))) = static_cast<uint16>(value);
+                break;
+            }
+            case DataType::UINT32_ID:
+            {
+                (*(uint32*)(element_ptr(idx))) = static_cast<uint32>(value);
+                break;
+            }
+            case DataType::UINT64_ID:
+            {
+                (*(uint64*)(element_ptr(idx))) = static_cast<uint64>(value);
+                break;
+            }
+            case DataType::FLOAT32_ID:
+            {
+                (*(float32*)(element_ptr(idx))) = static_cast<float32>(value);
+                break;
+            }
+            case DataType::FLOAT64_ID:
+            {
+                (*(float64*)(element_ptr(idx))) = static_cast<float64>(value);
+                break;
+            }
+            default:
+            {
+#if !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__)
+                CONDUIT_ERROR("DataAccessor does not support dtype: "
+                              << dtype().name());
+#endif
+            }
+        }
+    }
 
     template <typename U = T>
     typename std::enable_if<std::is_pointer<U>::value, void>::type
-                    set(const T* values, index_t num_elements);
+                    set(const T* values, index_t num_elements) const;
 
     // void            set(const std::vector<typename std::remove_pointer<T>::type> &values)
     //                     { set(values.data(), values.size()); }
@@ -120,20 +257,27 @@ public:
 
     void            fill(T value);
 
-    const void     *element_ptr(index_t idx) const
+    CONDUIT_EXEC_HOST_DEVICE const void *element_ptr(index_t idx) const
                     {
                          return static_cast<const char*>(m_data) +
                                   dtype().element_index(idx);
                     }
 
-    index_t         number_of_elements() const 
+    CONDUIT_EXEC_HOST_DEVICE index_t number_of_elements() const
                         {return dtype().number_of_elements();}
 
-    const DataType &dtype()    const;
+    CONDUIT_EXEC_HOST_DEVICE const DataType &dtype() const
+    {
+        return (nullptr != m_other_ptr && m_data == m_other_ptr)
+               ? m_other_dtype
+               : m_dtype;
+    }
 
-    const DataType &orig_dtype() const;
+    CONDUIT_EXEC_HOST_DEVICE const DataType &orig_dtype() const
+                    { return m_dtype; }
 
-    const DataType &other_dtype() const;
+    CONDUIT_EXEC_HOST_DEVICE const DataType &other_dtype() const
+                    { return nullptr != m_other_ptr ? m_other_dtype : m_dtype; }
 
 //-----------------------------------------------------------------------------
 // Data movement
