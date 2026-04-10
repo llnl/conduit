@@ -23,6 +23,7 @@
 //-----------------------------------------------------------------------------
 #include "conduit_core.hpp"
 #include "conduit_endianness.hpp"
+#include "conduit_utils.hpp"
 
 //-----------------------------------------------------------------------------
 // -- begin conduit:: --
@@ -435,7 +436,15 @@ public:
     CONDUIT_EXEC_HOST_DEVICE conduit::index_t endianness() const
                     { return m_endianness; }
     CONDUIT_EXEC_HOST_DEVICE conduit::index_t element_index(conduit::index_t idx) const
-                    { return m_offset + m_stride * idx; }
+                    {
+#if !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__)
+                        if(idx > 0 && m_stride == 0)
+                        {
+                            CONDUIT_WARN("Node index calculation with with stride = 0");
+                        }
+#endif
+                        return m_offset + m_stride * idx;
+                    }
 
     /// strided bytes = stride() * (number_of_elements() -1) + element_bytes()
     conduit::index_t     strided_bytes() const;
