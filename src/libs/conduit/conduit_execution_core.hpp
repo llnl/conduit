@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <limits>
 #include <typeinfo>
 #include <utility>
 
@@ -150,6 +151,363 @@ forall(const int& begin,
 {
     detail::forall_exec(ExecutionPolicy{}, begin, end, std::forward<Kernel>(kernel));
 }
+
+#if defined(CONDUIT_USE_RAJA)
+
+template <typename ExecPolicy, typename T>
+using ReduceSum = RAJA::ReduceSum<ExecPolicy,T>;
+
+template <typename ExecPolicy, typename T>
+using ReduceMin = RAJA::ReduceMin<ExecPolicy,T>;
+
+template <typename ExecPolicy, typename T>
+using ReduceMinLoc = RAJA::ReduceMinLoc<ExecPolicy,T>;
+
+template <typename ExecPolicy, typename T>
+using ReduceMax = RAJA::ReduceMax<ExecPolicy,T>;
+
+template <typename ExecPolicy, typename T>
+using ReduceMaxLoc = RAJA::ReduceMaxLoc<ExecPolicy,T>;
+
+template <typename ExecPolicy, typename T>
+CONDUIT_EXEC T atomic_add(T *acc, T value)
+{
+    return RAJA::atomicAdd(ExecPolicy{}, acc, value);
+}
+
+template <typename ExecPolicy, typename T>
+CONDUIT_EXEC T atomic_min(T *acc, T value)
+{
+    return RAJA::atomicMin(ExecPolicy{}, acc, value);
+}
+
+template <typename ExecPolicy, typename T>
+CONDUIT_EXEC T atomic_max(T *acc, T value)
+{
+    return RAJA::atomicMax(ExecPolicy{}, acc, value);
+}
+
+#else
+
+template <typename ExecPolicy, typename T>
+class ReduceSum
+{
+public:
+    ReduceSum()
+    : m_value(0),
+      m_value_ptr(&m_value)
+    {}
+
+    ReduceSum(T v_start)
+    : m_value(v_start),
+      m_value_ptr(&m_value)
+    {}
+
+    ReduceSum(const ReduceSum &v)
+    : m_value(v.m_value),
+      m_value_ptr(v.m_value_ptr)
+    {}
+
+    void operator+=(const T value) const
+    {
+#if defined(CONDUIT_USE_OPENMP)
+        #pragma omp critical(conduit_execution_reduce_sum)
+        {
+            m_value_ptr[0] += value;
+        }
+#else
+        m_value_ptr[0] += value;
+#endif
+    }
+
+    void sum(const T value) const
+    {
+        operator+=(value);
+    }
+
+    T get() const
+    {
+        return m_value_ptr[0];
+    }
+
+private:
+    T  m_value;
+    T *m_value_ptr;
+};
+
+template <typename ExecPolicy, typename T>
+class ReduceMin
+{
+public:
+    ReduceMin()
+    : m_value(std::numeric_limits<T>::max()),
+      m_value_ptr(&m_value)
+    {}
+
+    ReduceMin(T v_start)
+    : m_value(v_start),
+      m_value_ptr(&m_value)
+    {}
+
+    ReduceMin(const ReduceMin &v)
+    : m_value(v.m_value),
+      m_value_ptr(v.m_value_ptr)
+    {}
+
+    void min(const T value) const
+    {
+#if defined(CONDUIT_USE_OPENMP)
+        #pragma omp critical(conduit_execution_reduce_min)
+        {
+            if (value < m_value_ptr[0])
+            {
+                m_value_ptr[0] = value;
+            }
+        }
+#else
+        if (value < m_value_ptr[0])
+        {
+            m_value_ptr[0] = value;
+        }
+#endif
+    }
+
+    T get() const
+    {
+        return m_value_ptr[0];
+    }
+
+private:
+    T  m_value;
+    T *m_value_ptr;
+};
+
+template <typename ExecPolicy, typename T>
+class ReduceMinLoc
+{
+public:
+    ReduceMinLoc()
+    : m_value(std::numeric_limits<T>::max()),
+      m_value_ptr(&m_value),
+      m_index(-1),
+      m_index_ptr(&m_index)
+    {}
+
+    ReduceMinLoc(T v_start, index_t i_start)
+    : m_value(v_start),
+      m_value_ptr(&m_value),
+      m_index(i_start),
+      m_index_ptr(&m_index)
+    {}
+
+    ReduceMinLoc(const ReduceMinLoc &v)
+    : m_value(v.m_value),
+      m_value_ptr(v.m_value_ptr),
+      m_index(v.m_index),
+      m_index_ptr(v.m_index_ptr)
+    {}
+
+    void minloc(const T value, index_t i) const
+    {
+#if defined(CONDUIT_USE_OPENMP)
+        #pragma omp critical(conduit_execution_reduce_minloc)
+        {
+            if (value < m_value_ptr[0])
+            {
+                m_value_ptr[0] = value;
+                m_index_ptr[0] = i;
+            }
+        }
+#else
+        if (value < m_value_ptr[0])
+        {
+            m_value_ptr[0] = value;
+            m_index_ptr[0] = i;
+        }
+#endif
+    }
+
+    T get() const
+    {
+        return m_value_ptr[0];
+    }
+
+    index_t getLoc() const
+    {
+        return m_index_ptr[0];
+    }
+
+private:
+    T        m_value;
+    T       *m_value_ptr;
+    index_t  m_index;
+    index_t *m_index_ptr;
+};
+
+template <typename ExecPolicy, typename T>
+class ReduceMax
+{
+public:
+    ReduceMax()
+    : m_value(std::numeric_limits<T>::lowest()),
+      m_value_ptr(&m_value)
+    {}
+
+    ReduceMax(T v_start)
+    : m_value(v_start),
+      m_value_ptr(&m_value)
+    {}
+
+    ReduceMax(const ReduceMax &v)
+    : m_value(v.m_value),
+      m_value_ptr(v.m_value_ptr)
+    {}
+
+    void max(const T value) const
+    {
+#if defined(CONDUIT_USE_OPENMP)
+        #pragma omp critical(conduit_execution_reduce_max)
+        {
+            if (value > m_value_ptr[0])
+            {
+                m_value_ptr[0] = value;
+            }
+        }
+#else
+        if (value > m_value_ptr[0])
+        {
+            m_value_ptr[0] = value;
+        }
+#endif
+    }
+
+    T get() const
+    {
+        return m_value_ptr[0];
+    }
+
+private:
+    T  m_value;
+    T *m_value_ptr;
+};
+
+template <typename ExecPolicy, typename T>
+class ReduceMaxLoc
+{
+public:
+    ReduceMaxLoc()
+    : m_value(std::numeric_limits<T>::lowest()),
+      m_value_ptr(&m_value),
+      m_index(-1),
+      m_index_ptr(&m_index)
+    {}
+
+    ReduceMaxLoc(T v_start, index_t i_start)
+    : m_value(v_start),
+      m_value_ptr(&m_value),
+      m_index(i_start),
+      m_index_ptr(&m_index)
+    {}
+
+    ReduceMaxLoc(const ReduceMaxLoc &v)
+    : m_value(v.m_value),
+      m_value_ptr(v.m_value_ptr),
+      m_index(v.m_index),
+      m_index_ptr(v.m_index_ptr)
+    {}
+
+    void maxloc(const T value, index_t i) const
+    {
+#if defined(CONDUIT_USE_OPENMP)
+        #pragma omp critical(conduit_execution_reduce_maxloc)
+        {
+            if (value > m_value_ptr[0])
+            {
+                m_value_ptr[0] = value;
+                m_index_ptr[0] = i;
+            }
+        }
+#else
+        if (value > m_value_ptr[0])
+        {
+            m_value_ptr[0] = value;
+            m_index_ptr[0] = i;
+        }
+#endif
+    }
+
+    T get() const
+    {
+        return m_value_ptr[0];
+    }
+
+    index_t getLoc() const
+    {
+        return m_index_ptr[0];
+    }
+
+private:
+    T        m_value;
+    T       *m_value_ptr;
+    index_t  m_index;
+    index_t *m_index_ptr;
+};
+
+template <typename ExecPolicy, typename T>
+inline T atomic_add(T *acc, T value)
+{
+#if defined(CONDUIT_USE_OPENMP)
+    T res;
+    #pragma omp atomic capture
+    {
+        res = *acc;
+        *acc += value;
+    }
+    return res;
+#else
+    T res = *acc;
+    *acc += value;
+    return res;
+#endif
+}
+
+template <typename ExecPolicy, typename T>
+inline T atomic_min(T *acc, T value)
+{
+#if defined(CONDUIT_USE_OPENMP)
+    T res;
+    #pragma omp critical(conduit_execution_atomic_min)
+    {
+        res = *acc;
+        *acc = std::min(*acc, value);
+    }
+    return res;
+#else
+    T res = *acc;
+    *acc = std::min(*acc, value);
+    return res;
+#endif
+}
+
+template <typename ExecPolicy, typename T>
+inline T atomic_max(T *acc, T value)
+{
+#if defined(CONDUIT_USE_OPENMP)
+    T res;
+    #pragma omp critical(conduit_execution_atomic_max)
+    {
+        res = *acc;
+        *acc = std::max(*acc, value);
+    }
+    return res;
+#else
+    T res = *acc;
+    *acc = std::max(*acc, value);
+    return res;
+#endif
+}
+
+#endif
 
 template <typename ExecutionPolicy, typename Iterator>
 inline void

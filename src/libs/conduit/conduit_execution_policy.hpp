@@ -55,8 +55,10 @@
 #define CONDUIT_DEVICE_ERROR_CHECK( policy ) conduit::execution::device_error_check(policy, __FILE__, __LINE__);
 
 #if defined(CONDUIT_EXEC_TU_HAS_DEVICE)
+#define CONDUIT_EXEC inline __host__ __device__
 #define EXEC_LAMBDA __device__ __host__
 #else
+#define CONDUIT_EXEC inline
 #define EXEC_LAMBDA
 #endif
 

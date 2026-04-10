@@ -13,6 +13,7 @@
 #include "conduit_memory_manager.hpp"
 
 #include <iostream>
+#include <limits>
 #include <type_traits>
 #include "gtest/gtest.h"
 
@@ -280,6 +281,129 @@ TEST(conduit_execution, for_all_and_dispatch)
         conduit::execution::dispatch(policy, concrete_kernel);
 
         EXPECT_EQ(res, 10);
+    };
+
+    if (ExecutionPolicy::is_serial_enabled())
+    {
+        ExecutionPolicy serial = ExecutionPolicy::serial();
+        test_exec_policy(serial);
+    }
+
+    if (ExecutionPolicy::is_openmp_enabled())
+    {
+        ExecutionPolicy openmp = ExecutionPolicy::openmp();
+        test_exec_policy(openmp);
+    }
+
+    if (ExecutionPolicy::is_device_enabled())
+    {
+        ExecutionPolicy device = ExecutionPolicy::device();
+        test_exec_policy(device);
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, reductions_and_atomics)
+{
+    conduit_device_prepare();
+
+    const index_t size = 4;
+    const index_t input[size] = {0, -10, 10, 5};
+
+    auto test_exec_policy = [&](ExecutionPolicy policy)
+    {
+        index_t *vals_ptr = nullptr;
+        if (policy.is_device_policy())
+        {
+            vals_ptr = static_cast<index_t*>(execution::DeviceMemory::allocate(sizeof(index_t) * size));
+        }
+        else
+        {
+            vals_ptr = static_cast<index_t*>(execution::HostMemory::allocate(sizeof(index_t) * size));
+        }
+        execution::MagicMemory::copy(vals_ptr, input, sizeof(index_t) * size);
+
+        conduit::execution::dispatch(policy, [&](auto &exec)
+        {
+            using combo_policy = typename std::decay<decltype(exec)>::type;
+            using reduce_policy = typename combo_policy::reduce_policy;
+            using atomic_policy = typename combo_policy::atomic_policy;
+
+            conduit::execution::ReduceSum<reduce_policy, index_t> sum(0);
+            conduit::execution::ReduceMin<reduce_policy, index_t> min_reducer(
+                std::numeric_limits<index_t>::max());
+            conduit::execution::ReduceMinLoc<reduce_policy, index_t> minloc_reducer(
+                std::numeric_limits<index_t>::max(), -1);
+            conduit::execution::ReduceMax<reduce_policy, index_t> max_reducer(
+                std::numeric_limits<index_t>::lowest());
+            conduit::execution::ReduceMaxLoc<reduce_policy, index_t> maxloc_reducer(
+                std::numeric_limits<index_t>::lowest(), -1);
+
+            conduit::execution::forall<combo_policy>(0, size, [=] EXEC_LAMBDA (index_t i)
+            {
+                const index_t value = vals_ptr[i];
+                sum += value;
+                min_reducer.min(value);
+                minloc_reducer.minloc(value, i);
+                max_reducer.max(value);
+                maxloc_reducer.maxloc(value, i);
+            });
+
+            EXPECT_EQ(sum.get(), 5);
+            EXPECT_EQ(min_reducer.get(), -10);
+            EXPECT_EQ(minloc_reducer.get(), -10);
+            EXPECT_EQ(minloc_reducer.getLoc(), 1);
+            EXPECT_EQ(max_reducer.get(), 10);
+            EXPECT_EQ(maxloc_reducer.get(), 10);
+            EXPECT_EQ(maxloc_reducer.getLoc(), 2);
+
+            index_t atomic_init[3] = {0, 100, -100};
+            index_t *atomic_ptr = nullptr;
+            if (policy.is_device_policy())
+            {
+                atomic_ptr = static_cast<index_t*>(execution::DeviceMemory::allocate(sizeof(atomic_init)));
+            }
+            else
+            {
+                atomic_ptr = static_cast<index_t*>(execution::HostMemory::allocate(sizeof(atomic_init)));
+            }
+            execution::MagicMemory::copy(atomic_ptr, atomic_init, sizeof(atomic_init));
+
+            conduit::execution::forall<combo_policy>(0, size, [=] EXEC_LAMBDA (index_t i)
+            {
+                const index_t value = vals_ptr[i];
+                conduit::execution::atomic_add<atomic_policy>(atomic_ptr, value);
+                conduit::execution::atomic_min<atomic_policy>(atomic_ptr + 1, value);
+                conduit::execution::atomic_max<atomic_policy>(atomic_ptr + 2, value);
+            });
+
+            index_t atomic_res[3];
+            execution::MagicMemory::copy(atomic_res, atomic_ptr, sizeof(atomic_res));
+
+            EXPECT_EQ(atomic_res[0], 5);
+            EXPECT_EQ(atomic_res[1], -10);
+            EXPECT_EQ(atomic_res[2], 10);
+
+            if (policy.is_device_policy())
+            {
+                execution::DeviceMemory::deallocate(atomic_ptr);
+            }
+            else
+            {
+                execution::HostMemory::deallocate(atomic_ptr);
+            }
+        });
+
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        if (policy.is_device_policy())
+        {
+            execution::DeviceMemory::deallocate(vals_ptr);
+        }
+        else
+        {
+            execution::HostMemory::deallocate(vals_ptr);
+        }
     };
 
     if (ExecutionPolicy::is_serial_enabled())
