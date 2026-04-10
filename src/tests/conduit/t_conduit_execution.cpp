@@ -19,25 +19,54 @@
 using namespace conduit;
 using conduit::execution::ExecutionPolicy;
 
-void *device_alloc(index_t bytes)
+void *
+allocate_for_policy(ExecutionPolicy policy, index_t bytes)
 {
-#if defined(CONDUIT_USE_RAJA)
-    return execution::DeviceMemory::allocate(bytes);
-#else
+    if (policy.is_device_policy())
+    {
+        return execution::DeviceMemory::allocate(bytes);
+    }
+
     return execution::HostMemory::allocate(bytes);
-#endif
 }
 
-void device_free(void *ptr)
+void
+free_for_policy(ExecutionPolicy policy, void *ptr)
 {
-#if defined(CONDUIT_USE_RAJA)
-    return execution::DeviceMemory::deallocate(ptr);
-#else
-    return execution::HostMemory::deallocate(ptr);
-#endif
+    if (policy.is_device_policy())
+    {
+        execution::DeviceMemory::deallocate(ptr);
+        return;
+    }
+
+    execution::HostMemory::deallocate(ptr);
 }
 
-void conduit_device_prepare()
+template <typename Func>
+void
+for_each_enabled_policy(Func &&func)
+{
+    if (ExecutionPolicy::is_serial_enabled())
+    {
+        ExecutionPolicy serial = ExecutionPolicy::serial();
+        func(serial);
+    }
+
+    if (ExecutionPolicy::is_openmp_enabled())
+    {
+        ExecutionPolicy openmp = ExecutionPolicy::openmp();
+        func(openmp);
+    }
+
+    if (ExecutionPolicy::is_device_enabled())
+    {
+        ExecutionPolicy device = ExecutionPolicy::device();
+        func(device);
+    }
+}
+
+void
+conduit_device_prepare()
 {
     execution::init_device_memory_handlers();
 }
@@ -117,95 +146,160 @@ struct MySpecialFunctor
 TEST(conduit_execution, test_forall)
 {
     conduit_device_prepare();
-    const index_t size = 10;
-
-    index_t host_vals[size];
-    index_t *dev_vals_ptr = static_cast<index_t*>(device_alloc(sizeof(index_t) * size));
-
-    ExecutionPolicy serial = ExecutionPolicy::serial();
-    conduit::execution::forall(serial, 0, size, [=](index_t i)
+    for_each_enabled_policy([](ExecutionPolicy policy)
     {
-        dev_vals_ptr[i] = i;
+        const index_t size = 10;
+
+        index_t host_vals[size];
+        index_t *vals_ptr =
+            static_cast<index_t*>(allocate_for_policy(policy,
+                                                      sizeof(index_t) * size));
+
+        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        {
+            vals_ptr[i] = i;
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        conduit::execution::MagicMemory::copy(&host_vals[0],
+                                              vals_ptr,
+                                              sizeof(index_t) * size);
+
+        for (index_t i = 0; i < size; i ++)
+        {
+            EXPECT_EQ(host_vals[i], i);
+        }
+
+        free_for_policy(policy, vals_ptr);
     });
-    CONDUIT_DEVICE_ERROR_CHECK(serial);
-    
-    conduit::execution::MagicMemory::copy(&host_vals[0], dev_vals_ptr, sizeof(index_t) * size);
-
-    for (index_t i = 0; i < size; i ++)
-    {
-        EXPECT_EQ(host_vals[i],i);
-    }
-
-    device_free(dev_vals_ptr);
 }
 
-// //-----------------------------------------------------------------------------
-// TEST(conduit_execution, test_reductions)
-// {
-//     Conduit::execution::ExecPolicy SerialPolicy(conduit::execution::policy::Serial);
-//     const index_t size = 4;
-//     index_t host_vals[size] = {0,-10,10, 5};
-//     index_t *dev_vals_ptr = static_cast<index_t*>(device_alloc(sizeof(index_t) * size));
-//     MagicMemory::copy(dev_vals_ptr, &host_vals[0], sizeof(index_t) * size);
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, test_reductions)
+{
+    conduit_device_prepare();
+    for_each_enabled_policy([](ExecutionPolicy policy)
+    {
+        const index_t size = 4;
+        index_t host_vals[size] = {0, -10, 10, 5};
+        index_t *vals_ptr =
+            static_cast<index_t*>(allocate_for_policy(policy,
+                                                      sizeof(index_t) * size));
+        conduit::execution::MagicMemory::copy(vals_ptr,
+                                              &host_vals[0],
+                                              sizeof(index_t) * size);
 
+        conduit::execution::ReduceSum<index_t> sum_reducer(policy);
+        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        {
+            sum_reducer += vals_ptr[i];
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        EXPECT_EQ(sum_reducer.get(), 5);
 
-//     // sum
-//     // ascent::ReduceSum<reduce_policy,index_t> sum_reducer;
-//     using reduce_policy = typename conduit::execution::policy::Serial::reduce_policy;
-//     conduit::execution::forall<reduce_policy>(0, size, [=](index_t i)
-//     {
-//         sum_reducer += dev_vals_ptr[i];
-//     });
-//     // CONDUIT_DEVICE_ERROR_CHECK();
+        conduit::execution::ReduceMin<index_t> min_reducer(policy);
+        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        {
+            min_reducer.min(vals_ptr[i]);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        EXPECT_EQ(min_reducer.get(), -10);
 
-//     EXPECT_EQ(sum_reducer.get(),5);
+        conduit::execution::ReduceMinLoc<index_t> minloc_reducer(policy);
+        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        {
+            minloc_reducer.minloc(vals_ptr[i], i);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        EXPECT_EQ(minloc_reducer.get(), -10);
+        EXPECT_EQ(minloc_reducer.getLoc(), 1);
 
+        conduit::execution::ReduceMax<index_t> max_reducer(policy);
+        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        {
+            max_reducer.max(vals_ptr[i]);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        EXPECT_EQ(max_reducer.get(), 10);
 
-//     // // min
-//     // ascent::ReduceMin<reduce_policy,index_t> min_reducer;
-//     // conduit::execution::forall<reduce_policy>(0, size, [=](index_t i)
-//     // {
-//     //     min_reducer.min(dev_vals_ptr[i]);
-//     // });
-//     // // CONDUIT_DEVICE_ERROR_CHECK();
+        conduit::execution::ReduceMaxLoc<index_t> maxloc_reducer(policy);
+        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        {
+            maxloc_reducer.maxloc(vals_ptr[i], i);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        EXPECT_EQ(maxloc_reducer.get(), 10);
+        EXPECT_EQ(maxloc_reducer.getLoc(), 2);
 
-//     // EXPECT_EQ(min_reducer.get(),-10);
+        free_for_policy(policy, vals_ptr);
+    });
+}
 
-//     // // minloc
-//     // ascent::ReduceMinLoc<reduce_policy,index_t> minloc_reducer;
-//     // conduit::execution::forall<reduce_policy>(0, size, [=](index_t i)
-//     // {
-//     //     minloc_reducer.minloc(dev_vals_ptr[i],i);
-//     // });
-//     // // CONDUIT_DEVICE_ERROR_CHECK();
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, test_atomics)
+{
+    conduit_device_prepare();
+    for_each_enabled_policy([](ExecutionPolicy policy)
+    {
+        const index_t size = 4;
+        index_t host_vals[size] = {0, -1, -2, -3};
+        index_t *vals_ptr =
+            static_cast<index_t*>(allocate_for_policy(policy,
+                                                      sizeof(index_t) * size));
 
-//     // EXPECT_EQ(minloc_reducer.get(),-10);
-//     // EXPECT_EQ(minloc_reducer.getLoc(),1);
+        conduit::execution::MagicMemory::copy(vals_ptr,
+                                              &host_vals[0],
+                                              sizeof(index_t) * size);
 
+        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        {
+            conduit::execution::atomic_add(policy, vals_ptr + i, i);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
 
-//     // // max
-//     // ascent::ReduceMax<reduce_policy,index_t> max_reducer;
-//     // conduit::execution::forall<reduce_policy>(0, size, [=](index_t i)
-//     // {
-//     //     max_reducer.max(dev_vals_ptr[i]);
-//     // });
-//     // // CONDUIT_DEVICE_ERROR_CHECK();
+        conduit::execution::MagicMemory::copy(&host_vals[0],
+                                              vals_ptr,
+                                              sizeof(index_t) * size);
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(host_vals[i], 0);
+        }
 
-//     // EXPECT_EQ(max_reducer.get(),10);
+        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        {
+            conduit::execution::atomic_min(policy,
+                                           vals_ptr + i,
+                                           static_cast<index_t>(-10));
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
 
-//     // // maxloc
-//     // ascent::ReduceMaxLoc<reduce_policy,index_t> maxloc_reducer;
-//     // conduit::execution::forall<reduce_policy>(0, size, [=](index_t i)
-//     // {
-//     //     maxloc_reducer.maxloc(dev_vals_ptr[i],i);
-//     // });
-//     // // CONDUIT_DEVICE_ERROR_CHECK();
+        conduit::execution::MagicMemory::copy(&host_vals[0],
+                                              vals_ptr,
+                                              sizeof(index_t) * size);
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(host_vals[i], -10);
+        }
 
-//     // EXPECT_EQ(maxloc_reducer.get(),10);
-//     // EXPECT_EQ(maxloc_reducer.getLoc(),2);
+        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        {
+            conduit::execution::atomic_max(policy,
+                                           vals_ptr + i,
+                                           static_cast<index_t>(10));
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
 
-//     device_free(dev_vals_ptr);
-// }
+        conduit::execution::MagicMemory::copy(&host_vals[0],
+                                              vals_ptr,
+                                              sizeof(index_t) * size);
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(host_vals[i], 10);
+        }
+
+        free_for_policy(policy, vals_ptr);
+    });
+}
 
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, for_all_and_dispatch)
@@ -282,23 +376,7 @@ TEST(conduit_execution, for_all_and_dispatch)
         EXPECT_EQ(res, 10);
     };
 
-    if (ExecutionPolicy::is_serial_enabled())
-    {
-        ExecutionPolicy serial = ExecutionPolicy::serial();
-        test_exec_policy(serial);
-    }
-
-    if (ExecutionPolicy::is_openmp_enabled())
-    {
-        ExecutionPolicy openmp = ExecutionPolicy::openmp();
-        test_exec_policy(openmp);
-    }
-
-    if (ExecutionPolicy::is_device_enabled())
-    {
-        ExecutionPolicy device = ExecutionPolicy::device();
-        test_exec_policy(device);
-    }
+    for_each_enabled_policy(test_exec_policy);
 }
 
 //-----------------------------------------------------------------------------

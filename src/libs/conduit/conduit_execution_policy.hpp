@@ -93,17 +93,24 @@ public:
     static ExecutionPolicy hip();
     static ExecutionPolicy openmp();
 
-    ExecutionPolicy();
-    ExecutionPolicy(const ExecutionPolicy& exec_policy);
-    ExecutionPolicy& operator=(const ExecutionPolicy& exec_policy);
-    ExecutionPolicy(PolicyID policy_id);
+    EXEC_LAMBDA ExecutionPolicy()
+    : m_policy_id(PolicyID::EMPTY_ID)
+    {}
+
+    EXEC_LAMBDA ExecutionPolicy(const ExecutionPolicy& exec_policy) = default;
+    EXEC_LAMBDA ExecutionPolicy& operator=(const ExecutionPolicy& exec_policy) = default;
+
+    EXEC_LAMBDA ExecutionPolicy(PolicyID policy_id)
+    : m_policy_id(policy_id)
+    {}
+
     ExecutionPolicy(const std::string &policy_name);
-    ~ExecutionPolicy();
+    EXEC_LAMBDA ~ExecutionPolicy() = default;
 
     void set_policy(PolicyID policy_id)
         { m_policy_id = policy_id; }
 
-    PolicyID    policy_id()         const { return m_policy_id; }
+    EXEC_LAMBDA PolicyID policy_id() const { return m_policy_id; }
     std::string policy_name()       const { return policy_id_to_name(m_policy_id); }
 
     bool        is_empty()          const;
