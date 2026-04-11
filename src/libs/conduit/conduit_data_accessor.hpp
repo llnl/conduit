@@ -271,9 +271,16 @@ public:
 
     CONDUIT_EXEC_HOST_DEVICE const DataType &dtype() const
     {
-        return (m_data == m_orig_data_ptr)
-               ? orig_dtype()
-               : other_dtype();
+        if (nullptr != m_node_ptr)
+        {
+            return (m_data == m_orig_data_ptr)
+                   ? orig_dtype()
+                   : other_dtype();
+        }
+        else
+        {
+            return m_dtype;
+        }
     }
 
     CONDUIT_EXEC_HOST_DEVICE const DataType &orig_dtype() const
