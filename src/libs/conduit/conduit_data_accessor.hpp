@@ -270,15 +270,15 @@ public:
     CONDUIT_EXEC_HOST_DEVICE const DataType &dtype() const
     {
         return (nullptr != m_other_ptr && m_data == m_other_ptr)
-               ? m_other_dtype
-               : m_dtype;
+               ? other_dtype()
+               : orig_dtype();
     }
 
     CONDUIT_EXEC_HOST_DEVICE const DataType &orig_dtype() const
                     { return m_dtype; }
 
     CONDUIT_EXEC_HOST_DEVICE const DataType &other_dtype() const
-                    { return nullptr != m_other_ptr ? m_other_dtype : m_dtype; }
+                    { return nullptr != m_node_ptr ? m_other_dtype : m_dtype; }
 
 //-----------------------------------------------------------------------------
 // Data movement
