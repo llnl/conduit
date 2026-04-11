@@ -71,6 +71,7 @@ public:
         /// Copy constructor
         CONDUIT_EXEC_HOST_DEVICE DataAccessor(const DataAccessor<T> &accessor)
         : m_data(accessor.m_data),
+          m_orig_data_ptr(accessor.m_orig_data_ptr),
           m_dtype(accessor.m_dtype),
           m_node_ptr(accessor.m_node_ptr),
           m_other_ptr(accessor.m_other_ptr),
@@ -126,6 +127,7 @@ public:
         if(this != &accessor)
         {
             m_data  = accessor.m_data;
+            m_orig_data_ptr = accessor.m_orig_data_ptr;
             m_dtype = accessor.m_dtype;
             m_node_ptr = accessor.m_node_ptr;
             m_other_ptr = accessor.m_other_ptr;
@@ -269,9 +271,9 @@ public:
 
     CONDUIT_EXEC_HOST_DEVICE const DataType &dtype() const
     {
-        return (nullptr != m_other_ptr && m_data == m_other_ptr)
-               ? other_dtype()
-               : orig_dtype();
+        return (m_data == m_orig_data_ptr)
+               ? orig_dtype()
+               : other_dtype();
     }
 
     CONDUIT_EXEC_HOST_DEVICE const DataType &orig_dtype() const
@@ -367,6 +369,8 @@ private:
 //-----------------------------------------------------------------------------
     /// holds data (always external, never allocated)
     void           *m_data;
+    /// holds original wrapped data pointer
+    void           *m_orig_data_ptr;
     /// holds data description
     DataType        m_dtype;
 

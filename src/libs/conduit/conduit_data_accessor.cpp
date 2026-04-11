@@ -40,6 +40,7 @@ namespace conduit
 template <typename T> 
 DataAccessor<T>::DataAccessor()
 : m_data(nullptr),
+  m_orig_data_ptr(nullptr),
   m_dtype(DataType::empty()),
   m_node_ptr(nullptr),
   m_other_ptr(nullptr),
@@ -53,6 +54,7 @@ DataAccessor<T>::DataAccessor()
 template <typename T> 
 DataAccessor<T>::DataAccessor(void *data, const DataType &dtype)
 : m_data(data),
+  m_orig_data_ptr(data),
   m_dtype(dtype),
   m_node_ptr(nullptr),
   m_other_ptr(nullptr),
@@ -67,6 +69,7 @@ DataAccessor<T>::DataAccessor(void *data, const DataType &dtype)
 template <typename T> 
 DataAccessor<T>::DataAccessor(const void *data, const DataType &dtype)
 : m_data(const_cast<void*>(data)),
+  m_orig_data_ptr(const_cast<void*>(data)),
   m_dtype(dtype),
   m_node_ptr(nullptr),
   m_other_ptr(nullptr),
@@ -80,6 +83,7 @@ DataAccessor<T>::DataAccessor(const void *data, const DataType &dtype)
 template <typename T> 
 DataAccessor<T>::DataAccessor(Node &node)
 : m_data(node.data_ptr()),
+  m_orig_data_ptr(node.data_ptr()),
   m_dtype(node.dtype()),
   m_node_ptr(&node),
   m_other_ptr(nullptr),
@@ -93,6 +97,7 @@ DataAccessor<T>::DataAccessor(Node &node)
 template <typename T> 
 DataAccessor<T>::DataAccessor(const Node &node)
 : m_data(const_cast<void*>(node.data_ptr())),
+  m_orig_data_ptr(const_cast<void*>(node.data_ptr())),
   m_dtype(node.dtype()),
   m_node_ptr(const_cast<Node*>(&node)),
   m_other_ptr(nullptr),
@@ -106,6 +111,7 @@ DataAccessor<T>::DataAccessor(const Node &node)
 template <typename T> 
 DataAccessor<T>::DataAccessor(Node *node)
 : m_data(node->data_ptr()),
+  m_orig_data_ptr(node->data_ptr()),
   m_dtype(node->dtype()), 
   m_node_ptr(node),
   m_other_ptr(nullptr),
@@ -119,6 +125,7 @@ DataAccessor<T>::DataAccessor(Node *node)
 template <typename T> 
 DataAccessor<T>::DataAccessor(const Node *node)
 : m_data(const_cast<void*>(node->data_ptr())),
+  m_orig_data_ptr(const_cast<void*>(node->data_ptr())),
   m_dtype(node->dtype()), 
   m_node_ptr(const_cast<Node*>(node)),
   m_other_ptr(nullptr),
@@ -613,6 +620,10 @@ DataAccessor<T>::assume()
         m_node_ptr->reset();
         m_node_ptr->schema_ptr()->set(dtype());
         m_node_ptr->set_data_ptr(m_data);
+
+        // the assumed data is now the accessor's new original backing storage
+        m_orig_data_ptr = m_data;
+        m_dtype = other_dtype();
 
         // we no longer own the data since we have given it to node
         m_other_ptr = nullptr;
