@@ -389,16 +389,6 @@ TEST(conduit_execution, strawman)
     conduit_device_prepare();
 
     //-----------------------------------------------------------------------------
-    auto verify_doubled_values = [](float64_accessor &acc)
-    {
-        EXPECT_EQ(acc.number_of_elements(), 4);
-        EXPECT_EQ(acc[0], 2.0);
-        EXPECT_EQ(acc[1], 4.0);
-        EXPECT_EQ(acc[2], 6.0);
-        EXPECT_EQ(acc[3], 8.0);
-    };
-
-    //-----------------------------------------------------------------------------
     // run wherever the source data is
     //-----------------------------------------------------------------------------
     {
@@ -428,7 +418,11 @@ TEST(conduit_execution, strawman)
         acc_des.sync();
 
         float64_accessor verify(node["des"]);
-        verify_doubled_values(verify);
+        EXPECT_EQ(verify.number_of_elements(), 4);
+        EXPECT_EQ(verify[0], 2.0);
+        EXPECT_EQ(verify[1], 4.0);
+        EXPECT_EQ(verify[2], 6.0);
+        EXPECT_EQ(verify[3], 8.0);
     }
 
     //-----------------------------------------------------------------------------
@@ -461,7 +455,11 @@ TEST(conduit_execution, strawman)
         acc_des.sync();
 
         float64_accessor verify(node["des"]);
-        verify_doubled_values(verify);
+        EXPECT_EQ(verify.number_of_elements(), 4);
+        EXPECT_EQ(verify[0], 2.0);
+        EXPECT_EQ(verify[1], 4.0);
+        EXPECT_EQ(verify[2], 6.0);
+        EXPECT_EQ(verify[3], 8.0);
     }
 
     //-----------------------------------------------------------------------------
@@ -496,6 +494,10 @@ TEST(conduit_execution, strawman)
 
         float64_accessor verify(node["des"]);
         verify.use_with(ExecutionPolicy::host());
-        verify_doubled_values(verify);
+        EXPECT_EQ(verify.number_of_elements(), 4);
+        EXPECT_EQ(verify[0], 2.0);
+        EXPECT_EQ(verify[1], 4.0);
+        EXPECT_EQ(verify[2], 6.0);
+        EXPECT_EQ(verify[3], 8.0);
     }
 }
