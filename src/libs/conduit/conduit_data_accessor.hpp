@@ -68,6 +68,11 @@ public:
 //-----------------------------------------------------------------------------
         /// Default constructor
         DataAccessor();
+        ///
+        /// This copy constructor must remain inline in the header because a
+        /// DataAccessor is commonly captured by value into device lambdas.
+        /// Device compilation needs to see the copy operation.
+        ///
         /// Copy constructor
         CONDUIT_EXEC_HOST_DEVICE DataAccessor(const DataAccessor<T> &accessor)
         : m_data(accessor.m_data),
@@ -92,6 +97,11 @@ public:
         DataAccessor(Node *node);
         /// Access a const pointer to node data according to node dtype description.
         DataAccessor(const Node *node);
+        ///
+        /// This destructor must remain inline in the header because accessors
+        /// may be materialized during device compilation. The device path is a
+        /// no-op while the host path preserves ownership cleanup.
+        ///
         /// Destructor.
         CONDUIT_EXEC_HOST_DEVICE ~DataAccessor()
         {
@@ -121,6 +131,11 @@ public:
     /// counts number of occurrences of given value
     index_t         count(T value) const;
 
+    ///
+    /// This assignment operator must remain inline in the header because
+    /// accessors may be copied and assigned while preparing captures for
+    /// device lambdas.
+    ///
     /// Assignment operator
     CONDUIT_EXEC_HOST_DEVICE DataAccessor<T> &operator=(const DataAccessor<T> &accessor)
     {
@@ -142,6 +157,12 @@ public:
 //-----------------------------------------------------------------------------
 // Data and Info Access
 //-----------------------------------------------------------------------------
+    ///
+    /// These inline methods form the minimal device-usable slice of
+    /// DataAccessor. Kernels use them to read values, write values, and walk
+    /// array layout, so device compilation must see the definitions here in
+    /// the header.
+    ///
     CONDUIT_EXEC_HOST_DEVICE T operator[](index_t idx) const
                     {return element(idx);}
 
@@ -269,6 +290,11 @@ public:
     CONDUIT_EXEC_HOST_DEVICE index_t number_of_elements() const
                         {return dtype().number_of_elements();}
 
+    ///
+    /// dtype metadata is cached in the accessor so device code can choose
+    /// between the original and migrated layout without dereferencing Node.
+    /// This logic must stay inline in the header for device compilation.
+    ///
     CONDUIT_EXEC_HOST_DEVICE const DataType &dtype() const
     {
         if (nullptr != m_node_ptr)
@@ -283,6 +309,10 @@ public:
         }
     }
 
+    ///
+    /// These accessors are part of the cached dtype metadata used by device
+    /// code, so they must remain inline in the header alongside dtype().
+    ///
     CONDUIT_EXEC_HOST_DEVICE const DataType &orig_dtype() const
                     { return m_dtype; }
 

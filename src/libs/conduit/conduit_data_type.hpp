@@ -324,6 +324,11 @@ public:
 // Construction and Destruction
 //-----------------------------------------------------------------------------
 
+    ///
+    /// These simple constructors and assignment operators must remain inline
+    /// in the header because DataAccessor carries DataType metadata into
+    /// device lambdas by value.
+    ///
     /// standard constructor
     CONDUIT_EXEC_HOST_DEVICE DataType()
     : m_id(DataType::EMPTY_ID),
@@ -423,6 +428,11 @@ public:
 //-----------------------------------------------------------------------------
 // Getters and info methods.
 //-----------------------------------------------------------------------------
+    ///
+    /// These metadata accessors must remain inline in the header because the
+    /// device-usable slice of DataAccessor queries them while executing inside
+    /// device lambdas.
+    ///
     CONDUIT_EXEC_HOST_DEVICE conduit::index_t id() const { return m_id;}
     std::string name()  const { return id_to_name(m_id);}
 
@@ -436,6 +446,11 @@ public:
                     { return m_ele_bytes; }
     CONDUIT_EXEC_HOST_DEVICE conduit::index_t endianness() const
                     { return m_endianness; }
+    ///
+    /// element_index() is part of the address calculation path used from
+    /// device lambdas, so it must remain inline in the header. The warning is
+    /// kept host-only because device code cannot emit Conduit diagnostics.
+    ///
     CONDUIT_EXEC_HOST_DEVICE conduit::index_t element_index(conduit::index_t idx) const
                     {
 #if !defined(CONDUIT_EXEC_DEVICE_COMPILE)
