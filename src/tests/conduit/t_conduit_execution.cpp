@@ -396,9 +396,7 @@ strawman_make_device_buffer(const float64 *host_vals, index_t num_vals)
 //-----------------------------------------------------------------------------
 void
 strawman_run_policy_and_sync(Node &node,
-                             ExecutionPolicy policy,
-                             const bool expect_src_device_backed_result,
-                             const bool expect_des_device_backed_result)
+                             ExecutionPolicy policy)
 {
     // DataAccessors wrap node leaf data.
     float64_accessor acc_src(node["src"]);
@@ -425,31 +423,12 @@ strawman_run_policy_and_sync(Node &node,
     // space as the requested execution policy.
     acc_des.sync();
 
-    if (expect_src_device_backed_result)
-    {
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-    }
-    else
-    {
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-    }
-
-    if (expect_des_device_backed_result)
-    {
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-    }
-    else
-    {
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-    }
 }
 
 //-----------------------------------------------------------------------------
 void
 strawman_run_policy_and_assume(Node &node,
-                               ExecutionPolicy policy,
-                               const bool expect_src_device_backed_result,
-                               const bool expect_des_device_backed_result)
+                               ExecutionPolicy policy)
 {
     // DataAccessors wrap node leaf data.
     float64_accessor acc_src(node["src"]);
@@ -475,31 +454,12 @@ strawman_run_policy_and_assume(Node &node,
     // space. This is a no op if node["des"] was already in that space.
     acc_des.assume();
 
-    if (expect_src_device_backed_result)
-    {
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-    }
-    else
-    {
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-    }
-
-    if (expect_des_device_backed_result)
-    {
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-    }
-    else
-    {
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-    }
 }
 
 //-----------------------------------------------------------------------------
 void
 strawman_run_where_src_is(Node &node,
-                          const bool expect_device_policy,
-                          const bool expect_src_device_backed_result,
-                          const bool expect_des_device_backed_result)
+                          const bool expect_device_policy)
 {
     // DataAccessors wrap node leaf data.
     float64_accessor acc_src(node["src"]);
@@ -536,23 +496,6 @@ strawman_run_where_src_is(Node &node,
     // space as node["src"].
     acc_des.sync();
 
-    if (expect_src_device_backed_result)
-    {
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-    }
-    else
-    {
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-    }
-
-    if (expect_des_device_backed_result)
-    {
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-    }
-    else
-    {
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-    }
 }
 
 //-----------------------------------------------------------------------------
@@ -572,7 +515,9 @@ TEST(conduit_execution, strawman_src_host_des_host)
         Node node;
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
-        strawman_run_policy_and_sync(node, ExecutionPolicy::host(), false, false);
+        strawman_run_policy_and_sync(node, ExecutionPolicy::host());
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -594,7 +539,9 @@ TEST(conduit_execution, strawman_src_host_des_host)
         Node node;
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
-        strawman_run_policy_and_sync(node, ExecutionPolicy::device(), false, false);
+        strawman_run_policy_and_sync(node, ExecutionPolicy::device());
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -615,7 +562,9 @@ TEST(conduit_execution, strawman_src_host_des_host)
         Node node;
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
-        strawman_run_policy_and_assume(node, ExecutionPolicy::host(), false, false);
+        strawman_run_policy_and_assume(node, ExecutionPolicy::host());
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -637,7 +586,9 @@ TEST(conduit_execution, strawman_src_host_des_host)
         Node node;
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
-        strawman_run_policy_and_assume(node, ExecutionPolicy::device(), false, true);
+        strawman_run_policy_and_assume(node, ExecutionPolicy::device());
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -658,7 +609,9 @@ TEST(conduit_execution, strawman_src_host_des_host)
         Node node;
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
-        strawman_run_where_src_is(node, false, false, false);
+        strawman_run_where_src_is(node, false);
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -694,7 +647,9 @@ TEST(conduit_execution, strawman_src_device_des_device)
         des_device_ptr = strawman_make_device_buffer(des_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
-        strawman_run_policy_and_sync(node, ExecutionPolicy::host(), true, true);
+        strawman_run_policy_and_sync(node, ExecutionPolicy::host());
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -719,7 +674,9 @@ TEST(conduit_execution, strawman_src_device_des_device)
         des_device_ptr = strawman_make_device_buffer(des_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
-        strawman_run_policy_and_sync(node, ExecutionPolicy::device(), true, true);
+        strawman_run_policy_and_sync(node, ExecutionPolicy::device());
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -744,7 +701,9 @@ TEST(conduit_execution, strawman_src_device_des_device)
         des_device_ptr = strawman_make_device_buffer(des_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
-        strawman_run_policy_and_assume(node, ExecutionPolicy::host(), true, false);
+        strawman_run_policy_and_assume(node, ExecutionPolicy::host());
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -769,7 +728,9 @@ TEST(conduit_execution, strawman_src_device_des_device)
         des_device_ptr = strawman_make_device_buffer(des_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
-        strawman_run_policy_and_assume(node, ExecutionPolicy::device(), true, true);
+        strawman_run_policy_and_assume(node, ExecutionPolicy::device());
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -793,7 +754,9 @@ TEST(conduit_execution, strawman_src_device_des_device)
         des_device_ptr = strawman_make_device_buffer(des_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
-        strawman_run_where_src_is(node, true, true, true);
+        strawman_run_where_src_is(node, true);
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -830,7 +793,9 @@ TEST(conduit_execution, strawman_src_host_des_device)
         des_device_ptr = strawman_make_device_buffer(des_vals, 4);
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
-        strawman_run_policy_and_sync(node, ExecutionPolicy::host(), false, true);
+        strawman_run_policy_and_sync(node, ExecutionPolicy::host());
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -853,7 +818,9 @@ TEST(conduit_execution, strawman_src_host_des_device)
         des_device_ptr = strawman_make_device_buffer(des_vals, 4);
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
-        strawman_run_policy_and_sync(node, ExecutionPolicy::device(), false, true);
+        strawman_run_policy_and_sync(node, ExecutionPolicy::device());
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -876,7 +843,9 @@ TEST(conduit_execution, strawman_src_host_des_device)
         des_device_ptr = strawman_make_device_buffer(des_vals, 4);
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
-        strawman_run_policy_and_assume(node, ExecutionPolicy::host(), false, false);
+        strawman_run_policy_and_assume(node, ExecutionPolicy::host());
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -899,7 +868,9 @@ TEST(conduit_execution, strawman_src_host_des_device)
         des_device_ptr = strawman_make_device_buffer(des_vals, 4);
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
-        strawman_run_policy_and_assume(node, ExecutionPolicy::device(), false, true);
+        strawman_run_policy_and_assume(node, ExecutionPolicy::device());
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -921,7 +892,9 @@ TEST(conduit_execution, strawman_src_host_des_device)
         des_device_ptr = strawman_make_device_buffer(des_vals, 4);
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
-        strawman_run_where_src_is(node, false, false, true);
+        strawman_run_where_src_is(node, false);
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -957,7 +930,9 @@ TEST(conduit_execution, strawman_src_device_des_host)
         src_device_ptr = strawman_make_device_buffer(src_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
-        strawman_run_policy_and_sync(node, ExecutionPolicy::host(), true, false);
+        strawman_run_policy_and_sync(node, ExecutionPolicy::host());
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -980,7 +955,9 @@ TEST(conduit_execution, strawman_src_device_des_host)
         src_device_ptr = strawman_make_device_buffer(src_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
-        strawman_run_policy_and_sync(node, ExecutionPolicy::device(), true, false);
+        strawman_run_policy_and_sync(node, ExecutionPolicy::device());
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -1003,7 +980,9 @@ TEST(conduit_execution, strawman_src_device_des_host)
         src_device_ptr = strawman_make_device_buffer(src_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
-        strawman_run_policy_and_assume(node, ExecutionPolicy::host(), true, false);
+        strawman_run_policy_and_assume(node, ExecutionPolicy::host());
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -1026,7 +1005,9 @@ TEST(conduit_execution, strawman_src_device_des_host)
         src_device_ptr = strawman_make_device_buffer(src_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
-        strawman_run_policy_and_assume(node, ExecutionPolicy::device(), true, true);
+        strawman_run_policy_and_assume(node, ExecutionPolicy::device());
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
@@ -1049,7 +1030,9 @@ TEST(conduit_execution, strawman_src_device_des_host)
         src_device_ptr = strawman_make_device_buffer(src_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
-        strawman_run_where_src_is(node, true, true, false);
+        strawman_run_where_src_is(node, true);
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
