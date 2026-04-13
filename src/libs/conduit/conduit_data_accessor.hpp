@@ -95,7 +95,7 @@ public:
         /// Destructor.
         CONDUIT_EXEC_HOST_DEVICE ~DataAccessor()
         {
-#if !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__)
+#if !defined(CONDUIT_EXEC_DEVICE_COMPILE)
             if (m_do_i_own_it)
             {
                 if (execution::DeviceMemory::is_device_ptr(m_other_ptr))
@@ -171,7 +171,7 @@ public:
                 return (T)(*(float64*)(element_ptr(idx)));
             default:
             {
-#if !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__)
+#if !defined(CONDUIT_EXEC_DEVICE_COMPILE)
                 CONDUIT_ERROR("DataAccessor does not support dtype: "
                               << dtype().name());
 #endif
@@ -242,7 +242,7 @@ public:
             }
             default:
             {
-#if !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__)
+#if !defined(CONDUIT_EXEC_DEVICE_COMPILE)
                 CONDUIT_ERROR("DataAccessor does not support dtype: "
                               << dtype().name());
 #endif

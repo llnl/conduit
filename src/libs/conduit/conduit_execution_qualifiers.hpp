@@ -23,4 +23,11 @@
 #define CONDUIT_EXEC_HOST_DEVICE
 #endif
 
+//-----------------------------------------------------------------------------
+// -- device compilation helper --
+//-----------------------------------------------------------------------------
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+#define CONDUIT_EXEC_DEVICE_COMPILE
+#endif
+
 #endif

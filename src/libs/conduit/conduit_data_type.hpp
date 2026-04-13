@@ -438,7 +438,7 @@ public:
                     { return m_endianness; }
     CONDUIT_EXEC_HOST_DEVICE conduit::index_t element_index(conduit::index_t idx) const
                     {
-#if !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__)
+#if !defined(CONDUIT_EXEC_DEVICE_COMPILE)
                         if(idx > 0 && m_stride == 0)
                         {
                             CONDUIT_WARN("Node index calculation with with stride = 0");
