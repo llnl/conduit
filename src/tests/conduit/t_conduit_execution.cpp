@@ -394,9 +394,6 @@ TEST(conduit_execution, strawman)
         float64 src_vals[4] = {1.0, 2.0, 3.0, 4.0};
         float64 des_vals[4] = {0.0, 0.0, 0.0, 0.0};
 
-        src_device_ptr = nullptr;
-        des_device_ptr = nullptr;
-
         if (start_on_device)
         {
             src_device_ptr = static_cast<float64*>(
