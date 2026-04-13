@@ -386,7 +386,6 @@ TEST(conduit_execution, strawman)
 {
     conduit_device_prepare();
 
-    //-----------------------------------------------------------------------------
     auto setup_node = [](Node &node,
                          const bool start_on_device,
                          float64 *&src_device_ptr,
@@ -422,22 +421,6 @@ TEST(conduit_execution, strawman)
         }
     };
 
-    //-----------------------------------------------------------------------------
-    auto cleanup_external_device_data = [](float64 *src_device_ptr,
-                                           float64 *des_device_ptr)
-    {
-        if (nullptr != src_device_ptr)
-        {
-            execution::DeviceMemory::deallocate(src_device_ptr);
-        }
-
-        if (nullptr != des_device_ptr)
-        {
-            execution::DeviceMemory::deallocate(des_device_ptr);
-        }
-    };
-
-    //-----------------------------------------------------------------------------
     auto run_policy_and_sync = [&](ExecutionPolicy policy,
                                    const bool start_on_device)
     {
@@ -493,15 +476,19 @@ TEST(conduit_execution, strawman)
             EXPECT_EQ(result_acc[3], 8.0);
         }
 
-        cleanup_external_device_data(src_device_ptr, des_device_ptr);
+        if (start_on_device)
+        {
+            execution::DeviceMemory::deallocate(src_device_ptr);
+            execution::DeviceMemory::deallocate(des_device_ptr);
+        }
     };
 
-    //-----------------------------------------------------------------------------
     auto run_policy_and_assume = [&](ExecutionPolicy policy,
                                      const bool start_on_device)
     {
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
+        float64 *owned_des_ptr = nullptr;
 
         {
             Node node;
@@ -547,12 +534,21 @@ TEST(conduit_execution, strawman)
             EXPECT_EQ(result_acc[1], 4.0);
             EXPECT_EQ(result_acc[2], 6.0);
             EXPECT_EQ(result_acc[3], 8.0);
+
+            owned_des_ptr = static_cast<float64*>(node["des"].data_ptr());
         }
 
-        cleanup_external_device_data(src_device_ptr, des_device_ptr);
+        if (start_on_device)
+        {
+            execution::DeviceMemory::deallocate(src_device_ptr);
+
+            if (des_device_ptr != owned_des_ptr)
+            {
+                execution::DeviceMemory::deallocate(des_device_ptr);
+            }
+        }
     };
 
-    //-----------------------------------------------------------------------------
     auto run_where_src_is = [&](const bool start_on_device)
     {
         float64 *src_device_ptr = nullptr;
@@ -617,7 +613,11 @@ TEST(conduit_execution, strawman)
             EXPECT_EQ(result_acc[3], 8.0);
         }
 
-        cleanup_external_device_data(src_device_ptr, des_device_ptr);
+        if (start_on_device)
+        {
+            execution::DeviceMemory::deallocate(src_device_ptr);
+            execution::DeviceMemory::deallocate(des_device_ptr);
+        }
     };
 
     //-----------------------------------------------------------------------------
