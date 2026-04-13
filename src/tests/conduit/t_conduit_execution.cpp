@@ -556,21 +556,6 @@ strawman_run_where_src_is(Node &node,
 }
 
 //-----------------------------------------------------------------------------
-void
-strawman_expect_doubled_des(Node &node)
-{
-    float64_accessor result_acc(node["des"]);
-    // Verification runs on the host, so use a host execution policy
-    // in case node["des"] still owns device-backed data here.
-    result_acc.use_with(ExecutionPolicy::host());
-    EXPECT_EQ(result_acc.number_of_elements(), 4);
-    EXPECT_EQ(result_acc[0], 2.0);
-    EXPECT_EQ(result_acc[1], 4.0);
-    EXPECT_EQ(result_acc[2], 6.0);
-    EXPECT_EQ(result_acc[3], 8.0);
-}
-
-//-----------------------------------------------------------------------------
 TEST(conduit_execution, strawman_src_host_des_host)
 {
     conduit_device_prepare();
@@ -588,7 +573,13 @@ TEST(conduit_execution, strawman_src_host_des_host)
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::host(), false, false);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
     }
 
@@ -604,7 +595,13 @@ TEST(conduit_execution, strawman_src_host_des_host)
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::device(), false, false);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
     }
 
@@ -619,7 +616,13 @@ TEST(conduit_execution, strawman_src_host_des_host)
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::host(), false, false);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
     }
 
@@ -635,7 +638,13 @@ TEST(conduit_execution, strawman_src_host_des_host)
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::device(), false, true);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
     }
 
@@ -650,7 +659,13 @@ TEST(conduit_execution, strawman_src_host_des_host)
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
         strawman_run_where_src_is(node, false, false, false);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
     }
 }
@@ -680,7 +695,13 @@ TEST(conduit_execution, strawman_src_device_des_device)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::host(), true, true);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -699,7 +720,13 @@ TEST(conduit_execution, strawman_src_device_des_device)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::device(), true, true);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -718,7 +745,13 @@ TEST(conduit_execution, strawman_src_device_des_device)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::host(), true, false);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -737,7 +770,13 @@ TEST(conduit_execution, strawman_src_device_des_device)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::device(), true, true);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
     }
@@ -755,7 +794,13 @@ TEST(conduit_execution, strawman_src_device_des_device)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_where_src_is(node, true, true, true);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -786,7 +831,13 @@ TEST(conduit_execution, strawman_src_host_des_device)
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::host(), false, true);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
     }
@@ -803,7 +854,13 @@ TEST(conduit_execution, strawman_src_host_des_device)
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::device(), false, true);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
     }
@@ -820,7 +877,13 @@ TEST(conduit_execution, strawman_src_host_des_device)
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::host(), false, false);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
     }
@@ -837,7 +900,13 @@ TEST(conduit_execution, strawman_src_host_des_device)
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::device(), false, true);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
     }
 
@@ -853,7 +922,13 @@ TEST(conduit_execution, strawman_src_host_des_device)
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_where_src_is(node, false, false, true);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
     }
@@ -883,7 +958,13 @@ TEST(conduit_execution, strawman_src_device_des_host)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::host(), true, false);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
     }
@@ -900,7 +981,13 @@ TEST(conduit_execution, strawman_src_device_des_host)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::device(), true, false);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
     }
@@ -917,7 +1004,13 @@ TEST(conduit_execution, strawman_src_device_des_host)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::host(), true, false);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
     }
@@ -934,7 +1027,13 @@ TEST(conduit_execution, strawman_src_device_des_host)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::device(), true, true);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
     }
@@ -951,7 +1050,13 @@ TEST(conduit_execution, strawman_src_device_des_host)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
         strawman_run_where_src_is(node, true, true, false);
-        strawman_expect_doubled_des(node);
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        EXPECT_EQ(result_acc.number_of_elements(), 4);
+        EXPECT_EQ(result_acc[0], 2.0);
+        EXPECT_EQ(result_acc[1], 4.0);
+        EXPECT_EQ(result_acc[2], 6.0);
+        EXPECT_EQ(result_acc[3], 8.0);
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
     }
