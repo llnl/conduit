@@ -310,7 +310,7 @@ public:
     }
 
     ///
-    /// These accessors are part of the cached dtype metadata used by device
+    /// These methods are part of the cached dtype metadata used by device
     /// code, so they must remain inline in the header alongside dtype().
     ///
     CONDUIT_EXEC_HOST_DEVICE const DataType &orig_dtype() const
