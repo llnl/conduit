@@ -522,6 +522,8 @@ TEST(conduit_execution, strawman_src_host_des_host)
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -547,6 +549,8 @@ TEST(conduit_execution, strawman_src_host_des_host)
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -571,6 +575,8 @@ TEST(conduit_execution, strawman_src_host_des_host)
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -596,6 +602,8 @@ TEST(conduit_execution, strawman_src_host_des_host)
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -620,6 +628,8 @@ TEST(conduit_execution, strawman_src_host_des_host)
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -663,6 +673,8 @@ TEST(conduit_execution, strawman_src_device_des_device)
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -691,6 +703,8 @@ TEST(conduit_execution, strawman_src_device_des_device)
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -719,6 +733,8 @@ TEST(conduit_execution, strawman_src_device_des_device)
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -747,6 +763,8 @@ TEST(conduit_execution, strawman_src_device_des_device)
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -774,6 +792,8 @@ TEST(conduit_execution, strawman_src_device_des_device)
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -818,6 +838,8 @@ TEST(conduit_execution, strawman_src_host_des_device)
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -844,6 +866,8 @@ TEST(conduit_execution, strawman_src_host_des_device)
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -870,6 +894,8 @@ TEST(conduit_execution, strawman_src_host_des_device)
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -896,6 +922,8 @@ TEST(conduit_execution, strawman_src_host_des_device)
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -921,6 +949,8 @@ TEST(conduit_execution, strawman_src_host_des_device)
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -964,6 +994,8 @@ TEST(conduit_execution, strawman_src_device_des_host)
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -990,6 +1022,8 @@ TEST(conduit_execution, strawman_src_device_des_host)
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -1016,6 +1050,8 @@ TEST(conduit_execution, strawman_src_device_des_host)
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -1042,6 +1078,8 @@ TEST(conduit_execution, strawman_src_device_des_host)
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
@@ -1068,6 +1106,8 @@ TEST(conduit_execution, strawman_src_device_des_host)
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
         float64_accessor result_acc(node["des"]);
+        // Verification runs on the host, so use a host execution policy
+        // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
         EXPECT_EQ(result_acc.number_of_elements(), 4);
         EXPECT_EQ(result_acc[0], 2.0);
