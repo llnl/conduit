@@ -382,315 +382,731 @@ TEST(conduit_execution, for_all_and_dispatch)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_execution, strawman)
+enum StrawmanStartSpace
 {
-    conduit_device_prepare();
+    STRAWMAN_START_ON_HOST,
+    STRAWMAN_START_ON_DEVICE
+};
 
-    auto setup_host_backed_node = [](Node &node)
+//-----------------------------------------------------------------------------
+void
+strawman_setup_node(Node &node,
+                    StrawmanStartSpace src_start_space,
+                    StrawmanStartSpace des_start_space,
+                    float64 *&src_device_ptr,
+                    float64 *&des_device_ptr)
+{
+    float64 src_vals[4] = {1.0, 2.0, 3.0, 4.0};
+    float64 des_vals[4] = {0.0, 0.0, 0.0, 0.0};
+
+    if (src_start_space == STRAWMAN_START_ON_DEVICE)
     {
-        float64 src_vals[4] = {1.0, 2.0, 3.0, 4.0};
-        float64 des_vals[4] = {0.0, 0.0, 0.0, 0.0};
-
-        node["src"].set(src_vals, 4);
-        node["des"].set(des_vals, 4);
-    };
-
-    auto setup_device_backed_node = [](Node &node,
-                                       float64 *&src_device_ptr,
-                                       float64 *&des_device_ptr)
-    {
-        float64 src_vals[4] = {1.0, 2.0, 3.0, 4.0};
-        float64 des_vals[4] = {0.0, 0.0, 0.0, 0.0};
-
         src_device_ptr = static_cast<float64*>(
             execution::DeviceMemory::allocate(sizeof(float64) * 4));
-        des_device_ptr = static_cast<float64*>(
-            execution::DeviceMemory::allocate(sizeof(float64) * 4));
-
         conduit::execution::MagicMemory::copy(src_device_ptr,
                                               &src_vals[0],
                                               sizeof(float64) * 4);
+        node["src"].set_external(src_device_ptr, 4);
+    }
+    else
+    {
+        node["src"].set(src_vals, 4);
+    }
+
+    if (des_start_space == STRAWMAN_START_ON_DEVICE)
+    {
+        des_device_ptr = static_cast<float64*>(
+            execution::DeviceMemory::allocate(sizeof(float64) * 4));
         conduit::execution::MagicMemory::copy(des_device_ptr,
                                               &des_vals[0],
                                               sizeof(float64) * 4);
-
-        node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
-    };
-
-    auto run_policy_and_sync = [&](ExecutionPolicy policy,
-                                   const bool start_on_device)
+    }
+    else
     {
-        float64 *src_device_ptr = nullptr;
-        float64 *des_device_ptr = nullptr;
-        Node node;
+        node["des"].set(des_vals, 4);
+    }
+}
 
-        if (start_on_device)
+//-----------------------------------------------------------------------------
+void
+strawman_cleanup_node(Node &node,
+                      StrawmanStartSpace src_start_space,
+                      StrawmanStartSpace des_start_space,
+                      float64 *src_device_ptr,
+                      float64 *des_device_ptr)
+{
+    node.reset();
+
+    if (src_start_space == STRAWMAN_START_ON_DEVICE)
+    {
+        execution::DeviceMemory::deallocate(src_device_ptr);
+    }
+
+    if (des_start_space == STRAWMAN_START_ON_DEVICE)
+    {
+        execution::DeviceMemory::deallocate(des_device_ptr);
+    }
+}
+
+//-----------------------------------------------------------------------------
+void
+strawman_run_policy_and_sync(Node &node,
+                             ExecutionPolicy policy,
+                             const bool expect_src_device_backed_result,
+                             const bool expect_des_device_backed_result)
+{
+    {
+        // DataAccessors wrap node leaf data.
+        float64_accessor acc_src(node["src"]);
+        float64_accessor acc_des(node["des"]);
+
+        // Ask the accessors to move their data to the memory space occupied
+        // by the requested execution policy if their data is not already
+        // there.
+        acc_src.use_with(policy);
+        acc_des.use_with(policy);
+
+        // Our forall will execute in the memory space selected by the
+        // requested ExecutionPolicy.
+        index_t size = acc_src.number_of_elements();
+        conduit::execution::forall(policy, 0, size, [acc_src, acc_des] EXEC_LAMBDA(index_t idx)
         {
-            setup_device_backed_node(node, src_device_ptr, des_device_ptr);
+            const float64 val = 2.0 * acc_src[idx];
+            acc_des.set(idx, val);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        // Sync values to node["des"].
+        // This is a no op if node["des"] was originally in the same memory
+        // space as the requested execution policy.
+        acc_des.sync();
+
+        if (expect_src_device_backed_result)
+        {
+            EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         }
         else
         {
-            setup_host_backed_node(node);
+            EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         }
 
+        if (expect_des_device_backed_result)
         {
-            // DataAccessors wrap node leaf data.
-            float64_accessor acc_src(node["src"]);
-            float64_accessor acc_des(node["des"]);
-
-            // Ask the accessors to move their data to the memory space occupied
-            // by the requested execution policy if their data is not already
-            // there.
-            acc_src.use_with(policy);
-            acc_des.use_with(policy);
-
-            // Our forall will execute in the memory space selected by the
-            // requested ExecutionPolicy.
-            index_t size = acc_src.number_of_elements();
-            conduit::execution::forall(policy, 0, size, [acc_src, acc_des] EXEC_LAMBDA(index_t idx)
-            {
-                const float64 val = 2.0 * acc_src[idx];
-                acc_des.set(idx, val);
-            });
-            CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-            // Sync values to node["des"].
-            // This is a no op if node["des"] was originally in the same memory
-            // space as the requested execution policy.
-            acc_des.sync();
-
-            if (start_on_device)
-            {
-                EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-                EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-            }
-            else
-            {
-                EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-                EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-            }
-        }
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        EXPECT_EQ(result_acc.number_of_elements(), 4);
-        EXPECT_EQ(result_acc[0], 2.0);
-        EXPECT_EQ(result_acc[1], 4.0);
-        EXPECT_EQ(result_acc[2], 6.0);
-        EXPECT_EQ(result_acc[3], 8.0);
-
-        if (start_on_device)
-        {
-            execution::DeviceMemory::deallocate(src_device_ptr);
-            execution::DeviceMemory::deallocate(des_device_ptr);
-        }
-    };
-
-    auto run_policy_and_assume = [&](ExecutionPolicy policy,
-                                     const bool start_on_device)
-    {
-        float64 *src_device_ptr = nullptr;
-        float64 *des_device_ptr = nullptr;
-        Node node;
-
-        if (start_on_device)
-        {
-            setup_device_backed_node(node, src_device_ptr, des_device_ptr);
+            EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         }
         else
         {
-            setup_host_backed_node(node);
+            EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         }
+    }
 
-        {
-            // DataAccessors wrap node leaf data.
-            float64_accessor acc_src(node["src"]);
-            float64_accessor acc_des(node["des"]);
+    float64_accessor result_acc(node["des"]);
+    // Verification runs on the host, so use a host execution policy
+    // in case node["des"] still owns device-backed data here.
+    result_acc.use_with(ExecutionPolicy::host());
+    EXPECT_EQ(result_acc.number_of_elements(), 4);
+    EXPECT_EQ(result_acc[0], 2.0);
+    EXPECT_EQ(result_acc[1], 4.0);
+    EXPECT_EQ(result_acc[2], 6.0);
+    EXPECT_EQ(result_acc[3], 8.0);
+}
 
-            // Ask the accessors to move their data to the memory space occupied
-            // by the requested execution policy if their data is not already
-            // there.
-            acc_src.use_with(policy);
-            acc_des.use_with(policy);
-
-            // Our forall will execute in the memory space selected by the
-            // requested ExecutionPolicy.
-            index_t size = acc_src.number_of_elements();
-            conduit::execution::forall(policy, 0, size, [acc_src, acc_des] EXEC_LAMBDA(index_t idx)
-            {
-                const float64 val = 2.0 * acc_src[idx];
-                acc_des.set(idx, val);
-            });
-            CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-            // node["des"] takes ownership of the data in the active execution
-            // space. This is a no op if node["des"] was already in that space.
-            acc_des.assume();
-
-            if (policy.is_device_policy())
-            {
-                EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-            }
-            else
-            {
-                EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-            }
-        }
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        EXPECT_EQ(result_acc.number_of_elements(), 4);
-        EXPECT_EQ(result_acc[0], 2.0);
-        EXPECT_EQ(result_acc[1], 4.0);
-        EXPECT_EQ(result_acc[2], 6.0);
-        EXPECT_EQ(result_acc[3], 8.0);
-
-        if (start_on_device)
-        {
-            execution::DeviceMemory::deallocate(src_device_ptr);
-
-            // If we started on the device and ran on the host, assume()
-            // adopted a new host buffer for node["des"], so the original
-            // external device destination allocation still needs cleanup.
-            if (policy.is_host_policy())
-            {
-                execution::DeviceMemory::deallocate(des_device_ptr);
-            }
-        }
-    };
-
-    auto run_where_src_is = [&](const bool start_on_device)
+//-----------------------------------------------------------------------------
+void
+strawman_run_policy_and_assume(Node &node,
+                               ExecutionPolicy policy,
+                               const bool expect_src_device_backed_result,
+                               const bool expect_des_device_backed_result)
+{
     {
-        float64 *src_device_ptr = nullptr;
-        float64 *des_device_ptr = nullptr;
-        Node node;
+        // DataAccessors wrap node leaf data.
+        float64_accessor acc_src(node["src"]);
+        float64_accessor acc_des(node["des"]);
 
-        if (start_on_device)
+        // Ask the accessors to move their data to the memory space occupied
+        // by the requested execution policy if their data is not already
+        // there.
+        acc_src.use_with(policy);
+        acc_des.use_with(policy);
+
+        // Our forall will execute in the memory space selected by the
+        // requested ExecutionPolicy.
+        index_t size = acc_src.number_of_elements();
+        conduit::execution::forall(policy, 0, size, [acc_src, acc_des] EXEC_LAMBDA(index_t idx)
         {
-            setup_device_backed_node(node, src_device_ptr, des_device_ptr);
+            const float64 val = 2.0 * acc_src[idx];
+            acc_des.set(idx, val);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        // node["des"] takes ownership of the data in the active execution
+        // space. This is a no op if node["des"] was already in that space.
+        acc_des.assume();
+
+        if (expect_src_device_backed_result)
+        {
+            EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         }
         else
         {
-            setup_host_backed_node(node);
+            EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         }
 
+        if (expect_des_device_backed_result)
         {
-            // DataAccessors wrap node leaf data.
-            float64_accessor acc_src(node["src"]);
-            float64_accessor acc_des(node["des"]);
-
-            // Use the location of the source data.
-            ExecutionPolicy policy = acc_src.active_space();
-            if (start_on_device)
-            {
-                EXPECT_TRUE(policy.is_device_policy());
-            }
-            else
-            {
-                EXPECT_TRUE(policy.is_host_policy());
-            }
-
-            // Ask the accessors to move their data to the memory space occupied
-            // by node["src"] if their data is not already there.
-            acc_src.use_with(policy);
-            acc_des.use_with(policy);
-
-            // Our forall will execute on the memory space occupied by node["src"]
-            // because it was passed an ExecutionPolicy for that space.
-            index_t size = acc_src.number_of_elements();
-            conduit::execution::forall(policy, 0, size, [acc_src, acc_des] EXEC_LAMBDA(index_t idx)
-            {
-                const float64 val = 2.0 * acc_src[idx];
-                acc_des.set(idx, val);
-            });
-            CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-            // Sync values to node["des"].
-            // This is a no op if node["des"] was originally in the same memory
-            // space as node["src"].
-            acc_des.sync();
-
-            if (start_on_device)
-            {
-                EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-                EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-            }
-            else
-            {
-                EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-                EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-            }
+            EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         }
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        EXPECT_EQ(result_acc.number_of_elements(), 4);
-        EXPECT_EQ(result_acc[0], 2.0);
-        EXPECT_EQ(result_acc[1], 4.0);
-        EXPECT_EQ(result_acc[2], 6.0);
-        EXPECT_EQ(result_acc[3], 8.0);
-
-        if (start_on_device)
+        else
         {
-            execution::DeviceMemory::deallocate(src_device_ptr);
-            execution::DeviceMemory::deallocate(des_device_ptr);
+            EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         }
-    };
+    }
 
-    //-----------------------------------------------------------------------------
-    // run on host
-    //-----------------------------------------------------------------------------
-    run_policy_and_sync(ExecutionPolicy::host(), false);
+    float64_accessor result_acc(node["des"]);
+    // Verification runs on the host, so use a host execution policy
+    // in case node["des"] still owns device-backed data here.
+    result_acc.use_with(ExecutionPolicy::host());
+    EXPECT_EQ(result_acc.number_of_elements(), 4);
+    EXPECT_EQ(result_acc[0], 2.0);
+    EXPECT_EQ(result_acc[1], 4.0);
+    EXPECT_EQ(result_acc[2], 6.0);
+    EXPECT_EQ(result_acc[3], 8.0);
+}
+
+//-----------------------------------------------------------------------------
+void
+strawman_run_where_src_is(Node &node,
+                          const bool expect_device_policy,
+                          const bool expect_src_device_backed_result,
+                          const bool expect_des_device_backed_result)
+{
+    {
+        // DataAccessors wrap node leaf data.
+        float64_accessor acc_src(node["src"]);
+        float64_accessor acc_des(node["des"]);
+
+        // Use the location of the source data.
+        ExecutionPolicy policy = acc_src.active_space();
+        if (expect_device_policy)
+        {
+            EXPECT_TRUE(policy.is_device_policy());
+        }
+        else
+        {
+            EXPECT_TRUE(policy.is_host_policy());
+        }
+
+        // Ask the accessors to move their data to the memory space occupied
+        // by node["src"] if their data is not already there.
+        acc_src.use_with(policy);
+        acc_des.use_with(policy);
+
+        // Our forall will execute on the memory space occupied by node["src"]
+        // because it was passed an ExecutionPolicy for that space.
+        index_t size = acc_src.number_of_elements();
+        conduit::execution::forall(policy, 0, size, [acc_src, acc_des] EXEC_LAMBDA(index_t idx)
+        {
+            const float64 val = 2.0 * acc_src[idx];
+            acc_des.set(idx, val);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        // Sync values to node["des"].
+        // This is a no op if node["des"] was originally in the same memory
+        // space as node["src"].
+        acc_des.sync();
+
+        if (expect_src_device_backed_result)
+        {
+            EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        }
+        else
+        {
+            EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        }
+
+        if (expect_des_device_backed_result)
+        {
+            EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        }
+        else
+        {
+            EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        }
+    }
+
+    float64_accessor result_acc(node["des"]);
+    // Verification runs on the host, so use a host execution policy
+    // in case node["des"] still owns device-backed data here.
+    result_acc.use_with(ExecutionPolicy::host());
+    EXPECT_EQ(result_acc.number_of_elements(), 4);
+    EXPECT_EQ(result_acc[0], 2.0);
+    EXPECT_EQ(result_acc[1], 4.0);
+    EXPECT_EQ(result_acc[2], 6.0);
+    EXPECT_EQ(result_acc[3], 8.0);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, strawman_src_host_des_host)
+{
+    conduit_device_prepare();
+
+    // Run with an explicit host execution policy.
+    // node["des"] is synced back to the memory space where it started.
+    {
+        std::cout << "sync policy=host src_start=host des_start=host" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_HOST,
+                            STRAWMAN_START_ON_HOST,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_policy_and_sync(node, ExecutionPolicy::host(), false, false);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_HOST,
+                              STRAWMAN_START_ON_HOST,
+                              src_device_ptr,
+                              des_device_ptr);
+    }
 
     if (ExecutionPolicy::is_device_enabled())
     {
-        run_policy_and_sync(ExecutionPolicy::host(), true);
+        // Run with an explicit device execution policy.
+        // node["des"] is synced back to the memory space where it started.
+        std::cout << "sync policy=device src_start=host des_start=host" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_HOST,
+                            STRAWMAN_START_ON_HOST,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_policy_and_sync(node, ExecutionPolicy::device(), false, false);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_HOST,
+                              STRAWMAN_START_ON_HOST,
+                              src_device_ptr,
+                              des_device_ptr);
     }
 
-    //-----------------------------------------------------------------------------
-    // run on device
-    //-----------------------------------------------------------------------------
+    // Run with an explicit host execution policy and call assume().
+    // node["des"] keeps the host-backed result buffer.
+    {
+        std::cout << "assume policy=host src_start=host des_start=host" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_HOST,
+                            STRAWMAN_START_ON_HOST,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_policy_and_assume(node, ExecutionPolicy::host(), false, false);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_HOST,
+                              STRAWMAN_START_ON_HOST,
+                              src_device_ptr,
+                              des_device_ptr);
+    }
+
     if (ExecutionPolicy::is_device_enabled())
     {
-        run_policy_and_sync(ExecutionPolicy::device(), false);
-        run_policy_and_sync(ExecutionPolicy::device(), true);
+        // Run with an explicit device execution policy and call assume().
+        // node["des"] keeps the device-backed result buffer.
+        std::cout << "assume policy=device src_start=host des_start=host" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_HOST,
+                            STRAWMAN_START_ON_HOST,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_policy_and_assume(node, ExecutionPolicy::device(), false, true);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_HOST,
+                              STRAWMAN_START_ON_HOST,
+                              src_device_ptr,
+                              des_device_ptr);
     }
 
-    //-----------------------------------------------------------------------------
-    // run on host and leave the result on the host
-    //-----------------------------------------------------------------------------
-    run_policy_and_assume(ExecutionPolicy::host(), false);
-
-    if (ExecutionPolicy::is_device_enabled())
+    // Use the location of node["src"] to choose where to execute.
+    // node["des"] is then synced back to the memory space where it started.
     {
-        run_policy_and_assume(ExecutionPolicy::host(), true);
-    }
+        std::cout << "active_space src_start=host des_start=host" << std::endl;
 
-    //-----------------------------------------------------------------------------
-    // run on device and leave the result on the device
-    //-----------------------------------------------------------------------------
-    if (ExecutionPolicy::is_device_enabled())
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_HOST,
+                            STRAWMAN_START_ON_HOST,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_where_src_is(node, false, false, false);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_HOST,
+                              STRAWMAN_START_ON_HOST,
+                              src_device_ptr,
+                              des_device_ptr);
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, strawman_src_device_des_device)
+{
+    conduit_device_prepare();
+
+    if (!ExecutionPolicy::is_device_enabled())
     {
-        run_policy_and_assume(ExecutionPolicy::device(), false);
-        run_policy_and_assume(ExecutionPolicy::device(), true);
+        return;
     }
 
-    //-----------------------------------------------------------------------------
-    // run wherever the source data is
-    //-----------------------------------------------------------------------------
-    run_where_src_is(false);
-
-    if (ExecutionPolicy::is_device_enabled())
+    // Run with an explicit host execution policy.
+    // node["des"] is synced back to the memory space where it started.
     {
-        run_where_src_is(true);
+        std::cout << "sync policy=host src_start=device des_start=device" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_DEVICE,
+                            STRAWMAN_START_ON_DEVICE,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_policy_and_sync(node, ExecutionPolicy::host(), true, true);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_DEVICE,
+                              STRAWMAN_START_ON_DEVICE,
+                              src_device_ptr,
+                              des_device_ptr);
     }
+
+    // Run with an explicit device execution policy.
+    // node["des"] is synced back to the memory space where it started.
+    {
+        std::cout << "sync policy=device src_start=device des_start=device" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_DEVICE,
+                            STRAWMAN_START_ON_DEVICE,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_policy_and_sync(node, ExecutionPolicy::device(), true, true);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_DEVICE,
+                              STRAWMAN_START_ON_DEVICE,
+                              src_device_ptr,
+                              des_device_ptr);
+    }
+
+    // Run with an explicit host execution policy and call assume().
+    // node["des"] keeps the host-backed result buffer.
+    {
+        std::cout << "assume policy=host src_start=device des_start=device" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_DEVICE,
+                            STRAWMAN_START_ON_DEVICE,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_policy_and_assume(node, ExecutionPolicy::host(), true, false);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_DEVICE,
+                              STRAWMAN_START_ON_DEVICE,
+                              src_device_ptr,
+                              des_device_ptr);
+    }
+
+    // Run with an explicit device execution policy and call assume().
+    // node["des"] keeps the device-backed result buffer.
+    {
+        std::cout << "assume policy=device src_start=device des_start=device" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_DEVICE,
+                            STRAWMAN_START_ON_DEVICE,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_policy_and_assume(node, ExecutionPolicy::device(), true, true);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_DEVICE,
+                              STRAWMAN_START_ON_DEVICE,
+                              src_device_ptr,
+                              des_device_ptr);
+    }
+
+    // Use the location of node["src"] to choose where to execute.
+    // node["des"] is then synced back to the memory space where it started.
+    {
+        std::cout << "active_space src_start=device des_start=device" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_DEVICE,
+                            STRAWMAN_START_ON_DEVICE,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_where_src_is(node, true, true, true);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_DEVICE,
+                              STRAWMAN_START_ON_DEVICE,
+                              src_device_ptr,
+                              des_device_ptr);
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, strawman_src_host_des_device)
+{
+    conduit_device_prepare();
+
+    if (!ExecutionPolicy::is_device_enabled())
+    {
+        return;
+    }
+
+    // Run with an explicit host execution policy.
+    // node["des"] is synced back to the memory space where it started.
+    {
+        std::cout << "sync policy=host src_start=host des_start=device" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_HOST,
+                            STRAWMAN_START_ON_DEVICE,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_policy_and_sync(node, ExecutionPolicy::host(), false, true);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_HOST,
+                              STRAWMAN_START_ON_DEVICE,
+                              src_device_ptr,
+                              des_device_ptr);
+    }
+
+    // Run with an explicit device execution policy.
+    // node["des"] is synced back to the memory space where it started.
+    {
+        std::cout << "sync policy=device src_start=host des_start=device" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_HOST,
+                            STRAWMAN_START_ON_DEVICE,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_policy_and_sync(node, ExecutionPolicy::device(), false, true);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_HOST,
+                              STRAWMAN_START_ON_DEVICE,
+                              src_device_ptr,
+                              des_device_ptr);
+    }
+
+    // Run with an explicit host execution policy and call assume().
+    // node["des"] keeps the host-backed result buffer.
+    {
+        std::cout << "assume policy=host src_start=host des_start=device" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_HOST,
+                            STRAWMAN_START_ON_DEVICE,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_policy_and_assume(node, ExecutionPolicy::host(), false, false);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_HOST,
+                              STRAWMAN_START_ON_DEVICE,
+                              src_device_ptr,
+                              des_device_ptr);
+    }
+
+    // Run with an explicit device execution policy and call assume().
+    // node["des"] keeps the device-backed result buffer.
+    {
+        std::cout << "assume policy=device src_start=host des_start=device" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_HOST,
+                            STRAWMAN_START_ON_DEVICE,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_policy_and_assume(node, ExecutionPolicy::device(), false, true);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_HOST,
+                              STRAWMAN_START_ON_DEVICE,
+                              src_device_ptr,
+                              des_device_ptr);
+    }
+
+    // Use the location of node["src"] to choose where to execute.
+    // node["des"] is then synced back to the memory space where it started.
+    {
+        std::cout << "active_space src_start=host des_start=device" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_HOST,
+                            STRAWMAN_START_ON_DEVICE,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_where_src_is(node, false, false, true);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_HOST,
+                              STRAWMAN_START_ON_DEVICE,
+                              src_device_ptr,
+                              des_device_ptr);
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, strawman_src_device_des_host)
+{
+    conduit_device_prepare();
+
+    if (!ExecutionPolicy::is_device_enabled())
+    {
+        return;
+    }
+
+    // Run with an explicit host execution policy.
+    // node["des"] is synced back to the memory space where it started.
+    {
+        std::cout << "sync policy=host src_start=device des_start=host" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_DEVICE,
+                            STRAWMAN_START_ON_HOST,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_policy_and_sync(node, ExecutionPolicy::host(), true, false);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_DEVICE,
+                              STRAWMAN_START_ON_HOST,
+                              src_device_ptr,
+                              des_device_ptr);
+    }
+
+    // Run with an explicit device execution policy.
+    // node["des"] is synced back to the memory space where it started.
+    {
+        std::cout << "sync policy=device src_start=device des_start=host" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_DEVICE,
+                            STRAWMAN_START_ON_HOST,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_policy_and_sync(node, ExecutionPolicy::device(), true, false);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_DEVICE,
+                              STRAWMAN_START_ON_HOST,
+                              src_device_ptr,
+                              des_device_ptr);
+    }
+
+    // Run with an explicit host execution policy and call assume().
+    // node["des"] keeps the host-backed result buffer.
+    {
+        std::cout << "assume policy=host src_start=device des_start=host" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_DEVICE,
+                            STRAWMAN_START_ON_HOST,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_policy_and_assume(node, ExecutionPolicy::host(), true, false);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_DEVICE,
+                              STRAWMAN_START_ON_HOST,
+                              src_device_ptr,
+                              des_device_ptr);
+    }
+
+    // Run with an explicit device execution policy and call assume().
+    // node["des"] keeps the device-backed result buffer.
+    {
+        std::cout << "assume policy=device src_start=device des_start=host" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_DEVICE,
+                            STRAWMAN_START_ON_HOST,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_policy_and_assume(node, ExecutionPolicy::device(), true, true);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_DEVICE,
+                              STRAWMAN_START_ON_HOST,
+                              src_device_ptr,
+                              des_device_ptr);
+    }
+
+    // Use the location of node["src"] to choose where to execute.
+    // node["des"] is then synced back to the memory space where it started.
+    {
+        std::cout << "active_space src_start=device des_start=host" << std::endl;
+
+        float64 *src_device_ptr = nullptr;
+        float64 *des_device_ptr = nullptr;
+        Node node;
+        strawman_setup_node(node,
+                            STRAWMAN_START_ON_DEVICE,
+                            STRAWMAN_START_ON_HOST,
+                            src_device_ptr,
+                            des_device_ptr);
+        strawman_run_where_src_is(node, true, true, false);
+        strawman_cleanup_node(node,
+                              STRAWMAN_START_ON_DEVICE,
+                              STRAWMAN_START_ON_HOST,
+                              src_device_ptr,
+                              des_device_ptr);
+    }
+}
 
     // // TODO are there other cases in the notes?
     // //------------------------------------------------------
@@ -902,4 +1318,3 @@ TEST(conduit_execution, strawman)
     //     //  same memory space as node["src"])
     //     acc_des.sync(node["des"]); 
     // }
-}
