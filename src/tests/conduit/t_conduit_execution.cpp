@@ -386,36 +386,36 @@ TEST(conduit_execution, strawman)
 {
     conduit_device_prepare();
 
-    auto setup_node = [](Node &node,
-                         const bool start_on_device,
-                         float64 *&src_device_ptr,
-                         float64 *&des_device_ptr)
+    auto setup_host_backed_node = [](Node &node)
     {
         float64 src_vals[4] = {1.0, 2.0, 3.0, 4.0};
         float64 des_vals[4] = {0.0, 0.0, 0.0, 0.0};
 
-        if (start_on_device)
-        {
-            src_device_ptr = static_cast<float64*>(
-                execution::DeviceMemory::allocate(sizeof(float64) * 4));
-            des_device_ptr = static_cast<float64*>(
-                execution::DeviceMemory::allocate(sizeof(float64) * 4));
+        node["src"].set(src_vals, 4);
+        node["des"].set(des_vals, 4);
+    };
 
-            conduit::execution::MagicMemory::copy(src_device_ptr,
-                                                  &src_vals[0],
-                                                  sizeof(float64) * 4);
-            conduit::execution::MagicMemory::copy(des_device_ptr,
-                                                  &des_vals[0],
-                                                  sizeof(float64) * 4);
+    auto setup_device_backed_node = [](Node &node,
+                                       float64 *&src_device_ptr,
+                                       float64 *&des_device_ptr)
+    {
+        float64 src_vals[4] = {1.0, 2.0, 3.0, 4.0};
+        float64 des_vals[4] = {0.0, 0.0, 0.0, 0.0};
 
-            node["src"].set_external(src_device_ptr, 4);
-            node["des"].set_external(des_device_ptr, 4);
-        }
-        else
-        {
-            node["src"].set(src_vals, 4);
-            node["des"].set(des_vals, 4);
-        }
+        src_device_ptr = static_cast<float64*>(
+            execution::DeviceMemory::allocate(sizeof(float64) * 4));
+        des_device_ptr = static_cast<float64*>(
+            execution::DeviceMemory::allocate(sizeof(float64) * 4));
+
+        conduit::execution::MagicMemory::copy(src_device_ptr,
+                                              &src_vals[0],
+                                              sizeof(float64) * 4);
+        conduit::execution::MagicMemory::copy(des_device_ptr,
+                                              &des_vals[0],
+                                              sizeof(float64) * 4);
+
+        node["src"].set_external(src_device_ptr, 4);
+        node["des"].set_external(des_device_ptr, 4);
     };
 
     auto run_policy_and_sync = [&](ExecutionPolicy policy,
@@ -425,7 +425,14 @@ TEST(conduit_execution, strawman)
         float64 *des_device_ptr = nullptr;
         Node node;
 
-        setup_node(node, start_on_device, src_device_ptr, des_device_ptr);
+        if (start_on_device)
+        {
+            setup_device_backed_node(node, src_device_ptr, des_device_ptr);
+        }
+        else
+        {
+            setup_host_backed_node(node);
+        }
 
         {
             // DataAccessors wrap node leaf data.
@@ -489,7 +496,14 @@ TEST(conduit_execution, strawman)
         float64 *des_device_ptr = nullptr;
         Node node;
 
-        setup_node(node, start_on_device, src_device_ptr, des_device_ptr);
+        if (start_on_device)
+        {
+            setup_device_backed_node(node, src_device_ptr, des_device_ptr);
+        }
+        else
+        {
+            setup_host_backed_node(node);
+        }
 
         {
             // DataAccessors wrap node leaf data.
@@ -556,7 +570,14 @@ TEST(conduit_execution, strawman)
         float64 *des_device_ptr = nullptr;
         Node node;
 
-        setup_node(node, start_on_device, src_device_ptr, des_device_ptr);
+        if (start_on_device)
+        {
+            setup_device_backed_node(node, src_device_ptr, des_device_ptr);
+        }
+        else
+        {
+            setup_host_backed_node(node);
+        }
 
         {
             // DataAccessors wrap node leaf data.
