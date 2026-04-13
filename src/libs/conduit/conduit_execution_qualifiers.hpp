@@ -4,12 +4,12 @@
 
 //-----------------------------------------------------------------------------
 ///
-/// file: conduit_device_annotations.hpp
+/// file: conduit_execution_qualifiers.hpp
 ///
 //-----------------------------------------------------------------------------
 
-#ifndef CONDUIT_DEVICE_ANNOTATIONS_HPP
-#define CONDUIT_DEVICE_ANNOTATIONS_HPP
+#ifndef CONDUIT_EXECUTION_QUALIFIERS_HPP
+#define CONDUIT_EXECUTION_QUALIFIERS_HPP
 
 #include "conduit_config.hpp"
 

@@ -21,7 +21,7 @@
 //-----------------------------------------------------------------------------
 // -- conduit library includes -- 
 //-----------------------------------------------------------------------------
-#include "conduit_device_annotations.hpp"
+#include "conduit_execution_qualifiers.hpp"
 #include "conduit_core.hpp"
 #include "conduit_endianness.hpp"
 #include "conduit_utils.hpp"
