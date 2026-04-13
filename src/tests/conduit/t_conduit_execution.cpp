@@ -393,6 +393,7 @@ strawman_make_device_buffer(const float64 *host_vals, index_t num_vals)
     return device_ptr;
 }
 
+//-----------------------------------------------------------------------------
 void
 strawman_run_policy_and_sync(Node &node,
                              ExecutionPolicy policy,
@@ -577,7 +578,7 @@ TEST(conduit_execution, strawman_src_host_des_host)
     const float64 des_vals[4] = {0.0, 0.0, 0.0, 0.0};
 
     // Run with an explicit host execution policy.
-    // node["des"] is synced back to the memory space where it started.
+    // node["des"] is synced back to host memory.
     {
         std::cout << "sync policy=host src_start=host des_start=host" << std::endl;
 
@@ -594,7 +595,7 @@ TEST(conduit_execution, strawman_src_host_des_host)
     if (ExecutionPolicy::is_device_enabled())
     {
         // Run with an explicit device execution policy.
-        // node["des"] is synced back to the memory space where it started.
+        // node["des"] is synced back to host memory.
         std::cout << "sync policy=device src_start=host des_start=host" << std::endl;
 
         float64 *src_device_ptr = nullptr;
@@ -639,7 +640,7 @@ TEST(conduit_execution, strawman_src_host_des_host)
     }
 
     // Use the location of node["src"] to choose where to execute.
-    // node["des"] is then synced back to the memory space where it started.
+    // node["des"] is then synced back to host memory.
     {
         std::cout << "active_space src_start=host des_start=host" << std::endl;
 
@@ -667,7 +668,7 @@ TEST(conduit_execution, strawman_src_device_des_device)
     }
 
     // Run with an explicit host execution policy.
-    // node["des"] is synced back to the memory space where it started.
+    // node["des"] is synced back to device memory.
     {
         std::cout << "sync policy=host src_start=device des_start=device" << std::endl;
 
@@ -686,7 +687,7 @@ TEST(conduit_execution, strawman_src_device_des_device)
     }
 
     // Run with an explicit device execution policy.
-    // node["des"] is synced back to the memory space where it started.
+    // node["des"] is synced back to device memory.
     {
         std::cout << "sync policy=device src_start=device des_start=device" << std::endl;
 
@@ -739,11 +740,10 @@ TEST(conduit_execution, strawman_src_device_des_device)
         strawman_expect_doubled_des(node);
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
-        execution::DeviceMemory::deallocate(des_device_ptr);
     }
 
     // Use the location of node["src"] to choose where to execute.
-    // node["des"] is then synced back to the memory space where it started.
+    // node["des"] is then synced back to device memory.
     {
         std::cout << "active_space src_start=device des_start=device" << std::endl;
 
@@ -775,7 +775,7 @@ TEST(conduit_execution, strawman_src_host_des_device)
     }
 
     // Run with an explicit host execution policy.
-    // node["des"] is synced back to the memory space where it started.
+    // node["des"] is synced back to device memory.
     {
         std::cout << "sync policy=host src_start=host des_start=device" << std::endl;
 
@@ -792,7 +792,7 @@ TEST(conduit_execution, strawman_src_host_des_device)
     }
 
     // Run with an explicit device execution policy.
-    // node["des"] is synced back to the memory space where it started.
+    // node["des"] is synced back to device memory.
     {
         std::cout << "sync policy=device src_start=host des_start=device" << std::endl;
 
@@ -839,11 +839,10 @@ TEST(conduit_execution, strawman_src_host_des_device)
         strawman_run_policy_and_assume(node, ExecutionPolicy::device(), false, true);
         strawman_expect_doubled_des(node);
         node.reset();
-        execution::DeviceMemory::deallocate(des_device_ptr);
     }
 
     // Use the location of node["src"] to choose where to execute.
-    // node["des"] is then synced back to the memory space where it started.
+    // node["des"] is then synced back to device memory.
     {
         std::cout << "active_space src_start=host des_start=device" << std::endl;
 
@@ -873,7 +872,7 @@ TEST(conduit_execution, strawman_src_device_des_host)
     }
 
     // Run with an explicit host execution policy.
-    // node["des"] is synced back to the memory space where it started.
+    // node["des"] is synced back to host memory.
     {
         std::cout << "sync policy=host src_start=device des_start=host" << std::endl;
 
@@ -890,7 +889,7 @@ TEST(conduit_execution, strawman_src_device_des_host)
     }
 
     // Run with an explicit device execution policy.
-    // node["des"] is synced back to the memory space where it started.
+    // node["des"] is synced back to host memory.
     {
         std::cout << "sync policy=device src_start=device des_start=host" << std::endl;
 
@@ -941,7 +940,7 @@ TEST(conduit_execution, strawman_src_device_des_host)
     }
 
     // Use the location of node["src"] to choose where to execute.
-    // node["des"] is then synced back to the memory space where it started.
+    // node["des"] is then synced back to host memory.
     {
         std::cout << "active_space src_start=device des_start=host" << std::endl;
 
