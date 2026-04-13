@@ -382,13 +382,6 @@ TEST(conduit_execution, for_all_and_dispatch)
 }
 
 //-----------------------------------------------------------------------------
-enum StrawmanStartSpace
-{
-    STRAWMAN_START_ON_HOST,
-    STRAWMAN_START_ON_DEVICE
-};
-
-//-----------------------------------------------------------------------------
 float64 *
 strawman_make_device_buffer(const float64 *host_vals, index_t num_vals)
 {
@@ -400,77 +393,53 @@ strawman_make_device_buffer(const float64 *host_vals, index_t num_vals)
     return device_ptr;
 }
 
-//-----------------------------------------------------------------------------
-void
-strawman_cleanup_node(Node &node,
-                      StrawmanStartSpace src_start_space,
-                      StrawmanStartSpace des_start_space,
-                      float64 *src_device_ptr,
-                      float64 *des_device_ptr)
-{
-    node.reset();
-
-    if (src_start_space == STRAWMAN_START_ON_DEVICE)
-    {
-        execution::DeviceMemory::deallocate(src_device_ptr);
-    }
-
-    if (des_start_space == STRAWMAN_START_ON_DEVICE)
-    {
-        execution::DeviceMemory::deallocate(des_device_ptr);
-    }
-}
-
-//-----------------------------------------------------------------------------
 void
 strawman_run_policy_and_sync(Node &node,
                              ExecutionPolicy policy,
                              const bool expect_src_device_backed_result,
                              const bool expect_des_device_backed_result)
 {
+    // DataAccessors wrap node leaf data.
+    float64_accessor acc_src(node["src"]);
+    float64_accessor acc_des(node["des"]);
+
+    // Ask the accessors to move their data to the memory space occupied
+    // by the requested execution policy if their data is not already
+    // there.
+    acc_src.use_with(policy);
+    acc_des.use_with(policy);
+
+    // Our forall will execute in the memory space selected by the
+    // requested ExecutionPolicy.
+    index_t size = acc_src.number_of_elements();
+    conduit::execution::forall(policy, 0, size, [acc_src, acc_des] EXEC_LAMBDA(index_t idx)
     {
-        // DataAccessors wrap node leaf data.
-        float64_accessor acc_src(node["src"]);
-        float64_accessor acc_des(node["des"]);
+        const float64 val = 2.0 * acc_src[idx];
+        acc_des.set(idx, val);
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
 
-        // Ask the accessors to move their data to the memory space occupied
-        // by the requested execution policy if their data is not already
-        // there.
-        acc_src.use_with(policy);
-        acc_des.use_with(policy);
+    // Sync values to node["des"].
+    // This is a no op if node["des"] was originally in the same memory
+    // space as the requested execution policy.
+    acc_des.sync();
 
-        // Our forall will execute in the memory space selected by the
-        // requested ExecutionPolicy.
-        index_t size = acc_src.number_of_elements();
-        conduit::execution::forall(policy, 0, size, [acc_src, acc_des] EXEC_LAMBDA(index_t idx)
-        {
-            const float64 val = 2.0 * acc_src[idx];
-            acc_des.set(idx, val);
-        });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
+    if (expect_src_device_backed_result)
+    {
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+    }
+    else
+    {
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+    }
 
-        // Sync values to node["des"].
-        // This is a no op if node["des"] was originally in the same memory
-        // space as the requested execution policy.
-        acc_des.sync();
-
-        if (expect_src_device_backed_result)
-        {
-            EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        }
-        else
-        {
-            EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        }
-
-        if (expect_des_device_backed_result)
-        {
-            EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        }
-        else
-        {
-            EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        }
+    if (expect_des_device_backed_result)
+    {
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+    }
+    else
+    {
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
     }
 }
 
@@ -481,48 +450,46 @@ strawman_run_policy_and_assume(Node &node,
                                const bool expect_src_device_backed_result,
                                const bool expect_des_device_backed_result)
 {
+    // DataAccessors wrap node leaf data.
+    float64_accessor acc_src(node["src"]);
+    float64_accessor acc_des(node["des"]);
+
+    // Ask the accessors to move their data to the memory space occupied
+    // by the requested execution policy if their data is not already
+    // there.
+    acc_src.use_with(policy);
+    acc_des.use_with(policy);
+
+    // Our forall will execute in the memory space selected by the
+    // requested ExecutionPolicy.
+    index_t size = acc_src.number_of_elements();
+    conduit::execution::forall(policy, 0, size, [acc_src, acc_des] EXEC_LAMBDA(index_t idx)
     {
-        // DataAccessors wrap node leaf data.
-        float64_accessor acc_src(node["src"]);
-        float64_accessor acc_des(node["des"]);
+        const float64 val = 2.0 * acc_src[idx];
+        acc_des.set(idx, val);
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
 
-        // Ask the accessors to move their data to the memory space occupied
-        // by the requested execution policy if their data is not already
-        // there.
-        acc_src.use_with(policy);
-        acc_des.use_with(policy);
+    // node["des"] takes ownership of the data in the active execution
+    // space. This is a no op if node["des"] was already in that space.
+    acc_des.assume();
 
-        // Our forall will execute in the memory space selected by the
-        // requested ExecutionPolicy.
-        index_t size = acc_src.number_of_elements();
-        conduit::execution::forall(policy, 0, size, [acc_src, acc_des] EXEC_LAMBDA(index_t idx)
-        {
-            const float64 val = 2.0 * acc_src[idx];
-            acc_des.set(idx, val);
-        });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
+    if (expect_src_device_backed_result)
+    {
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+    }
+    else
+    {
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+    }
 
-        // node["des"] takes ownership of the data in the active execution
-        // space. This is a no op if node["des"] was already in that space.
-        acc_des.assume();
-
-        if (expect_src_device_backed_result)
-        {
-            EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        }
-        else
-        {
-            EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        }
-
-        if (expect_des_device_backed_result)
-        {
-            EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        }
-        else
-        {
-            EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        }
+    if (expect_des_device_backed_result)
+    {
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+    }
+    else
+    {
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
     }
 }
 
@@ -533,59 +500,57 @@ strawman_run_where_src_is(Node &node,
                           const bool expect_src_device_backed_result,
                           const bool expect_des_device_backed_result)
 {
+    // DataAccessors wrap node leaf data.
+    float64_accessor acc_src(node["src"]);
+    float64_accessor acc_des(node["des"]);
+
+    // Use the location of the source data.
+    ExecutionPolicy policy = acc_src.active_space();
+    if (expect_device_policy)
     {
-        // DataAccessors wrap node leaf data.
-        float64_accessor acc_src(node["src"]);
-        float64_accessor acc_des(node["des"]);
+        EXPECT_TRUE(policy.is_device_policy());
+    }
+    else
+    {
+        EXPECT_TRUE(policy.is_host_policy());
+    }
 
-        // Use the location of the source data.
-        ExecutionPolicy policy = acc_src.active_space();
-        if (expect_device_policy)
-        {
-            EXPECT_TRUE(policy.is_device_policy());
-        }
-        else
-        {
-            EXPECT_TRUE(policy.is_host_policy());
-        }
+    // Ask the accessors to move their data to the memory space occupied
+    // by node["src"] if their data is not already there.
+    acc_src.use_with(policy);
+    acc_des.use_with(policy);
 
-        // Ask the accessors to move their data to the memory space occupied
-        // by node["src"] if their data is not already there.
-        acc_src.use_with(policy);
-        acc_des.use_with(policy);
+    // Our forall will execute on the memory space occupied by node["src"]
+    // because it was passed an ExecutionPolicy for that space.
+    index_t size = acc_src.number_of_elements();
+    conduit::execution::forall(policy, 0, size, [acc_src, acc_des] EXEC_LAMBDA(index_t idx)
+    {
+        const float64 val = 2.0 * acc_src[idx];
+        acc_des.set(idx, val);
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
 
-        // Our forall will execute on the memory space occupied by node["src"]
-        // because it was passed an ExecutionPolicy for that space.
-        index_t size = acc_src.number_of_elements();
-        conduit::execution::forall(policy, 0, size, [acc_src, acc_des] EXEC_LAMBDA(index_t idx)
-        {
-            const float64 val = 2.0 * acc_src[idx];
-            acc_des.set(idx, val);
-        });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
+    // Sync values to node["des"].
+    // This is a no op if node["des"] was originally in the same memory
+    // space as node["src"].
+    acc_des.sync();
 
-        // Sync values to node["des"].
-        // This is a no op if node["des"] was originally in the same memory
-        // space as node["src"].
-        acc_des.sync();
+    if (expect_src_device_backed_result)
+    {
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+    }
+    else
+    {
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+    }
 
-        if (expect_src_device_backed_result)
-        {
-            EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        }
-        else
-        {
-            EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        }
-
-        if (expect_des_device_backed_result)
-        {
-            EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        }
-        else
-        {
-            EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        }
+    if (expect_des_device_backed_result)
+    {
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+    }
+    else
+    {
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
     }
 }
 
@@ -623,11 +588,7 @@ TEST(conduit_execution, strawman_src_host_des_host)
         node["des"].set(des_vals, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::host(), false, false);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_HOST,
-                              STRAWMAN_START_ON_HOST,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
     }
 
     if (ExecutionPolicy::is_device_enabled())
@@ -643,11 +604,7 @@ TEST(conduit_execution, strawman_src_host_des_host)
         node["des"].set(des_vals, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::device(), false, false);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_HOST,
-                              STRAWMAN_START_ON_HOST,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
     }
 
     // Run with an explicit host execution policy and call assume().
@@ -662,11 +619,7 @@ TEST(conduit_execution, strawman_src_host_des_host)
         node["des"].set(des_vals, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::host(), false, false);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_HOST,
-                              STRAWMAN_START_ON_HOST,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
     }
 
     if (ExecutionPolicy::is_device_enabled())
@@ -682,11 +635,7 @@ TEST(conduit_execution, strawman_src_host_des_host)
         node["des"].set(des_vals, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::device(), false, true);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_HOST,
-                              STRAWMAN_START_ON_HOST,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
     }
 
     // Use the location of node["src"] to choose where to execute.
@@ -701,11 +650,7 @@ TEST(conduit_execution, strawman_src_host_des_host)
         node["des"].set(des_vals, 4);
         strawman_run_where_src_is(node, false, false, false);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_HOST,
-                              STRAWMAN_START_ON_HOST,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
     }
 }
 
@@ -735,11 +680,9 @@ TEST(conduit_execution, strawman_src_device_des_device)
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::host(), true, true);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_DEVICE,
-                              STRAWMAN_START_ON_DEVICE,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+        execution::DeviceMemory::deallocate(des_device_ptr);
     }
 
     // Run with an explicit device execution policy.
@@ -756,11 +699,9 @@ TEST(conduit_execution, strawman_src_device_des_device)
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::device(), true, true);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_DEVICE,
-                              STRAWMAN_START_ON_DEVICE,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+        execution::DeviceMemory::deallocate(des_device_ptr);
     }
 
     // Run with an explicit host execution policy and call assume().
@@ -777,11 +718,9 @@ TEST(conduit_execution, strawman_src_device_des_device)
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::host(), true, false);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_DEVICE,
-                              STRAWMAN_START_ON_DEVICE,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+        execution::DeviceMemory::deallocate(des_device_ptr);
     }
 
     // Run with an explicit device execution policy and call assume().
@@ -798,11 +737,9 @@ TEST(conduit_execution, strawman_src_device_des_device)
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::device(), true, true);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_DEVICE,
-                              STRAWMAN_START_ON_DEVICE,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+        execution::DeviceMemory::deallocate(des_device_ptr);
     }
 
     // Use the location of node["src"] to choose where to execute.
@@ -819,11 +756,9 @@ TEST(conduit_execution, strawman_src_device_des_device)
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_where_src_is(node, true, true, true);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_DEVICE,
-                              STRAWMAN_START_ON_DEVICE,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+        execution::DeviceMemory::deallocate(des_device_ptr);
     }
 }
 
@@ -852,11 +787,8 @@ TEST(conduit_execution, strawman_src_host_des_device)
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::host(), false, true);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_HOST,
-                              STRAWMAN_START_ON_DEVICE,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
+        execution::DeviceMemory::deallocate(des_device_ptr);
     }
 
     // Run with an explicit device execution policy.
@@ -872,11 +804,8 @@ TEST(conduit_execution, strawman_src_host_des_device)
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::device(), false, true);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_HOST,
-                              STRAWMAN_START_ON_DEVICE,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
+        execution::DeviceMemory::deallocate(des_device_ptr);
     }
 
     // Run with an explicit host execution policy and call assume().
@@ -892,11 +821,8 @@ TEST(conduit_execution, strawman_src_host_des_device)
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::host(), false, false);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_HOST,
-                              STRAWMAN_START_ON_DEVICE,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
+        execution::DeviceMemory::deallocate(des_device_ptr);
     }
 
     // Run with an explicit device execution policy and call assume().
@@ -912,11 +838,8 @@ TEST(conduit_execution, strawman_src_host_des_device)
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::device(), false, true);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_HOST,
-                              STRAWMAN_START_ON_DEVICE,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
+        execution::DeviceMemory::deallocate(des_device_ptr);
     }
 
     // Use the location of node["src"] to choose where to execute.
@@ -932,11 +855,8 @@ TEST(conduit_execution, strawman_src_host_des_device)
         node["des"].set_external(des_device_ptr, 4);
         strawman_run_where_src_is(node, false, false, true);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_HOST,
-                              STRAWMAN_START_ON_DEVICE,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
+        execution::DeviceMemory::deallocate(des_device_ptr);
     }
 }
 
@@ -965,11 +885,8 @@ TEST(conduit_execution, strawman_src_device_des_host)
         node["des"].set(des_vals, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::host(), true, false);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_DEVICE,
-                              STRAWMAN_START_ON_HOST,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
     }
 
     // Run with an explicit device execution policy.
@@ -985,11 +902,8 @@ TEST(conduit_execution, strawman_src_device_des_host)
         node["des"].set(des_vals, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::device(), true, false);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_DEVICE,
-                              STRAWMAN_START_ON_HOST,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
     }
 
     // Run with an explicit host execution policy and call assume().
@@ -1005,11 +919,8 @@ TEST(conduit_execution, strawman_src_device_des_host)
         node["des"].set(des_vals, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::host(), true, false);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_DEVICE,
-                              STRAWMAN_START_ON_HOST,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
     }
 
     // Run with an explicit device execution policy and call assume().
@@ -1025,11 +936,8 @@ TEST(conduit_execution, strawman_src_device_des_host)
         node["des"].set(des_vals, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::device(), true, true);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_DEVICE,
-                              STRAWMAN_START_ON_HOST,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
     }
 
     // Use the location of node["src"] to choose where to execute.
@@ -1045,11 +953,8 @@ TEST(conduit_execution, strawman_src_device_des_host)
         node["des"].set(des_vals, 4);
         strawman_run_where_src_is(node, true, true, false);
         strawman_expect_doubled_des(node);
-        strawman_cleanup_node(node,
-                              STRAWMAN_START_ON_DEVICE,
-                              STRAWMAN_START_ON_HOST,
-                              src_device_ptr,
-                              des_device_ptr);
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
     }
 }
 
