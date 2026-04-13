@@ -214,7 +214,7 @@ DeviceMemory::is_device_ptr(const void *ptr, bool &is_gpu, bool &is_unified)
 
     // clear last error so other error checking does
     // not pick it up
-    hipError_t error = hipGetLastError();
+    (void)hipGetLastError();
     is_gpu = (perr == hipSuccess) &&
              (atts.TYPE_ATTR == hipMemoryTypeDevice ||
               atts.TYPE_ATTR ==  hipMemoryTypeUnified );
@@ -246,7 +246,7 @@ DeviceMemory::is_device_ptr(const void *ptr)
     const hipError_t perr = hipPointerGetAttributes(&atts, ptr);
     // clear last error so other error checking does
     // not pick it up
-    hipError_t error = hipGetLastError();
+    (void)hipGetLastError();
     return perr == hipSuccess &&
                 (atts.TYPE_ATTR == hipMemoryTypeDevice ||
                  atts.TYPE_ATTR == hipMemoryTypeUnified);
@@ -273,7 +273,11 @@ MagicMemory::set(void * ptr, int value, size_t num )
 #if defined(CONDUIT_USE_CUDA)
         cudaMemset(ptr,value,num);
 #elif defined(CONDUIT_USE_HIP)
-        hipMemset(ptr,value,num);
+        const hipError_t err = hipMemset(ptr,value,num);
+        if (err != hipSuccess)
+        {
+            CONDUIT_ERROR("hipMemset failed: " << hipGetErrorName(err));
+        }
 #endif
     }
     else
@@ -297,7 +301,13 @@ MagicMemory::copy(void * destination, const void * source, size_t num)
 #if defined(CONDUIT_USE_CUDA)
         cudaMemcpy(destination, source, num, cudaMemcpyDeviceToDevice);
 #elif defined(CONDUIT_USE_HIP)
-        hipMemcpy(destination, source, num, hipMemcpyDeviceToDevice);
+        const hipError_t err =
+            hipMemcpy(destination, source, num, hipMemcpyDeviceToDevice);
+        if (err != hipSuccess)
+        {
+            CONDUIT_ERROR("hipMemcpy device-to-device failed: "
+                          << hipGetErrorName(err));
+        }
 #endif
     }
     else if (src_is_gpu && !dst_is_gpu)
@@ -305,7 +315,13 @@ MagicMemory::copy(void * destination, const void * source, size_t num)
 #if defined(CONDUIT_USE_CUDA)
         cudaMemcpy(destination, source, num, cudaMemcpyDeviceToHost);
 #elif defined(CONDUIT_USE_HIP)
-        hipMemcpy(destination, source, num, hipMemcpyDeviceToHost);
+        const hipError_t err =
+            hipMemcpy(destination, source, num, hipMemcpyDeviceToHost);
+        if (err != hipSuccess)
+        {
+            CONDUIT_ERROR("hipMemcpy device-to-host failed: "
+                          << hipGetErrorName(err));
+        }
 #endif
     }
     else if (!src_is_gpu && dst_is_gpu)
@@ -313,7 +329,13 @@ MagicMemory::copy(void * destination, const void * source, size_t num)
 #if defined(CONDUIT_USE_CUDA)
         cudaMemcpy(destination, source, num, cudaMemcpyHostToDevice);
 #elif defined(CONDUIT_USE_HIP)
-        hipMemcpy(destination, source, num, hipMemcpyHostToDevice);
+        const hipError_t err =
+            hipMemcpy(destination, source, num, hipMemcpyHostToDevice);
+        if (err != hipSuccess)
+        {
+            CONDUIT_ERROR("hipMemcpy host-to-device failed: "
+                          << hipGetErrorName(err));
+        }
 #endif
     }
     else
