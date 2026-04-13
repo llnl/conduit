@@ -40,6 +40,7 @@ namespace conduit
 template <typename T> 
 DataAccessor<T>::DataAccessor()
 : m_data(nullptr),
+  m_orig_data_ptr(nullptr),
   m_dtype(DataType::empty()),
   m_node_ptr(nullptr),
   m_other_ptr(nullptr),
@@ -50,23 +51,10 @@ DataAccessor<T>::DataAccessor()
 {}
 
 //---------------------------------------------------------------------------//
-template <typename T>
-DataAccessor<T>::DataAccessor(const DataAccessor<T> &accessor)
-: m_data(accessor.m_data),
-  m_dtype(accessor.m_dtype),
-  m_node_ptr(accessor.m_node_ptr),
-  m_other_ptr(accessor.m_other_ptr),
-  m_other_dtype(accessor.m_other_dtype),
-  m_do_i_own_it(accessor.m_do_i_own_it),
-  m_offset(accessor.m_offset),
-  m_stride(accessor.m_stride)
-{}
-
-
-//---------------------------------------------------------------------------//
 template <typename T> 
 DataAccessor<T>::DataAccessor(void *data, const DataType &dtype)
 : m_data(data),
+  m_orig_data_ptr(data),
   m_dtype(dtype),
   m_node_ptr(nullptr),
   m_other_ptr(nullptr),
@@ -81,6 +69,7 @@ DataAccessor<T>::DataAccessor(void *data, const DataType &dtype)
 template <typename T> 
 DataAccessor<T>::DataAccessor(const void *data, const DataType &dtype)
 : m_data(const_cast<void*>(data)),
+  m_orig_data_ptr(const_cast<void*>(data)),
   m_dtype(dtype),
   m_node_ptr(nullptr),
   m_other_ptr(nullptr),
@@ -94,6 +83,7 @@ DataAccessor<T>::DataAccessor(const void *data, const DataType &dtype)
 template <typename T> 
 DataAccessor<T>::DataAccessor(Node &node)
 : m_data(node.data_ptr()),
+  m_orig_data_ptr(node.data_ptr()),
   m_dtype(node.dtype()),
   m_node_ptr(&node),
   m_other_ptr(nullptr),
@@ -107,6 +97,7 @@ DataAccessor<T>::DataAccessor(Node &node)
 template <typename T> 
 DataAccessor<T>::DataAccessor(const Node &node)
 : m_data(const_cast<void*>(node.data_ptr())),
+  m_orig_data_ptr(const_cast<void*>(node.data_ptr())),
   m_dtype(node.dtype()),
   m_node_ptr(const_cast<Node*>(&node)),
   m_other_ptr(nullptr),
@@ -120,6 +111,7 @@ DataAccessor<T>::DataAccessor(const Node &node)
 template <typename T> 
 DataAccessor<T>::DataAccessor(Node *node)
 : m_data(node->data_ptr()),
+  m_orig_data_ptr(node->data_ptr()),
   m_dtype(node->dtype()), 
   m_node_ptr(node),
   m_other_ptr(nullptr),
@@ -133,6 +125,7 @@ DataAccessor<T>::DataAccessor(Node *node)
 template <typename T> 
 DataAccessor<T>::DataAccessor(const Node *node)
 : m_data(const_cast<void*>(node->data_ptr())),
+  m_orig_data_ptr(const_cast<void*>(node->data_ptr())),
   m_dtype(node->dtype()), 
   m_node_ptr(const_cast<Node*>(node)),
   m_other_ptr(nullptr),
@@ -141,24 +134,6 @@ DataAccessor<T>::DataAccessor(const Node *node)
   m_offset(node->dtype().offset()),
   m_stride(node->dtype().stride())
 {}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-DataAccessor<T>::~DataAccessor()
-{
-    if (m_do_i_own_it)
-    {
-        if (execution::DeviceMemory::is_device_ptr(m_other_ptr))
-        {
-            execution::DeviceMemory::deallocate(m_other_ptr);
-        }
-        else
-        {
-            execution::HostMemory::deallocate(m_other_ptr);
-        }
-    }
-}
-
 
 //---------------------------------------------------------------------------// 
 ///
@@ -251,135 +226,10 @@ DataAccessor<T>::count(T val) const
 }
 
 //---------------------------------------------------------------------------//
-template <typename T> 
-DataAccessor<T> &
-DataAccessor<T>::operator=(const DataAccessor<T> &accessor)
-{
-    if(this != &accessor)
-    {
-        m_data  = accessor.m_data;
-        m_dtype = accessor.m_dtype;
-        m_node_ptr = accessor.m_node_ptr;
-        m_other_ptr = accessor.m_other_ptr;
-        m_other_dtype = accessor.m_other_dtype;
-        m_do_i_own_it = accessor.m_do_i_own_it;
-        m_offset = accessor.m_offset;
-        m_stride = accessor.m_stride;
-    }
-    return *this;
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-T
-DataAccessor<T>::element(index_t idx) const
-{
-    switch(dtype().id())
-    {
-        // ints
-        case DataType::INT8_ID:
-            return (T)(*(int8*)(element_ptr(idx)));
-        case DataType::INT16_ID: 
-            return (T)(*(int16*)(element_ptr(idx)));
-        case DataType::INT32_ID:
-            return (T)(*(int32*)(element_ptr(idx)));
-        case DataType::INT64_ID:
-            return (T)(*(int64*)(element_ptr(idx)));
-        // uints
-        case DataType::UINT8_ID:
-            return (T)(*(uint8*)(element_ptr(idx)));
-        case DataType::UINT16_ID:
-            return (T)(*(uint16*)(element_ptr(idx)));
-        case DataType::UINT32_ID:
-            return (T)(*(uint32*)(element_ptr(idx)));
-        case DataType::UINT64_ID:
-            return (T)(*(uint64*)(element_ptr(idx)));
-        // floats 
-        case DataType::FLOAT32_ID:
-            return (T)(*(float32*)(element_ptr(idx)));
-        case DataType::FLOAT64_ID:
-            return (T)(*(float64*)(element_ptr(idx)));
-    }
-
-    // error
-    CONDUIT_ERROR("DataAccessor does not support dtype: "
-                  << dtype().name());
-    return (T)0;
-}
-
-//---------------------------------------------------------------------------//
-template <typename T>
-template <typename U>
-typename std::enable_if<!std::is_pointer<U>::value, void>::type
-DataAccessor<T>::set(index_t idx, T value)
-{
-    switch(dtype().id())
-    {
-        // ints
-        case DataType::INT8_ID:
-        {
-            (*(int8*)(element_ptr(idx))) = static_cast<int8>(value);
-            break;
-        }
-        case DataType::INT16_ID:
-        {
-            (*(int16*)(element_ptr(idx))) = static_cast<int16>(value);
-            break;
-        }
-        case DataType::INT32_ID:
-        {
-            (*(int32*)(element_ptr(idx))) = static_cast<int32>(value);
-            break;
-        }
-        case DataType::INT64_ID:
-        {
-            (*(int64*)(element_ptr(idx))) = static_cast<int64>(value);
-            break;
-        }
-        // uints
-        case DataType::UINT8_ID:
-        {
-            (*(uint8*)(element_ptr(idx))) = static_cast<uint8>(value);
-            break;
-        }
-        case DataType::UINT16_ID:
-        {
-            (*(uint16*)(element_ptr(idx))) = static_cast<uint16>(value);
-            break;
-        }
-        case DataType::UINT32_ID:
-        {
-            (*(uint32*)(element_ptr(idx))) = static_cast<uint32>(value);
-            break;
-        }
-        case DataType::UINT64_ID:
-        {
-            (*(uint64*)(element_ptr(idx))) = static_cast<uint64>(value);
-            break;
-        }
-        // floats
-        case DataType::FLOAT32_ID:
-        {
-            (*(float32*)(element_ptr(idx))) = static_cast<float32>(value);
-            break;
-        }
-        case DataType::FLOAT64_ID:
-        {
-            (*(float64*)(element_ptr(idx))) = static_cast<float64>(value);
-            break;
-        }
-        default:
-            // error
-            CONDUIT_ERROR("DataAccessor does not support dtype: "
-                          << dtype().name());
-    }
-}
-
-//---------------------------------------------------------------------------//
 template <typename T>
 template <typename U>
 typename std::enable_if<std::is_pointer<U>::value, void>::type
-DataAccessor<T>::set(const T* values, index_t num_elements)
+DataAccessor<T>::set(const T* values, index_t num_elements) const
 {
     switch(dtype().id())
     {
@@ -581,52 +431,6 @@ DataAccessor<T>::fill(T value)
 }
 
 //---------------------------------------------------------------------------//
-template <typename T> 
-const DataType &
-DataAccessor<T>::dtype() const
-{
-    if (nullptr != m_node_ptr)
-    {
-        return (m_data == m_node_ptr->data_ptr() ? orig_dtype() : other_dtype());
-    }
-    else
-    {
-        return m_dtype;
-    }
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-const DataType &
-DataAccessor<T>::orig_dtype() const
-{
-    if (nullptr != m_node_ptr)
-    {
-        return m_node_ptr->dtype();
-    }
-    else
-    {
-        return m_dtype;
-    }
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-const DataType &
-DataAccessor<T>::other_dtype() const
-{
-    if (nullptr != m_node_ptr)
-    {
-        return m_other_dtype;
-    }
-    else
-    {
-        return m_dtype;
-    }
-}
-
-
-//---------------------------------------------------------------------------//
 template <typename T>
 void
 DataAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
@@ -816,6 +620,10 @@ DataAccessor<T>::assume()
         m_node_ptr->reset();
         m_node_ptr->schema_ptr()->set(dtype());
         m_node_ptr->set_data_ptr(m_data);
+
+        // the assumed data is now the accessor's new original backing storage
+        m_orig_data_ptr = m_data;
+        m_dtype = other_dtype();
 
         // we no longer own the data since we have given it to node
         m_other_ptr = nullptr;

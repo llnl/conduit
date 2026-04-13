@@ -16,8 +16,10 @@
 //-----------------------------------------------------------------------------
 // -- conduit  includes -- 
 //-----------------------------------------------------------------------------
+#include "conduit_execution_qualifiers.hpp"
 #include "conduit_core.hpp"
 #include "conduit_data_type.hpp"
+#include "conduit_memory_manager.hpp"
 #include "conduit_utils.hpp"
 
 //-----------------------------------------------------------------------------
@@ -64,8 +66,23 @@ public:
 //-----------------------------------------------------------------------------
         /// default constructor
         DataArray();
+        ///
+        /// This copy constructor must remain inline in the header because a
+        /// DataArray is commonly captured by value into device lambdas.
+        /// Device compilation needs to see the copy operation.
+        ///
         /// copy constructor
-        DataArray(const DataArray<T> &array);
+        CONDUIT_EXEC_HOST_DEVICE DataArray(const DataArray<T> &array)
+        : m_data(array.m_data),
+          m_orig_data_ptr(array.m_orig_data_ptr),
+          m_dtype(array.m_dtype),
+          m_node_ptr(array.m_node_ptr),
+          m_other_ptr(array.m_other_ptr),
+          m_other_dtype(array.m_other_dtype),
+          m_do_i_own_it(false),
+          m_offset(array.m_offset),
+          m_stride(array.m_stride)
+        {}
         /// Access a pointer to raw data according to dtype description.
         DataArray(void *data, const DataType &dtype);
         /// Access a const pointer to raw data according to dtype description.
@@ -78,46 +95,117 @@ public:
         DataArray(Node *node);
         /// Access a const pointer to node data according to node dtype description.
         DataArray(const Node *node);
+        ///
+        /// This destructor must remain inline in the header because arrays may
+        /// be materialized during device compilation. The device path is a
+        /// no-op while the host path preserves ownership cleanup.
+        ///
         /// Destructor
-       ~DataArray();
+        CONDUIT_EXEC_HOST_DEVICE ~DataArray()
+        {
+#if !defined(CONDUIT_EXEC_DEVICE_COMPILE)
+            if (m_do_i_own_it)
+            {
+                if (execution::DeviceMemory::is_device_ptr(m_other_ptr))
+                {
+                    execution::DeviceMemory::deallocate(m_other_ptr);
+                }
+                else
+                {
+                    execution::HostMemory::deallocate(m_other_ptr);
+                }
+            }
+#endif
+        }
 
+    ///
+    /// This assignment operator must remain inline in the header because
+    /// arrays may be copied and assigned while preparing captures for device
+    /// lambdas.
+    ///
     /// Assignment operator
-    DataArray<T>   &operator=(const DataArray<T> &array);
+    CONDUIT_EXEC_HOST_DEVICE DataArray<T> &operator=(const DataArray<T> &array)
+    {
+        if(this != &array)
+        {
+            m_data = array.m_data;
+            m_orig_data_ptr = array.m_orig_data_ptr;
+            m_dtype = array.m_dtype;
+            m_node_ptr = array.m_node_ptr;
+            m_other_ptr = array.m_other_ptr;
+            m_other_dtype = array.m_other_dtype;
+            m_do_i_own_it = false;
+            m_offset = array.m_offset;
+            m_stride = array.m_stride;
+        }
+        return *this;
+    }
 
 //-----------------------------------------------------------------------------
 // Data and Info Access
 //-----------------------------------------------------------------------------
     typedef T ElementType;
 
-    T              &operator[](index_t idx)
+    ///
+    /// These inline methods form the minimal device-usable slice of
+    /// DataArray. Kernels use them to read values, write values, and walk
+    /// array layout, so device compilation must see the definitions here in
+    /// the header.
+    ///
+    CONDUIT_EXEC_HOST_DEVICE T &operator[](index_t idx)
                     {return element(idx);}
-    T              &operator[](index_t idx) const
+    CONDUIT_EXEC_HOST_DEVICE T &operator[](index_t idx) const
                     {return element(idx);}
     
-    T              &element(index_t idx);
-    T              &element(index_t idx) const;
+    CONDUIT_EXEC_HOST_DEVICE T &element(index_t idx)
+                    {return (*(T*)(element_ptr(idx)));}
+    CONDUIT_EXEC_HOST_DEVICE T &element(index_t idx) const
+                    {return (*(T*)(element_ptr(idx)));}
 
-    void           *element_ptr(index_t idx)
+    CONDUIT_EXEC_HOST_DEVICE void *element_ptr(index_t idx)
                     {
                         return static_cast<char*>(m_data) +
                             dtype().element_index(idx);
                     };
 
-    const void     *element_ptr(index_t idx) const 
+    CONDUIT_EXEC_HOST_DEVICE const void *element_ptr(index_t idx) const
                     {
                          return static_cast<char*>(m_data) +
                             dtype().element_index(idx);
                     };
 
-    index_t         number_of_elements() const 
+    CONDUIT_EXEC_HOST_DEVICE index_t number_of_elements() const
                         {return dtype().number_of_elements();}
-    const DataType &dtype()    const;
+    ///
+    /// dtype metadata is cached in the array so device code can choose
+    /// between the original and migrated layout without dereferencing Node.
+    /// This logic must stay inline in the header for device compilation.
+    ///
+    CONDUIT_EXEC_HOST_DEVICE const DataType &dtype() const
+    {
+        if (nullptr != m_node_ptr)
+        {
+            return (m_data == m_orig_data_ptr)
+                   ? orig_dtype()
+                   : other_dtype();
+        }
+        else
+        {
+            return m_dtype;
+        }
+    }
 
-    const DataType &orig_dtype() const;
+    ///
+    /// These methods are part of the cached dtype metadata used by device
+    /// code, so they must remain inline in the header alongside dtype().
+    ///
+    CONDUIT_EXEC_HOST_DEVICE const DataType &orig_dtype() const
+                    { return m_dtype; }
 
-    const DataType &other_dtype() const;
+    CONDUIT_EXEC_HOST_DEVICE const DataType &other_dtype() const
+                    { return nullptr != m_node_ptr ? m_other_dtype : m_dtype; }
     
-    void           *data_ptr() const 
+    CONDUIT_EXEC_HOST_DEVICE void *data_ptr() const
                         { return m_data;}
 
     bool            compatible(const DataArray<T> &array) const;
@@ -154,20 +242,30 @@ public:
 // Setters
 //-----------------------------------------------------------------------------
     /// signed integer single element
-    void            set(index_t elem_idx, int8  value);
-    void            set(index_t elem_idx, int16 value);
-    void            set(index_t elem_idx, int32 value);
-    void            set(index_t elem_idx, int64 value);
+    CONDUIT_EXEC_HOST_DEVICE void set(index_t elem_idx, int8  value) const
+                    { this->element(elem_idx) = (T)value; }
+    CONDUIT_EXEC_HOST_DEVICE void set(index_t elem_idx, int16 value) const
+                    { this->element(elem_idx) = (T)value; }
+    CONDUIT_EXEC_HOST_DEVICE void set(index_t elem_idx, int32 value) const
+                    { this->element(elem_idx) = (T)value; }
+    CONDUIT_EXEC_HOST_DEVICE void set(index_t elem_idx, int64 value) const
+                    { this->element(elem_idx) = (T)value; }
 
     // unsigned integer single element
-    void            set(index_t elem_idx, uint8  value);
-    void            set(index_t elem_idx, uint16 value);
-    void            set(index_t elem_idx, uint32 value);
-    void            set(index_t elem_idx, uint64 value);
+    CONDUIT_EXEC_HOST_DEVICE void set(index_t elem_idx, uint8  value) const
+                    { this->element(elem_idx) = (T)value; }
+    CONDUIT_EXEC_HOST_DEVICE void set(index_t elem_idx, uint16 value) const
+                    { this->element(elem_idx) = (T)value; }
+    CONDUIT_EXEC_HOST_DEVICE void set(index_t elem_idx, uint32 value) const
+                    { this->element(elem_idx) = (T)value; }
+    CONDUIT_EXEC_HOST_DEVICE void set(index_t elem_idx, uint64 value) const
+                    { this->element(elem_idx) = (T)value; }
 
     /// floating point single element
-    void            set(index_t elem_idx, float32 value);
-    void            set(index_t elem_idx, float64 value);
+    CONDUIT_EXEC_HOST_DEVICE void set(index_t elem_idx, float32 value) const
+                    { this->element(elem_idx) = (T)value; }
+    CONDUIT_EXEC_HOST_DEVICE void set(index_t elem_idx, float64 value) const
+                    { this->element(elem_idx) = (T)value; }
 
     /// signed integer arrays
     void            set(const int8  *values, index_t num_elements);
@@ -427,6 +525,9 @@ private:
 //-----------------------------------------------------------------------------
     /// holds data (always external, never allocated)
     void           *m_data;
+    /// caches the original backing pointer so device code can reason about
+    /// migrated state without dereferencing Node.
+    void           *m_orig_data_ptr;
     /// holds data description
     DataType        m_dtype;
 

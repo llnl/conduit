@@ -46,6 +46,7 @@ namespace conduit
 template <typename T> 
 DataArray<T>::DataArray()
 : m_data(nullptr),
+  m_orig_data_ptr(nullptr),
   m_dtype(DataType::empty()),
   m_node_ptr(nullptr),
   m_other_ptr(nullptr),
@@ -56,23 +57,10 @@ DataArray<T>::DataArray()
 {}
 
 //---------------------------------------------------------------------------//
-template <typename T>
-DataArray<T>::DataArray(const DataArray<T> &array)
-: m_data(array.m_data),
-  m_dtype(array.m_dtype),
-  m_node_ptr(array.m_node_ptr),
-  m_other_ptr(array.m_other_ptr),
-  m_other_dtype(array.m_other_dtype),
-  m_do_i_own_it(array.m_do_i_own_it),
-  m_offset(array.m_offset),
-  m_stride(array.m_stride)
-{}
-
-
-//---------------------------------------------------------------------------//
 template <typename T> 
 DataArray<T>::DataArray(void *data, const DataType &dtype)
 : m_data(data),
+  m_orig_data_ptr(data),
   m_dtype(dtype),
   m_node_ptr(nullptr),
   m_other_ptr(nullptr),
@@ -87,6 +75,7 @@ DataArray<T>::DataArray(void *data, const DataType &dtype)
 template <typename T> 
 DataArray<T>::DataArray(const void *data, const DataType &dtype)
 : m_data(const_cast<void*>(data)),
+  m_orig_data_ptr(const_cast<void*>(data)),
   m_dtype(dtype),
   m_node_ptr(nullptr),
   m_other_ptr(nullptr),
@@ -100,6 +89,7 @@ DataArray<T>::DataArray(const void *data, const DataType &dtype)
 template <typename T> 
 DataArray<T>::DataArray(Node &node)
 : m_data(node.data_ptr()),
+  m_orig_data_ptr(node.data_ptr()),
   m_dtype(node.dtype()),
   m_node_ptr(&node),
   m_other_ptr(nullptr),
@@ -113,6 +103,7 @@ DataArray<T>::DataArray(Node &node)
 template <typename T> 
 DataArray<T>::DataArray(const Node &node)
 : m_data(const_cast<void*>(node.data_ptr())),
+  m_orig_data_ptr(const_cast<void*>(node.data_ptr())),
   m_dtype(node.dtype()),
   m_node_ptr(const_cast<Node*>(&node)),
   m_other_ptr(nullptr),
@@ -126,6 +117,7 @@ DataArray<T>::DataArray(const Node &node)
 template <typename T> 
 DataArray<T>::DataArray(Node *node)
 : m_data(node->data_ptr()),
+  m_orig_data_ptr(node->data_ptr()),
   m_dtype(node->dtype()), 
   m_node_ptr(node),
   m_other_ptr(nullptr),
@@ -139,6 +131,7 @@ DataArray<T>::DataArray(Node *node)
 template <typename T> 
 DataArray<T>::DataArray(const Node *node)
 : m_data(const_cast<void*>(node->data_ptr())),
+  m_orig_data_ptr(const_cast<void*>(node->data_ptr())),
   m_dtype(node->dtype()), 
   m_node_ptr(const_cast<Node*>(node)),
   m_other_ptr(nullptr),
@@ -147,103 +140,6 @@ DataArray<T>::DataArray(const Node *node)
   m_offset(node->dtype().offset()),
   m_stride(node->dtype().stride())
 {}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-DataArray<T>::~DataArray()
-{
-    if (m_do_i_own_it)
-    {
-        if (execution::DeviceMemory::is_device_ptr(m_other_ptr))
-        {
-            execution::DeviceMemory::deallocate(m_other_ptr);
-        }
-        else
-        {
-            execution::HostMemory::deallocate(m_other_ptr);
-        }
-    }
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-DataArray<T> &
-DataArray<T>::operator=(const DataArray<T> &array)
-{
-    if(this != &array)
-    {
-        m_node_ptr = array.m_node_ptr;
-        m_other_ptr = array.m_other_ptr;
-        m_other_dtype = array.m_other_dtype;
-        m_do_i_own_it = array.m_do_i_own_it;
-        m_data = array.m_data;
-        m_dtype = array.m_dtype;
-        m_offset = array.m_offset;
-        m_stride = array.m_stride;
-    }
-    return *this;
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-T &
-DataArray<T>::element(index_t idx)
-{ 
-    return (*(T*)(element_ptr(idx)));
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-T &             
-DataArray<T>::element(index_t idx) const 
-{ 
-    return (*(T*)(element_ptr(idx)));
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-const DataType &
-DataArray<T>::dtype() const
-{
-    if (nullptr != m_node_ptr)
-    {
-        return (m_data == m_node_ptr->data_ptr() ? orig_dtype() : other_dtype());
-    }
-    else
-    {
-        return m_dtype;
-    }
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-const DataType &
-DataArray<T>::orig_dtype() const
-{
-    if (nullptr != m_node_ptr)
-    {
-        return m_node_ptr->dtype();
-    }
-    else
-    {
-        return m_dtype;
-    }
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-const DataType &
-DataArray<T>::other_dtype() const
-{
-    if (nullptr != m_node_ptr)
-    {
-        return m_other_dtype;
-    }
-    else
-    {
-        return m_dtype;
-    }
-}
 
 //---------------------------------------------------------------------------//
 template <typename T> 
@@ -864,6 +760,10 @@ DataArray<T>::assume()
         m_node_ptr->schema_ptr()->set(dtype());
         m_node_ptr->set_data_ptr(m_data);
 
+        // the assumed data is now the array's new original backing storage
+        m_orig_data_ptr = m_data;
+        m_dtype = other_dtype();
+
         // we no longer own the data since we have given it to node
         m_other_ptr = nullptr;
         m_do_i_own_it = false;
@@ -1041,94 +941,6 @@ DataArray<T>::to_yaml_stream(std::ostream &os) const
 //---------------------------------------------------------------------------//
 // DataArray::set() signed integers single element
 //---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, int8 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, int16 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, int32 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, int64 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-// DataArray::set() unsigned integers single element
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, uint8 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, uint16 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, uint32 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, uint64 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-// DataArray::set() floating point single element
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, float32 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, float64 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
 
 //---------------------------------------------------------------------------//
 template <typename T> 

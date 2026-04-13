@@ -21,8 +21,10 @@
 //-----------------------------------------------------------------------------
 // -- conduit library includes -- 
 //-----------------------------------------------------------------------------
+#include "conduit_execution_qualifiers.hpp"
 #include "conduit_core.hpp"
 #include "conduit_endianness.hpp"
+#include "conduit_utils.hpp"
 
 //-----------------------------------------------------------------------------
 // -- begin conduit:: --
@@ -322,12 +324,41 @@ public:
 // Construction and Destruction
 //-----------------------------------------------------------------------------
 
+    ///
+    /// These simple constructors and assignment operators must remain inline
+    /// in the header because DataAccessor carries DataType metadata into
+    /// device lambdas by value.
+    ///
     /// standard constructor
-    DataType();
+    CONDUIT_EXEC_HOST_DEVICE DataType()
+    : m_id(DataType::EMPTY_ID),
+      m_num_ele(0),
+      m_offset(0),
+      m_stride(0),
+      m_ele_bytes(0),
+      m_endianness(Endianness::DEFAULT_ID)
+    {}
     /// copy constructor
-    DataType(const DataType& type);
+    CONDUIT_EXEC_HOST_DEVICE DataType(const DataType& type)
+    : m_id(type.m_id),
+      m_num_ele(type.m_num_ele),
+      m_offset(type.m_offset),
+      m_stride(type.m_stride),
+      m_ele_bytes(type.m_ele_bytes),
+      m_endianness(type.m_endianness)
+    {}
     /// Assignment operator
-    DataType& operator=(const DataType& type);
+    CONDUIT_EXEC_HOST_DEVICE DataType& operator=(const DataType& type)
+    {
+        m_id = type.m_id;
+        m_num_ele = type.m_num_ele;
+        m_offset = type.m_offset;
+        m_stride = type.m_stride;
+        m_ele_bytes = type.m_ele_bytes;
+        m_endianness = type.m_endianness;
+
+        return *this;
+    }
     /// construct simplest dtype for given type id
     explicit DataType(conduit::index_t id,
                       conduit::index_t num_elements=0);
@@ -341,15 +372,22 @@ public:
              conduit::index_t endianness);
 
     /// construct from full details, given a data type id
-    DataType(conduit::index_t dtype_id,
-             conduit::index_t num_elements,
-             conduit::index_t offset,
-             conduit::index_t stride,
-             conduit::index_t element_bytes,
-             conduit::index_t endianness);
+    CONDUIT_EXEC_HOST_DEVICE DataType(conduit::index_t dtype_id,
+                                      conduit::index_t num_elements,
+                                      conduit::index_t offset,
+                                      conduit::index_t stride,
+                                      conduit::index_t element_bytes,
+                                      conduit::index_t endianness)
+    : m_id(dtype_id),
+      m_num_ele(num_elements),
+      m_offset(offset),
+      m_stride(stride),
+      m_ele_bytes(element_bytes),
+      m_endianness(endianness)
+    {}
 
     /// destructor
-   ~DataType();
+   CONDUIT_EXEC_HOST_DEVICE ~DataType() = default;
 
    /// return a data type to the default (empty) state
    void  reset();
@@ -390,15 +428,39 @@ public:
 //-----------------------------------------------------------------------------
 // Getters and info methods.
 //-----------------------------------------------------------------------------
-    conduit::index_t     id()    const { return m_id;}
+    ///
+    /// These metadata accessors must remain inline in the header because the
+    /// device-usable slice of DataAccessor queries them while executing inside
+    /// device lambdas.
+    ///
+    CONDUIT_EXEC_HOST_DEVICE conduit::index_t id() const { return m_id;}
     std::string name()  const { return id_to_name(m_id);}
 
-    conduit::index_t     number_of_elements()  const { return m_num_ele;}
-    conduit::index_t     offset()              const { return m_offset;}
-    conduit::index_t     stride()              const { return m_stride;}
-    conduit::index_t     element_bytes()       const { return m_ele_bytes;}
-    conduit::index_t     endianness()          const { return m_endianness;}
-    conduit::index_t     element_index(conduit::index_t idx) const;
+    CONDUIT_EXEC_HOST_DEVICE conduit::index_t number_of_elements() const
+                    { return m_num_ele; }
+    CONDUIT_EXEC_HOST_DEVICE conduit::index_t offset() const
+                    { return m_offset; }
+    CONDUIT_EXEC_HOST_DEVICE conduit::index_t stride() const
+                    { return m_stride; }
+    CONDUIT_EXEC_HOST_DEVICE conduit::index_t element_bytes() const
+                    { return m_ele_bytes; }
+    CONDUIT_EXEC_HOST_DEVICE conduit::index_t endianness() const
+                    { return m_endianness; }
+    ///
+    /// element_index() is part of the address calculation path used from
+    /// device lambdas, so it must remain inline in the header. The warning is
+    /// kept host-only because device code cannot emit Conduit diagnostics.
+    ///
+    CONDUIT_EXEC_HOST_DEVICE conduit::index_t element_index(conduit::index_t idx) const
+                    {
+#if !defined(CONDUIT_EXEC_DEVICE_COMPILE)
+                        if(idx > 0 && m_stride == 0)
+                        {
+                            CONDUIT_WARN("Node index calculation with with stride = 0");
+                        }
+#endif
+                        return m_offset + m_stride * idx;
+                    }
 
     /// strided bytes = stride() * (number_of_elements() -1) + element_bytes()
     conduit::index_t     strided_bytes() const;

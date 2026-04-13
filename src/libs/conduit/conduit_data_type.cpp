@@ -488,41 +488,6 @@ DataType::c_long_double(conduit::index_t num_elements,
 //-----------------------------------------------------------------------------
 
 //---------------------------------------------------------------------------//
-DataType::DataType()
-: m_id(DataType::EMPTY_ID),
-  m_num_ele(0),
-  m_offset(0),
-  m_stride(0),
-  m_ele_bytes(0),
-  m_endianness(Endianness::DEFAULT_ID)
-{}
-
-//---------------------------------------------------------------------------// 
-DataType::DataType(const DataType& value)
-: m_id(value.m_id),
-  m_num_ele(value.m_num_ele),
-  m_offset(value.m_offset),
-  m_stride(value.m_stride),
-  m_ele_bytes(value.m_ele_bytes),
-  m_endianness(value.m_endianness)
-{}
-
-
-//---------------------------------------------------------------------------// 
-DataType& DataType::operator=(const DataType& value)
-{
-  m_id = value.m_id;
-  m_num_ele = value.m_num_ele;
-  m_offset = value.m_offset;
-  m_stride = value.m_stride;
-  m_ele_bytes = value.m_ele_bytes;
-  m_endianness = value.m_endianness;
-
-  return *this;
-}
-
-
-//---------------------------------------------------------------------------//
 DataType::DataType(conduit::index_t id, conduit::index_t num_elements)
 : m_id(id),
   m_num_ele(num_elements),
@@ -545,27 +510,6 @@ DataType::DataType(const std::string &dtype_name,
   m_stride(stride),
   m_ele_bytes(element_bytes),
   m_endianness(endianness)
-{}
-
-//---------------------------------------------------------------------------// 
-DataType::DataType(conduit::index_t dtype_id,
-                   conduit::index_t num_elements,
-                   conduit::index_t offset,
-                   conduit::index_t stride,
-                   conduit::index_t element_bytes,
-                   conduit::index_t endianness)
-                
-: m_id(dtype_id),
-  m_num_ele(num_elements),
-  m_offset(offset),
-  m_stride(stride),
-  m_ele_bytes(element_bytes),
-  m_endianness(endianness)
-{}
-
-
-//---------------------------------------------------------------------------//
-DataType::~DataType()
 {}
 
 //---------------------------------------------------------------------------//
@@ -1032,22 +976,6 @@ DataType::endianness_matches_machine() const
                     Endianness::machine_is_big_endian()) ||
              (m_endianness == Endianness::LITTLE_ID && 
                     Endianness::machine_is_little_endian()) );
-}
-
-//---------------------------------------------------------------------------// 
-conduit::index_t
-DataType::element_index(conduit::index_t idx) const
-{
-    /// TODO: This will be an expensive check, placed this in 
-    /// to help us ferret out some places were we are creating default 
-    /// datatypes that have stride == 0.
-
-    if(idx > 0 && m_stride == 0)
-    {
-        CONDUIT_WARN("Node index calculation with with stride = 0");
-    }
-    
-    return m_offset + m_stride * idx;
 }
 
 //-----------------------------------------------------------------------------
