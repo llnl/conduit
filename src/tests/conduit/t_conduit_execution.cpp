@@ -389,43 +389,15 @@ enum StrawmanStartSpace
 };
 
 //-----------------------------------------------------------------------------
-void
-strawman_setup_node(Node &node,
-                    StrawmanStartSpace src_start_space,
-                    StrawmanStartSpace des_start_space,
-                    float64 *&src_device_ptr,
-                    float64 *&des_device_ptr)
+float64 *
+strawman_make_device_buffer(const float64 *host_vals, index_t num_vals)
 {
-    float64 src_vals[4] = {1.0, 2.0, 3.0, 4.0};
-    float64 des_vals[4] = {0.0, 0.0, 0.0, 0.0};
-
-    if (src_start_space == STRAWMAN_START_ON_DEVICE)
-    {
-        src_device_ptr = static_cast<float64*>(
-            execution::DeviceMemory::allocate(sizeof(float64) * 4));
-        conduit::execution::MagicMemory::copy(src_device_ptr,
-                                              &src_vals[0],
-                                              sizeof(float64) * 4);
-        node["src"].set_external(src_device_ptr, 4);
-    }
-    else
-    {
-        node["src"].set(src_vals, 4);
-    }
-
-    if (des_start_space == STRAWMAN_START_ON_DEVICE)
-    {
-        des_device_ptr = static_cast<float64*>(
-            execution::DeviceMemory::allocate(sizeof(float64) * 4));
-        conduit::execution::MagicMemory::copy(des_device_ptr,
-                                              &des_vals[0],
-                                              sizeof(float64) * 4);
-        node["des"].set_external(des_device_ptr, 4);
-    }
-    else
-    {
-        node["des"].set(des_vals, 4);
-    }
+    float64 *device_ptr = static_cast<float64*>(
+        execution::DeviceMemory::allocate(sizeof(float64) * num_vals));
+    conduit::execution::MagicMemory::copy(device_ptr,
+                                          host_vals,
+                                          sizeof(float64) * num_vals);
+    return device_ptr;
 }
 
 //-----------------------------------------------------------------------------
@@ -500,16 +472,6 @@ strawman_run_policy_and_sync(Node &node,
             EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         }
     }
-
-    float64_accessor result_acc(node["des"]);
-    // Verification runs on the host, so use a host execution policy
-    // in case node["des"] still owns device-backed data here.
-    result_acc.use_with(ExecutionPolicy::host());
-    EXPECT_EQ(result_acc.number_of_elements(), 4);
-    EXPECT_EQ(result_acc[0], 2.0);
-    EXPECT_EQ(result_acc[1], 4.0);
-    EXPECT_EQ(result_acc[2], 6.0);
-    EXPECT_EQ(result_acc[3], 8.0);
 }
 
 //-----------------------------------------------------------------------------
@@ -562,16 +524,6 @@ strawman_run_policy_and_assume(Node &node,
             EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         }
     }
-
-    float64_accessor result_acc(node["des"]);
-    // Verification runs on the host, so use a host execution policy
-    // in case node["des"] still owns device-backed data here.
-    result_acc.use_with(ExecutionPolicy::host());
-    EXPECT_EQ(result_acc.number_of_elements(), 4);
-    EXPECT_EQ(result_acc[0], 2.0);
-    EXPECT_EQ(result_acc[1], 4.0);
-    EXPECT_EQ(result_acc[2], 6.0);
-    EXPECT_EQ(result_acc[3], 8.0);
 }
 
 //-----------------------------------------------------------------------------
@@ -635,7 +587,12 @@ strawman_run_where_src_is(Node &node,
             EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
         }
     }
+}
 
+//-----------------------------------------------------------------------------
+void
+strawman_expect_doubled_des(Node &node)
+{
     float64_accessor result_acc(node["des"]);
     // Verification runs on the host, so use a host execution policy
     // in case node["des"] still owns device-backed data here.
@@ -651,6 +608,8 @@ strawman_run_where_src_is(Node &node,
 TEST(conduit_execution, strawman_src_host_des_host)
 {
     conduit_device_prepare();
+    const float64 src_vals[4] = {1.0, 2.0, 3.0, 4.0};
+    const float64 des_vals[4] = {0.0, 0.0, 0.0, 0.0};
 
     // Run with an explicit host execution policy.
     // node["des"] is synced back to the memory space where it started.
@@ -660,12 +619,10 @@ TEST(conduit_execution, strawman_src_host_des_host)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_HOST,
-                            STRAWMAN_START_ON_HOST,
-                            src_device_ptr,
-                            des_device_ptr);
+        node["src"].set(src_vals, 4);
+        node["des"].set(des_vals, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::host(), false, false);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_HOST,
                               STRAWMAN_START_ON_HOST,
@@ -682,12 +639,10 @@ TEST(conduit_execution, strawman_src_host_des_host)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_HOST,
-                            STRAWMAN_START_ON_HOST,
-                            src_device_ptr,
-                            des_device_ptr);
+        node["src"].set(src_vals, 4);
+        node["des"].set(des_vals, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::device(), false, false);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_HOST,
                               STRAWMAN_START_ON_HOST,
@@ -703,12 +658,10 @@ TEST(conduit_execution, strawman_src_host_des_host)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_HOST,
-                            STRAWMAN_START_ON_HOST,
-                            src_device_ptr,
-                            des_device_ptr);
+        node["src"].set(src_vals, 4);
+        node["des"].set(des_vals, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::host(), false, false);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_HOST,
                               STRAWMAN_START_ON_HOST,
@@ -725,12 +678,10 @@ TEST(conduit_execution, strawman_src_host_des_host)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_HOST,
-                            STRAWMAN_START_ON_HOST,
-                            src_device_ptr,
-                            des_device_ptr);
+        node["src"].set(src_vals, 4);
+        node["des"].set(des_vals, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::device(), false, true);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_HOST,
                               STRAWMAN_START_ON_HOST,
@@ -746,12 +697,10 @@ TEST(conduit_execution, strawman_src_host_des_host)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_HOST,
-                            STRAWMAN_START_ON_HOST,
-                            src_device_ptr,
-                            des_device_ptr);
+        node["src"].set(src_vals, 4);
+        node["des"].set(des_vals, 4);
         strawman_run_where_src_is(node, false, false, false);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_HOST,
                               STRAWMAN_START_ON_HOST,
@@ -764,6 +713,8 @@ TEST(conduit_execution, strawman_src_host_des_host)
 TEST(conduit_execution, strawman_src_device_des_device)
 {
     conduit_device_prepare();
+    const float64 src_vals[4] = {1.0, 2.0, 3.0, 4.0};
+    const float64 des_vals[4] = {0.0, 0.0, 0.0, 0.0};
 
     if (!ExecutionPolicy::is_device_enabled())
     {
@@ -778,12 +729,12 @@ TEST(conduit_execution, strawman_src_device_des_device)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_DEVICE,
-                            STRAWMAN_START_ON_DEVICE,
-                            src_device_ptr,
-                            des_device_ptr);
+        src_device_ptr = strawman_make_device_buffer(src_vals, 4);
+        des_device_ptr = strawman_make_device_buffer(des_vals, 4);
+        node["src"].set_external(src_device_ptr, 4);
+        node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::host(), true, true);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_DEVICE,
                               STRAWMAN_START_ON_DEVICE,
@@ -799,12 +750,12 @@ TEST(conduit_execution, strawman_src_device_des_device)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_DEVICE,
-                            STRAWMAN_START_ON_DEVICE,
-                            src_device_ptr,
-                            des_device_ptr);
+        src_device_ptr = strawman_make_device_buffer(src_vals, 4);
+        des_device_ptr = strawman_make_device_buffer(des_vals, 4);
+        node["src"].set_external(src_device_ptr, 4);
+        node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::device(), true, true);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_DEVICE,
                               STRAWMAN_START_ON_DEVICE,
@@ -820,12 +771,12 @@ TEST(conduit_execution, strawman_src_device_des_device)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_DEVICE,
-                            STRAWMAN_START_ON_DEVICE,
-                            src_device_ptr,
-                            des_device_ptr);
+        src_device_ptr = strawman_make_device_buffer(src_vals, 4);
+        des_device_ptr = strawman_make_device_buffer(des_vals, 4);
+        node["src"].set_external(src_device_ptr, 4);
+        node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::host(), true, false);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_DEVICE,
                               STRAWMAN_START_ON_DEVICE,
@@ -841,12 +792,12 @@ TEST(conduit_execution, strawman_src_device_des_device)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_DEVICE,
-                            STRAWMAN_START_ON_DEVICE,
-                            src_device_ptr,
-                            des_device_ptr);
+        src_device_ptr = strawman_make_device_buffer(src_vals, 4);
+        des_device_ptr = strawman_make_device_buffer(des_vals, 4);
+        node["src"].set_external(src_device_ptr, 4);
+        node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::device(), true, true);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_DEVICE,
                               STRAWMAN_START_ON_DEVICE,
@@ -862,12 +813,12 @@ TEST(conduit_execution, strawman_src_device_des_device)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_DEVICE,
-                            STRAWMAN_START_ON_DEVICE,
-                            src_device_ptr,
-                            des_device_ptr);
+        src_device_ptr = strawman_make_device_buffer(src_vals, 4);
+        des_device_ptr = strawman_make_device_buffer(des_vals, 4);
+        node["src"].set_external(src_device_ptr, 4);
+        node["des"].set_external(des_device_ptr, 4);
         strawman_run_where_src_is(node, true, true, true);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_DEVICE,
                               STRAWMAN_START_ON_DEVICE,
@@ -880,6 +831,8 @@ TEST(conduit_execution, strawman_src_device_des_device)
 TEST(conduit_execution, strawman_src_host_des_device)
 {
     conduit_device_prepare();
+    const float64 src_vals[4] = {1.0, 2.0, 3.0, 4.0};
+    const float64 des_vals[4] = {0.0, 0.0, 0.0, 0.0};
 
     if (!ExecutionPolicy::is_device_enabled())
     {
@@ -894,12 +847,11 @@ TEST(conduit_execution, strawman_src_host_des_device)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_HOST,
-                            STRAWMAN_START_ON_DEVICE,
-                            src_device_ptr,
-                            des_device_ptr);
+        des_device_ptr = strawman_make_device_buffer(des_vals, 4);
+        node["src"].set(src_vals, 4);
+        node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::host(), false, true);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_HOST,
                               STRAWMAN_START_ON_DEVICE,
@@ -915,12 +867,11 @@ TEST(conduit_execution, strawman_src_host_des_device)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_HOST,
-                            STRAWMAN_START_ON_DEVICE,
-                            src_device_ptr,
-                            des_device_ptr);
+        des_device_ptr = strawman_make_device_buffer(des_vals, 4);
+        node["src"].set(src_vals, 4);
+        node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::device(), false, true);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_HOST,
                               STRAWMAN_START_ON_DEVICE,
@@ -936,12 +887,11 @@ TEST(conduit_execution, strawman_src_host_des_device)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_HOST,
-                            STRAWMAN_START_ON_DEVICE,
-                            src_device_ptr,
-                            des_device_ptr);
+        des_device_ptr = strawman_make_device_buffer(des_vals, 4);
+        node["src"].set(src_vals, 4);
+        node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::host(), false, false);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_HOST,
                               STRAWMAN_START_ON_DEVICE,
@@ -957,12 +907,11 @@ TEST(conduit_execution, strawman_src_host_des_device)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_HOST,
-                            STRAWMAN_START_ON_DEVICE,
-                            src_device_ptr,
-                            des_device_ptr);
+        des_device_ptr = strawman_make_device_buffer(des_vals, 4);
+        node["src"].set(src_vals, 4);
+        node["des"].set_external(des_device_ptr, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::device(), false, true);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_HOST,
                               STRAWMAN_START_ON_DEVICE,
@@ -978,12 +927,11 @@ TEST(conduit_execution, strawman_src_host_des_device)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_HOST,
-                            STRAWMAN_START_ON_DEVICE,
-                            src_device_ptr,
-                            des_device_ptr);
+        des_device_ptr = strawman_make_device_buffer(des_vals, 4);
+        node["src"].set(src_vals, 4);
+        node["des"].set_external(des_device_ptr, 4);
         strawman_run_where_src_is(node, false, false, true);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_HOST,
                               STRAWMAN_START_ON_DEVICE,
@@ -996,6 +944,8 @@ TEST(conduit_execution, strawman_src_host_des_device)
 TEST(conduit_execution, strawman_src_device_des_host)
 {
     conduit_device_prepare();
+    const float64 src_vals[4] = {1.0, 2.0, 3.0, 4.0};
+    const float64 des_vals[4] = {0.0, 0.0, 0.0, 0.0};
 
     if (!ExecutionPolicy::is_device_enabled())
     {
@@ -1010,12 +960,11 @@ TEST(conduit_execution, strawman_src_device_des_host)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_DEVICE,
-                            STRAWMAN_START_ON_HOST,
-                            src_device_ptr,
-                            des_device_ptr);
+        src_device_ptr = strawman_make_device_buffer(src_vals, 4);
+        node["src"].set_external(src_device_ptr, 4);
+        node["des"].set(des_vals, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::host(), true, false);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_DEVICE,
                               STRAWMAN_START_ON_HOST,
@@ -1031,12 +980,11 @@ TEST(conduit_execution, strawman_src_device_des_host)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_DEVICE,
-                            STRAWMAN_START_ON_HOST,
-                            src_device_ptr,
-                            des_device_ptr);
+        src_device_ptr = strawman_make_device_buffer(src_vals, 4);
+        node["src"].set_external(src_device_ptr, 4);
+        node["des"].set(des_vals, 4);
         strawman_run_policy_and_sync(node, ExecutionPolicy::device(), true, false);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_DEVICE,
                               STRAWMAN_START_ON_HOST,
@@ -1052,12 +1000,11 @@ TEST(conduit_execution, strawman_src_device_des_host)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_DEVICE,
-                            STRAWMAN_START_ON_HOST,
-                            src_device_ptr,
-                            des_device_ptr);
+        src_device_ptr = strawman_make_device_buffer(src_vals, 4);
+        node["src"].set_external(src_device_ptr, 4);
+        node["des"].set(des_vals, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::host(), true, false);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_DEVICE,
                               STRAWMAN_START_ON_HOST,
@@ -1073,12 +1020,11 @@ TEST(conduit_execution, strawman_src_device_des_host)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_DEVICE,
-                            STRAWMAN_START_ON_HOST,
-                            src_device_ptr,
-                            des_device_ptr);
+        src_device_ptr = strawman_make_device_buffer(src_vals, 4);
+        node["src"].set_external(src_device_ptr, 4);
+        node["des"].set(des_vals, 4);
         strawman_run_policy_and_assume(node, ExecutionPolicy::device(), true, true);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_DEVICE,
                               STRAWMAN_START_ON_HOST,
@@ -1094,12 +1040,11 @@ TEST(conduit_execution, strawman_src_device_des_host)
         float64 *src_device_ptr = nullptr;
         float64 *des_device_ptr = nullptr;
         Node node;
-        strawman_setup_node(node,
-                            STRAWMAN_START_ON_DEVICE,
-                            STRAWMAN_START_ON_HOST,
-                            src_device_ptr,
-                            des_device_ptr);
+        src_device_ptr = strawman_make_device_buffer(src_vals, 4);
+        node["src"].set_external(src_device_ptr, 4);
+        node["des"].set(des_vals, 4);
         strawman_run_where_src_is(node, true, true, false);
+        strawman_expect_doubled_des(node);
         strawman_cleanup_node(node,
                               STRAWMAN_START_ON_DEVICE,
                               STRAWMAN_START_ON_HOST,
