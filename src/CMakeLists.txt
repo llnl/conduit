@@ -24,7 +24,7 @@ endif()
 # Conduit
 ################################
 
-project(conduit VERSION "0.9.5")
+project(conduit VERSION "0.9.6")
 
 ################################
 # Build Options
