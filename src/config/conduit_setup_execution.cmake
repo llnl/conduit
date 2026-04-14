@@ -2,6 +2,9 @@
 # Project developers. See top-level LICENSE AND COPYRIGHT files for dates and
 # other details. No copyright assignment is required to contribute to Conduit.
 
+# Internal helper used by conduit_enable_execution_target() to switch a
+# consumer target's compilable source files to CUDA or HIP when this Conduit
+# build exposes device execution.
 function(_conduit_set_execution_language target language)
     if(NOT TARGET ${target})
         message(FATAL_ERROR "conduit_enable_execution_target() target '${target}' does not exist")
@@ -47,6 +50,10 @@ function(_conduit_set_execution_language target language)
 endfunction()
 
 
+# Public helper for downstream CMake targets that want to use Conduit's
+# execution support. It links the target to the execution-facing Conduit
+# target and, for CUDA/HIP builds, marks the target's sources for device
+# compilation.
 function(conduit_enable_execution_target)
     set(options)
     set(singleValueArgs TARGET SCOPE)
