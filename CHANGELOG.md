@@ -4,7 +4,7 @@ Notable changes to Conduit are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project aspires to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.9.6] - Released 2026-04-05
+## [0.9.6] - Released 2026-04-14
 
 ### Added
 
@@ -82,7 +82,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 #### Relay
 - Fixed a bug preventing multiple species sets from being written when writing to Overlink.
-- Fixed an issue where `int64` unstructured topoology connectivity information would cause The Silo writer to crash.
+- Fixed an issue where `int64` unstructured topology connectivity information would cause The Silo writer to crash.
 
 ## [0.9.5] - Released 2025-09-10
 
