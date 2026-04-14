@@ -284,22 +284,10 @@ static PyObject* PyConduit_Convert_Node_To_Python(Node& node);
 //---------------------------------------------------------------------------//
 static PyObject *
 PyConduit_DataType_new(PyTypeObject* type,
-                       PyObject* args,
-                       PyObject* kwds)
+                       PyObject*, // args -- unused
+                       PyObject*) // kwds -- unused
 {
-    /// TODO: args and kwargs
-
-    static const char *kwlist[] = {"value", NULL};
-    PyObject* value = NULL;
-    if (!PyArg_ParseTupleAndKeywords(args,
-                                     kwds,
-                                     "|O",
-                                     const_cast<char**>(kwlist),
-                                     &value))
-    {
-        return (NULL);
-    }
-
+    // `_new` is used to alloc the object, `_init` is effectively the constructor
     PyConduit_DataType* self = (PyConduit_DataType*)PyType_GenericAlloc(type,0);
     return ((PyObject*)self);
 }
@@ -3297,6 +3285,7 @@ PyConduit_Generator_new(PyTypeObject *type,
                         PyObject*, // args -- unused
                         PyObject*) // kwds -- unused
 {
+    // `_new` is used to alloc the object, `_init` is effectively the constructor
     PyConduit_Generator *self = (PyConduit_Generator*)PyType_GenericAlloc(type,0);
 
     if (self)
@@ -3591,7 +3580,7 @@ PyConduit_Schema_new(PyTypeObject* type,
                      PyObject*, // args -- unused
                      PyObject*) // kwds -- unused
 {
-
+    // `_new` is used to alloc the object, `_init` is effectively the constructor
     PyConduit_Schema *self = (PyConduit_Schema*)PyType_GenericAlloc(type,0);
 
     if (self)
@@ -4652,20 +4641,10 @@ static PyTypeObject PyConduit_Schema_TYPE = {
 //---------------------------------------------------------------------------//
 static PyObject *
 PyConduit_NodeIterator_new(PyTypeObject *type,
-                            PyObject *args,
-                            PyObject *kwds)
+                           PyObject*, // args -- unused
+                           PyObject*) // kwds -- unused
 {
-    static const char *kwlist[] = {"value", NULL};
-    PyObject* value = NULL;
-    if (!PyArg_ParseTupleAndKeywords(args,
-                                     kwds,
-                                     "|O",
-                                     const_cast<char**>(kwlist),
-                                     &value))
-    {
-        return (NULL);
-    }
-
+    // `_new` is used to alloc the object, `_init` is effectively the constructor
     PyConduit_DataType *self = (PyConduit_DataType*)PyType_GenericAlloc(type,0);
     return ((PyObject*)self);
 }
@@ -5154,20 +5133,10 @@ PyConduit_Fill_DataArray_From_PyArray(DataArray<T> &conduit_array,
 //---------------------------------------------------------------------------//
 static PyObject *
 PyConduit_Node_new(PyTypeObject* type,
-                   PyObject* args,
-                   PyObject* kwds)
+                   PyObject*, // args -- unused
+                   PyObject*) // kwds -- unused
 {
-    static const char *kwlist[] = {"value", NULL};
-    PyObject* value = NULL;
-    if (!PyArg_ParseTupleAndKeywords(args,
-                                     kwds,
-                                     "|O",
-                                     const_cast<char**>(kwlist),
-                                     &value))
-    {
-        return (NULL);
-    }
-
+    // `_new` is used to alloc the object, `_init` is effectively the constructor
     PyConduit_Node* self = (PyConduit_Node*)PyType_GenericAlloc(type,0);
 
     if (self)

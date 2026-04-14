@@ -58,13 +58,13 @@ class Test_Conduit_Node(unittest.TestCase):
         dt.set_offset(0);
         dt.set_stride(4);
         dt.set_element_bytes(4);
-        
+
         dt2 = DataType(dt)
         self.assertEqual(dt.id(),dt2.id())
         self.assertEqual(dt.number_of_elements(),dt2.number_of_elements())
         self.assertEqual(dt.offset(),dt2.offset())
         self.assertEqual(dt.stride(),dt2.stride())
-        self.assertEqual(dt.element_bytes(),dt2.element_bytes())        
+        self.assertEqual(dt.element_bytes(),dt2.element_bytes())
         self.assertEqual(dt.endianness(),dt2.endianness())
 
         dt3 = DataType()
@@ -79,7 +79,7 @@ class Test_Conduit_Node(unittest.TestCase):
         self.assertEqual(dt2.stride(),dt3.stride())
         self.assertEqual(dt2.element_bytes(),dt3.element_bytes())
         self.assertEqual(dt2.endianness(),dt3.endianness())
-        
+
         print(dt)
         print(dt2)
         print(dt3)
@@ -240,6 +240,44 @@ class Test_Conduit_Node(unittest.TestCase):
         # floating point
         self.assertEqual(DataType.float32().id(), DataType.float32_id())
         self.assertEqual(DataType.float64().id(), DataType.float64_id())
+
+    def test_construct_from_args(self):
+        # string case
+        dt = DataType("int64",
+                      7, # num ele
+                      10, # offset
+                      16, # stride
+                      8, # ele bytes
+                      0) # endianness id
+        self.assertTrue(dt.is_int64())
+        self.assertEqual(dt.number_of_elements(),7)
+        self.assertEqual(dt.offset(),10)
+        self.assertEqual(dt.stride(),16)
+        self.assertEqual(dt.element_bytes(),8)
+        self.assertEqual(dt.endianness(),0)
+        # id case
+        dt = DataType(DataType.name_to_id("int64"),
+                      7, # num ele
+                      10, # offset
+                      16, # stride
+                      8, # ele bytes
+                      0) # endianness id
+        dt = DataType.int64(7,10,16,8)
+        self.assertTrue(dt.is_int64())
+        self.assertEqual(dt.number_of_elements(),7)
+        self.assertEqual(dt.offset(),10)
+        self.assertEqual(dt.stride(),16)
+        self.assertEqual(dt.element_bytes(),8)
+        self.assertEqual(dt.endianness(),0)
+
+        # helper func case
+        dt = DataType.int64(7,10,16,8,0)
+        self.assertTrue(dt.is_int64())
+        self.assertEqual(dt.number_of_elements(),7)
+        self.assertEqual(dt.offset(),10)
+        self.assertEqual(dt.stride(),16)
+        self.assertEqual(dt.element_bytes(),8)
+        self.assertEqual(dt.endianness(),0)
 
     def test_to_string_and_friends(self):
         dtypes = [ DataType.float64(),
