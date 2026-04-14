@@ -4,7 +4,7 @@ Notable changes to Conduit are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project aspires to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.9.6] - Released 2026-04-05
 
 ### Added
 
@@ -71,6 +71,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Conduit
 - Fixed a bug preventing explicit length 0 in `yaml` schema.
 - Fixed a bug where empty objects or lists were not written correctly to `yaml` schema.
+- Fixed a bug where the python DataType constructor did not properly accept arguments.
 
 #### Blueprint
 - Fixed an issue with material set conversions where uni-buffer by material matsets would incorrectly follow the same path as multi-buffer by material matsets.
@@ -1104,7 +1105,9 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Added
 - Initial Open Source Release on GitHub
 
-[Unreleased]: https://github.com/llnl/conduit/compare/v0.9.4...HEAD
+[Unreleased]: https://github.com/llnl/conduit/compare/v0.9.6...HEAD
+[0.9.6]: https://github.com/llnl/conduit/compare/v0.9.5...v0.9.6
+[0.9.5]: https://github.com/llnl/conduit/compare/v0.9.4...v0.9.5
 [0.9.4]: https://github.com/llnl/conduit/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/llnl/conduit/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/llnl/conduit/compare/v0.9.1...v0.9.2
