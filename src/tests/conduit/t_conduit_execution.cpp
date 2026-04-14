@@ -12,6 +12,7 @@
 #include "conduit_execution.hpp"
 #include "conduit_memory_manager.hpp"
 
+#include <functional>
 #include <iostream>
 #include <type_traits>
 #include "gtest/gtest.h"
@@ -515,6 +516,61 @@ TEST(conduit_execution, test_atomics)
         for (index_t i = 0; i < size; i++)
         {
             EXPECT_EQ(host_vals[i], 10);
+        }
+
+        free_for_policy(policy, vals_ptr);
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, test_sort)
+{
+    conduit_device_prepare();
+    for_each_enabled_policy([](ExecutionPolicy policy)
+    {
+        const index_t size = 6;
+        index_t unsorted_vals[size] = {5, 1, 4, 2, 6, 3};
+        index_t ascending_vals[size];
+        index_t descending_vals[size];
+
+        index_t *vals_ptr =
+            static_cast<index_t*>(allocate_for_policy(policy,
+                                                      sizeof(index_t) * size));
+
+        conduit::execution::MagicMemory::copy(vals_ptr,
+                                              &unsorted_vals[0],
+                                              sizeof(index_t) * size);
+        conduit::execution::sort(policy, vals_ptr, vals_ptr + size);
+        conduit::execution::MagicMemory::copy(&ascending_vals[0],
+                                              vals_ptr,
+                                              sizeof(index_t) * size);
+
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(ascending_vals[i], i + 1);
+        }
+
+        conduit::execution::MagicMemory::copy(vals_ptr,
+                                              &unsorted_vals[0],
+                                              sizeof(index_t) * size);
+
+#if defined(CONDUIT_USE_RAJA)
+        using descending_compare = RAJA::operators::greater<index_t>;
+#else
+        using descending_compare = std::greater<index_t>;
+#endif
+
+        conduit::execution::sort(policy,
+                                 vals_ptr,
+                                 vals_ptr + size,
+                                 descending_compare{});
+        conduit::execution::MagicMemory::copy(&descending_vals[0],
+                                              vals_ptr,
+                                              sizeof(index_t) * size);
+
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(descending_vals[i], size - i);
         }
 
         free_for_policy(policy, vals_ptr);

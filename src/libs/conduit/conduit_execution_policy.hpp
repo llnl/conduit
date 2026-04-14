@@ -165,7 +165,7 @@ struct SerialExec
     using reduce_policy = RAJA::seq_reduce;
 #endif
     using atomic_policy = RAJA::seq_atomic;
-    using sort_policy = EmptyPolicy;
+    using sort_policy = RAJA::seq_exec;
     static std::string memory_space;
 };
 
@@ -175,7 +175,7 @@ struct CudaExec
     using for_policy    = RAJA::cuda_exec<CUDA_BLOCK_SIZE>;
     using reduce_policy = RAJA::cuda_reduce;
     using atomic_policy = RAJA::cuda_atomic;
-    using sort_policy = EmptyPolicy;
+    using sort_policy = RAJA::cuda_exec<CUDA_BLOCK_SIZE>;
     static std::string memory_space;
 };
 #endif
@@ -186,7 +186,7 @@ struct HipExec
     using for_policy    = RAJA::hip_exec<HIP_BLOCK_SIZE>;
     using reduce_policy = RAJA::hip_reduce;
     using atomic_policy = RAJA::hip_atomic;
-    using sort_policy = EmptyPolicy;
+    using sort_policy = RAJA::hip_exec<HIP_BLOCK_SIZE>;
     static std::string memory_space;
 };
 #endif
@@ -203,7 +203,7 @@ struct OpenMPExec
     using reduce_policy = RAJA::omp_reduce;
 #endif
     using atomic_policy = RAJA::omp_atomic;
-    using sort_policy = EmptyPolicy;
+    using sort_policy = RAJA::omp_parallel_for_exec;
     static std::string memory_space;
 };
 #endif
