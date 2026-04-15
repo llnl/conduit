@@ -41,55 +41,6 @@ namespace execution
 namespace detail
 {
 
-template <typename ExecPolicyTag>
-struct uses_restricted_raja_device_sort : std::false_type
-{};
-
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
-template <>
-struct uses_restricted_raja_device_sort<CudaExec> : std::true_type
-{};
-#endif
-
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
-template <>
-struct uses_restricted_raja_device_sort<HipExec> : std::true_type
-{};
-#endif
-
-template <typename Iterator>
-struct iterator_value
-{
-    using type = typename std::iterator_traits<Iterator>::value_type;
-};
-
-template <typename Iterator>
-struct is_pointer_iterator : std::is_pointer<Iterator>
-{};
-
-template <typename Compare, typename ValueType>
-struct is_supported_raja_device_sort_compare : std::false_type
-{};
-
-template <typename ValueType>
-struct is_supported_raja_device_sort_compare<RAJA::operators::less<ValueType>, ValueType>
-: std::true_type
-{};
-
-template <typename ValueType>
-struct is_supported_raja_device_sort_compare<RAJA::operators::greater<ValueType>, ValueType>
-: std::true_type
-{};
-
-template <typename Iterator, typename Predicate>
-struct is_supported_raja_device_sort
-: std::integral_constant<bool,
-                         is_pointer_iterator<Iterator>::value &&
-                         std::is_arithmetic<typename iterator_value<Iterator>::type>::value &&
-                         is_supported_raja_device_sort_compare<typename std::decay<Predicate>::type,
-                                                               typename iterator_value<Iterator>::type>::value>
-{};
-
 //-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Iterator, typename Predicate>
 inline void
@@ -103,46 +54,6 @@ sort_exec_raja(ExecPolicyTag,
         span,
         std::forward<Predicate>(predicate));
     event.get().wait();
-}
-
-//-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename Iterator>
-inline typename std::enable_if<!uses_restricted_raja_device_sort<ExecPolicyTag>::value &&
-                               is_pointer_iterator<Iterator>::value, void>::type
-sort_exec_default(ExecPolicyTag,
-                  Iterator begin,
-                  Iterator end) noexcept
-{
-    using value_type = typename iterator_value<Iterator>::type;
-    sort_exec_raja(ExecPolicyTag{},
-                   begin,
-                   end,
-                   std::less<value_type>{});
-}
-
-//-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename Iterator>
-inline typename std::enable_if<!uses_restricted_raja_device_sort<ExecPolicyTag>::value &&
-                               !is_pointer_iterator<Iterator>::value, void>::type
-sort_exec_default(ExecPolicyTag,
-                  Iterator begin,
-                  Iterator end) noexcept
-{
-    std::sort(begin, end);
-}
-
-//-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename Iterator>
-inline typename std::enable_if<uses_restricted_raja_device_sort<ExecPolicyTag>::value, void>::type
-sort_exec_default(ExecPolicyTag,
-                  Iterator begin,
-                  Iterator end) noexcept
-{
-    using value_type = typename iterator_value<Iterator>::type;
-    sort_exec_raja(ExecPolicyTag{},
-                   begin,
-                   end,
-                   RAJA::operators::less<value_type>{});
 }
 
 template <typename ExecPolicyTag, typename T>
@@ -174,69 +85,105 @@ forall_exec(ExecPolicyTag,
 }
 
 //-----------------------------------------------------------------------------
+template <typename ExecPolicyTag, typename Iterator, typename Predicate>
+inline void
+sort_exec(ExecPolicyTag,
+          Iterator begin,
+          Iterator end,
+          Predicate &&predicate) noexcept;
+
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Iterator>
 inline void
 sort_exec(ExecPolicyTag,
           Iterator begin,
           Iterator end) noexcept
 {
-    sort_exec_default(ExecPolicyTag{}, begin, end);
+    using value_type = typename std::iterator_traits<Iterator>::value_type;
+    constexpr bool is_device_exec =
+#if defined(CONDUIT_EXEC_TU_HAS_CUDA) && defined(CONDUIT_EXEC_TU_HAS_HIP)
+        std::is_same_v<ExecPolicyTag, CudaExec> || std::is_same_v<ExecPolicyTag, HipExec>;
+#elif defined(CONDUIT_EXEC_TU_HAS_CUDA)
+        std::is_same_v<ExecPolicyTag, CudaExec>;
+#elif defined(CONDUIT_EXEC_TU_HAS_HIP)
+        std::is_same_v<ExecPolicyTag, HipExec>;
+#else
+        false;
+#endif
+
+    if constexpr(is_device_exec)
+    {
+        sort_exec(ExecPolicyTag{},
+                  begin,
+                  end,
+                  RAJA::operators::less<value_type>{});
+    }
+    else if constexpr(std::is_pointer<Iterator>::value)
+    {
+        sort_exec_raja(ExecPolicyTag{},
+                       begin,
+                       end,
+                       std::less<value_type>{});
+    }
+    else
+    {
+        std::sort(begin, end);
+    }
 }
 
 //-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Iterator, typename Predicate>
-inline typename std::enable_if<!uses_restricted_raja_device_sort<ExecPolicyTag>::value &&
-                               is_pointer_iterator<Iterator>::value, void>::type
+inline void
 sort_exec(ExecPolicyTag,
           Iterator begin,
           Iterator end,
           Predicate &&predicate) noexcept
 {
-    sort_exec_raja(ExecPolicyTag{},
-                   begin,
-                   end,
-                   std::forward<Predicate>(predicate));
-}
+    using value_type = typename std::iterator_traits<Iterator>::value_type;
+    using compare_type = typename std::decay<Predicate>::type;
+    constexpr bool is_device_exec =
+#if defined(CONDUIT_EXEC_TU_HAS_CUDA) && defined(CONDUIT_EXEC_TU_HAS_HIP)
+        std::is_same_v<ExecPolicyTag, CudaExec> || std::is_same_v<ExecPolicyTag, HipExec>;
+#elif defined(CONDUIT_EXEC_TU_HAS_CUDA)
+        std::is_same_v<ExecPolicyTag, CudaExec>;
+#elif defined(CONDUIT_EXEC_TU_HAS_HIP)
+        std::is_same_v<ExecPolicyTag, HipExec>;
+#else
+        false;
+#endif
+    constexpr bool is_supported_device_sort =
+        std::is_pointer_v<Iterator> &&
+        std::is_arithmetic_v<value_type> &&
+        (std::is_same_v<compare_type, RAJA::operators::less<value_type>> ||
+         std::is_same_v<compare_type, RAJA::operators::greater<value_type>>);
 
-//-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename Iterator, typename Predicate>
-inline typename std::enable_if<!uses_restricted_raja_device_sort<ExecPolicyTag>::value &&
-                               !is_pointer_iterator<Iterator>::value, void>::type
-sort_exec(ExecPolicyTag,
-          Iterator begin,
-          Iterator end,
-          Predicate &&predicate) noexcept
-{
-    std::sort(begin, end, std::forward<Predicate>(predicate));
-}
-
-//-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename Iterator, typename Predicate>
-inline typename std::enable_if<uses_restricted_raja_device_sort<ExecPolicyTag>::value &&
-                               is_supported_raja_device_sort<Iterator, Predicate>::value, void>::type
-sort_exec(ExecPolicyTag,
-          Iterator begin,
-          Iterator end,
-          Predicate &&predicate) noexcept
-{
-    sort_exec_raja(ExecPolicyTag{},
-                   begin,
-                   end,
-                   std::forward<Predicate>(predicate));
-}
-
-//-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename Iterator, typename Predicate>
-inline typename std::enable_if<uses_restricted_raja_device_sort<ExecPolicyTag>::value &&
-                               !is_supported_raja_device_sort<Iterator, Predicate>::value, void>::type
-sort_exec(ExecPolicyTag,
-          Iterator,
-          Iterator,
-          Predicate &&) noexcept
-{
-    CONDUIT_ERROR("Device sort currently requires raw pointers to arithmetic "
-                  "types and RAJA::operators::less or RAJA::operators::greater "
-                  "comparators.");
+    if constexpr(is_device_exec)
+    {
+        if constexpr(is_supported_device_sort)
+        {
+            sort_exec_raja(ExecPolicyTag{},
+                           begin,
+                           end,
+                           std::forward<Predicate>(predicate));
+        }
+        else
+        {
+            CONDUIT_ERROR("Device sort currently requires raw pointers to arithmetic "
+                          "types and RAJA::operators::less or RAJA::operators::greater "
+                          "comparators.");
+        }
+    }
+    else if constexpr(std::is_pointer<Iterator>::value)
+    {
+        sort_exec_raja(ExecPolicyTag{},
+                       begin,
+                       end,
+                       std::forward<Predicate>(predicate));
+    }
+    else
+    {
+        std::sort(begin, end, std::forward<Predicate>(predicate));
+    }
 }
 
 //-----------------------------------------------------------------------------
