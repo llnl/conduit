@@ -165,10 +165,12 @@ if(CALIPER_FOUND)
 endif()
 
 if(RAJA_FOUND)
+    set(CONDUIT_USE_RAJA TRUE)
     list(APPEND conduit_thirdparty_libs RAJA)
 endif()
 
 if(UMPIRE_FOUND)
+    set(CONDUIT_USE_UMPIRE TRUE)
     list(APPEND conduit_thirdparty_libs umpire)
 endif()
 
@@ -240,4 +242,3 @@ if(FORTRAN_FOUND)
    ${CMAKE_Fortran_MODULE_DIRECTORY}/
    DESTINATION include/conduit)
 endif()
-
