@@ -68,13 +68,7 @@ endforeach()
 set(conduit_device_test_sources
     t_conduit_execution.cpp)
 
-if(CONDUIT_USE_CUDA)
-    set_source_files_properties(${conduit_device_test_sources}
-                                PROPERTIES LANGUAGE CUDA)
-elseif(CONDUIT_USE_HIP)
-    set_source_files_properties(${conduit_device_test_sources}
-                                PROPERTIES LANGUAGE HIP)
-endif()
+conduit_set_source_device_properties(${conduit_device_test_sources})
 
 ################################
 # Add c interface tests
