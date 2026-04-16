@@ -42,6 +42,7 @@ namespace detail
 {
 
 //-----------------------------------------------------------------------------
+// Invoke RAJA's backend-specific sort implementation for the given policy.
 template <typename ExecPolicyTag, typename Iterator, typename Predicate>
 inline void
 sort_exec_raja(ExecPolicyTag,
@@ -49,12 +50,66 @@ sort_exec_raja(ExecPolicyTag,
                Iterator end,
                Predicate &&predicate) noexcept
 {
-    auto span = RAJA::make_span(begin, end - begin);
     auto event = RAJA::sort<typename ExecPolicyTag::sort_policy>(
-        span,
+        RAJA::make_span(begin, end - begin),
         std::forward<Predicate>(predicate));
+    // Conduit's sort API is synchronous, so wait for the backend work RAJA
+    // launched before returning to the caller.
     event.get().wait();
 }
+
+//-----------------------------------------------------------------------------
+// Shared CUDA/HIP helper: call RAJA device sort only for the iterator and
+// comparator combinations this Conduit path supports.
+template <typename ExecPolicyTag, typename Iterator, typename Predicate>
+inline void
+sort_exec_device(ExecPolicyTag,
+                 Iterator begin,
+                 Iterator end,
+                 Predicate &&predicate) noexcept
+{
+    using value_type = typename std::iterator_traits<Iterator>::value_type;
+    using compare_type = typename std::decay<Predicate>::type;
+
+    // RAJA's device sort rejects unsupported iterator/comparator combinations
+    // at compile time, so we must guard the call with a compile-time branch.
+    if constexpr(std::is_pointer_v<Iterator> &&
+                 std::is_arithmetic_v<value_type> &&
+                 (std::is_same_v<compare_type, RAJA::operators::less<value_type>> ||
+                  std::is_same_v<compare_type, RAJA::operators::greater<value_type>>))
+    {
+        sort_exec_raja(ExecPolicyTag{},
+                       begin,
+                       end,
+                       std::forward<Predicate>(predicate));
+    }
+    else
+    {
+        CONDUIT_ERROR("Device sort currently requires raw pointers to arithmetic "
+                      "types and RAJA::operators::less or RAJA::operators::greater "
+                      "comparators.");
+    }
+}
+
+//-----------------------------------------------------------------------------
+// Shared CUDA/HIP default-sort helper: dispatch device sorts with ascending
+// RAJA comparator semantics.
+template <typename ExecPolicyTag, typename Iterator>
+inline void
+sort_exec_device(ExecPolicyTag,
+                 Iterator begin,
+                 Iterator end) noexcept
+{
+    using value_type = typename std::iterator_traits<Iterator>::value_type;
+    sort_exec_device(ExecPolicyTag{},
+                     begin,
+                     end,
+                     RAJA::operators::less<value_type>{});
+}
+
+//-----------------------------------------------------------------------------
+// Bind each Conduit execution-policy tag to the matching RAJA reducer type so
+// the runtime wrappers can hold the correct backend-specific implementation.
 
 template <typename ExecPolicyTag, typename T>
 using ReduceSumImpl = RAJA::ReduceSum<typename ExecPolicyTag::reduce_policy, T>;
@@ -85,42 +140,44 @@ forall_exec(ExecPolicyTag,
 }
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename Iterator, typename Predicate>
+// Serial sort always uses the standard library implementation.
+template <typename Iterator>
 inline void
-sort_exec(ExecPolicyTag,
+sort_exec(SerialExec,
           Iterator begin,
-          Iterator end,
-          Predicate &&predicate) noexcept;
+          Iterator end) noexcept
+{
+    std::sort(begin, end);
+}
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename Iterator>
+// Serial sort with an explicit comparator always uses std::sort.
+template <typename Iterator, typename Predicate>
 inline void
-sort_exec(ExecPolicyTag,
+sort_exec(SerialExec,
+          Iterator begin,
+          Iterator end,
+          Predicate &&predicate) noexcept
+{
+    std::sort(begin, end, std::forward<Predicate>(predicate));
+}
+
+#if defined(CONDUIT_USE_OPENMP)
+//-----------------------------------------------------------------------------
+// OpenMP sort uses RAJA for raw pointers and otherwise falls back to std::sort.
+template <typename Iterator>
+inline void
+sort_exec(OpenMPExec,
           Iterator begin,
           Iterator end) noexcept
 {
     using value_type = typename std::iterator_traits<Iterator>::value_type;
-    constexpr bool is_device_exec =
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA) && defined(CONDUIT_EXEC_TU_HAS_HIP)
-        std::is_same_v<ExecPolicyTag, CudaExec> || std::is_same_v<ExecPolicyTag, HipExec>;
-#elif defined(CONDUIT_EXEC_TU_HAS_CUDA)
-        std::is_same_v<ExecPolicyTag, CudaExec>;
-#elif defined(CONDUIT_EXEC_TU_HAS_HIP)
-        std::is_same_v<ExecPolicyTag, HipExec>;
-#else
-        false;
-#endif
 
-    if constexpr(is_device_exec)
+    // RAJA::sort needs a random-access range it can address directly, so only
+    // raw pointers take the RAJA/OpenMP path.
+    if constexpr(std::is_pointer_v<Iterator>)
     {
-        sort_exec(ExecPolicyTag{},
-                  begin,
-                  end,
-                  RAJA::operators::less<value_type>{});
-    }
-    else if constexpr(std::is_pointer<Iterator>::value)
-    {
-        sort_exec_raja(ExecPolicyTag{},
+        sort_exec_raja(OpenMPExec{},
                        begin,
                        end,
                        std::less<value_type>{});
@@ -132,50 +189,20 @@ sort_exec(ExecPolicyTag,
 }
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename Iterator, typename Predicate>
+// OpenMP comparator sort mirrors the default overload: RAJA for pointers,
+// std::sort for other iterator types.
+template <typename Iterator, typename Predicate>
 inline void
-sort_exec(ExecPolicyTag,
+sort_exec(OpenMPExec,
           Iterator begin,
           Iterator end,
           Predicate &&predicate) noexcept
 {
-    using value_type = typename std::iterator_traits<Iterator>::value_type;
-    using compare_type = typename std::decay<Predicate>::type;
-    constexpr bool is_device_exec =
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA) && defined(CONDUIT_EXEC_TU_HAS_HIP)
-        std::is_same_v<ExecPolicyTag, CudaExec> || std::is_same_v<ExecPolicyTag, HipExec>;
-#elif defined(CONDUIT_EXEC_TU_HAS_CUDA)
-        std::is_same_v<ExecPolicyTag, CudaExec>;
-#elif defined(CONDUIT_EXEC_TU_HAS_HIP)
-        std::is_same_v<ExecPolicyTag, HipExec>;
-#else
-        false;
-#endif
-    constexpr bool is_supported_device_sort =
-        std::is_pointer_v<Iterator> &&
-        std::is_arithmetic_v<value_type> &&
-        (std::is_same_v<compare_type, RAJA::operators::less<value_type>> ||
-         std::is_same_v<compare_type, RAJA::operators::greater<value_type>>);
-
-    if constexpr(is_device_exec)
+    // Keep the RAJA/OpenMP path compile-time limited to raw pointers; other
+    // iterator types fall back to std::sort.
+    if constexpr(std::is_pointer_v<Iterator>)
     {
-        if constexpr(is_supported_device_sort)
-        {
-            sort_exec_raja(ExecPolicyTag{},
-                           begin,
-                           end,
-                           std::forward<Predicate>(predicate));
-        }
-        else
-        {
-            CONDUIT_ERROR("Device sort currently requires raw pointers to arithmetic "
-                          "types and RAJA::operators::less or RAJA::operators::greater "
-                          "comparators.");
-        }
-    }
-    else if constexpr(std::is_pointer<Iterator>::value)
-    {
-        sort_exec_raja(ExecPolicyTag{},
+        sort_exec_raja(OpenMPExec{},
                        begin,
                        end,
                        std::forward<Predicate>(predicate));
@@ -185,6 +212,63 @@ sort_exec(ExecPolicyTag,
         std::sort(begin, end, std::forward<Predicate>(predicate));
     }
 }
+#endif
+
+#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+//-----------------------------------------------------------------------------
+// CUDA sort delegates to the shared device-sort helper.
+template <typename Iterator>
+inline void
+sort_exec(CudaExec,
+          Iterator begin,
+          Iterator end) noexcept
+{
+    sort_exec_device(CudaExec{}, begin, end);
+}
+
+//-----------------------------------------------------------------------------
+// CUDA comparator sort delegates to the shared device-sort helper.
+template <typename Iterator, typename Predicate>
+inline void
+sort_exec(CudaExec,
+          Iterator begin,
+          Iterator end,
+          Predicate &&predicate) noexcept
+{
+    sort_exec_device(CudaExec{},
+                     begin,
+                     end,
+                     std::forward<Predicate>(predicate));
+}
+#endif
+
+#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+//-----------------------------------------------------------------------------
+// HIP sort delegates to the shared device-sort helper.
+template <typename Iterator>
+inline void
+sort_exec(HipExec,
+          Iterator begin,
+          Iterator end) noexcept
+{
+    sort_exec_device(HipExec{}, begin, end);
+}
+
+//-----------------------------------------------------------------------------
+// HIP comparator sort delegates to the shared device-sort helper.
+template <typename Iterator, typename Predicate>
+inline void
+sort_exec(HipExec,
+          Iterator begin,
+          Iterator end,
+          Predicate &&predicate) noexcept
+{
+    sort_exec_device(HipExec{},
+                     begin,
+                     end,
+                     std::forward<Predicate>(predicate));
+}
+#endif
 
 //-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename T>
@@ -471,6 +555,7 @@ forall_exec(OpenMPExec,
 #endif
 
 //-----------------------------------------------------------------------------
+// Fallback non-RAJA sort uses std::sort for every backend tag.
 template <typename ExecPolicyTag, typename Iterator>
 inline void
 sort_exec(ExecPolicyTag,
@@ -483,6 +568,7 @@ sort_exec(ExecPolicyTag,
 }
 
 //-----------------------------------------------------------------------------
+// Fallback non-RAJA comparator sort also uses std::sort.
 template <typename ExecPolicyTag, typename Iterator, typename Predicate>
 inline void
 sort_exec(ExecPolicyTag,
@@ -507,6 +593,7 @@ sort_exec(OpenMPExec,
 }
 
 //-----------------------------------------------------------------------------
+// In the non-RAJA build, OpenMP also falls back to std::sort.
 template <typename Iterator, typename Predicate>
 inline void
 sort_exec(OpenMPExec,
@@ -1303,6 +1390,7 @@ forall(ExecutionPolicy &policy,
 }
 
 //-----------------------------------------------------------------------------
+// Runtime sort dispatch selects the backend implementation from the policy.
 template <typename Iterator>
 inline void
 sort(ExecutionPolicy &policy,
@@ -1344,6 +1432,8 @@ sort(ExecutionPolicy &policy,
 }
 
 //-----------------------------------------------------------------------------
+// Runtime comparator sort dispatch selects the backend implementation from the
+// policy while preserving the caller's comparator.
 template <typename Iterator, typename Predicate>
 inline void
 sort(ExecutionPolicy &policy,
