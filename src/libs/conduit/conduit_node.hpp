@@ -3404,6 +3404,7 @@ public:
                 operator long_double_accessor() const;
             #endif
 
+
         private:
             // This is private we only want conduit::Node to create a
             // conduit::Node::Value instance
@@ -3543,6 +3544,7 @@ public:
             #ifdef CONDUIT_USE_LONG_DOUBLE
                 operator long_double_accessor() const;
             #endif
+
 
         private:
             // This is private we only want conduit::Node to create a
@@ -4161,6 +4163,7 @@ public:
     // index type array accessors
     index_t_accessor    as_index_t_accessor() const;
 
+
     // char8_str cases
     char            *as_char8_str();
     const char      *as_char8_str() const;
@@ -4419,6 +4422,7 @@ public:
 #ifdef CONDUIT_USE_LONG_DOUBLE
     long_double_accessor  as_long_double_accessor() const;
 #endif
+
 
 //-----------------------------------------------------------------------------
 ///@}
