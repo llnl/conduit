@@ -71,11 +71,9 @@ set(conduit_device_test_sources
 if(CONDUIT_USE_CUDA)
     set_source_files_properties(${conduit_device_test_sources}
                                 PROPERTIES LANGUAGE CUDA)
-    set_target_properties(t_conduit_execution PROPERTIES LINKER_LANGUAGE CUDA)
 elseif(CONDUIT_USE_HIP)
     set_source_files_properties(${conduit_device_test_sources}
                                 PROPERTIES LANGUAGE HIP)
-    set_target_properties(t_conduit_execution PROPERTIES LINKER_LANGUAGE HIP)
 endif()
 
 ################################
