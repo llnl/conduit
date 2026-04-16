@@ -2,7 +2,7 @@
 # Project developers. See top-level LICENSE AND COPYRIGHT files for dates and
 # other details. No copyright assignment is required to contribute to Conduit.
 
-# Internal helper used by conduit_enable_execution_target() to switch a
+# Helper used by conduit_enable_execution_target() to switch a downstream
 # consumer target's compilable source files to CUDA or HIP when this Conduit
 # build exposes device execution.
 function(_conduit_set_execution_language target language)

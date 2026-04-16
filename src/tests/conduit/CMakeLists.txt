@@ -65,7 +65,8 @@ foreach(TEST ${BASIC_TESTS})
                  FOLDER tests/conduit)
 endforeach()
 
-conduit_enable_execution_target(t_conduit_execution)
+conduit_configure_internal_execution_target(TARGET t_conduit_execution
+                                            SOURCES t_conduit_execution.cpp)
 
 ################################
 # Add c interface tests

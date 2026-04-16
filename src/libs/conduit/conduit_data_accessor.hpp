@@ -201,9 +201,8 @@ public:
         }
     }
 
-    // Without the SFINAE features, the compiler doesn't know which of the two
-    // set methods to call. We need to restrict them based on if the type is a 
-    // pointer or not so that it is unambiguous which method should be called.
+    // Restrict the scalar setter to non-pointer value types so calls like
+    // set(0, value) do not collide with the bulk pointer setter below.
     template <typename U = T>
     CONDUIT_EXEC_HOST_DEVICE
     typename std::enable_if<!std::is_pointer<U>::value, void>::type
@@ -271,6 +270,7 @@ public:
         }
     }
 
+    // Restrict the bulk setter to pointer-valued accessors.
     template <typename U = T>
     typename std::enable_if<std::is_pointer<U>::value, void>::type
                     set(const T* values, index_t num_elements) const;
