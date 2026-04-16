@@ -87,8 +87,12 @@ public:
     friend class NodeConstIterator;
     friend class Generator;
     template<typename T>
+    // DataArray can hand an execution-space buffer back to Node via assume()
+    // without exposing Node's low-level pointer adoption helpers publicly.
     friend class DataArray;
     template<typename T>
+    // DataAccessor needs the same access when assume() replaces the Node's
+    // backing allocation with the accessor's active buffer.
     friend class DataAccessor;
 
 #if defined(CONDUIT_USE_TOTALVIEW)
