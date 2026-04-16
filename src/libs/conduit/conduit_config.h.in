@@ -75,9 +75,4 @@
 #define CONDUIT_DEVICE_SUPPORT_ENABLED
 #endif
 
-#undef RAJA_FOUND
-
-#undef UMPIRE_FOUND
-
 #endif
-
