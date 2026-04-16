@@ -108,20 +108,6 @@ elseif( ENABLE_HIP)
     set(CONDUIT_USE_HIP TRUE)
 endif()
 
-# Internal helper for Conduit's own source lists that need to compile as CUDA
-# or HIP translation units. BLT owns language setup; this just tags sources.
-function(conduit_set_source_device_properties)
-    if(ARGC EQUAL 0)
-        return()
-    endif()
-
-    if(CONDUIT_USE_CUDA)
-        set_source_files_properties(${ARGN} PROPERTIES LANGUAGE CUDA)
-    elseif(CONDUIT_USE_HIP)
-        set_source_files_properties(${ARGN} PROPERTIES LANGUAGE HIP)
-    endif()
-endfunction()
-
 ################################
 # Examples and Utils Flags
 ################################
