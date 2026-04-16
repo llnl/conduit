@@ -104,8 +104,14 @@ set(CONDUIT_USE_HIP FALSE)
 
 if(ENABLE_CUDA)
     set(CONDUIT_USE_CUDA TRUE)
+    if(NOT CMAKE_CUDA_COMPILER)
+        enable_language(CUDA)
+    endif()
 elseif( ENABLE_HIP)
     set(CONDUIT_USE_HIP TRUE)
+    if(NOT CMAKE_HIP_COMPILER)
+        enable_language(HIP)
+    endif()
 endif()
 
 ################################
