@@ -59,9 +59,6 @@ get_filename_component(CONDUIT_CMAKE_CONFIG_DIR "${CMAKE_CURRENT_LIST_FILE}" PAT
 # setup dependent pkgs
 include(${CONDUIT_CMAKE_CONFIG_DIR}/conduit_setup_deps.cmake)
 
-# setup execution target helpers
-include(${CONDUIT_CMAKE_CONFIG_DIR}/conduit_setup_execution.cmake)
-
 # include targets exported by cmake
 include(${CONDUIT_CMAKE_CONFIG_DIR}/conduit.cmake)
 

@@ -65,8 +65,24 @@ foreach(TEST ${BASIC_TESTS})
                  FOLDER tests/conduit)
 endforeach()
 
-conduit_configure_internal_execution_target(TARGET t_conduit_execution
-                                            SOURCES t_conduit_execution.cpp)
+set(conduit_device_test_sources
+    t_conduit_execution.cpp)
+
+if(CONDUIT_USE_CUDA)
+    if(NOT CMAKE_CUDA_COMPILER)
+        enable_language(CUDA)
+    endif()
+    set_source_files_properties(${conduit_device_test_sources}
+                                PROPERTIES LANGUAGE CUDA)
+    set_target_properties(t_conduit_execution PROPERTIES LINKER_LANGUAGE CUDA)
+elseif(CONDUIT_USE_HIP)
+    if(NOT CMAKE_HIP_COMPILER)
+        enable_language(HIP)
+    endif()
+    set_source_files_properties(${conduit_device_test_sources}
+                                PROPERTIES LANGUAGE HIP)
+    set_target_properties(t_conduit_execution PROPERTIES LINKER_LANGUAGE HIP)
+endif()
 
 ################################
 # Add c interface tests

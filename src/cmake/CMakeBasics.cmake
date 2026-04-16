@@ -108,43 +108,6 @@ elseif( ENABLE_HIP)
     set(CONDUIT_USE_HIP TRUE)
 endif()
 
-# Internal helper for Conduit's own targets that need to be compiled as CUDA
-# or HIP translation units. Downstream consumer setup lives in
-# src/config/conduit_setup_execution.cmake and should not drive Conduit's
-# internal build behavior.
-function(conduit_configure_internal_execution_target)
-    set(options)
-    set(singleValueArgs TARGET)
-    set(multiValueArgs SOURCES)
-    cmake_parse_arguments(args "${options}" "${singleValueArgs}" "${multiValueArgs}" ${ARGN})
-
-    if(NOT args_TARGET)
-        message(FATAL_ERROR "conduit_configure_internal_execution_target() requires TARGET <target>")
-    endif()
-
-    if(NOT TARGET ${args_TARGET})
-        message(FATAL_ERROR "conduit_configure_internal_execution_target() target '${args_TARGET}' does not exist")
-    endif()
-
-    if(NOT args_SOURCES)
-        message(FATAL_ERROR "conduit_configure_internal_execution_target() requires SOURCES <sources...>")
-    endif()
-
-    if(CONDUIT_USE_CUDA)
-        if(NOT CMAKE_CUDA_COMPILER)
-            enable_language(CUDA)
-        endif()
-        set_source_files_properties(${args_SOURCES} PROPERTIES LANGUAGE CUDA)
-        set_target_properties(${args_TARGET} PROPERTIES LINKER_LANGUAGE CUDA)
-    elseif(CONDUIT_USE_HIP)
-        if(NOT CMAKE_HIP_COMPILER)
-            enable_language(HIP)
-        endif()
-        set_source_files_properties(${args_SOURCES} PROPERTIES LANGUAGE HIP)
-        set_target_properties(${args_TARGET} PROPERTIES LINKER_LANGUAGE HIP)
-    endif()
-endfunction()
-
 ################################
 # Examples and Utils Flags
 ################################
