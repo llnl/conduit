@@ -68,7 +68,7 @@ endforeach()
 set(conduit_device_test_sources
     t_conduit_execution.cpp)
 
-conduit_set_source_device_properties(${conduit_device_test_sources})
+conduit_set_source_device_properties("${conduit_device_test_sources}")
 
 ################################
 # Add c interface tests
