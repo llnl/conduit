@@ -537,6 +537,8 @@ TEST(conduit_execution, test_sort)
             static_cast<index_t*>(allocate_for_policy(policy,
                                                       sizeof(index_t) * size));
 
+        // Verify the default sort path orders the values ascending for every
+        // enabled execution policy.
         conduit::execution::MagicMemory::copy(vals_ptr,
                                               &unsorted_vals[0],
                                               sizeof(index_t) * size);
@@ -550,11 +552,14 @@ TEST(conduit_execution, test_sort)
             EXPECT_EQ(ascending_vals[i], i + 1);
         }
 
+        // Reinitialize the same data and exercise the explicit-comparator
+        // overload with descending order.
         conduit::execution::MagicMemory::copy(vals_ptr,
                                               &unsorted_vals[0],
                                               sizeof(index_t) * size);
 
 #if defined(CONDUIT_USE_RAJA)
+        // CUDA/HIP sort currently accepts RAJA's device-safe comparators.
         using descending_compare = RAJA::operators::greater<index_t>;
 #else
         using descending_compare = std::greater<index_t>;
