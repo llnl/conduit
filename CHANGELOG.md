@@ -4,6 +4,13 @@ Notable changes to Conduit are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project aspires to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+#### Conduit
+- Fixed an issue with fmt runtime use of a string that causes a compile error with gcc 13 and c++20.
+
 ## [0.9.6] - Released 2026-04-14
 
 ### Added
