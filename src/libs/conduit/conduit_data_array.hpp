@@ -16,7 +16,7 @@
 //-----------------------------------------------------------------------------
 // -- conduit  includes -- 
 //-----------------------------------------------------------------------------
-#include "conduit_execution_decorators.hpp"
+#include "conduit_execution.hpp"
 #include "conduit_core.hpp"
 #include "conduit_data_type.hpp"
 #include "conduit_memory_manager.hpp"

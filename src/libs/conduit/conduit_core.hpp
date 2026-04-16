@@ -21,7 +21,6 @@
 // -- configure time defines -- 
 //-----------------------------------------------------------------------------
 #include "conduit_config.hpp"
-#include "conduit_execution_decorators.hpp"
 
 //-----------------------------------------------------------------------------
 // -- define proper lib exports for various platforms -- 
