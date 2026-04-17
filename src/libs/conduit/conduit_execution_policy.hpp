@@ -92,13 +92,14 @@ public:
         OPENMP_ID
     };
 
-    static ExecutionPolicy empty();
-    static ExecutionPolicy host();
-    static ExecutionPolicy serial();
-    static ExecutionPolicy device();
-    static ExecutionPolicy cuda();
-    static ExecutionPolicy hip();
-    static ExecutionPolicy openmp();
+    static ExecutionPolicy empty(); // no policy
+    static ExecutionPolicy host(); // prefer openMP, then host
+    static ExecutionPolicy serial(); // serial
+    static ExecutionPolicy device(); // CUDA or HIP
+    static ExecutionPolicy cuda(); // CUDA
+    static ExecutionPolicy hip(); // HIP
+    static ExecutionPolicy openmp(); // openMP
+    static ExecutionPolicy parallel(); // prefer CUDA/HIP, then openMP, then host
 
     EXEC_LAMBDA ExecutionPolicy()
     : m_policy_id(PolicyID::EMPTY_ID)
@@ -128,6 +129,7 @@ public:
 
     bool        is_host_policy()    const;
     bool        is_device_policy()  const;
+    bool        is_parallel_policy()  const;
 
     static bool is_serial_enabled();
     static bool is_cuda_enabled();
@@ -136,6 +138,7 @@ public:
 
     static bool is_host_enabled();
     static bool is_device_enabled();
+    static bool is_parallel_enabled();
 
     static PolicyID    name_to_policy_id(const std::string &name);
     static std::string policy_id_to_name(const PolicyID policy_id);

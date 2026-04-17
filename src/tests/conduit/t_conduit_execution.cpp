@@ -62,16 +62,40 @@ for_each_enabled_policy(Func &&func)
         func(serial);
     }
 
+    if (ExecutionPolicy::is_cuda_enabled())
+    {
+        ExecutionPolicy cuda = ExecutionPolicy::cuda();
+        func(cuda);
+    }
+
+    if (ExecutionPolicy::is_hip_enabled())
+    {
+        ExecutionPolicy hip = ExecutionPolicy::hip();
+        func(hip);
+    }
+
     if (ExecutionPolicy::is_openmp_enabled())
     {
         ExecutionPolicy openmp = ExecutionPolicy::openmp();
         func(openmp);
     }
 
+    if (ExecutionPolicy::is_host_enabled())
+    {
+        ExecutionPolicy host = ExecutionPolicy::host();
+        func(host);
+    }
+
     if (ExecutionPolicy::is_device_enabled())
     {
         ExecutionPolicy device = ExecutionPolicy::device();
         func(device);
+    }
+
+    if (ExecutionPolicy::is_parallel_enabled())
+    {
+        ExecutionPolicy parallel = ExecutionPolicy::parallel();
+        func(parallel);
     }
 }
 
@@ -85,6 +109,68 @@ make_float64_device_buffer(const float64 *host_vals, index_t num_vals)
                                           host_vals,
                                           sizeof(float64) * num_vals);
     return device_ptr;
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, policy_aliases)
+{
+    const ExecutionPolicy host = ExecutionPolicy::host();
+    EXPECT_TRUE(host.is_host_policy());
+
+    const ExecutionPolicy host_from_name("host");
+    EXPECT_EQ(host_from_name.policy_id(), host.policy_id());
+
+#if defined(CONDUIT_USE_OPENMP)
+    EXPECT_TRUE(host.is_openmp());
+    EXPECT_EQ(host.policy_name(), "openmp");
+#else
+    EXPECT_TRUE(host.is_serial());
+    EXPECT_EQ(host.policy_name(), "serial");
+#endif
+
+    if (ExecutionPolicy::is_device_enabled())
+    {
+        const ExecutionPolicy device = ExecutionPolicy::device();
+        EXPECT_TRUE(device.is_device_policy());
+
+        const ExecutionPolicy device_from_name("device");
+        EXPECT_EQ(device_from_name.policy_id(), device.policy_id());
+
+#if defined(CONDUIT_EXEC_BUILD_HAS_CUDA)
+        EXPECT_TRUE(device.is_cuda());
+        EXPECT_EQ(device.policy_name(), "cuda");
+#elif defined(CONDUIT_EXEC_BUILD_HAS_HIP)
+        EXPECT_TRUE(device.is_hip());
+        EXPECT_EQ(device.policy_name(), "hip");
+#endif
+    }
+
+    const ExecutionPolicy parallel = ExecutionPolicy::parallel();
+
+#if defined(CONDUIT_EXEC_BUILD_HAS_CUDA)
+    EXPECT_TRUE(ExecutionPolicy::is_parallel_enabled());
+    EXPECT_TRUE(parallel.is_parallel_policy());
+    EXPECT_TRUE(parallel.is_cuda());
+    EXPECT_EQ(parallel.policy_name(), "cuda");
+#elif defined(CONDUIT_EXEC_BUILD_HAS_HIP)
+    EXPECT_TRUE(ExecutionPolicy::is_parallel_enabled());
+    EXPECT_TRUE(parallel.is_parallel_policy());
+    EXPECT_TRUE(parallel.is_hip());
+    EXPECT_EQ(parallel.policy_name(), "hip");
+#elif defined(CONDUIT_USE_OPENMP)
+    EXPECT_TRUE(ExecutionPolicy::is_parallel_enabled());
+    EXPECT_TRUE(parallel.is_parallel_policy());
+    EXPECT_TRUE(parallel.is_openmp());
+    EXPECT_EQ(parallel.policy_name(), "openmp");
+#else
+    EXPECT_FALSE(ExecutionPolicy::is_parallel_enabled());
+    EXPECT_FALSE(parallel.is_parallel_policy());
+    EXPECT_TRUE(parallel.is_serial());
+    EXPECT_EQ(parallel.policy_name(), "serial");
+#endif
+
+    const ExecutionPolicy parallel_from_name("parallel");
+    EXPECT_EQ(parallel_from_name.policy_id(), parallel.policy_id());
 }
 
 //-----------------------------------------------------------------------------
