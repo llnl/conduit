@@ -179,10 +179,6 @@ void
 run_data_accessor_policy_and_sync(Node &node,
                                   ExecutionPolicy policy)
 {
-    Node cali_opts;
-    cali_opts["config"] = "runtime-report";
-    annotations::initialize(cali_opts);
-
     // DataAccessors wrap node leaf data.
     float64_accessor acc_src(node["src"]);
     float64_accessor acc_des(node["des"]);
@@ -207,9 +203,6 @@ run_data_accessor_policy_and_sync(Node &node,
     // This is a no op if node["des"] was originally in the same memory
     // space as the requested execution policy.
     acc_des.sync();
-
-    annotations::flush();
-    annotations::finalize();
 }
 
 //-----------------------------------------------------------------------------
@@ -217,10 +210,6 @@ void
 run_data_accessor_policy_and_assume(Node &node,
                                     ExecutionPolicy policy)
 {
-    Node cali_opts;
-    cali_opts["config"] = "runtime-report";
-    annotations::initialize(cali_opts);
-
     // DataAccessors wrap node leaf data.
     float64_accessor acc_src(node["src"]);
     float64_accessor acc_des(node["des"]);
@@ -244,9 +233,6 @@ run_data_accessor_policy_and_assume(Node &node,
     // node["des"] takes ownership of the data in the active execution
     // space. This is a no op if node["des"] was already in that space.
     acc_des.assume();
-
-    annotations::flush();
-    annotations::finalize();
 }
 
 //-----------------------------------------------------------------------------
@@ -254,10 +240,6 @@ void
 run_data_accessor_using_active_space(Node &node,
                                      const bool expect_device_policy)
 {
-    Node cali_opts;
-    cali_opts["config"] = "runtime-report";
-    annotations::initialize(cali_opts);
-
     // DataAccessors wrap node leaf data.
     float64_accessor acc_src(node["src"]);
     float64_accessor acc_des(node["des"]);
@@ -292,9 +274,6 @@ run_data_accessor_using_active_space(Node &node,
     // This is a no op if node["des"] was originally in the same memory
     // space as node["src"].
     acc_des.sync();
-
-    annotations::flush();
-    annotations::finalize();
 }
 
 //-----------------------------------------------------------------------------
@@ -302,10 +281,6 @@ void
 run_data_array_policy_and_sync(Node &node,
                                ExecutionPolicy policy)
 {
-    Node cali_opts;
-    cali_opts["config"] = "runtime-report";
-    annotations::initialize(cali_opts);
-
     // DataArrays wrap node leaf data directly.
     float64_array arr_src(node["src"]);
     float64_array arr_des(node["des"]);
@@ -330,9 +305,6 @@ run_data_array_policy_and_sync(Node &node,
     // This is a no op if node["des"] was originally in the same memory
     // space as the requested execution policy.
     arr_des.sync();
-
-    annotations::flush();
-    annotations::finalize();
 }
 
 //-----------------------------------------------------------------------------
@@ -340,10 +312,6 @@ void
 run_data_array_policy_and_assume(Node &node,
                                  ExecutionPolicy policy)
 {
-    Node cali_opts;
-    cali_opts["config"] = "runtime-report";
-    annotations::initialize(cali_opts);
-
     // DataArrays wrap node leaf data directly.
     float64_array arr_src(node["src"]);
     float64_array arr_des(node["des"]);
@@ -367,9 +335,6 @@ run_data_array_policy_and_assume(Node &node,
     // node["des"] takes ownership of the data in the active execution
     // space. This is a no op if node["des"] was already in that space.
     arr_des.assume();
-
-    annotations::flush();
-    annotations::finalize();
 }
 
 //-----------------------------------------------------------------------------
@@ -377,10 +342,6 @@ void
 run_data_array_using_active_space(Node &node,
                                   const bool expect_device_policy)
 {
-    Node cali_opts;
-    cali_opts["config"] = "runtime-report";
-    annotations::initialize(cali_opts);
-
     // DataArrays wrap node leaf data directly.
     float64_array arr_src(node["src"]);
     float64_array arr_des(node["des"]);
@@ -415,9 +376,6 @@ run_data_array_using_active_space(Node &node,
     // This is a no op if node["des"] was originally in the same memory
     // space as node["src"].
     arr_des.sync();
-
-    annotations::flush();
-    annotations::finalize();
 }
 
 // TODO someday we want allocator to make sense for nodes when we are done with them
@@ -497,6 +455,7 @@ TEST(conduit_execution, test_forall)
     conduit_device_prepare();
     for_each_enabled_policy([](ExecutionPolicy policy)
     {
+        CONDUIT_INFO("test_forall policy=" << policy.policy_name());
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
@@ -536,6 +495,7 @@ TEST(conduit_execution, test_reductions)
     conduit_device_prepare();
     for_each_enabled_policy([](ExecutionPolicy policy)
     {
+        CONDUIT_INFO("test_reductions policy=" << policy.policy_name());
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
@@ -604,6 +564,7 @@ TEST(conduit_execution, test_atomics)
     conduit_device_prepare();
     for_each_enabled_policy([](ExecutionPolicy policy)
     {
+        CONDUIT_INFO("test_atomics policy=" << policy.policy_name());
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
@@ -684,6 +645,7 @@ TEST(conduit_execution, for_all_and_dispatch)
 
     auto test_exec_policy = [&](ExecutionPolicy policy)
     {
+        CONDUIT_INFO("for_all_and_dispatch policy=" << policy.policy_name());
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
@@ -770,13 +732,18 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
     // Run with an explicit host execution policy.
     // node["des"] is synced back to host memory.
     {
-        std::cout << "data_accessor sync policy=host src_start=host des_start=host" << std::endl;
+        CONDUIT_INFO("data_accessor sync policy=host src_start=host des_start=host");
 
         Node node;
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_policy_and_sync(node, ExecutionPolicy::host());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -797,13 +764,18 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
     {
         // Run with an explicit device execution policy.
         // node["des"] is synced back to host memory.
-        std::cout << "data_accessor sync policy=device src_start=host des_start=host" << std::endl;
+        CONDUIT_INFO("data_accessor sync policy=device src_start=host des_start=host");
 
         Node node;
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_policy_and_sync(node, ExecutionPolicy::device());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -823,13 +795,18 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
     // Run with an explicit host execution policy and call assume().
     // node["des"] keeps the host-backed result buffer.
     {
-        std::cout << "data_accessor assume policy=host src_start=host des_start=host" << std::endl;
+        CONDUIT_INFO("data_accessor assume policy=host src_start=host des_start=host");
 
         Node node;
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_policy_and_assume(node, ExecutionPolicy::host());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -850,13 +827,18 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
     {
         // Run with an explicit device execution policy and call assume().
         // node["des"] keeps the device-backed result buffer.
-        std::cout << "data_accessor assume policy=device src_start=host des_start=host" << std::endl;
+        CONDUIT_INFO("data_accessor assume policy=device src_start=host des_start=host");
 
         Node node;
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_policy_and_assume(node, ExecutionPolicy::device());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -876,13 +858,18 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
     // Use the location of node["src"] to choose where to execute.
     // node["des"] is then synced back to host memory.
     {
-        std::cout << "data_accessor active_space src_start=host des_start=host" << std::endl;
+        CONDUIT_INFO("data_accessor active_space src_start=host des_start=host");
 
         Node node;
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_using_active_space(node, false);
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -919,7 +906,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
     // Run with an explicit host execution policy.
     // node["des"] is synced back to device memory.
     {
-        std::cout << "data_accessor sync policy=host src_start=device des_start=device" << std::endl;
+        CONDUIT_INFO("data_accessor sync policy=host src_start=device des_start=device");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
@@ -927,7 +914,12 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_policy_and_sync(node, ExecutionPolicy::host());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -949,7 +941,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
     // Run with an explicit device execution policy.
     // node["des"] is synced back to device memory.
     {
-        std::cout << "data_accessor sync policy=device src_start=device des_start=device" << std::endl;
+        CONDUIT_INFO("data_accessor sync policy=device src_start=device des_start=device");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
@@ -957,7 +949,12 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_policy_and_sync(node, ExecutionPolicy::device());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -979,7 +976,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
     // Run with an explicit host execution policy and call assume().
     // node["des"] keeps the host-backed result buffer.
     {
-        std::cout << "data_accessor assume policy=host src_start=device des_start=device" << std::endl;
+        CONDUIT_INFO("data_accessor assume policy=host src_start=device des_start=device");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
@@ -987,7 +984,12 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_policy_and_assume(node, ExecutionPolicy::host());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1009,7 +1011,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
     // Run with an explicit device execution policy and call assume().
     // node["des"] keeps the device-backed result buffer.
     {
-        std::cout << "data_accessor assume policy=device src_start=device des_start=device" << std::endl;
+        CONDUIT_INFO("data_accessor assume policy=device src_start=device des_start=device");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
@@ -1017,7 +1019,12 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_policy_and_assume(node, ExecutionPolicy::device());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1038,7 +1045,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
     // Use the location of node["src"] to choose where to execute.
     // node["des"] is then synced back to device memory.
     {
-        std::cout << "data_accessor active_space src_start=device des_start=device" << std::endl;
+        CONDUIT_INFO("data_accessor active_space src_start=device des_start=device");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
@@ -1046,7 +1053,12 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_using_active_space(node, true);
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1086,14 +1098,19 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
     // Run with an explicit host execution policy.
     // node["des"] is synced back to device memory.
     {
-        std::cout << "data_accessor sync policy=host src_start=host des_start=device" << std::endl;
+        CONDUIT_INFO("data_accessor sync policy=host src_start=host des_start=device");
 
         Node node;
         float64 *des_device_ptr = make_float64_device_buffer(des_vals, 4);
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_policy_and_sync(node, ExecutionPolicy::host());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1114,14 +1131,19 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
     // Run with an explicit device execution policy.
     // node["des"] is synced back to device memory.
     {
-        std::cout << "data_accessor sync policy=device src_start=host des_start=device" << std::endl;
+        CONDUIT_INFO("data_accessor sync policy=device src_start=host des_start=device");
 
         Node node;
         float64 *des_device_ptr = make_float64_device_buffer(des_vals, 4);
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_policy_and_sync(node, ExecutionPolicy::device());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1142,14 +1164,19 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
     // Run with an explicit host execution policy and call assume().
     // node["des"] keeps the host-backed result buffer.
     {
-        std::cout << "data_accessor assume policy=host src_start=host des_start=device" << std::endl;
+        CONDUIT_INFO("data_accessor assume policy=host src_start=host des_start=device");
 
         Node node;
         float64 *des_device_ptr = make_float64_device_buffer(des_vals, 4);
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_policy_and_assume(node, ExecutionPolicy::host());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1170,14 +1197,19 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
     // Run with an explicit device execution policy and call assume().
     // node["des"] keeps the device-backed result buffer.
     {
-        std::cout << "data_accessor assume policy=device src_start=host des_start=device" << std::endl;
+        CONDUIT_INFO("data_accessor assume policy=device src_start=host des_start=device");
 
         Node node;
         float64 *des_device_ptr = make_float64_device_buffer(des_vals, 4);
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_policy_and_assume(node, ExecutionPolicy::device());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1197,14 +1229,19 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
     // Use the location of node["src"] to choose where to execute.
     // node["des"] is then synced back to device memory.
     {
-        std::cout << "data_accessor active_space src_start=host des_start=device" << std::endl;
+        CONDUIT_INFO("data_accessor active_space src_start=host des_start=device");
 
         Node node;
         float64 *des_device_ptr = make_float64_device_buffer(des_vals, 4);
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_using_active_space(node, false);
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1243,14 +1280,19 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
     // Run with an explicit host execution policy.
     // node["des"] is synced back to host memory.
     {
-        std::cout << "data_accessor sync policy=host src_start=device des_start=host" << std::endl;
+        CONDUIT_INFO("data_accessor sync policy=host src_start=device des_start=host");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_policy_and_sync(node, ExecutionPolicy::host());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1271,14 +1313,19 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
     // Run with an explicit device execution policy.
     // node["des"] is synced back to host memory.
     {
-        std::cout << "data_accessor sync policy=device src_start=device des_start=host" << std::endl;
+        CONDUIT_INFO("data_accessor sync policy=device src_start=device des_start=host");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_policy_and_sync(node, ExecutionPolicy::device());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1299,14 +1346,19 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
     // Run with an explicit host execution policy and call assume().
     // node["des"] keeps the host-backed result buffer.
     {
-        std::cout << "data_accessor assume policy=host src_start=device des_start=host" << std::endl;
+        CONDUIT_INFO("data_accessor assume policy=host src_start=device des_start=host");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_policy_and_assume(node, ExecutionPolicy::host());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1327,14 +1379,19 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
     // Run with an explicit device execution policy and call assume().
     // node["des"] keeps the device-backed result buffer.
     {
-        std::cout << "data_accessor assume policy=device src_start=device des_start=host" << std::endl;
+        CONDUIT_INFO("data_accessor assume policy=device src_start=device des_start=host");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_policy_and_assume(node, ExecutionPolicy::device());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1355,14 +1412,19 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
     // Use the location of node["src"] to choose where to execute.
     // node["des"] is then synced back to host memory.
     {
-        std::cout << "data_accessor active_space src_start=device des_start=host" << std::endl;
+        CONDUIT_INFO("data_accessor active_space src_start=device des_start=host");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_accessor_using_active_space(node, true);
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1395,13 +1457,18 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
     // Run with an explicit host execution policy.
     // node["des"] is synced back to host memory.
     {
-        std::cout << "data_array sync policy=host src_start=host des_start=host" << std::endl;
+        CONDUIT_INFO("data_array sync policy=host src_start=host des_start=host");
 
         Node node;
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_policy_and_sync(node, ExecutionPolicy::host());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1422,13 +1489,18 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
     {
         // Run with an explicit device execution policy.
         // node["des"] is synced back to host memory.
-        std::cout << "data_array sync policy=device src_start=host des_start=host" << std::endl;
+        CONDUIT_INFO("data_array sync policy=device src_start=host des_start=host");
 
         Node node;
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_policy_and_sync(node, ExecutionPolicy::device());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1448,13 +1520,18 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
     // Run with an explicit host execution policy and call assume().
     // node["des"] keeps the host-backed result buffer.
     {
-        std::cout << "data_array assume policy=host src_start=host des_start=host" << std::endl;
+        CONDUIT_INFO("data_array assume policy=host src_start=host des_start=host");
 
         Node node;
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_policy_and_assume(node, ExecutionPolicy::host());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1475,13 +1552,18 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
     {
         // Run with an explicit device execution policy and call assume().
         // node["des"] keeps the device-backed result buffer.
-        std::cout << "data_array assume policy=device src_start=host des_start=host" << std::endl;
+        CONDUIT_INFO("data_array assume policy=device src_start=host des_start=host");
 
         Node node;
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_policy_and_assume(node, ExecutionPolicy::device());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1501,13 +1583,18 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
     // Use the location of node["src"] to choose where to execute.
     // node["des"] is then synced back to host memory.
     {
-        std::cout << "data_array active_space src_start=host des_start=host" << std::endl;
+        CONDUIT_INFO("data_array active_space src_start=host des_start=host");
 
         Node node;
         node["src"].set(src_vals, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_using_active_space(node, false);
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1544,7 +1631,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
     // Run with an explicit host execution policy.
     // node["des"] is synced back to device memory.
     {
-        std::cout << "data_array sync policy=host src_start=device des_start=device" << std::endl;
+        CONDUIT_INFO("data_array sync policy=host src_start=device des_start=device");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
@@ -1552,7 +1639,12 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_policy_and_sync(node, ExecutionPolicy::host());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1574,7 +1666,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
     // Run with an explicit device execution policy.
     // node["des"] is synced back to device memory.
     {
-        std::cout << "data_array sync policy=device src_start=device des_start=device" << std::endl;
+        CONDUIT_INFO("data_array sync policy=device src_start=device des_start=device");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
@@ -1582,7 +1674,12 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_policy_and_sync(node, ExecutionPolicy::device());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1604,7 +1701,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
     // Run with an explicit host execution policy and call assume().
     // node["des"] keeps the host-backed result buffer.
     {
-        std::cout << "data_array assume policy=host src_start=device des_start=device" << std::endl;
+        CONDUIT_INFO("data_array assume policy=host src_start=device des_start=device");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
@@ -1612,7 +1709,12 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_policy_and_assume(node, ExecutionPolicy::host());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1634,7 +1736,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
     // Run with an explicit device execution policy and call assume().
     // node["des"] keeps the device-backed result buffer.
     {
-        std::cout << "data_array assume policy=device src_start=device des_start=device" << std::endl;
+        CONDUIT_INFO("data_array assume policy=device src_start=device des_start=device");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
@@ -1642,7 +1744,12 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_policy_and_assume(node, ExecutionPolicy::device());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1663,7 +1770,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
     // Use the location of node["src"] to choose where to execute.
     // node["des"] is then synced back to device memory.
     {
-        std::cout << "data_array active_space src_start=device des_start=device" << std::endl;
+        CONDUIT_INFO("data_array active_space src_start=device des_start=device");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
@@ -1671,7 +1778,12 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_using_active_space(node, true);
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1711,14 +1823,19 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
     // Run with an explicit host execution policy.
     // node["des"] is synced back to device memory.
     {
-        std::cout << "data_array sync policy=host src_start=host des_start=device" << std::endl;
+        CONDUIT_INFO("data_array sync policy=host src_start=host des_start=device");
 
         Node node;
         float64 *des_device_ptr = make_float64_device_buffer(des_vals, 4);
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_policy_and_sync(node, ExecutionPolicy::host());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1739,14 +1856,19 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
     // Run with an explicit device execution policy.
     // node["des"] is synced back to device memory.
     {
-        std::cout << "data_array sync policy=device src_start=host des_start=device" << std::endl;
+        CONDUIT_INFO("data_array sync policy=device src_start=host des_start=device");
 
         Node node;
         float64 *des_device_ptr = make_float64_device_buffer(des_vals, 4);
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_policy_and_sync(node, ExecutionPolicy::device());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1767,14 +1889,19 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
     // Run with an explicit host execution policy and call assume().
     // node["des"] keeps the host-backed result buffer.
     {
-        std::cout << "data_array assume policy=host src_start=host des_start=device" << std::endl;
+        CONDUIT_INFO("data_array assume policy=host src_start=host des_start=device");
 
         Node node;
         float64 *des_device_ptr = make_float64_device_buffer(des_vals, 4);
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_policy_and_assume(node, ExecutionPolicy::host());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1795,14 +1922,19 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
     // Run with an explicit device execution policy and call assume().
     // node["des"] keeps the device-backed result buffer.
     {
-        std::cout << "data_array assume policy=device src_start=host des_start=device" << std::endl;
+        CONDUIT_INFO("data_array assume policy=device src_start=host des_start=device");
 
         Node node;
         float64 *des_device_ptr = make_float64_device_buffer(des_vals, 4);
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_policy_and_assume(node, ExecutionPolicy::device());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1822,14 +1954,19 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
     // Use the location of node["src"] to choose where to execute.
     // node["des"] is then synced back to device memory.
     {
-        std::cout << "data_array active_space src_start=host des_start=device" << std::endl;
+        CONDUIT_INFO("data_array active_space src_start=host des_start=device");
 
         Node node;
         float64 *des_device_ptr = make_float64_device_buffer(des_vals, 4);
         node["src"].set(src_vals, 4);
         node["des"].set_external(des_device_ptr, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_using_active_space(node, false);
+        annotations::flush();
+        annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1868,14 +2005,19 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
     // Run with an explicit host execution policy.
     // node["des"] is synced back to host memory.
     {
-        std::cout << "data_array sync policy=host src_start=device des_start=host" << std::endl;
+        CONDUIT_INFO("data_array sync policy=host src_start=device des_start=host");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_policy_and_sync(node, ExecutionPolicy::host());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1896,14 +2038,19 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
     // Run with an explicit device execution policy.
     // node["des"] is synced back to host memory.
     {
-        std::cout << "data_array sync policy=device src_start=device des_start=host" << std::endl;
+        CONDUIT_INFO("data_array sync policy=device src_start=device des_start=host");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_policy_and_sync(node, ExecutionPolicy::device());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1924,14 +2071,19 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
     // Run with an explicit host execution policy and call assume().
     // node["des"] keeps the host-backed result buffer.
     {
-        std::cout << "data_array assume policy=host src_start=device des_start=host" << std::endl;
+        CONDUIT_INFO("data_array assume policy=host src_start=device des_start=host");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_policy_and_assume(node, ExecutionPolicy::host());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1952,14 +2104,19 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
     // Run with an explicit device execution policy and call assume().
     // node["des"] keeps the device-backed result buffer.
     {
-        std::cout << "data_array assume policy=device src_start=device des_start=host" << std::endl;
+        CONDUIT_INFO("data_array assume policy=device src_start=device des_start=host");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_policy_and_assume(node, ExecutionPolicy::device());
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 
@@ -1980,14 +2137,19 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
     // Use the location of node["src"] to choose where to execute.
     // node["des"] is then synced back to host memory.
     {
-        std::cout << "data_array active_space src_start=device des_start=host" << std::endl;
+        CONDUIT_INFO("data_array active_space src_start=device des_start=host");
 
         Node node;
         float64 *src_device_ptr = make_float64_device_buffer(src_vals, 4);
         node["src"].set_external(src_device_ptr, 4);
         node["des"].set(des_vals, 4);
 
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
         run_data_array_using_active_space(node, true);
+        annotations::flush();
+        annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
 

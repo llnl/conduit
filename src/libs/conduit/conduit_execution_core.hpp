@@ -12,6 +12,7 @@
 #define CONDUIT_EXECUTION_CORE_HPP
 
 #include "conduit_execution_policy.hpp"
+#include "conduit_annotations.hpp"
 
 #include <algorithm>
 #include <iostream>
@@ -346,12 +347,10 @@ forall_exec(ExecPolicyTag,
             const int& end,
             Kernel&& kernel) noexcept
 {
-    std::cout << typeid(ExecPolicyTag).name() << "  START" << std::endl;
     for (int i = begin; i < end; i ++)
     {
         kernel(i);
     }
-    std::cout << typeid(ExecPolicyTag).name() << "  END" << std::endl;
 }
 
 //-----------------------------------------------------------------------------
@@ -378,9 +377,7 @@ sort_exec(ExecPolicyTag,
           Iterator begin,
           Iterator end) noexcept
 {
-    std::cout << typeid(ExecPolicyTag).name() << "  START" << std::endl;
     std::sort(begin, end);
-    std::cout << typeid(ExecPolicyTag).name() << "  END" << std::endl;
 }
 
 //-----------------------------------------------------------------------------
@@ -391,9 +388,7 @@ sort_exec(ExecPolicyTag,
           Iterator end,
           Predicate &&predicate) noexcept
 {
-    std::cout << typeid(ExecPolicyTag).name() << "  START" << std::endl;
     std::sort(begin, end, predicate);
-    std::cout << typeid(ExecPolicyTag).name() << "  END" << std::endl;
 }
 
 //-----------------------------------------------------------------------------
@@ -1169,6 +1164,8 @@ forall(ExecutionPolicy &policy,
        const int& end,
        Kernel&& kernel) noexcept
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+
     if (policy.is_serial())
     {
         forall<SerialExec>(begin, end, std::forward<Kernel>(kernel));
