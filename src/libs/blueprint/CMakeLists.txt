@@ -30,9 +30,10 @@ configure_file ("${CMAKE_CURRENT_SOURCE_DIR}/conduit_blueprint_exports.h.in"
 set(blueprint_headers
     conduit_blueprint.hpp
     conduit_blueprint_curves.hpp
-    conduit_blueprint_mesh.hpp
     conduit_blueprint_mcarray_examples.hpp
     conduit_blueprint_mcarray.hpp
+    conduit_blueprint_mesh.hpp
+    conduit_blueprint_mesh_examples.hpp
     conduit_blueprint_mesh_examples_generate.hpp
     conduit_blueprint_mesh_examples_gyre.hpp
     conduit_blueprint_mesh_examples.hpp
@@ -42,6 +43,7 @@ set(blueprint_headers
     conduit_blueprint_mesh_examples_rz_cylinder.hpp
     conduit_blueprint_mesh_examples_tiled.hpp
     conduit_blueprint_mesh_examples_venn.hpp
+    conduit_blueprint_mesh_partition.hpp
     conduit_blueprint_mesh_flatten.hpp
     conduit_blueprint_mesh_kdtree.hpp
     conduit_blueprint_mesh_matset_accessor.hpp
