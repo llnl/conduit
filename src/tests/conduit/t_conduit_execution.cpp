@@ -9,6 +9,7 @@
 //-----------------------------------------------------------------------------
 
 #include "conduit.hpp"
+#include "conduit_annotations.hpp"
 #include "conduit_execution.hpp"
 #include "conduit_memory_manager.hpp"
 
@@ -178,6 +179,10 @@ void
 run_data_accessor_policy_and_sync(Node &node,
                                   ExecutionPolicy policy)
 {
+    Node cali_opts;
+    cali_opts["config"] = "runtime-report";
+    annotations::initialize(cali_opts);
+
     // DataAccessors wrap node leaf data.
     float64_accessor acc_src(node["src"]);
     float64_accessor acc_des(node["des"]);
@@ -202,6 +207,9 @@ run_data_accessor_policy_and_sync(Node &node,
     // This is a no op if node["des"] was originally in the same memory
     // space as the requested execution policy.
     acc_des.sync();
+
+    annotations::flush();
+    annotations::finalize();
 }
 
 //-----------------------------------------------------------------------------
@@ -209,6 +217,10 @@ void
 run_data_accessor_policy_and_assume(Node &node,
                                     ExecutionPolicy policy)
 {
+    Node cali_opts;
+    cali_opts["config"] = "runtime-report";
+    annotations::initialize(cali_opts);
+
     // DataAccessors wrap node leaf data.
     float64_accessor acc_src(node["src"]);
     float64_accessor acc_des(node["des"]);
@@ -232,6 +244,9 @@ run_data_accessor_policy_and_assume(Node &node,
     // node["des"] takes ownership of the data in the active execution
     // space. This is a no op if node["des"] was already in that space.
     acc_des.assume();
+
+    annotations::flush();
+    annotations::finalize();
 }
 
 //-----------------------------------------------------------------------------
@@ -239,6 +254,10 @@ void
 run_data_accessor_using_active_space(Node &node,
                                      const bool expect_device_policy)
 {
+    Node cali_opts;
+    cali_opts["config"] = "runtime-report";
+    annotations::initialize(cali_opts);
+
     // DataAccessors wrap node leaf data.
     float64_accessor acc_src(node["src"]);
     float64_accessor acc_des(node["des"]);
@@ -273,6 +292,9 @@ run_data_accessor_using_active_space(Node &node,
     // This is a no op if node["des"] was originally in the same memory
     // space as node["src"].
     acc_des.sync();
+
+    annotations::flush();
+    annotations::finalize();
 }
 
 //-----------------------------------------------------------------------------
@@ -280,6 +302,10 @@ void
 run_data_array_policy_and_sync(Node &node,
                                ExecutionPolicy policy)
 {
+    Node cali_opts;
+    cali_opts["config"] = "runtime-report";
+    annotations::initialize(cali_opts);
+
     // DataArrays wrap node leaf data directly.
     float64_array arr_src(node["src"]);
     float64_array arr_des(node["des"]);
@@ -304,6 +330,9 @@ run_data_array_policy_and_sync(Node &node,
     // This is a no op if node["des"] was originally in the same memory
     // space as the requested execution policy.
     arr_des.sync();
+
+    annotations::flush();
+    annotations::finalize();
 }
 
 //-----------------------------------------------------------------------------
@@ -311,6 +340,10 @@ void
 run_data_array_policy_and_assume(Node &node,
                                  ExecutionPolicy policy)
 {
+    Node cali_opts;
+    cali_opts["config"] = "runtime-report";
+    annotations::initialize(cali_opts);
+
     // DataArrays wrap node leaf data directly.
     float64_array arr_src(node["src"]);
     float64_array arr_des(node["des"]);
@@ -334,6 +367,9 @@ run_data_array_policy_and_assume(Node &node,
     // node["des"] takes ownership of the data in the active execution
     // space. This is a no op if node["des"] was already in that space.
     arr_des.assume();
+
+    annotations::flush();
+    annotations::finalize();
 }
 
 //-----------------------------------------------------------------------------
@@ -341,6 +377,10 @@ void
 run_data_array_using_active_space(Node &node,
                                   const bool expect_device_policy)
 {
+    Node cali_opts;
+    cali_opts["config"] = "runtime-report";
+    annotations::initialize(cali_opts);
+
     // DataArrays wrap node leaf data directly.
     float64_array arr_src(node["src"]);
     float64_array arr_des(node["des"]);
@@ -375,6 +415,9 @@ run_data_array_using_active_space(Node &node,
     // This is a no op if node["des"] was originally in the same memory
     // space as node["src"].
     arr_des.sync();
+
+    annotations::flush();
+    annotations::finalize();
 }
 
 // TODO someday we want allocator to make sense for nodes when we are done with them
@@ -454,6 +497,10 @@ TEST(conduit_execution, test_forall)
     conduit_device_prepare();
     for_each_enabled_policy([](ExecutionPolicy policy)
     {
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+
         const index_t size = 10;
 
         index_t host_vals[size];
@@ -477,6 +524,9 @@ TEST(conduit_execution, test_forall)
         }
 
         free_for_policy(policy, vals_ptr);
+
+        annotations::flush();
+        annotations::finalize();
     });
 }
 
@@ -486,6 +536,10 @@ TEST(conduit_execution, test_reductions)
     conduit_device_prepare();
     for_each_enabled_policy([](ExecutionPolicy policy)
     {
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+
         const index_t size = 4;
         index_t host_vals[size] = {0, -10, 10, 5};
         index_t *vals_ptr =
@@ -538,6 +592,9 @@ TEST(conduit_execution, test_reductions)
         EXPECT_EQ(maxloc_reducer.getLoc(), 2);
 
         free_for_policy(policy, vals_ptr);
+
+        annotations::flush();
+        annotations::finalize();
     });
 }
 
@@ -547,6 +604,10 @@ TEST(conduit_execution, test_atomics)
     conduit_device_prepare();
     for_each_enabled_policy([](ExecutionPolicy policy)
     {
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+
         const index_t size = 4;
         index_t host_vals[size] = {0, -1, -2, -3};
         index_t *vals_ptr =
@@ -604,6 +665,9 @@ TEST(conduit_execution, test_atomics)
         }
 
         free_for_policy(policy, vals_ptr);
+
+        annotations::flush();
+        annotations::finalize();
     });
 }
 
@@ -620,6 +684,10 @@ TEST(conduit_execution, for_all_and_dispatch)
 
     auto test_exec_policy = [&](ExecutionPolicy policy)
     {
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+
         int *vals_ptr = nullptr;
         if (policy.is_device_policy())
         {
@@ -680,6 +748,9 @@ TEST(conduit_execution, for_all_and_dispatch)
         conduit::execution::dispatch(policy, concrete_kernel);
 
         EXPECT_EQ(res, 10);
+
+        annotations::flush();
+        annotations::finalize();
     };
 
     for_each_enabled_policy(test_exec_policy);
