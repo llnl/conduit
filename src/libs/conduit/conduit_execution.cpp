@@ -263,13 +263,14 @@ ExecutionPolicy::is_parallel_enabled()
 ExecutionPolicy::PolicyID
 ExecutionPolicy::name_to_policy_id(const std::string &policy_name)
 {
-    if      (policy_name == "empty")   return PolicyID::EMPTY_ID;
-    else if (policy_name == "host")    return host().policy_id();
+    if      (policy_name == "empty")    return PolicyID::EMPTY_ID;
+    else if (policy_name == "serial")   return PolicyID::SERIAL_ID;
+    else if (policy_name == "cuda")     return PolicyID::CUDA_ID;
+    else if (policy_name == "hip")      return PolicyID::HIP_ID;
+    else if (policy_name == "openmp")   return PolicyID::OPENMP_ID;
+    else if (policy_name == "host")     return host().policy_id();
+    else if (policy_name == "device")   return device().policy_id();
     else if (policy_name == "parallel") return parallel().policy_id();
-    else if (policy_name == "serial")  return PolicyID::SERIAL_ID;
-    else if (policy_name == "cuda")    return PolicyID::CUDA_ID;
-    else if (policy_name == "hip")     return PolicyID::HIP_ID;
-    else if (policy_name == "openmp")  return PolicyID::OPENMP_ID;
     return PolicyID::EMPTY_ID;
 }
 
