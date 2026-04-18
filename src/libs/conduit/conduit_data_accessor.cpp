@@ -23,6 +23,7 @@
 #include "conduit_node.hpp"
 #include "conduit_data_array.hpp"
 #include "conduit_execution.hpp"
+#include "conduit_annotations.hpp"
 
 //-----------------------------------------------------------------------------
 // -- begin conduit:: --
@@ -435,6 +436,8 @@ template <typename T>
 void
 DataAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+
     if (nullptr == m_node_ptr)
     {
         // TODO error; we can't do anything
@@ -575,6 +578,8 @@ template <typename T>
 void
 DataAccessor<T>::sync()
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+
     if (nullptr == m_node_ptr)
     {
         // TODO error; we can't do anything
@@ -604,6 +609,8 @@ template <typename T>
 void
 DataAccessor<T>::assume()
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+
     if (nullptr == m_node_ptr)
     {
         // TODO error; we can't do anything

@@ -1118,6 +1118,7 @@ template <typename Function>
 void
 dispatch(ExecutionPolicy policy, Function&& func)
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     if (policy.is_serial())
     {
         SerialExec se;
@@ -1207,6 +1208,7 @@ sort(ExecutionPolicy &policy,
      Iterator begin,
      Iterator end) noexcept
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     if (policy.is_serial())
     {
         sort<SerialExec>(begin, end);
@@ -1241,6 +1243,7 @@ sort(ExecutionPolicy &policy,
      Iterator end,
      Predicate &&predicate) noexcept
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     if (policy.is_serial())
     {
         sort<SerialExec>(begin, end, std::forward<Predicate>(predicate));
