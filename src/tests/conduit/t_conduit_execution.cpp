@@ -483,8 +483,6 @@ TEST(conduit_execution, test_forall)
         }
 
         free_for_policy(policy, vals_ptr);
-
-        annotations::flush();
         annotations::finalize();
     });
 }
@@ -552,8 +550,6 @@ TEST(conduit_execution, test_reductions)
         EXPECT_EQ(maxloc_reducer.getLoc(), 2);
 
         free_for_policy(policy, vals_ptr);
-
-        annotations::flush();
         annotations::finalize();
     });
 }
@@ -626,8 +622,6 @@ TEST(conduit_execution, test_atomics)
         }
 
         free_for_policy(policy, vals_ptr);
-
-        annotations::flush();
         annotations::finalize();
     });
 }
@@ -710,8 +704,6 @@ TEST(conduit_execution, for_all_and_dispatch)
         conduit::execution::dispatch(policy, concrete_kernel);
 
         EXPECT_EQ(res, 10);
-
-        annotations::flush();
         annotations::finalize();
     };
 
@@ -742,7 +734,6 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_policy_and_sync(node, ExecutionPolicy::host());
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -774,7 +765,6 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_policy_and_sync(node, ExecutionPolicy::device());
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -805,7 +795,6 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_policy_and_assume(node, ExecutionPolicy::host());
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -837,7 +826,6 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_policy_and_assume(node, ExecutionPolicy::device());
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -868,7 +856,6 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_using_active_space(node, false);
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -918,7 +905,6 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_policy_and_sync(node, ExecutionPolicy::host());
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -953,7 +939,6 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_policy_and_sync(node, ExecutionPolicy::device());
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -988,7 +973,6 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_policy_and_assume(node, ExecutionPolicy::host());
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1023,7 +1007,6 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_policy_and_assume(node, ExecutionPolicy::device());
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1057,7 +1040,6 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_using_active_space(node, true);
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1109,7 +1091,6 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_policy_and_sync(node, ExecutionPolicy::host());
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1142,7 +1123,6 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_policy_and_sync(node, ExecutionPolicy::device());
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1175,7 +1155,6 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_policy_and_assume(node, ExecutionPolicy::host());
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1208,7 +1187,6 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_policy_and_assume(node, ExecutionPolicy::device());
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1240,7 +1218,6 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_using_active_space(node, false);
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1291,7 +1268,6 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_policy_and_sync(node, ExecutionPolicy::host());
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1324,7 +1300,6 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_policy_and_sync(node, ExecutionPolicy::device());
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1357,7 +1332,6 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_policy_and_assume(node, ExecutionPolicy::host());
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1390,7 +1364,6 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_policy_and_assume(node, ExecutionPolicy::device());
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1423,7 +1396,6 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_accessor_using_active_space(node, true);
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1467,7 +1439,6 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_policy_and_sync(node, ExecutionPolicy::host());
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1499,7 +1470,6 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_policy_and_sync(node, ExecutionPolicy::device());
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1530,7 +1500,6 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_policy_and_assume(node, ExecutionPolicy::host());
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1562,7 +1531,6 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_policy_and_assume(node, ExecutionPolicy::device());
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1593,7 +1561,6 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_using_active_space(node, false);
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1643,7 +1610,6 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_policy_and_sync(node, ExecutionPolicy::host());
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1678,7 +1644,6 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_policy_and_sync(node, ExecutionPolicy::device());
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1713,7 +1678,6 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_policy_and_assume(node, ExecutionPolicy::host());
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1748,7 +1712,6 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_policy_and_assume(node, ExecutionPolicy::device());
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1782,7 +1745,6 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_using_active_space(node, true);
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1834,7 +1796,6 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_policy_and_sync(node, ExecutionPolicy::host());
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1867,7 +1828,6 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_policy_and_sync(node, ExecutionPolicy::device());
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1900,7 +1860,6 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_policy_and_assume(node, ExecutionPolicy::host());
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1933,7 +1892,6 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_policy_and_assume(node, ExecutionPolicy::device());
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1965,7 +1923,6 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_using_active_space(node, false);
-        annotations::flush();
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -2016,7 +1973,6 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_policy_and_sync(node, ExecutionPolicy::host());
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -2049,7 +2005,6 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_policy_and_sync(node, ExecutionPolicy::device());
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -2082,7 +2037,6 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_policy_and_assume(node, ExecutionPolicy::host());
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -2115,7 +2069,6 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_policy_and_assume(node, ExecutionPolicy::device());
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -2148,7 +2101,6 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
         run_data_array_using_active_space(node, true);
-        annotations::flush();
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
