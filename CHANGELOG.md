@@ -11,6 +11,9 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Conduit
 - Fixed an issue with fmt runtime use of a string that causes a compile error with gcc 13 and c++20.
 
+#### Blueprint
+- Fixed missing install of blueprint non-mpi mesh examples and mesh partition c++ headers.
+
 ## [0.9.6] - Released 2026-04-14
 
 ### Added
