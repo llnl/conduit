@@ -27,6 +27,57 @@
 namespace conduit
 {
 
+namespace
+{
+
+template <typename T, typename SrcType>
+void
+data_accessor_set_value(const DataAccessor<T> &accessor,
+                        index_t idx,
+                        SrcType value)
+{
+    const T typed_value = static_cast<T>(value);
+
+    switch(accessor.dtype().id())
+    {
+        case DataType::INT8_ID:
+            (*(int8*)(accessor.element_ptr(idx))) = static_cast<int8>(typed_value);
+            break;
+        case DataType::INT16_ID:
+            (*(int16*)(accessor.element_ptr(idx))) = static_cast<int16>(typed_value);
+            break;
+        case DataType::INT32_ID:
+            (*(int32*)(accessor.element_ptr(idx))) = static_cast<int32>(typed_value);
+            break;
+        case DataType::INT64_ID:
+            (*(int64*)(accessor.element_ptr(idx))) = static_cast<int64>(typed_value);
+            break;
+        case DataType::UINT8_ID:
+            (*(uint8*)(accessor.element_ptr(idx))) = static_cast<uint8>(typed_value);
+            break;
+        case DataType::UINT16_ID:
+            (*(uint16*)(accessor.element_ptr(idx))) = static_cast<uint16>(typed_value);
+            break;
+        case DataType::UINT32_ID:
+            (*(uint32*)(accessor.element_ptr(idx))) = static_cast<uint32>(typed_value);
+            break;
+        case DataType::UINT64_ID:
+            (*(uint64*)(accessor.element_ptr(idx))) = static_cast<uint64>(typed_value);
+            break;
+        case DataType::FLOAT32_ID:
+            (*(float32*)(accessor.element_ptr(idx))) = static_cast<float32>(typed_value);
+            break;
+        case DataType::FLOAT64_ID:
+            (*(float64*)(accessor.element_ptr(idx))) = static_cast<float64>(typed_value);
+            break;
+        default:
+            CONDUIT_ERROR("DataAccessor does not support dtype: "
+                          << accessor.dtype().name());
+    }
+}
+
+}
+
 //-----------------------------------------------------------------------------
 //
 // -- conduit::DataAccessor public methods --
@@ -420,7 +471,7 @@ DataAccessor<T>::set(const int8 *values, index_t num_elements)
 { 
     for(index_t idx=0;idx<num_elements;idx++)
     {
-        (*(int8*)(element_ptr(idx))) = static_cast<int8>(values[idx]);
+        data_accessor_set_value(*this, idx, values[idx]);
     }
 }
 
@@ -431,7 +482,7 @@ DataAccessor<T>::set(const  int16 *values, index_t num_elements)
 { 
     for(index_t idx=0;idx<num_elements;idx++)
     {
-        (*(int16*)(element_ptr(idx))) = static_cast<int16>(values[idx]);
+        data_accessor_set_value(*this, idx, values[idx]);
     }
 }
 
@@ -442,7 +493,7 @@ DataAccessor<T>::set(const int32 *values, index_t num_elements)
 { 
     for(index_t idx=0;idx<num_elements;idx++)
     {
-        (*(int32*)(element_ptr(idx))) = static_cast<int32>(values[idx]);
+        data_accessor_set_value(*this, idx, values[idx]);
     }
 }
 
@@ -453,7 +504,7 @@ DataAccessor<T>::set(const  int64 *values, index_t num_elements)
 { 
     for(index_t idx=0;idx<num_elements;idx++)
     {
-        (*(int64*)(element_ptr(idx))) = static_cast<int64>(values[idx]);
+        data_accessor_set_value(*this, idx, values[idx]);
     }
 }
 
@@ -468,7 +519,7 @@ DataAccessor<T>::set(const  uint8 *values, index_t num_elements)
 { 
     for(index_t idx=0;idx<num_elements;idx++)
     {
-        (*(uint8*)(element_ptr(idx))) = static_cast<uint8>(values[idx]);
+        data_accessor_set_value(*this, idx, values[idx]);
     }
 }
 
@@ -479,7 +530,7 @@ DataAccessor<T>::set(const  uint16 *values, index_t num_elements)
 { 
     for(index_t idx=0;idx<num_elements;idx++)
     {
-        (*(uint16*)(element_ptr(idx))) = static_cast<uint16>(values[idx]);
+        data_accessor_set_value(*this, idx, values[idx]);
     }
 }
 
@@ -490,7 +541,7 @@ DataAccessor<T>::set(const uint32 *values, index_t num_elements)
 { 
     for(index_t idx=0;idx<num_elements;idx++)
     {
-        (*(uint32*)(element_ptr(idx))) = static_cast<uint32>(values[idx]);
+        data_accessor_set_value(*this, idx, values[idx]);
     }
 }
 
@@ -501,7 +552,7 @@ DataAccessor<T>::set(const uint64 *values, index_t num_elements)
 { 
     for(index_t idx=0;idx<num_elements;idx++)
     {
-        (*(uint64*)(element_ptr(idx))) = static_cast<uint64>(values[idx]);
+        data_accessor_set_value(*this, idx, values[idx]);
     }
 }
 
@@ -516,7 +567,7 @@ DataAccessor<T>::set(const float32 *values, index_t num_elements)
 { 
     for(index_t idx=0;idx<num_elements;idx++)
     {
-        (*(float32*)(element_ptr(idx))) = static_cast<float32>(values[idx]);
+        data_accessor_set_value(*this, idx, values[idx]);
     }
 }
 
@@ -527,7 +578,7 @@ DataAccessor<T>::set(const float64 *values, index_t num_elements)
 { 
     for(index_t idx=0;idx<num_elements;idx++)
     {
-        (*(float64*)(element_ptr(idx))) = static_cast<float64>(values[idx]);
+        data_accessor_set_value(*this, idx, values[idx]);
     }
 }
 
@@ -549,7 +600,7 @@ DataAccessor<T>::set(const DataAccessor<int8> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(int8*)(element_ptr(i))) = static_cast<int8>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -561,7 +612,7 @@ DataAccessor<T>::set(const DataAccessor<int16> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(int16*)(element_ptr(i))) = static_cast<int16>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -573,7 +624,7 @@ DataAccessor<T>::set(const DataAccessor<int32> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(int32*)(element_ptr(i))) = static_cast<int32>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -585,7 +636,7 @@ DataAccessor<T>::set(const DataAccessor<int64> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(int64*)(element_ptr(i))) = static_cast<int64>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -601,7 +652,7 @@ DataAccessor<T>::set(const DataAccessor<uint8> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(uint8*)(element_ptr(i))) = static_cast<uint8>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -613,7 +664,7 @@ DataAccessor<T>::set(const DataAccessor<uint16> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(uint16*)(element_ptr(i))) = static_cast<uint16>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -625,7 +676,7 @@ DataAccessor<T>::set(const DataAccessor<uint32> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(uint32*)(element_ptr(i))) = static_cast<uint32>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -637,7 +688,7 @@ DataAccessor<T>::set(const DataAccessor<uint64> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(uint64*)(element_ptr(i))) = static_cast<uint64>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -653,7 +704,7 @@ DataAccessor<T>::set(const DataAccessor<float32> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(float32*)(element_ptr(i))) = static_cast<float32>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -665,7 +716,7 @@ DataAccessor<T>::set(const DataAccessor<float64> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(float64*)(element_ptr(i))) = static_cast<float64>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -687,7 +738,7 @@ DataAccessor<T>::set(const DataArray<int8> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(int8*)(element_ptr(i))) = static_cast<int8>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -699,7 +750,7 @@ DataAccessor<T>::set(const DataArray<int16> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(int16*)(element_ptr(i))) = static_cast<int16>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -711,7 +762,7 @@ DataAccessor<T>::set(const DataArray<int32> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(int32*)(element_ptr(i))) = static_cast<int32>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -723,7 +774,7 @@ DataAccessor<T>::set(const DataArray<int64> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(int64*)(element_ptr(i))) = static_cast<int64>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -739,7 +790,7 @@ DataAccessor<T>::set(const DataArray<uint8> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(uint8*)(element_ptr(i))) = static_cast<uint8>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -751,7 +802,7 @@ DataAccessor<T>::set(const DataArray<uint16> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(uint16*)(element_ptr(i))) = static_cast<uint16>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -763,7 +814,7 @@ DataAccessor<T>::set(const DataArray<uint32> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(uint32*)(element_ptr(i))) = static_cast<uint32>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -775,7 +826,7 @@ DataAccessor<T>::set(const DataArray<uint64> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(uint64*)(element_ptr(i))) = static_cast<uint64>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -791,7 +842,7 @@ DataAccessor<T>::set(const DataArray<float32> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(float32*)(element_ptr(i))) = static_cast<float32>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
@@ -803,7 +854,7 @@ DataAccessor<T>::set(const DataArray<float64> &values)
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
     {
-        (*(float64*)(element_ptr(i))) = static_cast<float64>(values[i]);
+        data_accessor_set_value(*this, i, values[i]);
     }
 }
 
