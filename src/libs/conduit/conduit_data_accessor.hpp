@@ -88,8 +88,6 @@ public:
 
     T              element(index_t idx) const;
 
-    void           set(index_t idx, T value);
-
     void            fill(T value);
 
     const void     *element_ptr(index_t idx) const
@@ -107,6 +105,38 @@ public:
 //-----------------------------------------------------------------------------
 // Setters
 //-----------------------------------------------------------------------------
+    /// signed integer single element
+    void            set(index_t elem_idx, int8  value);
+    void            set(index_t elem_idx, int16 value);
+    void            set(index_t elem_idx, int32 value);
+    void            set(index_t elem_idx, int64 value);
+
+    // unsigned integer single element
+    void            set(index_t elem_idx, uint8  value);
+    void            set(index_t elem_idx, uint16 value);
+    void            set(index_t elem_idx, uint32 value);
+    void            set(index_t elem_idx, uint64 value);
+
+    /// floating point single element
+    void            set(index_t elem_idx, float32 value);
+    void            set(index_t elem_idx, float64 value);
+
+    /// signed integer arrays
+    void            set(const int8  *values, index_t num_elements);
+    void            set(const int16 *values, index_t num_elements);
+    void            set(const int32 *values, index_t num_elements);
+    void            set(const int64 *values, index_t num_elements);
+
+    /// unsigned integer arrays
+    void            set(const uint8   *values, index_t num_elements);
+    void            set(const uint16  *values, index_t num_elements);
+    void            set(const uint32  *values, index_t num_elements);
+    void            set(const uint64  *values, index_t num_elements);
+    
+    /// floating point arrays
+    void            set(const float32 *values, index_t num_elements);
+    void            set(const float64 *values, index_t num_elements);
+
     /// signed integer arrays via DataArray
     void            set(const DataArray<int8>    &values);
     void            set(const DataArray<int16>   &values);
