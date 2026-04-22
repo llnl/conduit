@@ -10,6 +10,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 #### Conduit
 - Fixed an issue with fmt runtime use of a string that causes a compile error with gcc 13 and c++20.
+- Add guard to prevent multiple calls of `find_package(Conduit)` from failing in downstream CMake logic. Guard logic existed in releases prior to 0.9.6, now restored.
 
 #### Blueprint
 - Fixed missing install of blueprint non-mpi mesh examples and mesh partition c++ headers.
