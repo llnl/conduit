@@ -6,6 +6,11 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 ## Unreleased
 
+### Added
+
+#### Conduit
+- Added a bulk `DataAccessor::set()` method for setting many elements at once.
+
 ### Fixed
 
 #### Conduit
