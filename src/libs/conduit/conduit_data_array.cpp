@@ -776,6 +776,10 @@ DataArray<T>::set(index_t ele_idx, float64 value)
 }
 
 //---------------------------------------------------------------------------//
+// DataArray::set() signed integers multi element
+//---------------------------------------------------------------------------//
+
+//---------------------------------------------------------------------------//
 template <typename T> 
 void
 DataArray<T>::set(const int8 *values, index_t num_elements)
@@ -820,6 +824,10 @@ DataArray<T>::set(const  int64 *values, index_t num_elements)
 }
 
 //---------------------------------------------------------------------------//
+// DataArray::set() unsigned integers multi element
+//---------------------------------------------------------------------------//
+
+//---------------------------------------------------------------------------//
 template <typename T> 
 void            
 DataArray<T>::set(const  uint8 *values, index_t num_elements)
@@ -862,6 +870,10 @@ DataArray<T>::set(const uint64 *values, index_t num_elements)
         this->element(i) = (T)values[i];
     }
 }
+
+//---------------------------------------------------------------------------//
+// DataArray::set() floating point multi element
+//---------------------------------------------------------------------------//
 
 //---------------------------------------------------------------------------//
 template <typename T> 
