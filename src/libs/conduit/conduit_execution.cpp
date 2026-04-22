@@ -93,7 +93,27 @@ ExecutionPolicy::hip()
 ExecutionPolicy
 ExecutionPolicy::openmp()
 {
+#if defined(CONDUIT_USE_OPENMP)
     return ExecutionPolicy(PolicyID::OPENMP_ID);
+#else
+    CONDUIT_ERROR("Conduit was built without openMP.");
+    return ExecutionPolicy(PolicyID::EMPTY_ID);
+#endif
+}
+
+//---------------------------------------------------------------------------//
+ExecutionPolicy
+ExecutionPolicy::parallel()
+{
+#if defined(CONDUIT_EXEC_BUILD_HAS_CUDA)
+    return ExecutionPolicy(PolicyID::CUDA_ID);
+#elif defined(CONDUIT_EXEC_BUILD_HAS_HIP)
+    return ExecutionPolicy(PolicyID::HIP_ID);
+#elif defined(CONDUIT_USE_OPENMP)
+    return ExecutionPolicy(PolicyID::OPENMP_ID);
+#else
+    return ExecutionPolicy(PolicyID::SERIAL_ID);
+#endif
 }
 
 //=============================================================================
@@ -169,6 +189,13 @@ ExecutionPolicy::is_device_policy() const
 
 //---------------------------------------------------------------------------//
 bool
+ExecutionPolicy::is_parallel_policy() const
+{
+    return is_cuda() || is_hip() || is_openmp();
+}
+
+//---------------------------------------------------------------------------//
+bool
 ExecutionPolicy::is_serial_enabled()
 {
     return true;
@@ -221,6 +248,13 @@ ExecutionPolicy::is_device_enabled()
     return is_cuda_enabled() || is_hip_enabled();
 }
 
+//---------------------------------------------------------------------------//
+bool
+ExecutionPolicy::is_parallel_enabled()
+{
+    return is_device_enabled() || is_openmp_enabled();
+}
+
 //-----------------------------------------------------------------------------
 // PolicyID to string and string to PolicyID
 //-----------------------------------------------------------------------------
@@ -229,11 +263,14 @@ ExecutionPolicy::is_device_enabled()
 ExecutionPolicy::PolicyID
 ExecutionPolicy::name_to_policy_id(const std::string &policy_name)
 {
-    if (policy_name      == "empty")   return PolicyID::EMPTY_ID;
-    else if (policy_name == "serial")  return PolicyID::SERIAL_ID;
-    else if (policy_name == "cuda")    return PolicyID::CUDA_ID;
-    else if (policy_name == "hip")     return PolicyID::HIP_ID;
-    else if (policy_name == "openmp")  return PolicyID::OPENMP_ID;
+    if      (policy_name == "empty")    return PolicyID::EMPTY_ID;
+    else if (policy_name == "serial")   return PolicyID::SERIAL_ID;
+    else if (policy_name == "cuda")     return PolicyID::CUDA_ID;
+    else if (policy_name == "hip")      return PolicyID::HIP_ID;
+    else if (policy_name == "openmp")   return PolicyID::OPENMP_ID;
+    else if (policy_name == "host")     return host().policy_id();
+    else if (policy_name == "device")   return device().policy_id();
+    else if (policy_name == "parallel") return parallel().policy_id();
     return PolicyID::EMPTY_ID;
 }
 
@@ -241,7 +278,7 @@ ExecutionPolicy::name_to_policy_id(const std::string &policy_name)
 std::string 
 ExecutionPolicy::policy_id_to_name(const PolicyID policy_id)
 {
-    if (policy_id      == PolicyID::EMPTY_ID)   return "empty";
+    if      (policy_id == PolicyID::EMPTY_ID)   return "empty";
     else if (policy_id == PolicyID::SERIAL_ID)  return "serial";
     else if (policy_id == PolicyID::CUDA_ID)    return "cuda";
     else if (policy_id == PolicyID::HIP_ID)     return "hip";

@@ -25,6 +25,7 @@
 #include "conduit_log.hpp"
 #include "conduit_data_accessor.hpp"
 #include "conduit_execution.hpp"
+#include "conduit_annotations.hpp"
 
 // Easier access to the Conduit logging functions
 using namespace conduit::utils;
@@ -574,6 +575,8 @@ template <typename T>
 void
 DataArray<T>::use_with(conduit::execution::ExecutionPolicy policy)
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+
     if (nullptr == m_node_ptr)
     {
         // TODO error; we can't do anything
@@ -714,6 +717,8 @@ template <typename T>
 void
 DataArray<T>::sync()
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+
     if (nullptr == m_node_ptr)
     {
         // TODO error; we can't do anything
@@ -743,6 +748,8 @@ template <typename T>
 void
 DataArray<T>::assume()
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+
     if (nullptr == m_node_ptr)
     {
         // TODO error; we can't do anything

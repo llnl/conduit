@@ -20,8 +20,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # always use position independent code
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-include(${CMAKE_CURRENT_LIST_DIR}/../config/conduit_setup_execution.cmake)
-
 message(STATUS "CMake build tool name: ${CMAKE_BUILD_TOOL}")
 
 macro(ENABLE_WARNINGS)
@@ -321,4 +319,5 @@ macro(convert_to_native_escaped_file_path path output)
     file(TO_NATIVE_PATH ${path} ${output})
     string(REPLACE "\\" "\\\\"  ${output} "${${output}}")
 endmacro()
+
 

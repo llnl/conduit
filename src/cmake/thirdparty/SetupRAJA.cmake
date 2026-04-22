@@ -27,6 +27,7 @@ find_package(RAJA REQUIRED
              NO_DEFAULT_PATH
              PATHS ${_RAJA_SEARCH_PATH})
 message(STATUS "Found RAJA in: ${RAJA_DIR}")
+set(CONDUIT_USE_RAJA TRUE)
 
 # reset RAJA_DIR just in case the find process mangled it
 set(RAJA_DIR ${RAJA_DIR_ORIG})

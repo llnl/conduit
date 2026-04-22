@@ -76,11 +76,6 @@ set_property(TARGET conduit::conduit
              PROPERTY INTERFACE_LINK_LIBRARIES
              conduit conduit_relay conduit_blueprint)
 
-add_library(conduit::conduit_execution INTERFACE IMPORTED)
-set_property(TARGET conduit::conduit_execution
-             PROPERTY INTERFACE_LINK_LIBRARIES
-             conduit_execution)
-
 
 if(CONDUIT_PYTHON_ENABLED)
     # create convenience target that exposes the header file for the
@@ -142,7 +137,7 @@ if(NOT Conduit_FIND_QUIETLY)
     message(STATUS " CONDUIT_RELAY_MPI_ENABLED       = ${CONDUIT_RELAY_MPI_ENABLED}")
     message(STATUS " CONDUIT_USE_CMAKE_MPI_TARGETS   = ${CONDUIT_USE_CMAKE_MPI_TARGETS}")
 
-    set(_print_targets "conduit::conduit conduit::conduit_execution")
+    set(_print_targets "conduit::conduit")
 
     if(CONDUIT_PYTHON_ENABLED)
         set(_print_targets "${_print_targets} conduit::conduit_python")
@@ -155,4 +150,5 @@ if(NOT Conduit_FIND_QUIETLY)
     message(STATUS "Conduit imported targets: ${_print_targets}")
     unset(_print_targets)
 endif()
+
 

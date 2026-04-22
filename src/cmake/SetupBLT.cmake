@@ -120,6 +120,16 @@ if(ENABLE_HIP AND hip_FOUND)
     set(HIP_FOUND TRUE)
 endif()
 
+# Internal helper for Conduit's own source lists that need to compile as CUDA
+# or HIP translation units. BLT owns language setup; this just tags sources.
+function(conduit_set_source_device_properties sources)
+    if(ENABLE_CUDA)
+        set_source_files_properties(${sources} PROPERTIES LANGUAGE CUDA)
+    elseif(ENABLE_HIP)
+        set_source_files_properties(${sources} PROPERTIES LANGUAGE HIP)
+    endif()
+endfunction()
+
 ################################################################
 # apply folders to a few ungrouped blt targets
 ################################################################

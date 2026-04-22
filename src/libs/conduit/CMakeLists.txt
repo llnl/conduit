@@ -172,6 +172,10 @@ if(UMPIRE_FOUND)
     list(APPEND conduit_thirdparty_libs umpire)
 endif()
 
+if(CUDA_FOUND)
+    list(APPEND conduit_thirdparty_libs blt::cuda_runtime)
+endif()
+
 if(HIP_FOUND)
     list(APPEND conduit_thirdparty_libs blt::hip_runtime)
 endif()
@@ -202,11 +206,6 @@ target_include_directories(conduit
                            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
                            $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
                            $<$<BOOL:TOTALVIEW_FOUND>:${TOTALVIEW_INCLUDE_DIRECTORIES}>)
-
-add_library(conduit_execution INTERFACE)
-add_library(conduit::conduit_execution ALIAS conduit_execution)
-target_link_libraries(conduit_execution INTERFACE conduit)
-install(TARGETS conduit_execution EXPORT conduit)
 
 
 #################################
