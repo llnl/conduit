@@ -16,6 +16,8 @@ cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
 
 @PACKAGE_INIT@
 
+if(NOT Conduit_FOUND)
+
 # Compute the installation prefix relative to this file.
 get_filename_component(_IMPORT_PREFIX "${CMAKE_CURRENT_LIST_FILE}" PATH)
 get_filename_component(_IMPORT_PREFIX "${_IMPORT_PREFIX}" PATH)
@@ -98,3 +100,5 @@ unset(_conduit_known_components)
 unset(_conduit_component)
 
 set(CONDUIT_FOUND "${Conduit_FOUND}")
+
+endif() # end of if Conduit_FOUND guard

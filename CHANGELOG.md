@@ -9,9 +9,25 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Added
 
 #### Conduit
+- Added a bulk `DataAccessor::set()` method for setting many elements at once.
+
+### Fixed
+
+#### Conduit
+- Fixed an issue with fmt runtime use of a string that causes a compile error with gcc 13 and c++20.
+- Add guard to prevent multiple calls of `find_package(Conduit)` from failing in downstream CMake logic. Guard logic existed in releases prior to 0.9.6, now restored.
+
+#### Blueprint
+- Fixed missing install of blueprint non-mpi mesh examples and mesh partition c++ headers.
+
+## [0.9.6] - Released 2026-04-14
+
+### Added
+
+#### Conduit
 - Added `CONDUIT_VERSION_VALUE` macro that encodes the current Conduit version as an integer.
 - Added a macro to make an integer a version number from major, minor, patch version numbers. Example: `CONDUIT_MAKE_VERSION_VALUE(0, 9, 6)`. This macro can be used to conditionally compile code that is valid for specific versions of Conduit.
-- Added `set` methods to `DataAccessor` that take `DataArray`s and `DataAccessor`s.
+- Added `set` methods to `DataAccessor` that take `DataArrays` and `DataAccessors`.
 - Added optional device execution support via RAJA and Umpire.
 - Added `conduit_bin_yaml` protocol case to `Node::load()` and `Node::save()`. Also added `conduit_bin_json`, which does the same thing as `conduit_bin` (creates a json schema file to go with the `conduit_bin` file).
 - Fixed an issue in `Node::swap()` or `Node::move()` where child nodes moved to a new parent did not point to their new parent. This caused operations that call `Node::parent()` to traverse upwards to malfunction.
@@ -42,7 +58,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Conduit
 - Updated uberenv to use Spack 1.1.1
 - Updated built in fmt to version 12.1.0.
-- Updated python module build processes to use `pyproject.toml` files. Process now requires pip` 24.0.0 or newer.
+- Updated python module build processes to use `pyproject.toml` files. Process now requires pip `24.0.0` or newer.
 
 #### Blueprint
 - Removed previously deprecated `quads_and_tris` and `hexs_and_tets` mesh types from `braid` in `blueprint::mesh::examples`.
@@ -53,10 +69,10 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Renamed `conduit::blueprint::mesh::matset::count_zones_from_matset()` to `conduit::blueprint::mesh::matset::count_elements_from_matset()`.
 - Renamed `conduit::blueprint::mesh::matset::is_material_in_zone()` to `conduit::blueprint::mesh::matset::is_material_in_element()`.
 - Added error checking for mixed vector fields (fields with `matset_values` defined on vector components). `conduit::blueprint::mesh::field::to_multi_buffer_by_element()`, `conduit::blueprint::mesh::field::to_multi_buffer_by_material()`, `conduit::blueprint::mesh::field::to_uni_buffer_by_element()`, and `conduit::blueprint::mesh::field::to_silo()` now error in this case.
-- Rewrote `conduit::blueprint::mesh::matset::to_silo()`, `conduit::blueprint::mesh::field::to_silo()`, and `conduit::blueprint::mesh::specset::to_silo()`. Instead of just the `specset` case having its own implementation, all three now share a common implementation. Additionally, support for multi-buffer by material and uni-buffer by element `specset`s has come online as part of these changes. We have also removed support for non-idiomatic material-set representations. Most importantly, the new version of `to_silo()` boasts significant speedup: for multi-buffer by element `matset`s/`field`s, the new version is roughly 15x faster, depending on how large your data is. For multi-buffer by material `matset`s/`field`s, the new version has a modest speedup of roughly 1.05x. For uni-buffer by element `matset`s/`field`s, the speedup ratio increases as the problem size increases. For even trivially sized problems, the speedup is roughly 100x, while for million-element problems the speedup is many times greater than 1000x. Speedup information for `specsets` is omitted as support was previously limited to multi-buffer by element `specset`s.
+- Rewrote `conduit::blueprint::mesh::matset::to_silo()`, `conduit::blueprint::mesh::field::to_silo()`, and `conduit::blueprint::mesh::specset::to_silo()`. Instead of just the `specset` case having its own implementation, all three now share a common implementation. Additionally, support for multi-buffer by material and uni-buffer by element `specsets` have come online as part of these changes. We have also removed support for non-idiomatic material-set representations. Most importantly, the new version of `to_silo()` boasts significant speedup: for multi-buffer by element `matset/fields`, the new version is roughly 15x faster, depending on how large your data is. For multi-buffer by material `matset/fields`, the new version has a modest speedup of roughly 1.05x. For uni-buffer by element `matset/fields`, the speedup ratio increases as the problem size increases. For even trivially sized problems, the speedup is roughly 100x, while for million-element problems the speedup is many times greater than 1000x. Speedup information for `specsets` is omitted as support was previously limited to multi-buffer by element `specsets`.
 - Modified `conduit::blueprint::mpi::mesh::generate_partition_field()` so it takes a "verbose" option, which is set to 0 (off) by default. This change of behavior results in less output while still giving the user the ability to generate verbose Parmetis output.
 - Changed logic in `matset` `verify` such that for multi-buffer material sets, children of `volume_fractions` must be a subset of children of the `material_map`, not the other way around.
-- Removed support for the multi-buffer `matset` indirection case in which children of `volume_fractions` could be `o2mrelation`s instead of flat arrays.
+- Removed support for the multi-buffer `matset` indirection case in which children of `volume_fractions` could be `o2mrelations` instead of flat arrays.
 
 #### Relay
 - Updates to use Silo 4.12 and HDF5 2.0.0.
@@ -71,6 +87,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Conduit
 - Fixed a bug preventing explicit length 0 in `yaml` schema.
 - Fixed a bug where empty objects or lists were not written correctly to `yaml` schema.
+- Fixed a bug where the python DataType constructor did not properly accept arguments.
 
 #### Blueprint
 - Fixed an issue with material set conversions where uni-buffer by material matsets would incorrectly follow the same path as multi-buffer by material matsets.
@@ -81,7 +98,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 #### Relay
 - Fixed a bug preventing multiple species sets from being written when writing to Overlink.
-- Fixed an issue where `int64` unstructured topoology connectivity information would cause The Silo writer to crash.
+- Fixed an issue where `int64` unstructured topology connectivity information would cause The Silo writer to crash.
 
 ## [0.9.5] - Released 2025-09-10
 
@@ -1104,7 +1121,9 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Added
 - Initial Open Source Release on GitHub
 
-[Unreleased]: https://github.com/llnl/conduit/compare/v0.9.4...HEAD
+[Unreleased]: https://github.com/llnl/conduit/compare/v0.9.6...HEAD
+[0.9.6]: https://github.com/llnl/conduit/compare/v0.9.5...v0.9.6
+[0.9.5]: https://github.com/llnl/conduit/compare/v0.9.4...v0.9.5
 [0.9.4]: https://github.com/llnl/conduit/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/llnl/conduit/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/llnl/conduit/compare/v0.9.1...v0.9.2

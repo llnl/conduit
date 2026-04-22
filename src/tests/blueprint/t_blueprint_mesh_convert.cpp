@@ -281,6 +281,29 @@ TEST(convert, multi_domain_3d)
     test_convert_multi_domain(3);
 }
 
+//
+// TODO: This test case targets issue: https://github.com/llnl/conduit/issues/1436
+//
+
+// TEST(convert, strided_struct_to_unstruct)
+// {
+//     conduit::Node n_mesh;
+//     conduit::blueprint::mesh::examples::generate("strided_structured",
+//                                                  n_mesh);
+//     std::cout << n_mesh.to_yaml() << std::endl;
+//     conduit::relay::io::blueprint::save_mesh(n_mesh,"tout_stride_struct_input","hdf5");
+//
+//     conduit::Node n_options, n_converted;
+//     n_options["topology"] = "mesh";
+//     n_options["target"] = "unstructured";
+//
+//     conduit::blueprint::mesh::convert(n_mesh, n_options, n_converted);
+//
+//     std::cout << n_converted.to_yaml() << std::endl;
+//     conduit::relay::io::blueprint::save_mesh(n_converted,"tout_tout_stride_struct_conv","hdf5");
+// }
+
+
 /// Conduit error handler that blocks (helpful for getting a stack in a debugger)
 static void conduit_debug_err_handler(const std::string &s1, const std::string &s2, int i1)
 {

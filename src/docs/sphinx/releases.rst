@@ -12,6 +12,110 @@ https://github.com/LLNL/conduit/releases
 
 .. note:: Conduit uses `BLT <https://github.com/LLNL/blt>`__ as its core CMake build system. We leverage BLT as a git submodule, however github does not include submodule contents in its automatically created source tarballs. To avoid confusion, starting with v0.3.0 we provide our own source tarballs that include BLT. 
 
+v0.9.6
+---------------------------------
+
+* Released 2026-04-14
+* `Source Tarball <https://github.com/LLNL/conduit/releases/download/v0.9.6/conduit-v0.9.6-src-with-blt.tar.gz>`__
+
+Highlights
+++++++++++++++++++++++++++++++++++++
+
+(Extracted from Conduit's :download:`Changelog <../../../CHANGELOG.md>`)
+
+
+Added
+~~~~~
+
+
+* **Conduit**
+
+ * Added ``CONDUIT_VERSION_VALUE`` macro that encodes the current Conduit version as an integer.
+ * Added a macro to make an integer a version number from major, minor, patch version numbers. Example: ``CONDUIT_MAKE_VERSION_VALUE(0, 9, 6)``. This macro can be used to conditionally compile code that is valid for specific versions of Conduit.
+ * Added ``set`` methods to ``DataAccessor`` that take ``DataArrays`` and ``DataAccessors``.
+ * Added optional device execution support via RAJA and Umpire.
+ * Added ``conduit_bin_yaml`` protocol case to ``Node::load()`` and ``Node::save()``. Also added ``conduit_bin_json``, which does the same thing as ``conduit_bin`` (creates a json schema file to go with the ``conduit_bin`` file).
+ * Fixed an issue in ``Node::swap()`` or ``Node::move()`` where child nodes moved to a new parent did not point to their new parent. This caused operations that call ``Node::parent()`` to traverse upwards to malfunction.
+ * Added ``Node::as_index_t()``.
+
+* **Blueprint**
+
+ * Finished ``bent_multi_grid_amr`` mesh by adding adjacency sets between spatially adjacent domains at the same level of refinement.
+ * Added ``conduit::blueprint::mesh::convert()`` function that can convert among various mesh formats and generate derived meshes such as points, centroids, faces, sides, and corners.
+ * Added a mode within the new ``convert()`` function that allows it to convert polyhedral hex meshes into unstructured hex meshes.
+ * Sped up ``conduit::blueprint::mesh::topology::unstructured::to_polygonal()`` algorithm and added support for mixed element types.
+ * Improved support for "mixed" element types in  ``conduit::blueprint::mesh::utils::ShapeType`` and also removed a string member to speed up construction.
+ * Added 2D block rotation support in ``conduit::blueprint::mpi::mesh::to_polygonal()``.
+ * Added field data to the ``conduit::blueprint::mpi::mesh::to_polygonal()`` transformation, including communication of vertex data on hanging nodes.
+ * Added ``conduit::blueprint::mesh::specset::to_multi_buffer_full()``, ``conduit::blueprint::mesh::specset::to_uni_buffer_by_element()``, and ``conduit::blueprint::mesh::specset::to_multi_buffer_by_material()``, which are converters that take species sets between the three supported species set/material set representations.
+ * Added ``conduit::blueprint::mesh::specset::is_multi_buffer()``, ``conduit::blueprint::mesh::specset::is_uni_buffer()``, ``conduit::blueprint::mesh::specset::get_num_species_for_material()``, and ``conduit::blueprint::mesh::specset::get_material_names()``, which are simple species set utilities.
+ * Added ``conduit::blueprint::mesh::matset::MatsetAccessor``, a class for fetching material set/field/species set data independent of material set layout. It provides methods that fetch data for zone id and material id pairs (or zone id, material id, species id triples).
+ * Added ``conduit::blueprint::mesh::matset::create_or_reuse_material_map()``, which will shallow copy or create a material map for a provided material set.
+ * Added ``conduit::blueprint::mesh::matset::create_or_copy_material_map()``, which will deep copy or create a material map for a provided material set.
+ * Added ``conduit::blueprint::mesh::specset::create_or_reuse_species_names()``, which will shallow copy or create species names for a provided species set.
+ * Added ``conduit::blueprint::mesh::specset::create_or_copy_species_names()``, which will deep copy or create species names for a provided species set.
+ * Added ``conduit::blueprint::mesh::matset::renumber_material_ids()``, which renumbers material ids for a material set to be in the range 0 to N - 1, where N is the number of materials.
+ * Added ``conduit::blueprint::mesh::matset::count_materials_from_matset()``, which counts the number of materials in a given material set, taking into account the various matset layouts.
+ * Added ``conduit::blueprint::mesh::matset::count_materials_from_specset()``, which counts the number of materials in a given species set, taking into account the various specset layouts.
+ * Added ``conduit::blueprint::mesh::matset::to_uni_buffer_by_material()``, ``conduit::blueprint::mesh::field::to_uni_buffer_by_material()``, and ``conduit::blueprint::mesh::specset::to_uni_buffer_by_material()``, which for now only throw errors, but leave the door open for future support for this 4th material set layout.
+
+Changed
+~~~~~~~
+
+
+* **Conduit**
+
+ * Updated uberenv to use Spack 1.1.1
+ * Updated built in fmt to version 12.1.0.
+ * Updated python module build processes to use ``pyproject.toml`` files. Process now requires pip ``24.0.0`` or newer.
+
+* **Blueprint**
+
+ * Removed previously deprecated ``quads_and_tris`` and ``hexs_and_tets`` mesh types from ``braid`` in ``blueprint::mesh::examples``.
+ * Renamed ``conduit::blueprint::mesh::matset::to_multi_buffer_full()`` to ``conduit::blueprint::mesh::matset::to_multi_buffer_by_element()``.
+ * Material Set conversion routines (``to_multi_buffer_by_element()``, ``to_uni_buffer_by_element()``, and ``to_multi_buffer_by_material()``) are now sensitive to optionally included material maps for all cases. If included, they will provide converted matsets with the material map.
+ * Field/Species Set conversion routines (``to_multi_buffer_by_element()``, ``to_uni_buffer_by_element()``, and ``to_multi_buffer_by_material()``) previously forced materials to appear in the same order in fields/specsets as they do in the associated material set. This restriction has been relaxed.
+ * Updated ``conduit::blueprint::o2mrelation::O2MIndex`` such that the number of "ones" in the one-to-many relationship is precomputed when the object is created. The number of "ones" is computed by using the ``size()`` method from an ``O2MIndex``. If an ``O2MIndex`` is created but ``sizes``, ``offsets``, and ``indices`` are not present, then the ``O2MIndex`` constructor will examine the provided ``Node`` and search for data arrays to determine the number of "ones". If all data arrays in the provided ``Node`` have the same number of elements, then that number is assumed to be the number of "ones". If there is disagreement or there are no data arrays present, then the ``O2MIndex`` throws an error, as the number of "ones" is ambiguous or unknowable.
+ * Renamed ``conduit::blueprint::mesh::matset::count_zones_from_matset()`` to ``conduit::blueprint::mesh::matset::count_elements_from_matset()``.
+ * Renamed ``conduit::blueprint::mesh::matset::is_material_in_zone()`` to ``conduit::blueprint::mesh::matset::is_material_in_element()``.
+ * Added error checking for mixed vector fields (fields with ``matset_values`` defined on vector components). ``conduit::blueprint::mesh::field::to_multi_buffer_by_element()``, ``conduit::blueprint::mesh::field::to_multi_buffer_by_material()``, ``conduit::blueprint::mesh::field::to_uni_buffer_by_element()``, and ``conduit::blueprint::mesh::field::to_silo()`` now error in this case.
+ * Rewrote ``conduit::blueprint::mesh::matset::to_silo()``, ``conduit::blueprint::mesh::field::to_silo()``, and ``conduit::blueprint::mesh::specset::to_silo()``. Instead of just the ``specset`` case having its own implementation, all three now share a common implementation. Additionally, support for multi-buffer by material and uni-buffer by element ``specsets`` have come online as part of these changes. We have also removed support for non-idiomatic material-set representations. Most importantly, the new version of ``to_silo()`` boasts significant speedup: for multi-buffer by element ``matset/fields``, the new version is roughly 15x faster, depending on how large your data is. For multi-buffer by material ``matset/fields``, the new version has a modest speedup of roughly 1.05x. For uni-buffer by element ``matset/fields``, the speedup ratio increases as the problem size increases. For even trivially sized problems, the speedup is roughly 100x, while for million-element problems the speedup is many times greater than 1000x. Speedup information for ``specsets`` is omitted as support was previously limited to multi-buffer by element ``specsets``.
+ * Modified ``conduit::blueprint::mpi::mesh::generate_partition_field()`` so it takes a "verbose" option, which is set to 0 (off) by default. This change of behavior results in less output while still giving the user the ability to generate verbose Parmetis output.
+ * Changed logic in ``matset`` ``verify`` such that for multi-buffer material sets, children of ``volume_fractions`` must be a subset of children of the ``material_map``, not the other way around.
+ * Removed support for the multi-buffer ``matset`` indirection case in which children of ``volume_fractions`` could be ``o2mrelations`` instead of flat arrays.
+
+* **Relay**
+
+ * Updates to use Silo 4.12 and HDF5 2.0.0.
+ * Reworked HDF5 handle managment to avoid resource leaks with exceptions.
+ * Relaxed the restriction on float and double volume fractions for data being read from Silo when the length of the mixed arrays is 0 (i.e. no mixed zones/volume fractions are present).
+ * Adjusted MPI max tag logic search for cases where large tags are supported.
+ * Added logic to enforce Overlink requirements when writing species sets to Overlink files.
+
+Fixed
+~~~~~
+
+
+* **Conduit**
+
+ * Fixed a bug preventing explicit length 0 in ``yaml`` schema.
+ * Fixed a bug where empty objects or lists were not written correctly to ``yaml`` schema.
+ * Fixed a bug where the python DataType constructor did not properly accept arguments.
+
+* **Blueprint**
+
+ * Fixed an issue with material set conversions where uni-buffer by material matsets would incorrectly follow the same path as multi-buffer by material matsets.
+ * Fixed ``conduit::blueprint::mesh::utils::topology::compute_mesh_info()`` so it does not generate a floating point exception when processing 1-d meshes under the Intel 25 compiler with C++20.
+ * Modified all material set transforms and helper functions to make them robust to all 4 material set layout types.
+ * Fixed a bug with the ``conduit::blueprint::mesh::partition()`` partitioner where providing multi-buffer element-dominant material sets yielded malformed multi-buffer material-dominant resulting material sets.
+ * Fixed a bug with ``conduit::blueprint::mesh::matset::count_elements_from_matset()`` where uni-buffer by element-matsets with a trivial one-to-many relationship would throw an error instead of correctly computing the number of elements.
+
+* **Relay**
+
+ * Fixed a bug preventing multiple species sets from being written when writing to Overlink.
+ * Fixed an issue where ``int64`` unstructured topology connectivity information would cause The Silo writer to crash.
+
+
 v0.9.5
 ---------------------------------
 
