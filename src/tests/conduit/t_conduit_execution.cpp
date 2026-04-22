@@ -141,6 +141,7 @@ template <typename ArrayType>
 void
 expect_doubled_execution_values(const ArrayType &values)
 {
+    // Shared by the data array and data accessor execution tests.
     EXPECT_EQ(values.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
     for(index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i++)
     {
@@ -2208,11 +2209,11 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
     // }
 
 //-----------------------------------------------------------------------------
-int
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
     ::testing::InitGoogleTest(&argc, argv);
 
+    // allow override of the data size via the command line
     if(argc == 2)
     {
         EXECUTION_TEST_ARRAY_SIZE = atoi(argv[1]);
