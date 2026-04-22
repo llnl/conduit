@@ -27,14 +27,16 @@
 namespace conduit
 {
 
+//-----------------------------------------------------------------------------
+// -- begin conduit::detail --
+//-----------------------------------------------------------------------------
 namespace detail
 {
 
+//-----------------------------------------------------------------------------
 template <typename T>
 void
-set_value_helper(const DataAccessor<T> &accessor,
-                 index_t idx,
-                 T value)
+set_value_helper(const DataAccessor<T> &accessor, index_t idx, T value)
 {
     switch(accessor.dtype().id())
     {
@@ -74,12 +76,13 @@ set_value_helper(const DataAccessor<T> &accessor,
     }
 }
 
-template <typename T, typename Values>
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
 void
-set_values_helper(const DataAccessor<T> &accessor,
-                  const Values &values,
-                  index_t num_elements)
+set_values_helper(const DataAccessor<T> &accessor, const U &values, index_t num_elements)
 {
+    // Preserve DataAccessor semantics by converting source values through the
+    // accessor's logical type T before converting to the destination dtype.
     switch(accessor.dtype().id())
     {
         case DataType::INT8_ID:
@@ -158,6 +161,9 @@ set_values_helper(const DataAccessor<T> &accessor,
     }
 }
 }
+//-----------------------------------------------------------------------------
+// -- end conduit::detail --
+//-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
 //
