@@ -38,10 +38,28 @@ namespace detail
 {
 
 //-----------------------------------------------------------------------------
+template <typename U>
+struct StagedSourceAccessor
+{
+    // Keep a temporary Node alive so the staged accessor can reuse the normal
+    // node-backed DataAccessor machinery without introducing a second copy
+    // path for raw pointers, DataArray sources, and DataAccessor sources.
+    Node node;
+    DataAccessor<U> accessor;
+
+    StagedSourceAccessor()
+    : node(),
+      accessor()
+    {}
+};
+
+//-----------------------------------------------------------------------------
 template <typename T>
 void
 set_value_helper(const DataAccessor<T> &accessor, index_t idx, T value)
 {
+    // Host-side scalar writes use the same runtime dtype dispatch as the
+    // historic implementation and write directly into the wrapped storage.
     switch(accessor.dtype().id())
     {
         case DataType::INT8_ID:
@@ -83,10 +101,12 @@ set_value_helper(const DataAccessor<T> &accessor, index_t idx, T value)
 //-----------------------------------------------------------------------------
 template <typename T, typename U>
 void
-set_values_helper(const DataAccessor<T> &accessor, const U &values, index_t num_elements)
+set_values_helper(const DataAccessor<T> &accessor,
+                  const U &values,
+                  index_t num_elements)
 {
-    // Preserve DataAccessor semantics by converting source values through the
-    // accessor's logical type T before converting to the destination dtype.
+    // This is the simple fallback path for builds without a usable execution
+    // policy and for mixed-space cases that are handled serially on the host.
     switch(accessor.dtype().id())
     {
         case DataType::INT8_ID:
@@ -164,6 +184,218 @@ set_values_helper(const DataAccessor<T> &accessor, const U &values, index_t num_
                           << accessor.dtype().name());
     }
 }
+
+//-----------------------------------------------------------------------------
+template <typename U>
+StagedSourceAccessor<U>
+make_staged_source_accessor(const U *values, index_t num_elements)
+{
+    // Wrap raw pointer input in a temporary node-backed accessor so all bulk
+    // setters can share the same copy orchestration below.
+    StagedSourceAccessor<U> staged;
+    staged.node.set_external(const_cast<U*>(values), num_elements);
+    staged.accessor = DataAccessor<U>(staged.node);
+    return staged;
+}
+
+//-----------------------------------------------------------------------------
+template <typename U>
+StagedSourceAccessor<U>
+make_staged_source_accessor(const DataArray<U> &values)
+{
+    // DataArray already exposes dtype and data pointer, so the temporary node
+    // simply forwards that description into a uniform accessor wrapper.
+    StagedSourceAccessor<U> staged;
+    staged.node.set_external(values.dtype(), values.data_ptr());
+    staged.accessor = DataAccessor<U>(staged.node);
+    return staged;
+}
+
+//-----------------------------------------------------------------------------
+template <typename U>
+StagedSourceAccessor<U>
+make_staged_source_accessor(const DataAccessor<U> &values)
+{
+    // Re-wrap the source accessor in a node-backed view so use_with(...) can
+    // reuse the normal memory-space migration logic when the source and
+    // destination need to execute in the same space.
+    StagedSourceAccessor<U> staged;
+    const DataType staged_dtype(values.dtype().id(),
+                                values.number_of_elements(),
+                                0,
+                                values.dtype().stride(),
+                                values.dtype().element_bytes(),
+                                values.dtype().endianness());
+    staged.node.set_external(staged_dtype,
+                             const_cast<void*>(values.element_ptr(0)));
+    staged.accessor = DataAccessor<U>(staged.node);
+    return staged;
+}
+
+//-----------------------------------------------------------------------------
+inline bool
+policy_is_supported(const execution::ExecutionPolicy &policy)
+{
+    // active_space() can report host or device based on the wrapped pointer,
+    // but the corresponding backend may still be disabled in this build.
+    if(policy.is_device_policy())
+    {
+        return execution::ExecutionPolicy::is_device_enabled();
+    }
+
+    return execution::ExecutionPolicy::is_host_enabled();
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+void
+set_values_from_accessor_helper(DataAccessor<T> &accessor,
+                                DataAccessor<U> &source,
+                                index_t num_elements)
+{
+    if(num_elements == 0)
+    {
+        return;
+    }
+
+    // The destination accessor decides where execution should happen because
+    // it owns the storage that will be written.
+    execution::ExecutionPolicy policy = accessor.active_space();
+    if(!policy_is_supported(policy))
+    {
+        set_values_helper(accessor, source, num_elements);
+        return;
+    }
+
+    source.use_with(policy);
+
+    if(policy.is_device_policy())
+    {
+        //
+        // The device path uses a staged setup on purpose.
+        //
+        // DataAccessor has two independent kinds of type flexibility:
+        // 1. the logical accessor type T/U used by the C++ API
+        // 2. the runtime destination dtype() stored in the wrapped Node/data
+        //
+        // A direct device kernel that reads a generic DataAccessor<U> source
+        // and writes directly into a generic DataAccessor<T> destination has
+        // to carry both concerns at once. In practice that means every T/U
+        // device instantiation also drags along the full destination dtype
+        // switch and the corresponding write kernels. That shape preserves the
+        // semantics, but it makes HIP/CUDA compilation scale very poorly.
+        //
+        // We only need that tradeoff on the device path. Host/OpenMP builds
+        // can keep the straightforward one-pass implementation in this .cpp
+        // file without causing unreasonable compile times.
+        //
+        // To keep the device compile surface smaller while preserving the same
+        // conversion semantics, we split device execution into two passes:
+        // 1. stage the source values into a temporary contiguous buffer of the
+        //    destination accessor's logical type T in the active device space
+        // 2. dispatch once on the runtime destination dtype and write that
+        //    staged T buffer into the final destination storage
+        //
+        // This keeps the source-conversion kernel small (templated on T/U but
+        // with no destination dtype switch) and keeps the destination write
+        // kernel small (templated on T with a single outer dtype dispatch).
+        // The extra temporary allocation is only used for device execution to
+        // control compile complexity; it is not needed for host/OpenMP.
+        //
+        T *staged_values =
+            static_cast<T*>(execution::DeviceMemory::allocate(sizeof(T) * num_elements));
+
+        detail::stage_values_forall_helper(policy,
+                                           staged_values,
+                                           source,
+                                           num_elements);
+        detail::set_staged_values_forall_helper(accessor,
+                                                policy,
+                                                staged_values,
+                                                num_elements);
+
+        execution::DeviceMemory::deallocate(staged_values);
+        return;
+    }
+
+    switch(accessor.dtype().id())
+    {
+        case DataType::INT8_ID:
+            execution::forall(policy, 0, num_elements, [=](index_t i)
+            {
+                (*(int8*)(accessor.element_ptr(i))) =
+                    static_cast<int8>(static_cast<T>(source[i]));
+            });
+            break;
+        case DataType::INT16_ID:
+            execution::forall(policy, 0, num_elements, [=](index_t i)
+            {
+                (*(int16*)(accessor.element_ptr(i))) =
+                    static_cast<int16>(static_cast<T>(source[i]));
+            });
+            break;
+        case DataType::INT32_ID:
+            execution::forall(policy, 0, num_elements, [=](index_t i)
+            {
+                (*(int32*)(accessor.element_ptr(i))) =
+                    static_cast<int32>(static_cast<T>(source[i]));
+            });
+            break;
+        case DataType::INT64_ID:
+            execution::forall(policy, 0, num_elements, [=](index_t i)
+            {
+                (*(int64*)(accessor.element_ptr(i))) =
+                    static_cast<int64>(static_cast<T>(source[i]));
+            });
+            break;
+        case DataType::UINT8_ID:
+            execution::forall(policy, 0, num_elements, [=](index_t i)
+            {
+                (*(uint8*)(accessor.element_ptr(i))) =
+                    static_cast<uint8>(static_cast<T>(source[i]));
+            });
+            break;
+        case DataType::UINT16_ID:
+            execution::forall(policy, 0, num_elements, [=](index_t i)
+            {
+                (*(uint16*)(accessor.element_ptr(i))) =
+                    static_cast<uint16>(static_cast<T>(source[i]));
+            });
+            break;
+        case DataType::UINT32_ID:
+            execution::forall(policy, 0, num_elements, [=](index_t i)
+            {
+                (*(uint32*)(accessor.element_ptr(i))) =
+                    static_cast<uint32>(static_cast<T>(source[i]));
+            });
+            break;
+        case DataType::UINT64_ID:
+            execution::forall(policy, 0, num_elements, [=](index_t i)
+            {
+                (*(uint64*)(accessor.element_ptr(i))) =
+                    static_cast<uint64>(static_cast<T>(source[i]));
+            });
+            break;
+        case DataType::FLOAT32_ID:
+            execution::forall(policy, 0, num_elements, [=](index_t i)
+            {
+                (*(float32*)(accessor.element_ptr(i))) =
+                    static_cast<float32>(static_cast<T>(source[i]));
+            });
+            break;
+        case DataType::FLOAT64_ID:
+            execution::forall(policy, 0, num_elements, [=](index_t i)
+            {
+                (*(float64*)(accessor.element_ptr(i))) =
+                    static_cast<float64>(static_cast<T>(source[i]));
+            });
+            break;
+        default:
+            CONDUIT_ERROR("DataAccessor does not support dtype: "
+                          << accessor.dtype().name());
+    }
+}
+
 }
 //-----------------------------------------------------------------------------
 // -- end conduit::detail --
@@ -685,6 +917,7 @@ template <typename T>
 conduit::execution::ExecutionPolicy
 DataAccessor<T>::active_space()
 {
+    // DataAccessor execution follows the space of the wrapped storage pointer.
     if (execution::DeviceMemory::is_device_ptr(m_data))
     {
         return execution::ExecutionPolicy::device();
@@ -696,255 +929,323 @@ DataAccessor<T>::active_space()
 }
 
 //---------------------------------------------------------------------------//
-// DataAccessor::set() signed integers single element
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T> 
+template <typename T>
 void
 DataAccessor<T>::set(index_t idx, int8 value)
 {
+    // Scalar setters route through the device helper when the destination
+    // storage lives on device so the write occurs in the correct memory space.
+    if(active_space().is_device_policy())
+    {
+        detail::set_value_forall_helper(*this, idx, static_cast<T>(value));
+        return;
+    }
+
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
 //---------------------------------------------------------------------------//
-template <typename T> 
+template <typename T>
 void
 DataAccessor<T>::set(index_t idx, int16 value)
 {
+    if(active_space().is_device_policy())
+    {
+        detail::set_value_forall_helper(*this, idx, static_cast<T>(value));
+        return;
+    }
+
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
 //---------------------------------------------------------------------------//
-template <typename T> 
+template <typename T>
 void
 DataAccessor<T>::set(index_t idx, int32 value)
-{ 
+{
+    if(active_space().is_device_policy())
+    {
+        detail::set_value_forall_helper(*this, idx, static_cast<T>(value));
+        return;
+    }
+
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
 //---------------------------------------------------------------------------//
-template <typename T> 
+template <typename T>
 void
 DataAccessor<T>::set(index_t idx, int64 value)
-{ 
+{
+    if(active_space().is_device_policy())
+    {
+        detail::set_value_forall_helper(*this, idx, static_cast<T>(value));
+        return;
+    }
+
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
 //---------------------------------------------------------------------------//
-// DataAccessor::set() unsigned integers single element
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T> 
+template <typename T>
 void
 DataAccessor<T>::set(index_t idx, uint8 value)
-{ 
+{
+    if(active_space().is_device_policy())
+    {
+        detail::set_value_forall_helper(*this, idx, static_cast<T>(value));
+        return;
+    }
+
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
 //---------------------------------------------------------------------------//
-template <typename T> 
+template <typename T>
 void
 DataAccessor<T>::set(index_t idx, uint16 value)
-{ 
+{
+    if(active_space().is_device_policy())
+    {
+        detail::set_value_forall_helper(*this, idx, static_cast<T>(value));
+        return;
+    }
+
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
 //---------------------------------------------------------------------------//
-template <typename T> 
+template <typename T>
 void
 DataAccessor<T>::set(index_t idx, uint32 value)
-{ 
+{
+    if(active_space().is_device_policy())
+    {
+        detail::set_value_forall_helper(*this, idx, static_cast<T>(value));
+        return;
+    }
+
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
 //---------------------------------------------------------------------------//
-template <typename T> 
+template <typename T>
 void
 DataAccessor<T>::set(index_t idx, uint64 value)
-{ 
+{
+    if(active_space().is_device_policy())
+    {
+        detail::set_value_forall_helper(*this, idx, static_cast<T>(value));
+        return;
+    }
+
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
 //---------------------------------------------------------------------------//
-// DataAccessor::set() floating point single element
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T> 
+template <typename T>
 void
 DataAccessor<T>::set(index_t idx, float32 value)
-{ 
+{
+    if(active_space().is_device_policy())
+    {
+        detail::set_value_forall_helper(*this, idx, static_cast<T>(value));
+        return;
+    }
+
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
 //---------------------------------------------------------------------------//
-template <typename T> 
+template <typename T>
 void
 DataAccessor<T>::set(index_t idx, float64 value)
-{ 
+{
+    if(active_space().is_device_policy())
+    {
+        detail::set_value_forall_helper(*this, idx, static_cast<T>(value));
+        return;
+    }
+
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
 //---------------------------------------------------------------------------//
-// DataAccessor::set() signed integers multi element
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T> 
+template <typename T>
 void
 DataAccessor<T>::set(const int8 *values, index_t num_elements)
-{ 
-    detail::set_values_helper(*this, values, num_elements);
+{
+    // Raw-pointer bulk setters first adapt the source into the shared
+    // accessor-based copy path so host, OpenMP, and device execution all
+    // preserve the same conversion semantics.
+    detail::StagedSourceAccessor<int8> staged =
+        detail::make_staged_source_accessor(values, num_elements);
+    detail::set_values_from_accessor_helper(*this, staged.accessor, num_elements);
 }
 
 //---------------------------------------------------------------------------//
-template <typename T> 
+template <typename T>
 void
-DataAccessor<T>::set(const  int16 *values, index_t num_elements)
-{ 
-    detail::set_values_helper(*this, values, num_elements);
+DataAccessor<T>::set(const int16 *values, index_t num_elements)
+{
+    detail::StagedSourceAccessor<int16> staged =
+        detail::make_staged_source_accessor(values, num_elements);
+    detail::set_values_from_accessor_helper(*this, staged.accessor, num_elements);
 }
 
 //---------------------------------------------------------------------------//
-template <typename T> 
-void            
+template <typename T>
+void
 DataAccessor<T>::set(const int32 *values, index_t num_elements)
-{ 
-    detail::set_values_helper(*this, values, num_elements);
+{
+    detail::StagedSourceAccessor<int32> staged =
+        detail::make_staged_source_accessor(values, num_elements);
+    detail::set_values_from_accessor_helper(*this, staged.accessor, num_elements);
 }
 
 //---------------------------------------------------------------------------//
-template <typename T> 
-void            
-DataAccessor<T>::set(const  int64 *values, index_t num_elements)
-{ 
-    detail::set_values_helper(*this, values, num_elements);
+template <typename T>
+void
+DataAccessor<T>::set(const int64 *values, index_t num_elements)
+{
+    detail::StagedSourceAccessor<int64> staged =
+        detail::make_staged_source_accessor(values, num_elements);
+    detail::set_values_from_accessor_helper(*this, staged.accessor, num_elements);
 }
 
 //---------------------------------------------------------------------------//
-// DataAccessor::set() unsigned integers multi element
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void            
-DataAccessor<T>::set(const  uint8 *values, index_t num_elements)
-{ 
-    detail::set_values_helper(*this, values, num_elements);
+template <typename T>
+void
+DataAccessor<T>::set(const uint8 *values, index_t num_elements)
+{
+    detail::StagedSourceAccessor<uint8> staged =
+        detail::make_staged_source_accessor(values, num_elements);
+    detail::set_values_from_accessor_helper(*this, staged.accessor, num_elements);
 }
 
 //---------------------------------------------------------------------------//
-template <typename T> 
-void            
-DataAccessor<T>::set(const  uint16 *values, index_t num_elements)
-{ 
-    detail::set_values_helper(*this, values, num_elements);
+template <typename T>
+void
+DataAccessor<T>::set(const uint16 *values, index_t num_elements)
+{
+    detail::StagedSourceAccessor<uint16> staged =
+        detail::make_staged_source_accessor(values, num_elements);
+    detail::set_values_from_accessor_helper(*this, staged.accessor, num_elements);
 }
 
 //---------------------------------------------------------------------------//
-template <typename T> 
-void            
+template <typename T>
+void
 DataAccessor<T>::set(const uint32 *values, index_t num_elements)
-{ 
-    detail::set_values_helper(*this, values, num_elements);
+{
+    detail::StagedSourceAccessor<uint32> staged =
+        detail::make_staged_source_accessor(values, num_elements);
+    detail::set_values_from_accessor_helper(*this, staged.accessor, num_elements);
 }
 
 //---------------------------------------------------------------------------//
-template <typename T> 
-void            
+template <typename T>
+void
 DataAccessor<T>::set(const uint64 *values, index_t num_elements)
-{ 
-    detail::set_values_helper(*this, values, num_elements);
+{
+    detail::StagedSourceAccessor<uint64> staged =
+        detail::make_staged_source_accessor(values, num_elements);
+    detail::set_values_from_accessor_helper(*this, staged.accessor, num_elements);
 }
 
 //---------------------------------------------------------------------------//
-// DataAccessor::set() floating point multi element
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void            
+template <typename T>
+void
 DataAccessor<T>::set(const float32 *values, index_t num_elements)
-{ 
-    detail::set_values_helper(*this, values, num_elements);
+{
+    detail::StagedSourceAccessor<float32> staged =
+        detail::make_staged_source_accessor(values, num_elements);
+    detail::set_values_from_accessor_helper(*this, staged.accessor, num_elements);
 }
 
 //---------------------------------------------------------------------------//
-template <typename T> 
-void            
+template <typename T>
+void
 DataAccessor<T>::set(const float64 *values, index_t num_elements)
-{ 
-    detail::set_values_helper(*this, values, num_elements);
+{
+    detail::StagedSourceAccessor<float64> staged =
+        detail::make_staged_source_accessor(values, num_elements);
+    detail::set_values_from_accessor_helper(*this, staged.accessor, num_elements);
 }
-
-//---------------------------------------------------------------------------//
-//***************************************************************************//
-// Set from DataAccessor
-//***************************************************************************//
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-// Set from DataAccessor signed integers
-//---------------------------------------------------------------------------//
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataAccessor<T>::set(const DataAccessor<int8> &values)
 {
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+    // DataAccessor sources already know their layout and active memory space,
+    // so this overload only has to funnel them into the shared bulk copy
+    // helper that chooses host, OpenMP, or device execution.
+    detail::StagedSourceAccessor<int8> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataAccessor<T>::set(const DataAccessor<int16> &values)
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+{
+    detail::StagedSourceAccessor<int16> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataAccessor<T>::set(const DataAccessor<int32> &values)
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+{
+    detail::StagedSourceAccessor<int32> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataAccessor<T>::set(const DataAccessor<int64> &values)
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+{
+    detail::StagedSourceAccessor<int64> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
-
-//---------------------------------------------------------------------------//
-// Set from DataAccessor unsigned integers
-//---------------------------------------------------------------------------//
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataAccessor<T>::set(const DataAccessor<uint8> &values)
 {
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+    detail::StagedSourceAccessor<uint8> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataAccessor<T>::set(const DataAccessor<uint16> &values)
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+{
+    detail::StagedSourceAccessor<uint16> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -952,8 +1253,11 @@ template <typename T>
 void
 DataAccessor<T>::set(const DataAccessor<uint32> &values)
 {
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+    detail::StagedSourceAccessor<uint32> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -961,21 +1265,23 @@ template <typename T>
 void
 DataAccessor<T>::set(const DataAccessor<uint64> &values)
 {
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+    detail::StagedSourceAccessor<uint64> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
-
-//---------------------------------------------------------------------------//
-// Set from DataAccessor floating point
-//---------------------------------------------------------------------------//
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataAccessor<T>::set(const DataAccessor<float32> &values)
 {
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+    detail::StagedSourceAccessor<float32> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -983,76 +1289,85 @@ template <typename T>
 void
 DataAccessor<T>::set(const DataAccessor<float64> &values)
 {
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+    detail::StagedSourceAccessor<float64> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
-
-//---------------------------------------------------------------------------//
-//***************************************************************************//
-// Set from DataArray
-//***************************************************************************//
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-// Set from DataArray signed integers
-//---------------------------------------------------------------------------//
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataAccessor<T>::set(const DataArray<int8> &values)
 {
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+    // DataArray sources share the same bulk-set implementation after being
+    // wrapped in a temporary accessor with matching dtype metadata.
+    detail::StagedSourceAccessor<int8> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataAccessor<T>::set(const DataArray<int16> &values)
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+{
+    detail::StagedSourceAccessor<int16> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataAccessor<T>::set(const DataArray<int32> &values)
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+{
+    detail::StagedSourceAccessor<int32> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataAccessor<T>::set(const DataArray<int64> &values)
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+{
+    detail::StagedSourceAccessor<int64> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
-
-//---------------------------------------------------------------------------//
-// Set from DataArray unsigned integers
-//---------------------------------------------------------------------------//
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataAccessor<T>::set(const DataArray<uint8> &values)
 {
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+    detail::StagedSourceAccessor<uint8> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataAccessor<T>::set(const DataArray<uint16> &values)
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+{
+    detail::StagedSourceAccessor<uint16> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -1060,8 +1375,11 @@ template <typename T>
 void
 DataAccessor<T>::set(const DataArray<uint32> &values)
 {
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+    detail::StagedSourceAccessor<uint32> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -1069,21 +1387,23 @@ template <typename T>
 void
 DataAccessor<T>::set(const DataArray<uint64> &values)
 {
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+    detail::StagedSourceAccessor<uint64> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
-
-//---------------------------------------------------------------------------//
-// Set from DataArray floating point
-//---------------------------------------------------------------------------//
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataAccessor<T>::set(const DataArray<float32> &values)
 {
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+    detail::StagedSourceAccessor<float32> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -1091,10 +1411,12 @@ template <typename T>
 void
 DataAccessor<T>::set(const DataArray<float64> &values)
 {
-    index_t num_elems = dtype().number_of_elements();
-    detail::set_values_helper(*this, values, num_elems);
+    detail::StagedSourceAccessor<float64> staged =
+        detail::make_staged_source_accessor(values);
+    detail::set_values_from_accessor_helper(*this,
+                                            staged.accessor,
+                                            dtype().number_of_elements());
 }
-
 
 //---------------------------------------------------------------------------//
 template <typename T>

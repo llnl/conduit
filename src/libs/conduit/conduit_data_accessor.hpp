@@ -270,7 +270,9 @@ public:
         }
     }
 
-    // Restrict the bulk setter to pointer-valued accessors.
+    // Restrict the bulk setter to pointer-valued accessors. The extra default
+    // template parameter keeps this SFINAE check dependent so it only
+    // participates during overload resolution.
     template <typename U = T>
     typename std::enable_if<std::is_pointer<U>::value, void>::type
                     set(const T* values, index_t num_elements) const;
@@ -458,6 +460,33 @@ private:
 //-----------------------------------------------------------------------------
 // -- end conduit::DataAccessor --
 //-----------------------------------------------------------------------------
+
+namespace detail
+{
+// These helpers are defined in device-capable translation units so the host
+// implementation can keep the orchestration logic in conduit_data_accessor.cpp
+// while HIP/CUDA compilation only owns the kernels that must touch device
+// memory directly.
+//-----------------------------------------------------------------------------
+template <typename T>
+void set_value_forall_helper(const DataAccessor<T> &accessor,
+                             index_t idx,
+                             T value);
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+void stage_values_forall_helper(execution::ExecutionPolicy policy,
+                                T *staged_values,
+                                const DataAccessor<U> &source,
+                                index_t num_elements);
+
+//-----------------------------------------------------------------------------
+template <typename T>
+void set_staged_values_forall_helper(const DataAccessor<T> &accessor,
+                                     execution::ExecutionPolicy policy,
+                                     const T *staged_values,
+                                     index_t num_elements);
+}
 
 //-----------------------------------------------------------------------------
 //

@@ -98,6 +98,18 @@ set(conduit_sources
     conduit_data_type.cpp
     conduit_data_array.cpp
     conduit_data_accessor.cpp
+    conduit_data_accessor_exec_int8.cpp
+    conduit_data_accessor_exec_int16.cpp
+    conduit_data_accessor_exec_int32.cpp
+    conduit_data_accessor_exec_int64.cpp
+    conduit_data_accessor_exec_uint8.cpp
+    conduit_data_accessor_exec_uint16.cpp
+    conduit_data_accessor_exec_uint32.cpp
+    conduit_data_accessor_exec_uint64.cpp
+    conduit_data_accessor_exec_float32.cpp
+    conduit_data_accessor_exec_float64.cpp
+    conduit_data_accessor_exec_alias_integral.cpp
+    conduit_data_accessor_exec_alias_floating.cpp
     conduit_generator.cpp
     conduit_node.cpp
     conduit_node_iterator.cpp
@@ -106,6 +118,22 @@ set(conduit_sources
     conduit_utils.cpp
     conduit_annotations.cpp
     )
+
+set(conduit_device_sources
+    conduit_data_accessor_exec_int8.cpp
+    conduit_data_accessor_exec_int16.cpp
+    conduit_data_accessor_exec_int32.cpp
+    conduit_data_accessor_exec_int64.cpp
+    conduit_data_accessor_exec_uint8.cpp
+    conduit_data_accessor_exec_uint16.cpp
+    conduit_data_accessor_exec_uint32.cpp
+    conduit_data_accessor_exec_uint64.cpp
+    conduit_data_accessor_exec_float32.cpp
+    conduit_data_accessor_exec_float64.cpp
+    conduit_data_accessor_exec_alias_integral.cpp
+    conduit_data_accessor_exec_alias_floating.cpp)
+
+conduit_set_source_device_properties("${conduit_device_sources}")
 
 if(TOTALVIEW_FOUND)
   list(APPEND conduit_sources debug/conduit_node_totalview.cpp)
