@@ -108,7 +108,11 @@ set(conduit_sources
     conduit_data_accessor_exec_uint64.cpp
     conduit_data_accessor_exec_float32.cpp
     conduit_data_accessor_exec_float64.cpp
-    conduit_data_accessor_exec_alias_integral.cpp
+    conduit_data_accessor_exec_alias_char.cpp
+    conduit_data_accessor_exec_alias_short.cpp
+    conduit_data_accessor_exec_alias_int.cpp
+    conduit_data_accessor_exec_alias_long.cpp
+    conduit_data_accessor_exec_alias_long_long.cpp
     conduit_data_accessor_exec_alias_floating.cpp
     conduit_generator.cpp
     conduit_node.cpp
@@ -130,7 +134,11 @@ set(conduit_device_sources
     conduit_data_accessor_exec_uint64.cpp
     conduit_data_accessor_exec_float32.cpp
     conduit_data_accessor_exec_float64.cpp
-    conduit_data_accessor_exec_alias_integral.cpp
+    conduit_data_accessor_exec_alias_char.cpp
+    conduit_data_accessor_exec_alias_short.cpp
+    conduit_data_accessor_exec_alias_int.cpp
+    conduit_data_accessor_exec_alias_long.cpp
+    conduit_data_accessor_exec_alias_long_long.cpp
     conduit_data_accessor_exec_alias_floating.cpp)
 
 conduit_set_source_device_properties("${conduit_device_sources}")
