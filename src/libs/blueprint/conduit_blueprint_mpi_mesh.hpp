@@ -193,6 +193,23 @@ void CONDUIT_BLUEPRINT_API generate_points(conduit::Node &mesh,
                                            MPI_Comm comm);
 
 //-------------------------------------------------------------------------
+/**
+ @brief Generate a boundary topology for a local domain in parallel.
+
+ This function is intended for the common distributed case where each MPI rank
+ owns one local Blueprint domain. For 2D meshes with vertex adjsets, it uses a
+ topological neighbor exchange to distinguish true physical boundary edges from
+ inter-domain edges without relying on geometry or adjset value ordering.
+
+ For cases that do not need the MPI-aware path, the serial topology generator
+ is used as a fallback.
+ */
+void CONDUIT_BLUEPRINT_API generate_boundary(const conduit::Node &mesh,
+                                             const std::string &topo_name,
+                                             conduit::Node &boundary_topo,
+                                             MPI_Comm comm);
+
+//-------------------------------------------------------------------------
 void CONDUIT_BLUEPRINT_API generate_lines(conduit::Node &mesh,
                                           const std::string& src_adjset_name,
                                           const std::string& dst_adjset_name,
@@ -288,6 +305,5 @@ void CONDUIT_BLUEPRINT_API generate_domain_ids(conduit::Node &domains,
 
 
 #endif 
-
 
 

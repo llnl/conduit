@@ -12,6 +12,9 @@
 // std lib includes
 //-----------------------------------------------------------------------------
 #include <algorithm>
+#include <array>
+#include <map>
+#include <set>
 #include <tuple>
 #include <vector>
 #include <cmath>
@@ -65,6 +68,654 @@ namespace mesh
 {
 //-----------------------------------------------------------------------------
 
+namespace
+{
+
+using LocalEdge = std::pair<index_t, index_t>;
+using NeighborEdgeKey = std::array<index_t, 2>;
+using LocalFace = std::vector<index_t>;
+using NeighborFaceKey = std::vector<index_t>;
+using MatchedEdge = std::pair<index_t, NeighborEdgeKey>;
+using MatchedFace = std::pair<index_t, NeighborFaceKey>;
+
+struct EdgeSharingInfo
+{
+    std::map<LocalEdge, std::set<MatchedEdge>> candidate_shared_edges;
+    std::map<index_t, std::set<NeighborEdgeKey>> shareable_edges_by_neighbor;
+};
+
+struct FaceCountInfo
+{
+    std::map<LocalFace, index_t> face_count;
+    std::map<LocalFace, index_t> face_to_subelem_id;
+};
+
+struct FaceSharingInfo
+{
+    std::map<LocalFace, std::set<MatchedFace>> candidate_shared_faces;
+    std::map<index_t, std::set<NeighborFaceKey>> shareable_faces_by_neighbor;
+};
+
+struct PairwiseVertexAdjInfo
+{
+    std::map<index_t, std::set<index_t>> vertex_neighbors;
+    std::map<index_t, std::map<index_t, index_t>> neighbor_vertex_pos;
+};
+
+std::vector<index_t>
+allgather_index_vector(const std::vector<index_t> &local, MPI_Comm comm)
+{
+    int comm_size = 1;
+    MPI_Comm_size(comm, &comm_size);
+    const MPI_Datatype mpi_index_t =
+        conduit::relay::mpi::conduit_dtype_to_mpi_dtype(DataType::index_t(1));
+
+    int local_count = static_cast<int>(local.size());
+    std::vector<int> counts(static_cast<std::size_t>(comm_size), 0);
+    MPI_Allgather(&local_count, 1, MPI_INT,
+                  counts.data(), 1, MPI_INT, comm);
+
+    std::vector<int> offsets(static_cast<std::size_t>(comm_size), 0);
+    int total_count = 0;
+    for(int i = 0; i < comm_size; ++i)
+    {
+        offsets[static_cast<std::size_t>(i)] = total_count;
+        total_count += counts[static_cast<std::size_t>(i)];
+    }
+
+    std::vector<index_t> gathered(static_cast<std::size_t>(total_count));
+    MPI_Allgatherv(local.empty() ? nullptr : local.data(),
+                   local_count,
+                   mpi_index_t,
+                   gathered.empty() ? nullptr : gathered.data(),
+                   counts.data(),
+                   offsets.data(),
+                   mpi_index_t,
+                   comm);
+    return gathered;
+}
+
+NeighborEdgeKey
+make_neighbor_edge_key(index_t p0, index_t p1)
+{
+    return (p0 < p1) ? NeighborEdgeKey{{p0, p1}} : NeighborEdgeKey{{p1, p0}};
+}
+
+void
+append_neighbor_edge_message(index_t src_domain,
+                             index_t dst_domain,
+                             const NeighborEdgeKey &edge,
+                             std::vector<index_t> &packed)
+{
+    packed.push_back(src_domain);
+    packed.push_back(dst_domain);
+    packed.push_back(edge[0]);
+    packed.push_back(edge[1]);
+}
+
+NeighborEdgeKey
+read_neighbor_edge_message(const std::vector<index_t> &packed, std::size_t offset)
+{
+    return NeighborEdgeKey{{packed[offset + 2], packed[offset + 3]}};
+}
+
+void
+append_neighbor_face_message(index_t src_domain,
+                             index_t dst_domain,
+                             const NeighborFaceKey &face,
+                             std::vector<index_t> &packed)
+{
+    packed.push_back(src_domain);
+    packed.push_back(dst_domain);
+    packed.push_back(static_cast<index_t>(face.size()));
+    packed.insert(packed.end(), face.begin(), face.end());
+}
+
+NeighborFaceKey
+read_neighbor_face_message(const std::vector<index_t> &packed,
+                           std::size_t offset,
+                           std::size_t *next_offset = nullptr)
+{
+    const std::size_t nverts = static_cast<std::size_t>(packed[offset + 2]);
+    NeighborFaceKey face(nverts);
+    std::copy(packed.begin() + static_cast<std::ptrdiff_t>(offset + 3),
+              packed.begin() + static_cast<std::ptrdiff_t>(offset + 3 + nverts),
+              face.begin());
+    if(next_offset != nullptr)
+    {
+        *next_offset = offset + 3 + nverts;
+    }
+    return face;
+}
+
+PairwiseVertexAdjInfo
+build_pairwise_vertex_adj_info(const conduit::Node &mesh,
+                               const std::string &topo_name)
+{
+    PairwiseVertexAdjInfo info;
+    if(!mesh.has_path("adjsets"))
+    {
+        return info;
+    }
+
+    const conduit::Node &adjsets = mesh.fetch_existing("adjsets");
+    conduit::NodeConstIterator adjset_itr = adjsets.children();
+    while(adjset_itr.has_next())
+    {
+        const conduit::Node &adjset = adjset_itr.next();
+        if(!adjset.has_path("association") ||
+           !adjset.has_path("topology") ||
+           adjset.fetch_existing("association").as_string() != "vertex" ||
+           adjset.fetch_existing("topology").as_string() != topo_name ||
+           !adjset.has_path("groups"))
+        {
+            continue;
+        }
+
+        const conduit::Node &groups = adjset.fetch_existing("groups");
+        conduit::NodeConstIterator group_itr = groups.children();
+        while(group_itr.has_next())
+        {
+            const conduit::Node &group = group_itr.next();
+            if(!group.has_path("neighbors") || !group.has_path("values"))
+            {
+                continue;
+            }
+
+            const auto neighbors_acc = group.fetch_existing("neighbors").as_index_t_accessor();
+            if(neighbors_acc.number_of_elements() != 1)
+            {
+                continue;
+            }
+            const index_t neighbor = neighbors_acc[0];
+
+            const auto values = group.fetch_existing("values").as_index_t_accessor();
+            for(index_t vi = 0; vi < values.number_of_elements(); ++vi)
+            {
+                const index_t vertex = values[vi];
+                info.vertex_neighbors[vertex].insert(neighbor);
+                info.neighbor_vertex_pos[neighbor].emplace(vertex, vi);
+            }
+        }
+    }
+
+    return info;
+}
+
+std::set<index_t>
+intersect_neighbors(const std::set<index_t> &a,
+                    const std::set<index_t> &b)
+{
+    std::set<index_t> result;
+    std::set_intersection(a.begin(), a.end(),
+                          b.begin(), b.end(),
+                          std::inserter(result, result.begin()));
+    return result;
+}
+
+std::set<index_t>
+intersect_neighbors_for_vertices(const PairwiseVertexAdjInfo &info,
+                                 const std::vector<index_t> &verts)
+{
+    std::set<index_t> result;
+    bool first = true;
+    for(const index_t v : verts)
+    {
+        auto it = info.vertex_neighbors.find(v);
+        if(it == info.vertex_neighbors.end())
+        {
+            return std::set<index_t>();
+        }
+        if(first)
+        {
+            result = it->second;
+            first = false;
+        }
+        else
+        {
+            result = intersect_neighbors(result, it->second);
+            if(result.empty())
+            {
+                return result;
+            }
+        }
+    }
+    return result;
+}
+
+void
+initialize_boundary_topology(conduit::Node &boundary_topo,
+                             const std::string &coordset_name,
+                             const std::string &shape_name)
+{
+    boundary_topo["type"].set("unstructured");
+    boundary_topo["coordset"].set(coordset_name);
+    boundary_topo["elements/shape"].set(shape_name);
+}
+
+std::map<LocalEdge, index_t>
+count_local_edges(const conduit::Node &elements)
+{
+    const auto conn_acc = elements.fetch_existing("connectivity").as_index_t_accessor();
+    const auto size_acc = elements.fetch_existing("sizes").as_index_t_accessor();
+    const auto offset_acc = elements.fetch_existing("offsets").as_index_t_accessor();
+
+    const index_t num_elems = size_acc.number_of_elements();
+    std::map<LocalEdge, index_t> edge_count;
+    for(index_t ei = 0; ei < num_elems; ++ei)
+    {
+        const index_t elem_size = size_acc[ei];
+        const index_t elem_offset = offset_acc[ei];
+        for(index_t vi = 0; vi < elem_size; ++vi)
+        {
+            const index_t v0 = conn_acc[elem_offset + vi];
+            const index_t v1 = conn_acc[elem_offset + ((vi + 1) % elem_size)];
+            const LocalEdge edge =
+                (v0 < v1) ? LocalEdge(v0, v1) : LocalEdge(v1, v0);
+            edge_count[edge]++;
+        }
+    }
+
+    return edge_count;
+}
+
+EdgeSharingInfo
+find_candidate_shared_edges(const std::map<LocalEdge, index_t> &edge_count,
+                            const PairwiseVertexAdjInfo &pairwise_adj_info)
+{
+    EdgeSharingInfo info;
+    for(const auto &entry : edge_count)
+    {
+        if(entry.second != 1)
+        {
+            continue;
+        }
+
+        auto v0_it = pairwise_adj_info.vertex_neighbors.find(entry.first.first);
+        auto v1_it = pairwise_adj_info.vertex_neighbors.find(entry.first.second);
+        if(v0_it != pairwise_adj_info.vertex_neighbors.end() &&
+           v1_it != pairwise_adj_info.vertex_neighbors.end())
+        {
+            const std::set<index_t> common_neighbors =
+                intersect_neighbors(v0_it->second, v1_it->second);
+            for(const index_t nbr : common_neighbors)
+            {
+                auto pos_map_it = pairwise_adj_info.neighbor_vertex_pos.find(nbr);
+                if(pos_map_it == pairwise_adj_info.neighbor_vertex_pos.end())
+                {
+                    continue;
+                }
+
+                const auto p0_it = pos_map_it->second.find(entry.first.first);
+                const auto p1_it = pos_map_it->second.find(entry.first.second);
+                if(p0_it == pos_map_it->second.end() || p1_it == pos_map_it->second.end())
+                {
+                    continue;
+                }
+
+                const NeighborEdgeKey edge_key =
+                    make_neighbor_edge_key(p0_it->second, p1_it->second);
+                info.candidate_shared_edges[entry.first].insert(std::make_pair(nbr, edge_key));
+                info.shareable_edges_by_neighbor[nbr].insert(edge_key);
+            }
+        }
+    }
+
+    return info;
+}
+
+std::set<MatchedEdge>
+exchange_matched_edges(index_t local_domain,
+                       const std::map<index_t, std::set<NeighborEdgeKey>> &shareable_edges_by_neighbor,
+                       MPI_Comm comm)
+{
+    std::vector<index_t> requests;
+    for(const auto &entry : shareable_edges_by_neighbor)
+    {
+        for(const auto &edge_key : entry.second)
+        {
+            append_neighbor_edge_message(local_domain, entry.first, edge_key, requests);
+        }
+    }
+    const std::vector<index_t> all_requests = allgather_index_vector(requests, comm);
+
+    const std::size_t tuple_size = 4u;
+    if((all_requests.size() % tuple_size) != 0u)
+    {
+        CONDUIT_ERROR("MPI generate_boundary gathered malformed edge requests.");
+    }
+
+    std::vector<index_t> responses;
+    for(std::size_t offset = 0; offset < all_requests.size(); offset += tuple_size)
+    {
+        const index_t src_domain = all_requests[offset];
+        const index_t dst_domain = all_requests[offset + 1];
+        if(dst_domain != local_domain)
+        {
+            continue;
+        }
+
+        const NeighborEdgeKey edge_key = read_neighbor_edge_message(all_requests, offset);
+        auto it = shareable_edges_by_neighbor.find(src_domain);
+        if(it != shareable_edges_by_neighbor.end() &&
+           it->second.find(edge_key) != it->second.end())
+        {
+            append_neighbor_edge_message(local_domain, src_domain, edge_key, responses);
+        }
+    }
+
+    const std::vector<index_t> all_responses = allgather_index_vector(responses, comm);
+    if((all_responses.size() % tuple_size) != 0u)
+    {
+        CONDUIT_ERROR("MPI generate_boundary gathered malformed edge responses.");
+    }
+
+    std::set<MatchedEdge> matched_edges;
+    for(std::size_t offset = 0; offset < all_responses.size(); offset += tuple_size)
+    {
+        const index_t src_domain = all_responses[offset];
+        if(all_responses[offset + 1] == local_domain)
+        {
+            matched_edges.insert(std::make_pair(src_domain,
+                                                read_neighbor_edge_message(all_responses, offset)));
+        }
+    }
+
+    return matched_edges;
+}
+
+std::vector<LocalEdge>
+select_boundary_edges(const std::map<LocalEdge, index_t> &edge_count,
+                      const EdgeSharingInfo &sharing_info,
+                      const std::set<MatchedEdge> &matched_edges)
+{
+    std::vector<LocalEdge> boundary_edges;
+    for(const auto &entry : edge_count)
+    {
+        if(entry.second != 1)
+        {
+            continue;
+        }
+
+        auto shared_it = sharing_info.candidate_shared_edges.find(entry.first);
+        bool matched = false;
+        if(shared_it != sharing_info.candidate_shared_edges.end())
+        {
+            for(const auto &candidate : shared_it->second)
+            {
+                if(matched_edges.find(candidate) != matched_edges.end())
+                {
+                    matched = true;
+                    break;
+                }
+            }
+        }
+        if(!matched)
+        {
+            boundary_edges.push_back(entry.first);
+        }
+    }
+
+    return boundary_edges;
+}
+
+void
+emit_2d_boundary_topology(const std::vector<LocalEdge> &boundary_edges,
+                          const std::string &coordset_name,
+                          const DataType &int_dtype,
+                          conduit::Node &boundary_topo)
+{
+    if(boundary_edges.empty())
+    {
+        return;
+    }
+
+    initialize_boundary_topology(boundary_topo, coordset_name, "line");
+
+    std::vector<index_t> boundary_conn(boundary_edges.size() * 2u);
+    for(std::size_t i = 0; i < boundary_edges.size(); ++i)
+    {
+        boundary_conn[2u * i] = boundary_edges[i].first;
+        boundary_conn[2u * i + 1u] = boundary_edges[i].second;
+    }
+
+    conduit::Node temp;
+    temp.set(boundary_conn);
+    temp.to_data_type(int_dtype.id(), boundary_topo["elements/connectivity"]);
+}
+
+FaceCountInfo
+count_local_faces(const conduit::Node &elements,
+                  const conduit::Node &subelements)
+{
+    const auto conn_acc = elements.fetch_existing("connectivity").as_index_t_accessor();
+    const auto size_acc = elements.fetch_existing("sizes").as_index_t_accessor();
+    const auto offset_acc = elements.fetch_existing("offsets").as_index_t_accessor();
+    const auto subconn_acc = subelements.fetch_existing("connectivity").as_index_t_accessor();
+    const auto subsize_acc = subelements.fetch_existing("sizes").as_index_t_accessor();
+    const auto suboffset_acc = subelements.fetch_existing("offsets").as_index_t_accessor();
+
+    const index_t num_elems = size_acc.number_of_elements();
+    FaceCountInfo info;
+    for(index_t ei = 0; ei < num_elems; ++ei)
+    {
+        const index_t elem_size = size_acc[ei];
+        const index_t elem_offset = offset_acc[ei];
+        for(index_t fi = 0; fi < elem_size; ++fi)
+        {
+            const index_t subelem_id = conn_acc[elem_offset + fi];
+            const index_t face_size = subsize_acc[subelem_id];
+            const index_t face_offset = suboffset_acc[subelem_id];
+
+            LocalFace sorted_face(static_cast<std::size_t>(face_size));
+            for(index_t vi = 0; vi < face_size; ++vi)
+            {
+                sorted_face[static_cast<std::size_t>(vi)] = subconn_acc[face_offset + vi];
+            }
+            std::sort(sorted_face.begin(), sorted_face.end());
+
+            info.face_count[sorted_face]++;
+            info.face_to_subelem_id[sorted_face] = subelem_id;
+        }
+    }
+
+    return info;
+}
+
+FaceSharingInfo
+find_candidate_shared_faces(const std::map<LocalFace, index_t> &face_count,
+                            const PairwiseVertexAdjInfo &pairwise_adj_info)
+{
+    FaceSharingInfo info;
+    for(const auto &entry : face_count)
+    {
+        if(entry.second != 1)
+        {
+            continue;
+        }
+
+        const std::set<index_t> common_neighbors =
+            intersect_neighbors_for_vertices(pairwise_adj_info, entry.first);
+        for(const index_t nbr : common_neighbors)
+        {
+            auto pos_map_it = pairwise_adj_info.neighbor_vertex_pos.find(nbr);
+            if(pos_map_it == pairwise_adj_info.neighbor_vertex_pos.end())
+            {
+                continue;
+            }
+
+            NeighborFaceKey face_key;
+            face_key.reserve(entry.first.size());
+            bool missing_pos = false;
+            for(const index_t v : entry.first)
+            {
+                const auto p_it = pos_map_it->second.find(v);
+                if(p_it == pos_map_it->second.end())
+                {
+                    missing_pos = true;
+                    break;
+                }
+                face_key.push_back(p_it->second);
+            }
+            if(missing_pos)
+            {
+                continue;
+            }
+
+            std::sort(face_key.begin(), face_key.end());
+            info.candidate_shared_faces[entry.first].insert(std::make_pair(nbr, face_key));
+            info.shareable_faces_by_neighbor[nbr].insert(face_key);
+        }
+    }
+
+    return info;
+}
+
+std::set<MatchedFace>
+exchange_matched_faces(index_t local_domain,
+                       const std::map<index_t, std::set<NeighborFaceKey>> &shareable_faces_by_neighbor,
+                       MPI_Comm comm)
+{
+    std::vector<index_t> requests;
+    for(const auto &entry : shareable_faces_by_neighbor)
+    {
+        for(const auto &face_key : entry.second)
+        {
+            append_neighbor_face_message(local_domain, entry.first, face_key, requests);
+        }
+    }
+    const std::vector<index_t> all_requests = allgather_index_vector(requests, comm);
+
+    std::vector<index_t> responses;
+    for(std::size_t offset = 0; offset < all_requests.size();)
+    {
+        std::size_t next_offset = offset;
+        const index_t src_domain = all_requests[offset];
+        const index_t dst_domain = all_requests[offset + 1];
+        const NeighborFaceKey face_key =
+            read_neighbor_face_message(all_requests, offset, &next_offset);
+        offset = next_offset;
+        if(dst_domain != local_domain)
+        {
+            continue;
+        }
+
+        auto it = shareable_faces_by_neighbor.find(src_domain);
+        if(it != shareable_faces_by_neighbor.end() &&
+           it->second.find(face_key) != it->second.end())
+        {
+            append_neighbor_face_message(local_domain, src_domain, face_key, responses);
+        }
+    }
+
+    const std::vector<index_t> all_responses = allgather_index_vector(responses, comm);
+    std::set<MatchedFace> matched_faces;
+    for(std::size_t offset = 0; offset < all_responses.size();)
+    {
+        std::size_t next_offset = offset;
+        const index_t src_domain = all_responses[offset];
+        const index_t dst_domain = all_responses[offset + 1];
+        const NeighborFaceKey face_key =
+            read_neighbor_face_message(all_responses, offset, &next_offset);
+        offset = next_offset;
+        if(dst_domain == local_domain)
+        {
+            matched_faces.insert(std::make_pair(src_domain, face_key));
+        }
+    }
+
+    return matched_faces;
+}
+
+std::vector<index_t>
+select_boundary_face_ids(const FaceCountInfo &face_info,
+                         const FaceSharingInfo &sharing_info,
+                         const std::set<MatchedFace> &matched_faces)
+{
+    std::vector<index_t> boundary_face_ids;
+    for(const auto &entry : face_info.face_count)
+    {
+        if(entry.second != 1)
+        {
+            continue;
+        }
+
+        auto shared_it = sharing_info.candidate_shared_faces.find(entry.first);
+        bool matched = false;
+        if(shared_it != sharing_info.candidate_shared_faces.end())
+        {
+            for(const auto &candidate : shared_it->second)
+            {
+                if(matched_faces.find(candidate) != matched_faces.end())
+                {
+                    matched = true;
+                    break;
+                }
+            }
+        }
+        if(!matched)
+        {
+            boundary_face_ids.push_back(face_info.face_to_subelem_id.at(entry.first));
+        }
+    }
+
+    return boundary_face_ids;
+}
+
+void
+emit_3d_boundary_topology(const std::vector<index_t> &boundary_face_ids,
+                          const conduit::Node &subelements,
+                          const std::string &coordset_name,
+                          const DataType &int_dtype,
+                          conduit::Node &boundary_topo)
+{
+    if(boundary_face_ids.empty())
+    {
+        return;
+    }
+
+    const auto subconn_acc = subelements.fetch_existing("connectivity").as_index_t_accessor();
+    const auto subsize_acc = subelements.fetch_existing("sizes").as_index_t_accessor();
+    const auto suboffset_acc = subelements.fetch_existing("offsets").as_index_t_accessor();
+
+    initialize_boundary_topology(boundary_topo, coordset_name, "polygonal");
+
+    index_t total_boundary_verts = 0;
+    for(const index_t subelem_id : boundary_face_ids)
+    {
+        total_boundary_verts += subsize_acc[subelem_id];
+    }
+
+    std::vector<index_t> boundary_conn(static_cast<std::size_t>(total_boundary_verts));
+    std::vector<index_t> boundary_sizes(boundary_face_ids.size());
+    std::vector<index_t> boundary_offsets(boundary_face_ids.size());
+    index_t current_offset = 0;
+    for(std::size_t i = 0; i < boundary_face_ids.size(); ++i)
+    {
+        const index_t subelem_id = boundary_face_ids[i];
+        const index_t face_size = subsize_acc[subelem_id];
+        const index_t face_offset = suboffset_acc[subelem_id];
+        boundary_sizes[i] = face_size;
+        boundary_offsets[i] = current_offset;
+        for(index_t vi = 0; vi < face_size; ++vi)
+        {
+            boundary_conn[static_cast<std::size_t>(current_offset + vi)] =
+                subconn_acc[face_offset + vi];
+        }
+        current_offset += face_size;
+    }
+
+    conduit::Node temp;
+    temp.set(boundary_conn);
+    temp.to_data_type(int_dtype.id(), boundary_topo["elements/connectivity"]);
+    temp.set(boundary_sizes);
+    temp.to_data_type(int_dtype.id(), boundary_topo["elements/sizes"]);
+    temp.set(boundary_offsets);
+    temp.to_data_type(int_dtype.id(), boundary_topo["elements/offsets"]);
+}
+
+}
+
 // TODO(JRC): Consider moving these structures somewhere else.
 
 //-------------------------------------------------------------------------
@@ -115,6 +766,77 @@ verify(const conduit::Node &n,
 
     relay::mpi::sum_all_reduce(n_snd, n_reduce, comm);
     return global_verify_ok == par_size;
+}
+
+//-------------------------------------------------------------------------
+void
+generate_boundary(const conduit::Node &mesh,
+                  const std::string &topo_name,
+                  conduit::Node &boundary_topo,
+                  MPI_Comm comm)
+{
+    const std::string topo_path("topologies/" + topo_name);
+    if(!mesh.has_path(topo_path))
+    {
+        CONDUIT_ERROR("generate_boundary requires topology " << topo_name << " in the input mesh.");
+    }
+
+    const conduit::Node &topo = mesh.fetch_existing(topo_path);
+    const conduit::blueprint::mesh::utils::ShapeType topo_shape(topo);
+    if(topo_shape.dim < 2 || topo_shape.dim > 3)
+    {
+        CONDUIT_ERROR("MPI generate_boundary requires a 2D or 3D topology.");
+    }
+
+    if(!mesh.has_path("state/domain_id"))
+    {
+        CONDUIT_ERROR("MPI generate_boundary requires state/domain_id on the local domain.");
+    }
+    const index_t local_domain = mesh.fetch_existing("state/domain_id").to_index_t();
+
+    const PairwiseVertexAdjInfo pairwise_adj_info =
+        build_pairwise_vertex_adj_info(mesh, topo_name);
+    const DataType int_dtype = bputils::find_widest_dtype(topo, bputils::DEFAULT_INT_DTYPES);
+    boundary_topo.reset();
+    const std::string coordset_name = topo.fetch_existing("coordset").as_string();
+
+    if(topo_shape.dim == 2)
+    {
+        const conduit::Node &elements = topo.fetch_existing("elements");
+        const std::map<LocalEdge, index_t> edge_count = count_local_edges(elements);
+        const EdgeSharingInfo sharing_info =
+            find_candidate_shared_edges(edge_count, pairwise_adj_info);
+        const std::set<MatchedEdge> matched_edges =
+            exchange_matched_edges(local_domain, sharing_info.shareable_edges_by_neighbor, comm);
+        const std::vector<LocalEdge> boundary_edges =
+            select_boundary_edges(edge_count, sharing_info, matched_edges);
+
+        // If no local physical boundary edges are found, leave boundary_topo empty.
+        emit_2d_boundary_topology(boundary_edges, coordset_name, int_dtype, boundary_topo);
+        return;
+    }
+
+    const conduit::Node &elements = topo.fetch_existing("elements");
+    if(!topo.has_path("subelements"))
+    {
+        CONDUIT_ERROR("MPI generate_boundary requires subelements for 3D polyhedral topology.");
+    }
+
+    const conduit::Node &subelements = topo.fetch_existing("subelements");
+    const FaceCountInfo face_info = count_local_faces(elements, subelements);
+    const FaceSharingInfo sharing_info =
+        find_candidate_shared_faces(face_info.face_count, pairwise_adj_info);
+    const std::set<MatchedFace> matched_faces =
+        exchange_matched_faces(local_domain, sharing_info.shareable_faces_by_neighbor, comm);
+    const std::vector<index_t> boundary_face_ids =
+        select_boundary_face_ids(face_info, sharing_info, matched_faces);
+
+    // If no local physical boundary faces are found, leave boundary_topo empty.
+    emit_3d_boundary_topology(boundary_face_ids,
+                              subelements,
+                              coordset_name,
+                              int_dtype,
+                              boundary_topo);
 }
 
 //-------------------------------------------------------------------------
