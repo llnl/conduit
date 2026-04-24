@@ -469,7 +469,7 @@ namespace detail
 // memory directly.
 //-----------------------------------------------------------------------------
 template <typename T>
-void set_value_forall_helper(const DataAccessor<T> &accessor,
+void set_value_forall_device_helper(const DataAccessor<T> &accessor,
                              index_t idx,
                              T value);
 

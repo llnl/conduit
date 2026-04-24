@@ -20,7 +20,7 @@
 // Explicit instantiations for native short-family alias destinations.
 //-----------------------------------------------------------------------------
 #ifndef CONDUIT_USE_SHORT
-template void conduit::detail::set_value_forall_helper(const conduit::DataAccessor<signed short> &accessor, conduit::index_t idx, signed short value);
+template void conduit::detail::set_value_forall_device_helper(const conduit::DataAccessor<signed short> &accessor, conduit::index_t idx, signed short value);
 template void conduit::detail::stage_values_forall_helper<signed short, conduit::int8>(conduit::execution::ExecutionPolicy policy, signed short *staged_values, const conduit::DataAccessor<conduit::int8> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<signed short, conduit::int16>(conduit::execution::ExecutionPolicy policy, signed short *staged_values, const conduit::DataAccessor<conduit::int16> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<signed short, conduit::int32>(conduit::execution::ExecutionPolicy policy, signed short *staged_values, const conduit::DataAccessor<conduit::int32> &source, conduit::index_t num_elements);
@@ -33,7 +33,7 @@ template void conduit::detail::stage_values_forall_helper<signed short, conduit:
 template void conduit::detail::stage_values_forall_helper<signed short, conduit::float64>(conduit::execution::ExecutionPolicy policy, signed short *staged_values, const conduit::DataAccessor<conduit::float64> &source, conduit::index_t num_elements);
 template void conduit::detail::set_staged_values_forall_helper(const conduit::DataAccessor<signed short> &accessor, conduit::execution::ExecutionPolicy policy, const signed short *staged_values, conduit::index_t num_elements);
 
-template void conduit::detail::set_value_forall_helper(const conduit::DataAccessor<unsigned short> &accessor, conduit::index_t idx, unsigned short value);
+template void conduit::detail::set_value_forall_device_helper(const conduit::DataAccessor<unsigned short> &accessor, conduit::index_t idx, unsigned short value);
 template void conduit::detail::stage_values_forall_helper<unsigned short, conduit::int8>(conduit::execution::ExecutionPolicy policy, unsigned short *staged_values, const conduit::DataAccessor<conduit::int8> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<unsigned short, conduit::int16>(conduit::execution::ExecutionPolicy policy, unsigned short *staged_values, const conduit::DataAccessor<conduit::int16> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<unsigned short, conduit::int32>(conduit::execution::ExecutionPolicy policy, unsigned short *staged_values, const conduit::DataAccessor<conduit::int32> &source, conduit::index_t num_elements);

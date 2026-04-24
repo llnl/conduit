@@ -28,7 +28,7 @@ namespace detail
 //-----------------------------------------------------------------------------
 template <typename T>
 void
-set_value_forall_helper(const DataAccessor<T> &accessor, index_t idx, T value)
+set_value_forall_device_helper(const DataAccessor<T> &accessor, index_t idx, T value)
 {
     // Use execution::forall even for a single element because the destination
     // may be device-backed. Launching through the execution layer guarantees

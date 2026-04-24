@@ -19,7 +19,7 @@
 //-----------------------------------------------------------------------------
 // Explicit instantiations for conduit::uint8 destinations.
 //-----------------------------------------------------------------------------
-template void conduit::detail::set_value_forall_helper(const conduit::DataAccessor<conduit::uint8> &accessor, conduit::index_t idx, conduit::uint8 value);
+template void conduit::detail::set_value_forall_device_helper(const conduit::DataAccessor<conduit::uint8> &accessor, conduit::index_t idx, conduit::uint8 value);
 template void conduit::detail::stage_values_forall_helper<conduit::uint8, conduit::int8>(conduit::execution::ExecutionPolicy policy, conduit::uint8 *staged_values, const conduit::DataAccessor<conduit::int8> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<conduit::uint8, conduit::int16>(conduit::execution::ExecutionPolicy policy, conduit::uint8 *staged_values, const conduit::DataAccessor<conduit::int16> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<conduit::uint8, conduit::int32>(conduit::execution::ExecutionPolicy policy, conduit::uint8 *staged_values, const conduit::DataAccessor<conduit::int32> &source, conduit::index_t num_elements);

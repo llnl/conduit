@@ -20,7 +20,7 @@
 // Explicit instantiations for native floating alias destinations.
 //-----------------------------------------------------------------------------
 #ifndef CONDUIT_USE_FLOAT
-template void conduit::detail::set_value_forall_helper(const conduit::DataAccessor<float> &accessor, conduit::index_t idx, float value);
+template void conduit::detail::set_value_forall_device_helper(const conduit::DataAccessor<float> &accessor, conduit::index_t idx, float value);
 template void conduit::detail::stage_values_forall_helper<float, conduit::int8>(conduit::execution::ExecutionPolicy policy, float *staged_values, const conduit::DataAccessor<conduit::int8> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<float, conduit::int16>(conduit::execution::ExecutionPolicy policy, float *staged_values, const conduit::DataAccessor<conduit::int16> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<float, conduit::int32>(conduit::execution::ExecutionPolicy policy, float *staged_values, const conduit::DataAccessor<conduit::int32> &source, conduit::index_t num_elements);
@@ -35,7 +35,7 @@ template void conduit::detail::set_staged_values_forall_helper(const conduit::Da
 #endif
 
 #ifndef CONDUIT_USE_DOUBLE
-template void conduit::detail::set_value_forall_helper(const conduit::DataAccessor<double> &accessor, conduit::index_t idx, double value);
+template void conduit::detail::set_value_forall_device_helper(const conduit::DataAccessor<double> &accessor, conduit::index_t idx, double value);
 template void conduit::detail::stage_values_forall_helper<double, conduit::int8>(conduit::execution::ExecutionPolicy policy, double *staged_values, const conduit::DataAccessor<conduit::int8> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<double, conduit::int16>(conduit::execution::ExecutionPolicy policy, double *staged_values, const conduit::DataAccessor<conduit::int16> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<double, conduit::int32>(conduit::execution::ExecutionPolicy policy, double *staged_values, const conduit::DataAccessor<conduit::int32> &source, conduit::index_t num_elements);
@@ -50,7 +50,7 @@ template void conduit::detail::set_staged_values_forall_helper(const conduit::Da
 #endif
 
 #ifdef CONDUIT_USE_LONG_DOUBLE
-template void conduit::detail::set_value_forall_helper(const conduit::DataAccessor<long double> &accessor, conduit::index_t idx, long double value);
+template void conduit::detail::set_value_forall_device_helper(const conduit::DataAccessor<long double> &accessor, conduit::index_t idx, long double value);
 template void conduit::detail::stage_values_forall_helper<long double, conduit::int8>(conduit::execution::ExecutionPolicy policy, long double *staged_values, const conduit::DataAccessor<conduit::int8> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<long double, conduit::int16>(conduit::execution::ExecutionPolicy policy, long double *staged_values, const conduit::DataAccessor<conduit::int16> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<long double, conduit::int32>(conduit::execution::ExecutionPolicy policy, long double *staged_values, const conduit::DataAccessor<conduit::int32> &source, conduit::index_t num_elements);

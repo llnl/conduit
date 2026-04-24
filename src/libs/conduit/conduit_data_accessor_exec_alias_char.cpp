@@ -19,7 +19,7 @@
 //-----------------------------------------------------------------------------
 // Explicit instantiations for native char-family alias destinations.
 //-----------------------------------------------------------------------------
-template void conduit::detail::set_value_forall_helper(const conduit::DataAccessor<char> &accessor, conduit::index_t idx, char value);
+template void conduit::detail::set_value_forall_device_helper(const conduit::DataAccessor<char> &accessor, conduit::index_t idx, char value);
 template void conduit::detail::stage_values_forall_helper<char, conduit::int8>(conduit::execution::ExecutionPolicy policy, char *staged_values, const conduit::DataAccessor<conduit::int8> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<char, conduit::int16>(conduit::execution::ExecutionPolicy policy, char *staged_values, const conduit::DataAccessor<conduit::int16> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<char, conduit::int32>(conduit::execution::ExecutionPolicy policy, char *staged_values, const conduit::DataAccessor<conduit::int32> &source, conduit::index_t num_elements);
@@ -33,7 +33,7 @@ template void conduit::detail::stage_values_forall_helper<char, conduit::float64
 template void conduit::detail::set_staged_values_forall_helper(const conduit::DataAccessor<char> &accessor, conduit::execution::ExecutionPolicy policy, const char *staged_values, conduit::index_t num_elements);
 
 #ifndef CONDUIT_USE_CHAR
-template void conduit::detail::set_value_forall_helper(const conduit::DataAccessor<signed char> &accessor, conduit::index_t idx, signed char value);
+template void conduit::detail::set_value_forall_device_helper(const conduit::DataAccessor<signed char> &accessor, conduit::index_t idx, signed char value);
 template void conduit::detail::stage_values_forall_helper<signed char, conduit::int8>(conduit::execution::ExecutionPolicy policy, signed char *staged_values, const conduit::DataAccessor<conduit::int8> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<signed char, conduit::int16>(conduit::execution::ExecutionPolicy policy, signed char *staged_values, const conduit::DataAccessor<conduit::int16> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<signed char, conduit::int32>(conduit::execution::ExecutionPolicy policy, signed char *staged_values, const conduit::DataAccessor<conduit::int32> &source, conduit::index_t num_elements);
@@ -46,7 +46,7 @@ template void conduit::detail::stage_values_forall_helper<signed char, conduit::
 template void conduit::detail::stage_values_forall_helper<signed char, conduit::float64>(conduit::execution::ExecutionPolicy policy, signed char *staged_values, const conduit::DataAccessor<conduit::float64> &source, conduit::index_t num_elements);
 template void conduit::detail::set_staged_values_forall_helper(const conduit::DataAccessor<signed char> &accessor, conduit::execution::ExecutionPolicy policy, const signed char *staged_values, conduit::index_t num_elements);
 
-template void conduit::detail::set_value_forall_helper(const conduit::DataAccessor<unsigned char> &accessor, conduit::index_t idx, unsigned char value);
+template void conduit::detail::set_value_forall_device_helper(const conduit::DataAccessor<unsigned char> &accessor, conduit::index_t idx, unsigned char value);
 template void conduit::detail::stage_values_forall_helper<unsigned char, conduit::int8>(conduit::execution::ExecutionPolicy policy, unsigned char *staged_values, const conduit::DataAccessor<conduit::int8> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<unsigned char, conduit::int16>(conduit::execution::ExecutionPolicy policy, unsigned char *staged_values, const conduit::DataAccessor<conduit::int16> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<unsigned char, conduit::int32>(conduit::execution::ExecutionPolicy policy, unsigned char *staged_values, const conduit::DataAccessor<conduit::int32> &source, conduit::index_t num_elements);

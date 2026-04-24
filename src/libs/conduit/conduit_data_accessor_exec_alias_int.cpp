@@ -20,7 +20,7 @@
 // Explicit instantiations for native int-family alias destinations.
 //-----------------------------------------------------------------------------
 #ifndef CONDUIT_USE_INT
-template void conduit::detail::set_value_forall_helper(const conduit::DataAccessor<signed int> &accessor, conduit::index_t idx, signed int value);
+template void conduit::detail::set_value_forall_device_helper(const conduit::DataAccessor<signed int> &accessor, conduit::index_t idx, signed int value);
 template void conduit::detail::stage_values_forall_helper<signed int, conduit::int8>(conduit::execution::ExecutionPolicy policy, signed int *staged_values, const conduit::DataAccessor<conduit::int8> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<signed int, conduit::int16>(conduit::execution::ExecutionPolicy policy, signed int *staged_values, const conduit::DataAccessor<conduit::int16> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<signed int, conduit::int32>(conduit::execution::ExecutionPolicy policy, signed int *staged_values, const conduit::DataAccessor<conduit::int32> &source, conduit::index_t num_elements);
@@ -33,7 +33,7 @@ template void conduit::detail::stage_values_forall_helper<signed int, conduit::f
 template void conduit::detail::stage_values_forall_helper<signed int, conduit::float64>(conduit::execution::ExecutionPolicy policy, signed int *staged_values, const conduit::DataAccessor<conduit::float64> &source, conduit::index_t num_elements);
 template void conduit::detail::set_staged_values_forall_helper(const conduit::DataAccessor<signed int> &accessor, conduit::execution::ExecutionPolicy policy, const signed int *staged_values, conduit::index_t num_elements);
 
-template void conduit::detail::set_value_forall_helper(const conduit::DataAccessor<unsigned int> &accessor, conduit::index_t idx, unsigned int value);
+template void conduit::detail::set_value_forall_device_helper(const conduit::DataAccessor<unsigned int> &accessor, conduit::index_t idx, unsigned int value);
 template void conduit::detail::stage_values_forall_helper<unsigned int, conduit::int8>(conduit::execution::ExecutionPolicy policy, unsigned int *staged_values, const conduit::DataAccessor<conduit::int8> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<unsigned int, conduit::int16>(conduit::execution::ExecutionPolicy policy, unsigned int *staged_values, const conduit::DataAccessor<conduit::int16> &source, conduit::index_t num_elements);
 template void conduit::detail::stage_values_forall_helper<unsigned int, conduit::int32>(conduit::execution::ExecutionPolicy policy, unsigned int *staged_values, const conduit::DataAccessor<conduit::int32> &source, conduit::index_t num_elements);
