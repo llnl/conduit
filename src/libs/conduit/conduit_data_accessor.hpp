@@ -320,6 +320,9 @@ public:
     CONDUIT_EXEC_HOST_DEVICE const DataType &other_dtype() const
                     { return nullptr != m_node_ptr ? m_other_dtype : m_dtype; }
 
+    CONDUIT_EXEC_HOST_DEVICE void *data_ptr() const
+                    { return m_data;}
+
 //-----------------------------------------------------------------------------
 // Data movement
 //-----------------------------------------------------------------------------

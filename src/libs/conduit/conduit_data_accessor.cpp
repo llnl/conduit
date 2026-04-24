@@ -170,48 +170,6 @@ set_values_helper(const DataAccessor<T> &accessor,
 }
 
 //-----------------------------------------------------------------------------
-template <typename U>
-void
-setup_staged_source_node(Node &staged_node,
-                         const U *values,
-                         index_t num_elements)
-{
-    // Wrap raw pointer input in a temporary node-backed view so all bulk
-    // setters can share the same copy orchestration below.
-    staged_node.set_external(const_cast<U*>(values), num_elements);
-}
-
-//-----------------------------------------------------------------------------
-template <typename U>
-void
-setup_staged_source_node(Node &staged_node,
-                         const DataArray<U> &values)
-{
-    // DataArray already exposes dtype and data pointer, so the temporary node
-    // simply forwards that description into a uniform accessor wrapper.
-    staged_node.set_external(values.dtype(), values.data_ptr());
-}
-
-//-----------------------------------------------------------------------------
-template <typename U>
-void
-setup_staged_source_node(Node &staged_node,
-                         const DataAccessor<U> &values)
-{
-    // Re-wrap the source accessor in a node-backed view so use_with(...) can
-    // reuse the normal memory-space migration logic when the source and
-    // destination need to execute in the same space.
-    const DataType staged_dtype(values.dtype().id(),
-                                values.number_of_elements(),
-                                0,
-                                values.dtype().stride(),
-                                values.dtype().element_bytes(),
-                                values.dtype().endianness());
-    staged_node.set_external(staged_dtype,
-                             const_cast<void*>(values.element_ptr(0)));
-}
-
-//-----------------------------------------------------------------------------
 template <typename T, typename U>
 void
 set_values_from_accessor_helper(DataAccessor<T> &accessor,
@@ -1051,7 +1009,7 @@ DataAccessor<T>::set(const int8 *values, index_t num_elements)
     // accessor-based copy path so host, OpenMP, and device execution all
     // preserve the same conversion semantics.
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values, num_elements);
+    staged_node.set_external(const_cast<int8*>(values), num_elements);
     DataAccessor<int8> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this, staged_accessor, num_elements);
 }
@@ -1062,7 +1020,7 @@ void
 DataAccessor<T>::set(const int16 *values, index_t num_elements)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values, num_elements);
+    staged_node.set_external(const_cast<int16*>(values), num_elements);
     DataAccessor<int16> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this, staged_accessor, num_elements);
 }
@@ -1073,7 +1031,7 @@ void
 DataAccessor<T>::set(const int32 *values, index_t num_elements)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values, num_elements);
+    staged_node.set_external(const_cast<int32*>(values), num_elements);
     DataAccessor<int32> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this, staged_accessor, num_elements);
 }
@@ -1084,7 +1042,7 @@ void
 DataAccessor<T>::set(const int64 *values, index_t num_elements)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values, num_elements);
+    staged_node.set_external(const_cast<int64*>(values), num_elements);
     DataAccessor<int64> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this, staged_accessor, num_elements);
 }
@@ -1095,7 +1053,7 @@ void
 DataAccessor<T>::set(const uint8 *values, index_t num_elements)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values, num_elements);
+    staged_node.set_external(const_cast<uint8*>(values), num_elements);
     DataAccessor<uint8> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this, staged_accessor, num_elements);
 }
@@ -1106,7 +1064,7 @@ void
 DataAccessor<T>::set(const uint16 *values, index_t num_elements)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values, num_elements);
+    staged_node.set_external(const_cast<uint16*>(values), num_elements);
     DataAccessor<uint16> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this, staged_accessor, num_elements);
 }
@@ -1117,7 +1075,7 @@ void
 DataAccessor<T>::set(const uint32 *values, index_t num_elements)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values, num_elements);
+    staged_node.set_external(const_cast<uint32*>(values), num_elements);
     DataAccessor<uint32> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this, staged_accessor, num_elements);
 }
@@ -1128,7 +1086,7 @@ void
 DataAccessor<T>::set(const uint64 *values, index_t num_elements)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values, num_elements);
+    staged_node.set_external(const_cast<uint64*>(values), num_elements);
     DataAccessor<uint64> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this, staged_accessor, num_elements);
 }
@@ -1139,7 +1097,7 @@ void
 DataAccessor<T>::set(const float32 *values, index_t num_elements)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values, num_elements);
+    staged_node.set_external(const_cast<float32*>(values), num_elements);
     DataAccessor<float32> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this, staged_accessor, num_elements);
 }
@@ -1150,7 +1108,7 @@ void
 DataAccessor<T>::set(const float64 *values, index_t num_elements)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values, num_elements);
+    staged_node.set_external(const_cast<float64*>(values), num_elements);
     DataAccessor<float64> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this, staged_accessor, num_elements);
 }
@@ -1164,7 +1122,7 @@ DataAccessor<T>::set(const DataAccessor<int8> &values)
     // so this overload only has to funnel them into the shared bulk copy
     // helper that chooses host, OpenMP, or device execution.
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<int8> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1177,7 +1135,7 @@ void
 DataAccessor<T>::set(const DataAccessor<int16> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<int16> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1190,7 +1148,7 @@ void
 DataAccessor<T>::set(const DataAccessor<int32> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<int32> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1203,7 +1161,7 @@ void
 DataAccessor<T>::set(const DataAccessor<int64> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<int64> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1216,7 +1174,7 @@ void
 DataAccessor<T>::set(const DataAccessor<uint8> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<uint8> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1229,7 +1187,7 @@ void
 DataAccessor<T>::set(const DataAccessor<uint16> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<uint16> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1242,7 +1200,7 @@ void
 DataAccessor<T>::set(const DataAccessor<uint32> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<uint32> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1255,7 +1213,7 @@ void
 DataAccessor<T>::set(const DataAccessor<uint64> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<uint64> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1268,7 +1226,7 @@ void
 DataAccessor<T>::set(const DataAccessor<float32> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<float32> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1281,7 +1239,7 @@ void
 DataAccessor<T>::set(const DataAccessor<float64> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<float64> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1296,7 +1254,7 @@ DataAccessor<T>::set(const DataArray<int8> &values)
     // DataArray sources share the same bulk-set implementation after being
     // wrapped in a temporary accessor with matching dtype metadata.
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<int8> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1309,7 +1267,7 @@ void
 DataAccessor<T>::set(const DataArray<int16> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<int16> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1322,7 +1280,7 @@ void
 DataAccessor<T>::set(const DataArray<int32> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<int32> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1335,7 +1293,7 @@ void
 DataAccessor<T>::set(const DataArray<int64> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<int64> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1348,7 +1306,7 @@ void
 DataAccessor<T>::set(const DataArray<uint8> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<uint8> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1361,7 +1319,7 @@ void
 DataAccessor<T>::set(const DataArray<uint16> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<uint16> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1374,7 +1332,7 @@ void
 DataAccessor<T>::set(const DataArray<uint32> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<uint32> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1387,7 +1345,7 @@ void
 DataAccessor<T>::set(const DataArray<uint64> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<uint64> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1400,7 +1358,7 @@ void
 DataAccessor<T>::set(const DataArray<float32> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<float32> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
@@ -1413,7 +1371,7 @@ void
 DataAccessor<T>::set(const DataArray<float64> &values)
 {
     Node staged_node;
-    detail::setup_staged_source_node(staged_node, values);
+    staged_node.set_external(values.dtype(), values.data_ptr());
     DataAccessor<float64> staged_accessor(staged_node);
     detail::set_values_from_accessor_helper(*this,
                                             staged_accessor,
