@@ -332,7 +332,7 @@ public:
 
     void                                assume();
 
-    conduit::execution::ExecutionPolicy active_space();
+    conduit::execution::ExecutionPolicy active_space() const;
 
 //-----------------------------------------------------------------------------
 // Setters

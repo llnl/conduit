@@ -42,8 +42,16 @@ template <typename T>
 void
 set_value_helper(const DataAccessor<T> &accessor, index_t idx, T value)
 {
-    // Host-side scalar writes use the same runtime dtype dispatch as the
-    // historic implementation and write directly into the wrapped storage.
+    // Scalar writes dispatch here for both host and device-backed accessors.
+    // The device case routes through the HIP/CUDA helper so the write executes
+    // in the correct memory space, while the host case preserves the historic
+    // direct runtime-dtype dispatch.
+    if(accessor.active_space().is_device_policy())
+    {
+        set_value_forall_device_helper(accessor, idx, value);
+        return;
+    }
+
     switch(accessor.dtype().id())
     {
         case DataType::INT8_ID:
@@ -845,7 +853,7 @@ DataAccessor<T>::assume()
 //---------------------------------------------------------------------------//
 template <typename T>
 conduit::execution::ExecutionPolicy
-DataAccessor<T>::active_space()
+DataAccessor<T>::active_space() const
 {
     // DataAccessor execution follows the space of the wrapped storage pointer.
     if (execution::DeviceMemory::is_device_ptr(m_data))
@@ -863,14 +871,6 @@ template <typename T>
 void
 DataAccessor<T>::set(index_t idx, int8 value)
 {
-    // Scalar setters route through the device helper when the destination
-    // storage lives on device so the write occurs in the correct memory space.
-    if(active_space().is_device_policy())
-    {
-        detail::set_value_forall_device_helper(*this, idx, static_cast<T>(value));
-        return;
-    }
-
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
@@ -879,12 +879,6 @@ template <typename T>
 void
 DataAccessor<T>::set(index_t idx, int16 value)
 {
-    if(active_space().is_device_policy())
-    {
-        detail::set_value_forall_device_helper(*this, idx, static_cast<T>(value));
-        return;
-    }
-
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
@@ -893,12 +887,6 @@ template <typename T>
 void
 DataAccessor<T>::set(index_t idx, int32 value)
 {
-    if(active_space().is_device_policy())
-    {
-        detail::set_value_forall_device_helper(*this, idx, static_cast<T>(value));
-        return;
-    }
-
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
@@ -907,12 +895,6 @@ template <typename T>
 void
 DataAccessor<T>::set(index_t idx, int64 value)
 {
-    if(active_space().is_device_policy())
-    {
-        detail::set_value_forall_device_helper(*this, idx, static_cast<T>(value));
-        return;
-    }
-
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
@@ -921,12 +903,6 @@ template <typename T>
 void
 DataAccessor<T>::set(index_t idx, uint8 value)
 {
-    if(active_space().is_device_policy())
-    {
-        detail::set_value_forall_device_helper(*this, idx, static_cast<T>(value));
-        return;
-    }
-
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
@@ -935,12 +911,6 @@ template <typename T>
 void
 DataAccessor<T>::set(index_t idx, uint16 value)
 {
-    if(active_space().is_device_policy())
-    {
-        detail::set_value_forall_device_helper(*this, idx, static_cast<T>(value));
-        return;
-    }
-
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
@@ -949,12 +919,6 @@ template <typename T>
 void
 DataAccessor<T>::set(index_t idx, uint32 value)
 {
-    if(active_space().is_device_policy())
-    {
-        detail::set_value_forall_device_helper(*this, idx, static_cast<T>(value));
-        return;
-    }
-
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
@@ -963,12 +927,6 @@ template <typename T>
 void
 DataAccessor<T>::set(index_t idx, uint64 value)
 {
-    if(active_space().is_device_policy())
-    {
-        detail::set_value_forall_device_helper(*this, idx, static_cast<T>(value));
-        return;
-    }
-
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
@@ -977,12 +935,6 @@ template <typename T>
 void
 DataAccessor<T>::set(index_t idx, float32 value)
 {
-    if(active_space().is_device_policy())
-    {
-        detail::set_value_forall_device_helper(*this, idx, static_cast<T>(value));
-        return;
-    }
-
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
@@ -991,12 +943,6 @@ template <typename T>
 void
 DataAccessor<T>::set(index_t idx, float64 value)
 {
-    if(active_space().is_device_policy())
-    {
-        detail::set_value_forall_device_helper(*this, idx, static_cast<T>(value));
-        return;
-    }
-
     detail::set_value_helper(*this, idx, static_cast<T>(value));
 }
 
