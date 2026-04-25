@@ -19,24 +19,11 @@
 #include <RAJA/RAJA.hpp>
 #endif
 
-// Build capability answers "was this Conduit build configured with CUDA/HIP
-// support?", while TU capability answers "is this translation unit actually
-// being compiled with that device compiler right now?"
-#if defined(CONDUIT_USE_CUDA) && defined(__CUDACC__)
-#define CONDUIT_TU_IS_CUDA
-#endif
-
-#if defined(CONDUIT_USE_HIP) && defined(__HIPCC__)
-#define CONDUIT_TU_IS_HIP
-#endif
-
 #if defined(CONDUIT_USE_OPENMP)
 #include <omp.h>
 #endif
 
 #include <string>
-
-#define CONDUIT_DEVICE_ERROR_CHECK( policy ) conduit::execution::device_error_check(policy, __FILE__, __LINE__);
 
 #if defined(CONDUIT_USE_CUDA)
 #define CUDA_BLOCK_SIZE 128

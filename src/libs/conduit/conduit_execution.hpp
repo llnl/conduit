@@ -19,12 +19,26 @@
 #define CONDUIT_EXEC_DEVICE_COMPILE
 #endif
 
-#if (defined(CONDUIT_USE_CUDA) && defined(__CUDACC__)) || \
-    (defined(CONDUIT_USE_HIP) && defined(__HIPCC__))
+// conduit_execution_policy.hpp consumes these macros while declaring the
+// execution policy types and backend-specific aliases. They must be defined
+// here first so the public execution facade remains the single source of truth
+// for translation-unit compile mode and for the host/device decorator used by
+// the rest of the execution layer.
+#if defined(CONDUIT_USE_CUDA) && defined(__CUDACC__)
+#define CONDUIT_TU_IS_CUDA
+#endif
+
+#if defined(CONDUIT_USE_HIP) && defined(__HIPCC__)
+#define CONDUIT_TU_IS_HIP
+#endif
+
+#if defined(CONDUIT_TU_IS_CUDA) || defined(CONDUIT_TU_IS_HIP)
 #define CONDUIT_EXEC __host__ __device__
 #else
 #define CONDUIT_EXEC
 #endif
+
+#define CONDUIT_DEVICE_ERROR_CHECK( policy ) conduit::execution::device_error_check(policy, __FILE__, __LINE__);
 
 #include "conduit_execution_policy.hpp"
 #include "conduit_annotations.hpp"

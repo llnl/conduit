@@ -174,10 +174,10 @@ TEST(conduit_execution, policy_aliases)
         const ExecutionPolicy device_from_name("device");
         EXPECT_EQ(device_from_name.policy_id(), device.policy_id());
 
-#if defined(CONDUIT_EXEC_BUILD_HAS_CUDA)
+#if defined(CONDUIT_USE_CUDA)
         EXPECT_TRUE(device.is_cuda());
         EXPECT_EQ(device.policy_name(), "cuda");
-#elif defined(CONDUIT_EXEC_BUILD_HAS_HIP)
+#elif defined(CONDUIT_USE_HIP)
         EXPECT_TRUE(device.is_hip());
         EXPECT_EQ(device.policy_name(), "hip");
 #endif
@@ -185,12 +185,12 @@ TEST(conduit_execution, policy_aliases)
 
     const ExecutionPolicy parallel = ExecutionPolicy::parallel();
 
-#if defined(CONDUIT_EXEC_BUILD_HAS_CUDA)
+#if defined(CONDUIT_USE_CUDA)
     EXPECT_TRUE(ExecutionPolicy::is_parallel_enabled());
     EXPECT_TRUE(parallel.is_parallel_policy());
     EXPECT_TRUE(parallel.is_cuda());
     EXPECT_EQ(parallel.policy_name(), "cuda");
-#elif defined(CONDUIT_EXEC_BUILD_HAS_HIP)
+#elif defined(CONDUIT_USE_HIP)
     EXPECT_TRUE(ExecutionPolicy::is_parallel_enabled());
     EXPECT_TRUE(parallel.is_parallel_policy());
     EXPECT_TRUE(parallel.is_hip());
