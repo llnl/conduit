@@ -19,37 +19,15 @@
 #include <RAJA/RAJA.hpp>
 #endif
 
-// Build capability answers "was this Conduit build configured with a RAJA
-// backend?", while TU capability answers "is this translation unit actually
+// Build capability answers "was this Conduit build configured with CUDA/HIP
+// support?", while TU capability answers "is this translation unit actually
 // being compiled with that device compiler right now?"
-#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_CUDA)
-#define CONDUIT_EXEC_BUILD_HAS_CUDA
-#endif
-
-#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_HIP)
-#define CONDUIT_EXEC_BUILD_HAS_HIP
-#endif
-
-#if defined(CONDUIT_EXEC_BUILD_HAS_CUDA) || defined(CONDUIT_EXEC_BUILD_HAS_HIP)
-#define CONDUIT_EXEC_BUILD_HAS_DEVICE
-#endif
-
-#if defined(CONDUIT_EXEC_BUILD_HAS_CUDA) && defined(__CUDACC__)
+#if defined(CONDUIT_USE_CUDA) && defined(__CUDACC__)
 #define CONDUIT_EXEC_TU_HAS_CUDA
 #endif
 
-#if defined(CONDUIT_EXEC_BUILD_HAS_HIP) && defined(__HIPCC__)
+#if defined(CONDUIT_USE_HIP) && defined(__HIPCC__)
 #define CONDUIT_EXEC_TU_HAS_HIP
-#endif
-
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA) || defined(CONDUIT_EXEC_TU_HAS_HIP)
-#define CONDUIT_EXEC_TU_HAS_DEVICE
-#endif
-
-#if defined(CONDUIT_EXEC_TU_HAS_DEVICE)
-#define CONDUIT_EXEC __host__ __device__
-#else
-#define CONDUIT_EXEC
 #endif
 
 #if defined(CONDUIT_USE_OPENMP)

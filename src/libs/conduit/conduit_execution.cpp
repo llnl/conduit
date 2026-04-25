@@ -65,9 +65,9 @@ ExecutionPolicy::serial()
 ExecutionPolicy
 ExecutionPolicy::device()
 {
-#if defined(CONDUIT_EXEC_BUILD_HAS_CUDA)
+#if defined(CONDUIT_USE_CUDA)
     return ExecutionPolicy(PolicyID::CUDA_ID);
-#elif defined(CONDUIT_EXEC_BUILD_HAS_HIP)
+#elif defined(CONDUIT_USE_HIP)
     return ExecutionPolicy(PolicyID::HIP_ID);
 #else
     CONDUIT_ERROR("Conduit was built with neither CUDA nor HIP.");
@@ -79,7 +79,7 @@ ExecutionPolicy::device()
 ExecutionPolicy
 ExecutionPolicy::cuda()
 {
-#if defined(CONDUIT_EXEC_BUILD_HAS_CUDA)
+#if defined(CONDUIT_USE_CUDA)
     return ExecutionPolicy(PolicyID::CUDA_ID);
 #else
     CONDUIT_ERROR("Conduit was built without CUDA.");
@@ -90,7 +90,7 @@ ExecutionPolicy::cuda()
 ExecutionPolicy
 ExecutionPolicy::hip()
 {
-#if defined(CONDUIT_EXEC_BUILD_HAS_HIP)
+#if defined(CONDUIT_USE_HIP)
     return ExecutionPolicy(PolicyID::HIP_ID);
 #else
     CONDUIT_ERROR("Conduit was built without HIP.");
@@ -115,9 +115,9 @@ ExecutionPolicy::openmp()
 ExecutionPolicy
 ExecutionPolicy::parallel()
 {
-#if defined(CONDUIT_EXEC_BUILD_HAS_CUDA)
+#if defined(CONDUIT_USE_CUDA)
     return ExecutionPolicy(PolicyID::CUDA_ID);
-#elif defined(CONDUIT_EXEC_BUILD_HAS_HIP)
+#elif defined(CONDUIT_USE_HIP)
     return ExecutionPolicy(PolicyID::HIP_ID);
 #elif defined(CONDUIT_USE_OPENMP)
     return ExecutionPolicy(PolicyID::OPENMP_ID);
@@ -218,7 +218,7 @@ ExecutionPolicy::is_serial_enabled()
 bool
 ExecutionPolicy::is_cuda_enabled()
 {
-#if defined(CONDUIT_EXEC_BUILD_HAS_CUDA)
+#if defined(CONDUIT_USE_CUDA)
     return true;
 #else
     return false;
@@ -229,7 +229,7 @@ ExecutionPolicy::is_cuda_enabled()
 bool
 ExecutionPolicy::is_hip_enabled()
 {
-#if defined(CONDUIT_EXEC_BUILD_HAS_HIP)
+#if defined(CONDUIT_USE_HIP)
     return true;
 #else
     return false;
@@ -303,7 +303,7 @@ ExecutionPolicy::policy_id_to_name(const PolicyID policy_id)
 void
 init_device_memory_handlers()
 {
-#if defined(CONDUIT_EXEC_BUILD_HAS_DEVICE)
+#if defined(CONDUIT_USE_CUDA) || defined(CONDUIT_USE_HIP)
     // we only need to override the mem handlers in the
     // presence of cuda or hip
     conduit::utils::set_memcpy_handler(MagicMemory::copy);
@@ -317,7 +317,7 @@ device_error_check(ExecutionPolicy policy, const char *file, const int line)
 {
     if (policy.is_hip())
     {
-#if defined(CONDUIT_EXEC_BUILD_HAS_HIP)
+#if defined(CONDUIT_USE_HIP)
         hipError_t err = hipGetLastError();
         if ( hipSuccess != err )
         {
@@ -331,7 +331,7 @@ device_error_check(ExecutionPolicy policy, const char *file, const int line)
     }
     else if (policy.is_cuda())
     {
-#if defined(CONDUIT_EXEC_BUILD_HAS_CUDA)
+#if defined(CONDUIT_USE_CUDA)
         cudaError err = cudaGetLastError();
         if ( cudaSuccess != err )
         {
