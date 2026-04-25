@@ -466,6 +466,21 @@ atomic_max_exec(T *acc, T value)
 #endif
 
 //-----------------------------------------------------------------------------
+// Runtime ExecutionPolicy values answer "which backend should I prefer?" but
+// they do not prove that the current translation unit was compiled with support
+// for that backend. A host-only TU may legally construct
+// ExecutionPolicy::device() and pass it along to code in a CUDA/HIP-enabled TU.
+// That means we cannot reject unsupported policy use when the policy object is
+// created, and we cannot generally reject it at compile time for the runtime
+// policy API.
+//
+// Instead, each runtime entry point that actually needs backend support in the
+// current TU must validate that the selected policy is usable here. The
+// reducers do this in their constructors because that is the last host-side
+// point before their device-callable methods begin dispatching through
+// backend-specific reducer state. Without this check, asking for CUDA/HIP from
+// a TU that lacks that backend would silently fall through to the serial path.
+//-----------------------------------------------------------------------------
 inline void
 validate_runtime_policy(const ExecutionPolicy &policy,
                         const char *context)
@@ -519,6 +534,10 @@ public:
     , m_hip_reduce(v_start)
 #endif
     {
+        // ReduceSum consumes a runtime-selected policy but may be used from
+        // device-callable code afterward. Validate here, while we are still on
+        // the host, so an unsupported CUDA/HIP/OpenMP policy in this TU fails
+        // immediately instead of silently falling back to serial updates.
         validate_runtime_policy(policy, "ReduceSum");
     }
 
@@ -616,6 +635,10 @@ public:
     , m_hip_reduce(v_start)
 #endif
     {
+        // ReduceMin needs the same runtime-policy gate as ReduceSum for the
+        // same reason: policy construction alone is legal in any TU, but using
+        // that policy in reducer operations is only valid when this TU has the
+        // requested backend available.
         validate_runtime_policy(policy, "ReduceMin");
     }
 
@@ -708,6 +731,8 @@ public:
     , m_hip_reduce(v_start, i_start)
 #endif
     {
+        // Validate at construction time so the minloc reducer never starts
+        // executing with a backend policy that this TU cannot actually support.
         validate_runtime_policy(policy, "ReduceMinLoc");
     }
 
@@ -824,6 +849,9 @@ public:
     , m_hip_reduce(v_start)
 #endif
     {
+        // Runtime policy selection is allowed to cross TU boundaries, so this
+        // constructor is where ReduceMax confirms that the selected backend is
+        // available in the TU that will execute the reducer logic.
         validate_runtime_policy(policy, "ReduceMax");
     }
 
@@ -916,6 +944,9 @@ public:
     , m_hip_reduce(v_start, i_start)
 #endif
     {
+        // Like the other reducers, fail here on the host before device-callable
+        // maxloc operations can accidentally degrade to the serial reducer when
+        // the requested backend is unavailable in this TU.
         validate_runtime_policy(policy, "ReduceMaxLoc");
     }
 
