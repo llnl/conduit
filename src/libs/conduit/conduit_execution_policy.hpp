@@ -46,6 +46,12 @@
 #define CONDUIT_EXEC_TU_HAS_DEVICE
 #endif
 
+#if defined(CONDUIT_EXEC_TU_HAS_DEVICE)
+#define CONDUIT_EXEC __host__ __device__
+#else
+#define CONDUIT_EXEC
+#endif
+
 #if defined(CONDUIT_USE_OPENMP)
 #include <omp.h>
 #endif
@@ -53,12 +59,6 @@
 #include <string>
 
 #define CONDUIT_DEVICE_ERROR_CHECK( policy ) conduit::execution::device_error_check(policy, __FILE__, __LINE__);
-
-#if defined(CONDUIT_EXEC_TU_HAS_DEVICE)
-#define EXEC_LAMBDA __device__ __host__
-#else
-#define EXEC_LAMBDA
-#endif
 
 #if defined(CONDUIT_USE_CUDA)
 #define CUDA_BLOCK_SIZE 128
@@ -101,24 +101,24 @@ public:
     static ExecutionPolicy openmp(); // openMP
     static ExecutionPolicy parallel(); // prefer CUDA/HIP, then openMP, then host
 
-    EXEC_LAMBDA ExecutionPolicy()
+    CONDUIT_EXEC ExecutionPolicy()
     : m_policy_id(PolicyID::EMPTY_ID)
     {}
 
-    EXEC_LAMBDA ExecutionPolicy(const ExecutionPolicy& exec_policy) = default;
-    EXEC_LAMBDA ExecutionPolicy& operator=(const ExecutionPolicy& exec_policy) = default;
+    CONDUIT_EXEC ExecutionPolicy(const ExecutionPolicy& exec_policy) = default;
+    CONDUIT_EXEC ExecutionPolicy& operator=(const ExecutionPolicy& exec_policy) = default;
 
-    EXEC_LAMBDA ExecutionPolicy(PolicyID policy_id)
+    CONDUIT_EXEC ExecutionPolicy(PolicyID policy_id)
     : m_policy_id(policy_id)
     {}
 
     ExecutionPolicy(const std::string &policy_name);
-    EXEC_LAMBDA ~ExecutionPolicy() = default;
+    CONDUIT_EXEC ~ExecutionPolicy() = default;
 
     void set_policy(PolicyID policy_id)
         { m_policy_id = policy_id; }
 
-    EXEC_LAMBDA PolicyID policy_id() const { return m_policy_id; }
+    CONDUIT_EXEC PolicyID policy_id() const { return m_policy_id; }
     std::string policy_name()       const { return policy_id_to_name(m_policy_id); }
 
     bool        is_empty()          const;

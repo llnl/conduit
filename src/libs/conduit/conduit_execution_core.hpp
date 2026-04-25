@@ -90,7 +90,7 @@ sort_exec(ExecPolicyTag,
 
 //-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename T>
-EXEC_LAMBDA T
+CONDUIT_EXEC T
 atomic_add_exec(T *acc, T value)
 {
     return RAJA::atomicAdd(typename ExecPolicyTag::atomic_policy{}, acc, value);
@@ -98,7 +98,7 @@ atomic_add_exec(T *acc, T value)
 
 //-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename T>
-EXEC_LAMBDA T
+CONDUIT_EXEC T
 atomic_min_exec(T *acc, T value)
 {
     return RAJA::atomicMin(typename ExecPolicyTag::atomic_policy{}, acc, value);
@@ -106,7 +106,7 @@ atomic_min_exec(T *acc, T value)
 
 //-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename T>
-EXEC_LAMBDA T
+CONDUIT_EXEC T
 atomic_max_exec(T *acc, T value)
 {
     return RAJA::atomicMax(typename ExecPolicyTag::atomic_policy{}, acc, value);
@@ -143,12 +143,12 @@ public:
       m_value_ptr(other.m_value_ptr)
     {}
 
-    EXEC_LAMBDA void operator+=(const T value) const
+    CONDUIT_EXEC void operator+=(const T value) const
     {
         m_value_ptr[0] += value;
     }
 
-    EXEC_LAMBDA void sum(const T value) const
+    CONDUIT_EXEC void sum(const T value) const
     {
         m_value_ptr[0] += value;
     }
@@ -182,7 +182,7 @@ public:
       m_value_ptr(other.m_value_ptr)
     {}
 
-    EXEC_LAMBDA void min(const T value) const
+    CONDUIT_EXEC void min(const T value) const
     {
         if (value < m_value_ptr[0])
         {
@@ -225,7 +225,7 @@ public:
       m_index_ptr(other.m_index_ptr)
     {}
 
-    EXEC_LAMBDA void minloc(const T value, index_t index) const
+    CONDUIT_EXEC void minloc(const T value, index_t index) const
     {
         if (value < m_value_ptr[0])
         {
@@ -270,7 +270,7 @@ public:
       m_value_ptr(other.m_value_ptr)
     {}
 
-    EXEC_LAMBDA void max(const T value) const
+    CONDUIT_EXEC void max(const T value) const
     {
         if (value > m_value_ptr[0])
         {
@@ -313,7 +313,7 @@ public:
       m_index_ptr(other.m_index_ptr)
     {}
 
-    EXEC_LAMBDA void maxloc(const T value, index_t index) const
+    CONDUIT_EXEC void maxloc(const T value, index_t index) const
     {
         if (value > m_value_ptr[0])
         {
@@ -416,7 +416,7 @@ sort_exec(OpenMPExec,
 
 //-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename T>
-EXEC_LAMBDA T
+CONDUIT_EXEC T
 atomic_add_exec(T *acc, T value)
 {
     T res = *acc;
@@ -426,7 +426,7 @@ atomic_add_exec(T *acc, T value)
 
 //-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename T>
-EXEC_LAMBDA T
+CONDUIT_EXEC T
 atomic_min_exec(T *acc, T value)
 {
     T res = *acc;
@@ -436,7 +436,7 @@ atomic_min_exec(T *acc, T value)
 
 //-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename T>
-EXEC_LAMBDA T
+CONDUIT_EXEC T
 atomic_max_exec(T *acc, T value)
 {
     T res = *acc;
@@ -507,7 +507,7 @@ public:
         validate_runtime_policy(policy, "ReduceSum");
     }
 
-    EXEC_LAMBDA void operator+=(const T value) const
+    CONDUIT_EXEC void operator+=(const T value) const
     {
         if (m_policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
         {
@@ -534,7 +534,7 @@ public:
         m_serial_reduce += value;
     }
 
-    EXEC_LAMBDA void sum(const T value) const
+    CONDUIT_EXEC void sum(const T value) const
     {
         (*this) += value;
     }
@@ -604,7 +604,7 @@ public:
         validate_runtime_policy(policy, "ReduceMin");
     }
 
-    EXEC_LAMBDA void min(const T value) const
+    CONDUIT_EXEC void min(const T value) const
     {
         if (m_policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
         {
@@ -696,7 +696,7 @@ public:
         validate_runtime_policy(policy, "ReduceMinLoc");
     }
 
-    EXEC_LAMBDA void minloc(const T value, index_t index) const
+    CONDUIT_EXEC void minloc(const T value, index_t index) const
     {
         if (m_policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
         {
@@ -812,7 +812,7 @@ public:
         validate_runtime_policy(policy, "ReduceMax");
     }
 
-    EXEC_LAMBDA void max(const T value) const
+    CONDUIT_EXEC void max(const T value) const
     {
         if (m_policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
         {
@@ -904,7 +904,7 @@ public:
         validate_runtime_policy(policy, "ReduceMaxLoc");
     }
 
-    EXEC_LAMBDA void maxloc(const T value, index_t index) const
+    CONDUIT_EXEC void maxloc(const T value, index_t index) const
     {
         if (m_policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
         {
@@ -1024,7 +1024,7 @@ sort(Iterator begin,
 
 //-----------------------------------------------------------------------------
 template <typename T>
-EXEC_LAMBDA T
+CONDUIT_EXEC T
 atomic_add(ExecutionPolicy policy, T *acc, T value)
 {
     const auto policy_id = policy.policy_id();
@@ -1052,7 +1052,7 @@ atomic_add(ExecutionPolicy policy, T *acc, T value)
 
 //-----------------------------------------------------------------------------
 template <typename T>
-EXEC_LAMBDA T
+CONDUIT_EXEC T
 atomic_min(ExecutionPolicy policy, T *acc, T value)
 {
     const auto policy_id = policy.policy_id();
@@ -1080,7 +1080,7 @@ atomic_min(ExecutionPolicy policy, T *acc, T value)
 
 //-----------------------------------------------------------------------------
 template <typename T>
-EXEC_LAMBDA T
+CONDUIT_EXEC T
 atomic_max(ExecutionPolicy policy, T *acc, T value)
 {
     const auto policy_id = policy.policy_id();

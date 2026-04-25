@@ -24,7 +24,7 @@
 
 #else
 
-#define EXEC_LAMBDA 
+#define EXEC_LAMBDA
 
 #endif
 
@@ -113,12 +113,9 @@ void run_test()
 
    device_free(dev_vals_ptr);
 }
-
 //-----------------------------------------------------------------------------
 TEST(raja_smoke, basic_use_default_policy)
 {
     // this is a separate func to avoid issue with lambda vs gtest macro
     run_test();
 }
-
-

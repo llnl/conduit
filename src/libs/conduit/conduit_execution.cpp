@@ -79,14 +79,22 @@ ExecutionPolicy::device()
 ExecutionPolicy
 ExecutionPolicy::cuda()
 {
+#if defined(CONDUIT_EXEC_BUILD_HAS_CUDA)
     return ExecutionPolicy(PolicyID::CUDA_ID);
+#else
+    CONDUIT_ERROR("Conduit was without CUDA.");
+#endif
 }
 
 //---------------------------------------------------------------------------//
 ExecutionPolicy
 ExecutionPolicy::hip()
 {
+#if defined(CONDUIT_EXEC_BUILD_HAS_HIP)
     return ExecutionPolicy(PolicyID::HIP_ID);
+#else
+    CONDUIT_ERROR("Conduit was without HIP.");
+#endif
 }
 
 //---------------------------------------------------------------------------//
@@ -102,6 +110,8 @@ ExecutionPolicy::openmp()
 }
 
 //---------------------------------------------------------------------------//
+// parallel allows serial execution - it is more of a way of saying that code
+// can safely run in parallel. Then we prefer parallel execution if possible.
 ExecutionPolicy
 ExecutionPolicy::parallel()
 {
@@ -191,6 +201,9 @@ ExecutionPolicy::is_device_policy() const
 bool
 ExecutionPolicy::is_parallel_policy() const
 {
+    // TODO it is strange that you can instantiate a parallel policy that ends
+    // up being serial, and then you can ask is_parallel_policy() and get false.
+    // We should explore if we can make this more consistent.
     return is_cuda() || is_hip() || is_openmp();
 }
 
