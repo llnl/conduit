@@ -23,11 +23,11 @@
 // support?", while TU capability answers "is this translation unit actually
 // being compiled with that device compiler right now?"
 #if defined(CONDUIT_USE_CUDA) && defined(__CUDACC__)
-#define CONDUIT_EXEC_TU_HAS_CUDA
+#define CONDUIT_TU_IS_CUDA
 #endif
 
 #if defined(CONDUIT_USE_HIP) && defined(__HIPCC__)
-#define CONDUIT_EXEC_TU_HAS_HIP
+#define CONDUIT_TU_IS_HIP
 #endif
 
 #if defined(CONDUIT_USE_OPENMP)
@@ -138,9 +138,9 @@ struct EmptyPolicy
 struct SerialExec
 {
     using for_policy = RAJA::seq_exec;
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
     using reduce_policy = RAJA::cuda_reduce;
-#elif defined(CONDUIT_EXEC_TU_HAS_HIP)
+#elif defined(CONDUIT_TU_IS_HIP)
     using reduce_policy = RAJA::hip_reduce;
 #else
     using reduce_policy = RAJA::seq_reduce;
@@ -150,7 +150,7 @@ struct SerialExec
     static std::string memory_space;
 };
 
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
 struct CudaExec
 {
     using for_policy    = RAJA::cuda_exec<CUDA_BLOCK_SIZE>;
@@ -161,7 +161,7 @@ struct CudaExec
 };
 #endif
 
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
 struct HipExec
 {
     using for_policy    = RAJA::hip_exec<HIP_BLOCK_SIZE>;
@@ -176,9 +176,9 @@ struct HipExec
 struct OpenMPExec
 {
     using for_policy = RAJA::omp_parallel_for_exec;
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
     using reduce_policy = RAJA::cuda_reduce;
-#elif defined(CONDUIT_EXEC_TU_HAS_HIP)
+#elif defined(CONDUIT_TU_IS_HIP)
     using reduce_policy = RAJA::hip_reduce;
 #else
     using reduce_policy = RAJA::omp_reduce;

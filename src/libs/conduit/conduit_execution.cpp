@@ -83,6 +83,7 @@ ExecutionPolicy::cuda()
     return ExecutionPolicy(PolicyID::CUDA_ID);
 #else
     CONDUIT_ERROR("Conduit was built without CUDA.");
+    return ExecutionPolicy(PolicyID::EMPTY_ID);
 #endif
 }
 

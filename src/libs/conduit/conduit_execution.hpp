@@ -498,13 +498,13 @@ validate_runtime_policy(const ExecutionPolicy &policy,
     }
     else if (policy.is_cuda())
     {
-#ifndef CONDUIT_EXEC_TU_HAS_CUDA
+#ifndef CONDUIT_TU_IS_CUDA
         CONDUIT_ERROR(context << " requires CUDA support in this translation unit.");
 #endif
     }
     else if (policy.is_hip())
     {
-#ifndef CONDUIT_EXEC_TU_HAS_HIP
+#ifndef CONDUIT_TU_IS_HIP
         CONDUIT_ERROR(context << " requires HIP support in this translation unit.");
 #endif
     }
@@ -527,10 +527,10 @@ public:
 #if defined(CONDUIT_USE_OPENMP)
     , m_openmp_reduce(v_start)
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
     , m_cuda_reduce(v_start)
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
     , m_hip_reduce(v_start)
 #endif
     {
@@ -552,14 +552,14 @@ public:
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
             m_cuda_reduce += value;
             return;
 #endif
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
             m_hip_reduce += value;
             return;
 #endif
@@ -583,13 +583,13 @@ public:
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
             return m_cuda_reduce.get();
 #endif
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
             return m_hip_reduce.get();
 #endif
         }
@@ -603,10 +603,10 @@ private:
 #if defined(CONDUIT_USE_OPENMP)
     detail::ReduceSumImpl<OpenMPExec, T> m_openmp_reduce;
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
     detail::ReduceSumImpl<CudaExec, T> m_cuda_reduce;
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
     detail::ReduceSumImpl<HipExec, T> m_hip_reduce;
 #endif
 };
@@ -628,10 +628,10 @@ public:
 #if defined(CONDUIT_USE_OPENMP)
     , m_openmp_reduce(v_start)
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
     , m_cuda_reduce(v_start)
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
     , m_hip_reduce(v_start)
 #endif
     {
@@ -653,14 +653,14 @@ public:
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
             m_cuda_reduce.min(value);
             return;
 #endif
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
             m_hip_reduce.min(value);
             return;
 #endif
@@ -679,13 +679,13 @@ public:
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
             return m_cuda_reduce.get();
 #endif
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
             return m_hip_reduce.get();
 #endif
         }
@@ -699,10 +699,10 @@ private:
 #if defined(CONDUIT_USE_OPENMP)
     detail::ReduceMinImpl<OpenMPExec, T> m_openmp_reduce;
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
     detail::ReduceMinImpl<CudaExec, T> m_cuda_reduce;
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
     detail::ReduceMinImpl<HipExec, T> m_hip_reduce;
 #endif
 };
@@ -724,10 +724,10 @@ public:
 #if defined(CONDUIT_USE_OPENMP)
     , m_openmp_reduce(v_start, i_start)
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
     , m_cuda_reduce(v_start, i_start)
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
     , m_hip_reduce(v_start, i_start)
 #endif
     {
@@ -747,14 +747,14 @@ public:
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
             m_cuda_reduce.minloc(value, index);
             return;
 #endif
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
             m_hip_reduce.minloc(value, index);
             return;
 #endif
@@ -773,13 +773,13 @@ public:
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
             return m_cuda_reduce.get();
 #endif
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
             return m_hip_reduce.get();
 #endif
         }
@@ -797,13 +797,13 @@ public:
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
             return m_cuda_reduce.getLoc();
 #endif
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
             return m_hip_reduce.getLoc();
 #endif
         }
@@ -817,10 +817,10 @@ private:
 #if defined(CONDUIT_USE_OPENMP)
     detail::ReduceMinLocImpl<OpenMPExec, T> m_openmp_reduce;
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
     detail::ReduceMinLocImpl<CudaExec, T> m_cuda_reduce;
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
     detail::ReduceMinLocImpl<HipExec, T> m_hip_reduce;
 #endif
 };
@@ -842,10 +842,10 @@ public:
 #if defined(CONDUIT_USE_OPENMP)
     , m_openmp_reduce(v_start)
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
     , m_cuda_reduce(v_start)
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
     , m_hip_reduce(v_start)
 #endif
     {
@@ -866,14 +866,14 @@ public:
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
             m_cuda_reduce.max(value);
             return;
 #endif
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
             m_hip_reduce.max(value);
             return;
 #endif
@@ -892,13 +892,13 @@ public:
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
             return m_cuda_reduce.get();
 #endif
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
             return m_hip_reduce.get();
 #endif
         }
@@ -912,10 +912,10 @@ private:
 #if defined(CONDUIT_USE_OPENMP)
     detail::ReduceMaxImpl<OpenMPExec, T> m_openmp_reduce;
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
     detail::ReduceMaxImpl<CudaExec, T> m_cuda_reduce;
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
     detail::ReduceMaxImpl<HipExec, T> m_hip_reduce;
 #endif
 };
@@ -937,10 +937,10 @@ public:
 #if defined(CONDUIT_USE_OPENMP)
     , m_openmp_reduce(v_start, i_start)
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
     , m_cuda_reduce(v_start, i_start)
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
     , m_hip_reduce(v_start, i_start)
 #endif
     {
@@ -961,14 +961,14 @@ public:
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
             m_cuda_reduce.maxloc(value, index);
             return;
 #endif
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
             m_hip_reduce.maxloc(value, index);
             return;
 #endif
@@ -987,13 +987,13 @@ public:
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
             return m_cuda_reduce.get();
 #endif
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
             return m_hip_reduce.get();
 #endif
         }
@@ -1011,13 +1011,13 @@ public:
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
             return m_cuda_reduce.getLoc();
 #endif
         }
         if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
         {
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
             return m_hip_reduce.getLoc();
 #endif
         }
@@ -1031,10 +1031,10 @@ private:
 #if defined(CONDUIT_USE_OPENMP)
     detail::ReduceMaxLocImpl<OpenMPExec, T> m_openmp_reduce;
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
     detail::ReduceMaxLocImpl<CudaExec, T> m_cuda_reduce;
 #endif
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
     detail::ReduceMaxLocImpl<HipExec, T> m_hip_reduce;
 #endif
 };
@@ -1082,13 +1082,13 @@ atomic_add(ExecutionPolicy policy, T *acc, T value)
     }
     if (policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
     {
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
         return detail::atomic_add_exec<CudaExec>(acc, value);
 #endif
     }
     if (policy_id == ExecutionPolicy::PolicyID::HIP_ID)
     {
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
         return detail::atomic_add_exec<HipExec>(acc, value);
 #endif
     }
@@ -1110,13 +1110,13 @@ atomic_min(ExecutionPolicy policy, T *acc, T value)
     }
     if (policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
     {
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
         return detail::atomic_min_exec<CudaExec>(acc, value);
 #endif
     }
     if (policy_id == ExecutionPolicy::PolicyID::HIP_ID)
     {
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
         return detail::atomic_min_exec<HipExec>(acc, value);
 #endif
     }
@@ -1138,13 +1138,13 @@ atomic_max(ExecutionPolicy policy, T *acc, T value)
     }
     if (policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
     {
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
         return detail::atomic_max_exec<CudaExec>(acc, value);
 #endif
     }
     if (policy_id == ExecutionPolicy::PolicyID::HIP_ID)
     {
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
         return detail::atomic_max_exec<HipExec>(acc, value);
 #endif
     }
@@ -1172,7 +1172,7 @@ dispatch(ExecutionPolicy policy, Function&& func)
     }
     else if (policy.is_cuda())
     {
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
         CudaExec ce;
         invoke(ce, func);
 #else
@@ -1181,7 +1181,7 @@ dispatch(ExecutionPolicy policy, Function&& func)
     }
     else if (policy.is_hip())
     {
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
         HipExec he;
         invoke(he, func);
 #else
@@ -1219,7 +1219,7 @@ forall(ExecutionPolicy &policy,
     }
     else if (policy.is_cuda())
     {
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
         forall<CudaExec>(begin, end, std::forward<Kernel>(kernel));
 #else
         CONDUIT_ERROR("Conduit was not built with CUDA.");
@@ -1227,7 +1227,7 @@ forall(ExecutionPolicy &policy,
     }
     else if (policy.is_hip())
     {
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
         forall<HipExec>(begin, end, std::forward<Kernel>(kernel));
 #else
         CONDUIT_ERROR("Conduit was not built with HIP.");
