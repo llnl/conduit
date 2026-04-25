@@ -94,6 +94,7 @@ ExecutionPolicy::hip()
     return ExecutionPolicy(PolicyID::HIP_ID);
 #else
     CONDUIT_ERROR("Conduit was built without HIP.");
+    return ExecutionPolicy(PolicyID::EMPTY_ID);
 #endif
 }
 
