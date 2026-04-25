@@ -82,7 +82,7 @@ ExecutionPolicy::cuda()
 #if defined(CONDUIT_EXEC_BUILD_HAS_CUDA)
     return ExecutionPolicy(PolicyID::CUDA_ID);
 #else
-    CONDUIT_ERROR("Conduit was without CUDA.");
+    CONDUIT_ERROR("Conduit was built without CUDA.");
 #endif
 }
 
@@ -93,7 +93,7 @@ ExecutionPolicy::hip()
 #if defined(CONDUIT_EXEC_BUILD_HAS_HIP)
     return ExecutionPolicy(PolicyID::HIP_ID);
 #else
-    CONDUIT_ERROR("Conduit was without HIP.");
+    CONDUIT_ERROR("Conduit was built without HIP.");
 #endif
 }
 
