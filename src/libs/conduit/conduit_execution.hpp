@@ -477,19 +477,19 @@ validate_runtime_policy(const ExecutionPolicy &policy,
 
     if (policy.is_openmp())
     {
-#if !defined(CONDUIT_USE_OPENMP)
+#ifndef CONDUIT_USE_OPENMP
         CONDUIT_ERROR(context << " requires OpenMP support in this translation unit.");
 #endif
     }
     else if (policy.is_cuda())
     {
-#if !defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#ifndef CONDUIT_EXEC_TU_HAS_CUDA
         CONDUIT_ERROR(context << " requires CUDA support in this translation unit.");
 #endif
     }
     else if (policy.is_hip())
     {
-#if !defined(CONDUIT_EXEC_TU_HAS_HIP)
+#ifndef CONDUIT_EXEC_TU_HAS_HIP
         CONDUIT_ERROR(context << " requires HIP support in this translation unit.");
 #endif
     }
@@ -1294,4 +1294,3 @@ sort(ExecutionPolicy &policy,
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-
