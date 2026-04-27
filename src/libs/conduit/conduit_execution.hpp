@@ -33,6 +33,8 @@
 // here first so the public execution facade remains the single source of truth
 // for translation-unit compile mode and for the host/device decorator used by
 // the rest of the execution layer.
+// CONDUIT_USE_HIP and CONDUIT_USE_CUDA mean that our build enabled these backends
+// But not necessarily that we have them in this TU.
 #if defined(CONDUIT_USE_CUDA) && defined(__CUDACC__)
 #define CONDUIT_TU_IS_CUDA
 #endif
