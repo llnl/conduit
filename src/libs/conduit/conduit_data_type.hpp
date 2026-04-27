@@ -453,7 +453,7 @@ public:
     ///
     CONDUIT_EXEC conduit::index_t element_index(conduit::index_t idx) const
                     {
-#if !defined(CONDUIT_EXEC_DEVICE_COMPILE)
+#if !defined(CONDUIT_DEVICE_COMPILE)
                         if(idx > 0 && m_stride == 0)
                         {
                             CONDUIT_WARN("Node index calculation with with stride = 0");

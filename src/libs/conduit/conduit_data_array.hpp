@@ -103,7 +103,7 @@ public:
         /// Destructor
         CONDUIT_EXEC ~DataArray()
         {
-#if !defined(CONDUIT_EXEC_DEVICE_COMPILE)
+#if !defined(CONDUIT_DEVICE_COMPILE)
             if (m_do_i_own_it)
             {
                 if (execution::DeviceMemory::is_device_ptr(m_other_ptr))

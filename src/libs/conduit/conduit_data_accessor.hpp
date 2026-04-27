@@ -105,7 +105,7 @@ public:
         /// Destructor.
         CONDUIT_EXEC ~DataAccessor()
         {
-#if !defined(CONDUIT_EXEC_DEVICE_COMPILE)
+#if !defined(CONDUIT_DEVICE_COMPILE)
             if (m_do_i_own_it)
             {
                 if (execution::DeviceMemory::is_device_ptr(m_other_ptr))
@@ -192,7 +192,7 @@ public:
                 return (T)(*(float64*)(element_ptr(idx)));
             default:
             {
-#if !defined(CONDUIT_EXEC_DEVICE_COMPILE)
+#if !defined(CONDUIT_DEVICE_COMPILE)
                 CONDUIT_ERROR("DataAccessor does not support dtype: "
                               << dtype().name());
 #endif
@@ -262,7 +262,7 @@ public:
             }
             default:
             {
-#if !defined(CONDUIT_EXEC_DEVICE_COMPILE)
+#if !defined(CONDUIT_DEVICE_COMPILE)
                 CONDUIT_ERROR("DataAccessor does not support dtype: "
                               << dtype().name());
 #endif

@@ -11,12 +11,21 @@
 #ifndef CONDUIT_EXECUTION_HPP
 #define CONDUIT_EXECUTION_HPP
 
-// Host/device decorators live in this public execution header so any code
-// that needs execution annotations can include the execution facade directly.
 #include "conduit_config.hpp"
 
+// Host/device decorators live in this public execution header so any code
+// that needs execution annotations can include the execution facade directly.
+
+// CONDUIT_DEVICE_COMPILE means the compiler is in the device code generation
+// pass right now, not merely that this file is being compiled as a CUDA or HIP
+// translation unit. CUDA/HIP TUs are typically compiled in separate host and
+// device passes. The TU macros below answer "what kind of translation unit is
+// this?", while CONDUIT_DEVICE_COMPILE answers "are we compiling the device
+// side of that TU right now?". We need both because some inline code must be
+// visible in a CUDA/HIP TU but must suppress host-only behavior, such as
+// warnings or ownership cleanup, during the device pass.
 #if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
-#define CONDUIT_EXEC_DEVICE_COMPILE
+#define CONDUIT_DEVICE_COMPILE
 #endif
 
 // conduit_execution_policy.hpp consumes these macros while declaring the
