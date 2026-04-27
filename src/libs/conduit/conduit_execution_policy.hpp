@@ -19,46 +19,11 @@
 #include <RAJA/RAJA.hpp>
 #endif
 
-// Build capability answers "was this Conduit build configured with a RAJA
-// backend?", while TU capability answers "is this translation unit actually
-// being compiled with that device compiler right now?"
-#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_CUDA)
-#define CONDUIT_EXEC_BUILD_HAS_CUDA
-#endif
-
-#if defined(CONDUIT_USE_RAJA) && defined(CONDUIT_USE_HIP)
-#define CONDUIT_EXEC_BUILD_HAS_HIP
-#endif
-
-#if defined(CONDUIT_EXEC_BUILD_HAS_CUDA) || defined(CONDUIT_EXEC_BUILD_HAS_HIP)
-#define CONDUIT_EXEC_BUILD_HAS_DEVICE
-#endif
-
-#if defined(CONDUIT_EXEC_BUILD_HAS_CUDA) && defined(__CUDACC__)
-#define CONDUIT_EXEC_TU_HAS_CUDA
-#endif
-
-#if defined(CONDUIT_EXEC_BUILD_HAS_HIP) && defined(__HIPCC__)
-#define CONDUIT_EXEC_TU_HAS_HIP
-#endif
-
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA) || defined(CONDUIT_EXEC_TU_HAS_HIP)
-#define CONDUIT_EXEC_TU_HAS_DEVICE
-#endif
-
 #if defined(CONDUIT_USE_OPENMP)
 #include <omp.h>
 #endif
 
 #include <string>
-
-#define CONDUIT_DEVICE_ERROR_CHECK( policy ) conduit::execution::device_error_check(policy, __FILE__, __LINE__);
-
-#if defined(CONDUIT_EXEC_TU_HAS_DEVICE)
-#define EXEC_LAMBDA __device__ __host__
-#else
-#define EXEC_LAMBDA
-#endif
 
 #if defined(CONDUIT_USE_CUDA)
 #define CUDA_BLOCK_SIZE 128
@@ -101,24 +66,24 @@ public:
     static ExecutionPolicy openmp(); // openMP
     static ExecutionPolicy parallel(); // prefer CUDA/HIP, then openMP, then host
 
-    EXEC_LAMBDA ExecutionPolicy()
+    CONDUIT_EXEC ExecutionPolicy()
     : m_policy_id(PolicyID::EMPTY_ID)
     {}
 
-    EXEC_LAMBDA ExecutionPolicy(const ExecutionPolicy& exec_policy) = default;
-    EXEC_LAMBDA ExecutionPolicy& operator=(const ExecutionPolicy& exec_policy) = default;
+    CONDUIT_EXEC ExecutionPolicy(const ExecutionPolicy& exec_policy) = default;
+    CONDUIT_EXEC ExecutionPolicy& operator=(const ExecutionPolicy& exec_policy) = default;
 
-    EXEC_LAMBDA ExecutionPolicy(PolicyID policy_id)
+    CONDUIT_EXEC ExecutionPolicy(PolicyID policy_id)
     : m_policy_id(policy_id)
     {}
 
     ExecutionPolicy(const std::string &policy_name);
-    EXEC_LAMBDA ~ExecutionPolicy() = default;
+    CONDUIT_EXEC ~ExecutionPolicy() = default;
 
     void set_policy(PolicyID policy_id)
         { m_policy_id = policy_id; }
 
-    EXEC_LAMBDA PolicyID policy_id() const { return m_policy_id; }
+    CONDUIT_EXEC PolicyID policy_id() const { return m_policy_id; }
     std::string policy_name()       const { return policy_id_to_name(m_policy_id); }
 
     bool        is_empty()          const;
@@ -160,9 +125,9 @@ struct EmptyPolicy
 struct SerialExec
 {
     using for_policy = RAJA::seq_exec;
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
     using reduce_policy = RAJA::cuda_reduce;
-#elif defined(CONDUIT_EXEC_TU_HAS_HIP)
+#elif defined(CONDUIT_TU_IS_HIP)
     using reduce_policy = RAJA::hip_reduce;
 #else
     using reduce_policy = RAJA::seq_reduce;
@@ -172,7 +137,7 @@ struct SerialExec
     static std::string memory_space;
 };
 
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
 struct CudaExec
 {
     using for_policy    = RAJA::cuda_exec<CUDA_BLOCK_SIZE>;
@@ -183,7 +148,7 @@ struct CudaExec
 };
 #endif
 
-#if defined(CONDUIT_EXEC_TU_HAS_HIP)
+#if defined(CONDUIT_TU_IS_HIP)
 struct HipExec
 {
     using for_policy    = RAJA::hip_exec<HIP_BLOCK_SIZE>;
@@ -198,9 +163,9 @@ struct HipExec
 struct OpenMPExec
 {
     using for_policy = RAJA::omp_parallel_for_exec;
-#if defined(CONDUIT_EXEC_TU_HAS_CUDA)
+#if defined(CONDUIT_TU_IS_CUDA)
     using reduce_policy = RAJA::cuda_reduce;
-#elif defined(CONDUIT_EXEC_TU_HAS_HIP)
+#elif defined(CONDUIT_TU_IS_HIP)
     using reduce_policy = RAJA::hip_reduce;
 #else
     using reduce_policy = RAJA::omp_reduce;

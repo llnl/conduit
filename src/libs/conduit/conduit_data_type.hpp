@@ -330,7 +330,7 @@ public:
     /// device lambdas by value.
     ///
     /// standard constructor
-    CONDUIT_EXEC_HOST_DEVICE DataType()
+    CONDUIT_EXEC DataType()
     : m_id(DataType::EMPTY_ID),
       m_num_ele(0),
       m_offset(0),
@@ -339,7 +339,7 @@ public:
       m_endianness(Endianness::DEFAULT_ID)
     {}
     /// copy constructor
-    CONDUIT_EXEC_HOST_DEVICE DataType(const DataType& type)
+    CONDUIT_EXEC DataType(const DataType& type)
     : m_id(type.m_id),
       m_num_ele(type.m_num_ele),
       m_offset(type.m_offset),
@@ -348,7 +348,7 @@ public:
       m_endianness(type.m_endianness)
     {}
     /// Assignment operator
-    CONDUIT_EXEC_HOST_DEVICE DataType& operator=(const DataType& type)
+    CONDUIT_EXEC DataType& operator=(const DataType& type)
     {
         m_id = type.m_id;
         m_num_ele = type.m_num_ele;
@@ -372,7 +372,7 @@ public:
              conduit::index_t endianness);
 
     /// construct from full details, given a data type id
-    CONDUIT_EXEC_HOST_DEVICE DataType(conduit::index_t dtype_id,
+    CONDUIT_EXEC DataType(conduit::index_t dtype_id,
                                       conduit::index_t num_elements,
                                       conduit::index_t offset,
                                       conduit::index_t stride,
@@ -387,7 +387,7 @@ public:
     {}
 
     /// destructor
-   CONDUIT_EXEC_HOST_DEVICE ~DataType() = default;
+   CONDUIT_EXEC ~DataType() = default;
 
    /// return a data type to the default (empty) state
    void  reset();
@@ -433,27 +433,27 @@ public:
     /// device-usable slice of DataAccessor queries them while executing inside
     /// device lambdas.
     ///
-    CONDUIT_EXEC_HOST_DEVICE conduit::index_t id() const { return m_id;}
+    CONDUIT_EXEC conduit::index_t id() const { return m_id;}
     std::string name()  const { return id_to_name(m_id);}
 
-    CONDUIT_EXEC_HOST_DEVICE conduit::index_t number_of_elements() const
+    CONDUIT_EXEC conduit::index_t number_of_elements() const
                     { return m_num_ele; }
-    CONDUIT_EXEC_HOST_DEVICE conduit::index_t offset() const
+    CONDUIT_EXEC conduit::index_t offset() const
                     { return m_offset; }
-    CONDUIT_EXEC_HOST_DEVICE conduit::index_t stride() const
+    CONDUIT_EXEC conduit::index_t stride() const
                     { return m_stride; }
-    CONDUIT_EXEC_HOST_DEVICE conduit::index_t element_bytes() const
+    CONDUIT_EXEC conduit::index_t element_bytes() const
                     { return m_ele_bytes; }
-    CONDUIT_EXEC_HOST_DEVICE conduit::index_t endianness() const
+    CONDUIT_EXEC conduit::index_t endianness() const
                     { return m_endianness; }
     ///
     /// element_index() is part of the address calculation path used from
     /// device lambdas, so it must remain inline in the header. The warning is
     /// kept host-only because device code cannot emit Conduit diagnostics.
     ///
-    CONDUIT_EXEC_HOST_DEVICE conduit::index_t element_index(conduit::index_t idx) const
+    CONDUIT_EXEC conduit::index_t element_index(conduit::index_t idx) const
                     {
-#if !defined(CONDUIT_EXEC_DEVICE_COMPILE)
+#if !defined(CONDUIT_DEVICE_COMPILE)
                         if(idx > 0 && m_stride == 0)
                         {
                             CONDUIT_WARN("Node index calculation with with stride = 0");

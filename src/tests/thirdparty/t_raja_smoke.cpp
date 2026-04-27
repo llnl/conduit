@@ -24,7 +24,7 @@
 
 #else
 
-#define EXEC_LAMBDA 
+#define EXEC_LAMBDA
 
 #endif
 

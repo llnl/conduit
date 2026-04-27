@@ -222,6 +222,14 @@ if(RAJA_DIR)  # optional for now
     endif()
 endif()
 
+if(ENABLE_CUDA AND NOT RAJA_FOUND)
+    message(FATAL_ERROR "ENABLE_CUDA requires RAJA.")
+endif()
+
+if(ENABLE_HIP AND NOT RAJA_FOUND)
+    message(FATAL_ERROR "ENABLE_HIP requires RAJA.")
+endif()
+
 ################################
 # Umpire
 ################################

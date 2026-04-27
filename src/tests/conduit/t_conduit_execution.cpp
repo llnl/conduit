@@ -174,10 +174,10 @@ TEST(conduit_execution, policy_aliases)
         const ExecutionPolicy device_from_name("device");
         EXPECT_EQ(device_from_name.policy_id(), device.policy_id());
 
-#if defined(CONDUIT_EXEC_BUILD_HAS_CUDA)
+#if defined(CONDUIT_USE_CUDA)
         EXPECT_TRUE(device.is_cuda());
         EXPECT_EQ(device.policy_name(), "cuda");
-#elif defined(CONDUIT_EXEC_BUILD_HAS_HIP)
+#elif defined(CONDUIT_USE_HIP)
         EXPECT_TRUE(device.is_hip());
         EXPECT_EQ(device.policy_name(), "hip");
 #endif
@@ -185,12 +185,12 @@ TEST(conduit_execution, policy_aliases)
 
     const ExecutionPolicy parallel = ExecutionPolicy::parallel();
 
-#if defined(CONDUIT_EXEC_BUILD_HAS_CUDA)
+#if defined(CONDUIT_USE_CUDA)
     EXPECT_TRUE(ExecutionPolicy::is_parallel_enabled());
     EXPECT_TRUE(parallel.is_parallel_policy());
     EXPECT_TRUE(parallel.is_cuda());
     EXPECT_EQ(parallel.policy_name(), "cuda");
-#elif defined(CONDUIT_EXEC_BUILD_HAS_HIP)
+#elif defined(CONDUIT_USE_HIP)
     EXPECT_TRUE(ExecutionPolicy::is_parallel_enabled());
     EXPECT_TRUE(parallel.is_parallel_policy());
     EXPECT_TRUE(parallel.is_hip());
@@ -229,7 +229,7 @@ run_data_accessor_policy_and_sync(Node &node,
     // Our forall will execute in the memory space selected by the
     // requested ExecutionPolicy.
     index_t size = acc_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [acc_src, acc_des] EXEC_LAMBDA(index_t idx)
+    conduit::execution::forall(policy, 0, size, [acc_src, acc_des] CONDUIT_EXEC(index_t idx)
     {
         const float64 val = 2.0 * acc_src[idx];
         acc_des.set(idx, val);
@@ -260,7 +260,7 @@ run_data_accessor_policy_and_assume(Node &node,
     // Our forall will execute in the memory space selected by the
     // requested ExecutionPolicy.
     index_t size = acc_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [acc_src, acc_des] EXEC_LAMBDA(index_t idx)
+    conduit::execution::forall(policy, 0, size, [acc_src, acc_des] CONDUIT_EXEC(index_t idx)
     {
         const float64 val = 2.0 * acc_src[idx];
         acc_des.set(idx, val);
@@ -300,7 +300,7 @@ run_data_accessor_using_active_space(Node &node,
     // Our forall will execute on the memory space occupied by node["src"]
     // because it was passed an ExecutionPolicy for that space.
     index_t size = acc_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [acc_src, acc_des] EXEC_LAMBDA(index_t idx)
+    conduit::execution::forall(policy, 0, size, [acc_src, acc_des] CONDUIT_EXEC(index_t idx)
     {
         const float64 val = 2.0 * acc_src[idx];
         acc_des.set(idx, val);
@@ -331,7 +331,7 @@ run_data_array_policy_and_sync(Node &node,
     // Our forall will execute in the memory space selected by the
     // requested ExecutionPolicy.
     index_t size = arr_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [arr_src, arr_des] EXEC_LAMBDA(index_t idx)
+    conduit::execution::forall(policy, 0, size, [arr_src, arr_des] CONDUIT_EXEC(index_t idx)
     {
         const float64 val = 2.0 * arr_src[idx];
         arr_des.set(idx, val);
@@ -362,7 +362,7 @@ run_data_array_policy_and_assume(Node &node,
     // Our forall will execute in the memory space selected by the
     // requested ExecutionPolicy.
     index_t size = arr_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [arr_src, arr_des] EXEC_LAMBDA(index_t idx)
+    conduit::execution::forall(policy, 0, size, [arr_src, arr_des] CONDUIT_EXEC(index_t idx)
     {
         const float64 val = 2.0 * arr_src[idx];
         arr_des.set(idx, val);
@@ -402,7 +402,7 @@ run_data_array_using_active_space(Node &node,
     // Our forall will execute on the memory space occupied by node["src"]
     // because it was passed an ExecutionPolicy for that space.
     index_t size = arr_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [arr_src, arr_des] EXEC_LAMBDA(index_t idx)
+    conduit::execution::forall(policy, 0, size, [arr_src, arr_des] CONDUIT_EXEC(index_t idx)
     {
         const float64 val = 2.0 * arr_src[idx];
         arr_des.set(idx, val);
@@ -429,7 +429,7 @@ struct MyFunctor
     {
         (void)exec;
         res = 0;
-        conduit::execution::forall<ComboPolicyTag>(0, size, [] EXEC_LAMBDA (int i)
+        conduit::execution::forall<ComboPolicyTag>(0, size, [] CONDUIT_EXEC (int i)
         {
             (void)i;
         });
@@ -452,7 +452,7 @@ public:
     :val(_val)
     {}
     
-    EXEC_LAMBDA int exec(int i) const
+    CONDUIT_EXEC int exec(int i) const
     {
         return val + i;
     }
@@ -475,7 +475,7 @@ struct MySpecialFunctor
         using for_policy = typename ComboPolicyTag::for_policy;
         res = 0;
         MySpecialClass<for_policy> s(10);
-        conduit::execution::forall<ComboPolicyTag>(0, size, [=] EXEC_LAMBDA (int i)
+        conduit::execution::forall<ComboPolicyTag>(0, size, [=] CONDUIT_EXEC (int i)
         {
             const int value = s.exec(i);
             (void)value;
@@ -504,7 +504,7 @@ TEST(conduit_execution, test_forall)
             static_cast<index_t*>(allocate_for_policy(policy,
                                                       sizeof(index_t) * size));
 
-        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
         {
             vals_ptr[i] = i;
         });
@@ -545,7 +545,7 @@ TEST(conduit_execution, test_reductions)
                                               sizeof(index_t) * size);
 
         conduit::execution::ReduceSum<index_t> sum_reducer(policy);
-        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
         {
             sum_reducer += vals_ptr[i];
         });
@@ -553,7 +553,7 @@ TEST(conduit_execution, test_reductions)
         EXPECT_EQ(sum_reducer.get(), 5);
 
         conduit::execution::ReduceMin<index_t> min_reducer(policy);
-        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
         {
             min_reducer.min(vals_ptr[i]);
         });
@@ -561,7 +561,7 @@ TEST(conduit_execution, test_reductions)
         EXPECT_EQ(min_reducer.get(), -10);
 
         conduit::execution::ReduceMinLoc<index_t> minloc_reducer(policy);
-        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
         {
             minloc_reducer.minloc(vals_ptr[i], i);
         });
@@ -570,7 +570,7 @@ TEST(conduit_execution, test_reductions)
         EXPECT_EQ(minloc_reducer.getLoc(), 1);
 
         conduit::execution::ReduceMax<index_t> max_reducer(policy);
-        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
         {
             max_reducer.max(vals_ptr[i]);
         });
@@ -578,7 +578,7 @@ TEST(conduit_execution, test_reductions)
         EXPECT_EQ(max_reducer.get(), 10);
 
         conduit::execution::ReduceMaxLoc<index_t> maxloc_reducer(policy);
-        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
         {
             maxloc_reducer.maxloc(vals_ptr[i], i);
         });
@@ -612,7 +612,7 @@ TEST(conduit_execution, test_atomics)
                                               &host_vals[0],
                                               sizeof(index_t) * size);
 
-        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
         {
             conduit::execution::atomic_add(policy, vals_ptr + i, i);
         });
@@ -626,7 +626,7 @@ TEST(conduit_execution, test_atomics)
             EXPECT_EQ(host_vals[i], 0);
         }
 
-        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
         {
             conduit::execution::atomic_min(policy,
                                            vals_ptr + i,
@@ -642,7 +642,7 @@ TEST(conduit_execution, test_atomics)
             EXPECT_EQ(host_vals[i], -10);
         }
 
-        conduit::execution::forall(policy, 0, size, [=] EXEC_LAMBDA(index_t i)
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
         {
             conduit::execution::atomic_max(policy,
                                            vals_ptr + i,
@@ -693,7 +693,7 @@ TEST(conduit_execution, for_all_and_dispatch)
 
         // Use runtime forall(policy, ...) when one portable kernel works for
         // every backend that may be selected in this translation unit.
-        auto portable_kernel = [=] EXEC_LAMBDA (int i)
+        auto portable_kernel = [=] CONDUIT_EXEC (int i)
         {
             vals_ptr[i] = i;
         };
@@ -731,7 +731,7 @@ TEST(conduit_execution, for_all_and_dispatch)
             using combo_policy = typename std::decay<decltype(exec)>::type;
             using for_policy = typename combo_policy::for_policy;
             MySpecialClass<for_policy> s(10);
-            conduit::execution::forall<combo_policy>(0, size, [=] EXEC_LAMBDA (int i)
+            conduit::execution::forall<combo_policy>(0, size, [=] CONDUIT_EXEC (int i)
             {
                 const int value = s.exec(i);
                 (void)value;
@@ -2022,7 +2022,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
 
     //     index_t size = acc_src.number_of_elements();
 
-    //     forall(policy, 0, size, [=] EXEC_LAMBDA(index_t idx)
+    //     forall(policy, 0, size, [=] CONDUIT_EXEC(index_t idx)
     //     {
     //         const float64 val = 2.0 * acc_src[idx];
     //         acc_des.set(idx,val);
@@ -2051,7 +2051,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
 
     //     index_t size = acc_src.number_of_elements();
 
-    //     forall(policy, 0, size, [=] EXEC_LAMBDA(index_t idx)
+    //     forall(policy, 0, size, [=] CONDUIT_EXEC(index_t idx)
     //     {
     //         const float64 val = 2.0 * acc_src[idx];
     //         acc_des.set(idx,val);
@@ -2077,7 +2077,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
 
     //     index_t size = acc_src.number_of_elements();
 
-    //     forall(policy, 0, size, [=] EXEC_LAMBDA(index_t idx)
+    //     forall(policy, 0, size, [=] CONDUIT_EXEC(index_t idx)
     //     {
     //         const float64 val = 2.0 * acc_src[idx];
     //         acc_des.set(idx,val);
@@ -2123,7 +2123,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
 
     //         ReduceMinLoc<reduce_policy,float64> reducer(identity,-1);
 
-    //         forall<for_policy>(0, size, [=] EXEC_LAMBDA (int i)
+    //         forall<for_policy>(0, size, [=] CONDUIT_EXEC (int i)
     //         {
     //             const float64 val = 2.0 * acc_src[idx];
     //             reducer.minloc(val,i);

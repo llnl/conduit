@@ -74,7 +74,7 @@ public:
         /// Device compilation needs to see the copy operation.
         ///
         /// Copy constructor
-        CONDUIT_EXEC_HOST_DEVICE DataAccessor(const DataAccessor<T> &accessor)
+        CONDUIT_EXEC DataAccessor(const DataAccessor<T> &accessor)
         : m_data(accessor.m_data),
           m_orig_data_ptr(accessor.m_orig_data_ptr),
           m_dtype(accessor.m_dtype),
@@ -103,9 +103,9 @@ public:
         /// no-op while the host path preserves ownership cleanup.
         ///
         /// Destructor.
-        CONDUIT_EXEC_HOST_DEVICE ~DataAccessor()
+        CONDUIT_EXEC ~DataAccessor()
         {
-#if !defined(CONDUIT_EXEC_DEVICE_COMPILE)
+#if !defined(CONDUIT_DEVICE_COMPILE)
             if (m_do_i_own_it)
             {
                 if (execution::DeviceMemory::is_device_ptr(m_other_ptr))
@@ -137,7 +137,7 @@ public:
     /// device lambdas.
     ///
     /// Assignment operator
-    CONDUIT_EXEC_HOST_DEVICE DataAccessor<T> &operator=(const DataAccessor<T> &accessor)
+    CONDUIT_EXEC DataAccessor<T> &operator=(const DataAccessor<T> &accessor)
     {
         if(this != &accessor)
         {
@@ -163,10 +163,10 @@ public:
     /// array layout, so device compilation must see the definitions here in
     /// the header.
     ///
-    CONDUIT_EXEC_HOST_DEVICE T operator[](index_t idx) const
+    CONDUIT_EXEC T operator[](index_t idx) const
                     {return element(idx);}
 
-    CONDUIT_EXEC_HOST_DEVICE T element(index_t idx) const
+    CONDUIT_EXEC T element(index_t idx) const
     {
         switch(dtype().id())
         {
@@ -192,7 +192,7 @@ public:
                 return (T)(*(float64*)(element_ptr(idx)));
             default:
             {
-#if !defined(CONDUIT_EXEC_DEVICE_COMPILE)
+#if !defined(CONDUIT_DEVICE_COMPILE)
                 CONDUIT_ERROR("DataAccessor does not support dtype: "
                               << dtype().name());
 #endif
@@ -204,7 +204,7 @@ public:
     // Restrict the scalar setter to non-pointer value types so calls like
     // set(0, value) do not collide with the bulk pointer setter below.
     template <typename U = T>
-    CONDUIT_EXEC_HOST_DEVICE
+    CONDUIT_EXEC
     typename std::enable_if<!std::is_pointer<U>::value, void>::type
                     set(index_t idx, T value) const
     {
@@ -262,7 +262,7 @@ public:
             }
             default:
             {
-#if !defined(CONDUIT_EXEC_DEVICE_COMPILE)
+#if !defined(CONDUIT_DEVICE_COMPILE)
                 CONDUIT_ERROR("DataAccessor does not support dtype: "
                               << dtype().name());
 #endif
@@ -280,13 +280,13 @@ public:
 
     void            fill(T value);
 
-    CONDUIT_EXEC_HOST_DEVICE const void *element_ptr(index_t idx) const
+    CONDUIT_EXEC const void *element_ptr(index_t idx) const
                     {
                          return static_cast<const char*>(m_data) +
                                   dtype().element_index(idx);
                     }
 
-    CONDUIT_EXEC_HOST_DEVICE index_t number_of_elements() const
+    CONDUIT_EXEC index_t number_of_elements() const
                         {return dtype().number_of_elements();}
 
     ///
@@ -294,7 +294,7 @@ public:
     /// between the original and migrated layout without dereferencing Node.
     /// This logic must stay inline in the header for device compilation.
     ///
-    CONDUIT_EXEC_HOST_DEVICE const DataType &dtype() const
+    CONDUIT_EXEC const DataType &dtype() const
     {
         if (nullptr != m_node_ptr)
         {
@@ -312,10 +312,10 @@ public:
     /// These methods are part of the cached dtype metadata used by device
     /// code, so they must remain inline in the header alongside dtype().
     ///
-    CONDUIT_EXEC_HOST_DEVICE const DataType &orig_dtype() const
+    CONDUIT_EXEC const DataType &orig_dtype() const
                     { return m_dtype; }
 
-    CONDUIT_EXEC_HOST_DEVICE const DataType &other_dtype() const
+    CONDUIT_EXEC const DataType &other_dtype() const
                     { return nullptr != m_node_ptr ? m_other_dtype : m_dtype; }
 
 //-----------------------------------------------------------------------------
