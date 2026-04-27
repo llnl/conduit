@@ -60,7 +60,6 @@ find_package(Conduit REQUIRED
              NO_DEFAULT_PATH 
              PATHS ${CONDUIT_DIR}/lib/cmake/conduit)
 
-
 ################################################################
 # Option 2: import conduit using find_package search
 ################################################################
