@@ -137,6 +137,7 @@ struct SerialExec
     static std::string memory_space;
 };
 
+// TODO can I do CONDUIT_USE_CUDA instead?
 #if defined(CONDUIT_TU_IS_CUDA)
 struct CudaExec
 {
