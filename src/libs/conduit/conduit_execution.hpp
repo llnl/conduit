@@ -79,21 +79,6 @@ namespace execution
 namespace detail
 {
 
-template <typename ExecPolicyTag, typename T>
-using ReduceSumImpl = RAJA::ReduceSum<typename ExecPolicyTag::reduce_policy, T>;
-
-template <typename ExecPolicyTag, typename T>
-using ReduceMinImpl = RAJA::ReduceMin<typename ExecPolicyTag::reduce_policy, T>;
-
-template <typename ExecPolicyTag, typename T>
-using ReduceMinLocImpl = RAJA::ReduceMinLoc<typename ExecPolicyTag::reduce_policy, T>;
-
-template <typename ExecPolicyTag, typename T>
-using ReduceMaxImpl = RAJA::ReduceMax<typename ExecPolicyTag::reduce_policy, T>;
-
-template <typename ExecPolicyTag, typename T>
-using ReduceMaxLocImpl = RAJA::ReduceMaxLoc<typename ExecPolicyTag::reduce_policy, T>;
-
 //-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Kernel>
 inline void
@@ -163,221 +148,6 @@ atomic_max_exec(T *acc, T value)
 //-----------------------------------------------------------------------------
 namespace detail
 {
-
-template <typename ExecPolicyTag, typename T>
-class ReduceSumImpl
-{
-public:
-    ReduceSumImpl()
-    : m_value(0),
-      m_value_ptr(&m_value)
-    {}
-
-    explicit ReduceSumImpl(T v_start)
-    : m_value(v_start),
-      m_value_ptr(&m_value)
-    {}
-
-    ReduceSumImpl(const ReduceSumImpl &other)
-    : m_value(other.m_value),
-      m_value_ptr(other.m_value_ptr)
-    {}
-
-    CONDUIT_EXEC void operator+=(const T value) const
-    {
-        m_value_ptr[0] += value;
-    }
-
-    CONDUIT_EXEC void sum(const T value) const
-    {
-        m_value_ptr[0] += value;
-    }
-
-    T get()
-    {
-        return m_value_ptr[0];
-    }
-
-private:
-    T m_value;
-    T *m_value_ptr;
-};
-
-template <typename ExecPolicyTag, typename T>
-class ReduceMinImpl
-{
-public:
-    ReduceMinImpl()
-    : m_value(std::numeric_limits<T>::max()),
-      m_value_ptr(&m_value)
-    {}
-
-    explicit ReduceMinImpl(T v_start)
-    : m_value(v_start),
-      m_value_ptr(&m_value)
-    {}
-
-    ReduceMinImpl(const ReduceMinImpl &other)
-    : m_value(other.m_value),
-      m_value_ptr(other.m_value_ptr)
-    {}
-
-    CONDUIT_EXEC void min(const T value) const
-    {
-        if (value < m_value_ptr[0])
-        {
-            m_value_ptr[0] = value;
-        }
-    }
-
-    T get()
-    {
-        return m_value_ptr[0];
-    }
-
-private:
-    T m_value;
-    T *m_value_ptr;
-};
-
-template <typename ExecPolicyTag, typename T>
-class ReduceMinLocImpl
-{
-public:
-    ReduceMinLocImpl()
-    : m_value(std::numeric_limits<T>::max()),
-      m_value_ptr(&m_value),
-      m_index(-1),
-      m_index_ptr(&m_index)
-    {}
-
-    ReduceMinLocImpl(T v_start, index_t i_start)
-    : m_value(v_start),
-      m_value_ptr(&m_value),
-      m_index(i_start),
-      m_index_ptr(&m_index)
-    {}
-
-    ReduceMinLocImpl(const ReduceMinLocImpl &other)
-    : m_value(other.m_value),
-      m_value_ptr(other.m_value_ptr),
-      m_index(other.m_index),
-      m_index_ptr(other.m_index_ptr)
-    {}
-
-    CONDUIT_EXEC void minloc(const T value, index_t index) const
-    {
-        if (value < m_value_ptr[0])
-        {
-            m_value_ptr[0] = value;
-            m_index_ptr[0] = index;
-        }
-    }
-
-    T get()
-    {
-        return m_value_ptr[0];
-    }
-
-    index_t getLoc()
-    {
-        return m_index_ptr[0];
-    }
-
-private:
-    T m_value;
-    T *m_value_ptr;
-    index_t m_index;
-    index_t *m_index_ptr;
-};
-
-template <typename ExecPolicyTag, typename T>
-class ReduceMaxImpl
-{
-public:
-    ReduceMaxImpl()
-    : m_value(std::numeric_limits<T>::lowest()),
-      m_value_ptr(&m_value)
-    {}
-
-    explicit ReduceMaxImpl(T v_start)
-    : m_value(v_start),
-      m_value_ptr(&m_value)
-    {}
-
-    ReduceMaxImpl(const ReduceMaxImpl &other)
-    : m_value(other.m_value),
-      m_value_ptr(other.m_value_ptr)
-    {}
-
-    CONDUIT_EXEC void max(const T value) const
-    {
-        if (value > m_value_ptr[0])
-        {
-            m_value_ptr[0] = value;
-        }
-    }
-
-    T get()
-    {
-        return m_value_ptr[0];
-    }
-
-private:
-    T m_value;
-    T *m_value_ptr;
-};
-
-template <typename ExecPolicyTag, typename T>
-class ReduceMaxLocImpl
-{
-public:
-    ReduceMaxLocImpl()
-    : m_value(std::numeric_limits<T>::lowest()),
-      m_value_ptr(&m_value),
-      m_index(-1),
-      m_index_ptr(&m_index)
-    {}
-
-    ReduceMaxLocImpl(T v_start, index_t i_start)
-    : m_value(v_start),
-      m_value_ptr(&m_value),
-      m_index(i_start),
-      m_index_ptr(&m_index)
-    {}
-
-    ReduceMaxLocImpl(const ReduceMaxLocImpl &other)
-    : m_value(other.m_value),
-      m_value_ptr(other.m_value_ptr),
-      m_index(other.m_index),
-      m_index_ptr(other.m_index_ptr)
-    {}
-
-    CONDUIT_EXEC void maxloc(const T value, index_t index) const
-    {
-        if (value > m_value_ptr[0])
-        {
-            m_value_ptr[0] = value;
-            m_index_ptr[0] = index;
-        }
-    }
-
-    T get()
-    {
-        return m_value_ptr[0];
-    }
-
-    index_t getLoc()
-    {
-        return m_index_ptr[0];
-    }
-
-private:
-    T m_value;
-    T *m_value_ptr;
-    index_t m_index;
-    index_t *m_index_ptr;
-};
 
 //-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Kernel>
@@ -491,578 +261,282 @@ atomic_max_exec(T *acc, T value)
 #endif
 
 //-----------------------------------------------------------------------------
-// Runtime ExecutionPolicy values answer "which backend should I prefer?" but
-// they do not prove that the current translation unit was compiled with support
-// for that backend. A host-only TU may legally construct
-// ExecutionPolicy::device() and pass it along to code in a CUDA/HIP-enabled TU.
-// That means we cannot reject unsupported policy use when the policy object is
-// created, and we cannot generally reject it at compile time for the runtime
-// policy API.
-//
-// Instead, each runtime entry point that actually needs backend support in the
-// current TU must validate that the selected policy is usable here. The
-// reducers do this in their constructors because that is the last host-side
-// point before their device-callable methods begin dispatching through
-// backend-specific reducer state. Without this check, asking for CUDA/HIP from
-// a TU that lacks that backend would silently fall through to the serial path.
-//-----------------------------------------------------------------------------
-inline void
-validate_runtime_policy(const ExecutionPolicy &policy,
-                        const char *context)
-{
-    if (policy.is_empty())
-    {
-        CONDUIT_ERROR(context << " does not support an empty policy.");
-    }
-
-    if (policy.is_openmp())
-    {
-#ifndef CONDUIT_USE_OPENMP
-        CONDUIT_ERROR(context << " requires OpenMP support in this translation unit.");
-#endif
-    }
-    else if (policy.is_cuda())
-    {
-#ifndef CONDUIT_TU_IS_CUDA
-        CONDUIT_ERROR(context << " requires CUDA support in this translation unit.");
-#endif
-    }
-    else if (policy.is_hip())
-    {
-#ifndef CONDUIT_TU_IS_HIP
-        CONDUIT_ERROR(context << " requires HIP support in this translation unit.");
-#endif
-    }
-}
+// Reducers are typed on the execution tag so the selected backend is concrete
+// before the reducer is captured into a forall kernel. Each reducer extracts
+// ExecPolicyTag::reduce_policy internally so call sites stay at the Exec level.
+#if defined(CONDUIT_USE_RAJA)
 
 //-----------------------------------------------------------------------------
-template <typename T>
+template <typename ExecPolicyTag, typename T>
+using ReduceSum = RAJA::ReduceSum<typename ExecPolicyTag::reduce_policy, T>;
+
+//-----------------------------------------------------------------------------
+template <typename ExecPolicyTag, typename T>
+using ReduceMin = RAJA::ReduceMin<typename ExecPolicyTag::reduce_policy, T>;
+
+//-----------------------------------------------------------------------------
+template <typename ExecPolicyTag, typename T>
+using ReduceMinLoc = RAJA::ReduceMinLoc<typename ExecPolicyTag::reduce_policy, T>;
+
+//-----------------------------------------------------------------------------
+template <typename ExecPolicyTag, typename T>
+using ReduceMax = RAJA::ReduceMax<typename ExecPolicyTag::reduce_policy, T>;
+
+//-----------------------------------------------------------------------------
+template <typename ExecPolicyTag, typename T>
+using ReduceMaxLoc = RAJA::ReduceMaxLoc<typename ExecPolicyTag::reduce_policy, T>;
+
+#else
+
+//-----------------------------------------------------------------------------
+template <typename ExecPolicyTag, typename T>
 class ReduceSum
 {
 public:
     //-----------------------------------------------------------------------------
-    explicit ReduceSum(ExecutionPolicy policy)
-    : ReduceSum(policy, T(0))
+    ReduceSum()
+    : m_value(0),
+      m_value_ptr(&m_value)
     {}
 
     //-----------------------------------------------------------------------------
-    ReduceSum(ExecutionPolicy policy, T v_start)
-    : m_policy_id(policy.policy_id()),
-      m_serial_reduce(v_start)
-#if defined(CONDUIT_USE_OPENMP)
-    , m_openmp_reduce(v_start)
-#endif
-#if defined(CONDUIT_TU_IS_CUDA)
-    , m_cuda_reduce(v_start)
-#endif
-#if defined(CONDUIT_TU_IS_HIP)
-    , m_hip_reduce(v_start)
-#endif
-    {
-        // ReduceSum consumes a runtime-selected policy but may be used from
-        // device-callable code afterward. Validate here, while we are still on
-        // the host, so an unsupported CUDA/HIP/OpenMP policy in this TU fails
-        // immediately instead of silently falling back to serial updates.
-        validate_runtime_policy(policy, "ReduceSum");
-    }
+    explicit ReduceSum(T v_start)
+    : m_value(v_start),
+      m_value_ptr(&m_value)
+    {}
 
+    //-----------------------------------------------------------------------------
+    ReduceSum(const ReduceSum &other)
+    : m_value(other.m_value),
+      m_value_ptr(other.m_value_ptr)
+    {}
+
+    //-----------------------------------------------------------------------------
     CONDUIT_EXEC void operator+=(const T value) const
     {
-        if (m_policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
-        {
-#if defined(CONDUIT_USE_OPENMP)
-            m_openmp_reduce += value;
-            return;
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
-        {
-#if defined(CONDUIT_TU_IS_CUDA)
-            m_cuda_reduce += value;
-            return;
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
-        {
-#if defined(CONDUIT_TU_IS_HIP)
-            m_hip_reduce += value;
-            return;
-#endif
-        }
-
-        m_serial_reduce += value;
+        m_value_ptr[0] += value;
     }
 
+    //-----------------------------------------------------------------------------
     CONDUIT_EXEC void sum(const T value) const
     {
-        (*this) += value;
+        m_value_ptr[0] += value;
     }
 
+    //-----------------------------------------------------------------------------
     T get()
     {
-        if (m_policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
-        {
-#if defined(CONDUIT_USE_OPENMP)
-            return m_openmp_reduce.get();
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
-        {
-#if defined(CONDUIT_TU_IS_CUDA)
-            return m_cuda_reduce.get();
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
-        {
-#if defined(CONDUIT_TU_IS_HIP)
-            return m_hip_reduce.get();
-#endif
-        }
-
-        return m_serial_reduce.get();
+        return m_value_ptr[0];
     }
 
 private:
-    ExecutionPolicy::PolicyID m_policy_id;
-    detail::ReduceSumImpl<SerialExec, T> m_serial_reduce;
-#if defined(CONDUIT_USE_OPENMP)
-    detail::ReduceSumImpl<OpenMPExec, T> m_openmp_reduce;
-#endif
-#if defined(CONDUIT_TU_IS_CUDA)
-    detail::ReduceSumImpl<CudaExec, T> m_cuda_reduce;
-#endif
-#if defined(CONDUIT_TU_IS_HIP)
-    detail::ReduceSumImpl<HipExec, T> m_hip_reduce;
-#endif
+    T m_value;
+    T *m_value_ptr;
 };
 
 //-----------------------------------------------------------------------------
-template <typename T>
+template <typename ExecPolicyTag, typename T>
 class ReduceMin
 {
 public:
     //-----------------------------------------------------------------------------
-    explicit ReduceMin(ExecutionPolicy policy)
-    : ReduceMin(policy, std::numeric_limits<T>::max())
+    ReduceMin()
+    : m_value(std::numeric_limits<T>::max()),
+      m_value_ptr(&m_value)
     {}
 
     //-----------------------------------------------------------------------------
-    ReduceMin(ExecutionPolicy policy, T v_start)
-    : m_policy_id(policy.policy_id()),
-      m_serial_reduce(v_start)
-#if defined(CONDUIT_USE_OPENMP)
-    , m_openmp_reduce(v_start)
-#endif
-#if defined(CONDUIT_TU_IS_CUDA)
-    , m_cuda_reduce(v_start)
-#endif
-#if defined(CONDUIT_TU_IS_HIP)
-    , m_hip_reduce(v_start)
-#endif
-    {
-        // ReduceMin needs the same runtime-policy gate as ReduceSum for the
-        // same reason: policy construction alone is legal in any TU, but using
-        // that policy in reducer operations is only valid when this TU has the
-        // requested backend available.
-        validate_runtime_policy(policy, "ReduceMin");
-    }
+    explicit ReduceMin(T v_start)
+    : m_value(v_start),
+      m_value_ptr(&m_value)
+    {}
 
+    //-----------------------------------------------------------------------------
+    ReduceMin(const ReduceMin &other)
+    : m_value(other.m_value),
+      m_value_ptr(other.m_value_ptr)
+    {}
+
+    //-----------------------------------------------------------------------------
     CONDUIT_EXEC void min(const T value) const
     {
-        if (m_policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
+        if (value < m_value_ptr[0])
         {
-#if defined(CONDUIT_USE_OPENMP)
-            m_openmp_reduce.min(value);
-            return;
-#endif
+            m_value_ptr[0] = value;
         }
-        if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
-        {
-#if defined(CONDUIT_TU_IS_CUDA)
-            m_cuda_reduce.min(value);
-            return;
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
-        {
-#if defined(CONDUIT_TU_IS_HIP)
-            m_hip_reduce.min(value);
-            return;
-#endif
-        }
-
-        m_serial_reduce.min(value);
     }
 
+    //-----------------------------------------------------------------------------
     T get()
     {
-        if (m_policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
-        {
-#if defined(CONDUIT_USE_OPENMP)
-            return m_openmp_reduce.get();
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
-        {
-#if defined(CONDUIT_TU_IS_CUDA)
-            return m_cuda_reduce.get();
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
-        {
-#if defined(CONDUIT_TU_IS_HIP)
-            return m_hip_reduce.get();
-#endif
-        }
-
-        return m_serial_reduce.get();
+        return m_value_ptr[0];
     }
 
 private:
-    ExecutionPolicy::PolicyID m_policy_id;
-    detail::ReduceMinImpl<SerialExec, T> m_serial_reduce;
-#if defined(CONDUIT_USE_OPENMP)
-    detail::ReduceMinImpl<OpenMPExec, T> m_openmp_reduce;
-#endif
-#if defined(CONDUIT_TU_IS_CUDA)
-    detail::ReduceMinImpl<CudaExec, T> m_cuda_reduce;
-#endif
-#if defined(CONDUIT_TU_IS_HIP)
-    detail::ReduceMinImpl<HipExec, T> m_hip_reduce;
-#endif
+    T m_value;
+    T *m_value_ptr;
 };
 
 //-----------------------------------------------------------------------------
-template <typename T>
+template <typename ExecPolicyTag, typename T>
 class ReduceMinLoc
 {
 public:
     //-----------------------------------------------------------------------------
-    explicit ReduceMinLoc(ExecutionPolicy policy)
-    : ReduceMinLoc(policy, std::numeric_limits<T>::max(), -1)
+    ReduceMinLoc()
+    : m_value(std::numeric_limits<T>::max()),
+      m_value_ptr(&m_value),
+      m_index(-1),
+      m_index_ptr(&m_index)
     {}
 
     //-----------------------------------------------------------------------------
-    ReduceMinLoc(ExecutionPolicy policy, T v_start, index_t i_start)
-    : m_policy_id(policy.policy_id()),
-      m_serial_reduce(v_start, i_start)
-#if defined(CONDUIT_USE_OPENMP)
-    , m_openmp_reduce(v_start, i_start)
-#endif
-#if defined(CONDUIT_TU_IS_CUDA)
-    , m_cuda_reduce(v_start, i_start)
-#endif
-#if defined(CONDUIT_TU_IS_HIP)
-    , m_hip_reduce(v_start, i_start)
-#endif
-    {
-        // Validate at construction time so the minloc reducer never starts
-        // executing with a backend policy that this TU cannot actually support.
-        validate_runtime_policy(policy, "ReduceMinLoc");
-    }
+    ReduceMinLoc(T v_start, index_t i_start)
+    : m_value(v_start),
+      m_value_ptr(&m_value),
+      m_index(i_start),
+      m_index_ptr(&m_index)
+    {}
 
+    //-----------------------------------------------------------------------------
+    ReduceMinLoc(const ReduceMinLoc &other)
+    : m_value(other.m_value),
+      m_value_ptr(other.m_value_ptr),
+      m_index(other.m_index),
+      m_index_ptr(other.m_index_ptr)
+    {}
+
+    //-----------------------------------------------------------------------------
     CONDUIT_EXEC void minloc(const T value, index_t index) const
     {
-        if (m_policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
+        if (value < m_value_ptr[0])
         {
-#if defined(CONDUIT_USE_OPENMP)
-            m_openmp_reduce.minloc(value, index);
-            return;
-#endif
+            m_value_ptr[0] = value;
+            m_index_ptr[0] = index;
         }
-        if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
-        {
-#if defined(CONDUIT_TU_IS_CUDA)
-            m_cuda_reduce.minloc(value, index);
-            return;
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
-        {
-#if defined(CONDUIT_TU_IS_HIP)
-            m_hip_reduce.minloc(value, index);
-            return;
-#endif
-        }
-
-        m_serial_reduce.minloc(value, index);
     }
 
+    //-----------------------------------------------------------------------------
     T get()
     {
-        if (m_policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
-        {
-#if defined(CONDUIT_USE_OPENMP)
-            return m_openmp_reduce.get();
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
-        {
-#if defined(CONDUIT_TU_IS_CUDA)
-            return m_cuda_reduce.get();
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
-        {
-#if defined(CONDUIT_TU_IS_HIP)
-            return m_hip_reduce.get();
-#endif
-        }
-
-        return m_serial_reduce.get();
+        return m_value_ptr[0];
     }
 
+    //-----------------------------------------------------------------------------
     index_t getLoc()
     {
-        if (m_policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
-        {
-#if defined(CONDUIT_USE_OPENMP)
-            return m_openmp_reduce.getLoc();
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
-        {
-#if defined(CONDUIT_TU_IS_CUDA)
-            return m_cuda_reduce.getLoc();
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
-        {
-#if defined(CONDUIT_TU_IS_HIP)
-            return m_hip_reduce.getLoc();
-#endif
-        }
-
-        return m_serial_reduce.getLoc();
+        return m_index_ptr[0];
     }
 
 private:
-    ExecutionPolicy::PolicyID m_policy_id;
-    detail::ReduceMinLocImpl<SerialExec, T> m_serial_reduce;
-#if defined(CONDUIT_USE_OPENMP)
-    detail::ReduceMinLocImpl<OpenMPExec, T> m_openmp_reduce;
-#endif
-#if defined(CONDUIT_TU_IS_CUDA)
-    detail::ReduceMinLocImpl<CudaExec, T> m_cuda_reduce;
-#endif
-#if defined(CONDUIT_TU_IS_HIP)
-    detail::ReduceMinLocImpl<HipExec, T> m_hip_reduce;
-#endif
+    T m_value;
+    T *m_value_ptr;
+    index_t m_index;
+    index_t *m_index_ptr;
 };
 
 //-----------------------------------------------------------------------------
-template <typename T>
+template <typename ExecPolicyTag, typename T>
 class ReduceMax
 {
 public:
     //-----------------------------------------------------------------------------
-    explicit ReduceMax(ExecutionPolicy policy)
-    : ReduceMax(policy, std::numeric_limits<T>::lowest())
+    ReduceMax()
+    : m_value(std::numeric_limits<T>::lowest()),
+      m_value_ptr(&m_value)
     {}
 
     //-----------------------------------------------------------------------------
-    ReduceMax(ExecutionPolicy policy, T v_start)
-    : m_policy_id(policy.policy_id()),
-      m_serial_reduce(v_start)
-#if defined(CONDUIT_USE_OPENMP)
-    , m_openmp_reduce(v_start)
-#endif
-#if defined(CONDUIT_TU_IS_CUDA)
-    , m_cuda_reduce(v_start)
-#endif
-#if defined(CONDUIT_TU_IS_HIP)
-    , m_hip_reduce(v_start)
-#endif
-    {
-        // Runtime policy selection is allowed to cross TU boundaries, so this
-        // constructor is where ReduceMax confirms that the selected backend is
-        // available in the TU that will execute the reducer logic.
-        validate_runtime_policy(policy, "ReduceMax");
-    }
+    explicit ReduceMax(T v_start)
+    : m_value(v_start),
+      m_value_ptr(&m_value)
+    {}
 
+    //-----------------------------------------------------------------------------
+    ReduceMax(const ReduceMax &other)
+    : m_value(other.m_value),
+      m_value_ptr(other.m_value_ptr)
+    {}
+
+    //-----------------------------------------------------------------------------
     CONDUIT_EXEC void max(const T value) const
     {
-        if (m_policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
+        if (value > m_value_ptr[0])
         {
-#if defined(CONDUIT_USE_OPENMP)
-            m_openmp_reduce.max(value);
-            return;
-#endif
+            m_value_ptr[0] = value;
         }
-        if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
-        {
-#if defined(CONDUIT_TU_IS_CUDA)
-            m_cuda_reduce.max(value);
-            return;
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
-        {
-#if defined(CONDUIT_TU_IS_HIP)
-            m_hip_reduce.max(value);
-            return;
-#endif
-        }
-
-        m_serial_reduce.max(value);
     }
 
+    //-----------------------------------------------------------------------------
     T get()
     {
-        if (m_policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
-        {
-#if defined(CONDUIT_USE_OPENMP)
-            return m_openmp_reduce.get();
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
-        {
-#if defined(CONDUIT_TU_IS_CUDA)
-            return m_cuda_reduce.get();
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
-        {
-#if defined(CONDUIT_TU_IS_HIP)
-            return m_hip_reduce.get();
-#endif
-        }
-
-        return m_serial_reduce.get();
+        return m_value_ptr[0];
     }
 
 private:
-    ExecutionPolicy::PolicyID m_policy_id;
-    detail::ReduceMaxImpl<SerialExec, T> m_serial_reduce;
-#if defined(CONDUIT_USE_OPENMP)
-    detail::ReduceMaxImpl<OpenMPExec, T> m_openmp_reduce;
-#endif
-#if defined(CONDUIT_TU_IS_CUDA)
-    detail::ReduceMaxImpl<CudaExec, T> m_cuda_reduce;
-#endif
-#if defined(CONDUIT_TU_IS_HIP)
-    detail::ReduceMaxImpl<HipExec, T> m_hip_reduce;
-#endif
+    T m_value;
+    T *m_value_ptr;
 };
 
 //-----------------------------------------------------------------------------
-template <typename T>
+template <typename ExecPolicyTag, typename T>
 class ReduceMaxLoc
 {
 public:
     //-----------------------------------------------------------------------------
-    explicit ReduceMaxLoc(ExecutionPolicy policy)
-    : ReduceMaxLoc(policy, std::numeric_limits<T>::lowest(), -1)
+    ReduceMaxLoc()
+    : m_value(std::numeric_limits<T>::lowest()),
+      m_value_ptr(&m_value),
+      m_index(-1),
+      m_index_ptr(&m_index)
     {}
 
     //-----------------------------------------------------------------------------
-    ReduceMaxLoc(ExecutionPolicy policy, T v_start, index_t i_start)
-    : m_policy_id(policy.policy_id()),
-      m_serial_reduce(v_start, i_start)
-#if defined(CONDUIT_USE_OPENMP)
-    , m_openmp_reduce(v_start, i_start)
-#endif
-#if defined(CONDUIT_TU_IS_CUDA)
-    , m_cuda_reduce(v_start, i_start)
-#endif
-#if defined(CONDUIT_TU_IS_HIP)
-    , m_hip_reduce(v_start, i_start)
-#endif
-    {
-        // Like the other reducers, fail here on the host before device-callable
-        // maxloc operations can accidentally degrade to the serial reducer when
-        // the requested backend is unavailable in this TU.
-        validate_runtime_policy(policy, "ReduceMaxLoc");
-    }
+    ReduceMaxLoc(T v_start, index_t i_start)
+    : m_value(v_start),
+      m_value_ptr(&m_value),
+      m_index(i_start),
+      m_index_ptr(&m_index)
+    {}
 
+    //-----------------------------------------------------------------------------
+    ReduceMaxLoc(const ReduceMaxLoc &other)
+    : m_value(other.m_value),
+      m_value_ptr(other.m_value_ptr),
+      m_index(other.m_index),
+      m_index_ptr(other.m_index_ptr)
+    {}
+
+    //-----------------------------------------------------------------------------
     CONDUIT_EXEC void maxloc(const T value, index_t index) const
     {
-        if (m_policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
+        if (value > m_value_ptr[0])
         {
-#if defined(CONDUIT_USE_OPENMP)
-            m_openmp_reduce.maxloc(value, index);
-            return;
-#endif
+            m_value_ptr[0] = value;
+            m_index_ptr[0] = index;
         }
-        if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
-        {
-#if defined(CONDUIT_TU_IS_CUDA)
-            m_cuda_reduce.maxloc(value, index);
-            return;
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
-        {
-#if defined(CONDUIT_TU_IS_HIP)
-            m_hip_reduce.maxloc(value, index);
-            return;
-#endif
-        }
-
-        m_serial_reduce.maxloc(value, index);
     }
 
+    //-----------------------------------------------------------------------------
     T get()
     {
-        if (m_policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
-        {
-#if defined(CONDUIT_USE_OPENMP)
-            return m_openmp_reduce.get();
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
-        {
-#if defined(CONDUIT_TU_IS_CUDA)
-            return m_cuda_reduce.get();
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
-        {
-#if defined(CONDUIT_TU_IS_HIP)
-            return m_hip_reduce.get();
-#endif
-        }
-
-        return m_serial_reduce.get();
+        return m_value_ptr[0];
     }
 
+    //-----------------------------------------------------------------------------
     index_t getLoc()
     {
-        if (m_policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
-        {
-#if defined(CONDUIT_USE_OPENMP)
-            return m_openmp_reduce.getLoc();
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
-        {
-#if defined(CONDUIT_TU_IS_CUDA)
-            return m_cuda_reduce.getLoc();
-#endif
-        }
-        if (m_policy_id == ExecutionPolicy::PolicyID::HIP_ID)
-        {
-#if defined(CONDUIT_TU_IS_HIP)
-            return m_hip_reduce.getLoc();
-#endif
-        }
-
-        return m_serial_reduce.getLoc();
+        return m_index_ptr[0];
     }
 
 private:
-    ExecutionPolicy::PolicyID m_policy_id;
-    detail::ReduceMaxLocImpl<SerialExec, T> m_serial_reduce;
-#if defined(CONDUIT_USE_OPENMP)
-    detail::ReduceMaxLocImpl<OpenMPExec, T> m_openmp_reduce;
-#endif
-#if defined(CONDUIT_TU_IS_CUDA)
-    detail::ReduceMaxLocImpl<CudaExec, T> m_cuda_reduce;
-#endif
-#if defined(CONDUIT_TU_IS_HIP)
-    detail::ReduceMaxLocImpl<HipExec, T> m_hip_reduce;
-#endif
+    T m_value;
+    T *m_value_ptr;
+    index_t m_index;
+    index_t *m_index_ptr;
 };
+
+#endif
 
 //-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Kernel>

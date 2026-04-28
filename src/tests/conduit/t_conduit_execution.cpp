@@ -544,47 +544,52 @@ TEST(conduit_execution, test_reductions)
                                               &host_vals[0],
                                               sizeof(index_t) * size);
 
-        conduit::execution::ReduceSum<index_t> sum_reducer(policy);
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+        conduit::execution::dispatch(policy, [&](auto exec)
         {
-            sum_reducer += vals_ptr[i];
-        });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-        EXPECT_EQ(sum_reducer.get(), 5);
+            using Exec = std::decay_t<decltype(exec)>;
 
-        conduit::execution::ReduceMin<index_t> min_reducer(policy);
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
-        {
-            min_reducer.min(vals_ptr[i]);
-        });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-        EXPECT_EQ(min_reducer.get(), -10);
+            conduit::execution::ReduceSum<Exec, index_t> sum_reducer(0);
+            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
+            {
+                sum_reducer += vals_ptr[i];
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            EXPECT_EQ(sum_reducer.get(), 5);
 
-        conduit::execution::ReduceMinLoc<index_t> minloc_reducer(policy);
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
-        {
-            minloc_reducer.minloc(vals_ptr[i], i);
-        });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-        EXPECT_EQ(minloc_reducer.get(), -10);
-        EXPECT_EQ(minloc_reducer.getLoc(), 1);
+            conduit::execution::ReduceMin<Exec, index_t> min_reducer;
+            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
+            {
+                min_reducer.min(vals_ptr[i]);
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            EXPECT_EQ(min_reducer.get(), -10);
 
-        conduit::execution::ReduceMax<index_t> max_reducer(policy);
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
-        {
-            max_reducer.max(vals_ptr[i]);
-        });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-        EXPECT_EQ(max_reducer.get(), 10);
+            conduit::execution::ReduceMinLoc<Exec, index_t> minloc_reducer;
+            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
+            {
+                minloc_reducer.minloc(vals_ptr[i], i);
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            EXPECT_EQ(minloc_reducer.get(), -10);
+            EXPECT_EQ(minloc_reducer.getLoc(), 1);
 
-        conduit::execution::ReduceMaxLoc<index_t> maxloc_reducer(policy);
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
-        {
-            maxloc_reducer.maxloc(vals_ptr[i], i);
+            conduit::execution::ReduceMax<Exec, index_t> max_reducer;
+            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
+            {
+                max_reducer.max(vals_ptr[i]);
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            EXPECT_EQ(max_reducer.get(), 10);
+
+            conduit::execution::ReduceMaxLoc<Exec, index_t> maxloc_reducer;
+            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
+            {
+                maxloc_reducer.maxloc(vals_ptr[i], i);
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            EXPECT_EQ(maxloc_reducer.get(), 10);
+            EXPECT_EQ(maxloc_reducer.getLoc(), 2);
         });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-        EXPECT_EQ(maxloc_reducer.get(), 10);
-        EXPECT_EQ(maxloc_reducer.getLoc(), 2);
 
         free_for_policy(policy, vals_ptr);
         annotations::finalize();
