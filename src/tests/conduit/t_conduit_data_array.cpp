@@ -1635,6 +1635,389 @@ TEST(conduit_data_array, cxx_11_init_lists)
 
 }
 
+//-----------------------------------------------------------------------------
+TEST(conduit_data_array, summary_stats_node_backed)
+{
+    Node n;
+    n["v_int64"].set(std::vector<int64>{-1,0,1});
+    n["v_uint64"].set(std::vector<uint64>{1,2,3});
+    n["v_float64"].set(std::vector<float64>{-1.0,0.0,1.0});
+
+    int64_array   va_int64   = n["v_int64"].as_int64_array();
+    uint64_array  va_uint64  = n["v_uint64"].as_uint64_array();
+    float64_array va_float64 = n["v_float64"].as_float64_array();
+
+    EXPECT_EQ(va_int64.min(),-1);
+    EXPECT_EQ(va_int64.max(),1);
+    EXPECT_EQ(va_int64.mean(),0);
+    EXPECT_EQ(va_int64.sum(),0);
+    EXPECT_EQ(va_int64.count(-1),1);
+
+    EXPECT_EQ(va_uint64.min(),1);
+    EXPECT_EQ(va_uint64.max(),3);
+    EXPECT_EQ(va_uint64.mean(),2);
+    EXPECT_EQ(va_uint64.sum(),6);
+    EXPECT_EQ(va_uint64.count(2),1);
+
+    EXPECT_EQ(va_float64.min(),-1.0);
+    EXPECT_EQ(va_float64.max(),1.0);
+    EXPECT_EQ(va_float64.mean(),0.0);
+    EXPECT_EQ(va_float64.sum(),0.0);
+    EXPECT_EQ(va_float64.count(0.0),1);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_array, set_using_ptrs_node_backed)
+{
+    std::vector<int8>  v_int8(10,-8);
+    std::vector<int16> v_int16(10,-16);
+    std::vector<int32> v_int32(10,-32);
+    std::vector<int64> v_int64(10,-64);
+
+    std::vector<uint8>  v_uint8(10,8);
+    std::vector<uint16> v_uint16(10,16);
+    std::vector<uint32> v_uint32(10,32);
+    std::vector<uint64> v_uint64(10,64);
+
+    std::vector<float32> v_float32(10,32.0);
+    std::vector<float64> v_float64(10,64.0);
+
+    Node src;
+    src["vint8"].set_external(v_int8);
+    src["vint16"].set_external(v_int16);
+    src["vint32"].set_external(v_int32);
+    src["vint64"].set_external(v_int64);
+
+    src["vuint8"].set_external(v_uint8);
+    src["vuint16"].set_external(v_uint16);
+    src["vuint32"].set_external(v_uint32);
+    src["vuint64"].set_external(v_uint64);
+
+    src["vfloat32"].set_external(v_float32);
+    src["vfloat64"].set_external(v_float64);
+
+    Node dst;
+
+    dst["vint8"].set(DataType::int8(10));
+    dst["vint8"].as_int8_array().set(src["vint8"].value(),10);
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vint8"].as_int8_array()[i],v_int8[i]);
+    }
+
+    dst["vint16"].set(DataType::int16(10));
+    dst["vint16"].as_int16_array().set(src["vint16"].value(),10);
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vint16"].as_int16_array()[i],v_int16[i]);
+    }
+
+    dst["vint32"].set(DataType::int32(10));
+    dst["vint32"].as_int32_array().set(src["vint32"].value(),10);
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vint32"].as_int32_array()[i],v_int32[i]);
+    }
+
+    dst["vint64"].set(DataType::int64(10));
+    dst["vint64"].as_int64_array().set(src["vint64"].value(),10);
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vint64"].as_int64_array()[i],v_int64[i]);
+    }
+
+    dst["vuint8"].set(DataType::uint8(10));
+    dst["vuint8"].as_uint8_array().set(src["vuint8"].value(),10);
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vuint8"].as_uint8_array()[i],v_uint8[i]);
+    }
+
+    dst["vuint16"].set(DataType::uint16(10));
+    dst["vuint16"].as_uint16_array().set(src["vuint16"].value(),10);
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vuint16"].as_uint16_array()[i],v_uint16[i]);
+    }
+
+    dst["vuint32"].set(DataType::uint32(10));
+    dst["vuint32"].as_uint32_array().set(src["vuint32"].value(),10);
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vuint32"].as_uint32_array()[i],v_uint32[i]);
+    }
+
+    dst["vuint64"].set(DataType::uint64(10));
+    dst["vuint64"].as_uint64_array().set(src["vuint64"].value(),10);
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vuint64"].as_uint64_array()[i],v_uint64[i]);
+    }
+
+    dst["vfloat32"].set(DataType::float32(10));
+    dst["vfloat32"].as_float32_array().set(src["vfloat32"].value(),10);
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vfloat32"].as_float32_array()[i],v_float32[i]);
+    }
+
+    dst["vfloat64"].set(DataType::float64(10));
+    dst["vfloat64"].as_float64_array().set(src["vfloat64"].value(),10);
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vfloat64"].as_float64_array()[i],v_float64[i]);
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_array, set_using_data_array_node_backed)
+{
+    std::vector<int8>  v_int8(10,-8);
+    std::vector<int16> v_int16(10,-16);
+    std::vector<int32> v_int32(10,-32);
+    std::vector<int64> v_int64(10,-64);
+
+    std::vector<uint8>  v_uint8(10,8);
+    std::vector<uint16> v_uint16(10,16);
+    std::vector<uint32> v_uint32(10,32);
+    std::vector<uint64> v_uint64(10,64);
+
+    std::vector<float32> v_float32(10,32.0);
+    std::vector<float64> v_float64(10,64.0);
+
+    Node src;
+    src["vint8"].set(v_int8);
+    src["vint16"].set(v_int16);
+    src["vint32"].set(v_int32);
+    src["vint64"].set(v_int64);
+
+    src["vuint8"].set(v_uint8);
+    src["vuint16"].set(v_uint16);
+    src["vuint32"].set(v_uint32);
+    src["vuint64"].set(v_uint64);
+
+    src["vfloat32"].set(v_float32);
+    src["vfloat64"].set(v_float64);
+
+    Node dst;
+
+    dst["vint8"].set(DataType::int8(10));
+    dst["vint8"].as_int8_array().set(src["vint8"].as_int8_array());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vint8"].as_int8_array()[i],v_int8[i]);
+    }
+
+    dst["vint16"].set(DataType::int16(10));
+    dst["vint16"].as_int16_array().set(src["vint16"].as_int16_array());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vint16"].as_int16_array()[i],v_int16[i]);
+    }
+
+    dst["vint32"].set(DataType::int32(10));
+    dst["vint32"].as_int32_array().set(src["vint32"].as_int32_array());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vint32"].as_int32_array()[i],v_int32[i]);
+    }
+
+    dst["vint64"].set(DataType::int64(10));
+    dst["vint64"].as_int64_array().set(src["vint64"].as_int64_array());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vint64"].as_int64_array()[i],v_int64[i]);
+    }
+
+    dst["vuint8"].set(DataType::uint8(10));
+    dst["vuint8"].as_uint8_array().set(src["vuint8"].as_uint8_array());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vuint8"].as_uint8_array()[i],v_uint8[i]);
+    }
+
+    dst["vuint16"].set(DataType::uint16(10));
+    dst["vuint16"].as_uint16_array().set(src["vuint16"].as_uint16_array());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vuint16"].as_uint16_array()[i],v_uint16[i]);
+    }
+
+    dst["vuint32"].set(DataType::uint32(10));
+    dst["vuint32"].as_uint32_array().set(src["vuint32"].as_uint32_array());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vuint32"].as_uint32_array()[i],v_uint32[i]);
+    }
+
+    dst["vuint64"].set(DataType::uint64(10));
+    dst["vuint64"].as_uint64_array().set(src["vuint64"].as_uint64_array());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vuint64"].as_uint64_array()[i],v_uint64[i]);
+    }
+
+    dst["vfloat32"].set(DataType::float32(10));
+    dst["vfloat32"].as_float32_array().set(src["vfloat32"].as_float32_array());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vfloat32"].as_float32_array()[i],v_float32[i]);
+    }
+
+    dst["vfloat64"].set(DataType::float64(10));
+    dst["vfloat64"].as_float64_array().set(src["vfloat64"].as_float64_array());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vfloat64"].as_float64_array()[i],v_float64[i]);
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_array, set_single_element_node_backed)
+{
+    Node n;
+    n["vint8"].set(std::vector<int8>(10,-8));
+    n["vint16"].set(std::vector<int16>(10,-16));
+    n["vint32"].set(std::vector<int32>(10,-32));
+    n["vint64"].set(std::vector<int64>(10,-64));
+
+    n["vuint8"].set(std::vector<uint8>(10,8));
+    n["vuint16"].set(std::vector<uint16>(10,16));
+    n["vuint32"].set(std::vector<uint32>(10,32));
+    n["vuint64"].set(std::vector<uint64>(10,64));
+
+    n["vfloat32"].set(std::vector<float32>(10,32.0));
+    n["vfloat64"].set(std::vector<float64>(10,64.0));
+
+    n["vint8"].as_int8_array().set(1,(int8)-4);
+    n["vint16"].as_int16_array().set(1,(int16)-8);
+    n["vint32"].as_int32_array().set(1,(int32)-16);
+    n["vint64"].as_int64_array().set(1,(int64)-32);
+
+    n["vuint8"].as_uint8_array().set(1,(uint8)4);
+    n["vuint16"].as_uint16_array().set(1,(uint16)8);
+    n["vuint32"].as_uint32_array().set(1,(uint32)16);
+    n["vuint64"].as_uint64_array().set(1,(uint64)32);
+
+    n["vfloat32"].as_float32_array().set(1,(float32)16.0);
+    n["vfloat64"].as_float64_array().set(1,(float64)32.0);
+
+    EXPECT_EQ(n["vint8"].as_int8_array()[1],(int8)-4);
+    EXPECT_EQ(n["vint16"].as_int16_array()[1],(int16)-8);
+    EXPECT_EQ(n["vint32"].as_int32_array()[1],(int32)-16);
+    EXPECT_EQ(n["vint64"].as_int64_array()[1],(int64)-32);
+
+    EXPECT_EQ(n["vuint8"].as_uint8_array()[1],(uint8)4);
+    EXPECT_EQ(n["vuint16"].as_uint16_array()[1],(uint16)8);
+    EXPECT_EQ(n["vuint32"].as_uint32_array()[1],(uint32)16);
+    EXPECT_EQ(n["vuint64"].as_uint64_array()[1],(uint64)32);
+
+    EXPECT_EQ(n["vfloat32"].as_float32_array()[1],(float32)16.0);
+    EXPECT_EQ(n["vfloat64"].as_float64_array()[1],(float64)32.0);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_array, set_using_data_accessor_node_backed)
+{
+    std::vector<int8>  v_int8(10,-8);
+    std::vector<int16> v_int16(10,-16);
+    std::vector<int32> v_int32(10,-32);
+    std::vector<int64> v_int64(10,-64);
+
+    std::vector<uint8>  v_uint8(10,8);
+    std::vector<uint16> v_uint16(10,16);
+    std::vector<uint32> v_uint32(10,32);
+    std::vector<uint64> v_uint64(10,64);
+
+    std::vector<float32> v_float32(10,32.0);
+    std::vector<float64> v_float64(10,64.0);
+
+    Node src;
+    src["vint8"].set(v_int8);
+    src["vint16"].set(v_int16);
+    src["vint32"].set(v_int32);
+    src["vint64"].set(v_int64);
+
+    src["vuint8"].set(v_uint8);
+    src["vuint16"].set(v_uint16);
+    src["vuint32"].set(v_uint32);
+    src["vuint64"].set(v_uint64);
+
+    src["vfloat32"].set(v_float32);
+    src["vfloat64"].set(v_float64);
+
+    Node dst;
+
+    dst["vint8"].set(DataType::int8(10));
+    dst["vint8"].as_int8_array().set(src["vint8"].as_int8_accessor());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vint8"].as_int8_array()[i],v_int8[i]);
+    }
+
+    dst["vint16"].set(DataType::int16(10));
+    dst["vint16"].as_int16_array().set(src["vint16"].as_int16_accessor());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vint16"].as_int16_array()[i],v_int16[i]);
+    }
+
+    dst["vint32"].set(DataType::int32(10));
+    dst["vint32"].as_int32_array().set(src["vint32"].as_int32_accessor());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vint32"].as_int32_array()[i],v_int32[i]);
+    }
+
+    dst["vint64"].set(DataType::int64(10));
+    dst["vint64"].as_int64_array().set(src["vint64"].as_int64_accessor());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vint64"].as_int64_array()[i],v_int64[i]);
+    }
+
+    dst["vuint8"].set(DataType::uint8(10));
+    dst["vuint8"].as_uint8_array().set(src["vuint8"].as_uint8_accessor());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vuint8"].as_uint8_array()[i],v_uint8[i]);
+    }
+
+    dst["vuint16"].set(DataType::uint16(10));
+    dst["vuint16"].as_uint16_array().set(src["vuint16"].as_uint16_accessor());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vuint16"].as_uint16_array()[i],v_uint16[i]);
+    }
+
+    dst["vuint32"].set(DataType::uint32(10));
+    dst["vuint32"].as_uint32_array().set(src["vuint32"].as_uint32_accessor());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vuint32"].as_uint32_array()[i],v_uint32[i]);
+    }
+
+    dst["vuint64"].set(DataType::uint64(10));
+    dst["vuint64"].as_uint64_array().set(src["vuint64"].as_uint64_accessor());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vuint64"].as_uint64_array()[i],v_uint64[i]);
+    }
+
+    dst["vfloat32"].set(DataType::float32(10));
+    dst["vfloat32"].as_float32_array().set(src["vfloat32"].as_float32_accessor());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vfloat32"].as_float32_array()[i],v_float32[i]);
+    }
+
+    dst["vfloat64"].set(DataType::float64(10));
+    dst["vfloat64"].as_float64_array().set(src["vfloat64"].as_float64_accessor());
+    for(index_t i=0;i<10;i++)
+    {
+        EXPECT_EQ(dst["vfloat64"].as_float64_array()[i],v_float64[i]);
+    }
+}
 
 
 
