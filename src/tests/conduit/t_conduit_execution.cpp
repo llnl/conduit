@@ -556,7 +556,8 @@ TEST(conduit_execution, test_reductions)
             CONDUIT_DEVICE_ERROR_CHECK(policy);
             EXPECT_EQ(sum_reducer.get(), 5);
 
-            conduit::execution::ReduceMin<Exec, index_t> min_reducer;
+            conduit::execution::ReduceMin<Exec, index_t>
+                min_reducer(std::numeric_limits<index_t>::max());
             conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
             {
                 min_reducer.min(vals_ptr[i]);
@@ -564,7 +565,8 @@ TEST(conduit_execution, test_reductions)
             CONDUIT_DEVICE_ERROR_CHECK(policy);
             EXPECT_EQ(min_reducer.get(), -10);
 
-            conduit::execution::ReduceMinLoc<Exec, index_t> minloc_reducer;
+            conduit::execution::ReduceMinLoc<Exec, index_t>
+                minloc_reducer(std::numeric_limits<index_t>::max(), -1);
             conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
             {
                 minloc_reducer.minloc(vals_ptr[i], i);
@@ -573,7 +575,8 @@ TEST(conduit_execution, test_reductions)
             EXPECT_EQ(minloc_reducer.get(), -10);
             EXPECT_EQ(minloc_reducer.getLoc(), 1);
 
-            conduit::execution::ReduceMax<Exec, index_t> max_reducer;
+            conduit::execution::ReduceMax<Exec, index_t>
+                max_reducer(std::numeric_limits<index_t>::lowest());
             conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
             {
                 max_reducer.max(vals_ptr[i]);
@@ -581,7 +584,8 @@ TEST(conduit_execution, test_reductions)
             CONDUIT_DEVICE_ERROR_CHECK(policy);
             EXPECT_EQ(max_reducer.get(), 10);
 
-            conduit::execution::ReduceMaxLoc<Exec, index_t> maxloc_reducer;
+            conduit::execution::ReduceMaxLoc<Exec, index_t>
+                maxloc_reducer(std::numeric_limits<index_t>::lowest(), -1);
             conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
             {
                 maxloc_reducer.maxloc(vals_ptr[i], i);
