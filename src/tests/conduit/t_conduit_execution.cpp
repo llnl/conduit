@@ -612,9 +612,13 @@ TEST(conduit_execution, test_atomics)
                                               &host_vals[0],
                                               sizeof(index_t) * size);
 
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+        conduit::execution::dispatch(policy, [&](auto exec)
         {
-            conduit::execution::atomic_add(policy, vals_ptr + i, i);
+            using Exec = std::decay_t<decltype(exec)>;
+            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
+            {
+                conduit::execution::atomic_add<Exec>(vals_ptr + i, i);
+            });
         });
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
@@ -626,11 +630,14 @@ TEST(conduit_execution, test_atomics)
             EXPECT_EQ(host_vals[i], 0);
         }
 
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+        conduit::execution::dispatch(policy, [&](auto exec)
         {
-            conduit::execution::atomic_min(policy,
-                                           vals_ptr + i,
-                                           static_cast<index_t>(-10));
+            using Exec = std::decay_t<decltype(exec)>;
+            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
+            {
+                conduit::execution::atomic_min<Exec>(vals_ptr + i,
+                                                     static_cast<index_t>(-10));
+            });
         });
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
@@ -642,11 +649,14 @@ TEST(conduit_execution, test_atomics)
             EXPECT_EQ(host_vals[i], -10);
         }
 
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+        conduit::execution::dispatch(policy, [&](auto exec)
         {
-            conduit::execution::atomic_max(policy,
-                                           vals_ptr + i,
-                                           static_cast<index_t>(10));
+            using Exec = std::decay_t<decltype(exec)>;
+            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
+            {
+                conduit::execution::atomic_max<Exec>(vals_ptr + i,
+                                                     static_cast<index_t>(10));
+            });
         });
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 

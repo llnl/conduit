@@ -1094,87 +1094,30 @@ sort(Iterator begin,
 }
 
 //-----------------------------------------------------------------------------
-template <typename T>
+// Atomics are typed on the execution tag so callers must resolve the runtime
+// policy before entering the hot loop. That keeps backend selection out of the
+// atomic call site and lets RAJA instantiate the correct atomic policy once.
+template <typename ExecPolicyTag, typename T>
 CONDUIT_EXEC T
-atomic_add(ExecutionPolicy policy, T *acc, T value)
+atomic_add(T *acc, T value)
 {
-    const auto policy_id = policy.policy_id();
-    if (policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
-    {
-#if defined(CONDUIT_USE_OPENMP)
-        return detail::atomic_add_exec<OpenMPExec>(acc, value);
-#endif
-    }
-    if (policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
-    {
-#if defined(CONDUIT_TU_IS_CUDA)
-        return detail::atomic_add_exec<CudaExec>(acc, value);
-#endif
-    }
-    if (policy_id == ExecutionPolicy::PolicyID::HIP_ID)
-    {
-#if defined(CONDUIT_TU_IS_HIP)
-        return detail::atomic_add_exec<HipExec>(acc, value);
-#endif
-    }
-
-    return detail::atomic_add_exec<SerialExec>(acc, value);
+    return detail::atomic_add_exec<ExecPolicyTag>(acc, value);
 }
 
 //-----------------------------------------------------------------------------
-template <typename T>
+template <typename ExecPolicyTag, typename T>
 CONDUIT_EXEC T
-atomic_min(ExecutionPolicy policy, T *acc, T value)
+atomic_min(T *acc, T value)
 {
-    const auto policy_id = policy.policy_id();
-    if (policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
-    {
-#if defined(CONDUIT_USE_OPENMP)
-        return detail::atomic_min_exec<OpenMPExec>(acc, value);
-#endif
-    }
-    if (policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
-    {
-#if defined(CONDUIT_TU_IS_CUDA)
-        return detail::atomic_min_exec<CudaExec>(acc, value);
-#endif
-    }
-    if (policy_id == ExecutionPolicy::PolicyID::HIP_ID)
-    {
-#if defined(CONDUIT_TU_IS_HIP)
-        return detail::atomic_min_exec<HipExec>(acc, value);
-#endif
-    }
-
-    return detail::atomic_min_exec<SerialExec>(acc, value);
+    return detail::atomic_min_exec<ExecPolicyTag>(acc, value);
 }
 
 //-----------------------------------------------------------------------------
-template <typename T>
+template <typename ExecPolicyTag, typename T>
 CONDUIT_EXEC T
-atomic_max(ExecutionPolicy policy, T *acc, T value)
+atomic_max(T *acc, T value)
 {
-    const auto policy_id = policy.policy_id();
-    if (policy_id == ExecutionPolicy::PolicyID::OPENMP_ID)
-    {
-#if defined(CONDUIT_USE_OPENMP)
-        return detail::atomic_max_exec<OpenMPExec>(acc, value);
-#endif
-    }
-    if (policy_id == ExecutionPolicy::PolicyID::CUDA_ID)
-    {
-#if defined(CONDUIT_TU_IS_CUDA)
-        return detail::atomic_max_exec<CudaExec>(acc, value);
-#endif
-    }
-    if (policy_id == ExecutionPolicy::PolicyID::HIP_ID)
-    {
-#if defined(CONDUIT_TU_IS_HIP)
-        return detail::atomic_max_exec<HipExec>(acc, value);
-#endif
-    }
-
-    return detail::atomic_max_exec<SerialExec>(acc, value);
+    return detail::atomic_max_exec<ExecPolicyTag>(acc, value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1185,6 +1128,7 @@ inline void invoke(ExecPolicyTag &exec_policy_tag, Function&& func) noexcept
 }
 
 //-----------------------------------------------------------------------------
+// dispatch converts a runtime policy object into a compile-time backend tag type
 template <typename Function>
 void
 dispatch(ExecutionPolicy policy, Function&& func)
