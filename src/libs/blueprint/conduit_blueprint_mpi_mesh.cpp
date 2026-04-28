@@ -64,11 +64,14 @@ namespace mpi
 // -- begin conduit::blueprint::mesh --
 //-----------------------------------------------------------------------------
 
-namespace mesh 
+namespace mesh
 {
 //-----------------------------------------------------------------------------
 
-namespace
+//-----------------------------------------------------------------------------
+// detail namespace for internal helpers
+//-----------------------------------------------------------------------------
+namespace detail
 {
 
 using LocalEdge = std::pair<index_t, index_t>;
@@ -714,10 +717,6 @@ emit_3d_boundary_topology(const std::vector<index_t> &boundary_face_ids,
     temp.to_data_type(int_dtype.id(), boundary_topo["elements/offsets"]);
 }
 
-}
-
-// TODO(JRC): Consider moving these structures somewhere else.
-
 //-------------------------------------------------------------------------
 struct SharedFace
 {
@@ -737,10 +736,12 @@ struct PolyBndry
     std::map<index_t, std::vector<index_t> > m_nbr_elems; //map from local
                                                           //elem to all
                                                           //nbr elems that
-                                                          //touch it 
+                                                          //touch it
     //outer map: local elem, inner map: nbr elem to face
     std::map<index_t, std::map<index_t, SharedFace> > m_nbr_faces;
 };
+
+} // end namespace detail
 
 //-----------------------------------------------------------------------------
 // blueprint::mesh::index protocol interface
@@ -775,6 +776,49 @@ generate_boundary(const conduit::Node &mesh,
                   conduit::Node &boundary_topo,
                   MPI_Comm comm)
 {
+    // Check if mesh is completely empty (no state, no coordsets, no topologies)
+    // This is valid for ranks with no local domains - they still participate in collectives
+    const bool mesh_is_empty = mesh.dtype().is_empty();
+
+    // Determine topology dimension via MPI collective
+    // Ranks with mesh data will have valid dim, empty ranks will have dim=-1
+    int local_dim = -1;
+    if(!mesh_is_empty)
+    {
+        const std::string topo_path("topologies/" + topo_name);
+        if(mesh.has_path(topo_path))
+        {
+            const conduit::Node &topo = mesh.fetch_existing(topo_path);
+            const conduit::blueprint::mesh::utils::ShapeType topo_shape(topo);
+            local_dim = topo_shape.dim;
+        }
+    }
+
+    // Gather dimension from all ranks to determine if 2D or 3D
+    int global_dim = -1;
+    MPI_Allreduce(&local_dim, &global_dim, 1, MPI_INT, MPI_MAX, comm);
+
+    if(mesh_is_empty)
+    {
+        // Rank has no local domains - participate in collectives with empty data
+        boundary_topo.reset();
+
+        // Participate in the same MPI collectives that ranks with data will call
+        // The dimension determines whether to call edges (2D) or faces (3D)
+        if(global_dim == 2)
+        {
+            std::map<index_t, std::set<detail::NeighborEdgeKey>> empty_edges_map;
+            detail::exchange_matched_edges(0, empty_edges_map, comm);
+        }
+        else if(global_dim == 3)
+        {
+            std::map<index_t, std::set<detail::NeighborFaceKey>> empty_faces_map;
+            detail::exchange_matched_faces(0, empty_faces_map, comm);
+        }
+        // If global_dim is still -1, no rank has data, so no collectives to participate in
+        return;
+    }
+
     const std::string topo_path("topologies/" + topo_name);
     if(!mesh.has_path(topo_path))
     {
@@ -794,8 +838,8 @@ generate_boundary(const conduit::Node &mesh,
     }
     const index_t local_domain = mesh.fetch_existing("state/domain_id").to_index_t();
 
-    const PairwiseVertexAdjInfo pairwise_adj_info =
-        build_pairwise_vertex_adj_info(mesh, topo_name);
+    const auto pairwise_adj_info =
+        detail::build_pairwise_vertex_adj_info(mesh, topo_name);
     const DataType int_dtype = bputils::find_widest_dtype(topo, bputils::DEFAULT_INT_DTYPES);
     boundary_topo.reset();
     const std::string coordset_name = topo.fetch_existing("coordset").as_string();
@@ -803,16 +847,16 @@ generate_boundary(const conduit::Node &mesh,
     if(topo_shape.dim == 2)
     {
         const conduit::Node &elements = topo.fetch_existing("elements");
-        const std::map<LocalEdge, index_t> edge_count = count_local_edges(elements);
-        const EdgeSharingInfo sharing_info =
-            find_candidate_shared_edges(edge_count, pairwise_adj_info);
-        const std::set<MatchedEdge> matched_edges =
-            exchange_matched_edges(local_domain, sharing_info.shareable_edges_by_neighbor, comm);
-        const std::vector<LocalEdge> boundary_edges =
-            select_boundary_edges(edge_count, sharing_info, matched_edges);
+        const auto edge_count = detail::count_local_edges(elements);
+        const auto sharing_info =
+            detail::find_candidate_shared_edges(edge_count, pairwise_adj_info);
+        const auto matched_edges =
+            detail::exchange_matched_edges(local_domain, sharing_info.shareable_edges_by_neighbor, comm);
+        const auto boundary_edges =
+            detail::select_boundary_edges(edge_count, sharing_info, matched_edges);
 
         // If no local physical boundary edges are found, leave boundary_topo empty.
-        emit_2d_boundary_topology(boundary_edges, coordset_name, int_dtype, boundary_topo);
+        detail::emit_2d_boundary_topology(boundary_edges, coordset_name, int_dtype, boundary_topo);
         return;
     }
 
@@ -823,20 +867,20 @@ generate_boundary(const conduit::Node &mesh,
     }
 
     const conduit::Node &subelements = topo.fetch_existing("subelements");
-    const FaceCountInfo face_info = count_local_faces(elements, subelements);
-    const FaceSharingInfo sharing_info =
-        find_candidate_shared_faces(face_info.face_count, pairwise_adj_info);
-    const std::set<MatchedFace> matched_faces =
-        exchange_matched_faces(local_domain, sharing_info.shareable_faces_by_neighbor, comm);
+    const auto face_info = detail::count_local_faces(elements, subelements);
+    const auto sharing_info =
+        detail::find_candidate_shared_faces(face_info.face_count, pairwise_adj_info);
+    const auto matched_faces =
+        detail::exchange_matched_faces(local_domain, sharing_info.shareable_faces_by_neighbor, comm);
     const std::vector<index_t> boundary_face_ids =
-        select_boundary_face_ids(face_info, sharing_info, matched_faces);
+        detail::select_boundary_face_ids(face_info, sharing_info, matched_faces);
 
     // If no local physical boundary faces are found, leave boundary_topo empty.
-    emit_3d_boundary_topology(boundary_face_ids,
-                              subelements,
-                              coordset_name,
-                              int_dtype,
-                              boundary_topo);
+    detail::emit_3d_boundary_topology(boundary_face_ids,
+                                      subelements,
+                                      coordset_name,
+                                      int_dtype,
+                                      boundary_topo);
 }
 
 //-------------------------------------------------------------------------
@@ -1151,18 +1195,18 @@ void to_polytopal(const Node &n,
 
     if(ok == 1)
     {
-        if(dims == 2)
+        if(gather_dims == 2)
         {
             to_polygonal(n,dest,name,comm);
         }
-        else if(dims == 3)
+        else if(gather_dims == 3)
         {
             to_polyhedral(n,dest,name,comm);
         }
         else
         {
             CONDUIT_ERROR("to_polytopal only supports 2d or 3d structured toplogies"
-                          " (passed mesh has dims = " << dims  << ")");
+                          " (passed mesh has dims = " << gather_dims  << ")");
         }
     }
     else
@@ -1177,23 +1221,30 @@ void to_polytopal(const Node &n,
         conduit::blueprint::mesh::domains(dest);
     set_single_domain_original_vertex_ids(dest, name);
     domains = conduit::blueprint::mesh::domains(dest);
-    std::vector<const Node*> mesh_ptrs;
-    mesh_ptrs.reserve(domains.size());
-    for(Node *dom : domains)
-    {
-        mesh_ptrs.push_back(dom);
-    }
-    std::vector<index_t> chunk_ids(mesh_ptrs.size());
-    for(index_t i = 0; i < static_cast<index_t>(mesh_ptrs.size()); ++i)
-    {
-        chunk_ids[i] = i;
-    }
-    Node output_mesh; 
 
-    conduit::blueprint::mesh::Partitioner partitioner;
+    // Only combine if there are domains to combine
+    // Ranks with no local domains will have an empty domains vector
+    if(!domains.empty())
+    {
+        std::vector<const Node*> mesh_ptrs;
+        mesh_ptrs.reserve(domains.size());
+        for(Node *dom : domains)
+        {
+            mesh_ptrs.push_back(dom);
+        }
+        std::vector<index_t> chunk_ids(mesh_ptrs.size());
+        for(index_t i = 0; i < static_cast<index_t>(mesh_ptrs.size()); ++i)
+        {
+            chunk_ids[i] = i;
+        }
+        Node output_mesh;
 
-    partitioner.combine(0, mesh_ptrs, chunk_ids, output_mesh);
-    dest.move(output_mesh);
+        conduit::blueprint::mesh::Partitioner partitioner;
+
+        partitioner.combine(0, mesh_ptrs, chunk_ids, output_mesh);
+        dest.move(output_mesh);
+    }
+    // else: dest remains empty for ranks with no local domains
 }
 
 //-------------------------------------------------------------------------
@@ -2391,7 +2442,7 @@ find_delegate_domain(const conduit::Node &n,
 }
 
 //-----------------------------------------------------------------------------
-void match_nbr_elems(PolyBndry& pbnd,
+void match_nbr_elems(detail::PolyBndry& pbnd,
                      std::map<index_t, bputils::connectivity::ElemType>& nbr_elems,
                      std::map<index_t, bputils::connectivity::SubelemMap>& allfaces_map,
                      const Node& ref_topo,
@@ -3007,8 +3058,8 @@ void to_polyhedral(const Node &n,
         }
     }
 
-    //Outer map: domain_id, inner map: nbr_id to PolyBndry
-    std::map<index_t, std::map<index_t, PolyBndry> > poly_bndry_map;
+    //Outer map: domain_id, inner map: nbr_id to detail::PolyBndry
+    std::map<index_t, std::map<index_t, detail::PolyBndry> > poly_bndry_map;
 
     std::map<index_t, std::vector<index_t> > nbr_ratio;
 
@@ -3083,7 +3134,7 @@ void to_polyhedral(const Node &n,
                             index_t origin_j = ref_win["origin/j"].to_index_t();
                             index_t origin_k = ref_win["origin/k"].to_index_t();
 
-                            PolyBndry& pbnd = poly_bndry_map[domain_id][nbr_id];
+                            detail::PolyBndry& pbnd = poly_bndry_map[domain_id][nbr_id];
 
                             if (ref_size_i == 1 && ref_size_j != 1 &&
                                 ref_size_k != 1)
@@ -3311,7 +3362,7 @@ void to_polyhedral(const Node &n,
 
                             if (!in_parent->has_child(nbr_name))
                             {
-                                PolyBndry& pbnd = poly_bndry_map[domain_id][nbr_id];
+                                detail::PolyBndry& pbnd = poly_bndry_map[domain_id][nbr_id];
 
                                 if (pbnd.side >= 0)
                                 {
@@ -3540,12 +3591,12 @@ void to_polyhedral(const Node &n,
         {
             std::map<index_t, std::map<index_t, size_t> > elem_to_new_faces;
 
-            //std::map<index_t, PolyBndry> bndries
+            //std::map<index_t, detail::PolyBndry> bndries
             auto& bndries = poly_bndry_map[domain_id];
             for (auto bitr = bndries.begin(); bitr != bndries.end(); ++bitr)
             {
-                //One PolyBndry for each fine neighbor domain
-                PolyBndry& pbnd = bitr->second;
+                //One detail::PolyBndry for each fine neighbor domain
+                detail::PolyBndry& pbnd = bitr->second;
                 index_t nbr_id = pbnd.m_nbr_id; //domain id of nbr
 
                 auto& sharedmap = nbr_to_sharedmap[nbr_id];
