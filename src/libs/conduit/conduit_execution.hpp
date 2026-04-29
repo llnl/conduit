@@ -72,7 +72,14 @@ namespace conduit
 namespace execution
 {
 
+//---------------------------------------------------------------------------//
 #if defined(CONDUIT_USE_RAJA)
+//---------------------------------------------------------------------------//
+//---------------------------------------------------------------------------//
+// RAJA_ON detail backend/reducers for when raja is on
+//---------------------------------------------------------------------------//
+//---------------------------------------------------------------------------//
+
 //-----------------------------------------------------------------------------
 // -- begin conduit::execution::detail --
 //-----------------------------------------------------------------------------
@@ -142,7 +149,37 @@ atomic_max_exec(T *acc, T value)
 // -- end conduit::execution::detail --
 //-----------------------------------------------------------------------------
 
+//-----------------------------------------------------------------------------
+// Reducers are typed on the execution tag so the selected backend is concrete
+// before the reducer is captured into a forall kernel. Each reducer extracts
+// ExecPolicyTag::reduce_policy internally so call sites stay at the Exec level.
+template <typename ExecPolicyTag, typename T>
+using ReduceSum = RAJA::ReduceSum<typename ExecPolicyTag::reduce_policy, T>;
+
+//-----------------------------------------------------------------------------
+template <typename ExecPolicyTag, typename T>
+using ReduceMin = RAJA::ReduceMin<typename ExecPolicyTag::reduce_policy, T>;
+
+//-----------------------------------------------------------------------------
+template <typename ExecPolicyTag, typename T>
+using ReduceMinLoc = RAJA::ReduceMinLoc<typename ExecPolicyTag::reduce_policy, T>;
+
+//-----------------------------------------------------------------------------
+template <typename ExecPolicyTag, typename T>
+using ReduceMax = RAJA::ReduceMax<typename ExecPolicyTag::reduce_policy, T>;
+
+//-----------------------------------------------------------------------------
+template <typename ExecPolicyTag, typename T>
+using ReduceMaxLoc = RAJA::ReduceMaxLoc<typename ExecPolicyTag::reduce_policy, T>;
+
+//---------------------------------------------------------------------------//
 #else
+//---------------------------------------------------------------------------//
+//---------------------------------------------------------------------------//
+// RAJA_OFF detail backend/reducers for when raja is OFF
+//---------------------------------------------------------------------------//
+//---------------------------------------------------------------------------//
+
 //-----------------------------------------------------------------------------
 // -- begin conduit::execution::detail --
 //-----------------------------------------------------------------------------
@@ -258,35 +295,11 @@ atomic_max_exec(T *acc, T value)
 //-----------------------------------------------------------------------------
 // -- end conduit::execution::detail --
 //-----------------------------------------------------------------------------
-#endif
 
 //-----------------------------------------------------------------------------
 // Reducers are typed on the execution tag so the selected backend is concrete
 // before the reducer is captured into a forall kernel. Each reducer extracts
 // ExecPolicyTag::reduce_policy internally so call sites stay at the Exec level.
-#if defined(CONDUIT_USE_RAJA)
-
-//-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
-using ReduceSum = RAJA::ReduceSum<typename ExecPolicyTag::reduce_policy, T>;
-
-//-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
-using ReduceMin = RAJA::ReduceMin<typename ExecPolicyTag::reduce_policy, T>;
-
-//-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
-using ReduceMinLoc = RAJA::ReduceMinLoc<typename ExecPolicyTag::reduce_policy, T>;
-
-//-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
-using ReduceMax = RAJA::ReduceMax<typename ExecPolicyTag::reduce_policy, T>;
-
-//-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
-using ReduceMaxLoc = RAJA::ReduceMaxLoc<typename ExecPolicyTag::reduce_policy, T>;
-
-#else
 
 //-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename T>
@@ -536,7 +549,13 @@ private:
     index_t *m_index_ptr;
 };
 
+//---------------------------------------------------------------------------//
 #endif
+//---------------------------------------------------------------------------//
+//---------------------------------------------------------------------------//
+// end RAJA_ON/RAJA_OFF conditional
+//---------------------------------------------------------------------------//
+//---------------------------------------------------------------------------//
 
 //-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Kernel>
