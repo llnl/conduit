@@ -13,28 +13,18 @@
 
 #include "conduit_config.hpp"
 
-// Host/device decorators live in this public execution header so any code
-// that needs execution annotations can include the execution facade directly.
+// 
+// Macro disambiguation:
+// 
 
-// CONDUIT_DEVICE_COMPILE means the compiler is in the device code generation
-// pass right now, not merely that this file is being compiled as a CUDA or HIP
-// translation unit. CUDA/HIP TUs are typically compiled in separate host and
-// device passes. The TU macros below answer "what kind of translation unit is
-// this?", while CONDUIT_DEVICE_COMPILE answers "are we compiling the device
-// side of that TU right now?". We need both because some inline code must be
-// visible in a CUDA/HIP TU but must suppress host-only behavior, such as
-// warnings or ownership cleanup, during the device pass.
-#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
-#define CONDUIT_DEVICE_COMPILE
-#endif
+// 1. CONDUIT_USE_CUDA/CONDUIT_USE_HIP: our build enabled these
+// backends.
 
-// conduit_execution_policy.hpp consumes these macros while declaring the
-// execution policy types and backend-specific aliases. They must be defined
-// here first so the public execution facade remains the single source of truth
-// for translation-unit compile mode and for the host/device decorator used by
-// the rest of the execution layer.
-// CONDUIT_USE_HIP and CONDUIT_USE_CUDA mean that our build enabled these backends
-// But not necessarily that we have them in this TU.
+// 2. CONDUIT_TU_IS_CUDA/CONDUIT_TU_IS_HIP: our current translation
+// unit is a CUDA/HIP target. We cannot get away with just using
+// CONDUIT_USE_*** because execution is included broadly, and
+// normal host-only TUs will not compile symbols like
+// RAJA::cuda_exec/RAJA::hip_exec.
 #if defined(CONDUIT_USE_CUDA) && defined(__CUDACC__)
 #define CONDUIT_TU_IS_CUDA
 #endif
@@ -43,12 +33,24 @@
 #define CONDUIT_TU_IS_HIP
 #endif
 
+// 3. CONDUIT_DEVICE_COMPILE: means the compiler is compiling
+// for the device right now (typically there is a host compilation
+// pass and a device pass). This is useful for having different
+// behavior for host and device (like for error-handling).
+#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
+#define CONDUIT_DEVICE_COMPILE
+#endif
+
+// 4. CONDUIT_EXEC: host/device function decorator. For a
+// CUDA/HIP TU, any function marked with this is compiled for both
+// host and device, while for a normal C++ TU it means nothing.
 #if defined(CONDUIT_TU_IS_CUDA) || defined(CONDUIT_TU_IS_HIP)
 #define CONDUIT_EXEC __host__ __device__
 #else
 #define CONDUIT_EXEC
 #endif
 
+// 5. CONDUIT_DEVICE_ERROR_CHECK: error checking macro
 #define CONDUIT_DEVICE_ERROR_CHECK( policy ) conduit::execution::device_error_check(policy, __FILE__, __LINE__);
 
 #include "conduit_execution_policy.hpp"
