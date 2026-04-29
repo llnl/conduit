@@ -154,7 +154,7 @@ if(CONDUIT_USE_CAMP)
           set(_CONDUIT_CAMP_SEARCH_PATH ${CONDUIT_CAMP_DIR}/lib/cmake/camp)
         endif()
 
-        if(NOT EXISTS ${_CAMP_SEARCH_PATH})
+        if(NOT EXISTS ${_CONDUIT_CAMP_SEARCH_PATH})
             message(FATAL_ERROR "Could not find Camp CMake include file (${_CONDUIT_CAMP_SEARCH_PATH})")
         endif()
 
@@ -188,7 +188,7 @@ if(CONDUIT_USE_UMPIRE)
             set(_CONDUIT_UMPIRE_SEARCH_PATH ${CONDUIT_UMPIRE_DIR}/lib64/cmake/umpire)
         endif()
 
-        if(NOT EXISTS ${_UMPIRE_SEARCH_PATH})
+        if(NOT EXISTS ${_CONDUIT_UMPIRE_SEARCH_PATH})
             message(FATAL_ERROR "Could not find Umpire CMake include file (${_CONDUIT_UMPIRE_SEARCH_PATH})")
         endif()
 
