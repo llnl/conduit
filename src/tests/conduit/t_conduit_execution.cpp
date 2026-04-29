@@ -544,47 +544,85 @@ TEST(conduit_execution, test_reductions)
                                               &host_vals[0],
                                               sizeof(index_t) * size);
 
-        conduit::execution::ReduceSum<index_t> sum_reducer(policy);
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+        index_t sum_result = 0;
+        conduit::execution::dispatch(policy, [&](auto exec)
         {
-            sum_reducer += vals_ptr[i];
+            using Exec = std::decay_t<decltype(exec)>;
+            conduit::execution::ReduceSum<Exec, index_t> sum_reducer(0);
+            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
+            {
+                sum_reducer += vals_ptr[i];
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            sum_result = sum_reducer.get();
         });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-        EXPECT_EQ(sum_reducer.get(), 5);
+        EXPECT_EQ(sum_result, 5);
 
-        conduit::execution::ReduceMin<index_t> min_reducer(policy);
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+        index_t min_result = 0;
+        conduit::execution::dispatch(policy, [&](auto exec)
         {
-            min_reducer.min(vals_ptr[i]);
+            using Exec = std::decay_t<decltype(exec)>;
+            conduit::execution::ReduceMin<Exec, index_t>
+                min_reducer(std::numeric_limits<index_t>::max());
+            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
+            {
+                min_reducer.min(vals_ptr[i]);
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            min_result = min_reducer.get();
         });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-        EXPECT_EQ(min_reducer.get(), -10);
+        EXPECT_EQ(min_result, -10);
 
-        conduit::execution::ReduceMinLoc<index_t> minloc_reducer(policy);
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+        index_t minloc_result = 0;
+        index_t minloc_index = -1;
+        conduit::execution::dispatch(policy, [&](auto exec)
         {
-            minloc_reducer.minloc(vals_ptr[i], i);
+            using Exec = std::decay_t<decltype(exec)>;
+            conduit::execution::ReduceMinLoc<Exec, index_t>
+                minloc_reducer(std::numeric_limits<index_t>::max(), -1);
+            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
+            {
+                minloc_reducer.minloc(vals_ptr[i], i);
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            minloc_result = minloc_reducer.get();
+            minloc_index = minloc_reducer.getLoc();
         });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-        EXPECT_EQ(minloc_reducer.get(), -10);
-        EXPECT_EQ(minloc_reducer.getLoc(), 1);
+        EXPECT_EQ(minloc_result, -10);
+        EXPECT_EQ(minloc_index, 1);
 
-        conduit::execution::ReduceMax<index_t> max_reducer(policy);
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+        index_t max_result = 0;
+        conduit::execution::dispatch(policy, [&](auto exec)
         {
-            max_reducer.max(vals_ptr[i]);
+            using Exec = std::decay_t<decltype(exec)>;
+            conduit::execution::ReduceMax<Exec, index_t>
+                max_reducer(std::numeric_limits<index_t>::lowest());
+            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
+            {
+                max_reducer.max(vals_ptr[i]);
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            max_result = max_reducer.get();
         });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-        EXPECT_EQ(max_reducer.get(), 10);
+        EXPECT_EQ(max_result, 10);
 
-        conduit::execution::ReduceMaxLoc<index_t> maxloc_reducer(policy);
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+        index_t maxloc_result = 0;
+        index_t maxloc_index = -1;
+        conduit::execution::dispatch(policy, [&](auto exec)
         {
-            maxloc_reducer.maxloc(vals_ptr[i], i);
+            using Exec = std::decay_t<decltype(exec)>;
+            conduit::execution::ReduceMaxLoc<Exec, index_t>
+                maxloc_reducer(std::numeric_limits<index_t>::lowest(), -1);
+            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
+            {
+                maxloc_reducer.maxloc(vals_ptr[i], i);
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            maxloc_result = maxloc_reducer.get();
+            maxloc_index = maxloc_reducer.getLoc();
         });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-        EXPECT_EQ(maxloc_reducer.get(), 10);
-        EXPECT_EQ(maxloc_reducer.getLoc(), 2);
+        EXPECT_EQ(maxloc_result, 10);
+        EXPECT_EQ(maxloc_index, 2);
 
         free_for_policy(policy, vals_ptr);
         annotations::finalize();
@@ -612,9 +650,13 @@ TEST(conduit_execution, test_atomics)
                                               &host_vals[0],
                                               sizeof(index_t) * size);
 
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+        conduit::execution::dispatch(policy, [&](auto exec)
         {
-            conduit::execution::atomic_add(policy, vals_ptr + i, i);
+            using Exec = std::decay_t<decltype(exec)>;
+            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
+            {
+                conduit::execution::atomic_add<Exec>(vals_ptr + i, i);
+            });
         });
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
@@ -626,11 +668,14 @@ TEST(conduit_execution, test_atomics)
             EXPECT_EQ(host_vals[i], 0);
         }
 
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+        conduit::execution::dispatch(policy, [&](auto exec)
         {
-            conduit::execution::atomic_min(policy,
-                                           vals_ptr + i,
-                                           static_cast<index_t>(-10));
+            using Exec = std::decay_t<decltype(exec)>;
+            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
+            {
+                conduit::execution::atomic_min<Exec>(vals_ptr + i,
+                                                     static_cast<index_t>(-10));
+            });
         });
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
@@ -642,11 +687,14 @@ TEST(conduit_execution, test_atomics)
             EXPECT_EQ(host_vals[i], -10);
         }
 
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+        conduit::execution::dispatch(policy, [&](auto exec)
         {
-            conduit::execution::atomic_max(policy,
-                                           vals_ptr + i,
-                                           static_cast<index_t>(10));
+            using Exec = std::decay_t<decltype(exec)>;
+            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
+            {
+                conduit::execution::atomic_max<Exec>(vals_ptr + i,
+                                                     static_cast<index_t>(10));
+            });
         });
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
