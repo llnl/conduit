@@ -24,8 +24,10 @@ set(CONDUIT_INCLUDE_DIRS "${_IMPORT_ROOT}/include/conduit")
 
 # check for conduit fortran support
 if(EXISTS ${_IMPORT_ROOT}/include/conduit/conduit.mod)
+    set(CONDUIT_USE_FORTRAN TRUE)
     set(CONDUIT_FORTRAN_ENABLED TRUE)
 else()
+    set(CONDUIT_USE_FORTRAN FALSE)
     set(CONDUIT_FORTRAN_ENABLED FALSE)
 endif()
 
