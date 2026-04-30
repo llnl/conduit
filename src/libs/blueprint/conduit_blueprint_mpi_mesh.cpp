@@ -286,6 +286,259 @@ intersect_neighbors_for_vertices(const PairwiseVertexAdjInfo &info,
     return result;
 }
 
+//-----------------------------------------------------------------------------
+// Generate canonical adjset group name based on domain_id and neighbors
+//-----------------------------------------------------------------------------
+std::string
+canonical_adjset_group_name(index_t domain_id,
+                            const std::set<index_t>& neighbors)
+{
+    std::set<index_t> domains;
+    domains.insert(domain_id);
+    domains.insert(neighbors.begin(), neighbors.end());
+
+    std::ostringstream oss;
+    oss << "group";
+    for(std::set<index_t>::const_iterator it = domains.begin();
+        it != domains.end(); ++it)
+    {
+        oss << "_" << (*it);
+    }
+    return oss.str();
+}
+
+//-----------------------------------------------------------------------------
+// Normalize adjset groups: merge duplicates, sort spatially, canonicalize names
+// This is called at the end of to_polytopal to ensure adjsets follow a
+// consistent format.
+//-----------------------------------------------------------------------------
+void
+normalize_adjset_groups(conduit::Node& mesh_data)
+{
+    if(!mesh_data.has_path("adjsets"))
+    {
+        return;
+    }
+
+    const index_t domain_id =
+        mesh_data.has_path("state/domain_id")
+            ? mesh_data.fetch_existing("state/domain_id").to_index_t()
+            : 0;
+
+    conduit::Node& adjsets = mesh_data["adjsets"];
+    const std::vector<std::string> adjset_names = adjsets.child_names();
+
+    for(std::vector<std::string>::const_iterator adjset_it = adjset_names.begin();
+        adjset_it != adjset_names.end(); ++adjset_it)
+    {
+        conduit::Node& adjset = adjsets[*adjset_it];
+        if(!adjset.has_child("groups"))
+        {
+            continue;
+        }
+
+        conduit::Node& groups = adjset["groups"];
+        bool needs_merge = groups.dtype().is_list();
+
+        // Check if any group has src_chunk (indicates need for normalization)
+        if(!needs_merge)
+        {
+            const std::vector<std::string> group_names = groups.child_names();
+            for(std::vector<std::string>::const_iterator group_it = group_names.begin();
+                group_it != group_names.end(); ++group_it)
+            {
+                if(groups[*group_it].has_child("src_chunk"))
+                {
+                    needs_merge = true;
+                    break;
+                }
+            }
+        }
+
+        if(!needs_merge)
+        {
+            continue;
+        }
+
+        // Structure to hold merged group information
+        struct NormalizedAdjsetGroup
+        {
+            std::set<index_t> neighbors;
+            std::set<index_t> values_set;
+            std::vector<index_t> values_vec;
+        };
+
+        std::map<std::string, NormalizedAdjsetGroup> merged_groups;
+
+        // Lambda to merge a single group
+        auto merge_group = [&](const conduit::Node& group, const std::string& /*source_name*/)
+        {
+            if(!group.has_child("neighbors") || !group.has_child("values"))
+            {
+                return;
+            }
+
+            const auto neighbors_acc = group["neighbors"].as_index_t_accessor();
+            std::set<index_t> neighbors;
+            for(index_t i = 0; i < neighbors_acc.number_of_elements(); ++i)
+            {
+                neighbors.insert(neighbors_acc[i]);
+            }
+
+            const std::string group_name =
+                canonical_adjset_group_name(domain_id, neighbors);
+            NormalizedAdjsetGroup& merged = merged_groups[group_name];
+
+            // Insert neighbors (will be deduplicated by the set)
+            merged.neighbors.insert(neighbors.begin(), neighbors.end());
+
+            const auto values_acc = group["values"].as_index_t_accessor();
+
+            // Accumulate unique values
+            for(index_t i = 0; i < values_acc.number_of_elements(); ++i)
+            {
+                merged.values_set.insert(values_acc[i]);
+            }
+        };
+
+        // Process groups (handle both list and object format)
+        if(groups.dtype().is_list())
+        {
+            for(index_t i = 0; i < groups.number_of_children(); ++i)
+            {
+                std::ostringstream oss;
+                oss << "list_index_" << i;
+                merge_group(groups.child(i), oss.str());
+            }
+        }
+        else
+        {
+            const std::vector<std::string> group_names = groups.child_names();
+            for(std::vector<std::string>::const_iterator group_it = group_names.begin();
+                group_it != group_names.end(); ++group_it)
+            {
+                merge_group(groups[*group_it], *group_it);
+            }
+        }
+
+        // Get coordinate arrays for spatial sorting
+        const conduit::Node* xnode = nullptr;
+        const conduit::Node* ynode = nullptr;
+        const conduit::Node* znode = nullptr;
+
+        if(adjset.has_child("topology"))
+        {
+            const std::string topo_name = adjset["topology"].as_string();
+            if(mesh_data.has_path("topologies/" + topo_name))
+            {
+                const conduit::Node& topo = mesh_data["topologies/" + topo_name];
+                if(topo.has_child("coordset"))
+                {
+                    const std::string coordset_name = topo["coordset"].as_string();
+                    const std::string values_path =
+                        "coordsets/" + coordset_name + "/values";
+
+                    if(mesh_data.has_path(values_path + "/x"))
+                    {
+                        const conduit::Node* cand =
+                            mesh_data.fetch_ptr(values_path + "/x");
+                        if(cand != nullptr && !cand->dtype().is_empty())
+                        {
+                            xnode = cand;
+                        }
+                    }
+                    if(mesh_data.has_path(values_path + "/y"))
+                    {
+                        const conduit::Node* cand =
+                            mesh_data.fetch_ptr(values_path + "/y");
+                        if(cand != nullptr && !cand->dtype().is_empty())
+                        {
+                            ynode = cand;
+                        }
+                    }
+                    if(mesh_data.has_path(values_path + "/z"))
+                    {
+                        const conduit::Node* cand =
+                            mesh_data.fetch_ptr(values_path + "/z");
+                        if(cand != nullptr && !cand->dtype().is_empty())
+                        {
+                            znode = cand;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Convert sets to vectors and sort spatially if coordinates are available
+        for(std::map<std::string, NormalizedAdjsetGroup>::iterator group_it =
+                merged_groups.begin();
+            group_it != merged_groups.end(); ++group_it)
+        {
+            group_it->second.values_vec.assign(group_it->second.values_set.begin(),
+                                               group_it->second.values_set.end());
+
+            if(xnode != nullptr)
+            {
+                std::stable_sort(group_it->second.values_vec.begin(),
+                               group_it->second.values_vec.end(),
+                               [&](index_t a, index_t b)
+                {
+                    const auto x_acc = xnode->as_float64_accessor();
+                    const double ax = x_acc[a];
+                    const double bx = x_acc[b];
+                    if(ax != bx)
+                    {
+                        return ax < bx;
+                    }
+
+                    if(ynode != nullptr)
+                    {
+                        const auto y_acc = ynode->as_float64_accessor();
+                        const double ay = y_acc[a];
+                        const double by = y_acc[b];
+                        if(ay != by)
+                        {
+                            return ay < by;
+                        }
+                    }
+
+                    if(znode != nullptr)
+                    {
+                        const auto z_acc = znode->as_float64_accessor();
+                        const double az = z_acc[a];
+                        const double bz = z_acc[b];
+                        if(az != bz)
+                        {
+                            return az < bz;
+                        }
+                    }
+
+                    return a < b;
+                });
+            }
+        }
+
+        // Build normalized adjset with canonical group names
+        conduit::Node normalized_adjset;
+        normalized_adjset.set(adjset);
+        normalized_adjset.remove("groups");
+        normalized_adjset["groups"].set(conduit::DataType::object());
+
+        for(std::map<std::string, NormalizedAdjsetGroup>::const_iterator group_it =
+                merged_groups.begin();
+            group_it != merged_groups.end(); ++group_it)
+        {
+            conduit::Node& group = normalized_adjset["groups"][group_it->first];
+            std::vector<index_t> neighbors_vec(group_it->second.neighbors.begin(),
+                                               group_it->second.neighbors.end());
+            group["neighbors"].set(neighbors_vec);
+            group["values"].set(group_it->second.values_vec);
+        }
+
+        adjset.set(normalized_adjset);
+    }
+}
+
 void
 initialize_boundary_topology(conduit::Node &boundary_topo,
                              const std::string &coordset_name,
@@ -1222,6 +1475,10 @@ void to_polytopal(const Node &n,
     set_single_domain_original_vertex_ids(dest, name);
     domains = conduit::blueprint::mesh::domains(dest);
 
+    // Get MPI rank to use as domain_id for the combined domain
+    int par_rank = 0;
+    MPI_Comm_rank(comm, &par_rank);
+
     // Only combine if there are domains to combine
     // Ranks with no local domains will have an empty domains vector
     if(!domains.empty())
@@ -1241,10 +1498,22 @@ void to_polytopal(const Node &n,
 
         conduit::blueprint::mesh::Partitioner partitioner;
 
-        partitioner.combine(0, mesh_ptrs, chunk_ids, output_mesh);
+        // Use MPI rank as domain_id to ensure each rank has unique domain_id.
+        // This is required for normalize_adjset_groups to generate correct
+        // canonical group names.
+        partitioner.combine(par_rank, mesh_ptrs, chunk_ids, output_mesh);
         dest.move(output_mesh);
     }
     // else: dest remains empty for ranks with no local domains
+
+    // Normalize adjset groups to ensure consistent format:
+    // - Merge duplicate groups with same neighbors
+    // - Sort boundary values spatially
+    // - Use canonical group names
+    if(!dest.dtype().is_empty())
+    {
+        detail::normalize_adjset_groups(dest);
+    }
 }
 
 //-------------------------------------------------------------------------
