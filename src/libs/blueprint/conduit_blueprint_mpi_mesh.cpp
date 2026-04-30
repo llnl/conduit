@@ -1024,11 +1024,28 @@ verify(const conduit::Node &n,
 
 //-------------------------------------------------------------------------
 void
-generate_boundary(const conduit::Node &mesh,
+generate_boundary(conduit::Node &mesh,
                   const std::string &topo_name,
-                  conduit::Node &boundary_topo,
+                  const std::string &boundary_topo_name,
                   MPI_Comm comm)
 {
+    const std::string boundary_topo_path("topologies/" + boundary_topo_name);
+
+    auto install_boundary_topology = [&mesh, &boundary_topo_path](const conduit::Node &boundary_topo)
+    {
+        if(boundary_topo.dtype().is_empty())
+        {
+            if(mesh.has_path(boundary_topo_path))
+            {
+                mesh.remove(boundary_topo_path);
+            }
+        }
+        else
+        {
+            mesh[boundary_topo_path].set(boundary_topo);
+        }
+    };
+
     // Check if mesh is completely empty (no state, no coordsets, no topologies)
     // This is valid for ranks with no local domains - they still participate in collectives
     const bool mesh_is_empty = mesh.dtype().is_empty();
@@ -1053,9 +1070,6 @@ generate_boundary(const conduit::Node &mesh,
 
     if(mesh_is_empty)
     {
-        // Rank has no local domains - participate in collectives with empty data
-        boundary_topo.reset();
-
         // Participate in the same MPI collectives that ranks with data will call
         // The dimension determines whether to call edges (2D) or faces (3D)
         if(global_dim == 2)
@@ -1069,6 +1083,8 @@ generate_boundary(const conduit::Node &mesh,
             detail::exchange_matched_faces(0, empty_faces_map, comm);
         }
         // If global_dim is still -1, no rank has data, so no collectives to participate in
+        conduit::Node boundary_topo;
+        install_boundary_topology(boundary_topo);
         return;
     }
 
@@ -1094,7 +1110,6 @@ generate_boundary(const conduit::Node &mesh,
     const auto pairwise_adj_info =
         detail::build_pairwise_vertex_adj_info(mesh, topo_name);
     const DataType int_dtype = bputils::find_widest_dtype(topo, bputils::DEFAULT_INT_DTYPES);
-    boundary_topo.reset();
     const std::string coordset_name = topo.fetch_existing("coordset").as_string();
 
     if(topo_shape.dim == 2)
@@ -1109,7 +1124,9 @@ generate_boundary(const conduit::Node &mesh,
             detail::select_boundary_edges(edge_count, sharing_info, matched_edges);
 
         // If no local physical boundary edges are found, leave boundary_topo empty.
+        conduit::Node boundary_topo;
         detail::emit_2d_boundary_topology(boundary_edges, coordset_name, int_dtype, boundary_topo);
+        install_boundary_topology(boundary_topo);
         return;
     }
 
@@ -1129,11 +1146,13 @@ generate_boundary(const conduit::Node &mesh,
         detail::select_boundary_face_ids(face_info, sharing_info, matched_faces);
 
     // If no local physical boundary faces are found, leave boundary_topo empty.
+    conduit::Node boundary_topo;
     detail::emit_3d_boundary_topology(boundary_face_ids,
                                       subelements,
                                       coordset_name,
                                       int_dtype,
                                       boundary_topo);
+    install_boundary_topology(boundary_topo);
 }
 
 //-------------------------------------------------------------------------

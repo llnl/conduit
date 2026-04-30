@@ -201,12 +201,16 @@ void CONDUIT_BLUEPRINT_API generate_points(conduit::Node &mesh,
  topological neighbor exchange to distinguish true physical boundary edges from
  inter-domain edges without relying on geometry or adjset value ordering.
 
+ If local physical boundary elements are found, the generated topology is written
+ to topologies/<boundary_topo_name>. If none are found, that topology path is
+ removed if present and otherwise left absent.
+
  For cases that do not need the MPI-aware path, the serial topology generator
  is used as a fallback.
  */
-void CONDUIT_BLUEPRINT_API generate_boundary(const conduit::Node &mesh,
+void CONDUIT_BLUEPRINT_API generate_boundary(conduit::Node &mesh,
                                              const std::string &topo_name,
-                                             conduit::Node &boundary_topo,
+                                             const std::string &boundary_topo_name,
                                              MPI_Comm comm);
 
 //-------------------------------------------------------------------------
@@ -305,5 +309,3 @@ void CONDUIT_BLUEPRINT_API generate_domain_ids(conduit::Node &domains,
 
 
 #endif 
-
-
