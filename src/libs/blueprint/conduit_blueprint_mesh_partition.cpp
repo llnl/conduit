@@ -2788,9 +2788,6 @@ Partitioner::copy_field(const conduit::Node &n_field,
         return;
     }
 
-// TODO: What about matsets and mixed fields?...
-// https://llnl-conduit.readthedocs.io/en/latest/blueprint_mesh.html#fields
-
     // Copy common field attributes from the old field into the new one.
     conduit::Node &n_new_field = n_output_fields[n_field.name()];
     for(const auto &key : keys)
@@ -2799,9 +2796,16 @@ Partitioner::copy_field(const conduit::Node &n_field,
             n_new_field[key] = n_field[key];
     }
 
-    const conduit::Node &n_values = n_field["values"];
-    conduit::Node &new_values = n_new_field["values"];
-    conduit::blueprint::mesh::utils::slice_field(n_values, ids, new_values);
+    if (n_field.has_child("values"))
+    {
+        const conduit::Node &n_values = n_field["values"];
+        conduit::Node &new_values = n_new_field["values"];
+        conduit::blueprint::mesh::utils::slice_field(n_values, ids, new_values);
+    }
+    if (n_field.has_child("matset_values"))
+    {
+
+    }
 }
 
 //---------------------------------------------------------------------------
