@@ -2712,13 +2712,24 @@ Partitioner::copy_fields(index_t domain, const std::string &topology,
             for(index_t i = 0; i < n_fields.number_of_children(); i++)
             {
                 const conduit::Node &n_field = n_fields[i];
+
+                Node *matset_ptr = nullptr;
+                if (n_field.has_child("matset"))
+                {
+                    const std::string matset_name = n_field["matset"].as_string();
+                    if (n_mesh.has_path("matsets/" + matset_name))
+                    {
+                        matset_ptr = const_cast<Node *>(&(n_mesh["matsets"][matset_name]));
+                    }
+                }
+
                 if(n_field.has_child("association"))
                 {
                     auto association = n_field["association"].as_string();
                     auto assoc_topo = n_field["topology"].as_string();
                     if(association == "vertex" && topology == assoc_topo)
                     {
-                        copy_field(n_field, vertex_ids, n_output_fields);
+                        copy_field(n_field, vertex_ids, matset_ptr, n_output_fields);
                     }
                 }
             }
@@ -2743,13 +2754,24 @@ Partitioner::copy_fields(index_t domain, const std::string &topology,
             for(index_t i = 0; i < n_fields.number_of_children(); i++)
             {
                 const conduit::Node &n_field = n_fields[i];
+
+                Node *matset_ptr = nullptr;
+                if (n_field.has_child("matset"))
+                {
+                    const std::string matset_name = n_field["matset"].as_string();
+                    if (n_mesh.has_path("matsets/" + matset_name))
+                    {
+                        matset_ptr = const_cast<Node *>(&(n_mesh["matsets"][matset_name]));
+                    }
+                }
+
                 if(n_field.has_child("association"))
                 {
                     auto association = n_field["association"].as_string();
                     auto assoc_topo = n_field["topology"].as_string();
                     if(association == "element" && topology == assoc_topo)
                     {
-                        copy_field(n_field, element_ids, n_output_fields);
+                        copy_field(n_field, element_ids, matset_ptr, n_output_fields);
                     }
                 }
             }
@@ -2773,7 +2795,9 @@ Partitioner::copy_fields(index_t domain, const std::string &topology,
 //---------------------------------------------------------------------------
 void
 Partitioner::copy_field(const conduit::Node &n_field,
-    const std::vector<index_t> &ids, Node &n_output_fields) const
+                        const std::vector<index_t> &ids,
+                        const Node *matset_ptr,
+                        Node &n_output_fields) const
 {
     static const std::vector<std::string> keys{"association", "grid_function",
         "volume_dependent", "topology"};
@@ -2796,15 +2820,107 @@ Partitioner::copy_field(const conduit::Node &n_field,
             n_new_field[key] = n_field[key];
     }
 
+    if (n_field.has_child("matset_values"))
+    {
+        n_field.print();
+        Node ids_node;
+        ids_node.set(ids);
+        std::cout << ids_node.to_yaml() << std::endl;
+    }
+
     if (n_field.has_child("values"))
     {
         const conduit::Node &n_values = n_field["values"];
         conduit::Node &new_values = n_new_field["values"];
         conduit::blueprint::mesh::utils::slice_field(n_values, ids, new_values);
     }
+
     if (n_field.has_child("matset_values"))
     {
+        // in order for our ids to be able to grab the right data, we need
+        // to be in a non-sparse element-associated case
 
+        const std::string matset_name = n_field["matset"].as_string();
+        if (nullptr != matset_ptr)
+        {
+            const Node &matset = *matset_ptr;
+
+            // we need to know these for later when we convert back
+            const bool is_multi_buffer = conduit::blueprint::mesh::matset::is_multi_buffer(matset);
+            const bool is_element_dominant = conduit::blueprint::mesh::matset::is_element_dominant(matset);
+
+            Node full_matset, full_field;
+            conduit::blueprint::mesh::matset::to_multi_buffer_by_element(matset, full_matset);
+            conduit::blueprint::mesh::field::to_multi_buffer_by_element(matset, n_field, matset_name, full_field);
+        
+            Node trimmed_full_matset, trimmed_full_field;
+            trimmed_full_matset.set(full_matset);
+            trimmed_full_field.set(full_field);
+
+            const Node &full_field_vals = full_field["values"];
+            Node &trimmed_full_values = trimmed_full_field["values"];
+            conduit::blueprint::mesh::utils::slice_field(full_field_vals, ids, trimmed_full_values);
+
+            NodeConstIterator mat_itr = full_matset["volume_fractions"].children();
+            while (mat_itr.has_next())
+            {
+                const Node &full_matset_vfs = mat_itr.next();
+                const std::string matname = mat_itr.name();
+                const Node &full_field_matvals = full_field["matset_values"][matname];
+
+                Node &trimmed_full_volume_fractions = trimmed_full_matset["volume_fractions"][matname];
+                Node &trimmed_full_matset_values = trimmed_full_field["matset_values"][matname];
+
+                conduit::blueprint::mesh::utils::slice_field(full_matset_vfs, ids, trimmed_full_volume_fractions);
+                conduit::blueprint::mesh::utils::slice_field(full_field_matvals, ids, trimmed_full_matset_values);
+            }
+
+            if (is_multi_buffer)
+            {
+                // full case
+                if (is_element_dominant)
+                {
+                    // nothing to do but put our result in the right place.
+                    n_new_field["matset_values"].set(trimmed_full_field["matset_values"]);
+                }
+                // sparse by material case
+                else
+                {
+                    // convert back to our starting layout and copy the values over
+                    Node trimmed_sbm_field;
+                    conduit::blueprint::mesh::field::to_multi_buffer_by_material(trimmed_full_matset,
+                                                                                 trimmed_full_field,
+                                                                                 matset_name,
+                                                                                 trimmed_sbm_field);
+                    n_new_field["matset_values"].set(trimmed_sbm_field["matset_values"]);
+                }
+            }
+            else
+            {
+                // sparse by element case
+                if (is_element_dominant)
+                {
+                    // convert back to our starting layout and copy the values over
+                    Node trimmed_sbe_field;
+                    conduit::blueprint::mesh::field::to_uni_buffer_by_element(trimmed_full_matset,
+                                                                              trimmed_full_field,
+                                                                              matset_name,
+                                                                              trimmed_sbe_field);
+                    n_new_field["matset_values"].set(trimmed_sbe_field["matset_values"]);
+                }
+                // uni-buffer by material case
+                else
+                {
+                    // convert back to our starting layout and copy the values over
+                    Node trimmed_sbm_field;
+                    conduit::blueprint::mesh::field::to_uni_buffer_by_material(trimmed_full_matset,
+                                                                               trimmed_full_field,
+                                                                               matset_name,
+                                                                               trimmed_sbm_field);
+                    n_new_field["matset_values"].set(trimmed_sbm_field["matset_values"]);
+                }
+            }
+        }
     }
 }
 
@@ -10473,14 +10589,25 @@ Partitioner::map_back_fields(const conduit::Node& repart_mesh,
             for (const std::string& field_name : field_names)
             {
                 const Node& field = dom["fields"][field_name];
+
+                Node *matset_ptr = nullptr;
+                if (field.has_child("matset"))
+                {
+                    const std::string matset_name = field["matset"].as_string();
+                    if (dom.has_path("matsets/" + matset_name))
+                    {
+                        matset_ptr = const_cast<Node *>(&(dom["matsets"][matset_name]));
+                    }
+                }
+
                 const std::string& assoc = field["association"].as_string();
                 if (assoc == "vertex")
                 {
-                    copy_field(field, sel_verts, remap_dom_ent["fields"]);
+                    copy_field(field, sel_verts, matset_ptr, remap_dom_ent["fields"]);
                 }
                 else if (assoc == "element")
                 {
-                    copy_field(field, sel_elems, remap_dom_ent["fields"]);
+                    copy_field(field, sel_elems, matset_ptr, remap_dom_ent["fields"]);
                 }
                 else
                 {
