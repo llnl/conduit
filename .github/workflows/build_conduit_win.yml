@@ -22,6 +22,8 @@ jobs:
             enable_tests=OFF `
             enable_zfp=OFF `
             ./scripts/build_conduit/build_conduit.sh
+            echo "**** Host Config Contents"
+            cat conduit-config.cmake
     - name: Configure Conduit
       run: |
         cmake --version
