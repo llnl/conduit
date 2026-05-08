@@ -671,6 +671,7 @@ cmake -S ${umpire_src_dir} -B ${umpire_build_dir} ${cmake_compiler_settings} \
   -DENABLE_TESTS=OFF \
   -DUMPIRE_ENABLE_TESTS=OFF \
   -DUMPIRE_ENABLE_TOOLS=OFF \
+  -DUMPIRE_ENABLE_EXAMPLES=OFF \
   -DUMPIRE_ENABLE_BENCHMARKS=OFF ${umpire_extra_cmake_args} \
   -DCMAKE_INSTALL_PREFIX=${umpire_install_dir}
 
