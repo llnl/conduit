@@ -16,6 +16,8 @@ if(NOT ZLIB_DIR)
 endif()
 
 message(STATUS "Looking for ZLib in: ${ZLIB_DIR}")
+message(STATUS "Exists include: $<BOOL:${EXISTS ${ZLIB_DIR}/include/zlib.h}>")
+message(STATUS "Exists lib dir: $<BOOL:${EXISTS ${ZLIB_DIR}/lib}>")
 
 if(ZLIB_DIR)
     set(ZLIB_ROOT ${ZLIB_DIR})
