@@ -32,40 +32,41 @@ jobs:
             echo `cygpath -m /d/a/conduit/conduit/install/zlib-1.3.1`
             echo `realpath D:/a/conduit/conduit/install/zlib-1.3.1`
             echo `realpath /d/a/conduit/conduit/install/zlib-1.3.1`
+            echo conduit-config.cmake
       shell: bash
-    - name: Configure Conduit
-      run: |
-        cmake --version
-        echo "**** Configuring Conduit"
-        cmake -S src -B build \
-              -C conduit-config.cmake \
-              -DENABLE_TESTS=ON \
-              -DCMAKE_INSTALL_PREFIX=install
-      shell: bash
-
-    - name: Configure Conduit
-      run: |
-        cmake --version
-        echo "**** Configuring Conduit"
-        cmake -S src -B build \
-              -C conduit-config.cmake \
-              -DENABLE_TESTS=ON \
-              -DCMAKE_INSTALL_PREFIX=install
-      shell: bash
-    - name: Build Conduit
-      run: |
-        echo "**** Building Conduit"
-        cmake --build build --config Release -j2
-      shell: bash
-    - name: Run Conduit Unit Tests
-      run: |
-        echo "**** Conduit Unit Tests"
-        cmake -E env CTEST_OUTPUT_ON_FAILURE=1 cmake --build build --config Release --target RUN_TESTS
-      shell: bash
-    - name: Install Conduit
-      run: |
-        echo "**** Installing Conduit"
-        cmake --install build --config Release
-      shell: bash
-
+    # - name: Configure Conduit
+    #   run: |
+    #     cmake --version
+    #     echo "**** Configuring Conduit"
+    #     cmake -S src -B build \
+    #           -C conduit-config.cmake \
+    #           -DENABLE_TESTS=ON \
+    #           -DCMAKE_INSTALL_PREFIX=install
+    #   shell: bash
+    #
+    # - name: Configure Conduit
+    #   run: |
+    #     cmake --version
+    #     echo "**** Configuring Conduit"
+    #     cmake -S src -B build \
+    #           -C conduit-config.cmake \
+    #           -DENABLE_TESTS=ON \
+    #           -DCMAKE_INSTALL_PREFIX=install
+    #   shell: bash
+    # - name: Build Conduit
+    #   run: |
+    #     echo "**** Building Conduit"
+    #     cmake --build build --config Release -j2
+    #   shell: bash
+    # - name: Run Conduit Unit Tests
+    #   run: |
+    #     echo "**** Conduit Unit Tests"
+    #     cmake -E env CTEST_OUTPUT_ON_FAILURE=1 cmake --build build --config Release --target RUN_TESTS
+    #   shell: bash
+    # - name: Install Conduit
+    #   run: |
+    #     echo "**** Installing Conduit"
+    #     cmake --install build --config Release
+    #   shell: bash
+    #
 

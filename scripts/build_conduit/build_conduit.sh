@@ -78,6 +78,8 @@ if [[ "$enable_hip" == "ON" ]]; then
     ROCM_PATH="${ROCM_PATH:=/opt/rocm/}"
 fi
 
+echo "HERE WE GO!!!!!!!!!!!!!!!!!!!! $OSTYPE"
+
 case "$OSTYPE" in
   win*)     build_windows="ON";;
   msys*)    build_windows="ON";;
