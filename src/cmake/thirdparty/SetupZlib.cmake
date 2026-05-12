@@ -10,6 +10,13 @@
 #
 ###############################################################################
 
+
+if(NOT ZLIB_DIR)
+  message(FATAL_ERROR "Zlib support needs explicit ZLIB_DIR")
+endif()
+
+message(STATUS "Looking for ZLib in: ${ZLIB_DIR}")
+
 if(ZLIB_DIR)
     set(ZLIB_ROOT ${ZLIB_DIR})
     find_package(ZLIB REQUIRED)
