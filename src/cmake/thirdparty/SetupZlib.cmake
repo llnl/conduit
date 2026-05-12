@@ -16,8 +16,18 @@ if(NOT ZLIB_DIR)
 endif()
 
 message(STATUS "Looking for ZLib in: ${ZLIB_DIR}")
-message(STATUS "Exists include: $<BOOL:${EXISTS ${ZLIB_DIR}/include/zlib.h}>")
-message(STATUS "Exists lib dir: $<BOOL:${EXISTS ${ZLIB_DIR}/lib}>")
+
+if(EXISTS "${ZLIB_DIR}/include/zlib.h")
+  message(STATUS "Found ${ZLIB_DIR}/include/zlib.h")
+else()
+  message(STATUS "Did not find ${ZLIB_DIR}/include/zlib.h")
+endif()
+
+if(EXISTS "${ZLIB_DIR}/lib")
+  message(STATUS "Found ${ZLIB_DIR}/lib")
+else()
+  message(STATUS "Did not find ${ZLIB_DIR}/lib")
+endif()
 
 if(ZLIB_DIR)
     set(ZLIB_ROOT ${ZLIB_DIR})
