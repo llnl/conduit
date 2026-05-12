@@ -25,9 +25,24 @@ jobs:
       shell: bash
     - name: Echo Host Config
       run: |
-            echo "**** Host Config Contents"
-            cat conduit-config.cmake
+            echo "Path tests "
+            which cygpath
+            which realpath
+            echo `cygpath -m D:/a/conduit/conduit/install/zlib-1.3.1`
+            echo `cygpath -m /d/a/conduit/conduit/install/zlib-1.3.1`
+            echo `realpath D:/a/conduit/conduit/install/zlib-1.3.1`
+            echo `realpath /d/a/conduit/conduit/install/zlib-1.3.1`
       shell: bash
+    - name: Configure Conduit
+      run: |
+        cmake --version
+        echo "**** Configuring Conduit"
+        cmake -S src -B build \
+              -C conduit-config.cmake \
+              -DENABLE_TESTS=ON \
+              -DCMAKE_INSTALL_PREFIX=install
+      shell: bash
+
     - name: Configure Conduit
       run: |
         cmake --version
