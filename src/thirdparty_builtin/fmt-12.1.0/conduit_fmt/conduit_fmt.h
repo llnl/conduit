@@ -11,8 +11,8 @@
 #ifndef CONDUIT_FMT_HPP
 #define CONDUIT_FMT_HPP
 
-#define FMT_EXCEPTIONS 1
-#define FMT_HEADER_ONLY 1
+#define CONDUIT_FMT_USE_EXCEPTIONS 1
+#define CONDUIT_FMT_HEADER_ONLY 1
 
 // Include all fmt header files
 #include "format.h"

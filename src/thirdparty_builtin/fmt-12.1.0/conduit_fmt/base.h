@@ -150,18 +150,18 @@
 #endif
 
 // Check if exceptions are disabled.
-#ifdef FMT_USE_EXCEPTIONS
+#ifdef CONDUIT_FMT_USE_EXCEPTIONS
 // Use the provided definition.
 #elif defined(__GNUC__) && !defined(__EXCEPTIONS)
-#  define FMT_USE_EXCEPTIONS 0
+#  define CONDUIT_FMT_USE_EXCEPTIONS 0
 #elif defined(__clang__) && !defined(__cpp_exceptions)
-#  define FMT_USE_EXCEPTIONS 0
+#  define CONDUIT_FMT_USE_EXCEPTIONS 0
 #elif FMT_MSC_VERSION && !_HAS_EXCEPTIONS
-#  define FMT_USE_EXCEPTIONS 0
+#  define CONDUIT_FMT_USE_EXCEPTIONS 0
 #else
-#  define FMT_USE_EXCEPTIONS 1
+#  define CONDUIT_FMT_USE_EXCEPTIONS 1
 #endif
-#if FMT_USE_EXCEPTIONS
+#if CONDUIT_FMT_USE_EXCEPTIONS
 #  define FMT_TRY try
 #  define FMT_CATCH(x) catch (x)
 #else
@@ -284,7 +284,7 @@ FMT_PRAGMA_GCC(diagnostic push)
 #  define FMT_WIN32 0
 #endif
 
-#if !defined(FMT_HEADER_ONLY) && FMT_WIN32
+#if !defined(CONDUIT_FMT_HEADER_ONLY) && FMT_WIN32
 #  if defined(FMT_LIB_EXPORT)
 #    define FMT_API __declspec(dllexport)
 #  elif defined(FMT_SHARED)
@@ -3035,7 +3035,7 @@ FMT_PRAGMA_GCC(pop_options)
 FMT_END_EXPORT
 FMT_END_NAMESPACE
 
-#ifdef FMT_HEADER_ONLY
+#ifdef CONDUIT_FMT_HEADER_ONLY
 #  include "format.h"
 #endif
 #endif  // FMT_BASE_H_
