@@ -28,7 +28,7 @@ jobs:
       run: |
         cmake --version
         echo "**** Configuring Conduit"
-        cmake -S src -B build `
+        cmake --trace-expand -S src -B build `
               -C conduit-config.cmake `
               -DENABLE_TESTS=ON `
               -DCMAKE_INSTALL_PREFIX=install
