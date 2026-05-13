@@ -20,6 +20,9 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Blueprint
 - Fixed missing install of blueprint non-mpi mesh examples and mesh partition c++ headers.
 
+#### Relay
+- Fixed a crash when reading Silo/Overlink files with missing material names.
+
 ## [0.9.6] - Released 2026-04-14
 
 ### Added
