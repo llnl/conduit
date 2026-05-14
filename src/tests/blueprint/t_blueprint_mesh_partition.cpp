@@ -3026,7 +3026,7 @@ TEST(conduit_blueprint_mesh_partition, mixed3d)
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_partition, preserve_matset_values)
 {
-    Node mesh, repartitioned_mesh, options;
+    Node mesh, repartitioned_mesh, repartitioned_mesh2, options;
     const index_t nx = 2;
     const index_t ny = 2;
     const float64 radius = 0.25;
@@ -3048,4 +3048,10 @@ TEST(conduit_blueprint_mesh_partition, preserve_matset_values)
     conduit::blueprint::mesh::partition(mesh, options, repartitioned_mesh);
 
     repartitioned_mesh.print();
+
+    options["target"] = 1;
+    conduit::blueprint::mesh::partition(repartitioned_mesh, options, repartitioned_mesh2);
+
+    repartitioned_mesh2.print();
+
 }
