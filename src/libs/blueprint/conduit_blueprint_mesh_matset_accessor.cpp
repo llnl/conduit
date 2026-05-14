@@ -535,6 +535,26 @@ MatsetAccessor::init(const Node &matset,
     }
     else // multi-buffer case
     {
+        // We need to have an array of zeroes we can use when we don't have
+        // data for something. We may have a matset with materials in the
+        // material_map that do not have corresponding volume_fractions. The
+        // correct answer when I ask what the volume fraction is for that material
+        // in any zone is "0.0". Having an array like this means we can have the
+        // correct answer on hand without needing any conditionals to check for this
+        // case inside of any loops.
+        if (m_is_element_dominant)
+        {
+            // multi-buffer by element (full)
+            m_internal_data["zeroes"].set(DataType::float64(m_num_elems));
+            float64_array zeroes_arr = m_internal_data["zeroes"].value();
+            zeroes_arr.fill(0.0);
+        }
+        else
+        {
+            // multi-buffer by material (sparse by material)
+            m_internal_data["zeroes"].set(DataType::float64(0));
+        }
+
         // multi-buffer material index map
         // we save an indirection array from material order id (the order materials appear
         // in the matset) to actual material id. Not all material sets are numbered from
@@ -585,12 +605,26 @@ MatsetAccessor::init(const Node &matset,
             m_internal_multi_mat_idx_map.set(mat_idx, mat_id);
 
             // save volume fraction array
-            m_multi_vol_fracs.push_back(matset["volume_fractions"][matname].value());
+            if (matset["volume_fractions"].has_child(matname))
+            {
+                m_multi_vol_fracs.push_back(matset["volume_fractions"][matname].value());
+            }
+            else
+            {
+                m_multi_vol_fracs.push_back(m_internal_data["zeroes"].value());
+            }
 
             if (nullptr != field)
             {
                 // save matset values array
-                m_multi_mset_vals.push_back((*field)["matset_values"][matname].value());
+                if ((*field)["matset_values"].has_child(matname))
+                {
+                    m_multi_mset_vals.push_back((*field)["matset_values"][matname].value());
+                }
+                else
+                {
+                    m_multi_mset_vals.push_back(m_internal_data["zeroes"].value());
+                }
             }
 
             if (nullptr != specset)
@@ -609,7 +643,14 @@ MatsetAccessor::init(const Node &matset,
 
                 for (index_t spec_idx = 0; spec_idx < nmatspec; spec_idx ++)
                 {
-                    m_multi_mass_fracs.push_back((*specset)["matset_values"][matname].child(spec_idx).value());
+                    if ((*specset)["matset_values"].has_child(matname))
+                    {
+                        m_multi_mass_fracs.push_back((*specset)["matset_values"][matname].child(spec_idx).value());
+                    }
+                    else
+                    {
+                        m_multi_mass_fracs.push_back(m_internal_data["zeroes"].value());
+                    }
                 }
             }
         }
@@ -637,7 +678,14 @@ MatsetAccessor::init(const Node &matset,
             for (index_t mat_idx = 0; mat_idx < m_num_mats; mat_idx ++)
             {
                 const std::string matname = material_map.child(mat_idx).name();
-                m_sbm_elem_ids.push_back(matset["element_ids"][matname].value());
+                if (matset["element_ids"].has_child(matname))
+                {
+                    m_sbm_elem_ids.push_back(matset["element_ids"][matname].value());
+                }
+                else
+                {
+                    m_sbm_elem_ids.push_back(m_internal_data["zeroes"].value());
+                }
             }
 
             m_get_mat_id       = &MatsetAccessor::get_sbm_mat_id;
