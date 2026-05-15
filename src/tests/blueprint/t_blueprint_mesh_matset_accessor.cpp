@@ -582,6 +582,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval)
 // 1. random material ids
 // 2. material order is different between matset/field/specset
 // 3. a material map is included for all cases
+// 4. an extra unused material is in the material map
 TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_special_cases)
 {
     const index_t nx = 2, ny = 2;
@@ -594,9 +595,14 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
 
     Node &material_map = mesh_sbe["matsets"]["matset"]["material_map"];
 
+    // scramble material numbers
     material_map["circle_a"].set(6);
     material_map["circle_b"].set(2);
     material_map["circle_c"].set(9);
+    // add extra unused material
+    material_map["circle_d"].set(7);
+    // remove and add back in background so circle_d is in the middle
+    material_map.remove_child("background");
     material_map["background"].set(17);
 
     // add material maps with strange material numbers to each matset
@@ -664,6 +670,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {6, 6, 6, 6},
             /* circle_b   */ {2, 2, 2, 2},
             /* circle_c   */ {9, 9, 9, 9},
+            /* circle_d   */ {7, 7, 7, 7},
             /* background */ {17, 17, 17, 17},
         };
 
@@ -672,7 +679,8 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {0, 0, 0, 0},
             /* circle_b   */ {1, 1, 1, 1},
             /* circle_c   */ {2, 2, 2, 2},
-            /* background */ {3, 3, 3, 3},
+            /* circle_d   */ {3, 3, 3, 3},
+            /* background */ {4, 4, 4, 4},
         };
 
         // index [mat_idx][elem_idx]
@@ -680,6 +688,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {0.0, 0.0, 0.0, 0.333333333333333},
             /* circle_b   */ {0.0, 0.0, 0.0, 0.333333333333333},
             /* circle_c   */ {0.0, 0.0, 0.0, 0.333333333333333},
+            /* circle_d   */ {0.0, 0.0, 0.0, 0.0},
             /* background */ {1.0, 1.0, 1.0, 0.0},
         };
 
@@ -688,6 +697,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {0.0, 0.0, 0.0, 0.100000001490116},
             /* circle_b   */ {0.0, 0.0, 0.0, 0.200000002980232},
             /* circle_c   */ {0.0, 0.0, 0.0, 0.600000023841858},
+            /* circle_d   */ {0.0, 0.0, 0.0, 0.0},
             /* background */ {0.0, 0.5, 0.5, 0.0},
         };
 
@@ -705,6 +715,8 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /*    c_spec1  */    {1.0, 0.75, 0.75, 0.5},
             /*    c_spec2  */    {0.0, 0.1875, 0.1875, 0.375},
             /*    c_spec3  */    {0.0, 0.0625, 0.0625, 0.125},
+            },
+            /* circle_d  */ {
             },
             /* background  */ {
             /*    bg_spec1 */    {1.0, 1.0, 1.0, 1.0},
@@ -760,9 +772,9 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
 
         // index [elem_idx][mat_idx]
         const std::vector<std::vector<index_t>> mat_order_ids_baseline = {
-            /* element 0 */ {3},
-            /* element 1 */ {3},
-            /* element 2 */ {3},
+            /* element 0 */ {4},
+            /* element 1 */ {4},
+            /* element 2 */ {4},
             /* element 3 */ {0, 1, 2},
         };
 
@@ -844,6 +856,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {6},
             /* circle_b   */ {2},
             /* circle_c   */ {9},
+            /* circle_d   */ {},
             /* background */ {17, 17, 17},
         };
 
@@ -852,7 +865,8 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {0},
             /* circle_b   */ {1},
             /* circle_c   */ {2},
-            /* background */ {3, 3, 3},
+            /* circle_d   */ {},
+            /* background */ {4, 4, 4},
         };
 
         // index [mat_idx][elem_idx]
@@ -860,6 +874,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {3},
             /* circle_b   */ {3},
             /* circle_c   */ {3},
+            /* circle_d   */ {},
             /* background */ {0, 1, 2},
         };
 
@@ -868,6 +883,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {0.333333333333333},
             /* circle_b   */ {0.333333333333333},
             /* circle_c   */ {0.333333333333333},
+            /* circle_d   */ {},
             /* background */ {1.0, 1.0, 1.0},
         };
 
@@ -876,6 +892,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {0.100000001490116},
             /* circle_b   */ {0.200000002980232},
             /* circle_c   */ {0.600000023841858},
+            /* circle_d   */ {},
             /* background */ {0.0, 0.5, 0.5},
         };
 
@@ -893,6 +910,8 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /*    c_spec1  */    {0.5},
             /*    c_spec2  */    {0.375},
             /*    c_spec3  */    {0.125},
+            },
+            /* circle_d  */ {
             },
             /* background  */ {
             /*    bg_spec1 */    {1.0, 1.0, 1.0},
