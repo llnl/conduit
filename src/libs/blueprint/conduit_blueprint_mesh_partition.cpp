@@ -2867,8 +2867,6 @@ Partitioner::copy_field(const conduit::Node &n_field,
                 conduit::blueprint::mesh::utils::slice_field(full_field_matvals, ids, trimmed_full_matset_values);
             }
 
-            trimmed_full_field.print();
-
             n_new_field["matset"] = matset_name;
 
             if (is_multi_buffer)
@@ -2887,10 +2885,7 @@ Partitioner::copy_field(const conduit::Node &n_field,
                     conduit::blueprint::mesh::field::to_multi_buffer_by_material(trimmed_full_matset,
                                                                                  trimmed_full_field,
                                                                                  matset_name,
-                                                                                 trimmed_sbm_field);
-                    
-                    trimmed_sbm_field.print();
-
+                                                                                 trimmed_sbm_field);                    
                     n_new_field["matset_values"].set(trimmed_sbm_field["matset_values"]);
                 }
             }
@@ -9423,9 +9418,6 @@ map_element_field(const std::vector<const Node*> &in_nodes,
             {
                 const Node &matset = *matset_ptr;
                 const Node &field = *(in_nodes[dom_idx]);
-
-                matset.print();
-                field.print();
 
                 Node full_matset, full_field;
                 conduit::blueprint::mesh::matset::to_multi_buffer_by_element(matset, full_matset);
