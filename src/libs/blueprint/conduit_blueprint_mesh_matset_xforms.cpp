@@ -1401,10 +1401,6 @@ copy_matset_independent_parts_of_field(const conduit::Node &src_field,
     dest_field["matset"] = dest_matset_name;
 }
 
-// TODO justin I am in the process of looking at all matset converters to ensure
-// they handle the missing material case well
-// should I add some to_silo tests for this case?
-
 //-----------------------------------------------------------------------------
 // venn full -> sparse by element
 void
@@ -1829,7 +1825,7 @@ multi_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &
     auto for_each_material = [&](const index_t mat_idx,
                                  const index_t num_elems_for_mat)
     {
-        if (num_elems_for_mat)
+        if (num_elems_for_mat > 0)
         {
             const std::string matname = material_map.child(mat_idx).name();
             dest_matset["volume_fractions"][matname].set(DataType::float64(num_elems_for_mat));
@@ -1963,7 +1959,8 @@ multi_buffer_by_material_to_multi_buffer_by_element_matset(const conduit::Node &
     std::vector<float64_array> mat_idx_to_data(num_mats);
 
     // create the output data arrays and save a pointer to each one
-    const std::vector<std::string> &matnames = src_matset["volume_fractions"].child_names();
+    std::vector<std::string> matnames;
+    get_material_names(src_matset, matnames);
     for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
     {
         const std::string &matname = matnames[mat_idx];
@@ -1998,7 +1995,8 @@ multi_buffer_by_material_to_multi_buffer_by_element_field(const conduit::Node &s
     std::vector<float64_array> mat_idx_to_data(num_mats);
 
     // create the output data arrays and save a pointer to each one
-    const std::vector<std::string> &matnames = src_matset["volume_fractions"].child_names();
+    std::vector<std::string> matnames;
+    get_material_names(src_matset, matnames);
     for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
     {
         const std::string &matname = matnames[mat_idx];
@@ -2299,7 +2297,8 @@ renumber_material_ids(conduit::Node &matset)
         {
             // we must have material map in this case
             std::map<index_t, index_t> old_to_new;
-            const std::vector<std::string> &matnames = matset["material_map"].child_names();
+            std::vector<std::string> matnames;
+            get_material_names(matset, matnames);
             const index_t num_mats = static_cast<index_t>(matnames.size());
             for (index_t i = 0; i < num_mats; i ++)
             {
@@ -2328,7 +2327,8 @@ renumber_material_ids(conduit::Node &matset)
         // if we have a material map to modify
         if (matset.has_child("material_map"))
         {
-            const std::vector<std::string> &matnames = matset["material_map"].child_names();
+            std::vector<std::string> matnames;
+            get_material_names(matset, matnames);
             const index_t num_mats = static_cast<index_t>(matnames.size());
             for (index_t i = 0; i < num_mats; i ++)
             {
