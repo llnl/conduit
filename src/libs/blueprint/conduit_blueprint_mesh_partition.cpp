@@ -9282,7 +9282,6 @@ map_vertex_field(const std::vector<std::pair<const Node*, const Node*>> &in_node
 static void
 map_element_field(const std::vector<std::pair<const Node*, const Node*>> &in_nodes,
                   const DataArray<index_t> &elemmap,
-                  const std::string &matset_name,
                   Node &out_field)
 {
     if(in_nodes.empty())
@@ -9290,7 +9289,14 @@ map_element_field(const std::vector<std::pair<const Node*, const Node*>> &in_nod
         return;
     }
 
-    const bool material_dependence = !matset_name.empty();
+    const bool material_dependence = std::all_of(
+        in_nodes.begin(),
+        in_nodes.end(),
+        [](const auto& pair)
+        {
+            return pair.second != nullptr;
+        }
+    );
                                      
 
     // this is an intermediate representation of the data
@@ -9353,6 +9359,7 @@ map_element_field(const std::vector<std::pair<const Node*, const Node*>> &in_nod
     std::string mat_topo;
     Node material_map;
     bool has_matmap = false;
+    std::string matset_name;
     if (material_dependence && ncomps == 0)
     {
         for (const auto &in_node : in_nodes)
@@ -9367,6 +9374,12 @@ map_element_field(const std::vector<std::pair<const Node*, const Node*>> &in_nod
             if (mat_topo.empty())
             {
                 mat_topo = matset["topology"].as_string();
+            }
+
+            if (matset_name.empty())
+            {
+                const Node &field = *(in_node.first);
+                matset_name = field["matset"].as_string();
             }
 
             // grab all the matnames across all uncombined domains
@@ -9506,7 +9519,6 @@ static void
 combine(const std::vector<std::pair<const Node*, const Node*>> &in_fields,
         const Node &assoc_topology,
         const Node &assoc_coordset,
-        const std::string &matset_name,
         Node &output)
 {
     const std::string &assoc = in_fields[0].first->child("association").as_string();
@@ -9542,7 +9554,7 @@ combine(const std::vector<std::pair<const Node*, const Node*>> &in_fields,
             fields::map_vertex_field(in_fields, orig_domains, orig_ids, output["values"]);
         }
 
-        if (! matset_name.empty())
+        if (in_fields[0].first->has_child("matset"))
         {
             CONDUIT_WARN("matset_values for vertex-associated field " << output.name() <<
                          "could not be combined. Please contact a Conduit developer.");
@@ -9555,14 +9567,8 @@ combine(const std::vector<std::pair<const Node*, const Node*>> &in_fields,
         const Node &out_topo_map = assoc_topology["element_map"];
         const DataArray<index_t> tmap = out_topo_map.value();
 
-        if (! matset_name.empty())
-        {
-            output["matset"] = matset_name;
-        }
-
         fields::map_element_field(in_fields,
                                   tmap,
-                                  matset_name,
                                   output);
     }
     else
@@ -10324,7 +10330,7 @@ Partitioner::combine(int domain,
             Node* matsets;
             if (n->has_child("matsets"))
             {
-                matsets = n->fetch_ptr("matsets");
+                matsets = const_cast<Node*>(n->fetch_ptr("matsets"));
             }
             auto itr = fields.children();
             while(itr.has_next())
@@ -10408,16 +10414,9 @@ Partitioner::combine(int domain,
             }
             Node &out_coordset = output_coordsets[assoc_cset_name];
 
-            std::string matset_name = "";
-            if (field_group[0].first->has_child("matset"))
-            {
-                matset_name = field_group[0]->child("matset").as_string();
-            }
-
             fields::combine(field_group,
                             out_topo,
                             out_coordset,
-                            matset_name,
                             output_fields[field_name]);
         }
     }
@@ -10863,12 +10862,6 @@ Partitioner::map_back_fields(const conduit::Node& repart_mesh,
             output["association"] = assoc;
             output["topology"] = assoc_topo;
 
-            std::string matset_name = "";
-            if (src_fields[0].first->has_child("matset"))
-            {
-                matset_name = src_fields[0].first->child("matset").as_string();
-            }
-
             if (assoc == "vertex")
             {
                 const std::string& assoc_cset = tgt_dom["topologies"][assoc_topo]["coordset"].as_string();
@@ -10876,7 +10869,7 @@ Partitioner::map_back_fields(const conduit::Node& repart_mesh,
                 index_t nverts = coordset::length(assoc_coordset);
                 fields::map_vertex_field(src_fields, tgt_vert_maps, nverts, output["values"]);
 
-                if (! matset_name.empty())
+                if (src_fields[0].first->has_child("matset"))
                 {
                     CONDUIT_WARN("matset_values for vertex-associated field " << output.name() <<
                                  "could not be combined. Please contact a Conduit developer.");
@@ -10884,14 +10877,8 @@ Partitioner::map_back_fields(const conduit::Node& repart_mesh,
             }
             else if (assoc == "element")
             {
-                if (! matset_name.empty())
-                {
-                    output["matset"] = matset_name;
-                }
-
                 fields::map_element_field(src_fields,
                                           elem_map_arr,
-                                          matset_name,
                                           output);
             }
         }
