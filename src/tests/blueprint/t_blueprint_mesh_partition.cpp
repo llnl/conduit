@@ -2144,6 +2144,10 @@ TEST(conduit_blueprint_mesh_partition, matset_multi_by_material)
         EXPECT_FALSE(diff_to_silo(venn, venn_combined, info)) << info.to_yaml();
     }
 
+    // TODO JUSTIN we have a crisis with mat_check. We are getting garbage values
+    // memcpy isn't going to work here I think
+    // need a more creative solution
+
     // Check combined result against baseline
     {
         const std::string name = "venn_multi_by_material_combined";
@@ -2157,6 +2161,8 @@ TEST(conduit_blueprint_mesh_partition, matset_multi_by_material)
         EXPECT_FALSE(baseline.diff(venn_combined, info, CONDUIT_EPSILON, true)) << info.to_yaml();
     #endif
     }
+
+    std::cout << venn_combined.to_yaml() << std::endl;
 }
 
 // //-----------------------------------------------------------------------------
