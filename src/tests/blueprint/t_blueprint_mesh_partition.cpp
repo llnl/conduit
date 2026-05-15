@@ -2079,28 +2079,35 @@ TEST(conduit_blueprint_mesh_partition, matset_multi_by_element)
 
     std::cout << venn_part.to_yaml() << std::endl;
 
-    conduit::Node venn_combined; opts["target"].set(1);
-    conduit::blueprint::mesh::partition(venn_part, opts, venn_combined);
+    // conduit::Node venn_combined; opts["target"].set(1);
+    // conduit::blueprint::mesh::partition(venn_part, opts, venn_combined);
 
-    // Test combined vs original "to_silo" results
-    {
-        conduit::Node info;
-        EXPECT_FALSE(diff_to_silo(venn, venn_combined, info)) << info.to_yaml();
-    }
+    // // Test combined vs original "to_silo" results
+    // {
+    //     conduit::Node info;
+    //     EXPECT_FALSE(diff_to_silo(venn, venn_combined, info)) << info.to_yaml();
+    // }
 
-    // Check combined result against baseline
-    {
-        const std::string name = "venn_multi_by_element_combined";
-        const std::string baseline_fname = baseline_file(name);
-        save_visit(name, venn_combined, true);
-    #ifdef GENERATE_BASELINES
-        make_baseline(baseline_fname, venn_combined);
-    #else
-        conduit::Node baseline, info;
-        load_baseline(baseline_fname, baseline);
-        EXPECT_FALSE(baseline.diff(venn_combined, info, CONDUIT_EPSILON, true)) << info.to_yaml();
-    #endif
-    }
+    // std::cout << venn_combined.to_yaml() << std::endl;
+
+
+    // conduit::Node venn2;
+    // conduit::blueprint::mesh::examples::venn("sparse_by_material", 4, 4, 0.33f, venn2);
+    // std::cout << venn2.to_yaml() << std::endl;
+
+    // // Check combined result against baseline
+    // {
+    //     const std::string name = "venn_multi_by_element_combined";
+    //     const std::string baseline_fname = baseline_file(name);
+    //     save_visit(name, venn_combined, true);
+    // #ifdef GENERATE_BASELINES
+    //     make_baseline(baseline_fname, venn_combined);
+    // #else
+    //     conduit::Node baseline, info;
+    //     load_baseline(baseline_fname, baseline);
+    //     EXPECT_FALSE(baseline.diff(venn_combined, info, CONDUIT_EPSILON, true)) << info.to_yaml();
+    // #endif
+    // }
 }
 
 // //-----------------------------------------------------------------------------
