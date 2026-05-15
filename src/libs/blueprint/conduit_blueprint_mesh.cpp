@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstring>
 #include <iostream>
+#include <iomanip>
 #include <limits>
 #include <memory>
 #include <set>
@@ -7312,6 +7313,34 @@ mesh::adjset::verify(const Node &adjset,
                 group_res &= verify_object_field(protocol, chld,
                     chld_info, "windows");
 
+                // Structured neighbor "window" adjset groups (can be used in
+                // multi-domain meshes with structured topologies) are expected
+		// to include:
+                // - neighbors: [domain_id, neighbor_domain_id]
+                // - rank: neighbor MPI rank
+                bool strict_window_group = true;
+                strict_window_group &= verify_integer_field(protocol, chld, chld_info, "neighbors");
+                strict_window_group &= verify_integer_field(protocol, chld, chld_info, "rank");
+
+                index_t dom_id = -1;
+                index_t nbr_id = -1;
+                if(strict_window_group)
+                {
+                    const auto nbrs = chld["neighbors"].as_index_t_accessor();
+                    if(nbrs.number_of_elements() != 2)
+                    {
+                        log::error(info, protocol,
+                                   "adjset group 'neighbors' must have exactly 2 entries "
+                                   "([domain_id, neighbor_domain_id])");
+                        strict_window_group = false;
+                    }
+                    else
+                    {
+                        dom_id = nbrs[0];
+                        nbr_id = nbrs[1];
+                    }
+                }
+
                 bool windows_res = true;
                 NodeConstIterator witr = chld["windows"].children();
                 while(witr.has_next())
@@ -7333,6 +7362,8 @@ mesh::adjset::verify(const Node &adjset,
                         wndw_info, "ratio") &&
                         mesh::logical_dims::verify(wndw["ratio"],
                             wndw_info["ratio"]);
+                    window_res &= verify_integer_field(protocol, wndw,
+                        wndw_info, "level_id");
 
                     // verify that dimensions for "origin" and
                     // "dims" and "ratio" are the same
@@ -7347,8 +7378,82 @@ mesh::adjset::verify(const Node &adjset,
                                 wndw_info, "ratio", false, window_dim);
                     }
 
+                    // verify partial_lo / partial_hi (if present),
+                    // and ensure they match the window dimensionality.
+                    if(window_res && (wndw.has_child("partial_lo") || wndw.has_child("partial_hi")))
+                    {
+                        bool partial_res = true;
+                        partial_res &= verify_object_field(protocol, wndw,
+                            wndw_info, "partial_lo", false, wndw["origin"].number_of_children());
+                        partial_res &= verify_object_field(protocol, wndw,
+                            wndw_info, "partial_hi", false, wndw["origin"].number_of_children());
+
+                        // If ratio exists, enforce 0 <= partial_* < ratio.
+                        if(partial_res && wndw.has_child("ratio"))
+                        {
+                            const Node &ratio = wndw["ratio"];
+                            const Node &plo = wndw["partial_lo"];
+                            const Node &phi = wndw["partial_hi"];
+                            NodeConstIterator ritr = ratio.children();
+                            while(ritr.has_next())
+                            {
+                                const Node &r = ritr.next();
+                                const std::string dim_name = ritr.name();
+                                if(!plo.has_child(dim_name) || !phi.has_child(dim_name))
+                                {
+                                    partial_res = false;
+                                    break;
+                                }
+                                const index_t rv = r.to_index_t();
+                                const index_t lov = plo[dim_name].to_index_t();
+                                const index_t hiv = phi[dim_name].to_index_t();
+                                if(rv <= 0 || lov < 0 || hiv < 0 || lov >= rv || hiv >= rv)
+                                {
+                                    partial_res = false;
+                                    break;
+                                }
+                            }
+                        }
+
+                        log::validation(wndw_info["partial_lo"], partial_res);
+                        log::validation(wndw_info["partial_hi"], partial_res);
+                        window_res &= partial_res;
+                    }
+
                     log::validation(wndw_info,window_res);
                     windows_res &= window_res;
+                }
+
+                // Enforce that window group contains exactly the two expected
+                // window entries: window_<domain_id> and window_<neighbor_id>.
+                if(strict_window_group && windows_res)
+                {
+                    const index_t num_windows = chld["windows"].number_of_children();
+                    if(num_windows != 2)
+                    {
+                        log::error(info, protocol,
+                                   "adjset group 'windows' must contain exactly 2 windows");
+                        windows_res = false;
+                    }
+                    else
+                    {
+                        auto mk_win_name = [](index_t id) -> std::string
+                        {
+                            std::ostringstream oss;
+                            oss << "window_" << std::setw(6) << std::setfill('0') << id;
+                            return oss.str();
+                        };
+                        const std::string dom_win = mk_win_name(dom_id);
+                        const std::string nbr_win = mk_win_name(nbr_id);
+                        if(!chld["windows"].has_child(dom_win) ||
+                           !chld["windows"].has_child(nbr_win))
+                        {
+                            log::error(info, protocol,
+                                       "adjset group 'windows' must contain '" +
+                                       dom_win + "' and '" + nbr_win + "'");
+                            windows_res = false;
+                        }
+                    }
                 }
 
                 log::validation(chld_info["windows"],windows_res);
@@ -9165,4 +9270,3 @@ void mesh::convert(const conduit::Node &n_mesh, const conduit::Node &n_options, 
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-
