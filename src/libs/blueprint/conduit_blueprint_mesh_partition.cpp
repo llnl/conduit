@@ -9361,12 +9361,12 @@ map_element_field(const std::vector<const Node*> &in_nodes,
         {
             full_combined_matset_values[matname].reset();
             full_combined_matset_values[matname].set(out_schema);
-            float64_array mvals = full_combined_matset_values[matname].value();
+            float64_accessor mvals = full_combined_matset_values[matname].value();
             mvals.fill(0.0);
 
             full_combined_volume_fractions[matname].reset();
             full_combined_volume_fractions[matname].set(out_schema);
-            float64_array vfs = full_combined_volume_fractions[matname].value();
+            float64_accessor vfs = full_combined_volume_fractions[matname].value();
             vfs.fill(0.0);
         }
     }
@@ -9450,35 +9450,35 @@ map_element_field(const std::vector<const Node*> &in_nodes,
             }
         }
 
-        // // now that we have finished combining fields into the full representation
-        // // we convert to the multi buffer by material representation
-        // if (material_dependence)
-        // {
-        //     // fetch the output matset to copy some data from it
-        //     const Node &matset = *matset_ptr;
+        // now that we have finished combining fields into the full representation
+        // we convert to the multi buffer by material representation
+        if (material_dependence)
+        {
+            // fetch the output matset to copy some data from it
+            const Node &matset = *matset_ptr;
 
-        //     // create an intermediate matset that we can send with the field
-        //     // to convert to sparse by material
-        //     Node intermediate_matset;
-        //     intermediate_matset["topology"].set(matset["topology"]);
-        //     if (matset.has_child("material_map"))
-        //     {
-        //         intermediate_matset["material_map"].set(matset["material_map"]);
-        //     }
-        //     intermediate_matset["volume_fractions"].set(full_combined_volume_fractions);
+            // create an intermediate matset that we can send with the field
+            // to convert to sparse by material
+            Node intermediate_matset;
+            intermediate_matset["topology"].set(matset["topology"]);
+            if (matset.has_child("material_map"))
+            {
+                intermediate_matset["material_map"].set(matset["material_map"]);
+            }
+            intermediate_matset["volume_fractions"].set(full_combined_volume_fractions);
 
-        //     // create an intermediate field with our new matset values that we can
-        //     // convert to sparse by element. Copy the field data and then store in
-        //     // the result field.
-        //     Node intermediate_field;
-        //     intermediate_field.set(out_field);
-        //     intermediate_field["matset_values"].set(full_combined_matset_values);
+            // create an intermediate field with our new matset values that we can
+            // convert to sparse by element. Copy the field data and then store in
+            // the result field.
+            Node intermediate_field;
+            intermediate_field.set(out_field);
+            intermediate_field["matset_values"].set(full_combined_matset_values);
 
-        //     conduit::blueprint::mesh::field::to_multi_buffer_by_material(intermediate_matset, 
-        //                                                                  intermediate_field,
-        //                                                                  matset_name,
-        //                                                                  out_field);
-        // }
+            conduit::blueprint::mesh::field::to_multi_buffer_by_material(intermediate_matset, 
+                                                                         intermediate_field,
+                                                                         matset_name,
+                                                                         out_field);
+        }
     }
 }
 
