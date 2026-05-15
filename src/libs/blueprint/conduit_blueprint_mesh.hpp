@@ -397,6 +397,32 @@ void CONDUIT_BLUEPRINT_API convert(const conduit::Node &n_mesh,
                                    const conduit::Node &n_options,
                                    conduit::Node &n_output);
 
+
+//-------------------------------------------------------------------------
+/*!
+ * @brief Remove specific components of mesh and their dependent entires.
+ *        For example, remove a topology and all assocated fields
+*
+ * @param n_mesh The node containing the input mesh (coordsets, topos, 
+ *               fields, matsets, adjsets)
+ *
+ * @param n_options A node containing options. Categories support
+ *                  both a single string or a list of strings
+ *
+ * @verbatim
+ * options:
+ *   coordsets:  mycoords  | [ mycoords1, mycoords2, ... ]
+ *   topologies: mytopo    | [ mytopo1, mytopo2, ... ]
+ *   fields:     myfield   | [ myfield1, myfield2, ... ]
+ *   matsets:    mymatset  | [ mymatset1, mymatset2, ... ]
+ *   adjsets:    myadj     | [ myadj1,myadj2, ... ]
+*    nestsets:   mynestset | [ mynestset1, mynestset2, ... ]
+ * @endverbatim
+ */
+void CONDUIT_BLUEPRINT_API remove(const conduit::Node &n_options,
+                                  conduit::Node &n_mesh);
+
+
 //-----------------------------------------------------------------------------
 // blueprint::mesh::logical_dims protocol interface
 //-----------------------------------------------------------------------------
