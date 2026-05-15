@@ -1789,12 +1789,18 @@ void to_polygonal(const Node &n,
                                 // are used to cause special handling where
                                 // placeholder data is placed into the buffers
                                 // for these cases.
-                                index_t part_lo =
-                                    ref_win.has_child("partial_lo") ?
-                                    ref_win["partial_lo"].to_index_t() : 0;
-                                index_t part_hi =
-                                    ref_win.has_child("partial_hi") ?
-                                    ref_win["partial_hi"].to_index_t() : 0;
+                                index_t part_lo = 0;
+                                index_t part_hi = 0;
+                                if(ref_size_i > 1)
+                                {
+                                    part_lo = ref_win.has_path("partial_lo/i") ? ref_win["partial_lo/i"].to_index_t() : 0;
+                                    part_hi = ref_win.has_path("partial_hi/i") ? ref_win["partial_hi/i"].to_index_t() : 0;
+                                }
+                                else if(ref_size_j > 1)
+                                {
+                                    part_lo = ref_win.has_path("partial_lo/j") ? ref_win["partial_lo/j"].to_index_t() : 0;
+                                    part_hi = ref_win.has_path("partial_hi/j") ? ref_win["partial_hi/j"].to_index_t() : 0;
+                                }
                                 const double dbl_max =
                                     std::numeric_limits<double>::max();
 
@@ -2021,12 +2027,18 @@ void to_polygonal(const Node &n,
                                     index_t iend = istart + nbr_size_i;
                                     index_t jend = jstart + nbr_size_j;
 
-                                    index_t part_lo =
-                                        nbr_win.has_child("partial_lo") ?
-                                        nbr_win["partial_lo"].to_index_t() : 0;
-                                    index_t part_hi =
-                                        nbr_win.has_child("partial_hi") ?
-                                        nbr_win["partial_hi"].to_index_t() : 0;
+                                    index_t part_lo = 0;
+                                    index_t part_hi = 0;
+                                    if(nbr_size_i > 1)
+                                    {
+                                        part_lo = nbr_win.has_path("partial_lo/i") ? nbr_win["partial_lo/i"].to_index_t() : 0;
+                                        part_hi = nbr_win.has_path("partial_hi/i") ? nbr_win["partial_hi/i"].to_index_t() : 0;
+                                    }
+                                    else if(nbr_size_j > 1)
+                                    {
+                                        part_lo = nbr_win.has_path("partial_lo/j") ? nbr_win["partial_lo/j"].to_index_t() : 0;
+                                        part_hi = nbr_win.has_path("partial_hi/j") ? nbr_win["partial_hi/j"].to_index_t() : 0;
+                                    }
 
                                     const double dbl_max =
                                         std::numeric_limits<double>::max();
@@ -2192,12 +2204,18 @@ void to_polygonal(const Node &n,
                                 }
 
 
-                                index_t part_lo =
-                                    ref_win.has_child("partial_lo") ?
-                                    ref_win["partial_lo"].to_index_t() : 0;
-                                index_t part_hi =
-                                    ref_win.has_child("partial_hi") ?
-                                    ref_win["partial_hi"].to_index_t() : 0;
+                                index_t part_lo = 0;
+                                index_t part_hi = 0;
+                                if(ref_size_i > 1)
+                                {
+                                    part_lo = ref_win.has_path("partial_lo/i") ? ref_win["partial_lo/i"].to_index_t() : 0;
+                                    part_hi = ref_win.has_path("partial_hi/i") ? ref_win["partial_hi/i"].to_index_t() : 0;
+                                }
+                                else if(ref_size_j > 1)
+                                {
+                                    part_lo = ref_win.has_path("partial_lo/j") ? ref_win["partial_lo/j"].to_index_t() : 0;
+                                    part_hi = ref_win.has_path("partial_hi/j") ? ref_win["partial_hi/j"].to_index_t() : 0;
+                                }
 
                                 // Handle cases with differing axis
                                 // orientations between the neighboring
@@ -2447,12 +2465,18 @@ void to_polygonal(const Node &n,
                         const index_t origin_j = ref_win["origin/j"].to_index_t();
                         const index_t dims_i   = ref_win["dims/i"].to_index_t();
                         const index_t dims_j   = ref_win["dims/j"].to_index_t();
-                        const index_t raw_part_lo =
-                            ref_win.has_child("partial_lo") ?
-                            ref_win["partial_lo"].to_index_t() : 0;
-                        const index_t raw_part_hi =
-                            ref_win.has_child("partial_hi") ?
-                            ref_win["partial_hi"].to_index_t() : 0;
+                        index_t raw_part_lo = 0;
+                        index_t raw_part_hi = 0;
+                        if(dims_i > 1)
+                        {
+                            raw_part_lo = ref_win.has_path("partial_lo/i") ? ref_win["partial_lo/i"].to_index_t() : 0;
+                            raw_part_hi = ref_win.has_path("partial_hi/i") ? ref_win["partial_hi/i"].to_index_t() : 0;
+                        }
+                        else if(dims_j > 1)
+                        {
+                            raw_part_lo = ref_win.has_path("partial_lo/j") ? ref_win["partial_lo/j"].to_index_t() : 0;
+                            raw_part_hi = ref_win.has_path("partial_hi/j") ? ref_win["partial_hi/j"].to_index_t() : 0;
+                        }
                         index_t structured_trim_lo = 0;
                         index_t structured_trim_hi = 0;
                         const bool coarse_side = ref_level < nbr_level;
