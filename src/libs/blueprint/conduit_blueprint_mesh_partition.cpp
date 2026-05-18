@@ -9389,14 +9389,13 @@ map_element_field(const std::vector<std::pair<const Node*, const Node*>> &in_nod
             matnames.insert(matnames_for_dom.begin(), matnames_for_dom.end());
         }
 
-        // we need to convert the first matset/field to full
-        // in order to know what the schema should be
+        // we need to convert the first field to full
+        // in order to know what the schema should be.
         // conversion could change the dtype
         const Node &matset = *(in_nodes[0].second);
         const Node &field = *(in_nodes[0].first);
 
-        Node full_matset, full_field;
-        conduit::blueprint::mesh::matset::to_multi_buffer_by_element(matset, full_matset);
+        Node full_field;
         conduit::blueprint::mesh::field::to_multi_buffer_by_element(matset, 
                                                                     field,
                                                                     matset_name,
