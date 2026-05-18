@@ -9495,8 +9495,6 @@ map_element_field(const std::vector<std::pair<const Node*, const Node*>> &in_nod
             }
         }
 
-        // full_combined_volume_fractions.print();
-
         // now that we have finished combining fields into the full representation
         // we convert to the multi buffer by material representation
         if (material_dependence)
@@ -9507,16 +9505,16 @@ map_element_field(const std::vector<std::pair<const Node*, const Node*>> &in_nod
             intermediate_matset["topology"].set(mat_topo);
             if (has_matmap)
             {
-                intermediate_matset["material_map"].set(material_map);
+                intermediate_matset["material_map"].set_external(material_map);
             }
-            intermediate_matset["volume_fractions"].set(full_combined_volume_fractions);
+            intermediate_matset["volume_fractions"].set_external(full_combined_volume_fractions);
 
             // create an intermediate field with our new matset values that we can
             // convert to sparse by element. Copy the field data and then store in
             // the result field.
             Node intermediate_field;
             intermediate_field.set(out_field);
-            intermediate_field["matset_values"].set(full_combined_matset_values);
+            intermediate_field["matset_values"].set_external(full_combined_matset_values);
 
             conduit::blueprint::mesh::field::to_multi_buffer_by_material(intermediate_matset, 
                                                                          intermediate_field,
