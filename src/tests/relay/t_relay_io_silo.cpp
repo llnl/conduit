@@ -1175,6 +1175,20 @@ TEST(conduit_relay_io_silo, unstructured_points)
 }
 
 //-----------------------------------------------------------------------------
+// tests missing material name
+TEST(conduit_relay_io_silo, missing_material_name)
+{
+    const std::string filepath = utils::join_file_path("overlink", "overlinkMatColorsNullMatnames.silo");
+    const std::string input_file = relay_test_silo_data_path(filepath);
+
+    Node load_mesh, write_opts;
+    io::silo::load_mesh(input_file, load_mesh);
+
+    EXPECT_TRUE(load_mesh.has_path("domain_000000/matsets/MMATERIAL/material_map/2"));
+    EXPECT_EQ(load_mesh["domain_000000/matsets/MMATERIAL/material_map/2"].as_int32(), 2);
+}
+
+//-----------------------------------------------------------------------------
 // Tests this Overlink rule: Number of species per material within a set must
 // agree across domains
 // This tests if we can find the error in the serial case.

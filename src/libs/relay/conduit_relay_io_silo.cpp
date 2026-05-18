@@ -3825,7 +3825,14 @@ read_multimats(DBtoc *toc,
             {
                 for (int i = 0; i < nmatnos; i ++)
                 {
-                    material_map[matnames[i]] = matnos[i];
+                    if (nullptr != matnames[i])
+                    {
+                        material_map[matnames[i]] = matnos[i];
+                    }
+                    else
+                    {
+                        material_map[std::to_string(matnos[i])] = matnos[i];
+                    }
                 }
             }
             else
