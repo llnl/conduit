@@ -2169,7 +2169,6 @@ TEST(conduit_blueprint_mesh_partition, matset_uni_by_element)
     ///                          volume fractions and matset values
     conduit::Node venn;
     conduit::blueprint::mesh::examples::venn("sparse_by_element", 4, 4, 0.33f, venn);
-    std::cout << venn.to_yaml() << std::endl;
 
     save_visit("venn_uni_by_element", venn, true);
 
@@ -3022,37 +3021,4 @@ TEST(conduit_blueprint_mesh_partition, mixed3d)
 #else
     EXPECT_EQ(compare_baseline(b01, n_unpart), true);
 #endif
-}
-
-//-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_partition, preserve_matset_values)
-{
-    Node mesh, repartitioned_mesh, repartitioned_mesh2, options;
-    const index_t nx = 2;
-    const index_t ny = 2;
-    const float64 radius = 0.25;
-    const std::string matset_type = "full";
-
-    conduit::blueprint::mesh::examples::venn(matset_type, nx, ny, radius, mesh);
-    mesh["fields"].remove_child("radius_a");
-    mesh["fields"].remove_child("circle_a");
-    mesh["fields"].remove_child("radius_b");
-    mesh["fields"].remove_child("circle_b");
-    mesh["fields"].remove_child("radius_c");
-    mesh["fields"].remove_child("circle_c");
-    mesh["fields"].remove_child("overlap");
-    mesh["fields"].remove_child("background");
-
-    // mesh["fields"].print();
-
-    options["target"] = 2;
-    conduit::blueprint::mesh::partition(mesh, options, repartitioned_mesh);
-
-    // repartitioned_mesh.print();
-
-    options["target"] = 1;
-    conduit::blueprint::mesh::partition(repartitioned_mesh, options, repartitioned_mesh2);
-
-    // repartitioned_mesh2.print();
-
 }

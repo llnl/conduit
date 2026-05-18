@@ -11,6 +11,9 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Conduit
 - Added a bulk `DataAccessor::set()` method for setting many elements at once.
 
+#### Blueprint
+- Added `conduit::blueprint::mesh::matset::get_material_names()`, which returns material names for a material set.
+
 ### Fixed
 
 #### Conduit
@@ -19,6 +22,8 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 #### Blueprint
 - Fixed missing install of blueprint non-mpi mesh examples and mesh partition c++ headers.
+- Handled the case in `MatsetAccessor` where a field or material set has a material that does not appear in any zones.
+- Handled the case in material set transformations where a field, material set, or species set has a material that does not appear in any zones.
 
 ## [0.9.6] - Released 2026-04-14
 
