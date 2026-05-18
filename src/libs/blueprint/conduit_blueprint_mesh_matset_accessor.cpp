@@ -617,9 +617,9 @@ MatsetAccessor::init(const Node &matset,
             if (nullptr != field)
             {
                 // save matset values array
-                if ((*field)["matset_values"].has_child(matname))
+                if (field->fetch_existing("matset_values").has_child(matname))
                 {
-                    m_multi_mset_vals.push_back((*field)["matset_values"][matname].value());
+                    m_multi_mset_vals.push_back(field->fetch_existing("matset_values")[matname].value());
                 }
                 else
                 {
