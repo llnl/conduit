@@ -13,6 +13,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 #### Blueprint
 - Added `conduit::blueprint::mesh::matset::get_material_names()`, which returns material names for a material set.
+- Added the ability for the Partitioner to handle field `matset_values` for both domain slicing and combination.
 
 ### Fixed
 
