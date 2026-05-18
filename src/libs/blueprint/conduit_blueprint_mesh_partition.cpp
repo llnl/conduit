@@ -9389,16 +9389,33 @@ map_element_field(const std::vector<std::pair<const Node*, const Node*>> &in_nod
             matnames.insert(matnames_for_dom.begin(), matnames_for_dom.end());
         }
 
+        // we need to convert the first matset/field to full
+        // in order to know what the schema should be
+        // conversion could change the dtype
+        const Node &matset = *(in_nodes[0].second);
+        const Node &field = *(in_nodes[0].first);
+
+        Node full_matset, full_field;
+        conduit::blueprint::mesh::matset::to_multi_buffer_by_element(matset, full_matset);
+        conduit::blueprint::mesh::field::to_multi_buffer_by_element(matset, 
+                                                                    field,
+                                                                    matset_name,
+                                                                    full_field);
+
+        index_t mvals_ncomps = 0;
+        Schema mvals_out_schema;
+        determine_schema(full_field["matset_values"][0], nelements, mvals_ncomps, mvals_out_schema);
+
         // now we can iterate over the material names
         for (const std::string &matname : matnames)
         {
             full_combined_matset_values[matname].reset();
-            full_combined_matset_values[matname].set(out_schema);
+            full_combined_matset_values[matname].set(mvals_out_schema);
             float64_accessor mvals = full_combined_matset_values[matname].value();
             mvals.fill(0.0);
 
             full_combined_volume_fractions[matname].reset();
-            full_combined_volume_fractions[matname].set(out_schema);
+            full_combined_volume_fractions[matname].set(mvals_out_schema);
             float64_accessor vfs = full_combined_volume_fractions[matname].value();
             vfs.fill(0.0);
         }
@@ -9451,10 +9468,6 @@ map_element_field(const std::vector<std::pair<const Node*, const Node*>> &in_nod
             {
                 const Node &matset = *(in_nodes[dom_idx].second);
                 const Node &field = *(in_nodes[dom_idx].first);
-
-                // std::cout << matset.to_yaml() << std::endl;
-                // std::cout << field.to_yaml() << std::endl;
-                // std::cout << "=======================" << std::endl;
 
                 Node full_matset, full_field;
                 conduit::blueprint::mesh::matset::to_multi_buffer_by_element(matset, full_matset);
@@ -10327,7 +10340,7 @@ Partitioner::combine(int domain,
         for(const Node *n : inputs)
         {
             const Node &fields = n->child("fields");
-            Node* matsets;
+            Node* matsets = nullptr;
             if (n->has_child("matsets"))
             {
                 matsets = const_cast<Node*>(n->fetch_ptr("matsets"));
