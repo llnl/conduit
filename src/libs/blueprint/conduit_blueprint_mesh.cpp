@@ -9304,7 +9304,7 @@ void mesh::remove(const conduit::Node &n_options,
             record_dependent_components(dom, "fields", "topology", topo_name, fields);
             record_dependent_components(dom, "matsets", "topology", topo_name, matsets);
             record_dependent_components(dom, "adjsets", "topology", topo_name, adjsets);
-            record_dependent_components(dom, "nsetsets", "topology", topo_name, nestsets);
+            record_dependent_components(dom, "nestsets", "topology", topo_name, nestsets);
         }
     }
 
@@ -9346,15 +9346,24 @@ void mesh::remove(const conduit::Node &n_options,
         remove_components(dom, "fields", fields);
         remove_components(dom, "matsets", matsets);
         remove_components(dom, "adjsets", adjsets);
-        remove_components(dom, "nsetsets", nestsets);
+        remove_components(dom, "nestsets", nestsets);
     }
 
-    // pass to clean up matsets, for any field that refs a
+    // past to clean up emty mesh and matsets
+    // empty mesh: if coordsets is empty, make sure to remove state
+    // matsets: for any field that refs a
     // matset, remove that ref and any matset values
 
     for(size_t i = 0; i < domains.size(); i++)
     {
         conduit::Node *dom = domains[i];
+        if( !dom->has_child("coordsets") )
+        {
+            if(dom->has_child("state"))
+            {
+                dom->remove("state");
+            }
+        }
 
         if(dom->has_child("fields"))
         {
@@ -9379,6 +9388,17 @@ void mesh::remove(const conduit::Node &n_options,
                         }
                     }
                 }
+            }
+        }
+
+        // if this domain is fully empty, it should be removed from its parent
+        if(dom->number_of_children() == 0)
+        {
+            if(dom->parent() != nullptr)
+            {
+                dom->parent()->remove(dom->name());
+                // Note: dom ptr is now invalid
+                dom = nullptr;
             }
         }
     }
