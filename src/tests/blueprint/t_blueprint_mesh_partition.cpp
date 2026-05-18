@@ -2169,50 +2169,49 @@ TEST(conduit_blueprint_mesh_partition, matset_uni_by_element)
     ///                          volume fractions and matset values
     conduit::Node venn;
     conduit::blueprint::mesh::examples::venn("sparse_by_element", 4, 4, 0.33f, venn);
+    std::cout << venn.to_yaml() << std::endl;
 
     save_visit("venn_uni_by_element", venn, true);
 
     conduit::Node venn_part, opts; opts["target"].set(4);
     conduit::blueprint::mesh::partition(venn, opts, venn_part);
 
-    std::cout << venn_part.to_yaml() << std::endl;
+    // Check partitioned result against baseline
+    {
+        const std::string name = "venn_uni_by_element_partitioned";
+        const std::string baseline_fname = baseline_file(name);
+        save_visit(name, venn_part, true);
+    #ifdef GENERATE_BASELINES
+        make_baseline(baseline_fname, venn_part);
+    #else
+        conduit::Node baseline, info;
+        load_baseline(baseline_fname, baseline);
+        EXPECT_FALSE(baseline.diff(venn_part, info, CONDUIT_EPSILON, true)) << info.to_yaml();
+    #endif
+    }
 
-    // // Check partitioned result against baseline
-    // {
-    //     const std::string name = "venn_uni_by_element_partitioned";
-    //     const std::string baseline_fname = baseline_file(name);
-    //     save_visit(name, venn_part, true);
-    // #ifdef GENERATE_BASELINES
-    //     make_baseline(baseline_fname, venn_part);
-    // #else
-    //     conduit::Node baseline, info;
-    //     load_baseline(baseline_fname, baseline);
-    //     EXPECT_FALSE(baseline.diff(venn_part, info, CONDUIT_EPSILON, true)) << info.to_yaml();
-    // #endif
-    // }
+    conduit::Node venn_combined; opts["target"].set(1);
+    conduit::blueprint::mesh::partition(venn_part, opts, venn_combined);
 
-    // conduit::Node venn_combined; opts["target"].set(1);
-    // conduit::blueprint::mesh::partition(venn_part, opts, venn_combined);
+    // Test combined vs original "to_silo" results
+    {
+        conduit::Node info;
+        EXPECT_FALSE(diff_to_silo(venn, venn_combined, info)) << info.to_yaml();
+    }
 
-    // // Test combined vs original "to_silo" results
-    // {
-    //     conduit::Node info;
-    //     EXPECT_FALSE(diff_to_silo(venn, venn_combined, info)) << info.to_yaml();
-    // }
-
-    // // Check combined result against baseline
-    // {
-    //     const std::string name = "venn_uni_by_element_combined";
-    //     const std::string baseline_fname = baseline_file(name);
-    //     save_visit(name, venn_combined, true);
-    // #ifdef GENERATE_BASELINES
-    //     make_baseline(baseline_fname, venn_combined);
-    // #else
-    //     conduit::Node baseline, info;
-    //     load_baseline(baseline_fname, baseline);
-    //     EXPECT_FALSE(baseline.diff(venn_combined, info, CONDUIT_EPSILON, true)) << info.to_yaml();
-    // #endif
-    // }
+    // Check combined result against baseline
+    {
+        const std::string name = "venn_uni_by_element_combined";
+        const std::string baseline_fname = baseline_file(name);
+        save_visit(name, venn_combined, true);
+    #ifdef GENERATE_BASELINES
+        make_baseline(baseline_fname, venn_combined);
+    #else
+        conduit::Node baseline, info;
+        load_baseline(baseline_fname, baseline);
+        EXPECT_FALSE(baseline.diff(venn_combined, info, CONDUIT_EPSILON, true)) << info.to_yaml();
+    #endif
+    }
 }
 
 // //-----------------------------------------------------------------------------
