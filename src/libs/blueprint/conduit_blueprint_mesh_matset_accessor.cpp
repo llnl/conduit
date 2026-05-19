@@ -51,30 +51,12 @@ namespace matset
 
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor()
- : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
-   m_get_mat_order_id(&MatsetAccessor::get_error_mat_order_id),
-   m_get_elem_id(&MatsetAccessor::get_error_elem_id),
-   m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
-   m_get_mset_val(&MatsetAccessor::get_error_mset_val),
-   m_get_mass_frac(&MatsetAccessor::get_error_mass_frac),
-   m_get_nmats_for_elem(&MatsetAccessor::get_error_nmats_for_elem),
-   m_get_nelems_for_mat(&MatsetAccessor::get_error_nelems_for_mat),
-   m_get_nspec_for_mat(&MatsetAccessor::get_error_nspec_for_mat)
 {
     // empty
 }
 
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor(const Node &matset)
- : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
-   m_get_mat_order_id(&MatsetAccessor::get_error_mat_order_id),
-   m_get_elem_id(&MatsetAccessor::get_error_elem_id),
-   m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
-   m_get_mset_val(&MatsetAccessor::get_error_mset_val),
-   m_get_mass_frac(&MatsetAccessor::get_error_mass_frac),
-   m_get_nmats_for_elem(&MatsetAccessor::get_error_nmats_for_elem),
-   m_get_nelems_for_mat(&MatsetAccessor::get_error_nelems_for_mat),
-   m_get_nspec_for_mat(&MatsetAccessor::get_error_nspec_for_mat)
 {
     init(matset, nullptr, nullptr);
 }
@@ -82,15 +64,6 @@ MatsetAccessor::MatsetAccessor(const Node &matset)
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor(const Node &matset,
                                const Node &specset_or_field)
- : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
-   m_get_mat_order_id(&MatsetAccessor::get_error_mat_order_id),
-   m_get_elem_id(&MatsetAccessor::get_error_elem_id),
-   m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
-   m_get_mset_val(&MatsetAccessor::get_error_mset_val),
-   m_get_mass_frac(&MatsetAccessor::get_error_mass_frac),
-   m_get_nmats_for_elem(&MatsetAccessor::get_error_nmats_for_elem),
-   m_get_nelems_for_mat(&MatsetAccessor::get_error_nelems_for_mat),
-   m_get_nspec_for_mat(&MatsetAccessor::get_error_nspec_for_mat)
 {
     if (specset_or_field.has_child("topology"))
     {
@@ -110,49 +83,19 @@ MatsetAccessor::MatsetAccessor(const Node &matset,
 MatsetAccessor::MatsetAccessor(const Node &matset,
                                const Node &field,
                                const Node &specset)
- : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
-   m_get_mat_order_id(&MatsetAccessor::get_error_mat_order_id),
-   m_get_elem_id(&MatsetAccessor::get_error_elem_id),
-   m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
-   m_get_mset_val(&MatsetAccessor::get_error_mset_val),
-   m_get_mass_frac(&MatsetAccessor::get_error_mass_frac),
-   m_get_nmats_for_elem(&MatsetAccessor::get_error_nmats_for_elem),
-   m_get_nelems_for_mat(&MatsetAccessor::get_error_nelems_for_mat),
-   m_get_nspec_for_mat(&MatsetAccessor::get_error_nspec_for_mat)
 {
     init(matset, &field, &specset);
 }   
 
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor(const MatsetAccessor &other_matset_accessor)
-: m_get_mat_id(other_matset_accessor.m_get_mat_id),
-  m_get_mat_order_id(other_matset_accessor.m_get_mat_order_id),
-  m_get_elem_id(other_matset_accessor.m_get_elem_id),
-  m_get_vol_frac(other_matset_accessor.m_get_vol_frac),
-  m_get_mset_val(other_matset_accessor.m_get_mset_val),
-  m_get_mass_frac(other_matset_accessor.m_get_mass_frac),
-  m_get_nmats_for_elem(other_matset_accessor.m_get_nmats_for_elem),
-  m_get_nelems_for_mat(other_matset_accessor.m_get_nelems_for_mat),
-  m_get_nspec_for_mat(other_matset_accessor.m_get_nspec_for_mat),
-  m_is_uni_buffer(other_matset_accessor.m_is_uni_buffer),
-  m_is_element_dominant(other_matset_accessor.m_is_element_dominant),
-  m_num_elems(other_matset_accessor.m_num_elems),
-  m_num_mats(other_matset_accessor.m_num_mats),
-  m_has_field(other_matset_accessor.m_has_field),
-  m_has_specset(other_matset_accessor.m_has_specset),
-  m_internal_data(other_matset_accessor.m_internal_data),
-  m_multi_vol_fracs(other_matset_accessor.m_multi_vol_fracs),
-  m_multi_mset_vals(other_matset_accessor.m_multi_mset_vals),
-  m_multi_mass_fracs(other_matset_accessor.m_multi_mass_fracs),
-  m_sbm_elem_ids(other_matset_accessor.m_sbm_elem_ids),
-  m_sbe_material_ids(other_matset_accessor.m_sbe_material_ids),
-  m_sbe_vol_fracs(other_matset_accessor.m_sbe_vol_fracs),
-  m_sbe_mset_vals(other_matset_accessor.m_sbe_mset_vals),
-  m_sbe_o2m_idx(other_matset_accessor.m_sbe_o2m_idx),
-  m_sbe_mass_fracs(other_matset_accessor.m_sbe_mass_fracs),
-  m_sbe_specset_o2m_idx(other_matset_accessor.m_sbe_specset_o2m_idx)
 {
-    rebind_internal_accessors();
+    if (other_matset_accessor.m_src_matset != nullptr)
+    {
+        init(*other_matset_accessor.m_src_matset,
+             other_matset_accessor.m_src_field,
+             other_matset_accessor.m_src_specset);
+    }
 }
 
 //---------------------------------------------------------------------------//
@@ -161,58 +104,59 @@ MatsetAccessor::operator=(const MatsetAccessor &other_matset_accessor)
 {
     if (this != &other_matset_accessor)
     {
-        m_get_mat_id = other_matset_accessor.m_get_mat_id;
-        m_get_mat_order_id = other_matset_accessor.m_get_mat_order_id;
-        m_get_elem_id = other_matset_accessor.m_get_elem_id;
-        m_get_vol_frac = other_matset_accessor.m_get_vol_frac;
-        m_get_mset_val = other_matset_accessor.m_get_mset_val;
-        m_get_mass_frac = other_matset_accessor.m_get_mass_frac;
-        m_get_nmats_for_elem = other_matset_accessor.m_get_nmats_for_elem;
-        m_get_nelems_for_mat = other_matset_accessor.m_get_nelems_for_mat;
-        m_get_nspec_for_mat = other_matset_accessor.m_get_nspec_for_mat;
-        m_is_uni_buffer = other_matset_accessor.m_is_uni_buffer;
-        m_is_element_dominant = other_matset_accessor.m_is_element_dominant;
-        m_num_elems = other_matset_accessor.m_num_elems;
-        m_num_mats = other_matset_accessor.m_num_mats;
-        m_has_field = other_matset_accessor.m_has_field;
-        m_has_specset = other_matset_accessor.m_has_specset;
-        m_internal_data = other_matset_accessor.m_internal_data;
-        m_multi_vol_fracs = other_matset_accessor.m_multi_vol_fracs;
-        m_multi_mset_vals = other_matset_accessor.m_multi_mset_vals;
-        m_multi_mass_fracs = other_matset_accessor.m_multi_mass_fracs;
-        m_sbm_elem_ids = other_matset_accessor.m_sbm_elem_ids;
-        m_sbe_material_ids = other_matset_accessor.m_sbe_material_ids;
-        m_sbe_vol_fracs = other_matset_accessor.m_sbe_vol_fracs;
-        m_sbe_mset_vals = other_matset_accessor.m_sbe_mset_vals;
-        m_sbe_o2m_idx = other_matset_accessor.m_sbe_o2m_idx;
-        m_sbe_mass_fracs = other_matset_accessor.m_sbe_mass_fracs;
-        m_sbe_specset_o2m_idx = other_matset_accessor.m_sbe_specset_o2m_idx;
-        rebind_internal_accessors();
+        if (other_matset_accessor.m_src_matset != nullptr)
+        {
+            init(*other_matset_accessor.m_src_matset,
+                 other_matset_accessor.m_src_field,
+                 other_matset_accessor.m_src_specset);
+        }
+        else
+        {
+            reset_state();
+        }
     }
     return *this;
 }
 
 //-----------------------------------------------------------------------------
 void
-MatsetAccessor::rebind_internal_accessors()
+MatsetAccessor::reset_state()
 {
-    // Rebind accessors that point into Nodes owned by this accessor instance.
-    if (m_internal_data.has_child("nmatspec"))
-    {
-        m_internal_nmatspec = m_internal_data["nmatspec"].value();
-    }
-    if (m_internal_data.has_child("nmatspec_offsets"))
-    {
-        m_internal_nmatspec_offsets = m_internal_data["nmatspec_offsets"].value();
-    }
-    if (m_internal_data.has_child("multi_mat_idx_map"))
-    {
-        m_internal_multi_mat_idx_map = m_internal_data["multi_mat_idx_map"].value();
-    }
-    if (m_internal_data.has_child("sbe_mat_order_ids"))
-    {
-        m_internal_sbe_mat_order_ids = m_internal_data["sbe_mat_order_ids"].value();
-    }
+    m_get_mat_id = &MatsetAccessor::get_error_mat_id;
+    m_get_mat_order_id = &MatsetAccessor::get_error_mat_order_id;
+    m_get_elem_id = &MatsetAccessor::get_error_elem_id;
+    m_get_vol_frac = &MatsetAccessor::get_error_vol_frac;
+    m_get_mset_val = &MatsetAccessor::get_error_mset_val;
+    m_get_mass_frac = &MatsetAccessor::get_error_mass_frac;
+    m_get_nmats_for_elem = &MatsetAccessor::get_error_nmats_for_elem;
+    m_get_nelems_for_mat = &MatsetAccessor::get_error_nelems_for_mat;
+    m_get_nspec_for_mat = &MatsetAccessor::get_error_nspec_for_mat;
+
+    m_is_uni_buffer = false;
+    m_is_element_dominant = false;
+    m_num_elems = 0;
+    m_num_mats = 0;
+    m_has_field = false;
+    m_has_specset = false;
+    m_src_matset = nullptr;
+    m_src_field = nullptr;
+    m_src_specset = nullptr;
+
+    m_internal_data.reset();
+    m_internal_nmatspec = index_t_accessor();
+    m_internal_nmatspec_offsets = index_t_accessor();
+    m_multi_vol_fracs.clear();
+    m_multi_mset_vals.clear();
+    m_internal_multi_mat_idx_map = index_t_accessor();
+    m_multi_mass_fracs.clear();
+    m_sbm_elem_ids.clear();
+    m_sbe_material_ids = index_t_accessor();
+    m_internal_sbe_mat_order_ids = index_t_accessor();
+    m_sbe_vol_fracs = float64_accessor();
+    m_sbe_mset_vals = float64_accessor();
+    m_sbe_o2m_idx = o2mrelation::O2MIndex();
+    m_sbe_mass_fracs = float64_accessor();
+    m_sbe_specset_o2m_idx = o2mrelation::O2MIndex();
 }
 
 //-----------------------------------------------------------------------------
@@ -221,6 +165,8 @@ MatsetAccessor::init(const Node &matset,
                      const Node *field,
                      const Node *specset)
 {
+    reset_state();
+
     // extra seat belts here
     if (! matset.dtype().is_object())
     {
@@ -228,8 +174,10 @@ MatsetAccessor::init(const Node &matset,
                       " passed matset node must be a valid matset tree.");
     }
 
-    m_has_field = false;
-    m_has_specset = false;
+    // these are used for copy-safe reconstruction
+    m_src_matset = &matset;
+    m_src_field = field;
+    m_src_specset = specset;
 
     if (nullptr != field)
     {
