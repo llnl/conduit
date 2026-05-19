@@ -25,6 +25,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Fixed missing install of blueprint non-mpi mesh examples and mesh partition c++ headers.
 - Handled the case in `MatsetAccessor` where a field or material set has a material that does not appear in any zones.
 - Handled the case in material set transformations where a field, material set, or species set has a material that does not appear in any zones.
+- Fixed bugs in `MatsetAccessor` causing copy construction to fail on Windows.
 
 ## [0.9.6] - Released 2026-04-14
 
