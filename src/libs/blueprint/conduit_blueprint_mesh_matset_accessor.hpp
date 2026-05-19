@@ -241,10 +241,10 @@ private:
 //
 //-----------------------------------------------------------------------------
 
+    void reset_state();
     void init(const Node &matset,
               const Node *field,
               const Node *specset);
-    void rebind_internal_accessors();
 
     //
     // Per layout implementations, only declarations here
@@ -344,12 +344,15 @@ private:
     GetNMatSpecPtr     m_get_nspec_for_mat;
 
     // information members
-    bool m_is_uni_buffer;
-    bool m_is_element_dominant;
-    index_t m_num_elems;
-    index_t m_num_mats;
-    bool m_has_field;
-    bool m_has_specset;
+    bool m_is_uni_buffer = false;
+    bool m_is_element_dominant = false;
+    index_t m_num_elems = 0;
+    index_t m_num_mats = 0;
+    bool m_has_field = false;
+    bool m_has_specset = false;
+    const Node *m_src_matset = nullptr;
+    const Node *m_src_field = nullptr;
+    const Node *m_src_specset = nullptr;
 
     // universal members
     // these are members that are useful for all layout types
