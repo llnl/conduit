@@ -174,6 +174,7 @@ MatsetAccessor::init(const Node &matset,
                       " passed matset node must be a valid matset tree.");
     }
 
+    // these are used for copy-safe reconstruction
     m_src_matset = &matset;
     m_src_field = field;
     m_src_specset = specset;
