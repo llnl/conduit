@@ -17,6 +17,13 @@
 #include <string>
 #include "gtest/gtest.h"
 
+void echo_node(const std::string tag, const conduit::Node &node)
+{
+    std::cout << tag << std::endl;
+    std::cout << node.to_yaml() << std::endl;
+}
+
+
 
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_remove, bad_options)
@@ -54,14 +61,14 @@ TEST(conduit_blueprint_mesh_remove, remove_simple)
         EXPECT_TRUE(n_mesh.has_path("fields/radial"));
         EXPECT_TRUE(n_mesh.has_path("fields/vel"));
 
-        std::cout << "[before]" << std::endl;
-        std::cout << n_mesh.to_yaml() << std::endl;
+        echo_node("[before]",n_mesh);
+        echo_node("[options]",n_opts);
         conduit::blueprint::mesh::remove(n_opts,n_mesh);
         // NOTE: this will be false b/c we lack a topology
         EXPECT_FALSE(conduit::blueprint::mesh::verify(n_mesh, n_info));
-        n_info.print();
-        std::cout << "[after]" << std::endl;
-        std::cout << n_mesh.to_yaml() << std::endl;
+        echo_node("[after]",n_mesh);
+        echo_node("info",n_info);
+
 
         EXPECT_TRUE(n_mesh.has_path("state"));
         EXPECT_TRUE(n_mesh.has_path("coordsets/coords"));
@@ -84,14 +91,13 @@ TEST(conduit_blueprint_mesh_remove, remove_simple)
         EXPECT_TRUE(n_mesh.has_path("fields/radial"));
         EXPECT_TRUE(n_mesh.has_path("fields/vel"));
 
-        std::cout << "[before]" << std::endl;
-        std::cout << n_mesh.to_yaml() << std::endl;
+        echo_node("[before]",n_mesh);
+        echo_node("[options]",n_opts);
         conduit::blueprint::mesh::remove(n_opts,n_mesh);
         // NOTE: this will be true because an empty mesh is valid
         EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
-        n_info.print();
-        std::cout << "[after]" << std::endl;
-        std::cout << n_mesh.to_yaml() << std::endl;
+        echo_node("[after]",n_mesh);
+        echo_node("[info]",n_info);
 
         EXPECT_FALSE(n_mesh.has_path("coordsets/coords"));
         EXPECT_FALSE(n_mesh.has_path("topologies/mesh"));
@@ -114,13 +120,12 @@ TEST(conduit_blueprint_mesh_remove, remove_simple)
         EXPECT_TRUE(n_mesh.has_path("fields/radial"));
         EXPECT_TRUE(n_mesh.has_path("fields/vel"));
 
-        std::cout << "[before]" << std::endl;
-        std::cout << n_mesh.to_yaml() << std::endl;
+        echo_node("[before]",n_mesh);
         conduit::blueprint::mesh::remove(n_opts,n_mesh);
         EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
-        n_info.print();
-        std::cout << "[after]" << std::endl;
-        std::cout << n_mesh.to_yaml() << std::endl;
+        echo_node("[after]",n_mesh);
+        echo_node("[info]",n_info);
+
 
         EXPECT_TRUE(n_mesh.has_path("state"));
         EXPECT_TRUE(n_mesh.has_path("coordsets/coords"));
@@ -134,188 +139,178 @@ TEST(conduit_blueprint_mesh_remove, remove_simple)
 
 }
 
-// //-----------------------------------------------------------------------------
-// TEST(conduit_blueprint_mesh_remove, remove_adj_sets)
-// {
-//     conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
-//   {
-//         conduit::blueprint::mesh::examples::generate("adjset_uniform",n_mesh);
-//         n_opts.reset();
-//         n_opts["adjsets"] = "adjset";
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_remove, remove_adj_sets)
+{
+    conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
+  {
+        conduit::blueprint::mesh::examples::generate("adjset_uniform",n_mesh);
+        n_opts.reset();
+        n_opts["adjsets"] = "adjset";
 
-//         size_t number_of_doms = 8;
-//         EXPECT_EQ(n_mesh.number_of_children(),number_of_doms);
-//         for(size_t i=0; i<number_of_doms; i++)
-//         {
-//             EXPECT_TRUE(n_mesh[i].has_path("adjsets/adjset"));
-//         }
+        size_t number_of_doms = 8;
+        EXPECT_EQ(n_mesh.number_of_children(),number_of_doms);
+        for(size_t i=0; i<number_of_doms; i++)
+        {
+            EXPECT_TRUE(n_mesh[i].has_path("adjsets/adjset"));
+        }
 
-//         std::cout << "[before]" << std::endl;
-//         std::cout << n_mesh.to_yaml() << std::endl;
-//         conduit::blueprint::mesh::remove(n_opts,n_mesh);
-//         EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
-//         n_info.print();
-//         std::cout << "[after]" << std::endl;
-//         std::cout << n_mesh.to_yaml() << std::endl;
+        echo_node("[before]",n_mesh);
+        conduit::blueprint::mesh::remove(n_opts,n_mesh);
+        EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
+        echo_node("[after]",n_mesh);
+        echo_node("[info]",n_info);
 
-//         EXPECT_EQ(n_mesh.number_of_children(),number_of_doms);
-//         for(size_t i=0; i<number_of_doms; i++)
-//         {
-//             EXPECT_FALSE(n_mesh[i].has_path("adjsets"));
-//             EXPECT_FALSE(n_mesh[i].has_path("adjsets/adjset"));
-//         }
+        EXPECT_EQ(n_mesh.number_of_children(),number_of_doms);
+        for(size_t i=0; i<number_of_doms; i++)
+        {
+            EXPECT_FALSE(n_mesh[i].has_path("adjsets"));
+            EXPECT_FALSE(n_mesh[i].has_path("adjsets/adjset"));
+        }
 
-//     }
+    }
 
-//     // also remove mask
-//     {
-//         conduit::blueprint::mesh::examples::generate("adjset_uniform",n_mesh);
-//         n_opts.reset();
-//         n_opts["adjsets"] = "adjset";
-//         n_opts["fields"] = "id";
+    // also remove mask
+    {
+        conduit::blueprint::mesh::examples::generate("adjset_uniform",n_mesh);
+        n_opts.reset();
+        n_opts["adjsets"] = "adjset";
+        n_opts["fields"] = "id";
 
-//         size_t number_of_doms = 8;
-//         EXPECT_EQ(n_mesh.number_of_children(),number_of_doms);
+        size_t number_of_doms = 8;
+        EXPECT_EQ(n_mesh.number_of_children(),number_of_doms);
     
-//         for(size_t i=0; i<number_of_doms; i++)
-//         {
-//             EXPECT_TRUE(n_mesh[i].has_path("adjsets/adjset"));
-//             EXPECT_TRUE(n_mesh[i].has_path("fields/id"));
-//         }
+        for(size_t i=0; i<number_of_doms; i++)
+        {
+            EXPECT_TRUE(n_mesh[i].has_path("adjsets/adjset"));
+            EXPECT_TRUE(n_mesh[i].has_path("fields/id"));
+        }
 
-//         std::cout << "[before]" << std::endl;
-//         std::cout << n_mesh.to_yaml() << std::endl;
-//         conduit::blueprint::mesh::remove(n_opts,n_mesh);
-//         EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
-//         n_info.print();
-//         std::cout << "[after]" << std::endl;
-//         std::cout << n_mesh.to_yaml() << std::endl;
+        echo_node("[before]",n_mesh);
+        conduit::blueprint::mesh::remove(n_opts,n_mesh);
+        EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
+        echo_node("[after]",n_mesh);
+        echo_node("[info]",n_info);
 
-//         EXPECT_EQ(n_mesh.number_of_children(),number_of_doms);
-//         for(size_t i=0; i<number_of_doms; i++)
-//         {
-//             EXPECT_FALSE(n_mesh[i].has_path("adjsets/adjset"));
-//             EXPECT_FALSE(n_mesh[i].has_path("adjsets"));
-//             EXPECT_FALSE(n_mesh[i].has_path("fields/id"));
-//             EXPECT_FALSE(n_mesh[i].has_path("fields"));
-//         }
-//     }
+        EXPECT_EQ(n_mesh.number_of_children(),number_of_doms);
+        for(size_t i=0; i<number_of_doms; i++)
+        {
+            EXPECT_FALSE(n_mesh[i].has_path("adjsets/adjset"));
+            EXPECT_FALSE(n_mesh[i].has_path("adjsets"));
+            EXPECT_FALSE(n_mesh[i].has_path("fields/id"));
+            EXPECT_FALSE(n_mesh[i].has_path("fields"));
+        }
+    }
 
 
-//     // remove all via coordset
-//     {
-//         conduit::blueprint::mesh::examples::generate("adjset_uniform",n_mesh);
-//         n_opts.reset();
-//         n_opts["coordsets"] = "coords";
-//         n_opts["state"] = "*";
+    // remove all via coordset
+    {
+        conduit::blueprint::mesh::examples::generate("adjset_uniform",n_mesh);
+        n_opts.reset();
+        n_opts["coordsets"] = "coords";
+        n_opts["state"] = "*";
 
-//         size_t number_of_doms = 8;
-//         EXPECT_EQ(n_mesh.number_of_children(),number_of_doms);
-//         for(size_t i=0; i<number_of_doms; i++)
-//         {
-//             EXPECT_TRUE(n_mesh[i].has_path("adjsets/adjset"));
-//         }
+        size_t number_of_doms = 8;
+        EXPECT_EQ(n_mesh.number_of_children(),number_of_doms);
+        for(size_t i=0; i<number_of_doms; i++)
+        {
+            EXPECT_TRUE(n_mesh[i].has_path("adjsets/adjset"));
+        }
 
-//         std::cout << "[before]" << std::endl;
-//         std::cout << n_mesh.to_yaml() << std::endl;
-//         conduit::blueprint::mesh::remove(n_opts,n_mesh);
-//         EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
-//         n_info.print();
-//         std::cout << "[after]" << std::endl;
-//         // this mesh will be empty post removal
-//         std::cout << n_mesh.to_yaml() << std::endl;
+        echo_node("[before]",n_mesh);
+        conduit::blueprint::mesh::remove(n_opts,n_mesh);
+        EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
+        // this mesh will be empty post removal
+        echo_node("[after]",n_mesh);
+        echo_node("[info]",n_info);
 
-//         EXPECT_EQ(n_mesh.number_of_children(),0);
-//     }
-// }
+        EXPECT_EQ(n_mesh.number_of_children(),0);
+    }
+}
 
-// //-----------------------------------------------------------------------------
-// TEST(conduit_blueprint_mesh_remove, remove_nest_sets)
-// {
-//     conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
-//     {
-//         conduit::blueprint::mesh::examples::generate("julia_nestsets_simple",n_mesh);
-//         n_opts.reset();
-//         n_opts["nestsets"] = "nest";
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_remove, remove_nest_sets)
+{
+    conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
+    {
+        conduit::blueprint::mesh::examples::generate("julia_nestsets_simple",n_mesh);
+        n_opts.reset();
+        n_opts["nestsets"] = "nest";
 
-//         EXPECT_EQ(n_mesh.number_of_children(),2);
-//         EXPECT_TRUE(n_mesh[0].has_path("nestsets/nest"));
-//         EXPECT_TRUE(n_mesh[0].has_path("fields/mask"));
+        EXPECT_EQ(n_mesh.number_of_children(),2);
+        EXPECT_TRUE(n_mesh[0].has_path("nestsets/nest"));
+        EXPECT_TRUE(n_mesh[0].has_path("fields/mask"));
 
-//         EXPECT_TRUE(n_mesh[1].has_path("nestsets/nest"));
-//         EXPECT_TRUE(n_mesh[1].has_path("fields/mask"));
+        EXPECT_TRUE(n_mesh[1].has_path("nestsets/nest"));
+        EXPECT_TRUE(n_mesh[1].has_path("fields/mask"));
 
+        echo_node("[before]",n_mesh);
+        conduit::blueprint::mesh::remove(n_opts,n_mesh);
+        EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
+        echo_node("[after]",n_mesh);
+        echo_node("[info]",n_info);
+        
+        EXPECT_EQ(n_mesh.number_of_children(),2);
+        EXPECT_FALSE(n_mesh[0].has_path("nestsets"));
+        EXPECT_FALSE(n_mesh[0].has_path("nestsets/nest"));
+        EXPECT_TRUE(n_mesh[0].has_path("fields/mask"));
 
-//         std::cout << "[before]" << std::endl;
-//         std::cout << n_mesh.to_yaml() << std::endl;
-//         conduit::blueprint::mesh::remove(n_opts,n_mesh);
-//         EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
-//         std::cout << "[after]" << std::endl;
-//         std::cout << n_mesh.to_yaml() << std::endl;
+        EXPECT_FALSE(n_mesh[1].has_path("nestsets"));
+        EXPECT_FALSE(n_mesh[1].has_path("nestsets/nest"));
+        EXPECT_TRUE(n_mesh[1].has_path("fields/mask"));
+    }
 
-//         EXPECT_EQ(n_mesh.number_of_children(),2);
-//         EXPECT_FALSE(n_mesh[0].has_path("nestsets"));
-//         EXPECT_FALSE(n_mesh[0].has_path("nestsets/nest"));
-//         EXPECT_TRUE(n_mesh[0].has_path("fields/mask"));
+    // also remove mask
+    {
+        conduit::blueprint::mesh::examples::generate("julia_nestsets_simple",n_mesh);
+        n_opts.reset();
+        n_opts["nestsets"] = "nest";
+        n_opts["fields"] = "mask";
 
-//         EXPECT_FALSE(n_mesh[1].has_path("nestsets"));
-//         EXPECT_FALSE(n_mesh[1].has_path("nestsets/nest"));
-//         EXPECT_TRUE(n_mesh[1].has_path("fields/mask"));
-//     }
+        EXPECT_EQ(n_mesh.number_of_children(),2);
+        EXPECT_TRUE(n_mesh[0].has_path("nestsets/nest"));
+        EXPECT_TRUE(n_mesh[0].has_path("fields/mask"));
 
-//     // also remove mask
-//     {
-//         conduit::blueprint::mesh::examples::generate("julia_nestsets_simple",n_mesh);
-//         n_opts.reset();
-//         n_opts["nestsets"] = "nest";
-//         n_opts["fields"] = "mask";
-
-//         EXPECT_EQ(n_mesh.number_of_children(),2);
-//         EXPECT_TRUE(n_mesh[0].has_path("nestsets/nest"));
-//         EXPECT_TRUE(n_mesh[0].has_path("fields/mask"));
-
-//         EXPECT_TRUE(n_mesh[1].has_path("nestsets/nest"));
-//         EXPECT_TRUE(n_mesh[1].has_path("fields/mask"));
+        EXPECT_TRUE(n_mesh[1].has_path("nestsets/nest"));
+        EXPECT_TRUE(n_mesh[1].has_path("fields/mask"));
 
 
-//         std::cout << "[before]" << std::endl;
-//         std::cout << n_mesh.to_yaml() << std::endl;
-//         conduit::blueprint::mesh::remove(n_opts,n_mesh);
-//         EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
-//         std::cout << "[after]" << std::endl;
-//         std::cout << n_mesh.to_yaml() << std::endl;
+        echo_node("[before]",n_mesh);
+        conduit::blueprint::mesh::remove(n_opts,n_mesh);
+        EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
+        echo_node("[after]",n_mesh);
+        echo_node("[info]",n_info);
 
-//         EXPECT_EQ(n_mesh.number_of_children(),2);
-//         EXPECT_FALSE(n_mesh[0].has_path("nestsets"));
-//         EXPECT_FALSE(n_mesh[0].has_path("nestsets/nest"));
-//         EXPECT_FALSE(n_mesh[0].has_path("fields/mask"));
+        EXPECT_EQ(n_mesh.number_of_children(),2);
+        EXPECT_FALSE(n_mesh[0].has_path("nestsets"));
+        EXPECT_FALSE(n_mesh[0].has_path("nestsets/nest"));
+        EXPECT_FALSE(n_mesh[0].has_path("fields/mask"));
 
-//         EXPECT_FALSE(n_mesh[1].has_path("nestsets"));
-//         EXPECT_FALSE(n_mesh[1].has_path("nestsets/nest"));
-//         EXPECT_FALSE(n_mesh[1].has_path("fields/mask"));
-//     }
+        EXPECT_FALSE(n_mesh[1].has_path("nestsets"));
+        EXPECT_FALSE(n_mesh[1].has_path("nestsets/nest"));
+        EXPECT_FALSE(n_mesh[1].has_path("fields/mask"));
+    }
 
-//     // remove all via coordset
-//     {
-//         conduit::blueprint::mesh::examples::generate("julia_nestsets_simple",n_mesh);
-//         n_opts.reset();
-//         n_opts["coordsets"] = "coords";
+    // remove all via coordset
+    {
+        conduit::blueprint::mesh::examples::generate("julia_nestsets_simple",n_mesh);
+        n_opts.reset();
+        n_opts["coordsets"] = "coords";
 
-//         EXPECT_EQ(n_mesh.number_of_children(),2);
-//         EXPECT_TRUE(n_mesh[0].has_path("nestsets/nest"));
-//         EXPECT_TRUE(n_mesh[0].has_path("fields/mask"));
+        EXPECT_EQ(n_mesh.number_of_children(),2);
+        EXPECT_TRUE(n_mesh[0].has_path("nestsets/nest"));
+        EXPECT_TRUE(n_mesh[0].has_path("fields/mask"));
 
-//         EXPECT_TRUE(n_mesh[1].has_path("nestsets/nest"));
-//         EXPECT_TRUE(n_mesh[1].has_path("fields/mask"));
+        EXPECT_TRUE(n_mesh[1].has_path("nestsets/nest"));
+        EXPECT_TRUE(n_mesh[1].has_path("fields/mask"));
+
+        echo_node("[before]",n_mesh);
+        conduit::blueprint::mesh::remove(n_opts,n_mesh);
+        EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
+        echo_node("[after]",n_mesh);
+        echo_node("[info]",n_info);
 
 
-//         std::cout << "[before]" << std::endl;
-//         std::cout << n_mesh.to_yaml() << std::endl;
-//         conduit::blueprint::mesh::remove(n_opts,n_mesh);
-//         EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
-//         std::cout << "[after]" << std::endl;
-//         std::cout << n_mesh.to_yaml() << std::endl;
-
-//         EXPECT_EQ(n_mesh.number_of_children(),0);
-//     }
-// }
+        EXPECT_EQ(n_mesh.number_of_children(),0);
+    }
+}

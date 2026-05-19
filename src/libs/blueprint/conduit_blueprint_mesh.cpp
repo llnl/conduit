@@ -28,6 +28,7 @@
 #include <set>
 #include <sstream>
 #include <iterator>
+#include <regex>
 
 //-----------------------------------------------------------------------------
 // conduit includes
@@ -9181,8 +9182,6 @@ void mesh::remove(const conduit::Node &n_options,
     // convert any options that are single string into a list
     NodeConstIterator itr = n_options.children();
 
-    std::map<std::string,int> rm_categories;
-
     while(itr.has_next())
     {
         const Node &chld = itr.next();
@@ -9198,10 +9197,6 @@ void mesh::remove(const conduit::Node &n_options,
                 if(!lst_chld.dtype().is_string())
                 {
                     ok = false;
-                }
-                else if(lst_chld.as_string() == "*")
-                {
-                    rm_categories[chld_name] = 1;
                 }
                 else
                 {
@@ -9220,14 +9215,7 @@ void mesh::remove(const conduit::Node &n_options,
         }
         else if(chld.dtype().is_string())
         {
-            if(chld.as_string() == "*")
-            {
-                rm_categories[chld_name] = 1;
-            }
-            else
-            {
-                n_opts_expanded[chld_name].append() = chld;
-            }
+            n_opts_expanded[chld_name].append() = chld;
         }
         else
         {
@@ -9274,69 +9262,6 @@ void mesh::remove(const conduit::Node &n_options,
 
     // note: this isn't const b/c we will alter the mesh
     auto domains = conduit::blueprint::mesh::domains(n_mesh);
-
-    // helper to record all components of a given type
-    // use for the remove * cases
-    auto record_components = [&](const conduit::Node *dom,
-                                 const std::string &comp_type,
-                                 std::set<std::string> &rset)
-    {
-        if(dom->has_child(comp_type))
-        {
-            NodeConstIterator itr = dom->fetch_existing(comp_type).children();
-            while(itr.has_next())
-            {
-                rset.insert(itr.next().name());
-            }
-        }
-    };
-
-    // Loop over domains and add found to removal list
-    for(size_t i = 0; i < domains.size(); i++)
-    {
-        Node *dom = domains[i];
-        if(rm_categories["state"] == 1)
-        {
-            record_components(dom,"state",state);
-        }
-
-        if(rm_categories["coordsets"] == 1)
-        {
-            record_components(dom,"coordsets",coordsets);
-        }
-
-        if(rm_categories["topologies"] == 1)
-        {
-            record_components(dom,"topologies",topos);
-        }
-
-        if(rm_categories["fields"] == 1)
-        {
-            record_components(dom,"fields",fields);
-        }
-
-        if(rm_categories["matsets"] == 1)
-        {
-            record_components(dom,"matsets",matsets);
-        }
-
-        if(rm_categories["specsets"] == 1)
-        {
-            record_components(dom,"specsets",specsets);
-        }
-
-        if(rm_categories["adjsets"] == 1)
-        {
-            record_components(dom,"adjsets",specsets);
-        }
-
-        if(rm_categories["nestsets"] == 1)
-        {
-            record_components(dom,"nestsets",nestsets);
-        }
-
-    }
-
     // removal cascade:
     //    coordsets, topos, fields, matsets, specsets, adjsets, nestsets
     //      this order ensures we don't remove a sub component before its parent
@@ -9346,8 +9271,8 @@ void mesh::remove(const conduit::Node &n_options,
     // in the final removal process
     auto record_dependent_components = [&](const conduit::Node *dom,
                                         const std::string &comp_type,
-                                        const std::string &parent_type,
-                                        const std::string &parent_name,
+                                        const std::string &ref_type,
+                                        const std::string &ref_pattern,
                                         std::set<std::string> &rset)
     {
         if(dom->has_child(comp_type))
@@ -9356,10 +9281,25 @@ void mesh::remove(const conduit::Node &n_options,
             while(itr.has_next())
             {
                 const conduit::Node &curr = itr.next();
-                if(curr[parent_type].as_string() == parent_name)
+                const std::string ref_name = curr[ref_type].as_string();
+                // valid regex for "*" use case is actually ".*"
+                // adjust for this case
+                std::string ref_pat_adj = ref_pattern;
+                if(ref_pat_adj == "*")
                 {
+                    ref_pat_adj = ".*";
+                }
+                // std::cout << "checking " << ref_name << " vs "  << ref_pat_adj << ": ";
+                std::regex ref_regex(ref_pat_adj);
+                if(std::regex_match(ref_name, ref_regex))
+                {
+                    //std::cout << "true" << std::endl;
                     rset.insert(curr.name());
                 }
+                // else
+                // {
+                //     std::cout << "false" << std::endl;
+                // }
             }
         }
     };
@@ -9409,17 +9349,34 @@ void mesh::remove(const conduit::Node &n_options,
     // in the final removal process
     auto remove_components = [&](conduit::Node *dom,
                                  const std::string &comp_type,
-                                 const std::set<std::string> &comp_names)
+                                 const std::set<std::string> &comp_patterns)
     {
         if(dom->has_child(comp_type))
         {
             conduit::Node &n_comp = dom->fetch_existing(comp_type);
-            for (auto comp_name : comp_names)
+            for (auto comp_pat : comp_patterns)
             {
-                // note: has path here supports the `state` use cases
-                if(n_comp.has_path(comp_name))
+                auto comp_names = n_comp.child_names();
+                for (auto comp_name : comp_names)
                 {
-                    n_comp.remove(comp_name);
+                    // valid regex for "*" use case is actually ".*"
+                    // adjust for this case
+                    std::string comp_pat_adj = comp_pat;
+                    if(comp_pat_adj == "*")
+                    {
+                        comp_pat_adj = ".*";
+                    }
+                    // std::cout << "checking \"" << comp_name << "\" vs \""  << comp_pat_adj << "\" : ";
+                    std::regex comp_regex(comp_pat_adj);
+                    if(std::regex_match(comp_name, comp_regex))
+                    {
+                        //std::cout << "true" << std::endl;
+                        n_comp.remove(comp_name);
+                    }
+                    // else
+                    // {
+                    //     std::cout << "false" << std::endl;
+                    // }
                 }
             }
 
