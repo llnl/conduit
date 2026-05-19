@@ -333,15 +333,15 @@ private:
 
     // function pointer members
     // these take us to implementations for each layout type
-    GetMatIdPtr        m_get_mat_id;
-    GetMatOrderIdPtr   m_get_mat_order_id;
-    GetElemIdPtr       m_get_elem_id;
-    GetVolFracPtr      m_get_vol_frac;
-    GetMsetValPtr      m_get_mset_val;
-    GetMassFracPtr     m_get_mass_frac;
-    GetNMatsForElemPtr m_get_nmats_for_elem;
-    GetNElemsForMatPtr m_get_nelems_for_mat;
-    GetNMatSpecPtr     m_get_nspec_for_mat;
+    GetMatIdPtr        m_get_mat_id = &MatsetAccessor::get_error_mat_id;
+    GetMatOrderIdPtr   m_get_mat_order_id = &MatsetAccessor::get_error_mat_order_id;
+    GetElemIdPtr       m_get_elem_id = &MatsetAccessor::get_error_elem_id;
+    GetVolFracPtr      m_get_vol_frac = &MatsetAccessor::get_error_vol_frac;
+    GetMsetValPtr      m_get_mset_val = &MatsetAccessor::get_error_mset_val;
+    GetMassFracPtr     m_get_mass_frac = &MatsetAccessor::get_error_mass_frac;
+    GetNMatsForElemPtr m_get_nmats_for_elem = &MatsetAccessor::get_error_nmats_for_elem;
+    GetNElemsForMatPtr m_get_nelems_for_mat = &MatsetAccessor::get_error_nelems_for_mat;
+    GetNMatSpecPtr     m_get_nspec_for_mat = &MatsetAccessor::get_error_nspec_for_mat;
 
     // information members
     bool m_is_uni_buffer = false;
