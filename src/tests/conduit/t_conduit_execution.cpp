@@ -149,14 +149,6 @@ expect_doubled_execution_values(const ArrayType &values)
     }
 }
 
-//-----------------------------------------------------------------------------
-void
-expect_execution_minloc(const float64 min_val,
-                        const index_t min_loc)
-{
-    EXPECT_EQ(min_val, 2.0);
-    EXPECT_EQ(min_loc, 0);
-}
 
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, policy_aliases)
@@ -1155,7 +1147,8 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
@@ -1183,7 +1176,8 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
@@ -1211,7 +1205,8 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
@@ -1240,7 +1235,8 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
@@ -1436,7 +1432,8 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
@@ -1468,7 +1465,8 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
@@ -1500,7 +1498,8 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
@@ -1532,7 +1531,8 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
@@ -1720,7 +1720,8 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
@@ -1750,7 +1751,8 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
@@ -1780,7 +1782,8 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
@@ -1810,7 +1813,8 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
@@ -1998,7 +2002,8 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
@@ -2028,7 +2033,8 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
@@ -2058,7 +2064,8 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
@@ -2088,7 +2095,8 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
@@ -2262,7 +2270,8 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
@@ -2290,7 +2299,8 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
@@ -2318,7 +2328,8 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
@@ -2347,7 +2358,8 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
@@ -2543,7 +2555,8 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
@@ -2575,7 +2588,8 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
@@ -2607,7 +2621,8 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
@@ -2639,7 +2654,8 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
@@ -2827,7 +2843,8 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
@@ -2857,7 +2874,8 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
@@ -2887,7 +2905,8 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
@@ -2917,7 +2936,8 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
@@ -3105,7 +3125,8 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
@@ -3135,7 +3156,8 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
@@ -3165,7 +3187,8 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
@@ -3195,7 +3218,8 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-        expect_execution_minloc(min_val, min_loc);
+        EXPECT_EQ(min_val, 2.0);
+        EXPECT_EQ(min_loc, 0);
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
