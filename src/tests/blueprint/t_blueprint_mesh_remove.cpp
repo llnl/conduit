@@ -17,10 +17,17 @@
 #include <string>
 #include "gtest/gtest.h"
 
-void echo_node(const std::string tag, const conduit::Node &node)
+void echo_node(const std::string tag, const conduit::Node &node, bool full = true)
 {
     std::cout << tag << std::endl;
-    std::cout << node.to_yaml() << std::endl;
+    if(full)
+    {
+        std::cout << node.to_yaml() << std::endl;
+    }
+    else
+    {
+        std::cout << node.to_string() << std::endl;
+    }
 }
 
 
@@ -138,6 +145,140 @@ TEST(conduit_blueprint_mesh_remove, remove_simple)
 
 
 }
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_remove, remove_matsets)
+{
+    conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
+    n_mesh_opts["matset_type"] = "full";
+    n_mesh_opts["nx"] = 4;
+    n_mesh_opts["ny"] = 4;
+    n_mesh_opts["radius"] = 1;
+
+    {
+        conduit::blueprint::mesh::examples::generate("venn",n_mesh_opts,n_mesh);
+        n_opts.reset();
+        n_opts["matsets"] = "matset";
+
+        EXPECT_TRUE(n_mesh.has_path("topologies/topo"));
+        EXPECT_TRUE(n_mesh.has_path("fields/importance"));
+
+        echo_node("[before]",n_mesh,false);
+        echo_node("[options]",n_opts);
+        conduit::blueprint::mesh::remove(n_opts,n_mesh);
+        EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
+        echo_node("[after]",n_mesh,false);
+        echo_node("info",n_info);
+
+        EXPECT_FALSE(n_mesh.has_path("matsets/matset"));
+        EXPECT_TRUE(n_mesh.has_path("fields/importance"));
+        EXPECT_TRUE(n_mesh.has_path("fields/importance/values"));
+        EXPECT_FALSE(n_mesh.has_path("fields/importance/matset"));
+        EXPECT_FALSE(n_mesh.has_path("fields/importance/matset_values"));
+    }
+
+    {
+        conduit::blueprint::mesh::examples::generate("venn",n_mesh_opts,n_mesh);
+        n_opts.reset();
+        n_opts["topologies"] = "topo";
+
+        EXPECT_TRUE(n_mesh.has_path("topologies/topo"));
+        EXPECT_TRUE(n_mesh.has_path("fields/importance"));
+
+        echo_node("[before]",n_mesh,false);
+        echo_node("[options]",n_opts);
+        conduit::blueprint::mesh::remove(n_opts,n_mesh);
+        // will be false b/c no valid topo
+        EXPECT_FALSE(conduit::blueprint::mesh::verify(n_mesh, n_info));
+        echo_node("[after]",n_mesh,false);
+        echo_node("info",n_info);
+
+        // removing the topo should remove the matsets as well as fields
+        EXPECT_FALSE(n_mesh.has_path("matsets/matset"));
+        EXPECT_FALSE(n_mesh.has_path("fields/importance"));
+    }
+
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_remove, remove_specsets)
+{
+    conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
+    n_mesh_opts["mesh_type"] = "specsets";
+    n_mesh_opts["nx"] = 5;
+    n_mesh_opts["ny"] = 4;
+    n_mesh_opts["ny"] = 3;
+
+    {
+        conduit::blueprint::mesh::examples::generate("misc",n_mesh);
+        n_opts.reset();
+        n_opts["specsets"] = "mesh";
+
+        EXPECT_TRUE(n_mesh.has_path("topologies/mesh"));
+        EXPECT_TRUE(n_mesh.has_path("fields/radial"));
+        EXPECT_TRUE(n_mesh.has_path("matsets/mesh"));
+        EXPECT_TRUE(n_mesh.has_path("specsets/mesh"));
+
+        echo_node("[before]",n_mesh,false);
+        echo_node("[options]",n_opts);
+        conduit::blueprint::mesh::remove(n_opts,n_mesh);
+        EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
+        echo_node("[after]",n_mesh,false);
+        echo_node("info",n_info);
+
+        EXPECT_TRUE(n_mesh.has_path("matsets/mesh"));
+        EXPECT_FALSE(n_mesh.has_path("specsets/mesh"));
+        return;
+    }
+
+    {
+        conduit::blueprint::mesh::examples::generate("misc",n_mesh);
+        n_opts.reset();
+        n_opts["matsets"] = "matset";
+
+        EXPECT_TRUE(n_mesh.has_path("topologies/mesh"));
+        EXPECT_TRUE(n_mesh.has_path("fields/radial"));
+        EXPECT_TRUE(n_mesh.has_path("matsets/mesh"));
+        EXPECT_TRUE(n_mesh.has_path("specsets/mesh"));
+
+        echo_node("[before]",n_mesh,false);
+        echo_node("[options]",n_opts);
+        conduit::blueprint::mesh::remove(n_opts,n_mesh);
+        EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
+        echo_node("[after]",n_mesh,false);
+        echo_node("info",n_info);
+
+        // removing the matset should remove the specset as well
+        EXPECT_FALSE(n_mesh.has_path("matsets/mesh"));
+        EXPECT_FALSE(n_mesh.has_path("specsets/mesh"));
+    }
+
+    {
+        conduit::blueprint::mesh::examples::generate("misc",n_mesh);
+        n_opts.reset();
+        n_opts["topologies"] = "mesh";
+
+        EXPECT_TRUE(n_mesh.has_path("topologies/mesh"));
+        EXPECT_TRUE(n_mesh.has_path("fields/radial"));
+        EXPECT_TRUE(n_mesh.has_path("matsets/mesh"));
+        EXPECT_TRUE(n_mesh.has_path("specsets/mesh"));
+
+        echo_node("[before]",n_mesh,false);
+        echo_node("[options]",n_opts);
+        conduit::blueprint::mesh::remove(n_opts,n_mesh);
+        // will be false b/c no valid topo
+        EXPECT_FALSE(conduit::blueprint::mesh::verify(n_mesh, n_info));
+        echo_node("[after]",n_mesh,false);
+        echo_node("info",n_info);
+
+        // removing the topo should remove the matsets as well as fields
+        EXPECT_FALSE(n_mesh.has_path("matsets/mesh"));
+        EXPECT_FALSE(n_mesh.has_path("specsets/mesh"));
+        EXPECT_FALSE(n_mesh.has_path("fields/radial"));
+    }
+
+}
+
 
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_remove, remove_adj_sets)
