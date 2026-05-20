@@ -228,7 +228,6 @@ TEST(conduit_blueprint_mesh_remove, remove_specsets)
 
         EXPECT_TRUE(n_mesh.has_path("matsets/mesh"));
         EXPECT_FALSE(n_mesh.has_path("specsets/mesh"));
-        return;
     }
 
     {
