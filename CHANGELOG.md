@@ -13,6 +13,8 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 #### Blueprint
 - Added `conduit::blueprint::mesh::remove()` helper that removes sub components of a valid mesh and their dependencies.  Examples: remove a field by name, or remove a topology by name and any dependent entries.
+- Added `conduit::blueprint::mesh::matset::get_material_names()`, which returns material names for a material set.
+- Added the ability for the Partitioner to handle field `matset_values` for both domain slicing and combination.
 
 ### Fixed
 
@@ -22,6 +24,9 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 #### Blueprint
 - Fixed missing install of blueprint non-mpi mesh examples and mesh partition c++ headers.
+- Handled the case in `MatsetAccessor` where a field or material set has a material that does not appear in any zones.
+- Handled the case in material set transformations where a field, material set, or species set has a material that does not appear in any zones.
+- Fixed bugs in `MatsetAccessor` causing copy construction to fail on Windows.
 
 #### Relay
 - Fixed a crash when reading Silo/Overlink files with missing material names.

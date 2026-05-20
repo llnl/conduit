@@ -902,6 +902,9 @@ namespace matset
                                                       const std::string &matname,
                                                       const index_t elem_id,
                                                       const float64 epsilon = CONDUIT_EPSILON);
+    //-------------------------------------------------------------------------
+    void CONDUIT_BLUEPRINT_API get_material_names(const conduit::Node &matset,
+                                                  std::vector<std::string> &matnames);
     // _matset_info_methods_end
     //-----------------------------------------------------------------------------
     std::map<int, std::string> CONDUIT_BLUEPRINT_API create_reverse_material_map(

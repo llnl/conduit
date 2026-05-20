@@ -431,6 +431,7 @@ protected:
 
     void copy_field(const conduit::Node &n_field,
                     const std::vector<index_t> &ids,
+                    const Node *matset_ptr,
                     Node &n_output_fields) const;
 
     void get_vertex_ids_for_element_ids(const conduit::Node &n_topo,

@@ -61,14 +61,32 @@
       association: "element"
       topology: "topo"
       values: [0.0625, 0.0625, 0.0625, 0.0625]
+      matset: "matset"
+      matset_values: 
+        background: [0.0625, 0.0625, 0.0625, 0.0]
+        circle_a: [0.0, 0.0, 0.0, 0.0]
+        circle_b: [0.0, 0.0, 0.0, 0.0]
+        circle_c: [0.0, 0.0, 0.0, 0.0625]
     importance: 
       association: "element"
       topology: "topo"
       values: [0.0, 0.25, 0.25, 0.600000023841858]
+      matset: "matset"
+      matset_values: 
+        background: [0.0, 0.25, 0.25, 0.0]
+        circle_a: [0.0, 0.0, 0.0, 0.0]
+        circle_b: [0.0, 0.0, 0.0, 0.0]
+        circle_c: [0.0, 0.0, 0.0, 0.600000023841858]
     mat_check: 
       association: "element"
       topology: "topo"
       values: [1, 1, 1, 4000]
+      matset: "matset"
+      matset_values: 
+        background: [1, 1, 1, 0]
+        circle_a: [0, 0, 0, 0]
+        circle_b: [0, 0, 0, 0]
+        circle_c: [0, 0, 0, 4000]
     original_element_ids: 
       association: "element"
       topology: "topo"
@@ -139,14 +157,32 @@
       association: "element"
       topology: "topo"
       values: [0.0625, 0.0625, 0.0625, 0.0625]
+      matset: "matset"
+      matset_values: 
+        background: [0.0625, 0.0, 0.0625, 0.0]
+        circle_a: [0.0, 0.0625, 0.0, 0.0625]
+        circle_b: [0.0, 0.0, 0.0, 0.0]
+        circle_c: [0.0, 0.0625, 0.0, 0.0]
     importance: 
       association: "element"
       topology: "topo"
       values: [0.5, 0.350000012665987, 0.75, 0.100000001490116]
+      matset: "matset"
+      matset_values: 
+        background: [0.5, 0.0, 0.75, 0.0]
+        circle_a: [0.0, 0.100000001490116, 0.0, 0.100000001490116]
+        circle_b: [0.0, 0.0, 0.0, 0.0]
+        circle_c: [0.0, 0.600000023841858, 0.0, 0.0]
     mat_check: 
       association: "element"
       topology: "topo"
       values: [1, 4020, 1, 20]
+      matset: "matset"
+      matset_values: 
+        background: [1, 0, 1, 0]
+        circle_a: [0, 20, 0, 20]
+        circle_b: [0, 0, 0, 0]
+        circle_c: [0, 4000, 0, 0]
     original_element_ids: 
       association: "element"
       topology: "topo"
@@ -217,14 +253,32 @@
       association: "element"
       topology: "topo"
       values: [0.0625, 0.0625, 0.0625, 0.0625]
+      matset: "matset"
+      matset_values: 
+        background: [0.0625, 0.0625, 0.0, 0.0]
+        circle_a: [0.0, 0.0, 0.0, 0.0]
+        circle_b: [0.0, 0.0, 0.0, 0.0]
+        circle_c: [0.0, 0.0, 0.0625, 0.0625]
     importance: 
       association: "element"
       topology: "topo"
       values: [0.5, 0.75, 0.600000023841858, 0.600000023841858]
+      matset: "matset"
+      matset_values: 
+        background: [0.5, 0.75, 0.0, 0.0]
+        circle_a: [0.0, 0.0, 0.0, 0.0]
+        circle_b: [0.0, 0.0, 0.0, 0.0]
+        circle_c: [0.0, 0.0, 0.600000023841858, 0.600000023841858]
     mat_check: 
       association: "element"
       topology: "topo"
       values: [1, 1, 4000, 4000]
+      matset: "matset"
+      matset_values: 
+        background: [1, 1, 0, 0]
+        circle_a: [0, 0, 0, 0]
+        circle_b: [0, 0, 0, 0]
+        circle_c: [0, 0, 4000, 4000]
     original_element_ids: 
       association: "element"
       topology: "topo"
@@ -295,14 +349,32 @@
       association: "element"
       topology: "topo"
       values: [0.0625, 0.0625, 0.0625, 0.0625]
+      matset: "matset"
+      matset_values: 
+        background: [0.0, 0.0, 0.0, 0.0]
+        circle_a: [0.0625, 0.0, 0.0625, 0.0]
+        circle_b: [0.0625, 0.0625, 0.0625, 0.0625]
+        circle_c: [0.0625, 0.0625, 0.0, 0.0]
     importance: 
       association: "element"
       topology: "topo"
       values: [0.300000009437402, 0.400000013411045, 0.150000002235174, 0.200000002980232]
+      matset: "matset"
+      matset_values: 
+        background: [0.0, 0.0, 0.0, 0.0]
+        circle_a: [0.100000001490116, 0.0, 0.100000001490116, 0.0]
+        circle_b: [0.200000002980232, 0.200000002980232, 0.200000002980232, 0.200000002980232]
+        circle_c: [0.600000023841858, 0.600000023841858, 0.0, 0.0]
     mat_check: 
       association: "element"
       topology: "topo"
       values: [4320, 4300, 320, 300]
+      matset: "matset"
+      matset_values: 
+        background: [0, 0, 0, 0]
+        circle_a: [20, 0, 20, 0]
+        circle_b: [300, 300, 300, 300]
+        circle_c: [4000, 4000, 0, 0]
     original_element_ids: 
       association: "element"
       topology: "topo"
