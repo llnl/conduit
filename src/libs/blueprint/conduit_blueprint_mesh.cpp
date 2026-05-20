@@ -8304,10 +8304,10 @@ using Vector = conduit::geometry::vector<double, 3>;
 /*!
  * @brief Compute face centers and face normals for polyhedral zones.
  *
- * @tparam ExecPolicy The execution policy to use for the loop.
  * @tparam IndexAccessor The container type for the subelement connectivity.
  * @tparam CoordAccessor The container type for the coordinates.
  *
+ * @param exec_policy The execution policy to use for the loop.
  * @param subelements_connectivity An accessor used for subelements_connectivity
  * @param subelements_sizes An accessor used for subelements_sizes
  * @param subelements_offsets An accessor used for subelements_offsets
@@ -8320,8 +8320,9 @@ using Vector = conduit::geometry::vector<double, 3>;
  * @note Many of these arguments would normally be references but the loop captures
  *       by value so it is best to not use references.
  */
-template <typename ExecPolicy, typename IndexAccessor, typename CoordAccessor>
-void polyhedral_face_centers_normals(const IndexAccessor subelements_connectivity,
+template <typename IndexAccessor, typename CoordAccessor>
+void polyhedral_face_centers_normals(conduit::execution::ExecutionPolicy exec_policy,
+                                     const IndexAccessor subelements_connectivity,
                                      const IndexAccessor subelements_sizes,
                                      const IndexAccessor subelements_offsets,
                                      const CoordAccessor x,
@@ -8340,7 +8341,7 @@ void polyhedral_face_centers_normals(const IndexAccessor subelements_connectivit
     Vector *allFaceNormalsPtr = allFaceNormals.data();
 
     // Compute face centers and normals.
-    conduit::execution::forall<ExecPolicy>(0, totalNumFaces, [=](conduit::index_t f) {
+    conduit::execution::forall(exec_policy, 0, totalNumFaces, [=](conduit::index_t f) {
         const int NUM_VERTS = 4;
         const auto size = subelements_sizes[f];
         const auto offset = subelements_offsets[f];
@@ -8366,9 +8367,9 @@ void polyhedral_face_centers_normals(const IndexAccessor subelements_connectivit
 /*!
  * @brief Compute face centers and face normals for polyhedral zones.
  *
- * @tparam ExecPolicy The execution policy to use for the loop.
  * @tparam IndexAccessor The container type for the subelement connectivity.
  *
+ * @param exec_policy The execution policy to use for the loop.
  * @param n_coordset The node that contains the coordset. It must be explicit.
  * @param subelements_connectivity An accessor used for subelements_connectivity
  * @param subelements_sizes An accessor used for subelements_sizes
@@ -8376,8 +8377,9 @@ void polyhedral_face_centers_normals(const IndexAccessor subelements_connectivit
  * @param[out] allFaceCenters The output vector for all of the face centers.
  * @param[out] allFaceNormals The output vector for all of the face normals.
  */
-template <typename ExecPolicy, typename IndexAccessor>
-void polyhedral_face_centers_normals(const conduit::Node &n_coordset,
+template <typename IndexAccessor>
+void polyhedral_face_centers_normals(conduit::execution::ExecutionPolicy exec_policy,
+                                     const conduit::Node &n_coordset,
                                      const IndexAccessor &subelements_connectivity,
                                      const IndexAccessor &subelements_sizes,
                                      const IndexAccessor &subelements_offsets,
@@ -8396,26 +8398,28 @@ void polyhedral_face_centers_normals(const conduit::Node &n_coordset,
         // Handle contiguous float64, float32. (fast paths)
         if(n_x.dtype().is_float64() && n_y.dtype().is_float64() && n_z.dtype().is_float64())
         {
-            polyhedral_face_centers_normals<ExecPolicy>(subelements_connectivity,
-                                                        subelements_sizes,
-                                                        subelements_offsets,
-                                                        n_x.as_float64_ptr(),
-                                                        n_y.as_float64_ptr(),
-                                                        n_z.as_float64_ptr(),
-                                                        allFaceCenters,
-                                                        allFaceNormals);
+            polyhedral_face_centers_normals(exec_policy,
+                                            subelements_connectivity,
+                                            subelements_sizes,
+                                            subelements_offsets,
+                                            n_x.as_float64_ptr(),
+                                            n_y.as_float64_ptr(),
+                                            n_z.as_float64_ptr(),
+                                            allFaceCenters,
+                                            allFaceNormals);
             handled = true;
         }
         if(n_x.dtype().is_float32() && n_y.dtype().is_float32() && n_z.dtype().is_float32())
         {
-            polyhedral_face_centers_normals<ExecPolicy>(subelements_connectivity,
-                                                        subelements_sizes,
-                                                        subelements_offsets,
-                                                        n_x.as_float32_ptr(),
-                                                        n_y.as_float32_ptr(),
-                                                        n_z.as_float32_ptr(),
-                                                        allFaceCenters,
-                                                        allFaceNormals);
+            polyhedral_face_centers_normals(exec_policy,
+                                            subelements_connectivity,
+                                            subelements_sizes,
+                                            subelements_offsets,
+                                            n_x.as_float32_ptr(),
+                                            n_y.as_float32_ptr(),
+                                            n_z.as_float32_ptr(),
+                                            allFaceCenters,
+                                            allFaceNormals);
             handled = true;
         }
     }
@@ -8423,31 +8427,33 @@ void polyhedral_face_centers_normals(const conduit::Node &n_coordset,
     {
         // The coordinates were not supported in the more direct modes above so
         // use accessors instead.
-        polyhedral_face_centers_normals<ExecPolicy>(subelements_connectivity,
-                                                    subelements_sizes,
-                                                    subelements_offsets,
-                                                    n_x.as_double_accessor(),
-                                                    n_y.as_double_accessor(),
-                                                    n_z.as_double_accessor(),
-                                                    allFaceCenters,
-                                                    allFaceNormals);
+        polyhedral_face_centers_normals(exec_policy,
+                                        subelements_connectivity,
+                                        subelements_sizes,
+                                        subelements_offsets,
+                                        n_x.as_double_accessor(),
+                                        n_y.as_double_accessor(),
+                                        n_z.as_double_accessor(),
+                                        allFaceCenters,
+                                        allFaceNormals);
     }
 }
 
 /*!
  * @brief Average a PH element's face centers to make its element center (good enough).
  *
- * @tparam ExecPolicy The execution policy to use for the loop.
  * @tparam IndexAccessor The container type for the element connectivity.
  *
+ * @param exec_policy The execution policy to use for the loop.
  * @param elements_connectivity An accessor used for elements_connectivity
  * @param elements_sizes An accessor used for elements_sizes
  * @param elements_offsets An accessor used for elements_offsets
  * @param allFaceCenters The vector for all of the face centers.
  * @param[out] allElemCenters The output vector for the element centers.
  */
-template <typename ExecPolicy, typename IndexAccessor>
-void polyhedral_elem_centers(const IndexAccessor elements_connectivity,
+template <typename IndexAccessor>
+void polyhedral_elem_centers(conduit::execution::ExecutionPolicy exec_policy,
+                             const IndexAccessor elements_connectivity,
                              const IndexAccessor elements_sizes,
                              const IndexAccessor elements_offsets,
                              const std::vector<Vector> &allFaceCenters,
@@ -8457,7 +8463,7 @@ void polyhedral_elem_centers(const IndexAccessor elements_connectivity,
     allElemCenters.resize(totalNumElems);
     Vector *allElemCentersPtr = allElemCenters.data();
     const Vector *allFaceCentersPtr = allFaceCenters.data();
-    conduit::execution::forall<ExecPolicy>(0, totalNumElems, [=](conduit::index_t i) {
+    conduit::execution::forall(exec_policy, 0, totalNumElems, [=](conduit::index_t i) {
         const auto size = elements_sizes[i];
         const auto offset = elements_offsets[i];
         Vector center {};
@@ -8475,13 +8481,13 @@ void polyhedral_elem_centers(const IndexAccessor elements_connectivity,
  * @brief Convert a polyhedral topology to an unstructured topology of hexes. If the
  *        input topology does not contain exclusively hexes then it errors out.
  *
- * @tparam ExecPolicy The execution policy to use for the loop.
- *
+ * @param exec_policy The execution policy to use for the loop.
  * @param n_topo The source unstructured polyhedral topology.
  * @param n_output_topo The output unstructured hex topology.
  */
-template <typename ExecPolicy>
-static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_output_topo)
+static void polyhedral_to_hexes(conduit::execution::ExecutionPolicy exec_policy,
+                                const conduit::Node &n_topo,
+                                conduit::Node &n_output_topo)
 {
 #if defined(_WIN32)
     // Use macros on Windows to work around an issue with lambda capture.
@@ -8558,20 +8564,22 @@ static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_ou
 
     // Compute the face centers for all faces.
     std::vector<Vector> allFaceCenters, allFaceNormals;
-    polyhedral_face_centers_normals<ExecPolicy>(*n_coordset,
-                                                subelements_connectivity,
-                                                subelements_sizes,
-                                                subelements_offsets,
-                                                allFaceCenters,
-                                                allFaceNormals);
+    polyhedral_face_centers_normals(exec_policy,
+                                    *n_coordset,
+                                    subelements_connectivity,
+                                    subelements_sizes,
+                                    subelements_offsets,
+                                    allFaceCenters,
+                                    allFaceNormals);
 
     // Compute all elem centers for all elems.
     std::vector<Vector> allElemCenters;
-    polyhedral_elem_centers<ExecPolicy>(elements_connectivity,
-                                        elements_sizes,
-                                        elements_offsets,
-                                        allFaceCenters,
-                                        allElemCenters);
+    polyhedral_elem_centers(exec_policy,
+                            elements_connectivity,
+                            elements_sizes,
+                            elements_offsets,
+                            allFaceCenters,
+                            allElemCenters);
 
     // Fill in the output hex connectivity
     // NOTE: We're using value capture [=], mainly to avoid issues on Windows. This
@@ -8580,7 +8588,7 @@ static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_ou
     const Vector *allFaceCentersPtr = allFaceCenters.data();
     const Vector *allFaceNormalsPtr = allFaceNormals.data();
     const Vector *allElemCentersPtr = allElemCenters.data();
-    conduit::execution::forall<ExecPolicy>(0, nElem, [=](conduit::index_t i) {
+    conduit::execution::forall(exec_policy, 0, nElem, [=](conduit::index_t i) {
         constexpr int FORWARD = 1;
         constexpr int BACKWARD = -1;
         // Determine face orientations with respect to this element.
@@ -8768,26 +8776,14 @@ static void to_unstructured(const conduit::Node &n_mesh,
     {
         conduit::Node &n_output_topo = n_output["topologies/" + n_topo->name()];
 
-#if defined(CONDUIT_USE_OPENMP)
         // Let the user select an execution policy via options.
-        std::string policy("seq");
-        if(n_options.has_path("policy"))
+        std::string policy_choice = "serial";
+        if (n_options.has_path("policy"))
         {
-            const std::string p = n_options["policy"].as_string();
-            if(p == "omp" || p == "seq") policy = p;
+            policy_choice = n_options["policy"].as_string();
         }
-
-        if(policy == "omp")
-        {
-            polyhedral_to_hexes<conduit::execution::OpenMPExec>(*n_topo, n_output_topo);
-        }
-        else
-        {
-            polyhedral_to_hexes<conduit::execution::SerialExec>(*n_topo, n_output_topo);
-        }
-#else
-        polyhedral_to_hexes<conduit::execution::SerialExec>(*n_topo, n_output_topo);
-#endif
+        conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy(policy_choice);
+        polyhedral_to_hexes(policy, *n_topo, n_output_topo);
     }
     else
     {
