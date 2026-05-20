@@ -11,6 +11,9 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Conduit
 - Added a bulk `DataAccessor::set()` method for setting many elements at once.
 
+#### Blueprint
+- Added `conduit::blueprint::mesh::remove()` helper that removes sub components of a valid mesh and their dependencies.  Examples: remove a field by name, or remove a topology by name and any dependent entries.
+
 ### Fixed
 
 #### Conduit
@@ -22,6 +25,11 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 #### Relay
 - Fixed a crash when reading Silo/Overlink files with missing material names.
+
+### Changed
+
+#### Relay
+- Disabled use of HDF5 file locking.
 
 ## [0.9.6] - Released 2026-04-14
 
