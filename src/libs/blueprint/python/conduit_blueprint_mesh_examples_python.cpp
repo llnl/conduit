@@ -81,20 +81,32 @@ PyBlueprint_mesh_examples_generate(PyObject *, //self
         return NULL;
     }
 
-    Node &node_res  = *PyConduit_Node_Get_Node_Ptr(py_node_res);
-    // w/o opts 
-    if(py_node_opts == NULL)
+
+    // try catch to plumb conduit exceptions to python
+    try
     {
-        blueprint::mesh::examples::generate(std::string(example_name),
-                                            node_res);
+        Node &node_res  = *PyConduit_Node_Get_Node_Ptr(py_node_res);
+        // w/o opts
+        if(py_node_opts == NULL)
+        {
+            blueprint::mesh::examples::generate(std::string(example_name),
+                                                node_res);
+        }
+        else // w/ opts
+        {
+            Node &node_opts = *PyConduit_Node_Get_Node_Ptr(py_node_opts);
+            blueprint::mesh::examples::generate(std::string(example_name),
+                                                node_opts,
+                                                node_res);
+        }
     }
-    else // w/ opts
+    catch(conduit::Error &e)
     {
-        Node &node_opts = *PyConduit_Node_Get_Node_Ptr(py_node_opts);
-        blueprint::mesh::examples::generate(std::string(example_name),
-                                            node_opts,
-                                            node_res);
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
     }
+
 
     Py_RETURN_NONE;
 }
@@ -141,17 +153,28 @@ PyBlueprint_mesh_examples_generate_default_options(PyObject *, //self
         return NULL;
     }
 
-    Node &node_res  = *PyConduit_Node_Get_Node_Ptr(py_node_res);
+    // try catch to plumb conduit exceptions to python
+    try
+    {
+        Node &node_res  = *PyConduit_Node_Get_Node_Ptr(py_node_res);
 
-    if(example_name != NULL)
-    {
-        blueprint::mesh::examples::generate_default_options(std::string(example_name),
-                                                            node_res);
+        if(example_name != NULL)
+        {
+            blueprint::mesh::examples::generate_default_options(std::string(example_name),
+                                                                node_res);
+        }
+        else
+        {
+            blueprint::mesh::examples::generate_default_options(node_res);
+        }
     }
-    else
+    catch(conduit::Error &e)
     {
-        blueprint::mesh::examples::generate_default_options(node_res);
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
     }
+
     Py_RETURN_NONE;
 }
 
@@ -225,14 +248,23 @@ PyBlueprint_mesh_examples_basic(PyObject *, //self
                         "conduit.Node instance");
         return NULL;
     }
-    
-    Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
-    
-    blueprint::mesh::examples::basic(std::string(mesh_type),
-                                     nx,
-                                     ny,
-                                     nz,
-                                     node);
+
+    try
+    {
+        Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
+
+        blueprint::mesh::examples::basic(std::string(mesh_type),
+                                        nx,
+                                        ny,
+                                        nz,
+                                        node);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
@@ -306,14 +338,24 @@ PyBlueprint_mesh_examples_braid(PyObject *, //self
                         "conduit.Node instance");
         return NULL;
     }
-    
-    Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
-    
-    blueprint::mesh::examples::braid(std::string(mesh_type),
-                                     nx,
-                                     ny,
-                                     nz,
-                                     node);
+
+    try
+    {
+
+        Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
+
+        blueprint::mesh::examples::braid(std::string(mesh_type),
+                                        nx,
+                                        ny,
+                                        nz,
+                                        node);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
@@ -392,14 +434,22 @@ PyBlueprint_mesh_examples_julia(PyObject *, //self
                         "conduit.Node instance");
         return NULL;
     }
-    
-    Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
-    
-    blueprint::mesh::examples::julia(nx,ny,
-                                     x_min,x_max,
-                                     y_min,y_max,
-                                     c_re,c_im,
-                                     node);
+
+    try
+    {
+        Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
+        blueprint::mesh::examples::julia(nx,ny,
+                                        x_min,x_max,
+                                        y_min,y_max,
+                                        c_re,c_im,
+                                        node);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
@@ -450,11 +500,18 @@ PyBlueprint_mesh_examples_spiral(PyObject *, //self
                         "conduit.Node instance");
         return NULL;
     }
-    
-    Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
-    
-    blueprint::mesh::examples::spiral(ndoms,
-                                     node);
+    try
+    {
+        Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
+        blueprint::mesh::examples::spiral(ndoms,
+                                         node);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
@@ -526,13 +583,21 @@ PyBlueprint_mesh_examples_julia_nestsets_simple(PyObject *, //self
                         "conduit.Node instance");
         return NULL;
     }
-    
-    Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
-    
-    blueprint::mesh::examples::julia_nestsets_simple(x_min,x_max,
-                                                     y_min,y_max,
-                                                     c_re,c_im,
-                                                     node);
+
+    try
+    {
+        Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
+        blueprint::mesh::examples::julia_nestsets_simple(x_min,x_max,
+                                                         y_min,y_max,
+                                                         c_re,c_im,
+                                                         node);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
@@ -614,14 +679,23 @@ PyBlueprint_mesh_examples_julia_nestsets_complex(PyObject *, //self
         return NULL;
     }
 
-    Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
+    try
+    {
+        Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
 
-    blueprint::mesh::examples::julia_nestsets_complex(nx,ny,
-                                                      x_min,x_max,
-                                                      y_min,y_max,
-                                                      c_re,c_im,
-                                                      levels,
-                                                      node);
+        blueprint::mesh::examples::julia_nestsets_complex(nx,ny,
+                                                            x_min,x_max,
+                                                            y_min,y_max,
+                                                            c_re,c_im,
+                                                            levels,
+                                                            node);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
@@ -688,12 +762,20 @@ PyBlueprint_mesh_examples_venn(PyObject *, //self
         return NULL;
     }
 
-    Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
+    try
+    {
+        Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
 
-    blueprint::mesh::examples::venn(std::string(matset_type),
-                                    nx,ny,
-                                    radius,
-                                    node);
+        blueprint::mesh::examples::venn(std::string(matset_type),
+                                        nx,ny,
+                                        radius,
+                                        node);
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
@@ -750,11 +832,20 @@ PyBlueprint_mesh_examples_polytess(PyObject *, //self
         return NULL;
     }
 
-    Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
+    try
+    {
+        Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
 
-    blueprint::mesh::examples::polytess(nlevels,
-                                        nz,
-                                        node);
+        blueprint::mesh::examples::polytess(nlevels,
+                                            nz,
+                                            node);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
@@ -805,10 +896,19 @@ PyBlueprint_mesh_examples_polychain(PyObject *, //self
         return NULL;
     }
 
-    Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
+    try
+    {
+        Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
 
-    blueprint::mesh::examples::polychain(length,
-                                         node);
+        blueprint::mesh::examples::polychain(length,
+                                            node);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
@@ -854,9 +954,17 @@ PyBlueprint_mesh_examples_polystar(PyObject *, //self
         return NULL;
     }
 
-    Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
-
-    blueprint::mesh::examples::polystar(node);
+    try
+    {
+        Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
+        blueprint::mesh::examples::polystar(node);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
@@ -940,14 +1048,23 @@ PyBlueprint_mesh_examples_strided_structured(PyObject *, //self
         return NULL;
     }
 
-    Node &node_desc = *PyConduit_Node_Get_Node_Ptr(py_node_desc);
-    Node &node_dest = *PyConduit_Node_Get_Node_Ptr(py_node_dest);
+    try
+    {
+        Node &node_desc = *PyConduit_Node_Get_Node_Ptr(py_node_desc);
+        Node &node_dest = *PyConduit_Node_Get_Node_Ptr(py_node_dest);
 
-    blueprint::mesh::examples::strided_structured(node_desc,
-                                                  npts_x,
-                                                  npts_y,
-                                                  npts_z,
-                                                  node_dest);
+        blueprint::mesh::examples::strided_structured(node_desc,
+                                                      npts_x,
+                                                      npts_y,
+                                                      npts_z,
+                                                      node_dest);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
