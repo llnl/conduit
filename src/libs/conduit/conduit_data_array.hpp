@@ -268,45 +268,45 @@ public:
                     { this->element(elem_idx) = (T)value; }
 
     /// signed integer arrays
-    void            set(const int8  *values, index_t num_elements);
-    void            set(const int16 *values, index_t num_elements);
-    void            set(const int32 *values, index_t num_elements);
-    void            set(const int64 *values, index_t num_elements);
+    void            set(const int8  *values, index_t num_elements) const;
+    void            set(const int16 *values, index_t num_elements) const;
+    void            set(const int32 *values, index_t num_elements) const;
+    void            set(const int64 *values, index_t num_elements) const;
 
     /// unsigned integer arrays
-    void            set(const uint8   *values, index_t num_elements);
-    void            set(const uint16  *values, index_t num_elements);
-    void            set(const uint32  *values, index_t num_elements);
-    void            set(const uint64  *values, index_t num_elements);
+    void            set(const uint8   *values, index_t num_elements) const;
+    void            set(const uint16  *values, index_t num_elements) const;
+    void            set(const uint32  *values, index_t num_elements) const;
+    void            set(const uint64  *values, index_t num_elements) const;
     
     /// floating point arrays
-    void            set(const float32 *values, index_t num_elements);
-    void            set(const float64 *values, index_t num_elements);
+    void            set(const float32 *values, index_t num_elements) const;
+    void            set(const float64 *values, index_t num_elements) const;
     
     /// signed integer arrays via std::vector
-    void            set(const std::vector<int8>    &values)
+    void            set(const std::vector<int8>    &values) const
                         {set(&values[0],values.size());}
-    void            set(const std::vector<int16>   &values)
+    void            set(const std::vector<int16>   &values) const
                         {set(&values[0],values.size());}
-    void            set(const std::vector<int32>   &values)
+    void            set(const std::vector<int32>   &values) const
                         {set(&values[0],values.size());}
-    void            set(const std::vector<int64>   &values)
+    void            set(const std::vector<int64>   &values) const
                         {set(&values[0],values.size());}
 
     /// unsigned integer arrays via std::vector
-    void            set(const std::vector<uint8>   &values)
+    void            set(const std::vector<uint8>   &values) const
                         {set(&values[0],values.size());}
-    void            set(const std::vector<uint16>  &values)
+    void            set(const std::vector<uint16>  &values) const
                         {set(&values[0],values.size());}
-    void            set(const std::vector<uint32>  &values)
+    void            set(const std::vector<uint32>  &values) const
                         {set(&values[0],values.size());}
-    void            set(const std::vector<uint64>  &values)
+    void            set(const std::vector<uint64>  &values) const
                         {set(&values[0],values.size());}
     
     /// floating point arrays via std::vector
-    void            set(const std::vector<float32> &values)
+    void            set(const std::vector<float32> &values) const
                         {set(&values[0],values.size());}
-    void            set(const std::vector<float64> &values)
+    void            set(const std::vector<float64> &values) const
                         {set(&values[0],values.size());}
 
     //-------------------------------------------------------------------------
@@ -314,58 +314,58 @@ public:
     //-------------------------------------------------------------------------
 
     /// signed integer arrays via std::initializer_list
-    void            set(const std::initializer_list<int8>    &values);
-    void            set(const std::initializer_list<int16>   &values);
-    void            set(const std::initializer_list<int32>   &values);
-    void            set(const std::initializer_list<int64>   &values);
+    void            set(const std::initializer_list<int8>    &values) const;
+    void            set(const std::initializer_list<int16>   &values) const;
+    void            set(const std::initializer_list<int32>   &values) const;
+    void            set(const std::initializer_list<int64>   &values) const;
 
     /// unsigned integer arrays via std::initializer_list
-    void            set(const std::initializer_list<uint8>   &values);
-    void            set(const std::initializer_list<uint16>  &values);
-    void            set(const std::initializer_list<uint32>  &values);
-    void            set(const std::initializer_list<uint64>  &values);
+    void            set(const std::initializer_list<uint8>   &values) const;
+    void            set(const std::initializer_list<uint16>  &values) const;
+    void            set(const std::initializer_list<uint32>  &values) const;
+    void            set(const std::initializer_list<uint64>  &values) const;
     
     /// floating point arrays via std::initializer_list
-    void            set(const std::initializer_list<float32> &values);
-    void            set(const std::initializer_list<float64> &values);
+    void            set(const std::initializer_list<float32> &values) const;
+    void            set(const std::initializer_list<float64> &values) const;
 
     //-------------------------------------------------------------------------
     // --  assignment c-native gap operators for initializer_list types ---
     //-------------------------------------------------------------------------
 
-    void set(const std::initializer_list<char> &values);
+    void set(const std::initializer_list<char> &values) const;
 
     #ifndef CONDUIT_USE_CHAR
-        void set(const std::initializer_list<signed char> &values);
-        void set(const std::initializer_list<unsigned char> &values);
+        void set(const std::initializer_list<signed char> &values) const;
+        void set(const std::initializer_list<unsigned char> &values) const;
     #endif
 
     #ifndef CONDUIT_USE_SHORT
-        void set(const std::initializer_list<short> &values);
-        void set(const std::initializer_list<unsigned short> &values);
+        void set(const std::initializer_list<short> &values) const;
+        void set(const std::initializer_list<unsigned short> &values) const;
     #endif
 
     #ifndef CONDUIT_USE_INT
-       void set(const std::initializer_list<int> &values);
-       void set(const std::initializer_list<unsigned int> &values); 
+       void set(const std::initializer_list<int> &values) const;
+       void set(const std::initializer_list<unsigned int> &values) const; 
     #endif
 
     #ifndef CONDUIT_USE_LONG
-       void set(const std::initializer_list<long> &values);
-       void set(const std::initializer_list<unsigned long> &values); 
+       void set(const std::initializer_list<long> &values) const;
+       void set(const std::initializer_list<unsigned long> &values) const; 
     #endif
 
     #if defined(CONDUIT_HAS_LONG_LONG) && !defined(CONDUIT_USE_LONG_LONG)
-       void set(const std::initializer_list<long long> &values);
-       void set(const std::initializer_list<unsigned long long> &values); 
+       void set(const std::initializer_list<long long> &values) const;
+       void set(const std::initializer_list<unsigned long long> &values) const; 
     #endif
 
     #ifndef CONDUIT_USE_FLOAT
-       void set(const std::initializer_list<float> &values);
+       void set(const std::initializer_list<float> &values) const;
     #endif
 
     #ifndef CONDUIT_USE_DOUBLE
-       void set(const std::initializer_list<double> &values);
+       void set(const std::initializer_list<double> &values) const;
     #endif
 
     //-------------------------------------------------------------------------
@@ -427,36 +427,36 @@ public:
     #endif
 
     /// signed integer arrays via DataArray
-    void            set(const DataArray<int8>    &values);
-    void            set(const DataArray<int16>   &values);
-    void            set(const DataArray<int32>   &values);
-    void            set(const DataArray<int64>   &values);
+    void            set(const DataArray<int8>    &values) const;
+    void            set(const DataArray<int16>   &values) const;
+    void            set(const DataArray<int32>   &values) const;
+    void            set(const DataArray<int64>   &values) const;
 
     /// unsigned integer arrays via DataArray
-    void            set(const DataArray<uint8>   &values);
-    void            set(const DataArray<uint16>  &values);
-    void            set(const DataArray<uint32>  &values);
-    void            set(const DataArray<uint64>  &values);
+    void            set(const DataArray<uint8>   &values) const;
+    void            set(const DataArray<uint16>  &values) const;
+    void            set(const DataArray<uint32>  &values) const;
+    void            set(const DataArray<uint64>  &values) const;
     
     /// floating point arrays via DataArray
-    void            set(const DataArray<float32>  &values);
-    void            set(const DataArray<float64>  &values);
+    void            set(const DataArray<float32>  &values) const;
+    void            set(const DataArray<float64>  &values) const;
 
     /// signed integer arrays via DataAccessor
-    void            set(const DataAccessor<int8>    &values);
-    void            set(const DataAccessor<int16>   &values);
-    void            set(const DataAccessor<int32>   &values);
-    void            set(const DataAccessor<int64>   &values);
+    void            set(const DataAccessor<int8>    &values) const;
+    void            set(const DataAccessor<int16>   &values) const;
+    void            set(const DataAccessor<int32>   &values) const;
+    void            set(const DataAccessor<int64>   &values) const;
 
     /// unsigned integer arrays via DataAccessor
-    void            set(const DataAccessor<uint8>   &values);
-    void            set(const DataAccessor<uint16>  &values);
-    void            set(const DataAccessor<uint32>  &values);
-    void            set(const DataAccessor<uint64>  &values);
+    void            set(const DataAccessor<uint8>   &values) const;
+    void            set(const DataAccessor<uint16>  &values) const;
+    void            set(const DataAccessor<uint32>  &values) const;
+    void            set(const DataAccessor<uint64>  &values) const;
     
     /// floating point arrays via DataAccessor
-    void            set(const DataAccessor<float32>  &values);
-    void            set(const DataAccessor<float64>  &values);
+    void            set(const DataAccessor<float32>  &values) const;
+    void            set(const DataAccessor<float64>  &values) const;
 
 //-----------------------------------------------------------------------------
 // fill
