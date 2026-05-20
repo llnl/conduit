@@ -150,6 +150,15 @@ expect_doubled_execution_values(const ArrayType &values)
 }
 
 //-----------------------------------------------------------------------------
+void
+expect_execution_minloc(const float64 min_val,
+                        const index_t min_loc)
+{
+    EXPECT_EQ(min_val, 2.0);
+    EXPECT_EQ(min_loc, 0);
+}
+
+//-----------------------------------------------------------------------------
 TEST(conduit_execution, policy_aliases)
 {
     const ExecutionPolicy host = ExecutionPolicy::host();
@@ -412,6 +421,194 @@ run_data_array_using_active_space(Node &node,
     // Sync values to node["des"].
     // This is a no op if node["des"] was originally in the same memory
     // space as node["src"].
+    arr_des.sync();
+}
+
+//-----------------------------------------------------------------------------
+void
+run_data_accessor_dispatch_and_sync(Node &node,
+                                    ExecutionPolicy policy,
+                                    float64 &min_val,
+                                    index_t &min_loc)
+{
+    float64_accessor acc_src(node["src"]);
+    float64_accessor acc_des(node["des"]);
+
+    acc_src.use_with(policy);
+    acc_des.use_with(policy);
+
+    index_t size = acc_src.number_of_elements();
+    conduit::execution::dispatch(policy, [&](auto &exec_tag)
+    {
+        using Exec = std::remove_reference_t<decltype(exec_tag)>;
+        conduit::execution::ReduceMinLoc<Exec, float64>
+            reducer(std::numeric_limits<float64>::max(), -1);
+
+        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t idx)
+        {
+            const float64 val = 2.0 * acc_src[idx];
+            reducer.minloc(val, idx);
+            acc_des.set(idx, val);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        min_val = reducer.get();
+        min_loc = reducer.getLoc();
+    });
+
+    acc_des.sync();
+}
+
+//-----------------------------------------------------------------------------
+struct DataAccessorDispatchFunctor
+{
+    index_t size;
+    ExecutionPolicy policy;
+    float64_accessor acc_src;
+    float64_accessor acc_des;
+    float64 min_val;
+    index_t min_loc;
+
+    template<typename Exec>
+    void operator()(Exec &)
+    {
+        conduit::execution::ReduceMinLoc<Exec, float64>
+            reducer(std::numeric_limits<float64>::max(), -1);
+
+        const float64_accessor src = acc_src;
+        const float64_accessor des = acc_des;
+        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t idx)
+        {
+            const float64 val = 2.0 * src[idx];
+            reducer.minloc(val, idx);
+            des.set(idx, val);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        min_val = reducer.get();
+        min_loc = reducer.getLoc();
+    }
+};
+
+//-----------------------------------------------------------------------------
+void
+run_data_accessor_dispatch_functor_and_sync(Node &node,
+                                            ExecutionPolicy policy,
+                                            float64 &min_val,
+                                            index_t &min_loc)
+{
+    float64_accessor acc_src(node["src"]);
+    float64_accessor acc_des(node["des"]);
+
+    acc_src.use_with(policy);
+    acc_des.use_with(policy);
+
+    DataAccessorDispatchFunctor func{
+        acc_src.number_of_elements(),
+        policy,
+        acc_src,
+        acc_des,
+        0.0,
+        -1
+    };
+    conduit::execution::dispatch(policy, func);
+
+    min_val = func.min_val;
+    min_loc = func.min_loc;
+    acc_des.sync();
+}
+
+//-----------------------------------------------------------------------------
+void
+run_data_array_dispatch_and_sync(Node &node,
+                                 ExecutionPolicy policy,
+                                 float64 &min_val,
+                                 index_t &min_loc)
+{
+    float64_array arr_src(node["src"]);
+    float64_array arr_des(node["des"]);
+
+    arr_src.use_with(policy);
+    arr_des.use_with(policy);
+
+    index_t size = arr_src.number_of_elements();
+    conduit::execution::dispatch(policy, [&](auto &exec_tag)
+    {
+        using Exec = std::remove_reference_t<decltype(exec_tag)>;
+        conduit::execution::ReduceMinLoc<Exec, float64>
+            reducer(std::numeric_limits<float64>::max(), -1);
+
+        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t idx)
+        {
+            const float64 val = 2.0 * arr_src[idx];
+            reducer.minloc(val, idx);
+            arr_des.set(idx, val);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        min_val = reducer.get();
+        min_loc = reducer.getLoc();
+    });
+
+    arr_des.sync();
+}
+
+//-----------------------------------------------------------------------------
+struct DataArrayDispatchFunctor
+{
+    index_t size;
+    ExecutionPolicy policy;
+    float64_array arr_src;
+    float64_array arr_des;
+    float64 min_val;
+    index_t min_loc;
+
+    template<typename Exec>
+    void operator()(Exec &)
+    {
+        conduit::execution::ReduceMinLoc<Exec, float64>
+            reducer(std::numeric_limits<float64>::max(), -1);
+
+        const float64_array src = arr_src;
+        const float64_array des = arr_des;
+        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t idx)
+        {
+            const float64 val = 2.0 * src[idx];
+            reducer.minloc(val, idx);
+            des.set(idx, val);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        min_val = reducer.get();
+        min_loc = reducer.getLoc();
+    }
+};
+
+//-----------------------------------------------------------------------------
+void
+run_data_array_dispatch_functor_and_sync(Node &node,
+                                         ExecutionPolicy policy,
+                                         float64 &min_val,
+                                         index_t &min_loc)
+{
+    float64_array arr_src(node["src"]);
+    float64_array arr_des(node["des"]);
+
+    arr_src.use_with(policy);
+    arr_des.use_with(policy);
+
+    DataArrayDispatchFunctor func{
+        arr_src.number_of_elements(),
+        policy,
+        arr_src,
+        arr_des,
+        0.0,
+        -1
+    };
+    conduit::execution::dispatch(policy, func);
+
+    min_val = func.min_val;
+    min_loc = func.min_loc;
     arr_des.sync();
 }
 
@@ -937,6 +1134,120 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
 
         node.reset();
     }
+
+    if (ExecutionPolicy::is_device_enabled())
+    {
+        CONDUIT_INFO("data_accessor dispatch lambda policy=host src_start=host des_start=host");
+
+        Node node;
+        node["src"].set(src_vals);
+        node["des"].set(des_vals);
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_accessor_dispatch_and_sync(node,
+                                            ExecutionPolicy::host(),
+                                            min_val,
+                                            min_loc);
+        annotations::finalize();
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_acc);
+
+        node.reset();
+    }
+
+    {
+        CONDUIT_INFO("data_accessor dispatch functor policy=host src_start=host des_start=host");
+
+        Node node;
+        node["src"].set(src_vals);
+        node["des"].set(des_vals);
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_accessor_dispatch_functor_and_sync(node,
+                                                    ExecutionPolicy::host(),
+                                                    min_val,
+                                                    min_loc);
+        annotations::finalize();
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_acc);
+
+        node.reset();
+    }
+
+    {
+        CONDUIT_INFO("data_accessor dispatch lambda policy=device src_start=host des_start=host");
+
+        Node node;
+        node["src"].set(src_vals);
+        node["des"].set(des_vals);
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_accessor_dispatch_and_sync(node,
+                                            ExecutionPolicy::device(),
+                                            min_val,
+                                            min_loc);
+        annotations::finalize();
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_acc);
+
+        node.reset();
+    }
+
+    if (ExecutionPolicy::is_device_enabled())
+    {
+        CONDUIT_INFO("data_accessor dispatch functor policy=device src_start=host des_start=host");
+
+        Node node;
+        node["src"].set(src_vals);
+        node["des"].set(des_vals);
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_accessor_dispatch_functor_and_sync(node,
+                                                    ExecutionPolicy::device(),
+                                                    min_val,
+                                                    min_loc);
+        annotations::finalize();
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_acc);
+
+        node.reset();
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -1103,6 +1414,134 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         execution::DeviceMemory::deallocate(src_device_ptr);
         execution::DeviceMemory::deallocate(des_device_ptr);
     }
+
+    {
+        CONDUIT_INFO("data_accessor dispatch lambda policy=host src_start=device des_start=device");
+
+        Node node;
+        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+        node["src"].set_external(src_device_ptr, src_vals.size());
+        node["des"].set_external(des_device_ptr, des_vals.size());
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_accessor_dispatch_and_sync(node,
+                                            ExecutionPolicy::host(),
+                                            min_val,
+                                            min_loc);
+        annotations::finalize();
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_acc);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+        execution::DeviceMemory::deallocate(des_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_accessor dispatch functor policy=host src_start=device des_start=device");
+
+        Node node;
+        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+        node["src"].set_external(src_device_ptr, src_vals.size());
+        node["des"].set_external(des_device_ptr, des_vals.size());
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_accessor_dispatch_functor_and_sync(node,
+                                                    ExecutionPolicy::host(),
+                                                    min_val,
+                                                    min_loc);
+        annotations::finalize();
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_acc);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+        execution::DeviceMemory::deallocate(des_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_accessor dispatch lambda policy=device src_start=device des_start=device");
+
+        Node node;
+        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+        node["src"].set_external(src_device_ptr, src_vals.size());
+        node["des"].set_external(des_device_ptr, des_vals.size());
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_accessor_dispatch_and_sync(node,
+                                            ExecutionPolicy::device(),
+                                            min_val,
+                                            min_loc);
+        annotations::finalize();
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_acc);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+        execution::DeviceMemory::deallocate(des_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_accessor dispatch functor policy=device src_start=device des_start=device");
+
+        Node node;
+        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+        node["src"].set_external(src_device_ptr, src_vals.size());
+        node["des"].set_external(des_device_ptr, des_vals.size());
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_accessor_dispatch_functor_and_sync(node,
+                                                    ExecutionPolicy::device(),
+                                                    min_val,
+                                                    min_loc);
+        annotations::finalize();
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_acc);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+        execution::DeviceMemory::deallocate(des_device_ptr);
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -1254,6 +1693,126 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         float64_accessor result_acc(node["des"]);
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
+        result_acc.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_acc);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(des_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_accessor dispatch lambda policy=host src_start=host des_start=device");
+
+        Node node;
+        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+        node["src"].set(src_vals);
+        node["des"].set_external(des_device_ptr, des_vals.size());
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_accessor_dispatch_and_sync(node,
+                                            ExecutionPolicy::host(),
+                                            min_val,
+                                            min_loc);
+        annotations::finalize();
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_acc);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(des_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_accessor dispatch functor policy=host src_start=host des_start=device");
+
+        Node node;
+        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+        node["src"].set(src_vals);
+        node["des"].set_external(des_device_ptr, des_vals.size());
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_accessor_dispatch_functor_and_sync(node,
+                                                    ExecutionPolicy::host(),
+                                                    min_val,
+                                                    min_loc);
+        annotations::finalize();
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_acc);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(des_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_accessor dispatch lambda policy=device src_start=host des_start=device");
+
+        Node node;
+        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+        node["src"].set(src_vals);
+        node["des"].set_external(des_device_ptr, des_vals.size());
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_accessor_dispatch_and_sync(node,
+                                            ExecutionPolicy::device(),
+                                            min_val,
+                                            min_loc);
+        annotations::finalize();
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_acc);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(des_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_accessor dispatch functor policy=device src_start=host des_start=device");
+
+        Node node;
+        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+        node["src"].set(src_vals);
+        node["des"].set_external(des_device_ptr, des_vals.size());
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_accessor_dispatch_functor_and_sync(node,
+                                                    ExecutionPolicy::device(),
+                                                    min_val,
+                                                    min_loc);
+        annotations::finalize();
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
         expect_doubled_execution_values(result_acc);
 
@@ -1418,6 +1977,126 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
     }
+
+    {
+        CONDUIT_INFO("data_accessor dispatch lambda policy=host src_start=device des_start=host");
+
+        Node node;
+        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+        node["src"].set_external(src_device_ptr, src_vals.size());
+        node["des"].set(des_vals);
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_accessor_dispatch_and_sync(node,
+                                            ExecutionPolicy::host(),
+                                            min_val,
+                                            min_loc);
+        annotations::finalize();
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_acc);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_accessor dispatch functor policy=host src_start=device des_start=host");
+
+        Node node;
+        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+        node["src"].set_external(src_device_ptr, src_vals.size());
+        node["des"].set(des_vals);
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_accessor_dispatch_functor_and_sync(node,
+                                                    ExecutionPolicy::host(),
+                                                    min_val,
+                                                    min_loc);
+        annotations::finalize();
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_acc);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_accessor dispatch lambda policy=device src_start=device des_start=host");
+
+        Node node;
+        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+        node["src"].set_external(src_device_ptr, src_vals.size());
+        node["des"].set(des_vals);
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_accessor_dispatch_and_sync(node,
+                                            ExecutionPolicy::device(),
+                                            min_val,
+                                            min_loc);
+        annotations::finalize();
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_acc);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_accessor dispatch functor policy=device src_start=device des_start=host");
+
+        Node node;
+        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+        node["src"].set_external(src_device_ptr, src_vals.size());
+        node["des"].set(des_vals);
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_accessor_dispatch_functor_and_sync(node,
+                                                    ExecutionPolicy::device(),
+                                                    min_val,
+                                                    min_loc);
+        annotations::finalize();
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_accessor result_acc(node["des"]);
+        result_acc.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_acc);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -1557,6 +2236,120 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         float64_array result_array(node["des"]);
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
+        result_array.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_array);
+
+        node.reset();
+    }
+
+    if (ExecutionPolicy::is_device_enabled())
+    {
+        CONDUIT_INFO("data_array dispatch lambda policy=host src_start=host des_start=host");
+
+        Node node;
+        node["src"].set(src_vals);
+        node["des"].set(des_vals);
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_array_dispatch_and_sync(node,
+                                         ExecutionPolicy::host(),
+                                         min_val,
+                                         min_loc);
+        annotations::finalize();
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_array result_array(node["des"]);
+        result_array.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_array);
+
+        node.reset();
+    }
+
+    {
+        CONDUIT_INFO("data_array dispatch functor policy=host src_start=host des_start=host");
+
+        Node node;
+        node["src"].set(src_vals);
+        node["des"].set(des_vals);
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_array_dispatch_functor_and_sync(node,
+                                                 ExecutionPolicy::host(),
+                                                 min_val,
+                                                 min_loc);
+        annotations::finalize();
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_array result_array(node["des"]);
+        result_array.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_array);
+
+        node.reset();
+    }
+
+    {
+        CONDUIT_INFO("data_array dispatch lambda policy=device src_start=host des_start=host");
+
+        Node node;
+        node["src"].set(src_vals);
+        node["des"].set(des_vals);
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_array_dispatch_and_sync(node,
+                                         ExecutionPolicy::device(),
+                                         min_val,
+                                         min_loc);
+        annotations::finalize();
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_array result_array(node["des"]);
+        result_array.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_array);
+
+        node.reset();
+    }
+
+    if (ExecutionPolicy::is_device_enabled())
+    {
+        CONDUIT_INFO("data_array dispatch functor policy=device src_start=host des_start=host");
+
+        Node node;
+        node["src"].set(src_vals);
+        node["des"].set(des_vals);
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_array_dispatch_functor_and_sync(node,
+                                                 ExecutionPolicy::device(),
+                                                 min_val,
+                                                 min_loc);
+        annotations::finalize();
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
         expect_doubled_execution_values(result_array);
 
@@ -1728,6 +2521,134 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         execution::DeviceMemory::deallocate(src_device_ptr);
         execution::DeviceMemory::deallocate(des_device_ptr);
     }
+
+    {
+        CONDUIT_INFO("data_array dispatch lambda policy=host src_start=device des_start=device");
+
+        Node node;
+        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+        node["src"].set_external(src_device_ptr, src_vals.size());
+        node["des"].set_external(des_device_ptr, des_vals.size());
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_array_dispatch_and_sync(node,
+                                         ExecutionPolicy::host(),
+                                         min_val,
+                                         min_loc);
+        annotations::finalize();
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_array result_array(node["des"]);
+        result_array.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_array);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+        execution::DeviceMemory::deallocate(des_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_array dispatch functor policy=host src_start=device des_start=device");
+
+        Node node;
+        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+        node["src"].set_external(src_device_ptr, src_vals.size());
+        node["des"].set_external(des_device_ptr, des_vals.size());
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_array_dispatch_functor_and_sync(node,
+                                                 ExecutionPolicy::host(),
+                                                 min_val,
+                                                 min_loc);
+        annotations::finalize();
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_array result_array(node["des"]);
+        result_array.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_array);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+        execution::DeviceMemory::deallocate(des_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_array dispatch lambda policy=device src_start=device des_start=device");
+
+        Node node;
+        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+        node["src"].set_external(src_device_ptr, src_vals.size());
+        node["des"].set_external(des_device_ptr, des_vals.size());
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_array_dispatch_and_sync(node,
+                                         ExecutionPolicy::device(),
+                                         min_val,
+                                         min_loc);
+        annotations::finalize();
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_array result_array(node["des"]);
+        result_array.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_array);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+        execution::DeviceMemory::deallocate(des_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_array dispatch functor policy=device src_start=device des_start=device");
+
+        Node node;
+        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+        node["src"].set_external(src_device_ptr, src_vals.size());
+        node["des"].set_external(des_device_ptr, des_vals.size());
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_array_dispatch_functor_and_sync(node,
+                                                 ExecutionPolicy::device(),
+                                                 min_val,
+                                                 min_loc);
+        annotations::finalize();
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_array result_array(node["des"]);
+        result_array.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_array);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+        execution::DeviceMemory::deallocate(des_device_ptr);
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -1879,6 +2800,126 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         float64_array result_array(node["des"]);
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
+        result_array.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_array);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(des_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_array dispatch lambda policy=host src_start=host des_start=device");
+
+        Node node;
+        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+        node["src"].set(src_vals);
+        node["des"].set_external(des_device_ptr, des_vals.size());
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_array_dispatch_and_sync(node,
+                                         ExecutionPolicy::host(),
+                                         min_val,
+                                         min_loc);
+        annotations::finalize();
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_array result_array(node["des"]);
+        result_array.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_array);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(des_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_array dispatch functor policy=host src_start=host des_start=device");
+
+        Node node;
+        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+        node["src"].set(src_vals);
+        node["des"].set_external(des_device_ptr, des_vals.size());
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_array_dispatch_functor_and_sync(node,
+                                                 ExecutionPolicy::host(),
+                                                 min_val,
+                                                 min_loc);
+        annotations::finalize();
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_array result_array(node["des"]);
+        result_array.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_array);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(des_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_array dispatch lambda policy=device src_start=host des_start=device");
+
+        Node node;
+        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+        node["src"].set(src_vals);
+        node["des"].set_external(des_device_ptr, des_vals.size());
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_array_dispatch_and_sync(node,
+                                         ExecutionPolicy::device(),
+                                         min_val,
+                                         min_loc);
+        annotations::finalize();
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_array result_array(node["des"]);
+        result_array.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_array);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(des_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_array dispatch functor policy=device src_start=host des_start=device");
+
+        Node node;
+        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+        node["src"].set(src_vals);
+        node["des"].set_external(des_device_ptr, des_vals.size());
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_array_dispatch_functor_and_sync(node,
+                                                 ExecutionPolicy::device(),
+                                                 min_val,
+                                                 min_loc);
+        annotations::finalize();
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
         expect_doubled_execution_values(result_array);
 
@@ -2037,6 +3078,126 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         float64_array result_array(node["des"]);
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
+        result_array.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_array);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_array dispatch lambda policy=host src_start=device des_start=host");
+
+        Node node;
+        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+        node["src"].set_external(src_device_ptr, src_vals.size());
+        node["des"].set(des_vals);
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_array_dispatch_and_sync(node,
+                                         ExecutionPolicy::host(),
+                                         min_val,
+                                         min_loc);
+        annotations::finalize();
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_array result_array(node["des"]);
+        result_array.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_array);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_array dispatch functor policy=host src_start=device des_start=host");
+
+        Node node;
+        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+        node["src"].set_external(src_device_ptr, src_vals.size());
+        node["des"].set(des_vals);
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_array_dispatch_functor_and_sync(node,
+                                                 ExecutionPolicy::host(),
+                                                 min_val,
+                                                 min_loc);
+        annotations::finalize();
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_array result_array(node["des"]);
+        result_array.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_array);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_array dispatch lambda policy=device src_start=device des_start=host");
+
+        Node node;
+        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+        node["src"].set_external(src_device_ptr, src_vals.size());
+        node["des"].set(des_vals);
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_array_dispatch_and_sync(node,
+                                         ExecutionPolicy::device(),
+                                         min_val,
+                                         min_loc);
+        annotations::finalize();
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_array result_array(node["des"]);
+        result_array.use_with(ExecutionPolicy::host());
+        expect_doubled_execution_values(result_array);
+
+        node.reset();
+        execution::DeviceMemory::deallocate(src_device_ptr);
+    }
+
+    {
+        CONDUIT_INFO("data_array dispatch functor policy=device src_start=device des_start=host");
+
+        Node node;
+        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+        node["src"].set_external(src_device_ptr, src_vals.size());
+        node["des"].set(des_vals);
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+        float64 min_val = 0.0;
+        index_t min_loc = -1;
+        run_data_array_dispatch_functor_and_sync(node,
+                                                 ExecutionPolicy::device(),
+                                                 min_val,
+                                                 min_loc);
+        annotations::finalize();
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+        expect_execution_minloc(min_val, min_loc);
+
+        float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
         expect_doubled_execution_values(result_array);
 
