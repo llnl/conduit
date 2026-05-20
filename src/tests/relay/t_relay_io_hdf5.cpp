@@ -1623,12 +1623,12 @@ TEST(conduit_relay_io_hdf5, check_if_file_is_hdf5_file)
 
     // check behavior with files that have open handles
     hid_t h5_file_id = io::hdf5_open_file_for_read_write(tout);
-    EXPECT_TRUE(io::is_hdf5_file(tout));
     io::hdf5_close_file(h5_file_id);
+    EXPECT_TRUE(io::is_hdf5_file(tout));
 
     h5_file_id = io::hdf5_open_file_for_read(tout);
-    EXPECT_TRUE(io::is_hdf5_file(tout));
     io::hdf5_close_file(h5_file_id);
+    EXPECT_TRUE(io::is_hdf5_file(tout));
 
     tout = "tout_hdf5_check_non_hdf5_file.json";
 
