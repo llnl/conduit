@@ -952,7 +952,7 @@ DataArray<T>::to_yaml_stream(std::ostream &os) const
 //---------------------------------------------------------------------------//
 template <typename T> 
 void
-DataArray<T>::set(const int8 *values, index_t num_elements)
+DataArray<T>::set(const int8 *values, index_t num_elements) const
 { 
     for(index_t i=0;i<num_elements;i++)
     {
@@ -963,7 +963,7 @@ DataArray<T>::set(const int8 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void
-DataArray<T>::set(const  int16 *values, index_t num_elements)
+DataArray<T>::set(const  int16 *values, index_t num_elements) const
 { 
     for(index_t i=0;i<num_elements;i++)
     {
@@ -974,7 +974,7 @@ DataArray<T>::set(const  int16 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataArray<T>::set(const int32 *values, index_t num_elements)
+DataArray<T>::set(const int32 *values, index_t num_elements) const
 { 
     for(index_t i=0;i<num_elements;i++)
     {
@@ -985,7 +985,7 @@ DataArray<T>::set(const int32 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataArray<T>::set(const  int64 *values, index_t num_elements)
+DataArray<T>::set(const  int64 *values, index_t num_elements) const
 { 
     for(index_t i=0;i<num_elements;i++)
     {
@@ -1000,7 +1000,7 @@ DataArray<T>::set(const  int64 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataArray<T>::set(const  uint8 *values, index_t num_elements)
+DataArray<T>::set(const  uint8 *values, index_t num_elements) const
 { 
     for(index_t i=0;i<num_elements;i++)
     {
@@ -1011,7 +1011,7 @@ DataArray<T>::set(const  uint8 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataArray<T>::set(const  uint16 *values, index_t num_elements)
+DataArray<T>::set(const  uint16 *values, index_t num_elements) const
 { 
     for(index_t i=0;i<num_elements;i++)
     {
@@ -1022,7 +1022,7 @@ DataArray<T>::set(const  uint16 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataArray<T>::set(const uint32 *values, index_t num_elements)
+DataArray<T>::set(const uint32 *values, index_t num_elements) const
 { 
     for(index_t i=0;i<num_elements;i++)
     {
@@ -1033,7 +1033,7 @@ DataArray<T>::set(const uint32 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataArray<T>::set(const uint64 *values, index_t num_elements)
+DataArray<T>::set(const uint64 *values, index_t num_elements) const
 { 
     for(index_t i=0;i<num_elements;i++)
     {
@@ -1048,7 +1048,7 @@ DataArray<T>::set(const uint64 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataArray<T>::set(const float32 *values, index_t num_elements)
+DataArray<T>::set(const float32 *values, index_t num_elements) const
 { 
     for(index_t i=0;i<num_elements;i++)
     {
@@ -1059,7 +1059,7 @@ DataArray<T>::set(const float32 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataArray<T>::set(const float64 *values, index_t num_elements)
+DataArray<T>::set(const float64 *values, index_t num_elements) const
 { 
     for(index_t i=0;i<num_elements;i++)
     {
@@ -1074,7 +1074,7 @@ DataArray<T>::set(const float64 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<int8> &values)
+DataArray<T>::set(const std::initializer_list<int8> &values) const
 { 
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1091,7 +1091,7 @@ DataArray<T>::set(const std::initializer_list<int8> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<int16> &values)
+DataArray<T>::set(const std::initializer_list<int16> &values) const
 {
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1108,7 +1108,7 @@ DataArray<T>::set(const std::initializer_list<int16> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<int32> &values)
+DataArray<T>::set(const std::initializer_list<int32> &values) const
 {
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1125,7 +1125,7 @@ DataArray<T>::set(const std::initializer_list<int32> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<int64> &values)
+DataArray<T>::set(const std::initializer_list<int64> &values) const
 {
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1142,7 +1142,7 @@ DataArray<T>::set(const std::initializer_list<int64> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<uint8> &values)
+DataArray<T>::set(const std::initializer_list<uint8> &values) const
 {
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1159,7 +1159,7 @@ DataArray<T>::set(const std::initializer_list<uint8> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<uint16> &values)
+DataArray<T>::set(const std::initializer_list<uint16> &values) const
 {
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1176,7 +1176,7 @@ DataArray<T>::set(const std::initializer_list<uint16> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<uint32> &values)
+DataArray<T>::set(const std::initializer_list<uint32> &values) const
 {
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1193,7 +1193,7 @@ DataArray<T>::set(const std::initializer_list<uint32> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<uint64> &values)
+DataArray<T>::set(const std::initializer_list<uint64> &values) const
 {
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1210,7 +1210,7 @@ DataArray<T>::set(const std::initializer_list<uint64> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<float32> &values)
+DataArray<T>::set(const std::initializer_list<float32> &values) const
 { 
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1227,7 +1227,7 @@ DataArray<T>::set(const std::initializer_list<float32> &values)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void
-DataArray<T>::set(const std::initializer_list<float64> &values)
+DataArray<T>::set(const std::initializer_list<float64> &values) const
 {
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1249,7 +1249,7 @@ DataArray<T>::set(const std::initializer_list<float64> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<char> &values)
+DataArray<T>::set(const std::initializer_list<char> &values) const
 { 
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1270,7 +1270,7 @@ DataArray<T>::set(const std::initializer_list<char> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<signed char> &values)
+DataArray<T>::set(const std::initializer_list<signed char> &values) const
 { 
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1287,7 +1287,7 @@ DataArray<T>::set(const std::initializer_list<signed char> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<unsigned char> &values)
+DataArray<T>::set(const std::initializer_list<unsigned char> &values) const
 { 
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1312,7 +1312,7 @@ DataArray<T>::set(const std::initializer_list<unsigned char> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<short> &values)
+DataArray<T>::set(const std::initializer_list<short> &values) const
 { 
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1329,7 +1329,7 @@ DataArray<T>::set(const std::initializer_list<short> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<unsigned short> &values)
+DataArray<T>::set(const std::initializer_list<unsigned short> &values) const
 { 
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1354,7 +1354,7 @@ DataArray<T>::set(const std::initializer_list<unsigned short> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<int> &values)
+DataArray<T>::set(const std::initializer_list<int> &values) const
 { 
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1371,7 +1371,7 @@ DataArray<T>::set(const std::initializer_list<int> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<unsigned int> &values)
+DataArray<T>::set(const std::initializer_list<unsigned int> &values) const
 { 
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1396,7 +1396,7 @@ DataArray<T>::set(const std::initializer_list<unsigned int> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<long> &values)
+DataArray<T>::set(const std::initializer_list<long> &values) const
 { 
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1413,7 +1413,7 @@ DataArray<T>::set(const std::initializer_list<long> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<unsigned long> &values)
+DataArray<T>::set(const std::initializer_list<unsigned long> &values) const
 { 
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1439,7 +1439,7 @@ DataArray<T>::set(const std::initializer_list<unsigned long> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<long long> &values)
+DataArray<T>::set(const std::initializer_list<long long> &values) const
 { 
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1456,7 +1456,7 @@ DataArray<T>::set(const std::initializer_list<long long> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<unsigned long long> &values)
+DataArray<T>::set(const std::initializer_list<unsigned long long> &values) const
 { 
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1479,7 +1479,7 @@ DataArray<T>::set(const std::initializer_list<unsigned long long> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<float> &values)
+DataArray<T>::set(const std::initializer_list<float> &values) const
 { 
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1502,7 +1502,7 @@ DataArray<T>::set(const std::initializer_list<float> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<double> &values)
+DataArray<T>::set(const std::initializer_list<double> &values) const
 { 
     index_t idx = 0;
     index_t num_elems = dtype().number_of_elements();
@@ -1944,7 +1944,7 @@ DataArray<T>::operator=(const std::initializer_list<double> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<int8> &values)
+DataArray<T>::set(const DataArray<int8> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -1956,7 +1956,7 @@ DataArray<T>::set(const DataArray<int8> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<int16> &values)
+DataArray<T>::set(const DataArray<int16> &values) const
 { 
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -1968,7 +1968,7 @@ DataArray<T>::set(const DataArray<int16> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<int32> &values)
+DataArray<T>::set(const DataArray<int32> &values) const
 { 
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -1980,7 +1980,7 @@ DataArray<T>::set(const DataArray<int32> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<int64> &values)
+DataArray<T>::set(const DataArray<int64> &values) const
 { 
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -1996,7 +1996,7 @@ DataArray<T>::set(const DataArray<int64> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<uint8> &values)
+DataArray<T>::set(const DataArray<uint8> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -2008,7 +2008,7 @@ DataArray<T>::set(const DataArray<uint8> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<uint16> &values)
+DataArray<T>::set(const DataArray<uint16> &values) const
 { 
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -2020,7 +2020,7 @@ DataArray<T>::set(const DataArray<uint16> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<uint32> &values)
+DataArray<T>::set(const DataArray<uint32> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -2032,7 +2032,7 @@ DataArray<T>::set(const DataArray<uint32> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<uint64> &values)
+DataArray<T>::set(const DataArray<uint64> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -2048,7 +2048,7 @@ DataArray<T>::set(const DataArray<uint64> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<float32> &values)
+DataArray<T>::set(const DataArray<float32> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -2060,7 +2060,7 @@ DataArray<T>::set(const DataArray<float32> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<float64> &values)
+DataArray<T>::set(const DataArray<float64> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -2082,7 +2082,7 @@ DataArray<T>::set(const DataArray<float64> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataAccessor<int8> &values)
+DataArray<T>::set(const DataAccessor<int8> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -2094,7 +2094,7 @@ DataArray<T>::set(const DataAccessor<int8> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void            
-DataArray<T>::set(const DataAccessor<int16> &values)
+DataArray<T>::set(const DataAccessor<int16> &values) const
 { 
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -2106,7 +2106,7 @@ DataArray<T>::set(const DataAccessor<int16> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void            
-DataArray<T>::set(const DataAccessor<int32> &values)
+DataArray<T>::set(const DataAccessor<int32> &values) const
 { 
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -2118,7 +2118,7 @@ DataArray<T>::set(const DataAccessor<int32> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void            
-DataArray<T>::set(const DataAccessor<int64> &values)
+DataArray<T>::set(const DataAccessor<int64> &values) const
 { 
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -2134,7 +2134,7 @@ DataArray<T>::set(const DataAccessor<int64> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataAccessor<uint8> &values)
+DataArray<T>::set(const DataAccessor<uint8> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -2146,7 +2146,7 @@ DataArray<T>::set(const DataAccessor<uint8> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataAccessor<uint16> &values)
+DataArray<T>::set(const DataAccessor<uint16> &values) const
 { 
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -2158,7 +2158,7 @@ DataArray<T>::set(const DataAccessor<uint16> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataAccessor<uint32> &values)
+DataArray<T>::set(const DataAccessor<uint32> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -2170,7 +2170,7 @@ DataArray<T>::set(const DataAccessor<uint32> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataAccessor<uint64> &values)
+DataArray<T>::set(const DataAccessor<uint64> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -2186,7 +2186,7 @@ DataArray<T>::set(const DataAccessor<uint64> &values)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void
-DataArray<T>::set(const DataAccessor<float32> &values)
+DataArray<T>::set(const DataAccessor<float32> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)
@@ -2198,7 +2198,7 @@ DataArray<T>::set(const DataAccessor<float32> &values)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void
-DataArray<T>::set(const DataAccessor<float64> &values)
+DataArray<T>::set(const DataAccessor<float64> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     for(index_t i=0; i <num_elems; i++)

@@ -38,49 +38,6 @@ namespace detail
 {
 
 //-----------------------------------------------------------------------------
-template <typename T>
-void
-set_value_helper(const DataAccessor<T> &accessor, index_t idx, T value)
-{
-    switch(accessor.dtype().id())
-    {
-        case DataType::INT8_ID:
-            (*(int8*)(accessor.element_ptr(idx))) = static_cast<int8>(value);
-            break;
-        case DataType::INT16_ID:
-            (*(int16*)(accessor.element_ptr(idx))) = static_cast<int16>(value);
-            break;
-        case DataType::INT32_ID:
-            (*(int32*)(accessor.element_ptr(idx))) = static_cast<int32>(value);
-            break;
-        case DataType::INT64_ID:
-            (*(int64*)(accessor.element_ptr(idx))) = static_cast<int64>(value);
-            break;
-        case DataType::UINT8_ID:
-            (*(uint8*)(accessor.element_ptr(idx))) = static_cast<uint8>(value);
-            break;
-        case DataType::UINT16_ID:
-            (*(uint16*)(accessor.element_ptr(idx))) = static_cast<uint16>(value);
-            break;
-        case DataType::UINT32_ID:
-            (*(uint32*)(accessor.element_ptr(idx))) = static_cast<uint32>(value);
-            break;
-        case DataType::UINT64_ID:
-            (*(uint64*)(accessor.element_ptr(idx))) = static_cast<uint64>(value);
-            break;
-        case DataType::FLOAT32_ID:
-            (*(float32*)(accessor.element_ptr(idx))) = static_cast<float32>(value);
-            break;
-        case DataType::FLOAT64_ID:
-            (*(float64*)(accessor.element_ptr(idx))) = static_cast<float64>(value);
-            break;
-        default:
-            CONDUIT_ERROR("DataAccessor does not support dtype: "
-                          << accessor.dtype().name());
-    }
-}
-
-//-----------------------------------------------------------------------------
 template <typename T, typename U>
 void
 set_values_helper(const DataAccessor<T> &accessor, const U &values, index_t num_elements)
@@ -696,105 +653,13 @@ DataAccessor<T>::active_space()
 }
 
 //---------------------------------------------------------------------------//
-// DataAccessor::set() signed integers single element
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataAccessor<T>::set(index_t idx, int8 value)
-{
-    detail::set_value_helper(*this, idx, static_cast<T>(value));
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataAccessor<T>::set(index_t idx, int16 value)
-{
-    detail::set_value_helper(*this, idx, static_cast<T>(value));
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataAccessor<T>::set(index_t idx, int32 value)
-{ 
-    detail::set_value_helper(*this, idx, static_cast<T>(value));
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataAccessor<T>::set(index_t idx, int64 value)
-{ 
-    detail::set_value_helper(*this, idx, static_cast<T>(value));
-}
-
-//---------------------------------------------------------------------------//
-// DataAccessor::set() unsigned integers single element
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataAccessor<T>::set(index_t idx, uint8 value)
-{ 
-    detail::set_value_helper(*this, idx, static_cast<T>(value));
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataAccessor<T>::set(index_t idx, uint16 value)
-{ 
-    detail::set_value_helper(*this, idx, static_cast<T>(value));
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataAccessor<T>::set(index_t idx, uint32 value)
-{ 
-    detail::set_value_helper(*this, idx, static_cast<T>(value));
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataAccessor<T>::set(index_t idx, uint64 value)
-{ 
-    detail::set_value_helper(*this, idx, static_cast<T>(value));
-}
-
-//---------------------------------------------------------------------------//
-// DataAccessor::set() floating point single element
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataAccessor<T>::set(index_t idx, float32 value)
-{ 
-    detail::set_value_helper(*this, idx, static_cast<T>(value));
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataAccessor<T>::set(index_t idx, float64 value)
-{ 
-    detail::set_value_helper(*this, idx, static_cast<T>(value));
-}
-
-//---------------------------------------------------------------------------//
 // DataAccessor::set() signed integers multi element
 //---------------------------------------------------------------------------//
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 void
-DataAccessor<T>::set(const int8 *values, index_t num_elements)
+DataAccessor<T>::set(const int8 *values, index_t num_elements) const
 { 
     detail::set_values_helper(*this, values, num_elements);
 }
@@ -802,7 +667,7 @@ DataAccessor<T>::set(const int8 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void
-DataAccessor<T>::set(const  int16 *values, index_t num_elements)
+DataAccessor<T>::set(const  int16 *values, index_t num_elements) const
 { 
     detail::set_values_helper(*this, values, num_elements);
 }
@@ -810,7 +675,7 @@ DataAccessor<T>::set(const  int16 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataAccessor<T>::set(const int32 *values, index_t num_elements)
+DataAccessor<T>::set(const int32 *values, index_t num_elements) const
 { 
     detail::set_values_helper(*this, values, num_elements);
 }
@@ -818,7 +683,7 @@ DataAccessor<T>::set(const int32 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataAccessor<T>::set(const  int64 *values, index_t num_elements)
+DataAccessor<T>::set(const  int64 *values, index_t num_elements) const
 { 
     detail::set_values_helper(*this, values, num_elements);
 }
@@ -830,7 +695,7 @@ DataAccessor<T>::set(const  int64 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataAccessor<T>::set(const  uint8 *values, index_t num_elements)
+DataAccessor<T>::set(const  uint8 *values, index_t num_elements) const
 { 
     detail::set_values_helper(*this, values, num_elements);
 }
@@ -838,7 +703,7 @@ DataAccessor<T>::set(const  uint8 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataAccessor<T>::set(const  uint16 *values, index_t num_elements)
+DataAccessor<T>::set(const  uint16 *values, index_t num_elements) const
 { 
     detail::set_values_helper(*this, values, num_elements);
 }
@@ -846,7 +711,7 @@ DataAccessor<T>::set(const  uint16 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataAccessor<T>::set(const uint32 *values, index_t num_elements)
+DataAccessor<T>::set(const uint32 *values, index_t num_elements) const
 { 
     detail::set_values_helper(*this, values, num_elements);
 }
@@ -854,7 +719,7 @@ DataAccessor<T>::set(const uint32 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataAccessor<T>::set(const uint64 *values, index_t num_elements)
+DataAccessor<T>::set(const uint64 *values, index_t num_elements) const
 { 
     detail::set_values_helper(*this, values, num_elements);
 }
@@ -866,7 +731,7 @@ DataAccessor<T>::set(const uint64 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataAccessor<T>::set(const float32 *values, index_t num_elements)
+DataAccessor<T>::set(const float32 *values, index_t num_elements) const
 { 
     detail::set_values_helper(*this, values, num_elements);
 }
@@ -874,7 +739,7 @@ DataAccessor<T>::set(const float32 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataAccessor<T>::set(const float64 *values, index_t num_elements)
+DataAccessor<T>::set(const float64 *values, index_t num_elements) const
 { 
     detail::set_values_helper(*this, values, num_elements);
 }
@@ -892,7 +757,7 @@ DataAccessor<T>::set(const float64 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataAccessor<int8> &values)
+DataAccessor<T>::set(const DataAccessor<int8> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -901,7 +766,7 @@ DataAccessor<T>::set(const DataAccessor<int8> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataAccessor<int16> &values)
+DataAccessor<T>::set(const DataAccessor<int16> &values) const
 { 
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -910,7 +775,7 @@ DataAccessor<T>::set(const DataAccessor<int16> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataAccessor<int32> &values)
+DataAccessor<T>::set(const DataAccessor<int32> &values) const
 { 
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -919,7 +784,7 @@ DataAccessor<T>::set(const DataAccessor<int32> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataAccessor<int64> &values)
+DataAccessor<T>::set(const DataAccessor<int64> &values) const
 { 
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -932,7 +797,7 @@ DataAccessor<T>::set(const DataAccessor<int64> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataAccessor<uint8> &values)
+DataAccessor<T>::set(const DataAccessor<uint8> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -941,7 +806,7 @@ DataAccessor<T>::set(const DataAccessor<uint8> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataAccessor<uint16> &values)
+DataAccessor<T>::set(const DataAccessor<uint16> &values) const
 { 
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -950,7 +815,7 @@ DataAccessor<T>::set(const DataAccessor<uint16> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataAccessor<uint32> &values)
+DataAccessor<T>::set(const DataAccessor<uint32> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -959,7 +824,7 @@ DataAccessor<T>::set(const DataAccessor<uint32> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataAccessor<uint64> &values)
+DataAccessor<T>::set(const DataAccessor<uint64> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -972,7 +837,7 @@ DataAccessor<T>::set(const DataAccessor<uint64> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataAccessor<float32> &values)
+DataAccessor<T>::set(const DataAccessor<float32> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -981,7 +846,7 @@ DataAccessor<T>::set(const DataAccessor<float32> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataAccessor<float64> &values)
+DataAccessor<T>::set(const DataAccessor<float64> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -1000,7 +865,7 @@ DataAccessor<T>::set(const DataAccessor<float64> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataArray<int8> &values)
+DataAccessor<T>::set(const DataArray<int8> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -1009,7 +874,7 @@ DataAccessor<T>::set(const DataArray<int8> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataArray<int16> &values)
+DataAccessor<T>::set(const DataArray<int16> &values) const
 { 
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -1018,7 +883,7 @@ DataAccessor<T>::set(const DataArray<int16> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataArray<int32> &values)
+DataAccessor<T>::set(const DataArray<int32> &values) const
 { 
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -1027,7 +892,7 @@ DataAccessor<T>::set(const DataArray<int32> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataArray<int64> &values)
+DataAccessor<T>::set(const DataArray<int64> &values) const
 { 
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -1040,7 +905,7 @@ DataAccessor<T>::set(const DataArray<int64> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataArray<uint8> &values)
+DataAccessor<T>::set(const DataArray<uint8> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -1049,7 +914,7 @@ DataAccessor<T>::set(const DataArray<uint8> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataArray<uint16> &values)
+DataAccessor<T>::set(const DataArray<uint16> &values) const
 { 
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -1058,7 +923,7 @@ DataAccessor<T>::set(const DataArray<uint16> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataArray<uint32> &values)
+DataAccessor<T>::set(const DataArray<uint32> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -1067,7 +932,7 @@ DataAccessor<T>::set(const DataArray<uint32> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataArray<uint64> &values)
+DataAccessor<T>::set(const DataArray<uint64> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -1080,7 +945,7 @@ DataAccessor<T>::set(const DataArray<uint64> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataArray<float32> &values)
+DataAccessor<T>::set(const DataArray<float32> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);
@@ -1089,7 +954,7 @@ DataAccessor<T>::set(const DataArray<float32> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::set(const DataArray<float64> &values)
+DataAccessor<T>::set(const DataArray<float64> &values) const
 {
     index_t num_elems = dtype().number_of_elements();
     detail::set_values_helper(*this, values, num_elems);

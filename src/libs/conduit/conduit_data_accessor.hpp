@@ -201,12 +201,177 @@ public:
         }
     }
 
-    // Restrict the scalar setter to non-pointer value types so calls like
-    // set(0, value) do not collide with the bulk pointer setter below.
-    template <typename U = T>
-    CONDUIT_EXEC
-    typename std::enable_if<!std::is_pointer<U>::value, void>::type
-                    set(index_t idx, T value) const
+    void            fill(T value);
+
+    CONDUIT_EXEC const void *element_ptr(index_t idx) const
+                    {
+                         return static_cast<const char*>(m_data) +
+                                  dtype().element_index(idx);
+                    }
+
+    CONDUIT_EXEC index_t number_of_elements() const
+                        {return dtype().number_of_elements();}
+
+    ///
+    /// dtype metadata is cached in the accessor so device code can choose
+    /// between the original and migrated layout without dereferencing Node.
+    /// This logic must stay inline in the header for device compilation.
+    ///
+    CONDUIT_EXEC const DataType &dtype() const
+    {
+        if (nullptr != m_node_ptr)
+        {
+            return (m_data == m_orig_data_ptr)
+                   ? orig_dtype()
+                   : other_dtype();
+        }
+        else
+        {
+            return m_dtype;
+        }
+    }
+
+    ///
+    /// These methods are part of the cached dtype metadata used by device
+    /// code, so they must remain inline in the header alongside dtype().
+    ///
+    CONDUIT_EXEC const DataType &orig_dtype() const
+                    { return m_dtype; }
+
+    CONDUIT_EXEC const DataType &other_dtype() const
+                    { return nullptr != m_node_ptr ? m_other_dtype : m_dtype; }
+
+//-----------------------------------------------------------------------------
+// Data movement
+//-----------------------------------------------------------------------------
+    void                                use_with(conduit::execution::ExecutionPolicy policy);
+
+    void                                sync();
+
+    void                                assume();
+
+    conduit::execution::ExecutionPolicy active_space();
+
+//-----------------------------------------------------------------------------
+// Setters
+//-----------------------------------------------------------------------------
+    /// signed integer single element
+    CONDUIT_EXEC void set(index_t elem_idx, int8  value) const
+                    { set_value_helper(elem_idx, static_cast<T>(value)); }
+    CONDUIT_EXEC void set(index_t elem_idx, int16 value) const
+                    { set_value_helper(elem_idx, static_cast<T>(value)); }
+    CONDUIT_EXEC void set(index_t elem_idx, int32 value) const
+                    { set_value_helper(elem_idx, static_cast<T>(value)); }
+    CONDUIT_EXEC void set(index_t elem_idx, int64 value) const
+                    { set_value_helper(elem_idx, static_cast<T>(value)); }
+
+    // unsigned integer single element
+    CONDUIT_EXEC void set(index_t elem_idx, uint8  value) const
+                    { set_value_helper(elem_idx, static_cast<T>(value)); }
+    CONDUIT_EXEC void set(index_t elem_idx, uint16 value) const
+                    { set_value_helper(elem_idx, static_cast<T>(value)); }
+    CONDUIT_EXEC void set(index_t elem_idx, uint32 value) const
+                    { set_value_helper(elem_idx, static_cast<T>(value)); }
+    CONDUIT_EXEC void set(index_t elem_idx, uint64 value) const
+                    { set_value_helper(elem_idx, static_cast<T>(value)); }
+
+    /// floating point single element
+    CONDUIT_EXEC void set(index_t elem_idx, float32 value) const
+                    { set_value_helper(elem_idx, static_cast<T>(value)); }
+    CONDUIT_EXEC void set(index_t elem_idx, float64 value) const
+                    { set_value_helper(elem_idx, static_cast<T>(value)); }
+
+    /// signed integer arrays
+    void            set(const int8  *values, index_t num_elements) const;
+    void            set(const int16 *values, index_t num_elements) const;
+    void            set(const int32 *values, index_t num_elements) const;
+    void            set(const int64 *values, index_t num_elements) const;
+
+    /// unsigned integer arrays
+    void            set(const uint8   *values, index_t num_elements) const;
+    void            set(const uint16  *values, index_t num_elements) const;
+    void            set(const uint32  *values, index_t num_elements) const;
+    void            set(const uint64  *values, index_t num_elements) const;
+    
+    /// floating point arrays
+    void            set(const float32 *values, index_t num_elements) const;
+    void            set(const float64 *values, index_t num_elements) const;
+
+    /// signed integer arrays via DataArray
+    void            set(const DataArray<int8>    &values) const;
+    void            set(const DataArray<int16>   &values) const;
+    void            set(const DataArray<int32>   &values) const;
+    void            set(const DataArray<int64>   &values) const;
+
+    /// unsigned integer arrays via DataArray
+    void            set(const DataArray<uint8>   &values) const;
+    void            set(const DataArray<uint16>  &values) const;
+    void            set(const DataArray<uint32>  &values) const;
+    void            set(const DataArray<uint64>  &values) const;
+    
+    /// floating point arrays via DataArray
+    void            set(const DataArray<float32>  &values) const;
+    void            set(const DataArray<float64>  &values) const;
+
+    /// signed integer arrays via DataAccessor
+    void            set(const DataAccessor<int8>    &values) const;
+    void            set(const DataAccessor<int16>   &values) const;
+    void            set(const DataAccessor<int32>   &values) const;
+    void            set(const DataAccessor<int64>   &values) const;
+
+    /// unsigned integer arrays via DataAccessor
+    void            set(const DataAccessor<uint8>   &values) const;
+    void            set(const DataAccessor<uint16>  &values) const;
+    void            set(const DataAccessor<uint32>  &values) const;
+    void            set(const DataAccessor<uint64>  &values) const;
+    
+    /// floating point arrays via DataAccessor
+    void            set(const DataAccessor<float32>  &values) const;
+    void            set(const DataAccessor<float64>  &values) const;
+
+//-----------------------------------------------------------------------------
+// Transforms
+//-----------------------------------------------------------------------------
+    std::string     to_string(const std::string &protocol="json") const;
+    void            to_string_stream(std::ostream &os,
+                                     const std::string &protocol="json") const;
+
+    // NOTE(cyrush): The primary reason this function exists is to enable
+    // easier compatibility with debugging tools (e.g. totalview, gdb) that
+    // have difficulty allocating default string parameters.
+    std::string     to_string_default() const;
+
+    std::string     to_json() const;
+    void            to_json_stream(std::ostream &os) const;
+
+    std::string     to_yaml() const;
+    void            to_yaml_stream(std::ostream &os) const;
+
+    /// Creates a string repression for printing that limits
+    /// the number of elements shown to a max number
+    std::string     to_summary_string_default() const;
+    std::string     to_summary_string(index_t threshold=5) const;
+    void            to_summary_string_stream(std::ostream &os,
+                                             index_t threshold=5) const;
+
+//-----------------------------------------------------------------------------
+// -- stdout print methods ---
+//-----------------------------------------------------------------------------
+    /// print a simplified json representation of the this node to std out
+    void            print() const
+                      {std::cout << to_summary_string() << std::endl;}
+
+private:
+
+//-----------------------------------------------------------------------------
+// Scalar setter implementation
+//-----------------------------------------------------------------------------
+    ///
+    /// DataAccessor keeps the public scalar overload set for the supported
+    /// Conduit bitwidth types, but they all share this single device-visible
+    /// implementation so set(idx, value) behaves the same on host and device.
+    ///
+    CONDUIT_EXEC void set_value_helper(index_t idx, T value) const
     {
         switch(dtype().id())
         {
@@ -269,166 +434,6 @@ public:
             }
         }
     }
-
-    // Restrict the bulk setter to pointer-valued accessors.
-    template <typename U = T>
-    typename std::enable_if<std::is_pointer<U>::value, void>::type
-                    set(const T* values, index_t num_elements) const;
-
-    // void            set(const std::vector<typename std::remove_pointer<T>::type> &values)
-    //                     { set(values.data(), values.size()); }
-
-    void            fill(T value);
-
-    CONDUIT_EXEC const void *element_ptr(index_t idx) const
-                    {
-                         return static_cast<const char*>(m_data) +
-                                  dtype().element_index(idx);
-                    }
-
-    CONDUIT_EXEC index_t number_of_elements() const
-                        {return dtype().number_of_elements();}
-
-    ///
-    /// dtype metadata is cached in the accessor so device code can choose
-    /// between the original and migrated layout without dereferencing Node.
-    /// This logic must stay inline in the header for device compilation.
-    ///
-    CONDUIT_EXEC const DataType &dtype() const
-    {
-        if (nullptr != m_node_ptr)
-        {
-            return (m_data == m_orig_data_ptr)
-                   ? orig_dtype()
-                   : other_dtype();
-        }
-        else
-        {
-            return m_dtype;
-        }
-    }
-
-    ///
-    /// These methods are part of the cached dtype metadata used by device
-    /// code, so they must remain inline in the header alongside dtype().
-    ///
-    CONDUIT_EXEC const DataType &orig_dtype() const
-                    { return m_dtype; }
-
-    CONDUIT_EXEC const DataType &other_dtype() const
-                    { return nullptr != m_node_ptr ? m_other_dtype : m_dtype; }
-
-//-----------------------------------------------------------------------------
-// Data movement
-//-----------------------------------------------------------------------------
-    void                                use_with(conduit::execution::ExecutionPolicy policy);
-
-    void                                sync();
-
-    void                                assume();
-
-    conduit::execution::ExecutionPolicy active_space();
-
-//-----------------------------------------------------------------------------
-// Setters
-//-----------------------------------------------------------------------------
-    /// signed integer single element
-    void            set(index_t elem_idx, int8  value);
-    void            set(index_t elem_idx, int16 value);
-    void            set(index_t elem_idx, int32 value);
-    void            set(index_t elem_idx, int64 value);
-
-    // unsigned integer single element
-    void            set(index_t elem_idx, uint8  value);
-    void            set(index_t elem_idx, uint16 value);
-    void            set(index_t elem_idx, uint32 value);
-    void            set(index_t elem_idx, uint64 value);
-
-    /// floating point single element
-    void            set(index_t elem_idx, float32 value);
-    void            set(index_t elem_idx, float64 value);
-
-    /// signed integer arrays
-    void            set(const int8  *values, index_t num_elements);
-    void            set(const int16 *values, index_t num_elements);
-    void            set(const int32 *values, index_t num_elements);
-    void            set(const int64 *values, index_t num_elements);
-
-    /// unsigned integer arrays
-    void            set(const uint8   *values, index_t num_elements);
-    void            set(const uint16  *values, index_t num_elements);
-    void            set(const uint32  *values, index_t num_elements);
-    void            set(const uint64  *values, index_t num_elements);
-    
-    /// floating point arrays
-    void            set(const float32 *values, index_t num_elements);
-    void            set(const float64 *values, index_t num_elements);
-
-    /// signed integer arrays via DataArray
-    void            set(const DataArray<int8>    &values);
-    void            set(const DataArray<int16>   &values);
-    void            set(const DataArray<int32>   &values);
-    void            set(const DataArray<int64>   &values);
-
-    /// unsigned integer arrays via DataArray
-    void            set(const DataArray<uint8>   &values);
-    void            set(const DataArray<uint16>  &values);
-    void            set(const DataArray<uint32>  &values);
-    void            set(const DataArray<uint64>  &values);
-    
-    /// floating point arrays via DataArray
-    void            set(const DataArray<float32>  &values);
-    void            set(const DataArray<float64>  &values);
-
-    /// signed integer arrays via DataAccessor
-    void            set(const DataAccessor<int8>    &values);
-    void            set(const DataAccessor<int16>   &values);
-    void            set(const DataAccessor<int32>   &values);
-    void            set(const DataAccessor<int64>   &values);
-
-    /// unsigned integer arrays via DataAccessor
-    void            set(const DataAccessor<uint8>   &values);
-    void            set(const DataAccessor<uint16>  &values);
-    void            set(const DataAccessor<uint32>  &values);
-    void            set(const DataAccessor<uint64>  &values);
-    
-    /// floating point arrays via DataAccessor
-    void            set(const DataAccessor<float32>  &values);
-    void            set(const DataAccessor<float64>  &values);
-
-//-----------------------------------------------------------------------------
-// Transforms
-//-----------------------------------------------------------------------------
-    std::string     to_string(const std::string &protocol="json") const;
-    void            to_string_stream(std::ostream &os,
-                                     const std::string &protocol="json") const;
-
-    // NOTE(cyrush): The primary reason this function exists is to enable
-    // easier compatibility with debugging tools (e.g. totalview, gdb) that
-    // have difficulty allocating default string parameters.
-    std::string     to_string_default() const;
-
-    std::string     to_json() const;
-    void            to_json_stream(std::ostream &os) const;
-
-    std::string     to_yaml() const;
-    void            to_yaml_stream(std::ostream &os) const;
-
-    /// Creates a string repression for printing that limits
-    /// the number of elements shown to a max number
-    std::string     to_summary_string_default() const;
-    std::string     to_summary_string(index_t threshold=5) const;
-    void            to_summary_string_stream(std::ostream &os,
-                                             index_t threshold=5) const;
-
-//-----------------------------------------------------------------------------
-// -- stdout print methods ---
-//-----------------------------------------------------------------------------
-    /// print a simplified json representation of the this node to std out
-    void            print() const
-                      {std::cout << to_summary_string() << std::endl;}
-
-private:
 
 //-----------------------------------------------------------------------------
 //
