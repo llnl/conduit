@@ -770,6 +770,7 @@ PyBlueprint_mesh_examples_venn(PyObject *, //self
                                         nx,ny,
                                         radius,
                                         node);
+    }
     catch(conduit::Error &e)
     {
         PyErr_SetString(PyExc_IOError,

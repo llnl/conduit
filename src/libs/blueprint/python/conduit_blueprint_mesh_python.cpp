@@ -350,7 +350,7 @@ PyBlueprint_mesh_remove(PyObject *, //self
 
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwargs,
-                                     "O",
+                                     "OO",
                                      const_cast<char**>(kwlist),
                                      &py_options,
                                      &py_mesh))
@@ -659,6 +659,10 @@ static PyMethodDef blueprint_mesh_python_funcs[] =
       _PyCFunction_CAST(PyBlueprint_mesh_convert),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_convert_doc_str},
+    {"remove",
+      _PyCFunction_CAST(PyBlueprint_mesh_remove),
+      METH_VARARGS | METH_KEYWORDS,
+      PyBlueprint_mesh_remove_doc_str},
     {"partition",
       _PyCFunction_CAST(PyBlueprint_mesh_partition),
       METH_VARARGS | METH_KEYWORDS,

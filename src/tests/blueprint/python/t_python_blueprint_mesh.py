@@ -260,9 +260,9 @@ class Test_Blueprint_Mesh(unittest.TestCase):
         blueprint.mesh.examples.generate("braid",n)
         opts["fields"]= ["braid","vel"]
         blueprint.mesh.remove(opts,n)
-        self.assertFalse(n.has_path("fields/braid")
-        self.assertFalse(n.has_path("fields/vel")
-        self.assertTrue(n.has_path("fields/radial")
+        self.assertFalse(n.has_path("fields/braid"))
+        self.assertFalse(n.has_path("fields/vel"))
+        self.assertTrue(n.has_path("fields/radial"))
 
     def test_partition(self):
         def same(a, b):
