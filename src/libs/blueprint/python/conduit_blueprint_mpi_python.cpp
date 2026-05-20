@@ -128,13 +128,22 @@ PyBlueprint_MPI_verify(PyObject *, //self
         return NULL;
     }
 
-    Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
-    Node &info = *PyConduit_Node_Get_Node_Ptr(py_info);
+    try
+    {
+        Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
+        Node &info = *PyConduit_Node_Get_Node_Ptr(py_info);
 
-    if(blueprint::mpi::verify(std::string(protocol), node,info,comm))
-        Py_RETURN_TRUE;
-    else
-        Py_RETURN_FALSE;
+        if(blueprint::mpi::verify(std::string(protocol), node,info,comm))
+            Py_RETURN_TRUE;
+        else
+            Py_RETURN_FALSE;
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 }
 
 
