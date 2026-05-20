@@ -333,26 +333,26 @@ private:
 
     // function pointer members
     // these take us to implementations for each layout type
-    GetMatIdPtr        m_get_mat_id = &MatsetAccessor::get_error_mat_id;
-    GetMatOrderIdPtr   m_get_mat_order_id = &MatsetAccessor::get_error_mat_order_id;
-    GetElemIdPtr       m_get_elem_id = &MatsetAccessor::get_error_elem_id;
-    GetVolFracPtr      m_get_vol_frac = &MatsetAccessor::get_error_vol_frac;
-    GetMsetValPtr      m_get_mset_val = &MatsetAccessor::get_error_mset_val;
-    GetMassFracPtr     m_get_mass_frac = &MatsetAccessor::get_error_mass_frac;
-    GetNMatsForElemPtr m_get_nmats_for_elem = &MatsetAccessor::get_error_nmats_for_elem;
-    GetNElemsForMatPtr m_get_nelems_for_mat = &MatsetAccessor::get_error_nelems_for_mat;
-    GetNMatSpecPtr     m_get_nspec_for_mat = &MatsetAccessor::get_error_nspec_for_mat;
+    GetMatIdPtr        m_get_mat_id;
+    GetMatOrderIdPtr   m_get_mat_order_id;
+    GetElemIdPtr       m_get_elem_id;
+    GetVolFracPtr      m_get_vol_frac;
+    GetMsetValPtr      m_get_mset_val;
+    GetMassFracPtr     m_get_mass_frac;
+    GetNMatsForElemPtr m_get_nmats_for_elem;
+    GetNElemsForMatPtr m_get_nelems_for_mat;
+    GetNMatSpecPtr     m_get_nspec_for_mat;
 
     // information members
-    bool m_is_uni_buffer = false;
-    bool m_is_element_dominant = false;
-    index_t m_num_elems = 0;
-    index_t m_num_mats = 0;
-    bool m_has_field = false;
-    bool m_has_specset = false;
-    const Node *m_src_matset = nullptr;
-    const Node *m_src_field = nullptr;
-    const Node *m_src_specset = nullptr;
+    bool m_is_uni_buffer;
+    bool m_is_element_dominant;
+    index_t m_num_elems;
+    index_t m_num_mats;
+    bool m_has_field;
+    bool m_has_specset;
+    const Node *m_src_matset;
+    const Node *m_src_field;
+    const Node *m_src_specset;
 
     // universal members
     // these are members that are useful for all layout types

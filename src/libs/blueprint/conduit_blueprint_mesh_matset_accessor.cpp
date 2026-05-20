@@ -51,12 +51,31 @@ namespace matset
 
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor()
+ : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
+   m_get_mat_order_id(&MatsetAccessor::get_error_mat_order_id),
+   m_get_elem_id(&MatsetAccessor::get_error_elem_id),
+   m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
+   m_get_mset_val(&MatsetAccessor::get_error_mset_val),
+   m_get_mass_frac(&MatsetAccessor::get_error_mass_frac),
+   m_get_nmats_for_elem(&MatsetAccessor::get_error_nmats_for_elem),
+   m_get_nelems_for_mat(&MatsetAccessor::get_error_nelems_for_mat),
+   m_get_nspec_for_mat(&MatsetAccessor::get_error_nspec_for_mat),
+   m_is_uni_buffer(false),
+   m_is_element_dominant(false),
+   m_num_elems(0),
+   m_num_mats(0),
+   m_has_field(false),
+   m_has_specset(false),
+   m_src_matset(nullptr),
+   m_src_field(nullptr),
+   m_src_specset(nullptr)
 {
     // empty
 }
 
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor(const Node &matset)
+ : MatsetAccessor()
 {
     init(matset, nullptr, nullptr);
 }
@@ -64,6 +83,7 @@ MatsetAccessor::MatsetAccessor(const Node &matset)
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor(const Node &matset,
                                const Node &specset_or_field)
+ : MatsetAccessor()
 {
     if (specset_or_field.has_child("topology"))
     {
@@ -83,12 +103,14 @@ MatsetAccessor::MatsetAccessor(const Node &matset,
 MatsetAccessor::MatsetAccessor(const Node &matset,
                                const Node &field,
                                const Node &specset)
+ : MatsetAccessor()
 {
     init(matset, &field, &specset);
 }   
 
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor(const MatsetAccessor &other_matset_accessor)
+ : MatsetAccessor()
 {
     if (other_matset_accessor.m_src_matset != nullptr)
     {
