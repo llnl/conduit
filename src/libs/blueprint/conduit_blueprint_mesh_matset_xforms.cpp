@@ -1680,8 +1680,11 @@ uni_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &sr
     for (index_t mat_order_id = 0; mat_order_id < num_mats; mat_order_id ++)
     {
         const std::string &matname = src_matset["material_map"].child(mat_order_id).name();
-        new_vol_fracs[matname].set(new_vol_fracs_vec[mat_order_id]);
-        new_elem_ids[matname].set(new_elem_ids_vec[mat_order_id]);
+        if (! new_vol_fracs_vec[mat_order_id].empty())
+        {
+            new_vol_fracs[matname].set(new_vol_fracs_vec[mat_order_id]);
+            new_elem_ids[matname].set(new_elem_ids_vec[mat_order_id]);
+        }
     }
 }
 
@@ -1712,8 +1715,11 @@ uni_buffer_by_element_to_multi_buffer_by_material_field(const conduit::Node &src
     Node &new_mset_vals = dest_field["matset_values"];
     for (index_t mat_order_id = 0; mat_order_id < num_mats; mat_order_id ++)
     {
-        const std::string &matname = src_matset["material_map"].child(mat_order_id).name();
-        new_mset_vals[matname].set(new_mset_vals_vec[mat_order_id]);
+        if (! new_mset_vals_vec[mat_order_id].empty())
+        {
+            const std::string &matname = src_matset["material_map"].child(mat_order_id).name();
+            new_mset_vals[matname].set(new_mset_vals_vec[mat_order_id]);
+        }
     }
 }
 
@@ -1770,8 +1776,11 @@ uni_buffer_by_element_to_multi_buffer_by_material_specset(const conduit::Node &s
             const index_t num_spec_for_mat = static_cast<index_t>(specnames_for_mat.size());
             for (index_t spec_idx = 0; spec_idx < num_spec_for_mat; spec_idx ++)
             {
-                const std::string &specname = specnames_for_mat[spec_idx];
-                new_mset_vals[matname][specname].set(new_mset_vals_vec[mat_order_id][spec_idx]);
+                if (! new_mset_vals_vec[mat_order_id][spec_idx].empty())
+                {
+                    const std::string &specname = specnames_for_mat[spec_idx];
+                    new_mset_vals[matname][specname].set(new_mset_vals_vec[mat_order_id][spec_idx]);
+                }
             }
         }
     }
@@ -1816,16 +1825,19 @@ multi_buffer_by_element_to_multi_buffer_by_material_matset(const conduit::Node &
     auto for_each_material = [&](const index_t mat_idx,
                                  const index_t num_elems_for_mat)
     {
-        const std::string matname = material_map.child(mat_idx).name();
-        dest_matset["volume_fractions"][matname].set(DataType::float64(num_elems_for_mat));
-        float64_array volume_fractions = dest_matset["volume_fractions"][matname].value();
-        dest_matset["element_ids"][matname].set(DataType::index_t(num_elems_for_mat));
-        index_t_array element_ids = dest_matset["element_ids"][matname].value();
-
-        for (index_t eid_id = 0; eid_id < num_elems_for_mat; eid_id ++)
+        if (num_elems_for_mat > 0)
         {
-            element_ids[eid_id] = local_element_ids[eid_id];
-            volume_fractions[eid_id] = local_volume_fractions[eid_id];
+            const std::string matname = material_map.child(mat_idx).name();
+            dest_matset["volume_fractions"][matname].set(DataType::float64(num_elems_for_mat));
+            float64_array volume_fractions = dest_matset["volume_fractions"][matname].value();
+            dest_matset["element_ids"][matname].set(DataType::index_t(num_elems_for_mat));
+            index_t_array element_ids = dest_matset["element_ids"][matname].value();
+
+            for (index_t eid_id = 0; eid_id < num_elems_for_mat; eid_id ++)
+            {
+                element_ids[eid_id] = local_element_ids[eid_id];
+                volume_fractions[eid_id] = local_volume_fractions[eid_id];
+            }
         }
     };
 
@@ -1861,12 +1873,15 @@ multi_buffer_by_element_to_multi_buffer_by_material_field(const conduit::Node &s
     auto for_each_material = [&](const index_t mat_idx,
                                  const index_t num_elems_for_mat)
     {
-        const std::string matname = material_map.child(mat_idx).name();
-        dest_field["matset_values"][matname].set(DataType::float64(num_elems_for_mat));
-        float64_array matset_values = dest_field["matset_values"][matname].value();
-        for (index_t eid_id = 0; eid_id < num_elems_for_mat; eid_id ++)
+        if (num_elems_for_mat > 0)
         {
-            matset_values[eid_id] = local_matset_values[eid_id];
+            const std::string matname = material_map.child(mat_idx).name();
+            dest_field["matset_values"][matname].set(DataType::float64(num_elems_for_mat));
+            float64_array matset_values = dest_field["matset_values"][matname].value();
+            for (index_t eid_id = 0; eid_id < num_elems_for_mat; eid_id ++)
+            {
+                matset_values[eid_id] = local_matset_values[eid_id];
+            }
         }
     };
 
@@ -1905,13 +1920,16 @@ multi_buffer_by_element_to_multi_buffer_by_material_specset(const conduit::Node 
                                          const index_t spec_idx,
                                          const index_t num_elems_for_spec)
     {
-        const std::string matname = material_map.child(mat_idx).name();
-        const std::string specname = species_names[matname].child(spec_idx).name();
-        dest_specset["matset_values"][matname][specname].set(DataType::float64(num_elems_for_spec));
-        float64_array new_mset_vals = dest_specset["matset_values"][matname][specname].value();
-        for (index_t eid_id = 0; eid_id < num_elems_for_spec; eid_id ++)
+        if (num_elems_for_spec > 0)
         {
-            new_mset_vals[eid_id] = mset_vals[eid_id];
+            const std::string matname = material_map.child(mat_idx).name();
+            const std::string specname = species_names[matname].child(spec_idx).name();
+            dest_specset["matset_values"][matname][specname].set(DataType::float64(num_elems_for_spec));
+            float64_array new_mset_vals = dest_specset["matset_values"][matname][specname].value();
+            for (index_t eid_id = 0; eid_id < num_elems_for_spec; eid_id ++)
+            {
+                new_mset_vals[eid_id] = mset_vals[eid_id];
+            }
         }
     };
     auto for_each_material = [](const index_t, const index_t){};
@@ -1941,7 +1959,8 @@ multi_buffer_by_material_to_multi_buffer_by_element_matset(const conduit::Node &
     std::vector<float64_array> mat_idx_to_data(num_mats);
 
     // create the output data arrays and save a pointer to each one
-    const std::vector<std::string> &matnames = src_matset["volume_fractions"].child_names();
+    std::vector<std::string> matnames;
+    get_material_names(src_matset, matnames);
     for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
     {
         const std::string &matname = matnames[mat_idx];
@@ -1976,7 +1995,8 @@ multi_buffer_by_material_to_multi_buffer_by_element_field(const conduit::Node &s
     std::vector<float64_array> mat_idx_to_data(num_mats);
 
     // create the output data arrays and save a pointer to each one
-    const std::vector<std::string> &matnames = src_matset["volume_fractions"].child_names();
+    std::vector<std::string> matnames;
+    get_material_names(src_matset, matnames);
     for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
     {
         const std::string &matname = matnames[mat_idx];
@@ -2277,7 +2297,8 @@ renumber_material_ids(conduit::Node &matset)
         {
             // we must have material map in this case
             std::map<index_t, index_t> old_to_new;
-            const std::vector<std::string> &matnames = matset["material_map"].child_names();
+            std::vector<std::string> matnames;
+            get_material_names(matset, matnames);
             const index_t num_mats = static_cast<index_t>(matnames.size());
             for (index_t i = 0; i < num_mats; i ++)
             {
@@ -2306,7 +2327,8 @@ renumber_material_ids(conduit::Node &matset)
         // if we have a material map to modify
         if (matset.has_child("material_map"))
         {
-            const std::vector<std::string> &matnames = matset["material_map"].child_names();
+            std::vector<std::string> matnames;
+            get_material_names(matset, matnames);
             const index_t num_mats = static_cast<index_t>(matnames.size());
             for (index_t i = 0; i < num_mats; i ++)
             {
@@ -2447,35 +2469,13 @@ count_materials_from_matset(const conduit::Node &matset)
                       " passed matset node must be a valid matset tree.");
     }
 
-    const bool element_dominant = is_element_dominant(matset);
-    const bool multi_buffer = is_multi_buffer(matset);
-
-    if (element_dominant)
+    if (matset.has_child("material_map"))
     {
-        // venn full
-        if (multi_buffer)
-        {
-            return matset["volume_fractions"].number_of_children();
-        }
-        // venn sparse by element
-        else
-        {
-            return matset["material_map"].number_of_children();
-        }
+        return matset["material_map"].number_of_children();
     }
-    else
+    else // multi-buffer
     {
-        // venn sparse by material
-        if (multi_buffer)
-        {
-            return matset["volume_fractions"].number_of_children();
-        }
-        // material-dominant uni-buffer
-        else
-        {
-            CONDUIT_ERROR("blueprint::mesh::matset::count_materials_from_matset() "
-                          "material-dominant uni-buffer material set is unsupported.");
-        }
+        return matset["volume_fractions"].number_of_children();
     }
 
     return -1;
@@ -2562,6 +2562,36 @@ is_material_in_element(const conduit::Node &matset,
                 // present in the matset
                 return false;
             }
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+void
+get_material_names(const conduit::Node &matset,
+                   std::vector<std::string> &matnames)
+{
+    // extra seat belt here
+    if (! matset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::matset::get_material_names"
+                      " passed matset node must be a valid matset tree.");
+    }
+
+    if (matset.has_child("material_map"))
+    {
+        matnames = matset["material_map"].child_names();
+    }
+    else
+    {
+        if (is_multi_buffer(matset))
+        {
+            matnames = matset["volume_fractions"].child_names();
+        }
+        else
+        {
+            CONDUIT_ERROR("blueprint::mesh::matset::get_material_names"
+                          " malformed matset.");
         }
     }
 }
