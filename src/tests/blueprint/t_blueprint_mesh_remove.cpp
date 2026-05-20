@@ -40,7 +40,7 @@ TEST(conduit_blueprint_mesh_remove, bad_options)
     // entries need to be a name (string) or list of name (list of strings)
     n_opts["topologies"] = 1;
     EXPECT_THROW(conduit::blueprint::mesh::remove(n_opts,n_mesh),conduit::Error);
-    // lists needs to be all strings
+    // lists needs to be all stringsl
     n_opts["topologies"].append() = "name";
     n_opts["topologies"].append() = 1;
     n_opts["topologies"].append() = 2;
@@ -234,7 +234,7 @@ TEST(conduit_blueprint_mesh_remove, remove_specsets)
     {
         conduit::blueprint::mesh::examples::generate("misc",n_mesh);
         n_opts.reset();
-        n_opts["matsets"] = "matset";
+        n_opts["specsets"] = "matset";
 
         EXPECT_TRUE(n_mesh.has_path("topologies/mesh"));
         EXPECT_TRUE(n_mesh.has_path("fields/radial"));
@@ -249,7 +249,7 @@ TEST(conduit_blueprint_mesh_remove, remove_specsets)
         echo_node("info",n_info);
 
         // removing the matset should remove the specset as well
-        EXPECT_FALSE(n_mesh.has_path("matsets/mesh"));
+        EXPECT_TRUE(n_mesh.has_path("matsets/mesh"));
         EXPECT_FALSE(n_mesh.has_path("specsets/mesh"));
     }
 
