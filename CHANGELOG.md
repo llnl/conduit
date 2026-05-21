@@ -30,6 +30,11 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Relay
 - Fixed a crash when reading Silo/Overlink files with missing material names.
 
+### Changed
+
+#### Relay
+- Disabled use of HDF5 file locking.
+
 ## [0.9.6] - Released 2026-04-14
 
 ### Added
