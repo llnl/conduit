@@ -940,3 +940,22 @@ TEST(conduit_utils, memory_usage)
     EXPECT_TRUE(curr_usage >  prev_usage);
 }
 
+//-----------------------------------------------------------------------------
+TEST(conduit_utils, glob_to_regex)
+{
+    std::vector<std::pair<std::string,std::string>> tests = { {"vel","*el"},
+                                                              {"velocity", "v*"},
+                                                              {"radial", "?adial"},
+                                                              {"radial", "radial"},
+                                                            };
+
+    for( const auto [test_str, glob] : tests)
+    {
+        std::cout << "testing: \"" << test_str << "\" vs  glob: \"" << glob << "\""
+                  << " regex: \"" << conduit::utils::glob_to_regex(glob) << "\"" << std::endl;
+        EXPECT_TRUE(conduit::utils::glob_match(test_str,glob));
+    }
+
+}
+
+

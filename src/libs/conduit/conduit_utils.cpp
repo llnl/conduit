@@ -49,6 +49,7 @@
 #include <limits>
 #include <fstream>
 #include <map>
+#include <regex>
 
 
 // define proper path sep
@@ -954,6 +955,139 @@ check_num_char(const char v)
 }
 
 //---------------------------------------------------------------------------//
+bool
+glob_match(const std::string &test, const std::string &glob)
+{
+    std::regex check_regex(glob_to_regex(glob));
+    return std::regex_match(test, check_regex);
+}
+
+//---------------------------------------------------------------------------//
+std::string
+glob_to_regex(const std::string &glob)
+{
+    std::string res;
+    res.reserve(glob.size() * 2);
+
+    res += '^';
+
+    for (size_t i = 0; i < glob.size(); ++i)
+    {
+        char c = glob[i];
+
+        switch (c)
+        {
+            case '*':
+            {
+                // Handle **
+                if (i + 1 < glob.size() && glob[i + 1] == '*')
+                {
+                    ++i;
+
+                    // Optional: consume following '/'
+                    if (i + 1 < glob.size() && glob[i + 1] == '/')
+                    {
+                        ++i;
+                        res += "(?:.*/)?";
+                    }
+                    else
+                    {
+                        res += ".*";
+                    }
+                }
+                else
+                {
+                    // * does not cross directories
+                    res += "[^/]*";
+                }
+                break;
+            }
+
+            case '?':
+                res += "[^/]";
+                break;
+
+            case '[':
+            {
+                res += '[';
+                ++i;
+
+                if (i >= glob.size())
+                {
+                    CONDUIT_ERROR("unterminated [] in glob string: " << glob);
+                }
+
+                // Handle [!...]
+                if (glob[i] == '!')
+                {
+                    res += '^';
+                    ++i;
+                }
+
+                // Preserve contents of character class
+                while (i < glob.size() && glob[i] != ']')
+                {
+                    if (glob[i] == '\\')
+                        res += "\\\\";
+                    else
+                        res += glob[i];
+
+                    ++i;
+                }
+
+                if (i >= glob.size())
+                {
+                    CONDUIT_ERROR("unterminated [] in glob string: " << glob);
+                }
+
+                res += ']';
+                break;
+            }
+
+            case '\\':
+            {
+                // escape next literal char
+                if (i + 1 < glob.size())
+                {
+                    ++i;
+
+                    // escape regex metacharacters
+                    if (std::string(".^$|(){}+?*\\").find(glob[i])
+                        != std::string::npos)
+                    {
+                        res += '\\';
+                    }
+
+                    res += glob[i];
+                }
+                else
+                {
+                    res += "\\\\";
+                }
+                break;
+            }
+
+            default:
+            {
+                // escape regex special chars
+                if (std::string(".^$|(){}+*?\\").find(c)
+                    != std::string::npos)
+                {
+                    res += '\\';
+                }
+
+                res += c;
+            }
+        }
+    }
+
+    res += '$';
+
+    return res;
+}
+
+
+//---------------------------------------------------------------------------//
 std::string
 strip_quoted_strings(const std::string &input, const std::string &quote_char)
 {
@@ -997,6 +1131,7 @@ strip_quoted_strings(const std::string &input, const std::string &quote_char)
 
     return res;
 }
+
 
 
 //-----------------------------------------------------------------------------

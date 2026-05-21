@@ -416,7 +416,12 @@ void CONDUIT_BLUEPRINT_API convert(const conduit::Node &n_mesh,
  *   fields:     myfield   | [ myfield1, myfield2, ... ]
  *   matsets:    mymatset  | [ mymatset1, mymatset2, ... ]
  *   adjsets:    myadj     | [ myadj1,myadj2, ... ]
-*    nestsets:   mynestset | [ mynestset1, mynestset2, ... ]
+ *   nestsets:   mynestset | [ mynestset1, mynestset2, ... ]
+ *
+ * This also supports glob style matching, for example:
+ *   topologies: *
+ *   fields: ve*
+ *
  * @endverbatim
  */
 void CONDUIT_BLUEPRINT_API remove(const conduit::Node &n_options,

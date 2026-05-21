@@ -148,6 +148,38 @@ TEST(conduit_blueprint_mesh_remove, remove_simple)
 }
 
 //-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_remove, remove_glob)
+{
+
+    conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
+    n_mesh_opts["mesh_type"] = "uniform";
+    n_mesh_opts["nx"] = 3;
+    n_mesh_opts["ny"] = 3;
+
+    conduit::blueprint::mesh::examples::generate("braid",n_mesh_opts,n_mesh);
+    EXPECT_TRUE(n_mesh.has_path("state"));
+    EXPECT_TRUE(n_mesh.has_path("coordsets/coords"));
+    EXPECT_TRUE(n_mesh.has_path("topologies/mesh"));
+    EXPECT_TRUE(n_mesh.has_path("fields/braid"));
+    EXPECT_TRUE(n_mesh.has_path("fields/radial"));
+    EXPECT_TRUE(n_mesh.has_path("fields/vel"));
+
+    n_opts.reset();
+    n_opts["fields"].append() = "ve*";
+    n_opts["fields"].append() = "?adial";
+
+    echo_node("[before]",n_mesh);
+    conduit::blueprint::mesh::remove(n_opts,n_mesh);
+    EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
+    echo_node("[after]",n_mesh);
+    echo_node("[info]",n_info);
+
+    EXPECT_TRUE(n_mesh.has_path("fields/braid"));
+    EXPECT_FALSE(n_mesh.has_path("fields/radial"));
+    EXPECT_FALSE(n_mesh.has_path("fields/vel"));
+}
+
+//-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_remove, remove_matsets)
 {
     conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;

@@ -28,7 +28,6 @@
 #include <set>
 #include <sstream>
 #include <iterator>
-#include <regex>
 
 //-----------------------------------------------------------------------------
 // conduit includes
@@ -9282,24 +9281,11 @@ void mesh::remove(const conduit::Node &n_options,
             {
                 const conduit::Node &curr = itr.next();
                 const std::string ref_name = curr[ref_type].as_string();
-                // valid regex for "*" use case is actually ".*"
-                // adjust for this case
-                std::string ref_pat_adj = ref_pattern;
-                if(ref_pat_adj == "*")
+                if(conduit::utils::glob_match(ref_name, ref_pattern))
                 {
-                    ref_pat_adj = ".*";
-                }
-                // std::cout << "checking " << ref_name << " vs "  << ref_pat_adj << ": ";
-                std::regex ref_regex(ref_pat_adj);
-                if(std::regex_match(ref_name, ref_regex))
-                {
-                    //std::cout << "true" << std::endl;
                     rset.insert(curr.name());
                 }
-                // else
-                // {
-                //     std::cout << "false" << std::endl;
-                // }
+
             }
         }
     };
@@ -9358,24 +9344,10 @@ void mesh::remove(const conduit::Node &n_options,
                 auto comp_names = n_comp.child_names();
                 for (auto comp_name : comp_names)
                 {
-                    // valid regex for "*" use case is actually ".*"
-                    // adjust for this case
-                    std::string comp_pat_adj = comp_pat;
-                    if(comp_pat_adj == "*")
+                    if(conduit::utils::glob_match(comp_name, comp_pat))
                     {
-                        comp_pat_adj = ".*";
-                    }
-                    // std::cout << "checking \"" << comp_name << "\" vs \""  << comp_pat_adj << "\" : ";
-                    std::regex comp_regex(comp_pat_adj);
-                    if(std::regex_match(comp_name, comp_regex))
-                    {
-                        //std::cout << "true" << std::endl;
                         n_comp.remove(comp_name);
                     }
-                    // else
-                    // {
-                    //     std::cout << "false" << std::endl;
-                    // }
                 }
             }
 
