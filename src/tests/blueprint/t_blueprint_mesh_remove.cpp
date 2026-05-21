@@ -241,7 +241,7 @@ TEST(conduit_blueprint_mesh_remove, remove_specsets)
         EXPECT_TRUE(n_mesh.has_path("specsets/mesh"));
 
         n_opts.reset();
-        n_opts["specsets"] = "mesh";
+        n_opts["matsets"] = "mesh";
 
         echo_node("[before]",n_mesh);
         echo_node("[options]",n_opts);
@@ -250,8 +250,8 @@ TEST(conduit_blueprint_mesh_remove, remove_specsets)
         echo_node("[after]",n_mesh);
         echo_node("[info]",n_info);
 
-        // after removing specset, matset should remain
-        EXPECT_TRUE(n_mesh.has_path("matsets/mesh"));
+        // removing the matset should remove the specset as well
+        EXPECT_FALSE(n_mesh.has_path("matsets/mesh"));
         EXPECT_FALSE(n_mesh.has_path("specsets/mesh"));
     }
 
