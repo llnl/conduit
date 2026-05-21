@@ -17,6 +17,13 @@
 #include <string>
 #include "gtest/gtest.h"
 
+void echo_title(const std::string &title)
+{
+    std::cout << "---------------------------------------------------" << std::endl;
+    std::cout << title << std::endl;
+    std::cout << "---------------------------------------------------" << std::endl;
+}
+
 void echo_node(const std::string tag, const conduit::Node &node, bool full = false)
 {
     std::cout << tag << std::endl;
@@ -35,6 +42,7 @@ void echo_node(const std::string tag, const conduit::Node &node, bool full = fal
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_remove, bad_options)
 {
+    echo_title("bad options tests");
     conduit::Node n_mesh;
     conduit::Node n_opts;
     // entries need to be a name (string) or list of name (list of strings)
@@ -57,6 +65,7 @@ TEST(conduit_blueprint_mesh_remove, remove_simple)
     n_mesh_opts["ny"] = 3;
 
     {
+        echo_title("simple remove topology");
         conduit::blueprint::mesh::examples::generate("braid",n_mesh_opts,n_mesh);
 
         EXPECT_TRUE(n_mesh.has_path("state"));
@@ -87,6 +96,7 @@ TEST(conduit_blueprint_mesh_remove, remove_simple)
     }
 
     {
+        echo_title("simple remove coordset");
         conduit::blueprint::mesh::examples::generate("braid",n_mesh_opts,n_mesh);
         EXPECT_TRUE(n_mesh.has_path("state"));
         EXPECT_TRUE(n_mesh.has_path("coordsets/coords"));
@@ -115,6 +125,7 @@ TEST(conduit_blueprint_mesh_remove, remove_simple)
     }
 
     {
+        echo_title("simple remove list of fields");
         // reset mesh
         conduit::blueprint::mesh::examples::generate("braid",n_mesh_opts,n_mesh);
         EXPECT_TRUE(n_mesh.has_path("state"));
@@ -151,6 +162,7 @@ TEST(conduit_blueprint_mesh_remove, remove_simple)
 TEST(conduit_blueprint_mesh_remove, remove_glob)
 {
 
+    echo_title("remove fields via glob pattern");
     conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
     n_mesh_opts["mesh_type"] = "uniform";
     n_mesh_opts["nx"] = 3;
@@ -189,6 +201,7 @@ TEST(conduit_blueprint_mesh_remove, remove_matsets)
     n_mesh_opts["radius"] = 1;
 
     {
+        echo_title("remove matset");
         conduit::blueprint::mesh::examples::generate("venn",n_mesh_opts,n_mesh);
 
         EXPECT_TRUE(n_mesh.has_path("topologies/topo"));
@@ -212,6 +225,32 @@ TEST(conduit_blueprint_mesh_remove, remove_matsets)
     }
 
     {
+        echo_title("remove matset with material-dependent field");
+        conduit::blueprint::mesh::examples::generate("venn",n_mesh_opts,n_mesh);
+        EXPECT_TRUE(n_mesh.has_path("topologies/topo"));
+        EXPECT_TRUE(n_mesh.has_path("fields/importance"));
+
+        n_opts.reset();
+        n_opts["matsets"] = "matset";
+
+        // remove `values` from importance, so that it is 
+        // truly material-dependent and should be removed
+        n_mesh["fields/importance"].remove("values");
+
+        echo_node("[before]",n_mesh);
+        echo_node("[options]",n_opts);
+        conduit::blueprint::mesh::remove(n_opts,n_mesh);
+        EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
+        echo_node("[after]",n_mesh);
+        echo_node("[info]",n_info);
+
+        // removing the topo should remove the matsets as well as fields
+        EXPECT_FALSE(n_mesh.has_path("matsets/matset"));
+        EXPECT_FALSE(n_mesh.has_path("fields/importance"));
+    }
+    
+    echo_title("remove topology cascade to matset");
+    {
         conduit::blueprint::mesh::examples::generate("venn",n_mesh_opts,n_mesh);
         EXPECT_TRUE(n_mesh.has_path("topologies/topo"));
         EXPECT_TRUE(n_mesh.has_path("fields/importance"));
@@ -231,7 +270,7 @@ TEST(conduit_blueprint_mesh_remove, remove_matsets)
         EXPECT_FALSE(n_mesh.has_path("matsets/matset"));
         EXPECT_FALSE(n_mesh.has_path("fields/importance"));
     }
-
+    
 }
 
 //-----------------------------------------------------------------------------
@@ -244,6 +283,7 @@ TEST(conduit_blueprint_mesh_remove, remove_specsets)
     n_mesh_opts["ny"] = 3;
 
     {
+        echo_title("remove specset");
         conduit::blueprint::mesh::examples::generate("misc",n_mesh);
         EXPECT_TRUE(n_mesh.has_path("topologies/mesh"));
         EXPECT_TRUE(n_mesh.has_path("fields/radial"));
@@ -266,6 +306,7 @@ TEST(conduit_blueprint_mesh_remove, remove_specsets)
     }
 
     {
+        echo_title("remove matset cascade to specset");
         conduit::blueprint::mesh::examples::generate("misc",n_mesh);
         EXPECT_TRUE(n_mesh.has_path("topologies/mesh"));
         EXPECT_TRUE(n_mesh.has_path("fields/radial"));
@@ -287,6 +328,7 @@ TEST(conduit_blueprint_mesh_remove, remove_specsets)
         EXPECT_FALSE(n_mesh.has_path("specsets/mesh"));
     }
 
+    echo_title("remove topology cascade to specset");
     {
         conduit::blueprint::mesh::examples::generate("misc",n_mesh);
 
@@ -316,10 +358,11 @@ TEST(conduit_blueprint_mesh_remove, remove_specsets)
 
 
 //-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_remove, remove_adj_sets)
+TEST(conduit_blueprint_mesh_remove, remove_adjsets)
 {
     conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
   {
+        echo_title("remove adjset");
         conduit::blueprint::mesh::examples::generate("adjset_uniform",n_mesh);
         size_t number_of_doms = 8;
         EXPECT_EQ(n_mesh.number_of_children(),number_of_doms);
@@ -348,6 +391,7 @@ TEST(conduit_blueprint_mesh_remove, remove_adj_sets)
 
     // also remove mask
     {
+        echo_title("remove adjset and field");
         conduit::blueprint::mesh::examples::generate("adjset_uniform",n_mesh);
         size_t number_of_doms = 8;
         EXPECT_EQ(n_mesh.number_of_children(),number_of_doms);
@@ -381,6 +425,7 @@ TEST(conduit_blueprint_mesh_remove, remove_adj_sets)
 
     // remove all via coordset
     {
+        echo_title("remove cooordset cascade to adjset");
         conduit::blueprint::mesh::examples::generate("adjset_uniform",n_mesh);
         size_t number_of_doms = 8;
         EXPECT_EQ(n_mesh.number_of_children(),number_of_doms);
@@ -405,10 +450,11 @@ TEST(conduit_blueprint_mesh_remove, remove_adj_sets)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_remove, remove_nest_sets)
+TEST(conduit_blueprint_mesh_remove, remove_nestsets)
 {
     conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
     {
+        echo_title("remove nestset");
         conduit::blueprint::mesh::examples::generate("julia_nestsets_simple",n_mesh);
         
         EXPECT_EQ(n_mesh.number_of_children(),2);
@@ -439,6 +485,7 @@ TEST(conduit_blueprint_mesh_remove, remove_nest_sets)
 
     // also remove mask
     {
+        echo_title("remove nestset and field");
         conduit::blueprint::mesh::examples::generate("julia_nestsets_simple",n_mesh);
 
         EXPECT_EQ(n_mesh.number_of_children(),2);
@@ -470,6 +517,7 @@ TEST(conduit_blueprint_mesh_remove, remove_nest_sets)
 
     // remove all via coordset
     {
+        echo_title("remove cooordset cascade to nestset");
         conduit::blueprint::mesh::examples::generate("julia_nestsets_simple",n_mesh);
 
         EXPECT_EQ(n_mesh.number_of_children(),2);

@@ -9384,7 +9384,9 @@ void mesh::remove(const conduit::Node &n_options,
         conduit::Node *dom = domains[i];
         if(dom->has_child("fields"))
         {
-            NodeIterator itr = dom->fetch_existing("fields").children();
+            Node &n_fields =  dom->fetch_existing("fields");
+            std::vector<std::string> fields_to_rm;
+            NodeIterator itr = n_fields.children();
             while(itr.has_next())
             {
                 conduit::Node &curr = itr.next();
@@ -9393,18 +9395,33 @@ void mesh::remove(const conduit::Node &n_options,
                     const std::string field_mset = curr["matset"].as_string();
                     for (auto matset_name : matsets)
                     {
-                        // if the mat set matches, remove it
-                        // and remove any matset_values
+
                         if(matset_name == field_mset)
                         {
-                            curr.remove("matset");
-                            if(curr.has_child("matset_values"))
+                            // check for truly material dependent field
+                            // (lacks separate `values` data)
+                            if(! curr.has_child("values"))
                             {
-                                curr.remove("matset_values");
+                                fields_to_rm.push_back(itr.name());
+                            }
+                            else
+                            {
+                                // if the matset matches, remove it
+                                // and any matset_values
+                                curr.remove("matset");
+                                if(curr.has_child("matset_values"))
+                                {
+                                    curr.remove("matset_values");
+                                }
                             }
                         }
                     }
                 }
+            }
+            // remove any truly material dependent fields
+            for(auto field_name : fields_to_rm)
+            {
+                n_fields.remove(field_name);
             }
         }
 
