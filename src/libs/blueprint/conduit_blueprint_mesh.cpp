@@ -9345,8 +9345,7 @@ void mesh::remove(const conduit::Node &n_options,
     // fields need special logic to remove matset values, that is handled after higher
     // level tree pruning
 
-    // helper to record dependent components to a set that will be used
-    // in the final removal process
+    // helper to remove dependent components to a set
     auto remove_components = [&](conduit::Node *dom,
                                  const std::string &comp_type,
                                  const std::set<std::string> &comp_patterns)
