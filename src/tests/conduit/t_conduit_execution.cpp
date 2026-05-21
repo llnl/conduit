@@ -430,9 +430,9 @@ run_data_accessor_dispatch_and_sync(Node &node,
     acc_des.use_with(policy);
 
     index_t size = acc_src.number_of_elements();
-    conduit::execution::dispatch(policy, [&](auto &exec_tag)
+    conduit::execution::dispatch(policy, [&](auto exec_tag)
     {
-        using Exec = std::remove_reference_t<decltype(exec_tag)>;
+        using Exec = decltype(exec_tag);
         conduit::execution::ReduceMinLoc<Exec, float64>
             reducer(std::numeric_limits<float64>::max(), -1);
 
@@ -454,12 +454,11 @@ run_data_accessor_dispatch_and_sync(Node &node,
 //-----------------------------------------------------------------------------
 struct DataAccessorDispatchFunctor
 {
-    index_t size;
     ExecutionPolicy policy;
     float64_accessor acc_src;
     float64_accessor acc_des;
-    float64 min_val;
-    index_t min_loc;
+    float64 min_val = 0.0;
+    index_t min_loc = -1;
 
     template<typename Exec>
     void operator()(Exec &)
@@ -467,6 +466,9 @@ struct DataAccessorDispatchFunctor
         conduit::execution::ReduceMinLoc<Exec, float64>
             reducer(std::numeric_limits<float64>::max(), -1);
 
+        index_t size = acc_src.number_of_elements();
+        // Capture device-usable view copies directly so the kernel does not
+        // implicitly depend on the host-side functor object via `this`.
         const float64_accessor src = acc_src;
         const float64_accessor des = acc_des;
         conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t idx)
@@ -496,12 +498,9 @@ run_data_accessor_dispatch_functor_and_sync(Node &node,
     acc_des.use_with(policy);
 
     DataAccessorDispatchFunctor func{
-        acc_src.number_of_elements(),
         policy,
         acc_src,
-        acc_des,
-        0.0,
-        -1
+        acc_des
     };
     conduit::execution::dispatch(policy, func);
 
@@ -524,9 +523,9 @@ run_data_array_dispatch_and_sync(Node &node,
     arr_des.use_with(policy);
 
     index_t size = arr_src.number_of_elements();
-    conduit::execution::dispatch(policy, [&](auto &exec_tag)
+    conduit::execution::dispatch(policy, [&](auto exec_tag)
     {
-        using Exec = std::remove_reference_t<decltype(exec_tag)>;
+        using Exec = decltype(exec_tag);
         conduit::execution::ReduceMinLoc<Exec, float64>
             reducer(std::numeric_limits<float64>::max(), -1);
 
@@ -548,12 +547,11 @@ run_data_array_dispatch_and_sync(Node &node,
 //-----------------------------------------------------------------------------
 struct DataArrayDispatchFunctor
 {
-    index_t size;
     ExecutionPolicy policy;
     float64_array arr_src;
     float64_array arr_des;
-    float64 min_val;
-    index_t min_loc;
+    float64 min_val = 0.0;
+    index_t min_loc = -1;
 
     template<typename Exec>
     void operator()(Exec &)
@@ -561,6 +559,9 @@ struct DataArrayDispatchFunctor
         conduit::execution::ReduceMinLoc<Exec, float64>
             reducer(std::numeric_limits<float64>::max(), -1);
 
+        index_t size = arr_src.number_of_elements();
+        // Capture device-usable view copies directly so the kernel does not
+        // implicitly depend on the host-side functor object via `this`.
         const float64_array src = arr_src;
         const float64_array des = arr_des;
         conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t idx)
@@ -590,12 +591,9 @@ run_data_array_dispatch_functor_and_sync(Node &node,
     arr_des.use_with(policy);
 
     DataArrayDispatchFunctor func{
-        arr_src.number_of_elements(),
         policy,
         arr_src,
-        arr_des,
-        0.0,
-        -1
+        arr_des
     };
     conduit::execution::dispatch(policy, func);
 
