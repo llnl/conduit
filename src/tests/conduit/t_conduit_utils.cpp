@@ -951,10 +951,10 @@ TEST(conduit_utils, glob_to_regex)
     //                                                         };
     // for( const auto [test_str, glob] : tests)
 
-    std::vector<std::string> test_strs  = { "vel", "velocity", " radial" , "radial"};
+    std::vector<std::string> test_strs  = { "vel", "velocity", "radial" , "radial"};
     std::vector<std::string> test_globs = { "*el", "v*", "?adial" , "radial"};
 
-    for(size_t i =0; i< test_str.size())
+    for(size_t i =0; i< test_strs.size(); i++)
     {
         std::string test_str = test_strs[i];
         std::string glob     = test_globs[i];
