@@ -616,14 +616,9 @@ atomic_max(T *acc, T value)
 }
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename Function>
-inline void invoke(ExecPolicyTag &exec_policy_tag, Function&& func) noexcept
-{
-    func(exec_policy_tag);
-}
-
-//-----------------------------------------------------------------------------
-// dispatch converts a runtime policy object into a compile-time backend tag type
+// dispatch() converts a runtime policy object into a compile-time backend tag type
+// We use std::forward so dispatch preserves whether the callable was passed as an
+// lvalue or rvalue, rather than always treating it as an lvalue inside the function.
 template <typename Function>
 void
 dispatch(ExecutionPolicy policy, Function&& func)
@@ -632,13 +627,13 @@ dispatch(ExecutionPolicy policy, Function&& func)
     if (policy.is_serial())
     {
         SerialExec se;
-        invoke(se, func);
+        std::forward<Function>(func)(se);
     }
     else if (policy.is_cuda())
     {
 #if defined(CONDUIT_TU_IS_CUDA)
         CudaExec ce;
-        invoke(ce, func);
+        std::forward<Function>(func)(ce);
 #else
         CONDUIT_ERROR("Conduit was not built with CUDA.");
 #endif
@@ -647,7 +642,7 @@ dispatch(ExecutionPolicy policy, Function&& func)
     {
 #if defined(CONDUIT_TU_IS_HIP)
         HipExec he;
-        invoke(he, func);
+        std::forward<Function>(func)(he);
 #else
         CONDUIT_ERROR("Conduit was not built with HIP.");
 #endif
@@ -656,7 +651,7 @@ dispatch(ExecutionPolicy policy, Function&& func)
     {
 #if defined(CONDUIT_USE_OPENMP)
         OpenMPExec ompe;
-        invoke(ompe, func);
+        std::forward<Function>(func)(ompe);
 #else
         CONDUIT_ERROR("Conduit was not built with OpenMP.");
 #endif

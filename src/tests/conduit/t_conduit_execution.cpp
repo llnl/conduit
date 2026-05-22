@@ -12,6 +12,7 @@
 #include "conduit_annotations.hpp"
 #include "conduit_execution.hpp"
 #include "conduit_memory_manager.hpp"
+#include "execution_test_utils.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -23,131 +24,6 @@ using namespace conduit;
 using conduit::execution::ExecutionPolicy;
 
 index_t EXECUTION_TEST_ARRAY_SIZE = 4;
-
-//-----------------------------------------------------------------------------
-void
-conduit_device_prepare()
-{
-    execution::init_device_memory_handlers();
-}
-
-//-----------------------------------------------------------------------------
-void *
-allocate_for_policy(ExecutionPolicy policy, index_t bytes)
-{
-    if (policy.is_device_policy())
-    {
-        return execution::DeviceMemory::allocate(bytes);
-    }
-
-    return execution::HostMemory::allocate(bytes);
-}
-
-//-----------------------------------------------------------------------------
-void
-free_for_policy(ExecutionPolicy policy, void *ptr)
-{
-    if (policy.is_device_policy())
-    {
-        execution::DeviceMemory::deallocate(ptr);
-        return;
-    }
-
-    execution::HostMemory::deallocate(ptr);
-}
-
-//-----------------------------------------------------------------------------
-template <typename Func>
-void
-for_each_enabled_policy(Func &&func)
-{
-    if (ExecutionPolicy::is_serial_enabled())
-    {
-        ExecutionPolicy serial = ExecutionPolicy::serial();
-        func(serial);
-    }
-
-    if (ExecutionPolicy::is_cuda_enabled())
-    {
-        ExecutionPolicy cuda = ExecutionPolicy::cuda();
-        func(cuda);
-    }
-
-    if (ExecutionPolicy::is_hip_enabled())
-    {
-        ExecutionPolicy hip = ExecutionPolicy::hip();
-        func(hip);
-    }
-
-    if (ExecutionPolicy::is_openmp_enabled())
-    {
-        ExecutionPolicy openmp = ExecutionPolicy::openmp();
-        func(openmp);
-    }
-
-    if (ExecutionPolicy::is_host_enabled())
-    {
-        ExecutionPolicy host = ExecutionPolicy::host();
-        func(host);
-    }
-
-    if (ExecutionPolicy::is_device_enabled())
-    {
-        ExecutionPolicy device = ExecutionPolicy::device();
-        func(device);
-    }
-
-    if (ExecutionPolicy::is_parallel_enabled())
-    {
-        ExecutionPolicy parallel = ExecutionPolicy::parallel();
-        func(parallel);
-    }
-}
-
-//-----------------------------------------------------------------------------
-float64 *
-make_float64_device_buffer(const float64 *host_vals, index_t num_vals)
-{
-    float64 *device_ptr = static_cast<float64*>(
-        execution::DeviceMemory::allocate(sizeof(float64) * num_vals));
-    conduit::execution::MagicMemory::copy(device_ptr,
-                                          host_vals,
-                                          sizeof(float64) * num_vals);
-    return device_ptr;
-}
-
-//-----------------------------------------------------------------------------
-std::vector<float64>
-make_execution_src_vals()
-{
-    std::vector<float64> vals(EXECUTION_TEST_ARRAY_SIZE);
-    for(index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i++)
-    {
-        vals[i] = static_cast<float64>(i + 1);
-    }
-
-    return vals;
-}
-
-//-----------------------------------------------------------------------------
-std::vector<float64>
-make_execution_des_vals()
-{
-    return std::vector<float64>(EXECUTION_TEST_ARRAY_SIZE, 0.0);
-}
-
-//-----------------------------------------------------------------------------
-template <typename ArrayType>
-void
-expect_doubled_execution_values(const ArrayType &values)
-{
-    // Shared by the data array and data accessor execution tests.
-    EXPECT_EQ(values.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
-    for(index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i++)
-    {
-        EXPECT_EQ(values[i], 2.0 * static_cast<float64>(i + 1));
-    }
-}
 
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, policy_aliases)
@@ -212,281 +88,6 @@ TEST(conduit_execution, policy_aliases)
 }
 
 //-----------------------------------------------------------------------------
-void
-run_data_accessor_policy_and_sync(Node &node,
-                                  ExecutionPolicy policy)
-{
-    // DataAccessors wrap node leaf data.
-    float64_accessor acc_src(node["src"]);
-    float64_accessor acc_des(node["des"]);
-
-    // Ask the accessors to move their data to the memory space occupied
-    // by the requested execution policy if their data is not already
-    // there.
-    acc_src.use_with(policy);
-    acc_des.use_with(policy);
-
-    // Our forall will execute in the memory space selected by the
-    // requested ExecutionPolicy.
-    index_t size = acc_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [acc_src, acc_des] CONDUIT_EXEC(index_t idx)
-    {
-        const float64 val = 2.0 * acc_src[idx];
-        acc_des.set(idx, val);
-    });
-    CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-    // Sync values to node["des"].
-    // This is a no op if node["des"] was originally in the same memory
-    // space as the requested execution policy.
-    acc_des.sync();
-}
-
-//-----------------------------------------------------------------------------
-void
-run_data_accessor_policy_and_assume(Node &node,
-                                    ExecutionPolicy policy)
-{
-    // DataAccessors wrap node leaf data.
-    float64_accessor acc_src(node["src"]);
-    float64_accessor acc_des(node["des"]);
-
-    // Ask the accessors to move their data to the memory space occupied
-    // by the requested execution policy if their data is not already
-    // there.
-    acc_src.use_with(policy);
-    acc_des.use_with(policy);
-
-    // Our forall will execute in the memory space selected by the
-    // requested ExecutionPolicy.
-    index_t size = acc_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [acc_src, acc_des] CONDUIT_EXEC(index_t idx)
-    {
-        const float64 val = 2.0 * acc_src[idx];
-        acc_des.set(idx, val);
-    });
-    CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-    // node["des"] takes ownership of the data in the active execution
-    // space. This is a no op if node["des"] was already in that space.
-    acc_des.assume();
-}
-
-//-----------------------------------------------------------------------------
-void
-run_data_accessor_using_active_space(Node &node,
-                                     const bool expect_device_policy)
-{
-    // DataAccessors wrap node leaf data.
-    float64_accessor acc_src(node["src"]);
-    float64_accessor acc_des(node["des"]);
-
-    // Use the location of the source data.
-    ExecutionPolicy policy = acc_src.active_space();
-    if (expect_device_policy)
-    {
-        EXPECT_TRUE(policy.is_device_policy());
-    }
-    else
-    {
-        EXPECT_TRUE(policy.is_host_policy());
-    }
-
-    // Ask the accessors to move their data to the memory space occupied
-    // by node["src"] if their data is not already there.
-    acc_src.use_with(policy);
-    acc_des.use_with(policy);
-
-    // Our forall will execute on the memory space occupied by node["src"]
-    // because it was passed an ExecutionPolicy for that space.
-    index_t size = acc_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [acc_src, acc_des] CONDUIT_EXEC(index_t idx)
-    {
-        const float64 val = 2.0 * acc_src[idx];
-        acc_des.set(idx, val);
-    });
-    CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-    // Sync values to node["des"].
-    // This is a no op if node["des"] was originally in the same memory
-    // space as node["src"].
-    acc_des.sync();
-}
-
-//-----------------------------------------------------------------------------
-void
-run_data_array_policy_and_sync(Node &node,
-                               ExecutionPolicy policy)
-{
-    // DataArrays wrap node leaf data directly.
-    float64_array arr_src(node["src"]);
-    float64_array arr_des(node["des"]);
-
-    // Ask the arrays to move their data to the memory space occupied
-    // by the requested execution policy if their data is not already
-    // there.
-    arr_src.use_with(policy);
-    arr_des.use_with(policy);
-
-    // Our forall will execute in the memory space selected by the
-    // requested ExecutionPolicy.
-    index_t size = arr_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [arr_src, arr_des] CONDUIT_EXEC(index_t idx)
-    {
-        const float64 val = 2.0 * arr_src[idx];
-        arr_des.set(idx, val);
-    });
-    CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-    // Sync values to node["des"].
-    // This is a no op if node["des"] was originally in the same memory
-    // space as the requested execution policy.
-    arr_des.sync();
-}
-
-//-----------------------------------------------------------------------------
-void
-run_data_array_policy_and_assume(Node &node,
-                                 ExecutionPolicy policy)
-{
-    // DataArrays wrap node leaf data directly.
-    float64_array arr_src(node["src"]);
-    float64_array arr_des(node["des"]);
-
-    // Ask the arrays to move their data to the memory space occupied
-    // by the requested execution policy if their data is not already
-    // there.
-    arr_src.use_with(policy);
-    arr_des.use_with(policy);
-
-    // Our forall will execute in the memory space selected by the
-    // requested ExecutionPolicy.
-    index_t size = arr_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [arr_src, arr_des] CONDUIT_EXEC(index_t idx)
-    {
-        const float64 val = 2.0 * arr_src[idx];
-        arr_des.set(idx, val);
-    });
-    CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-    // node["des"] takes ownership of the data in the active execution
-    // space. This is a no op if node["des"] was already in that space.
-    arr_des.assume();
-}
-
-//-----------------------------------------------------------------------------
-void
-run_data_array_using_active_space(Node &node,
-                                  const bool expect_device_policy)
-{
-    // DataArrays wrap node leaf data directly.
-    float64_array arr_src(node["src"]);
-    float64_array arr_des(node["des"]);
-
-    // Use the location of the source data.
-    ExecutionPolicy policy = arr_src.active_space();
-    if (expect_device_policy)
-    {
-        EXPECT_TRUE(policy.is_device_policy());
-    }
-    else
-    {
-        EXPECT_TRUE(policy.is_host_policy());
-    }
-
-    // Ask the arrays to move their data to the memory space occupied
-    // by node["src"] if their data is not already there.
-    arr_src.use_with(policy);
-    arr_des.use_with(policy);
-
-    // Our forall will execute on the memory space occupied by node["src"]
-    // because it was passed an ExecutionPolicy for that space.
-    index_t size = arr_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [arr_src, arr_des] CONDUIT_EXEC(index_t idx)
-    {
-        const float64 val = 2.0 * arr_src[idx];
-        arr_des.set(idx, val);
-    });
-    CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-    // Sync values to node["des"].
-    // This is a no op if node["des"] was originally in the same memory
-    // space as node["src"].
-    arr_des.sync();
-}
-
-// TODO someday we want allocator to make sense for nodes when we are done with them
-
-//---------------------------------------------------------------------------//
-// example functor 
-//---------------------------------------------------------------------------//
-struct MyFunctor
-{
-    int res;
-    int size;
-    template<typename ComboPolicyTag>
-    void operator()(ComboPolicyTag &exec)
-    {
-        (void)exec;
-        res = 0;
-        conduit::execution::forall<ComboPolicyTag>(0, size, [] CONDUIT_EXEC (int i)
-        {
-            (void)i;
-        });
-        res = size;
-    }
-};
-
-//---------------------------------------------------------------------------//
-// Mock of a class templated on a concrete tag
-// (like a RAJA Reduction Object)
-//---------------------------------------------------------------------------//
-template <typename ExecPolicy>
-class MySpecialClass
-{
-public:
-    using policy = ExecPolicy;
-    int val;
-
-    MySpecialClass(int _val)
-    :val(_val)
-    {}
-    
-    CONDUIT_EXEC int exec(int i) const
-    {
-        return val + i;
-    }
-};
-
-//---------------------------------------------------------------------------//
-// example functor using MySpecialClass
-//---------------------------------------------------------------------------//
-struct MySpecialFunctor
-{
-    int res;
-    int size;
-    template<typename ComboPolicyTag>
-    void operator()(ComboPolicyTag &exec)
-    {
-        (void)exec;
-        // in this case we use an object
-        // that is templated on a concrete tag
-        // (like a RAJA Reduction Object)
-        using for_policy = typename ComboPolicyTag::for_policy;
-        res = 0;
-        MySpecialClass<for_policy> s(10);
-        conduit::execution::forall<ComboPolicyTag>(0, size, [=] CONDUIT_EXEC (int i)
-        {
-            const int value = s.exec(i);
-            (void)value;
-        });
-        res = size;
-    }
-};
-
-//-----------------------------------------------------------------------------
-// Tests
-//-----------------------------------------------------------------------------
 TEST(conduit_execution, test_forall)
 {
     conduit_device_prepare();
@@ -500,9 +101,19 @@ TEST(conduit_execution, test_forall)
         const index_t size = 10;
 
         index_t host_vals[size];
-        index_t *vals_ptr =
-            static_cast<index_t*>(allocate_for_policy(policy,
-                                                      sizeof(index_t) * size));
+        index_t *vals_ptr = nullptr;
+        if (policy.is_device_policy())
+        {
+            vals_ptr = 
+                static_cast<index_t *>(
+                    execution::DeviceMemory::allocate(sizeof(index_t) * size));
+        }
+        else
+        {
+            vals_ptr = 
+                static_cast<index_t *>(
+                    execution::HostMemory::allocate(sizeof(index_t) * size));
+        }
 
         conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
         {
@@ -519,7 +130,15 @@ TEST(conduit_execution, test_forall)
             EXPECT_EQ(host_vals[i], i);
         }
 
-        free_for_policy(policy, vals_ptr);
+        if (policy.is_device_policy())
+        {
+            execution::DeviceMemory::deallocate(vals_ptr);
+        }
+        else
+        {
+            execution::HostMemory::deallocate(vals_ptr);
+        }
+
         annotations::finalize();
     });
 }
@@ -537,9 +156,20 @@ TEST(conduit_execution, test_reductions)
 
         const index_t size = 4;
         index_t host_vals[size] = {0, -10, 10, 5};
-        index_t *vals_ptr =
-            static_cast<index_t*>(allocate_for_policy(policy,
-                                                      sizeof(index_t) * size));
+        index_t *vals_ptr = nullptr;
+        if (policy.is_device_policy())
+        {
+            vals_ptr = 
+                static_cast<index_t *>(
+                    execution::DeviceMemory::allocate(sizeof(index_t) * size));
+        }
+        else
+        {
+            vals_ptr = 
+                static_cast<index_t *>(
+                    execution::HostMemory::allocate(sizeof(index_t) * size));
+        }
+
         conduit::execution::MagicMemory::copy(vals_ptr,
                                               &host_vals[0],
                                               sizeof(index_t) * size);
@@ -624,7 +254,15 @@ TEST(conduit_execution, test_reductions)
         EXPECT_EQ(maxloc_result, 10);
         EXPECT_EQ(maxloc_index, 2);
 
-        free_for_policy(policy, vals_ptr);
+        if (policy.is_device_policy())
+        {
+            execution::DeviceMemory::deallocate(vals_ptr);
+        }
+        else
+        {
+            execution::HostMemory::deallocate(vals_ptr);
+        }
+
         annotations::finalize();
     });
 }
@@ -642,9 +280,19 @@ TEST(conduit_execution, test_atomics)
 
         const index_t size = 4;
         index_t host_vals[size] = {0, -1, -2, -3};
-        index_t *vals_ptr =
-            static_cast<index_t*>(allocate_for_policy(policy,
-                                                      sizeof(index_t) * size));
+        index_t *vals_ptr = nullptr;
+        if (policy.is_device_policy())
+        {
+            vals_ptr = 
+                static_cast<index_t *>(
+                    execution::DeviceMemory::allocate(sizeof(index_t) * size));
+        }
+        else
+        {
+            vals_ptr = 
+                static_cast<index_t *>(
+                    execution::HostMemory::allocate(sizeof(index_t) * size));
+        }
 
         conduit::execution::MagicMemory::copy(vals_ptr,
                                               &host_vals[0],
@@ -706,56 +354,6 @@ TEST(conduit_execution, test_atomics)
             EXPECT_EQ(host_vals[i], 10);
         }
 
-        free_for_policy(policy, vals_ptr);
-        annotations::finalize();
-    });
-}
-
-//-----------------------------------------------------------------------------
-TEST(conduit_execution, for_all_and_dispatch)
-{
-    std::cout << "forall cases!" << std::endl;
-
-    const int size = 4;
-    MyFunctor func;
-    func.size = size;
-    MySpecialFunctor sfunc;
-    sfunc.size = 4;
-
-    auto test_exec_policy = [&](ExecutionPolicy policy)
-    {
-        CONDUIT_INFO("for_all_and_dispatch policy=" << policy.policy_name());
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-
-        int *vals_ptr = nullptr;
-        if (policy.is_device_policy())
-        {
-            vals_ptr = static_cast<int*>(execution::DeviceMemory::allocate(sizeof(int) * size));
-        }
-        else
-        {
-            vals_ptr = static_cast<int*>(execution::HostMemory::allocate(sizeof(int) * size));
-        }
-
-        // Use runtime forall(policy, ...) when one portable kernel works for
-        // every backend that may be selected in this translation unit.
-        auto portable_kernel = [=] CONDUIT_EXEC (int i)
-        {
-            vals_ptr[i] = i;
-        };
-        conduit::execution::forall(policy, 0, size, portable_kernel);
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-        int host_vals[size];
-        conduit::execution::MagicMemory::copy(host_vals, vals_ptr, sizeof(int) * size);
-
-        for (int i = 0; i < size; i++)
-        {
-            EXPECT_EQ(host_vals[i], i);
-        }
-
         if (policy.is_device_policy())
         {
             execution::DeviceMemory::deallocate(vals_ptr);
@@ -765,1496 +363,1059 @@ TEST(conduit_execution, for_all_and_dispatch)
             execution::HostMemory::deallocate(vals_ptr);
         }
 
-        conduit::execution::dispatch(policy, func);
-        EXPECT_EQ(func.res, size);
+        annotations::finalize();
+    });
+}
 
-        conduit::execution::dispatch(policy, sfunc);
-        EXPECT_EQ(sfunc.res, size);
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, strawman_data_accessor)
+{
+    conduit_device_prepare();
 
-        // Use dispatch(policy, ...) when the concrete execution tag is needed
-        // to instantiate backend-specific helper types or call forall<Tag>(...).
-        int res = 0;
-        auto concrete_kernel = [&](auto &exec)
+    const std::vector<float64> src_vals = make_execution_src_vals(EXECUTION_TEST_ARRAY_SIZE);
+    const std::vector<float64> des_vals = make_execution_des_vals(EXECUTION_TEST_ARRAY_SIZE);
+
+    // our main loop iterates over these items
+    // comment out specific entries to test a specific combination
+    const std::vector<std::string> src_locations = {"host", "device"};
+    const std::vector<std::string> des_locations = {"host", "device"};
+    const std::vector<std::string> policies      = {"host", "device"};
+
+    for (const std::string &src_start : src_locations)
+    {
+        for (const std::string &des_start : des_locations)
         {
-            using combo_policy = typename std::decay<decltype(exec)>::type;
-            using for_policy = typename combo_policy::for_policy;
-            MySpecialClass<for_policy> s(10);
-            conduit::execution::forall<combo_policy>(0, size, [=] CONDUIT_EXEC (int i)
+            //----------------------------------------------------------
+            // DataAccessor sync
+            // Run with an explicit execution policy and call sync().
+            // node["des"] is synced back to where it started.
+            //----------------------------------------------------------
+            for (const std::string &policy_str : policies)
             {
-                const int value = s.exec(i);
-                (void)value;
-            });
-            res = 10;
-        };
-        conduit::execution::dispatch(policy, concrete_kernel);
-
-        EXPECT_EQ(res, 10);
-        annotations::finalize();
-    };
-
-    for_each_enabled_policy(test_exec_policy);
-}
-
-//-----------------------------------------------------------------------------
-// Test the DataAccessor strawman execution paths when both node["src"] and
-// node["des"] start in host memory. The covered cases are explicit host
-// `sync`, explicit device `sync`, explicit host `assume`, explicit device
-// `assume`, and `active_space` dispatch from host-backed source data.
-TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
-{
-    conduit_device_prepare();
-    const std::vector<float64> src_vals = make_execution_src_vals();
-    const std::vector<float64> des_vals = make_execution_des_vals();
-
-    // Run with an explicit host execution policy.
-    // node["des"] is synced back to host memory.
-    {
-        CONDUIT_INFO("data_accessor sync policy=host src_start=host des_start=host");
-
-        Node node;
-        node["src"].set(src_vals);
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_policy_and_sync(node, ExecutionPolicy::host());
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-    }
-
-    if (ExecutionPolicy::is_device_enabled())
-    {
-        // Run with an explicit device execution policy.
-        // node["des"] is synced back to host memory.
-        CONDUIT_INFO("data_accessor sync policy=device src_start=host des_start=host");
-
-        Node node;
-        node["src"].set(src_vals);
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_policy_and_sync(node, ExecutionPolicy::device());
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-    }
-
-    // Run with an explicit host execution policy and call assume().
-    // node["des"] keeps the host-backed result buffer.
-    {
-        CONDUIT_INFO("data_accessor assume policy=host src_start=host des_start=host");
-
-        Node node;
-        node["src"].set(src_vals);
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_policy_and_assume(node, ExecutionPolicy::host());
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-    }
-
-    if (ExecutionPolicy::is_device_enabled())
-    {
-        // Run with an explicit device execution policy and call assume().
-        // node["des"] keeps the device-backed result buffer.
-        CONDUIT_INFO("data_accessor assume policy=device src_start=host des_start=host");
-
-        Node node;
-        node["src"].set(src_vals);
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_policy_and_assume(node, ExecutionPolicy::device());
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-    }
-
-    // Use the location of node["src"] to choose where to execute.
-    // node["des"] is then synced back to host memory.
-    {
-        CONDUIT_INFO("data_accessor active_space src_start=host des_start=host");
-
-        Node node;
-        node["src"].set(src_vals);
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_using_active_space(node, false);
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-    }
-}
-
-//-----------------------------------------------------------------------------
-// Test the DataAccessor strawman execution paths when both node["src"] and
-// node["des"] start in device memory. The covered cases are explicit host
-// `sync`, explicit device `sync`, explicit host `assume`, explicit device
-// `assume`, and `active_space` dispatch from device-backed source data.
-TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
-{
-    conduit_device_prepare();
-    const std::vector<float64> src_vals = make_execution_src_vals();
-    const std::vector<float64> des_vals = make_execution_des_vals();
-
-    if (!ExecutionPolicy::is_device_enabled())
-    {
-        return;
-    }
-
-    // Run with an explicit host execution policy.
-    // node["des"] is synced back to device memory.
-    {
-        CONDUIT_INFO("data_accessor sync policy=host src_start=device des_start=device");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_policy_and_sync(node, ExecutionPolicy::host());
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-        execution::DeviceMemory::deallocate(des_device_ptr);
-    }
-
-    // Run with an explicit device execution policy.
-    // node["des"] is synced back to device memory.
-    {
-        CONDUIT_INFO("data_accessor sync policy=device src_start=device des_start=device");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_policy_and_sync(node, ExecutionPolicy::device());
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-        execution::DeviceMemory::deallocate(des_device_ptr);
-    }
-
-    // Run with an explicit host execution policy and call assume().
-    // node["des"] keeps the host-backed result buffer.
-    {
-        CONDUIT_INFO("data_accessor assume policy=host src_start=device des_start=device");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_policy_and_assume(node, ExecutionPolicy::host());
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-        execution::DeviceMemory::deallocate(des_device_ptr);
-    }
-
-    // Run with an explicit device execution policy and call assume().
-    // node["des"] keeps the device-backed result buffer.
-    {
-        CONDUIT_INFO("data_accessor assume policy=device src_start=device des_start=device");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_policy_and_assume(node, ExecutionPolicy::device());
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-    }
-
-    // Use the location of node["src"] to choose where to execute.
-    // node["des"] is then synced back to device memory.
-    {
-        CONDUIT_INFO("data_accessor active_space src_start=device des_start=device");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_using_active_space(node, true);
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-        execution::DeviceMemory::deallocate(des_device_ptr);
-    }
-}
-
-//-----------------------------------------------------------------------------
-// Test the DataAccessor strawman execution paths when node["src"] starts in
-// host memory and node["des"] starts in device memory. The covered cases are
-// explicit host `sync`, explicit device `sync`, explicit host `assume`,
-// explicit device `assume`, and `active_space` dispatch from host-backed
-// source data.
-TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
-{
-    conduit_device_prepare();
-    const std::vector<float64> src_vals = make_execution_src_vals();
-    const std::vector<float64> des_vals = make_execution_des_vals();
-
-    if (!ExecutionPolicy::is_device_enabled())
-    {
-        return;
-    }
-
-    // Run with an explicit host execution policy.
-    // node["des"] is synced back to device memory.
-    {
-        CONDUIT_INFO("data_accessor sync policy=host src_start=host des_start=device");
-
-        Node node;
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set(src_vals);
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_policy_and_sync(node, ExecutionPolicy::host());
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(des_device_ptr);
-    }
-
-    // Run with an explicit device execution policy.
-    // node["des"] is synced back to device memory.
-    {
-        CONDUIT_INFO("data_accessor sync policy=device src_start=host des_start=device");
-
-        Node node;
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set(src_vals);
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_policy_and_sync(node, ExecutionPolicy::device());
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(des_device_ptr);
-    }
-
-    // Run with an explicit host execution policy and call assume().
-    // node["des"] keeps the host-backed result buffer.
-    {
-        CONDUIT_INFO("data_accessor assume policy=host src_start=host des_start=device");
-
-        Node node;
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set(src_vals);
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_policy_and_assume(node, ExecutionPolicy::host());
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(des_device_ptr);
-    }
-
-    // Run with an explicit device execution policy and call assume().
-    // node["des"] keeps the device-backed result buffer.
-    {
-        CONDUIT_INFO("data_accessor assume policy=device src_start=host des_start=device");
-
-        Node node;
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set(src_vals);
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_policy_and_assume(node, ExecutionPolicy::device());
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-    }
-
-    // Use the location of node["src"] to choose where to execute.
-    // node["des"] is then synced back to device memory.
-    {
-        CONDUIT_INFO("data_accessor active_space src_start=host des_start=device");
-
-        Node node;
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set(src_vals);
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_using_active_space(node, false);
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(des_device_ptr);
-    }
-}
-
-//-----------------------------------------------------------------------------
-// Test the DataAccessor strawman execution paths when node["src"] starts in
-// device memory and node["des"] starts in host memory. The covered cases are
-// explicit host `sync`, explicit device `sync`, explicit host `assume`,
-// explicit device `assume`, and `active_space` dispatch from device-backed
-// source data.
-TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
-{
-    conduit_device_prepare();
-    const std::vector<float64> src_vals = make_execution_src_vals();
-    const std::vector<float64> des_vals = make_execution_des_vals();
-
-    if (!ExecutionPolicy::is_device_enabled())
-    {
-        return;
-    }
-
-    // Run with an explicit host execution policy.
-    // node["des"] is synced back to host memory.
-    {
-        CONDUIT_INFO("data_accessor sync policy=host src_start=device des_start=host");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_policy_and_sync(node, ExecutionPolicy::host());
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-    }
-
-    // Run with an explicit device execution policy.
-    // node["des"] is synced back to host memory.
-    {
-        CONDUIT_INFO("data_accessor sync policy=device src_start=device des_start=host");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_policy_and_sync(node, ExecutionPolicy::device());
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-    }
-
-    // Run with an explicit host execution policy and call assume().
-    // node["des"] keeps the host-backed result buffer.
-    {
-        CONDUIT_INFO("data_accessor assume policy=host src_start=device des_start=host");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_policy_and_assume(node, ExecutionPolicy::host());
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-    }
-
-    // Run with an explicit device execution policy and call assume().
-    // node["des"] keeps the device-backed result buffer.
-    {
-        CONDUIT_INFO("data_accessor assume policy=device src_start=device des_start=host");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_policy_and_assume(node, ExecutionPolicy::device());
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-    }
-
-    // Use the location of node["src"] to choose where to execute.
-    // node["des"] is then synced back to host memory.
-    {
-        CONDUIT_INFO("data_accessor active_space src_start=device des_start=host");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_accessor_using_active_space(node, true);
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_accessor result_acc(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
+                ExecutionPolicy policy;
+                if (policy_str == "host")
+                {
+                    policy = ExecutionPolicy::host();
+                }
+                else
+                {
+                    if (ExecutionPolicy::is_device_enabled())
+                    {
+                        policy = ExecutionPolicy::device();
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+
+                CONDUIT_INFO("DataAccessor sync():\n" <<
+                             "    policy="    << policy_str << "\n" <<
+                             "    src_start=" << src_start << "\n" <<
+                             "    des_start=" << des_start);
+
+                Node node;
+                float64 *src_device_ptr = nullptr;
+                float64 *des_device_ptr = nullptr;
+                if (src_start == "host")
+                {
+                    node["src"].set(src_vals);
+                }
+                else
+                {
+                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+                    node["src"].set_external(src_device_ptr, src_vals.size());
+                }
+                if (des_start == "host")
+                {
+                    node["des"].set(des_vals);
+                }
+                else
+                {
+                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+                    node["des"].set_external(des_device_ptr, des_vals.size());
+                }
+
+                Node cali_opts;
+                cali_opts["config"] = "runtime-report";
+                annotations::initialize(cali_opts);
+
+                run_data_accessor_policy_and_sync(node, policy);
+
+                annotations::finalize();
+
+                // src data will never change from where it started
+                if (src_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                // des data is sync'd back to where it started
+                if (des_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+
+                float64_accessor result_acc(node["des"]);
+                // Verification runs on the host, so use a host execution policy
+                // in case node["des"] still owns device-backed data here.
+                result_acc.use_with(ExecutionPolicy::host());
+                EXPECT_EQ(result_acc.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_acc[i], 2.0 * static_cast<float64>(i + 1));
+                }
+
+                node.reset();
+
+                if (src_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(src_device_ptr);
+                }
+                if (des_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(des_device_ptr);
+                }
+            }
+
+            //----------------------------------------------------------
+            // DataAccessor assume
+            // Run with an explicit execution policy and call assume().
+            // node["des"] keeps the result buffer where it executed.
+            //----------------------------------------------------------
+            for (const std::string &policy_str : policies)
+            {
+                ExecutionPolicy policy;
+                if (policy_str == "host")
+                {
+                    policy = ExecutionPolicy::host();
+                }
+                else
+                {
+                    if (ExecutionPolicy::is_device_enabled())
+                    {
+                        policy = ExecutionPolicy::device();
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+
+                CONDUIT_INFO("DataAccessor assume():\n" <<
+                             "    policy="    << policy_str << "\n" <<
+                             "    src_start=" << src_start << "\n" <<
+                             "    des_start=" << des_start);
+
+                Node node;
+                float64 *src_device_ptr = nullptr;
+                float64 *des_device_ptr = nullptr;
+                if (src_start == "host")
+                {
+                    node["src"].set(src_vals);
+                }
+                else
+                {
+                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+                    node["src"].set_external(src_device_ptr, src_vals.size());
+                }
+                if (des_start == "host")
+                {
+                    node["des"].set(des_vals);
+                }
+                else
+                {
+                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+                    node["des"].set_external(des_device_ptr, des_vals.size());
+                }
+
+                Node cali_opts;
+                cali_opts["config"] = "runtime-report";
+                annotations::initialize(cali_opts);
+
+                run_data_accessor_policy_and_assume(node, policy);
+
+                annotations::finalize();
+
+                // src data will never change from where it started
+                if (src_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                // but destination memory will move to be where policy is
+                if (policy_str == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+
+                float64_accessor result_acc(node["des"]);
+                // Verification runs on the host, so use a host execution policy
+                // in case node["des"] still owns device-backed data here.
+                result_acc.use_with(ExecutionPolicy::host());
+                EXPECT_EQ(result_acc.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_acc[i], 2.0 * static_cast<float64>(i + 1));
+                }
+
+                node.reset();
+
+                if (src_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(src_device_ptr);
+                }
+                // we only need to free if node now points somewhere else
+                if (des_start == "device" && policy_str == "host")
+                {
+                    execution::DeviceMemory::deallocate(des_device_ptr);
+                }
+            }
+
+            //----------------------------------------------------------
+            // DataAccessor active_space
+            // Use the location of node["src"] to choose where to execute.
+            // node["des"] is then synced back to where it started.
+            //----------------------------------------------------------
+            if ((src_start == "host" && des_start == "host") ||
+                (ExecutionPolicy::is_device_enabled()))
+            {
+                CONDUIT_INFO("DataAccessor active_space():\n" <<
+                             "    src_start=" << src_start << "\n" <<
+                             "    des_start=" << des_start);
+
+                Node node;
+                float64 *src_device_ptr = nullptr;
+                float64 *des_device_ptr = nullptr;
+                if (src_start == "host")
+                {
+                    node["src"].set(src_vals);
+                }
+                else
+                {
+                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+                    node["src"].set_external(src_device_ptr, src_vals.size());
+                }
+                if (des_start == "host")
+                {
+                    node["des"].set(des_vals);
+                }
+                else
+                {
+                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+                    node["des"].set_external(des_device_ptr, des_vals.size());
+                }
+
+                Node cali_opts;
+                cali_opts["config"] = "runtime-report";
+                annotations::initialize(cali_opts);
+
+                ExecutionPolicy policy;
+                run_data_accessor_using_active_space(node, policy);
+
+                annotations::finalize();
+
+                if (src_start == "host")
+                {
+                    EXPECT_TRUE(policy.is_host_policy());
+                }
+                else
+                {
+                    EXPECT_TRUE(policy.is_device_policy());
+                }
+
+                // src data will never change from where it started
+                if (src_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                // des data is sync'd back to where it started
+                if (des_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+
+                float64_accessor result_acc(node["des"]);
+                // Verification runs on the host, so use a host execution policy
+                // in case node["des"] still owns device-backed data here.
+                result_acc.use_with(ExecutionPolicy::host());
+                EXPECT_EQ(result_acc.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_acc[i], 2.0 * static_cast<float64>(i + 1));
+                }
+
+                node.reset();
+
+                if (src_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(src_device_ptr);
+                }
+                if (des_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(des_device_ptr);
+                }
+            }
+
+            //----------------------------------------------------------
+            // DataAccessor dispatch lambda
+            // Run with an explicit execution policy and call sync().
+            // node["des"] is then synced back to where it started.
+            //----------------------------------------------------------
+            for (const std::string &policy_str : policies)
+            {
+                ExecutionPolicy policy;
+                if (policy_str == "host")
+                {
+                    policy = ExecutionPolicy::host();
+                }
+                else
+                {
+                    if (ExecutionPolicy::is_device_enabled())
+                    {
+                        policy = ExecutionPolicy::device();
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+
+                CONDUIT_INFO("DataAccessor dispatch() lambda:\n" <<
+                             "    policy="    << policy_str << "\n" <<
+                             "    src_start=" << src_start << "\n" <<
+                             "    des_start=" << des_start);
+
+                Node node;
+                float64 *src_device_ptr = nullptr;
+                float64 *des_device_ptr = nullptr;
+                if (src_start == "host")
+                {
+                    node["src"].set(src_vals);
+                }
+                else
+                {
+                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+                    node["src"].set_external(src_device_ptr, src_vals.size());
+                }
+                if (des_start == "host")
+                {
+                    node["des"].set(des_vals);
+                }
+                else
+                {
+                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+                    node["des"].set_external(des_device_ptr, des_vals.size());
+                }
+
+                Node cali_opts;
+                cali_opts["config"] = "runtime-report";
+                annotations::initialize(cali_opts);
+
+                float64 min_val; index_t min_loc;
+                run_data_accessor_dispatch_and_sync(node, policy, min_val, min_loc);
+
+                annotations::finalize();
+
+                EXPECT_EQ(min_val, 2.0);
+                EXPECT_EQ(min_loc, 0);
+
+                // src data will never change from where it started
+                if (src_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                // des data is sync'd back to where it started
+                if (des_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+
+
+                float64_accessor result_acc(node["des"]);
+                // Verification runs on the host, so use a host execution policy
+                // in case node["des"] still owns device-backed data here.
+                result_acc.use_with(ExecutionPolicy::host());
+                EXPECT_EQ(result_acc.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_acc[i], 2.0 * static_cast<float64>(i + 1));
+                }
+
+                node.reset();
+
+                if (src_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(src_device_ptr);
+                }
+                if (des_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(des_device_ptr);
+                }
+            }
+
+            //----------------------------------------------------------
+            // DataAccessor dispatch functor
+            // Run with an explicit execution policy and call sync().
+            // node["des"] is then synced back to where it started.
+            //----------------------------------------------------------
+            for (const std::string &policy_str : policies)
+            {
+                ExecutionPolicy policy;
+                if (policy_str == "host")
+                {
+                    policy = ExecutionPolicy::host();
+                }
+                else
+                {
+                    if (ExecutionPolicy::is_device_enabled())
+                    {
+                        policy = ExecutionPolicy::device();
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+
+                CONDUIT_INFO("DataAccessor dispatch() functor:\n" <<
+                             "    policy="    << policy_str << "\n" <<
+                             "    src_start=" << src_start << "\n" <<
+                             "    des_start=" << des_start);
+
+                Node node;
+                float64 *src_device_ptr = nullptr;
+                float64 *des_device_ptr = nullptr;
+                if (src_start == "host")
+                {
+                    node["src"].set(src_vals);
+                }
+                else
+                {
+                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+                    node["src"].set_external(src_device_ptr, src_vals.size());
+                }
+                if (des_start == "host")
+                {
+                    node["des"].set(des_vals);
+                }
+                else
+                {
+                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+                    node["des"].set_external(des_device_ptr, des_vals.size());
+                }
+
+                Node cali_opts;
+                cali_opts["config"] = "runtime-report";
+                annotations::initialize(cali_opts);
+
+                float64 min_val; index_t min_loc;
+                run_data_accessor_dispatch_and_sync(node, policy, min_val, min_loc);
+
+                annotations::finalize();
+
+                EXPECT_EQ(min_val, 2.0);
+                EXPECT_EQ(min_loc, 0);
+
+                // src data will never change from where it started
+                if (src_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                // des data is sync'd back to where it started
+                if (des_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+
+
+                float64_accessor result_acc(node["des"]);
+                // Verification runs on the host, so use a host execution policy
+                // in case node["des"] still owns device-backed data here.
+                result_acc.use_with(ExecutionPolicy::host());
+                EXPECT_EQ(result_acc.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_acc[i], 2.0 * static_cast<float64>(i + 1));
+                }
+
+                node.reset();
+
+                if (src_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(src_device_ptr);
+                }
+                if (des_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(des_device_ptr);
+                }
+            }
+        }
     }
 }
 
 //-----------------------------------------------------------------------------
-// Test the DataArray strawman execution paths when both node["src"] and
-// node["des"] start in host memory. The covered cases are explicit host
-// `sync`, explicit device `sync`, explicit host `assume`, explicit device
-// `assume`, and `active_space` dispatch from host-backed source data.
-TEST(conduit_execution, strawman_data_array_src_host_des_host)
+TEST(conduit_execution, strawman_data_array)
 {
     conduit_device_prepare();
-    const std::vector<float64> src_vals = make_execution_src_vals();
-    const std::vector<float64> des_vals = make_execution_des_vals();
 
-    // Run with an explicit host execution policy.
-    // node["des"] is synced back to host memory.
+    const std::vector<float64> src_vals = make_execution_src_vals(EXECUTION_TEST_ARRAY_SIZE);
+    const std::vector<float64> des_vals = make_execution_des_vals(EXECUTION_TEST_ARRAY_SIZE);
+
+    // our main loop iterates over these items
+    // comment out specific entries to test a specific combination
+    const std::vector<std::string> src_locations = {"host", "device"};
+    const std::vector<std::string> des_locations = {"host", "device"};
+    const std::vector<std::string> policies      = {"host", "device"};
+
+    for (const std::string &src_start : src_locations)
     {
-        CONDUIT_INFO("data_array sync policy=host src_start=host des_start=host");
-
-        Node node;
-        node["src"].set(src_vals);
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_policy_and_sync(node, ExecutionPolicy::host());
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-    }
-
-    if (ExecutionPolicy::is_device_enabled())
-    {
-        // Run with an explicit device execution policy.
-        // node["des"] is synced back to host memory.
-        CONDUIT_INFO("data_array sync policy=device src_start=host des_start=host");
-
-        Node node;
-        node["src"].set(src_vals);
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_policy_and_sync(node, ExecutionPolicy::device());
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-    }
-
-    // Run with an explicit host execution policy and call assume().
-    // node["des"] keeps the host-backed result buffer.
-    {
-        CONDUIT_INFO("data_array assume policy=host src_start=host des_start=host");
-
-        Node node;
-        node["src"].set(src_vals);
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_policy_and_assume(node, ExecutionPolicy::host());
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-    }
-
-    if (ExecutionPolicy::is_device_enabled())
-    {
-        // Run with an explicit device execution policy and call assume().
-        // node["des"] keeps the device-backed result buffer.
-        CONDUIT_INFO("data_array assume policy=device src_start=host des_start=host");
-
-        Node node;
-        node["src"].set(src_vals);
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_policy_and_assume(node, ExecutionPolicy::device());
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-    }
-
-    // Use the location of node["src"] to choose where to execute.
-    // node["des"] is then synced back to host memory.
-    {
-        CONDUIT_INFO("data_array active_space src_start=host des_start=host");
-
-        Node node;
-        node["src"].set(src_vals);
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_using_active_space(node, false);
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-    }
-}
-
-//-----------------------------------------------------------------------------
-// Test the DataArray strawman execution paths when both node["src"] and
-// node["des"] start in device memory. The covered cases are explicit host
-// `sync`, explicit device `sync`, explicit host `assume`, explicit device
-// `assume`, and `active_space` dispatch from device-backed source data.
-TEST(conduit_execution, strawman_data_array_src_device_des_device)
-{
-    conduit_device_prepare();
-    const std::vector<float64> src_vals = make_execution_src_vals();
-    const std::vector<float64> des_vals = make_execution_des_vals();
-
-    if (!ExecutionPolicy::is_device_enabled())
-    {
-        return;
-    }
-
-    // Run with an explicit host execution policy.
-    // node["des"] is synced back to device memory.
-    {
-        CONDUIT_INFO("data_array sync policy=host src_start=device des_start=device");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_policy_and_sync(node, ExecutionPolicy::host());
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-        execution::DeviceMemory::deallocate(des_device_ptr);
-    }
-
-    // Run with an explicit device execution policy.
-    // node["des"] is synced back to device memory.
-    {
-        CONDUIT_INFO("data_array sync policy=device src_start=device des_start=device");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_policy_and_sync(node, ExecutionPolicy::device());
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-        execution::DeviceMemory::deallocate(des_device_ptr);
-    }
-
-    // Run with an explicit host execution policy and call assume().
-    // node["des"] keeps the host-backed result buffer.
-    {
-        CONDUIT_INFO("data_array assume policy=host src_start=device des_start=device");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_policy_and_assume(node, ExecutionPolicy::host());
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-        execution::DeviceMemory::deallocate(des_device_ptr);
-    }
-
-    // Run with an explicit device execution policy and call assume().
-    // node["des"] keeps the device-backed result buffer.
-    {
-        CONDUIT_INFO("data_array assume policy=device src_start=device des_start=device");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_policy_and_assume(node, ExecutionPolicy::device());
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-    }
-
-    // Use the location of node["src"] to choose where to execute.
-    // node["des"] is then synced back to device memory.
-    {
-        CONDUIT_INFO("data_array active_space src_start=device des_start=device");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_using_active_space(node, true);
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-        execution::DeviceMemory::deallocate(des_device_ptr);
-    }
-}
-
-//-----------------------------------------------------------------------------
-// Test the DataArray strawman execution paths when node["src"] starts in host
-// memory and node["des"] starts in device memory. The covered cases are
-// explicit host `sync`, explicit device `sync`, explicit host `assume`,
-// explicit device `assume`, and `active_space` dispatch from host-backed
-// source data.
-TEST(conduit_execution, strawman_data_array_src_host_des_device)
-{
-    conduit_device_prepare();
-    const std::vector<float64> src_vals = make_execution_src_vals();
-    const std::vector<float64> des_vals = make_execution_des_vals();
-
-    if (!ExecutionPolicy::is_device_enabled())
-    {
-        return;
-    }
-
-    // Run with an explicit host execution policy.
-    // node["des"] is synced back to device memory.
-    {
-        CONDUIT_INFO("data_array sync policy=host src_start=host des_start=device");
-
-        Node node;
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set(src_vals);
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_policy_and_sync(node, ExecutionPolicy::host());
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(des_device_ptr);
-    }
-
-    // Run with an explicit device execution policy.
-    // node["des"] is synced back to device memory.
-    {
-        CONDUIT_INFO("data_array sync policy=device src_start=host des_start=device");
-
-        Node node;
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set(src_vals);
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_policy_and_sync(node, ExecutionPolicy::device());
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(des_device_ptr);
-    }
-
-    // Run with an explicit host execution policy and call assume().
-    // node["des"] keeps the host-backed result buffer.
-    {
-        CONDUIT_INFO("data_array assume policy=host src_start=host des_start=device");
-
-        Node node;
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set(src_vals);
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_policy_and_assume(node, ExecutionPolicy::host());
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(des_device_ptr);
-    }
-
-    // Run with an explicit device execution policy and call assume().
-    // node["des"] keeps the device-backed result buffer.
-    {
-        CONDUIT_INFO("data_array assume policy=device src_start=host des_start=device");
-
-        Node node;
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set(src_vals);
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_policy_and_assume(node, ExecutionPolicy::device());
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-    }
-
-    // Use the location of node["src"] to choose where to execute.
-    // node["des"] is then synced back to device memory.
-    {
-        CONDUIT_INFO("data_array active_space src_start=host des_start=device");
-
-        Node node;
-        float64 *des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-        node["src"].set(src_vals);
-        node["des"].set_external(des_device_ptr, des_vals.size());
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_using_active_space(node, false);
-        annotations::finalize();
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(des_device_ptr);
-    }
-}
-
-//-----------------------------------------------------------------------------
-// Test the DataArray strawman execution paths when node["src"] starts in
-// device memory and node["des"] starts in host memory. The covered cases are
-// explicit host `sync`, explicit device `sync`, explicit host `assume`,
-// explicit device `assume`, and `active_space` dispatch from device-backed
-// source data.
-TEST(conduit_execution, strawman_data_array_src_device_des_host)
-{
-    conduit_device_prepare();
-    const std::vector<float64> src_vals = make_execution_src_vals();
-    const std::vector<float64> des_vals = make_execution_des_vals();
-
-    if (!ExecutionPolicy::is_device_enabled())
-    {
-        return;
-    }
-
-    // Run with an explicit host execution policy.
-    // node["des"] is synced back to host memory.
-    {
-        CONDUIT_INFO("data_array sync policy=host src_start=device des_start=host");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_policy_and_sync(node, ExecutionPolicy::host());
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-    }
-
-    // Run with an explicit device execution policy.
-    // node["des"] is synced back to host memory.
-    {
-        CONDUIT_INFO("data_array sync policy=device src_start=device des_start=host");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_policy_and_sync(node, ExecutionPolicy::device());
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-    }
-
-    // Run with an explicit host execution policy and call assume().
-    // node["des"] keeps the host-backed result buffer.
-    {
-        CONDUIT_INFO("data_array assume policy=host src_start=device des_start=host");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_policy_and_assume(node, ExecutionPolicy::host());
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-    }
-
-    // Run with an explicit device execution policy and call assume().
-    // node["des"] keeps the device-backed result buffer.
-    {
-        CONDUIT_INFO("data_array assume policy=device src_start=device des_start=host");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_policy_and_assume(node, ExecutionPolicy::device());
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
-    }
-
-    // Use the location of node["src"] to choose where to execute.
-    // node["des"] is then synced back to host memory.
-    {
-        CONDUIT_INFO("data_array active_space src_start=device des_start=host");
-
-        Node node;
-        float64 *src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-        node["src"].set_external(src_device_ptr, src_vals.size());
-        node["des"].set(des_vals);
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-        run_data_array_using_active_space(node, true);
-        annotations::finalize();
-        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-
-        float64_array result_array(node["des"]);
-        // Verification runs on the host, so use a host execution policy
-        // in case node["des"] still owns device-backed data here.
-        result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
-
-        node.reset();
-        execution::DeviceMemory::deallocate(src_device_ptr);
+        for (const std::string &des_start : des_locations)
+        {
+            //----------------------------------------------------------
+            // DataArray sync
+            // Run with an explicit execution policy and call sync().
+            // node["des"] is synced back to where it started.
+            //----------------------------------------------------------
+            for (const std::string &policy_str : policies)
+            {
+                ExecutionPolicy policy;
+                if (policy_str == "host")
+                {
+                    policy = ExecutionPolicy::host();
+                }
+                else
+                {
+                    if (ExecutionPolicy::is_device_enabled())
+                    {
+                        policy = ExecutionPolicy::device();
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+
+                CONDUIT_INFO("DataArray sync():\n" <<
+                             "    policy="    << policy_str << "\n" <<
+                             "    src_start=" << src_start << "\n" <<
+                             "    des_start=" << des_start);
+
+                Node node;
+                float64 *src_device_ptr = nullptr;
+                float64 *des_device_ptr = nullptr;
+                if (src_start == "host")
+                {
+                    node["src"].set(src_vals);
+                }
+                else
+                {
+                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+                    node["src"].set_external(src_device_ptr, src_vals.size());
+                }
+                if (des_start == "host")
+                {
+                    node["des"].set(des_vals);
+                }
+                else
+                {
+                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+                    node["des"].set_external(des_device_ptr, des_vals.size());
+                }
+
+                Node cali_opts;
+                cali_opts["config"] = "runtime-report";
+                annotations::initialize(cali_opts);
+
+                run_data_accessor_policy_and_sync(node, policy);
+
+                annotations::finalize();
+
+                // src data will never change from where it started
+                if (src_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                // des data is sync'd back to where it started
+                if (des_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+
+                float64_array result_arr(node["des"]);
+                // Verification runs on the host, so use a host execution policy
+                // in case node["des"] still owns device-backed data here.
+                result_arr.use_with(ExecutionPolicy::host());
+                EXPECT_EQ(result_arr.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_arr[i], 2.0 * static_cast<float64>(i + 1));
+                }
+
+                node.reset();
+
+                if (src_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(src_device_ptr);
+                }
+                if (des_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(des_device_ptr);
+                }
+            }
+
+            //----------------------------------------------------------
+            // DataArray assume
+            // Run with an explicit execution policy and call assume().
+            // node["des"] keeps the result buffer where it executed.
+            //----------------------------------------------------------
+            for (const std::string &policy_str : policies)
+            {
+                ExecutionPolicy policy;
+                if (policy_str == "host")
+                {
+                    policy = ExecutionPolicy::host();
+                }
+                else
+                {
+                    if (ExecutionPolicy::is_device_enabled())
+                    {
+                        policy = ExecutionPolicy::device();
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+
+                CONDUIT_INFO("DataArray assume():\n" <<
+                             "    policy="    << policy_str << "\n" <<
+                             "    src_start=" << src_start << "\n" <<
+                             "    des_start=" << des_start);
+
+                Node node;
+                float64 *src_device_ptr = nullptr;
+                float64 *des_device_ptr = nullptr;
+                if (src_start == "host")
+                {
+                    node["src"].set(src_vals);
+                }
+                else
+                {
+                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+                    node["src"].set_external(src_device_ptr, src_vals.size());
+                }
+                if (des_start == "host")
+                {
+                    node["des"].set(des_vals);
+                }
+                else
+                {
+                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+                    node["des"].set_external(des_device_ptr, des_vals.size());
+                }
+
+                Node cali_opts;
+                cali_opts["config"] = "runtime-report";
+                annotations::initialize(cali_opts);
+
+                run_data_accessor_policy_and_assume(node, policy);
+
+                annotations::finalize();
+
+                // src data will never change from where it started
+                if (src_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                // but destination memory will move to be where policy is
+                if (policy_str == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+
+                float64_array result_arr(node["des"]);
+                // Verification runs on the host, so use a host execution policy
+                // in case node["des"] still owns device-backed data here.
+                result_arr.use_with(ExecutionPolicy::host());
+                EXPECT_EQ(result_arr.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_arr[i], 2.0 * static_cast<float64>(i + 1));
+                }
+
+                node.reset();
+
+                if (src_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(src_device_ptr);
+                }
+                // we only need to free if node now points somewhere else
+                if (des_start == "device" && policy_str == "host")
+                {
+                    execution::DeviceMemory::deallocate(des_device_ptr);
+                }
+            }
+
+            //----------------------------------------------------------
+            // DataArray active_space
+            // Use the location of node["src"] to choose where to execute.
+            // node["des"] is then synced back to where it started.
+            //----------------------------------------------------------
+            if ((src_start == "host" && des_start == "host") ||
+                (ExecutionPolicy::is_device_enabled()))
+            {
+                CONDUIT_INFO("DataArray active_space():\n" <<
+                             "    src_start=" << src_start << "\n" <<
+                             "    des_start=" << des_start);
+
+                Node node;
+                float64 *src_device_ptr = nullptr;
+                float64 *des_device_ptr = nullptr;
+                if (src_start == "host")
+                {
+                    node["src"].set(src_vals);
+                }
+                else
+                {
+                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+                    node["src"].set_external(src_device_ptr, src_vals.size());
+                }
+                if (des_start == "host")
+                {
+                    node["des"].set(des_vals);
+                }
+                else
+                {
+                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+                    node["des"].set_external(des_device_ptr, des_vals.size());
+                }
+
+                Node cali_opts;
+                cali_opts["config"] = "runtime-report";
+                annotations::initialize(cali_opts);
+
+                ExecutionPolicy policy;
+                run_data_accessor_using_active_space(node, policy);
+
+                annotations::finalize();
+
+                if (src_start == "host")
+                {
+                    EXPECT_TRUE(policy.is_host_policy());
+                }
+                else
+                {
+                    EXPECT_TRUE(policy.is_device_policy());
+                }
+
+                // src data will never change from where it started
+                if (src_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                // des data is sync'd back to where it started
+                if (des_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+
+                float64_array result_arr(node["des"]);
+                // Verification runs on the host, so use a host execution policy
+                // in case node["des"] still owns device-backed data here.
+                result_arr.use_with(ExecutionPolicy::host());
+                EXPECT_EQ(result_arr.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_arr[i], 2.0 * static_cast<float64>(i + 1));
+                }
+
+                node.reset();
+
+                if (src_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(src_device_ptr);
+                }
+                if (des_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(des_device_ptr);
+                }
+            }
+
+            //----------------------------------------------------------
+            // DataArray dispatch lambda
+            // Run with an explicit execution policy and call sync().
+            // node["des"] is then synced back to where it started.
+            //----------------------------------------------------------
+            for (const std::string &policy_str : policies)
+            {
+                ExecutionPolicy policy;
+                if (policy_str == "host")
+                {
+                    policy = ExecutionPolicy::host();
+                }
+                else
+                {
+                    if (ExecutionPolicy::is_device_enabled())
+                    {
+                        policy = ExecutionPolicy::device();
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+
+                CONDUIT_INFO("DataArray dispatch() lambda:\n" <<
+                             "    policy="    << policy_str << "\n" <<
+                             "    src_start=" << src_start << "\n" <<
+                             "    des_start=" << des_start);
+
+                Node node;
+                float64 *src_device_ptr = nullptr;
+                float64 *des_device_ptr = nullptr;
+                if (src_start == "host")
+                {
+                    node["src"].set(src_vals);
+                }
+                else
+                {
+                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+                    node["src"].set_external(src_device_ptr, src_vals.size());
+                }
+                if (des_start == "host")
+                {
+                    node["des"].set(des_vals);
+                }
+                else
+                {
+                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+                    node["des"].set_external(des_device_ptr, des_vals.size());
+                }
+
+                Node cali_opts;
+                cali_opts["config"] = "runtime-report";
+                annotations::initialize(cali_opts);
+
+                float64 min_val; index_t min_loc;
+                run_data_accessor_dispatch_and_sync(node, policy, min_val, min_loc);
+
+                annotations::finalize();
+
+                EXPECT_EQ(min_val, 2.0);
+                EXPECT_EQ(min_loc, 0);
+
+                // src data will never change from where it started
+                if (src_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                // des data is sync'd back to where it started
+                if (des_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+
+
+                float64_array result_arr(node["des"]);
+                // Verification runs on the host, so use a host execution policy
+                // in case node["des"] still owns device-backed data here.
+                result_arr.use_with(ExecutionPolicy::host());
+                EXPECT_EQ(result_arr.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_arr[i], 2.0 * static_cast<float64>(i + 1));
+                }
+
+                node.reset();
+
+                if (src_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(src_device_ptr);
+                }
+                if (des_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(des_device_ptr);
+                }
+            }
+
+            //----------------------------------------------------------
+            // DataArray dispatch functor
+            // Run with an explicit execution policy and call sync().
+            // node["des"] is then synced back to where it started.
+            //----------------------------------------------------------
+            for (const std::string &policy_str : policies)
+            {
+                ExecutionPolicy policy;
+                if (policy_str == "host")
+                {
+                    policy = ExecutionPolicy::host();
+                }
+                else
+                {
+                    if (ExecutionPolicy::is_device_enabled())
+                    {
+                        policy = ExecutionPolicy::device();
+                    }
+                    else
+                    {
+                        continue;
+                    }
+                }
+
+                CONDUIT_INFO("DataArray dispatch() functor:\n" <<
+                             "    policy="    << policy_str << "\n" <<
+                             "    src_start=" << src_start << "\n" <<
+                             "    des_start=" << des_start);
+
+                Node node;
+                float64 *src_device_ptr = nullptr;
+                float64 *des_device_ptr = nullptr;
+                if (src_start == "host")
+                {
+                    node["src"].set(src_vals);
+                }
+                else
+                {
+                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
+                    node["src"].set_external(src_device_ptr, src_vals.size());
+                }
+                if (des_start == "host")
+                {
+                    node["des"].set(des_vals);
+                }
+                else
+                {
+                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
+                    node["des"].set_external(des_device_ptr, des_vals.size());
+                }
+
+                Node cali_opts;
+                cali_opts["config"] = "runtime-report";
+                annotations::initialize(cali_opts);
+
+                float64 min_val; index_t min_loc;
+                run_data_accessor_dispatch_and_sync(node, policy, min_val, min_loc);
+
+                annotations::finalize();
+
+                EXPECT_EQ(min_val, 2.0);
+                EXPECT_EQ(min_loc, 0);
+
+                // src data will never change from where it started
+                if (src_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
+                }
+                // des data is sync'd back to where it started
+                if (des_start == "host")
+                {
+                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+                else
+                {
+                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
+                }
+
+
+                float64_array result_arr(node["des"]);
+                // Verification runs on the host, so use a host execution policy
+                // in case node["des"] still owns device-backed data here.
+                result_arr.use_with(ExecutionPolicy::host());
+                EXPECT_EQ(result_arr.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_arr[i], 2.0 * static_cast<float64>(i + 1));
+                }
+
+                node.reset();
+
+                if (src_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(src_device_ptr);
+                }
+                if (des_start == "device")
+                {
+                    execution::DeviceMemory::deallocate(des_device_ptr);
+                }
+            }
+        }
     }
 }
-
-    // // TODO are there other cases in the notes?
-    // //------------------------------------------------------
-    // // forall cases
-    // //------------------------------------------------------
-
-    // //------------------------------------------------------
-    // // run on device
-    // //------------------------------------------------------
-    // if (ExecutionPolicy::is_device_enabled())
-    // {
-    //     Node node;
-    //     std::vector<int64> data_src = {0, 1, 2, 3};
-    //     node["src"].set(data_src);
-    //     std::vector<int64> data_des = {0, 0, 0, 0};
-    //     node["src"].set(data_des);
-    //     ExecutionAccessor<float64> acc_src(node["src"]);
-    //     ExecutionAccessor<float64> acc_des(node["des"]);
-
-    //     ExecutionPolicy policy = ExecutionPolicy::device();
-
-    //     acc_src.use_with(policy);
-    //     acc_des.use_with(policy);
-
-    //     index_t size = acc_src.number_of_elements();
-
-    //     forall(policy, 0, size, [=] CONDUIT_EXEC(index_t idx)
-    //     {
-    //         const float64 val = 2.0 * acc_src[idx];
-    //         acc_des.set(idx,val);
-    //     });
-    //     CONDUIT_DEVICE_ERROR_CHECK();
-
-    //     // sync values to node["des"]
-    //     // (no op if node["des"] was originally device memory)
-    //     acc_des.sync();
-    // }
-
-    // //------------------------------------------------------
-    // // run on device, 
-    // // result stays on device and is owned by node["des"],
-    // // even if not on the device before hand
-    // //------------------------------------------------------
-    // {
-    //     Node node;
-    //     ExecutionAccessor<float64> acc_src(node["src"]);
-    //     ExecutionAccessor<float64> acc_des(node["des"]);
-
-    //     ExecutionPolicy policy = ExecutionPolicy::device();
-
-    //     acc_src.use_with(policy);
-    //     acc_des.use_with(policy);
-
-    //     index_t size = acc_src.number_of_elements();
-
-    //     forall(policy, 0, size, [=] CONDUIT_EXEC(index_t idx)
-    //     {
-    //         const float64 val = 2.0 * acc_src[idx];
-    //         acc_des.set(idx,val);
-    //     });
-    //     CONDUIT_DEVICE_ERROR_CHECK();
-
-    //     // move results to be owned by node["des"]
-    //     // (no op if node["des"] was originally device memory)
-    //     acc_des.move(node["des"]); 
-    // }
-
-    // //------------------------------------------------------
-    // // run where the src data is
-    // //------------------------------------------------------
-    // {
-    //     Node node;
-    //     ExecutionAccessor<float64> acc_src(node["src"]);
-    //     ExecutionAccessor<float64> acc_des(node["des"]);
-
-    //     ExecutionPolicy policy = acc_src.active_space().execution_policy();
-    //     acc_des.use_with(policy);
-    //     acc_des.use_with(policy);
-
-    //     index_t size = acc_src.number_of_elements();
-
-    //     forall(policy, 0, size, [=] CONDUIT_EXEC(index_t idx)
-    //     {
-    //         const float64 val = 2.0 * acc_src[idx];
-    //         acc_des.set(idx,val);
-    //     });
-    //     CONDUIT_DEVICE_ERROR_CHECK();
-
-    //     // sync values to node["des"], 
-    //     // (no op if node["des"] was originally in 
-    //     //  same memory space as node["src"] )
-    //     acc_des.sync(node["des"]); 
-    // }
-
-    // //------------------------------------------------------
-    // // more complex cases
-    // //------------------------------------------------------
-
-    // //------------------------------------------------------
-    // // complex run on device 
-    // // double lambda forwarding concrete template tag
-    // // for use in lambda
-    // //
-    // // ( requires c++ 20 b/c of templated lambda)
-    // //------------------------------------------------------
-    // {
-    //     Node node;
-    //     ExecutionAccessor<float64> acc_src(node["src"]);
-    //     ExecutionAccessor<float64> acc_des(node["des"]);
-
-    //     ExecutionPolicy policy = ExecutionPolicy::device();
-    //     acc_des.use_with(policy);
-    //     acc_des.use_with(policy);
-
-    //     index_t size = acc_src.number_of_elements();
-
-    //     index_t min_loc = -1;
-    //     float64 min_val = 0;
-
-    //     dispatch(policy, [&] <typename Exec>(Exec &exec)
-    //     {
-    //         float64 identity = std::numeric_limits<float64>::max();
-    //         using for_policy    = typename Exec::for_policy;
-    //         using reduce_policy = typename Exec::reduce_policy;
-
-    //         ReduceMinLoc<reduce_policy,float64> reducer(identity,-1);
-
-    //         forall<for_policy>(0, size, [=] CONDUIT_EXEC (int i)
-    //         {
-    //             const float64 val = 2.0 * acc_src[idx];
-    //             reducer.minloc(val,i);
-    //             acc_des.set(idx,val);
-    //         });
-    //         CONDUIT_DEVICE_ERROR_CHECK();
-
-    //         min_val = reducer.get();
-    //         min_loc = reducer.getLoc();
-    //     });
-
-    //     // sync values to node["des"], 
-    //     // (no op if node["des"] was originally in
-    //     //  same memory space as node["src"] )
-    //     acc_des.sync(node["des"]); 
-    // }
-
-    // //------------------------------------------------------
-    // // complex run on device using functor
-    // // (functor implementation)
-    // //------------------------------------------------------
-    // struct ExecFunctor
-    // {
-    //     float64 min_val;
-    //     index_t min_loc;
-
-    //     ExecutionAccessor<float64> acc_src;
-    //     ExecutionAccessor<float64> acc_des;
-
-    //     template<typename Exec>
-    //     void operator()(Exec &exec)
-    //     {
-    //         float64 identity = std::numeric_limits<float64>::max();
-    //         using for_policy    = typename Exec::for_policy;
-    //         using reduce_policy = typename Exec::reduce_policy;
-
-    //         ReduceMinLoc<reduce_policy,float64> reducer(identity, -1);
-
-    //         forall<for_policy>(0, size, [=] (int i)
-    //         {
-    //             const float64 val = 2.0 * acc_src[idx];
-    //             reducer.minloc(val,i);
-    //             acc_des.set(idx,val);
-    //         });
-    //         CONDUIT_DEVICE_ERROR_CHECK();
-
-    //         min_val = reducer.get();
-    //         min_loc = reducer.getLoc();
-    //     }
-    // };
-
-    // //------------------------------------------------------
-    // // complex run on device using functor 
-    // // (functor dispatch)
-    // //------------------------------------------------------
-    // {
-    //     Node node;
-    //     ExecutionAccessor<float64> acc_src(node["src"]);
-    //     ExecutionAccessor<float64> acc_des(node["des"]);
-
-    //     ExecutionPolicy policy = ExecutionPolicy::device();
-    //     acc_des.use_with(policy);
-    //     acc_des.use_with(policy);
-
-    //     index_t size = acc_src.number_of_elements();
-
-    //     ExecFunctor f();
-
-    //     // init functor
-    //     f.acc_src = acc_src;
-    //     f.acc_des = acc_des;
-
-    //     dispatch(policy,f);
-
-    //     // get results stored in functor
-    //     float64 min_val = f.min_val;
-    //     index_t min_loc = f.min_loc;
-
-    //     // sync values to node["des"], 
-    //     // (no op if node["des"] was originally in
-    //     //  same memory space as node["src"])
-    //     acc_des.sync(node["des"]); 
-    // }
 
 //-----------------------------------------------------------------------------
 int main(int argc, char *argv[])
