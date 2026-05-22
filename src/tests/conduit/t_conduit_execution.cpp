@@ -26,23 +26,6 @@ using conduit::execution::ExecutionPolicy;
 index_t EXECUTION_TEST_ARRAY_SIZE = 4;
 
 //-----------------------------------------------------------------------------
-template <typename ArrayType>
-void
-expect_doubled_execution_values(const ArrayType &values, index_t array_size)
-{
-    // Shared by the data array and data accessor execution tests.
-    EXPECT_EQ(values.number_of_elements(), array_size);
-    for(index_t i = 0; i < array_size; i++)
-    {
-        EXPECT_EQ(values[i], 2.0 * static_cast<float64>(i + 1));
-    }
-}
-
-//-----------------------------------------------------------------------------
-// Tests
-//-----------------------------------------------------------------------------
-
-//-----------------------------------------------------------------------------
 TEST(conduit_execution, policy_aliases)
 {
     const ExecutionPolicy host = ExecutionPolicy::host();
@@ -484,7 +467,11 @@ TEST(conduit_execution, strawman_data_accessor)
                 // Verification runs on the host, so use a host execution policy
                 // in case node["des"] still owns device-backed data here.
                 result_acc.use_with(ExecutionPolicy::host());
-                expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
+                EXPECT_EQ(result_acc.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_acc[i], 2.0 * static_cast<float64>(i + 1));
+                }
 
                 node.reset();
 
@@ -580,7 +567,11 @@ TEST(conduit_execution, strawman_data_accessor)
                 // Verification runs on the host, so use a host execution policy
                 // in case node["des"] still owns device-backed data here.
                 result_acc.use_with(ExecutionPolicy::host());
-                expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
+                EXPECT_EQ(result_acc.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_acc[i], 2.0 * static_cast<float64>(i + 1));
+                }
 
                 node.reset();
 
@@ -670,7 +661,11 @@ TEST(conduit_execution, strawman_data_accessor)
                 // Verification runs on the host, so use a host execution policy
                 // in case node["des"] still owns device-backed data here.
                 result_acc.use_with(ExecutionPolicy::host());
-                expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
+                EXPECT_EQ(result_acc.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_acc[i], 2.0 * static_cast<float64>(i + 1));
+                }
 
                 node.reset();
 
@@ -771,7 +766,11 @@ TEST(conduit_execution, strawman_data_accessor)
                 // Verification runs on the host, so use a host execution policy
                 // in case node["des"] still owns device-backed data here.
                 result_acc.use_with(ExecutionPolicy::host());
-                expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
+                EXPECT_EQ(result_acc.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_acc[i], 2.0 * static_cast<float64>(i + 1));
+                }
 
                 node.reset();
 
@@ -872,7 +871,11 @@ TEST(conduit_execution, strawman_data_accessor)
                 // Verification runs on the host, so use a host execution policy
                 // in case node["des"] still owns device-backed data here.
                 result_acc.use_with(ExecutionPolicy::host());
-                expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
+                EXPECT_EQ(result_acc.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_acc[i], 2.0 * static_cast<float64>(i + 1));
+                }
 
                 node.reset();
 
@@ -989,7 +992,11 @@ TEST(conduit_execution, strawman_data_array)
                 // Verification runs on the host, so use a host execution policy
                 // in case node["des"] still owns device-backed data here.
                 result_arr.use_with(ExecutionPolicy::host());
-                expect_doubled_execution_values(result_arr, EXECUTION_TEST_ARRAY_SIZE);
+                EXPECT_EQ(result_arr.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_arr[i], 2.0 * static_cast<float64>(i + 1));
+                }
 
                 node.reset();
 
@@ -1085,7 +1092,11 @@ TEST(conduit_execution, strawman_data_array)
                 // Verification runs on the host, so use a host execution policy
                 // in case node["des"] still owns device-backed data here.
                 result_arr.use_with(ExecutionPolicy::host());
-                expect_doubled_execution_values(result_arr, EXECUTION_TEST_ARRAY_SIZE);
+                EXPECT_EQ(result_arr.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_arr[i], 2.0 * static_cast<float64>(i + 1));
+                }
 
                 node.reset();
 
@@ -1175,7 +1186,11 @@ TEST(conduit_execution, strawman_data_array)
                 // Verification runs on the host, so use a host execution policy
                 // in case node["des"] still owns device-backed data here.
                 result_arr.use_with(ExecutionPolicy::host());
-                expect_doubled_execution_values(result_arr, EXECUTION_TEST_ARRAY_SIZE);
+                EXPECT_EQ(result_arr.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_arr[i], 2.0 * static_cast<float64>(i + 1));
+                }
 
                 node.reset();
 
@@ -1276,7 +1291,11 @@ TEST(conduit_execution, strawman_data_array)
                 // Verification runs on the host, so use a host execution policy
                 // in case node["des"] still owns device-backed data here.
                 result_arr.use_with(ExecutionPolicy::host());
-                expect_doubled_execution_values(result_arr, EXECUTION_TEST_ARRAY_SIZE);
+                EXPECT_EQ(result_arr.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_arr[i], 2.0 * static_cast<float64>(i + 1));
+                }
 
                 node.reset();
 
@@ -1377,7 +1396,11 @@ TEST(conduit_execution, strawman_data_array)
                 // Verification runs on the host, so use a host execution policy
                 // in case node["des"] still owns device-backed data here.
                 result_arr.use_with(ExecutionPolicy::host());
-                expect_doubled_execution_values(result_arr, EXECUTION_TEST_ARRAY_SIZE);
+                EXPECT_EQ(result_arr.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
+                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
+                {
+                    EXPECT_EQ(result_arr[i], 2.0 * static_cast<float64>(i + 1));
+                }
 
                 node.reset();
 
