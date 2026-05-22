@@ -29,28 +29,35 @@ conduit_device_prepare()
 }
 
 //-----------------------------------------------------------------------------
-void *
-allocate_for_policy(ExecutionPolicy policy, index_t bytes)
+float64 *
+make_float64_device_buffer(const float64 *host_vals, index_t num_vals)
 {
-    if (policy.is_device_policy())
-    {
-        return execution::DeviceMemory::allocate(bytes);
-    }
-
-    return execution::HostMemory::allocate(bytes);
+    float64 *device_ptr = static_cast<float64*>(
+        execution::DeviceMemory::allocate(sizeof(float64) * num_vals));
+    conduit::execution::MagicMemory::copy(device_ptr,
+                                          host_vals,
+                                          sizeof(float64) * num_vals);
+    return device_ptr;
 }
 
 //-----------------------------------------------------------------------------
-void
-free_for_policy(ExecutionPolicy policy, void *ptr)
+std::vector<float64>
+make_execution_src_vals(index_t array_size)
 {
-    if (policy.is_device_policy())
+    std::vector<float64> vals(array_size);
+    for(index_t i = 0; i < array_size; i++)
     {
-        execution::DeviceMemory::deallocate(ptr);
-        return;
+        vals[i] = static_cast<float64>(i + 1);
     }
 
-    execution::HostMemory::deallocate(ptr);
+    return vals;
+}
+
+//-----------------------------------------------------------------------------
+std::vector<float64>
+make_execution_des_vals(index_t array_size)
+{
+    return std::vector<float64>(array_size, 0.0);
 }
 
 //-----------------------------------------------------------------------------
@@ -99,38 +106,6 @@ for_each_enabled_policy(Func &&func)
         ExecutionPolicy parallel = ExecutionPolicy::parallel();
         func(parallel);
     }
-}
-
-//-----------------------------------------------------------------------------
-float64 *
-make_float64_device_buffer(const float64 *host_vals, index_t num_vals)
-{
-    float64 *device_ptr = static_cast<float64*>(
-        execution::DeviceMemory::allocate(sizeof(float64) * num_vals));
-    conduit::execution::MagicMemory::copy(device_ptr,
-                                          host_vals,
-                                          sizeof(float64) * num_vals);
-    return device_ptr;
-}
-
-//-----------------------------------------------------------------------------
-std::vector<float64>
-make_execution_src_vals(index_t array_size)
-{
-    std::vector<float64> vals(array_size);
-    for(index_t i = 0; i < array_size; i++)
-    {
-        vals[i] = static_cast<float64>(i + 1);
-    }
-
-    return vals;
-}
-
-//-----------------------------------------------------------------------------
-std::vector<float64>
-make_execution_des_vals(index_t array_size)
-{
-    return std::vector<float64>(array_size, 0.0);
 }
 
 //-----------------------------------------------------------------------------

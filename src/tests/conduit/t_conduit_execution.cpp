@@ -38,6 +38,9 @@ expect_doubled_execution_values(const ArrayType &values, index_t array_size)
     }
 }
 
+//-----------------------------------------------------------------------------
+// Tests
+//-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, policy_aliases)
@@ -101,77 +104,6 @@ TEST(conduit_execution, policy_aliases)
     EXPECT_EQ(parallel_from_name.policy_id(), parallel.policy_id());
 }
 
-// TODO someday we want allocator to make sense for nodes when we are done with them
-
-//---------------------------------------------------------------------------//
-// example functor 
-//---------------------------------------------------------------------------//
-struct MyFunctor
-{
-    int res;
-    int size;
-    template<typename ComboPolicyTag>
-    void operator()(ComboPolicyTag &exec)
-    {
-        (void)exec;
-        res = 0;
-        conduit::execution::forall<ComboPolicyTag>(0, size, [] CONDUIT_EXEC (int i)
-        {
-            (void)i;
-        });
-        res = size;
-    }
-};
-
-//---------------------------------------------------------------------------//
-// Mock of a class templated on a concrete tag
-// (like a RAJA Reduction Object)
-//---------------------------------------------------------------------------//
-template <typename ExecPolicy>
-class MySpecialClass
-{
-public:
-    using policy = ExecPolicy;
-    int val;
-
-    MySpecialClass(int _val)
-    :val(_val)
-    {}
-    
-    CONDUIT_EXEC int exec(int i) const
-    {
-        return val + i;
-    }
-};
-
-//---------------------------------------------------------------------------//
-// example functor using MySpecialClass
-//---------------------------------------------------------------------------//
-struct MySpecialFunctor
-{
-    int res;
-    int size;
-    template<typename ComboPolicyTag>
-    void operator()(ComboPolicyTag &exec)
-    {
-        (void)exec;
-        // in this case we use an object
-        // that is templated on a concrete tag
-        // (like a RAJA Reduction Object)
-        using for_policy = typename ComboPolicyTag::for_policy;
-        res = 0;
-        MySpecialClass<for_policy> s(10);
-        conduit::execution::forall<ComboPolicyTag>(0, size, [=] CONDUIT_EXEC (int i)
-        {
-            const int value = s.exec(i);
-            (void)value;
-        });
-        res = size;
-    }
-};
-
-//-----------------------------------------------------------------------------
-// Tests
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, test_forall)
 {
@@ -186,9 +118,19 @@ TEST(conduit_execution, test_forall)
         const index_t size = 10;
 
         index_t host_vals[size];
-        index_t *vals_ptr =
-            static_cast<index_t*>(allocate_for_policy(policy,
-                                                      sizeof(index_t) * size));
+        index_t *vals_ptr = nullptr;
+        if (policy.is_device_policy())
+        {
+            vals_ptr = 
+                static_cast<index_t *>(
+                    execution::DeviceMemory::allocate(sizeof(index_t) * size))
+        }
+        else
+        {
+            vals_ptr = 
+                static_cast<index_t *>(
+                    execution::HostMemory::allocate(sizeof(index_t) * size));
+        }
 
         conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
         {
@@ -205,7 +147,15 @@ TEST(conduit_execution, test_forall)
             EXPECT_EQ(host_vals[i], i);
         }
 
-        free_for_policy(policy, vals_ptr);
+        if (policy.is_device_policy())
+        {
+            execution::DeviceMemory::deallocate(ptr);
+        }
+        else
+        {
+            execution::HostMemory::deallocate(ptr);
+        }
+
         annotations::finalize();
     });
 }
@@ -223,9 +173,20 @@ TEST(conduit_execution, test_reductions)
 
         const index_t size = 4;
         index_t host_vals[size] = {0, -10, 10, 5};
-        index_t *vals_ptr =
-            static_cast<index_t*>(allocate_for_policy(policy,
-                                                      sizeof(index_t) * size));
+        index_t *vals_ptr = nullptr;
+        if (policy.is_device_policy())
+        {
+            vals_ptr = 
+                static_cast<index_t *>(
+                    execution::DeviceMemory::allocate(sizeof(index_t) * size))
+        }
+        else
+        {
+            vals_ptr = 
+                static_cast<index_t *>(
+                    execution::HostMemory::allocate(sizeof(index_t) * size));
+        }
+
         conduit::execution::MagicMemory::copy(vals_ptr,
                                               &host_vals[0],
                                               sizeof(index_t) * size);
@@ -310,7 +271,15 @@ TEST(conduit_execution, test_reductions)
         EXPECT_EQ(maxloc_result, 10);
         EXPECT_EQ(maxloc_index, 2);
 
-        free_for_policy(policy, vals_ptr);
+        if (policy.is_device_policy())
+        {
+            execution::DeviceMemory::deallocate(ptr);
+        }
+        else
+        {
+            execution::HostMemory::deallocate(ptr);
+        }
+
         annotations::finalize();
     });
 }
@@ -328,9 +297,19 @@ TEST(conduit_execution, test_atomics)
 
         const index_t size = 4;
         index_t host_vals[size] = {0, -1, -2, -3};
-        index_t *vals_ptr =
-            static_cast<index_t*>(allocate_for_policy(policy,
-                                                      sizeof(index_t) * size));
+        index_t *vals_ptr = nullptr;
+        if (policy.is_device_policy())
+        {
+            vals_ptr = 
+                static_cast<index_t *>(
+                    execution::DeviceMemory::allocate(sizeof(index_t) * size))
+        }
+        else
+        {
+            vals_ptr = 
+                static_cast<index_t *>(
+                    execution::HostMemory::allocate(sizeof(index_t) * size));
+        }
 
         conduit::execution::MagicMemory::copy(vals_ptr,
                                               &host_vals[0],
@@ -392,93 +371,17 @@ TEST(conduit_execution, test_atomics)
             EXPECT_EQ(host_vals[i], 10);
         }
 
-        free_for_policy(policy, vals_ptr);
+        if (policy.is_device_policy())
+        {
+            execution::DeviceMemory::deallocate(ptr);
+        }
+        else
+        {
+            execution::HostMemory::deallocate(ptr);
+        }
+
         annotations::finalize();
     });
-}
-
-//-----------------------------------------------------------------------------
-TEST(conduit_execution, for_all_and_dispatch)
-{
-    std::cout << "forall cases!" << std::endl;
-
-    const int size = 4;
-    MyFunctor func;
-    func.size = size;
-    MySpecialFunctor sfunc;
-    sfunc.size = 4;
-
-    auto test_exec_policy = [&](ExecutionPolicy policy)
-    {
-        CONDUIT_INFO("for_all_and_dispatch policy=" << policy.policy_name());
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-
-        int *vals_ptr = nullptr;
-        if (policy.is_device_policy())
-        {
-            vals_ptr = static_cast<int*>(execution::DeviceMemory::allocate(sizeof(int) * size));
-        }
-        else
-        {
-            vals_ptr = static_cast<int*>(execution::HostMemory::allocate(sizeof(int) * size));
-        }
-
-        // Use runtime forall(policy, ...) when one portable kernel works for
-        // every backend that may be selected in this translation unit.
-        auto portable_kernel = [=] CONDUIT_EXEC (int i)
-        {
-            vals_ptr[i] = i;
-        };
-        conduit::execution::forall(policy, 0, size, portable_kernel);
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-        int host_vals[size];
-        conduit::execution::MagicMemory::copy(host_vals, vals_ptr, sizeof(int) * size);
-
-        for (int i = 0; i < size; i++)
-        {
-            EXPECT_EQ(host_vals[i], i);
-        }
-
-        if (policy.is_device_policy())
-        {
-            execution::DeviceMemory::deallocate(vals_ptr);
-        }
-        else
-        {
-            execution::HostMemory::deallocate(vals_ptr);
-        }
-
-        conduit::execution::dispatch(policy, func);
-        EXPECT_EQ(func.res, size);
-
-        conduit::execution::dispatch(policy, sfunc);
-        EXPECT_EQ(sfunc.res, size);
-
-        // Use dispatch(policy, ...) when the concrete execution tag is needed
-        // to instantiate backend-specific helper types or call forall<Tag>(...).
-        int res = 0;
-        auto concrete_kernel = [&](auto &exec)
-        {
-            using combo_policy = typename std::decay<decltype(exec)>::type;
-            using for_policy = typename combo_policy::for_policy;
-            MySpecialClass<for_policy> s(10);
-            conduit::execution::forall<combo_policy>(0, size, [=] CONDUIT_EXEC (int i)
-            {
-                const int value = s.exec(i);
-                (void)value;
-            });
-            res = 10;
-        };
-        conduit::execution::dispatch(policy, concrete_kernel);
-
-        EXPECT_EQ(res, 10);
-        annotations::finalize();
-    };
-
-    for_each_enabled_policy(test_exec_policy);
 }
 
 //-----------------------------------------------------------------------------
