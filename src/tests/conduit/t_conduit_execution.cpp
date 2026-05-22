@@ -12,6 +12,7 @@
 #include "conduit_annotations.hpp"
 #include "conduit_execution.hpp"
 #include "conduit_memory_manager.hpp"
+#include "execution_test_utils.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -25,125 +26,13 @@ using conduit::execution::ExecutionPolicy;
 index_t EXECUTION_TEST_ARRAY_SIZE = 4;
 
 //-----------------------------------------------------------------------------
-void
-conduit_device_prepare()
-{
-    execution::init_device_memory_handlers();
-}
-
-//-----------------------------------------------------------------------------
-void *
-allocate_for_policy(ExecutionPolicy policy, index_t bytes)
-{
-    if (policy.is_device_policy())
-    {
-        return execution::DeviceMemory::allocate(bytes);
-    }
-
-    return execution::HostMemory::allocate(bytes);
-}
-
-//-----------------------------------------------------------------------------
-void
-free_for_policy(ExecutionPolicy policy, void *ptr)
-{
-    if (policy.is_device_policy())
-    {
-        execution::DeviceMemory::deallocate(ptr);
-        return;
-    }
-
-    execution::HostMemory::deallocate(ptr);
-}
-
-//-----------------------------------------------------------------------------
-template <typename Func>
-void
-for_each_enabled_policy(Func &&func)
-{
-    if (ExecutionPolicy::is_serial_enabled())
-    {
-        ExecutionPolicy serial = ExecutionPolicy::serial();
-        func(serial);
-    }
-
-    if (ExecutionPolicy::is_cuda_enabled())
-    {
-        ExecutionPolicy cuda = ExecutionPolicy::cuda();
-        func(cuda);
-    }
-
-    if (ExecutionPolicy::is_hip_enabled())
-    {
-        ExecutionPolicy hip = ExecutionPolicy::hip();
-        func(hip);
-    }
-
-    if (ExecutionPolicy::is_openmp_enabled())
-    {
-        ExecutionPolicy openmp = ExecutionPolicy::openmp();
-        func(openmp);
-    }
-
-    if (ExecutionPolicy::is_host_enabled())
-    {
-        ExecutionPolicy host = ExecutionPolicy::host();
-        func(host);
-    }
-
-    if (ExecutionPolicy::is_device_enabled())
-    {
-        ExecutionPolicy device = ExecutionPolicy::device();
-        func(device);
-    }
-
-    if (ExecutionPolicy::is_parallel_enabled())
-    {
-        ExecutionPolicy parallel = ExecutionPolicy::parallel();
-        func(parallel);
-    }
-}
-
-//-----------------------------------------------------------------------------
-float64 *
-make_float64_device_buffer(const float64 *host_vals, index_t num_vals)
-{
-    float64 *device_ptr = static_cast<float64*>(
-        execution::DeviceMemory::allocate(sizeof(float64) * num_vals));
-    conduit::execution::MagicMemory::copy(device_ptr,
-                                          host_vals,
-                                          sizeof(float64) * num_vals);
-    return device_ptr;
-}
-
-//-----------------------------------------------------------------------------
-std::vector<float64>
-make_execution_src_vals()
-{
-    std::vector<float64> vals(EXECUTION_TEST_ARRAY_SIZE);
-    for(index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i++)
-    {
-        vals[i] = static_cast<float64>(i + 1);
-    }
-
-    return vals;
-}
-
-//-----------------------------------------------------------------------------
-std::vector<float64>
-make_execution_des_vals()
-{
-    return std::vector<float64>(EXECUTION_TEST_ARRAY_SIZE, 0.0);
-}
-
-//-----------------------------------------------------------------------------
 template <typename ArrayType>
 void
-expect_doubled_execution_values(const ArrayType &values)
+expect_doubled_execution_values(const ArrayType &values, index_t array_size)
 {
     // Shared by the data array and data accessor execution tests.
-    EXPECT_EQ(values.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
-    for(index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i++)
+    EXPECT_EQ(values.number_of_elements(), array_size);
+    for(index_t i = 0; i < array_size; i++)
     {
         EXPECT_EQ(values[i], 2.0 * static_cast<float64>(i + 1));
     }
@@ -210,396 +99,6 @@ TEST(conduit_execution, policy_aliases)
 
     const ExecutionPolicy parallel_from_name("parallel");
     EXPECT_EQ(parallel_from_name.policy_id(), parallel.policy_id());
-}
-
-//-----------------------------------------------------------------------------
-void
-run_data_accessor_policy_and_sync(Node &node,
-                                  ExecutionPolicy policy)
-{
-    // DataAccessors wrap node leaf data.
-    float64_accessor acc_src(node["src"]);
-    float64_accessor acc_des(node["des"]);
-
-    // Ask the accessors to move their data to the memory space occupied
-    // by the requested execution policy if their data is not already
-    // there.
-    acc_src.use_with(policy);
-    acc_des.use_with(policy);
-
-    // Our forall will execute in the memory space selected by the
-    // requested ExecutionPolicy.
-    index_t size = acc_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [acc_src, acc_des] CONDUIT_EXEC(index_t idx)
-    {
-        const float64 val = 2.0 * acc_src[idx];
-        acc_des.set(idx, val);
-    });
-    CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-    // Sync values to node["des"].
-    // This is a no op if node["des"] was originally in the same memory
-    // space as the requested execution policy.
-    acc_des.sync();
-}
-
-//-----------------------------------------------------------------------------
-void
-run_data_accessor_policy_and_assume(Node &node,
-                                    ExecutionPolicy policy)
-{
-    // DataAccessors wrap node leaf data.
-    float64_accessor acc_src(node["src"]);
-    float64_accessor acc_des(node["des"]);
-
-    // Ask the accessors to move their data to the memory space occupied
-    // by the requested execution policy if their data is not already
-    // there.
-    acc_src.use_with(policy);
-    acc_des.use_with(policy);
-
-    // Our forall will execute in the memory space selected by the
-    // requested ExecutionPolicy.
-    index_t size = acc_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [acc_src, acc_des] CONDUIT_EXEC(index_t idx)
-    {
-        const float64 val = 2.0 * acc_src[idx];
-        acc_des.set(idx, val);
-    });
-    CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-    // node["des"] takes ownership of the data in the active execution
-    // space. This is a no op if node["des"] was already in that space.
-    acc_des.assume();
-}
-
-//-----------------------------------------------------------------------------
-void
-run_data_accessor_using_active_space(Node &node,
-                                     const bool expect_device_policy)
-{
-    // DataAccessors wrap node leaf data.
-    float64_accessor acc_src(node["src"]);
-    float64_accessor acc_des(node["des"]);
-
-    // Use the location of the source data.
-    ExecutionPolicy policy = acc_src.active_space();
-    if (expect_device_policy)
-    {
-        EXPECT_TRUE(policy.is_device_policy());
-    }
-    else
-    {
-        EXPECT_TRUE(policy.is_host_policy());
-    }
-
-    // Ask the accessors to move their data to the memory space occupied
-    // by node["src"] if their data is not already there.
-    acc_src.use_with(policy);
-    acc_des.use_with(policy);
-
-    // Our forall will execute on the memory space occupied by node["src"]
-    // because it was passed an ExecutionPolicy for that space.
-    index_t size = acc_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [acc_src, acc_des] CONDUIT_EXEC(index_t idx)
-    {
-        const float64 val = 2.0 * acc_src[idx];
-        acc_des.set(idx, val);
-    });
-    CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-    // Sync values to node["des"].
-    // This is a no op if node["des"] was originally in the same memory
-    // space as node["src"].
-    acc_des.sync();
-}
-
-//-----------------------------------------------------------------------------
-void
-run_data_array_policy_and_sync(Node &node,
-                               ExecutionPolicy policy)
-{
-    // DataArrays wrap node leaf data directly.
-    float64_array arr_src(node["src"]);
-    float64_array arr_des(node["des"]);
-
-    // Ask the arrays to move their data to the memory space occupied
-    // by the requested execution policy if their data is not already
-    // there.
-    arr_src.use_with(policy);
-    arr_des.use_with(policy);
-
-    // Our forall will execute in the memory space selected by the
-    // requested ExecutionPolicy.
-    index_t size = arr_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [arr_src, arr_des] CONDUIT_EXEC(index_t idx)
-    {
-        const float64 val = 2.0 * arr_src[idx];
-        arr_des.set(idx, val);
-    });
-    CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-    // Sync values to node["des"].
-    // This is a no op if node["des"] was originally in the same memory
-    // space as the requested execution policy.
-    arr_des.sync();
-}
-
-//-----------------------------------------------------------------------------
-void
-run_data_array_policy_and_assume(Node &node,
-                                 ExecutionPolicy policy)
-{
-    // DataArrays wrap node leaf data directly.
-    float64_array arr_src(node["src"]);
-    float64_array arr_des(node["des"]);
-
-    // Ask the arrays to move their data to the memory space occupied
-    // by the requested execution policy if their data is not already
-    // there.
-    arr_src.use_with(policy);
-    arr_des.use_with(policy);
-
-    // Our forall will execute in the memory space selected by the
-    // requested ExecutionPolicy.
-    index_t size = arr_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [arr_src, arr_des] CONDUIT_EXEC(index_t idx)
-    {
-        const float64 val = 2.0 * arr_src[idx];
-        arr_des.set(idx, val);
-    });
-    CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-    // node["des"] takes ownership of the data in the active execution
-    // space. This is a no op if node["des"] was already in that space.
-    arr_des.assume();
-}
-
-//-----------------------------------------------------------------------------
-void
-run_data_array_using_active_space(Node &node,
-                                  const bool expect_device_policy)
-{
-    // DataArrays wrap node leaf data directly.
-    float64_array arr_src(node["src"]);
-    float64_array arr_des(node["des"]);
-
-    // Use the location of the source data.
-    ExecutionPolicy policy = arr_src.active_space();
-    if (expect_device_policy)
-    {
-        EXPECT_TRUE(policy.is_device_policy());
-    }
-    else
-    {
-        EXPECT_TRUE(policy.is_host_policy());
-    }
-
-    // Ask the arrays to move their data to the memory space occupied
-    // by node["src"] if their data is not already there.
-    arr_src.use_with(policy);
-    arr_des.use_with(policy);
-
-    // Our forall will execute on the memory space occupied by node["src"]
-    // because it was passed an ExecutionPolicy for that space.
-    index_t size = arr_src.number_of_elements();
-    conduit::execution::forall(policy, 0, size, [arr_src, arr_des] CONDUIT_EXEC(index_t idx)
-    {
-        const float64 val = 2.0 * arr_src[idx];
-        arr_des.set(idx, val);
-    });
-    CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-    // Sync values to node["des"].
-    // This is a no op if node["des"] was originally in the same memory
-    // space as node["src"].
-    arr_des.sync();
-}
-
-//-----------------------------------------------------------------------------
-void
-run_data_accessor_dispatch_and_sync(Node &node,
-                                    ExecutionPolicy policy,
-                                    float64 &min_val,
-                                    index_t &min_loc)
-{
-    float64_accessor acc_src(node["src"]);
-    float64_accessor acc_des(node["des"]);
-
-    acc_src.use_with(policy);
-    acc_des.use_with(policy);
-
-    index_t size = acc_src.number_of_elements();
-    conduit::execution::dispatch(policy, [&](auto exec_tag)
-    {
-        using Exec = decltype(exec_tag);
-        conduit::execution::ReduceMinLoc<Exec, float64>
-            reducer(std::numeric_limits<float64>::max(), -1);
-
-        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t idx)
-        {
-            const float64 val = 2.0 * acc_src[idx];
-            reducer.minloc(val, idx);
-            acc_des.set(idx, val);
-        });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-        min_val = reducer.get();
-        min_loc = reducer.getLoc();
-    });
-
-    acc_des.sync();
-}
-
-//-----------------------------------------------------------------------------
-struct DataAccessorDispatchFunctor
-{
-    ExecutionPolicy policy;
-    float64_accessor acc_src;
-    float64_accessor acc_des;
-    float64 min_val = 0.0;
-    index_t min_loc = -1;
-
-    template<typename Exec>
-    void operator()(Exec &)
-    {
-        conduit::execution::ReduceMinLoc<Exec, float64>
-            reducer(std::numeric_limits<float64>::max(), -1);
-
-        index_t size = acc_src.number_of_elements();
-        // Capture device-usable view copies directly so the kernel does not
-        // implicitly depend on the host-side functor object via `this`.
-        const float64_accessor src = acc_src;
-        const float64_accessor des = acc_des;
-        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t idx)
-        {
-            const float64 val = 2.0 * src[idx];
-            reducer.minloc(val, idx);
-            des.set(idx, val);
-        });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-        min_val = reducer.get();
-        min_loc = reducer.getLoc();
-    }
-};
-
-//-----------------------------------------------------------------------------
-void
-run_data_accessor_dispatch_functor_and_sync(Node &node,
-                                            ExecutionPolicy policy,
-                                            float64 &min_val,
-                                            index_t &min_loc)
-{
-    float64_accessor acc_src(node["src"]);
-    float64_accessor acc_des(node["des"]);
-
-    acc_src.use_with(policy);
-    acc_des.use_with(policy);
-
-    DataAccessorDispatchFunctor func{
-        policy,
-        acc_src,
-        acc_des
-    };
-    conduit::execution::dispatch(policy, func);
-
-    min_val = func.min_val;
-    min_loc = func.min_loc;
-    acc_des.sync();
-}
-
-//-----------------------------------------------------------------------------
-void
-run_data_array_dispatch_and_sync(Node &node,
-                                 ExecutionPolicy policy,
-                                 float64 &min_val,
-                                 index_t &min_loc)
-{
-    float64_array arr_src(node["src"]);
-    float64_array arr_des(node["des"]);
-
-    arr_src.use_with(policy);
-    arr_des.use_with(policy);
-
-    index_t size = arr_src.number_of_elements();
-    conduit::execution::dispatch(policy, [&](auto exec_tag)
-    {
-        using Exec = decltype(exec_tag);
-        conduit::execution::ReduceMinLoc<Exec, float64>
-            reducer(std::numeric_limits<float64>::max(), -1);
-
-        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t idx)
-        {
-            const float64 val = 2.0 * arr_src[idx];
-            reducer.minloc(val, idx);
-            arr_des.set(idx, val);
-        });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-        min_val = reducer.get();
-        min_loc = reducer.getLoc();
-    });
-
-    arr_des.sync();
-}
-
-//-----------------------------------------------------------------------------
-struct DataArrayDispatchFunctor
-{
-    ExecutionPolicy policy;
-    float64_array arr_src;
-    float64_array arr_des;
-    float64 min_val = 0.0;
-    index_t min_loc = -1;
-
-    template<typename Exec>
-    void operator()(Exec &)
-    {
-        conduit::execution::ReduceMinLoc<Exec, float64>
-            reducer(std::numeric_limits<float64>::max(), -1);
-
-        index_t size = arr_src.number_of_elements();
-        // Capture device-usable view copies directly so the kernel does not
-        // implicitly depend on the host-side functor object via `this`.
-        const float64_array src = arr_src;
-        const float64_array des = arr_des;
-        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t idx)
-        {
-            const float64 val = 2.0 * src[idx];
-            reducer.minloc(val, idx);
-            des.set(idx, val);
-        });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-        min_val = reducer.get();
-        min_loc = reducer.getLoc();
-    }
-};
-
-//-----------------------------------------------------------------------------
-void
-run_data_array_dispatch_functor_and_sync(Node &node,
-                                         ExecutionPolicy policy,
-                                         float64 &min_val,
-                                         index_t &min_loc)
-{
-    float64_array arr_src(node["src"]);
-    float64_array arr_des(node["des"]);
-
-    arr_src.use_with(policy);
-    arr_des.use_with(policy);
-
-    DataArrayDispatchFunctor func{
-        policy,
-        arr_src,
-        arr_des
-    };
-    conduit::execution::dispatch(policy, func);
-
-    min_val = func.min_val;
-    min_loc = func.min_loc;
-    arr_des.sync();
 }
 
 // TODO someday we want allocator to make sense for nodes when we are done with them
@@ -990,8 +489,8 @@ TEST(conduit_execution, for_all_and_dispatch)
 TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
 {
     conduit_device_prepare();
-    const std::vector<float64> src_vals = make_execution_src_vals();
-    const std::vector<float64> des_vals = make_execution_des_vals();
+    const std::vector<float64> src_vals = make_execution_src_vals(EXECUTION_TEST_ARRAY_SIZE);
+    const std::vector<float64> des_vals = make_execution_des_vals(EXECUTION_TEST_ARRAY_SIZE);
 
     // Run with an explicit host execution policy.
     // node["des"] is synced back to host memory.
@@ -1014,7 +513,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -1041,7 +540,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -1067,7 +566,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -1094,7 +593,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -1111,7 +610,9 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        run_data_accessor_using_active_space(node, false);
+        ExecutionPolicy policy;
+        run_data_accessor_using_active_space(node, policy);
+        EXPECT_TRUE(policy.is_host_policy());
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1120,7 +621,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -1136,8 +637,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_accessor_dispatch_and_sync(node,
                                             ExecutionPolicy::host(),
                                             min_val,
@@ -1150,7 +650,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -1165,8 +665,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_accessor_dispatch_functor_and_sync(node,
                                                     ExecutionPolicy::host(),
                                                     min_val,
@@ -1179,7 +678,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -1194,8 +693,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_accessor_dispatch_and_sync(node,
                                             ExecutionPolicy::device(),
                                             min_val,
@@ -1208,7 +706,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -1224,8 +722,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_accessor_dispatch_functor_and_sync(node,
                                                     ExecutionPolicy::device(),
                                                     min_val,
@@ -1238,7 +735,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -1252,8 +749,8 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_host)
 TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
 {
     conduit_device_prepare();
-    const std::vector<float64> src_vals = make_execution_src_vals();
-    const std::vector<float64> des_vals = make_execution_des_vals();
+    const std::vector<float64> src_vals = make_execution_src_vals(EXECUTION_TEST_ARRAY_SIZE);
+    const std::vector<float64> des_vals = make_execution_des_vals(EXECUTION_TEST_ARRAY_SIZE);
 
     if (!ExecutionPolicy::is_device_enabled())
     {
@@ -1283,7 +780,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -1313,7 +810,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -1343,7 +840,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -1373,7 +870,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -1393,7 +890,9 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        run_data_accessor_using_active_space(node, true);
+        ExecutionPolicy policy;
+        run_data_accessor_using_active_space(node, policy);
+        EXPECT_TRUE(policy.is_device_policy());
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1402,7 +901,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -1421,8 +920,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_accessor_dispatch_and_sync(node,
                                             ExecutionPolicy::host(),
                                             min_val,
@@ -1435,7 +933,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -1454,8 +952,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_accessor_dispatch_functor_and_sync(node,
                                                     ExecutionPolicy::host(),
                                                     min_val,
@@ -1468,7 +965,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -1487,8 +984,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_accessor_dispatch_and_sync(node,
                                             ExecutionPolicy::device(),
                                             min_val,
@@ -1501,7 +997,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -1520,8 +1016,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_accessor_dispatch_functor_and_sync(node,
                                                     ExecutionPolicy::device(),
                                                     min_val,
@@ -1534,7 +1029,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -1551,8 +1046,8 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_device)
 TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
 {
     conduit_device_prepare();
-    const std::vector<float64> src_vals = make_execution_src_vals();
-    const std::vector<float64> des_vals = make_execution_des_vals();
+    const std::vector<float64> src_vals = make_execution_src_vals(EXECUTION_TEST_ARRAY_SIZE);
+    const std::vector<float64> des_vals = make_execution_des_vals(EXECUTION_TEST_ARRAY_SIZE);
 
     if (!ExecutionPolicy::is_device_enabled())
     {
@@ -1581,7 +1076,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -1609,7 +1104,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -1637,7 +1132,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -1665,7 +1160,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -1683,7 +1178,9 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        run_data_accessor_using_active_space(node, false);
+        ExecutionPolicy policy;
+        run_data_accessor_using_active_space(node, policy);
+        EXPECT_TRUE(policy.is_host_policy());
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1692,7 +1189,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -1709,8 +1206,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_accessor_dispatch_and_sync(node,
                                             ExecutionPolicy::host(),
                                             min_val,
@@ -1723,7 +1219,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -1740,8 +1236,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_accessor_dispatch_functor_and_sync(node,
                                                     ExecutionPolicy::host(),
                                                     min_val,
@@ -1754,7 +1249,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -1771,8 +1266,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_accessor_dispatch_and_sync(node,
                                             ExecutionPolicy::device(),
                                             min_val,
@@ -1785,7 +1279,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -1802,8 +1296,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_accessor_dispatch_functor_and_sync(node,
                                                     ExecutionPolicy::device(),
                                                     min_val,
@@ -1816,7 +1309,7 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -1832,8 +1325,8 @@ TEST(conduit_execution, strawman_data_accessor_src_host_des_device)
 TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
 {
     conduit_device_prepare();
-    const std::vector<float64> src_vals = make_execution_src_vals();
-    const std::vector<float64> des_vals = make_execution_des_vals();
+    const std::vector<float64> src_vals = make_execution_src_vals(EXECUTION_TEST_ARRAY_SIZE);
+    const std::vector<float64> des_vals = make_execution_des_vals(EXECUTION_TEST_ARRAY_SIZE);
 
     if (!ExecutionPolicy::is_device_enabled())
     {
@@ -1862,7 +1355,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -1890,7 +1383,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -1918,7 +1411,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -1946,7 +1439,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -1965,7 +1458,9 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        run_data_accessor_using_active_space(node, true);
+        ExecutionPolicy policy;
+        run_data_accessor_using_active_space(node, policy);
+        EXPECT_TRUE(policy.is_device_policy());
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -1974,7 +1469,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -1991,8 +1486,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_accessor_dispatch_and_sync(node,
                                             ExecutionPolicy::host(),
                                             min_val,
@@ -2005,7 +1499,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -2022,8 +1516,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_accessor_dispatch_functor_and_sync(node,
                                                     ExecutionPolicy::host(),
                                                     min_val,
@@ -2036,7 +1529,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -2053,8 +1546,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_accessor_dispatch_and_sync(node,
                                             ExecutionPolicy::device(),
                                             min_val,
@@ -2067,7 +1559,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -2084,8 +1576,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_accessor_dispatch_functor_and_sync(node,
                                                     ExecutionPolicy::device(),
                                                     min_val,
@@ -2098,7 +1589,7 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
 
         float64_accessor result_acc(node["des"]);
         result_acc.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_acc);
+        expect_doubled_execution_values(result_acc, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -2113,8 +1604,8 @@ TEST(conduit_execution, strawman_data_accessor_src_device_des_host)
 TEST(conduit_execution, strawman_data_array_src_host_des_host)
 {
     conduit_device_prepare();
-    const std::vector<float64> src_vals = make_execution_src_vals();
-    const std::vector<float64> des_vals = make_execution_des_vals();
+    const std::vector<float64> src_vals = make_execution_src_vals(EXECUTION_TEST_ARRAY_SIZE);
+    const std::vector<float64> des_vals = make_execution_des_vals(EXECUTION_TEST_ARRAY_SIZE);
 
     // Run with an explicit host execution policy.
     // node["des"] is synced back to host memory.
@@ -2137,7 +1628,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -2164,7 +1655,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -2190,7 +1681,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -2217,7 +1708,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -2234,7 +1725,9 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        run_data_array_using_active_space(node, false);
+        ExecutionPolicy policy;
+        run_data_array_using_active_space(node, policy);
+        EXPECT_TRUE(policy.is_host_policy());
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -2243,7 +1736,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -2259,8 +1752,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_array_dispatch_and_sync(node,
                                          ExecutionPolicy::host(),
                                          min_val,
@@ -2273,7 +1765,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -2288,8 +1780,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_array_dispatch_functor_and_sync(node,
                                                  ExecutionPolicy::host(),
                                                  min_val,
@@ -2302,7 +1793,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -2317,8 +1808,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_array_dispatch_and_sync(node,
                                          ExecutionPolicy::device(),
                                          min_val,
@@ -2331,7 +1821,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -2347,8 +1837,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_array_dispatch_functor_and_sync(node,
                                                  ExecutionPolicy::device(),
                                                  min_val,
@@ -2361,7 +1850,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -2375,8 +1864,8 @@ TEST(conduit_execution, strawman_data_array_src_host_des_host)
 TEST(conduit_execution, strawman_data_array_src_device_des_device)
 {
     conduit_device_prepare();
-    const std::vector<float64> src_vals = make_execution_src_vals();
-    const std::vector<float64> des_vals = make_execution_des_vals();
+    const std::vector<float64> src_vals = make_execution_src_vals(EXECUTION_TEST_ARRAY_SIZE);
+    const std::vector<float64> des_vals = make_execution_des_vals(EXECUTION_TEST_ARRAY_SIZE);
 
     if (!ExecutionPolicy::is_device_enabled())
     {
@@ -2406,7 +1895,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -2436,7 +1925,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -2466,7 +1955,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -2496,7 +1985,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -2516,7 +2005,9 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        run_data_array_using_active_space(node, true);
+        ExecutionPolicy policy;
+        run_data_array_using_active_space(node, policy);
+        EXPECT_TRUE(policy.is_device_policy());
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -2525,7 +2016,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -2544,8 +2035,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_array_dispatch_and_sync(node,
                                          ExecutionPolicy::host(),
                                          min_val,
@@ -2558,7 +2048,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -2577,8 +2067,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_array_dispatch_functor_and_sync(node,
                                                  ExecutionPolicy::host(),
                                                  min_val,
@@ -2591,7 +2080,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -2610,8 +2099,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_array_dispatch_and_sync(node,
                                          ExecutionPolicy::device(),
                                          min_val,
@@ -2624,7 +2112,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -2643,8 +2131,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_array_dispatch_functor_and_sync(node,
                                                  ExecutionPolicy::device(),
                                                  min_val,
@@ -2657,7 +2144,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -2674,8 +2161,8 @@ TEST(conduit_execution, strawman_data_array_src_device_des_device)
 TEST(conduit_execution, strawman_data_array_src_host_des_device)
 {
     conduit_device_prepare();
-    const std::vector<float64> src_vals = make_execution_src_vals();
-    const std::vector<float64> des_vals = make_execution_des_vals();
+    const std::vector<float64> src_vals = make_execution_src_vals(EXECUTION_TEST_ARRAY_SIZE);
+    const std::vector<float64> des_vals = make_execution_des_vals(EXECUTION_TEST_ARRAY_SIZE);
 
     if (!ExecutionPolicy::is_device_enabled())
     {
@@ -2704,7 +2191,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -2732,7 +2219,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -2760,7 +2247,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -2788,7 +2275,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
     }
@@ -2806,7 +2293,9 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        run_data_array_using_active_space(node, false);
+        ExecutionPolicy policy;
+        run_data_array_using_active_space(node, policy);
+        EXPECT_TRUE(policy.is_host_policy());
         annotations::finalize();
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -2815,7 +2304,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -2832,8 +2321,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_array_dispatch_and_sync(node,
                                          ExecutionPolicy::host(),
                                          min_val,
@@ -2846,7 +2334,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -2863,8 +2351,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_array_dispatch_functor_and_sync(node,
                                                  ExecutionPolicy::host(),
                                                  min_val,
@@ -2877,7 +2364,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -2894,8 +2381,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_array_dispatch_and_sync(node,
                                          ExecutionPolicy::device(),
                                          min_val,
@@ -2908,7 +2394,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -2925,8 +2411,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_array_dispatch_functor_and_sync(node,
                                                  ExecutionPolicy::device(),
                                                  min_val,
@@ -2939,7 +2424,7 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(des_device_ptr);
@@ -2955,8 +2440,8 @@ TEST(conduit_execution, strawman_data_array_src_host_des_device)
 TEST(conduit_execution, strawman_data_array_src_device_des_host)
 {
     conduit_device_prepare();
-    const std::vector<float64> src_vals = make_execution_src_vals();
-    const std::vector<float64> des_vals = make_execution_des_vals();
+    const std::vector<float64> src_vals = make_execution_src_vals(EXECUTION_TEST_ARRAY_SIZE);
+    const std::vector<float64> des_vals = make_execution_des_vals(EXECUTION_TEST_ARRAY_SIZE);
 
     if (!ExecutionPolicy::is_device_enabled())
     {
@@ -2985,7 +2470,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -3013,7 +2498,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -3041,7 +2526,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -3069,7 +2554,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -3088,7 +2573,9 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        run_data_array_using_active_space(node, true);
+        ExecutionPolicy policy;
+        run_data_array_using_active_space(node, policy);
+        EXPECT_TRUE(policy.is_device_policy());
         annotations::finalize();
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
@@ -3097,7 +2584,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         // Verification runs on the host, so use a host execution policy
         // in case node["des"] still owns device-backed data here.
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -3114,8 +2601,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_array_dispatch_and_sync(node,
                                          ExecutionPolicy::host(),
                                          min_val,
@@ -3128,7 +2614,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -3145,8 +2631,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_array_dispatch_functor_and_sync(node,
                                                  ExecutionPolicy::host(),
                                                  min_val,
@@ -3159,7 +2644,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -3176,8 +2661,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_array_dispatch_and_sync(node,
                                          ExecutionPolicy::device(),
                                          min_val,
@@ -3190,7 +2674,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
@@ -3207,8 +2691,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
-        float64 min_val = 0.0;
-        index_t min_loc = -1;
+        float64 min_val; index_t min_loc;
         run_data_array_dispatch_functor_and_sync(node,
                                                  ExecutionPolicy::device(),
                                                  min_val,
@@ -3221,7 +2704,7 @@ TEST(conduit_execution, strawman_data_array_src_device_des_host)
 
         float64_array result_array(node["des"]);
         result_array.use_with(ExecutionPolicy::host());
-        expect_doubled_execution_values(result_array);
+        expect_doubled_execution_values(result_array, EXECUTION_TEST_ARRAY_SIZE);
 
         node.reset();
         execution::DeviceMemory::deallocate(src_device_ptr);
