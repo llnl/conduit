@@ -12,6 +12,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Added a bulk `DataAccessor::set()` method for setting many elements at once.
 
 #### Blueprint
+- Added `conduit::blueprint::mesh::rename()` helper that renames sub components of a valid mesh and their dependent references.  Example: rename a topology and ensure field topology references are updated.
 - Added `conduit::blueprint::mesh::remove()` helper that removes sub components of a valid mesh and their dependencies.  Examples: remove a field by name, or remove a topology by name and any dependent entries.
 - Added `conduit::blueprint::mesh::matset::get_material_names()`, which returns material names for a material set.
 - Added the ability for the Partitioner to handle field `matset_values` for both domain slicing and combination.
