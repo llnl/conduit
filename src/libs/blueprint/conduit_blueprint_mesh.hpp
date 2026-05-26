@@ -441,7 +441,7 @@ void CONDUIT_BLUEPRINT_API remove(const conduit::Node &n_options,
  * @param n_mesh The node containing the input mesh (coordsets, topos,
  *               fields, matsets, specsets, adjsets, and nestsets)
  *
- * @param n_options A node containing options. Categories entries
+ * @param n_options A node containing options. Entries
  *                  should be an object with children that encode
  *                  desired  old_name: new_name relationship.
  *
