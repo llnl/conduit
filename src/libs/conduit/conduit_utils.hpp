@@ -494,6 +494,17 @@ namespace utils
 
 
 //-----------------------------------------------------------------------------
+/// Helper for converting glob style matching to a regex that can be evaluated.
+//-----------------------------------------------------------------------------
+     std::string CONDUIT_API glob_to_regex(const std::string &input);
+
+//-----------------------------------------------------------------------------
+/// Helper for converting glob style matching to a regex that can be evaluated.
+//-----------------------------------------------------------------------------
+     bool CONDUIT_API glob_match(const std::string &test,
+                                 const std::string &glob);
+
+//-----------------------------------------------------------------------------
 /// fmt style string formatting helpers
 //-----------------------------------------------------------------------------
 

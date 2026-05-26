@@ -104,14 +104,22 @@ PyBlueprint_MPI_mesh_verify(PyObject *, //self
         return NULL;
     }
 
-    Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
-    Node &info = *PyConduit_Node_Get_Node_Ptr(py_info);
+    try
+    {
+        Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
+        Node &info = *PyConduit_Node_Get_Node_Ptr(py_info);
 
-
-    if(blueprint::mpi::mesh::verify(node,info,comm))
-        Py_RETURN_TRUE;
-    else
-        Py_RETURN_FALSE;
+        if(blueprint::mpi::mesh::verify(node,info,comm))
+            Py_RETURN_TRUE;
+        else
+            Py_RETURN_FALSE;
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 }
 
 //---------------------------------------------------------------------------//
@@ -197,13 +205,21 @@ PyBlueprint_MPI_mesh_generate_index(PyObject *, //self
         return NULL;
     }
 
-    Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
-    Node &dest = *PyConduit_Node_Get_Node_Ptr(py_dest);
-
-    blueprint::mpi::mesh::generate_index(mesh,
-                                         std::string(ref_path),
-                                         dest,
-                                         comm);
+    try
+    {
+        Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
+        Node &dest = *PyConduit_Node_Get_Node_Ptr(py_dest);
+        blueprint::mpi::mesh::generate_index(mesh,
+                                             std::string(ref_path),
+                                             dest,
+                                             comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
@@ -299,15 +315,23 @@ PyBlueprint_MPI_mesh_partition(PyObject *, //self
         return NULL;
     }
 
-    Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
-    Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
-    Node &output = *PyConduit_Node_Get_Node_Ptr(py_output);
+    try
+    {
+        Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
+        Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
+        Node &output = *PyConduit_Node_Get_Node_Ptr(py_output);
 
-    blueprint::mpi::mesh::partition(mesh,
-                                    options,
-                                    output,
-                                    comm);
-
+        blueprint::mpi::mesh::partition(mesh,
+                                        options,
+                                        output,
+                                        comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
     Py_RETURN_NONE;
 }
 
@@ -401,11 +425,19 @@ PyBlueprint_MPI_mesh_flatten(PyObject *, //self
         return NULL;
     }
 
-    const Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
-    const Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
-    Node &output = *PyConduit_Node_Get_Node_Ptr(py_output);
-
-    blueprint::mpi::mesh::flatten(mesh, options, output, comm);
+    try
+    {
+        const Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
+        const Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
+        Node &output = *PyConduit_Node_Get_Node_Ptr(py_output);
+        blueprint::mpi::mesh::flatten(mesh, options, output, comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }

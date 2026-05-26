@@ -9172,6 +9172,274 @@ void mesh::convert(const conduit::Node &n_mesh, const conduit::Node &n_options, 
     mesh::convert(n_mesh, n_options, n_output, n_maps);
 }
 
+
+void mesh::remove(const conduit::Node &n_options,
+                  conduit::Node &n_mesh)
+{
+    conduit::Node n_opts_expanded;
+
+    // convert any options that are single string into a list
+    NodeConstIterator itr = n_options.children();
+
+    while(itr.has_next())
+    {
+        const Node &chld = itr.next();
+        const std::string chld_name = itr.name();
+        if(chld.dtype().is_list())
+        {
+            bool ok = chld.number_of_children() > 0;
+            // check that all list entries are string
+            NodeConstIterator lst_itr = chld.children();
+            while(lst_itr.has_next())
+            {
+                const Node &lst_chld = lst_itr.next();
+                if(!lst_chld.dtype().is_string())
+                {
+                    ok = false;
+                }
+                else
+                {
+                    n_opts_expanded[chld_name].append() = lst_chld;
+                }
+            }
+
+            if(!ok)
+            {
+                CONDUIT_ERROR(conduit_fmt::format(
+                              "mesh::remove option {} must contain a string or list of strings.\n Value provided: {}\n",
+                              chld_name,
+                              chld.to_yaml()));
+            }
+
+        }
+        else if(chld.dtype().is_string())
+        {
+            n_opts_expanded[chld_name].append() = chld;
+        }
+        else
+        {
+            CONDUIT_ERROR(conduit_fmt::format(
+                            "mesh::remove option {} must contain a string or list of strings.\n Value provided: {}\n",
+                            chld_name,
+                            chld.to_yaml()));
+        }
+    }
+
+    // helper to extract input strings into sets (used for uniqueness)
+    auto init_set_from_opts = [&](const conduit::Node &opts,
+                                  const std::string &comp_type,
+                                  std::set<std::string> &rset)
+    {
+        if(opts.has_child(comp_type))
+        {
+            NodeConstIterator opts_names_itr = opts[comp_type].children();
+            while(opts_names_itr.has_next())
+            {
+                rset.insert(opts_names_itr.next().as_string());
+            }
+        }
+    };
+
+    // set used for the final remove process
+    std::set<std::string> state;
+    std::set<std::string> coordsets;
+    std::set<std::string> topos;
+    std::set<std::string> fields;
+    std::set<std::string> matsets;
+    std::set<std::string> specsets;
+    std::set<std::string> adjsets;
+    std::set<std::string> nestsets;
+
+    init_set_from_opts(n_opts_expanded,"state",state);
+    init_set_from_opts(n_opts_expanded,"coordsets",coordsets);
+    init_set_from_opts(n_opts_expanded,"topologies",topos);
+    init_set_from_opts(n_opts_expanded,"fields",fields);
+    init_set_from_opts(n_opts_expanded,"matsets",matsets);
+    init_set_from_opts(n_opts_expanded,"specsets",specsets);
+    init_set_from_opts(n_opts_expanded,"adjsets",adjsets);
+    init_set_from_opts(n_opts_expanded,"nestsets",nestsets);
+
+    // note: this isn't const b/c we will alter the mesh
+    auto domains = conduit::blueprint::mesh::domains(n_mesh);
+    // removal cascade:
+    //    coordsets, topos, fields, matsets, specsets, adjsets, nestsets
+    //      this order ensures we don't remove a sub component before its parent
+    //      (which would be wasted effort)
+
+    // helper to record dependent components to a set that will be used
+    // in the final removal process
+    auto record_dependent_components = [&](const conduit::Node *dom,
+                                        const std::string &comp_type,
+                                        const std::string &ref_type,
+                                        const std::string &ref_pattern,
+                                        std::set<std::string> &rset)
+    {
+        if(dom->has_child(comp_type))
+        {
+            NodeConstIterator itr = dom->fetch_existing(comp_type).children();
+            while(itr.has_next())
+            {
+                const conduit::Node &curr = itr.next();
+                const std::string ref_name = curr[ref_type].as_string();
+                if(conduit::utils::glob_match(ref_name, ref_pattern))
+                {
+                    rset.insert(curr.name());
+                }
+
+            }
+        }
+    };
+
+    for (auto coords_name : coordsets)
+    {
+        // Loop over domains:
+        //  identify topos that depend on this coordset
+        for(size_t i = 0; i < domains.size(); i++)
+        {
+            record_dependent_components(domains[i], "topologies", "coordset", coords_name, topos);
+        }
+    }
+
+
+    for (auto topo_name : topos)
+    {
+        // Loop over domains:
+        //  identify fields, matsets, specsets, adjsets, and nestsets that depend on this topo
+        for(size_t i = 0; i < domains.size(); i++)
+        {
+            const conduit::Node *dom = domains[i];
+            record_dependent_components(dom, "fields", "topology", topo_name, fields);
+            record_dependent_components(dom, "matsets", "topology", topo_name, matsets);
+            record_dependent_components(dom, "adjsets", "topology", topo_name, adjsets);
+            record_dependent_components(dom, "nestsets", "topology", topo_name, nestsets);
+        }
+    }
+
+    for (auto matset_name : matsets)
+    {
+        // Loop over domains:
+        //  identify specsets this matset
+        for(size_t i = 0; i < domains.size(); i++)
+        {
+            const conduit::Node *dom = domains[i];
+            record_dependent_components(dom, "specsets", "matset", matset_name, specsets);
+        }
+    }
+
+    // adjsets and nestsets don't have downstream dependent relationships
+
+    // fields need special logic to remove matset values, that is handled after higher
+    // level tree pruning
+
+    // helper to remove dependent components to a set
+    auto remove_components = [&](conduit::Node *dom,
+                                 const std::string &comp_type,
+                                 const std::set<std::string> &comp_patterns)
+    {
+        if(dom->has_child(comp_type))
+        {
+            conduit::Node &n_comp = dom->fetch_existing(comp_type);
+            for (auto comp_pat : comp_patterns)
+            {
+                auto comp_names = n_comp.child_names();
+                for (auto comp_name : comp_names)
+                {
+                    if(conduit::utils::glob_match(comp_name, comp_pat))
+                    {
+                        n_comp.remove(comp_name);
+                    }
+                }
+            }
+
+            // check if we removed everything of the type, if so remove from parent
+            if(n_comp.number_of_children() == 0)
+            {
+                if(n_comp.parent() != nullptr)
+                {
+                    n_comp.parent()->remove(n_comp.name());
+                }
+            }
+        }
+    };
+
+    for(size_t i = 0; i < domains.size(); i++)
+    {
+        conduit::Node *dom = domains[i];
+        remove_components(dom, "state", state);
+        remove_components(dom, "coordsets", coordsets);
+        remove_components(dom, "topologies", topos);
+        remove_components(dom, "fields", fields);
+        remove_components(dom, "matsets", matsets);
+        remove_components(dom, "specsets", specsets);
+        remove_components(dom, "adjsets", adjsets);
+        remove_components(dom, "nestsets", nestsets);
+    }
+
+    // past to clean up matsets
+    // matsets: for any field that refs a matset,
+    //          remove that ref and any matset values
+
+    for(size_t i = 0; i < domains.size(); i++)
+    {
+        conduit::Node *dom = domains[i];
+        if(dom->has_child("fields"))
+        {
+            Node &n_fields =  dom->fetch_existing("fields");
+            std::vector<std::string> fields_to_rm;
+            NodeIterator itr = n_fields.children();
+            while(itr.has_next())
+            {
+                conduit::Node &curr = itr.next();
+                if(curr.has_child("matset"))
+                {
+                    const std::string field_mset = curr["matset"].as_string();
+                    for (auto matset_name : matsets)
+                    {
+
+                        if(matset_name == field_mset)
+                        {
+                            // check for truly material dependent field
+                            // (lacks separate `values` data)
+                            if(! curr.has_child("values"))
+                            {
+                                fields_to_rm.push_back(itr.name());
+                            }
+                            else
+                            {
+                                // if the matset matches, remove it
+                                // and any matset_values
+                                curr.remove("matset");
+                                if(curr.has_child("matset_values"))
+                                {
+                                    curr.remove("matset_values");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // remove any truly material dependent fields
+            for(auto field_name : fields_to_rm)
+            {
+                n_fields.remove(field_name);
+            }
+        }
+
+        // if this domain is fully empty, it should be removed from its parent
+        if(dom->number_of_children() == 0)
+        {
+            if(dom->parent() != nullptr)
+            {
+                dom->parent()->remove(dom->name());
+                // Note: dom ptr is now invalid
+                dom = nullptr;
+            }
+        }
+    }
+
+}
+
+
 }
 //-----------------------------------------------------------------------------
 // -- end conduit::blueprint --

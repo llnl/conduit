@@ -397,6 +397,37 @@ void CONDUIT_BLUEPRINT_API convert(const conduit::Node &n_mesh,
                                    const conduit::Node &n_options,
                                    conduit::Node &n_output);
 
+
+//-------------------------------------------------------------------------
+/*!
+ * @brief Remove specific components of mesh and their dependent entires.
+ *        For example, remove a topology and all assocated fields
+*
+ * @param n_mesh The node containing the input mesh (coordsets, topos, 
+ *               fields, matsets, adjsets)
+ *
+ * @param n_options A node containing options. Categories support
+ *                  both a single string or a list of strings
+ *
+ * @verbatim
+ * options:
+ *   coordsets:  mycoords  | [ mycoords1, mycoords2, ... ]
+ *   topologies: mytopo    | [ mytopo1, mytopo2, ... ]
+ *   fields:     myfield   | [ myfield1, myfield2, ... ]
+ *   matsets:    mymatset  | [ mymatset1, mymatset2, ... ]
+ *   adjsets:    myadj     | [ myadj1,myadj2, ... ]
+ *   nestsets:   mynestset | [ mynestset1, mynestset2, ... ]
+ *
+ * This also supports glob style matching, for example:
+ *   topologies: *
+ *   fields: ve*
+ *
+ * @endverbatim
+ */
+void CONDUIT_BLUEPRINT_API remove(const conduit::Node &n_options,
+                                  conduit::Node &n_mesh);
+
+
 //-----------------------------------------------------------------------------
 // blueprint::mesh::logical_dims protocol interface
 //-----------------------------------------------------------------------------
@@ -876,6 +907,9 @@ namespace matset
                                                       const std::string &matname,
                                                       const index_t elem_id,
                                                       const float64 epsilon = CONDUIT_EPSILON);
+    //-------------------------------------------------------------------------
+    void CONDUIT_BLUEPRINT_API get_material_names(const conduit::Node &matset,
+                                                  std::vector<std::string> &matnames);
     // _matset_info_methods_end
     //-----------------------------------------------------------------------------
     std::map<int, std::string> CONDUIT_BLUEPRINT_API create_reverse_material_map(
