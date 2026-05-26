@@ -9440,6 +9440,190 @@ void mesh::remove(const conduit::Node &n_options,
 }
 
 
+void mesh::rename(const conduit::Node &n_options,
+                  conduit::Node &n_mesh)
+{
+    // check options, each top level entry should be
+    // a component type name (coordsets) node that is an object with
+    // children that encode old vs new name
+    //  current_name: new_name (coords: my_coords_new)
+
+    NodeConstIterator itr = n_options.children();
+    while(itr.has_next())
+    {
+        const Node &chld = itr.next();
+        const std::string chld_name = itr.name();
+
+        if(!chld.dtype().is_object())
+        {
+                    CONDUIT_ERROR(conduit_fmt::format(
+                                    "mesh::rename option must contain an object with children that are strings\n Value provided: {}\n",
+                                     n_options.to_yaml()));
+        }
+        else // we have a an object
+        {
+            // check that all object entries are strings
+            NodeConstIterator chld_itr = chld.children();
+            while(chld_itr.has_next())
+            {
+                if(!chld_itr.next().dtype().is_string())
+                {
+                    CONDUIT_ERROR(conduit_fmt::format(
+                                    "mesh::rename option must contain an object with children that are strings\n Value provided: {}\n",
+                                     n_options.to_yaml()));
+                }
+            }
+        }
+    }
+
+    // helper to rename a component
+    auto rename_component = [&](conduit::Node *dom,
+                                const std::string &comp_type,
+                                const std::string &comp_name_old,
+                                const std::string &comp_name_new)
+    {
+        if(dom->has_child(comp_type))
+        {
+            Node &comp_node = dom->fetch_existing(comp_type);
+            if(comp_node.has_child(comp_name_old))
+            {
+                comp_node.rename_child(comp_name_old,comp_name_new);
+            }
+        }
+    };
+
+    // helper to update references to a component that was renamed
+    auto rename_dependent_component_refs = [&](conduit::Node *dom,
+                                               const std::string &comp_type,
+                                               const std::string &ref_type,
+                                               const std::string &ref_name_old,
+                                               const std::string &ref_name_new)
+    {
+        if(dom->has_child(comp_type))
+        {
+            NodeIterator itr = dom->fetch_existing(comp_type).children();
+            while(itr.has_next())
+            {
+                conduit::Node &curr = itr.next();
+                if(curr.has_child(ref_type))
+                {
+                    const std::string ref_name = curr[ref_type].as_string();
+                    if(ref_name == ref_name_old)
+                    {
+                        curr[ref_type] = ref_name_new;
+                    }
+                }
+            }
+        }
+    };
+
+    // note: this isn't const b/c we will alter the mesh
+    auto domains = conduit::blueprint::mesh::domains(n_mesh);
+
+    // loop over all domains
+    for(size_t i = 0; i < domains.size(); i++)
+    {
+        conduit::Node *dom = domains[i];
+
+        if(n_options.has_child("coordsets"))
+        {
+            NodeConstIterator itr = n_options["coordsets"].children();
+            while(itr.has_next())
+            {
+                const Node &chld_node = itr.next();
+                std::string chld_name_old = itr.name();
+                std::string chld_name_new = chld_node.as_string();
+                rename_component(dom, "coordsets", chld_name_old, chld_name_new);
+                rename_dependent_component_refs(dom, "topologies", "coordset", chld_name_old, chld_name_new);
+            }
+        }
+
+        if(n_options.has_child("topologies"))
+        {
+            NodeConstIterator itr = n_options["topologies"].children();
+            while(itr.has_next())
+            {
+                const Node &chld_node = itr.next();
+                std::string chld_name_old = chld_node.name();
+                std::string chld_name_new = chld_node.as_string();
+                rename_component(dom, "topologies", chld_name_old, chld_name_new);
+                rename_dependent_component_refs(dom, "fields", "topology", chld_name_old, chld_name_new);
+                rename_dependent_component_refs(dom, "matsets", "topology", chld_name_old, chld_name_new);
+                rename_dependent_component_refs(dom, "adjsets", "topology", chld_name_old, chld_name_new);
+                rename_dependent_component_refs(dom, "nestsets", "topology", chld_name_old, chld_name_new);
+            }
+        }
+
+        if(n_options.has_child("fields"))
+        {
+            NodeConstIterator itr = n_options["fields"].children();
+            while(itr.has_next())
+            {
+                const Node &chld_node = itr.next();
+                std::string chld_name_old = chld_node.name();
+                std::string chld_name_new = chld_node.as_string();
+                conduit::Node *dom = domains[i];
+                rename_component(dom, "fields", chld_name_old, chld_name_new);
+            }
+        }
+
+        if(n_options.has_child("matsets"))
+        {
+            NodeConstIterator itr = n_options["matsets"].children();
+            while(itr.has_next())
+            {
+                const Node &chld_node = itr.next();
+                std::string chld_name_old = chld_node.name();
+                std::string chld_name_new = chld_node.as_string();
+                conduit::Node *dom = domains[i];
+                rename_component(dom, "matsets", chld_name_old, chld_name_new);
+                rename_dependent_component_refs(dom, "specsets", "matset", chld_name_old, chld_name_new);
+                rename_dependent_component_refs(dom, "fields", "matset", chld_name_old, chld_name_new);
+            }
+        }
+
+        if(n_options.has_child("specsets"))
+        {
+            NodeConstIterator itr = n_options["specsets"].children();
+            while(itr.has_next())
+            {
+                const Node &chld_node = itr.next();
+                std::string chld_name_old = chld_node.name();
+                std::string chld_name_new = chld_node.as_string();
+                conduit::Node *dom = domains[i];
+                rename_component(dom, "specsets", chld_name_old, chld_name_new);
+            }
+        }
+
+        if(n_options.has_child("adjsets"))
+        {
+            NodeConstIterator itr = n_options["adjsets"].children();
+            while(itr.has_next())
+            {
+                const Node &chld_node = itr.next();
+                std::string chld_name_old = chld_node.name();
+                std::string chld_name_new = chld_node.as_string();
+                conduit::Node *dom = domains[i];
+                rename_component(dom, "adjsets", chld_name_old, chld_name_new);
+            }
+        }
+
+        if(n_options.has_child("nestsets"))
+        {
+            NodeConstIterator itr = n_options["nestsets"].children();
+            while(itr.has_next())
+            {
+                const Node &chld_node = itr.next();
+                std::string chld_name_old = chld_node.name();
+                std::string chld_name_new = chld_node.as_string();
+                conduit::Node *dom = domains[i];
+                rename_component(dom, "nestsets", chld_name_old, chld_name_new);
+            }
+        }
+    }
+}
+
+
 }
 //-----------------------------------------------------------------------------
 // -- end conduit::blueprint --

@@ -134,7 +134,7 @@ class Test_Blueprint_Mesh(unittest.TestCase):
         self.assertTrue(self.has_empty_warning(info))
         self.assertTrue(blueprint.mesh.verify(n,info))
         self.assertTrue(self.has_empty_warning(info))
-        for matset_type in ['full', 
+        for matset_type in ['full',
                             'sparse_by_material',
                             'sparse_by_element' ]:
             blueprint.mesh.examples.venn(matset_type,
@@ -220,7 +220,7 @@ class Test_Blueprint_Mesh(unittest.TestCase):
                   "rz_cylinder",
                   "tiled",
                   "venn"]
-    
+
         for ename in enames:
             opts = conduit.Node()
             blueprint.mesh.examples.generate_default_options(opts,ename)
@@ -264,6 +264,22 @@ class Test_Blueprint_Mesh(unittest.TestCase):
         self.assertFalse(n.has_path("fields/vel"))
         self.assertTrue(n.has_path("fields/radial"))
 
+    def test_rename(self):
+        n    = conduit.Node()
+        opts = conduit.Node()
+        info = conduit.Node()
+        blueprint.mesh.examples.generate("braid",n)
+        opts["topologies/mesh"] = "topo"
+        opts["fields/braid"] = "awesome"
+        blueprint.mesh.rename(opts,n)
+        print(n)
+        self.assertFalse(n.has_path("fields/mesh"))
+        self.assertFalse(n.has_path("fields/braid"))
+        self.assertTrue(n.has_path("topologies/topo"))
+        self.assertTrue(n.has_path("fields/awesome"))
+        self.assertTrue(n["fields/awesome/topology"],"topo")
+
+
     def test_partition(self):
         def same(a, b):
             for i in range(len(a)):
@@ -288,7 +304,7 @@ class Test_Blueprint_Mesh(unittest.TestCase):
         self.assertTrue(same(expected_y1, output[1]["coordsets/coords/values/y"]))
 
     def test_convert(self):
-        tgts = { 
+        tgts = {
         "uniform":      [ "uniform", "rectilinear", "structured", "unstructured", "polytopal"],
         "rectilinear":  [ "rectilinear", "structured", "unstructured", "polytopal"],
         "structured":   [ "structured", "unstructured", "polytopal"],
@@ -301,13 +317,13 @@ class Test_Blueprint_Mesh(unittest.TestCase):
                           "generate_corners"]
         }
 
-        braid_types = { "uniform" : [ { "mesh_type": "uniform", "dims": [5, 5, 0]} , 
+        braid_types = { "uniform" : [ { "mesh_type": "uniform", "dims": [5, 5, 0]} ,
                                       { "mesh_type": "uniform", "dims": [5, 5, 5]} ],
-                        "rectilinear" : [ { "mesh_type": "rectilinear", "dims": [5, 5, 0]} , 
+                        "rectilinear" : [ { "mesh_type": "rectilinear", "dims": [5, 5, 0]} ,
                                           { "mesh_type": "rectilinear", "dims": [5, 5, 5]} ],
-                        "structured" : [ { "mesh_type": "structured", "dims": [5, 5, 0]} , 
+                        "structured" : [ { "mesh_type": "structured", "dims": [5, 5, 0]} ,
                                          { "mesh_type": "structured", "dims": [5, 5, 5]} ],
-                        "unstructured" : [ { "mesh_type": "tris", "dims": [5, 5, 0]} , 
+                        "unstructured" : [ { "mesh_type": "tris", "dims": [5, 5, 0]} ,
                                            { "mesh_type": "hexs", "dims": [5, 5, 5]},
                                            { "mesh_type": "quads_poly", "dims": [5, 5, 0]},
                                            { "mesh_type": "hexs_poly", "dims": [5, 5, 5]},
@@ -326,7 +342,7 @@ class Test_Blueprint_Mesh(unittest.TestCase):
                                                       n)
                 for target in tgts[mesh_cat]:
                     print("Testing",test_mesh, "to", target)
-                    options["target"] = target 
+                    options["target"] = target
                     conduit.blueprint.mesh.convert(n, options, output)
                     conduit.blueprint.mesh.convert(n, options, output, maps)
 

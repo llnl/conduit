@@ -17,7 +17,14 @@
 #include <string>
 #include "gtest/gtest.h"
 
-void echo_node(const std::string tag, const conduit::Node &node, bool full = true)
+void echo_title(const std::string &title)
+{
+    std::cout << "---------------------------------------------------" << std::endl;
+    std::cout << title << std::endl;
+    std::cout << "---------------------------------------------------" << std::endl;
+}
+
+void echo_node(const std::string tag, const conduit::Node &node, bool full = false)
 {
     std::cout << tag << std::endl;
     if(full)
@@ -26,14 +33,15 @@ void echo_node(const std::string tag, const conduit::Node &node, bool full = tru
     }
     else
     {
-        std::cout << node.to_string() << std::endl;
+        std::cout << node.to_summary_string() << std::endl;
     }
 }
 
 
 //-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_remove, bad_options)
+TEST(conduit_blueprint_mesh_rename, bad_options)
 {
+    echo_title("remove bad options");
     conduit::Node n_mesh;
     conduit::Node n_opts;
     n_opts["topologies"] = 1;
@@ -45,7 +53,7 @@ TEST(conduit_blueprint_mesh_remove, bad_options)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_remove, rename_coords)
+TEST(conduit_blueprint_mesh_rename, rename_coords)
 {
     // coordset change impacts refs in:
     //  topos
@@ -55,10 +63,12 @@ TEST(conduit_blueprint_mesh_remove, rename_coords)
     n_mesh_opts["nx"] = 3;
     n_mesh_opts["ny"] = 3;
 
+    echo_title("rename coords");
+
     conduit::blueprint::mesh::examples::generate("braid",n_mesh_opts,n_mesh);
     EXPECT_TRUE(n_mesh.has_path("coordsets/coords"));
     EXPECT_TRUE(n_mesh.has_path("topologies/mesh"));
-    EXPECT_EQ(n_mesh["topologies/coordset"].as_string(),"coords");
+    EXPECT_EQ(n_mesh["topologies/mesh/coordset"].as_string(),"coords");
 
     n_opts["coordsets/coords"] = "mycoords";
 
@@ -71,17 +81,18 @@ TEST(conduit_blueprint_mesh_remove, rename_coords)
 
     EXPECT_FALSE(n_mesh.has_path("coordsets/coords"));
     EXPECT_TRUE(n_mesh.has_path("coordsets/mycoords"));
-    EXPECT_EQ(n_mesh["topologies/coordset"].as_string(),"mycoords");
+    EXPECT_EQ(n_mesh["topologies/mesh/coordset"].as_string(),"mycoords");
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_remove, rename_topo)
+TEST(conduit_blueprint_mesh_rename, rename_topo)
 {
     // topo change impacts refs in:
     //  fields, matsets, nestsets, adjsets
-    
+
     // check fields updates
     {
+        echo_title("rename topo check fields");
         conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
         n_mesh_opts["mesh_type"] = "uniform";
         n_mesh_opts["nx"] = 3;
@@ -110,6 +121,7 @@ TEST(conduit_blueprint_mesh_remove, rename_topo)
 
     // check matsets updates
     {
+        echo_title("rename topo check matsets");
         conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
         n_mesh_opts["matset_type"] = "full";
         n_mesh_opts["nx"] = 4;
@@ -117,11 +129,11 @@ TEST(conduit_blueprint_mesh_remove, rename_topo)
         n_mesh_opts["radius"] = 1;
 
         conduit::blueprint::mesh::examples::generate("venn",n_mesh_opts,n_mesh);
-        EXPECT_TRUE(n_mesh.has_path("topologies/mesh"));
-        EXPECT_TRUE(n_mesh["fields/importance/topology"],"mesh");
-        EXPECT_TRUE(n_mesh["matsets/matset/topology"],"mesh");
+        EXPECT_TRUE(n_mesh.has_path("topologies/topo"));
+        EXPECT_EQ(n_mesh["fields/importance/topology"].as_string(),"topo");
+        EXPECT_EQ(n_mesh["matsets/matset/topology"].as_string(),"topo");
 
-        n_opts["topologies/mesh"] = "topo";
+        n_opts["topologies/topo"] = "mytopo";
 
         echo_node("[before]",n_mesh,false);
         echo_node("[options]",n_opts);
@@ -130,27 +142,27 @@ TEST(conduit_blueprint_mesh_remove, rename_topo)
         echo_node("[after]",n_mesh,false);
         echo_node("info",n_info);
 
-        EXPECT_TRUE(n_mesh.has_path("topologies/topo"));
-        EXPECT_TRUE(n_mesh["fields/importance/topology"],"topo");
-        EXPECT_TRUE(n_mesh["matsets/matset/topology"],"topo");
+        EXPECT_TRUE(n_mesh.has_path("topologies/mytopo"));
+        EXPECT_EQ(n_mesh["fields/importance/topology"].as_string(),"mytopo");
+        EXPECT_EQ(n_mesh["matsets/matset/topology"].as_string(),"mytopo");
     }
-    
+
     // check adjsets updates
     {
+        echo_title("rename topo check adjsets");
         // adjsets do not have dependent refs
         conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
         conduit::blueprint::mesh::examples::generate("adjset_uniform",n_mesh);
-
         size_t number_of_doms = 8;
         EXPECT_EQ(n_mesh.number_of_children(),number_of_doms);
         for(size_t i=0; i<number_of_doms; i++)
         {
-            EXPECT_FALSE(n_mesh[i].has_path("topology/mesh"));
+            EXPECT_TRUE(n_mesh[i].has_path("topologies/topo"));
             EXPECT_TRUE(n_mesh[i].has_path("adjsets/adjset"));
-           EXPECT_EQ(n_mesh[i]["adjsets/adjset/topology"].as_string(),"mesh");
+            EXPECT_EQ(n_mesh[i]["adjsets/adjset/topology"].as_string(),"topo");
         }
 
-        n_opts["topologies/mesh"] = "topo";
+        n_opts["topologies/topo"] = "mytopo";
 
         echo_node("[before]",n_mesh);
         conduit::blueprint::mesh::rename(n_opts,n_mesh);
@@ -161,42 +173,80 @@ TEST(conduit_blueprint_mesh_remove, rename_topo)
         EXPECT_EQ(n_mesh.number_of_children(),number_of_doms);
         for(size_t i=0; i<number_of_doms; i++)
         {
-            EXPECT_FALSE(n_mesh[i].has_path("topology/topo"));
-            EXPECT_EQ(n_mesh[i]["adjsets/adjset/topology"].as_string(),"topo");
+            EXPECT_TRUE(n_mesh[i].has_path("topologies/mytopo"));
+            EXPECT_EQ(n_mesh[i]["adjsets/adjset/topology"].as_string(),"mytopo");
         }
     }
-    
+
     // check nestsets updates
     {
+        echo_title("rename topo check nestsets");
         // nestsets do not have dependent refs
         conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
         conduit::blueprint::mesh::examples::generate("julia_nestsets_simple",n_mesh);
 
         EXPECT_EQ(n_mesh.number_of_children(),2);
-        EXPECT_TRUE(n_mesh[0]["nestsets/nest/topology"].as_string(),"topo");
-        EXPECT_TRUE(n_mesh[1]["nestsets/nest/topology"].as_string(),"topo");
+        EXPECT_EQ(n_mesh[0]["nestsets/nest/topology"].as_string(),"topo");
+        EXPECT_EQ(n_mesh[1]["nestsets/nest/topology"].as_string(),"topo");
 
-        n_opts["topologies/mesh"] = "topo";
+        n_opts["topologies/topo"] = "mytopo";
 
         echo_node("[before]",n_mesh);
         conduit::blueprint::mesh::rename(n_opts,n_mesh);
         EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
         echo_node("[after]",n_mesh);
         echo_node("[info]",n_info);
-    
+
         EXPECT_EQ(n_mesh.number_of_children(),2);
-        EXPECT_TRUE(n_mesh[0]["nestsets/nest/topology"].as_string(),"mytopo");
-        EXPECT_TRUE(n_mesh[1]["nestsets/nest/topology"].as_string(),"mytopo");
+        EXPECT_EQ(n_mesh[0]["nestsets/nest/topology"].as_string(),"mytopo");
+        EXPECT_EQ(n_mesh[1]["nestsets/nest/topology"].as_string(),"mytopo");
     }
-    
+}
+
+
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_rename, rename_fields)
+{
+    echo_title("rename fields");
+    conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
+    n_mesh_opts["mesh_type"] = "uniform";
+    n_mesh_opts["nx"] = 3;
+    n_mesh_opts["ny"] = 3;
+
+    conduit::blueprint::mesh::examples::generate("braid",n_mesh_opts,n_mesh);
+    EXPECT_TRUE(n_mesh.has_path("topologies/mesh"));
+    EXPECT_TRUE(n_mesh.has_path("fields/braid"));
+    EXPECT_EQ(n_mesh["fields/braid/topology"].as_string(),"mesh");
+
+    n_opts["fields/braid"] = "awe";
+    n_opts["fields/radial"] = "som";
+    n_opts["fields/vel"] = "e";
+
+    echo_node("[before]",n_mesh);
+    echo_node("[options]",n_opts);
+    conduit::blueprint::mesh::rename(n_opts,n_mesh);
+    EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
+    echo_node("[after]",n_mesh);
+    echo_node("info",n_info);
+
+    EXPECT_FALSE(n_mesh.has_path("fields/braid"));
+    EXPECT_FALSE(n_mesh.has_path("fields/radial"));
+    EXPECT_FALSE(n_mesh.has_path("fields/vel"));
+
+    EXPECT_TRUE(n_mesh.has_path("fields/awe"));
+    EXPECT_TRUE(n_mesh.has_path("fields/som"));
+    EXPECT_TRUE(n_mesh.has_path("fields/e"));
+
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_remove, rename_matsets)
+TEST(conduit_blueprint_mesh_rename, rename_matsets)
 {
     // matset change impacts refs in:
     //  fields, specsets
     {
+        echo_title("rename matset");
         conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
         n_mesh_opts["matset_type"] = "full";
         n_mesh_opts["nx"] = 4;
@@ -226,6 +276,7 @@ TEST(conduit_blueprint_mesh_remove, rename_matsets)
     }
     // also check that spec ref to matset is updated
     {
+        echo_title("rename matset check specsets");
         conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
         n_mesh_opts["mesh_type"] = "specsets";
         n_mesh_opts["nx"] = 5;
@@ -234,7 +285,6 @@ TEST(conduit_blueprint_mesh_remove, rename_matsets)
 
         conduit::blueprint::mesh::examples::generate("misc",n_mesh);
         EXPECT_TRUE(n_mesh.has_path("topologies/mesh"));
-        EXPECT_TRUE(n_mesh.has_path("fields/radial"));
         EXPECT_TRUE(n_mesh.has_path("matsets/mesh"));
         EXPECT_TRUE(n_mesh.has_path("specsets/mesh"));
 
@@ -249,18 +299,17 @@ TEST(conduit_blueprint_mesh_remove, rename_matsets)
         echo_node("info",n_info);
 
         EXPECT_TRUE(n_mesh.has_path("matsets/matset"));
-        EXPECT_FALSE(n_mesh.has_path("specsets/mesh"));
-        EXPECT_EQ(n_mesh["fields/radial/matset"].as_string(),"matset");
         EXPECT_EQ(n_mesh["specsets/mesh/matset"].as_string(),"matset");
 
     }
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_remove, rename_specsets)
+TEST(conduit_blueprint_mesh_rename, rename_specsets)
 {
     // specsets do not have dependent refs
     {
+        echo_title("rename specset check");
         conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
         n_mesh_opts["mesh_type"] = "specsets";
         n_mesh_opts["nx"] = 5;
@@ -268,7 +317,6 @@ TEST(conduit_blueprint_mesh_remove, rename_specsets)
         n_mesh_opts["ny"] = 3;
         conduit::blueprint::mesh::examples::generate("misc",n_mesh);
         EXPECT_TRUE(n_mesh.has_path("topologies/mesh"));
-        EXPECT_TRUE(n_mesh.has_path("fields/radial"));
         EXPECT_TRUE(n_mesh.has_path("matsets/mesh"));
         EXPECT_TRUE(n_mesh.has_path("specsets/mesh"));
 
@@ -288,8 +336,9 @@ TEST(conduit_blueprint_mesh_remove, rename_specsets)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_remove, rename_adjsets)
+TEST(conduit_blueprint_mesh_rename, rename_adjsets)
 {
+    echo_title("rename adjset");
     // adjsets do not have dependent refs
     conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
     conduit::blueprint::mesh::examples::generate("adjset_uniform",n_mesh);
@@ -319,8 +368,9 @@ TEST(conduit_blueprint_mesh_remove, rename_adjsets)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_remove, remove_nestsets)
+TEST(conduit_blueprint_mesh_rename, remove_nestsets)
 {
+    echo_title("rename nestset");
     // nestsets do not have dependent refs
     conduit::Node n_mesh, n_mesh_opts, n_opts, n_info;
     conduit::blueprint::mesh::examples::generate("julia_nestsets_simple",n_mesh);
@@ -337,7 +387,7 @@ TEST(conduit_blueprint_mesh_remove, remove_nestsets)
     EXPECT_TRUE(conduit::blueprint::mesh::verify(n_mesh, n_info));
     echo_node("[after]",n_mesh);
     echo_node("[info]",n_info);
-    
+
     EXPECT_EQ(n_mesh.number_of_children(),2);
     EXPECT_TRUE(n_mesh[0].has_path("nestsets/mynest"));
     EXPECT_TRUE(n_mesh[1].has_path("nestsets/mynest"));
