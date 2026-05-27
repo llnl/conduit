@@ -12,6 +12,7 @@
 //-----------------------------------------------------------------------------
 // conduit includes
 //-----------------------------------------------------------------------------
+#include "conduit_node.hpp"
 
 #if defined(CONDUIT_USE_CUDA)
 #include <cuda_runtime.h>
@@ -303,6 +304,239 @@ ExecutionPolicy::policy_id_to_name(const PolicyID policy_id)
     else if (policy_id == PolicyID::HIP_ID)     return "hip";
     else if (policy_id == PolicyID::OPENMP_ID)  return "openmp";
     return "empty";
+}
+
+//-----------------------------------------------------------------------------
+// Private class used to hold options that control execution params.
+//
+// These values are read by about(), and are set by io::execution_set_options()
+//
+//
+//-----------------------------------------------------------------------------
+
+class ExecutionOptions
+{
+public:
+    // chosen execution policy
+    static std::string execution_policy;
+
+    // allocator to use
+    static std::string output_allocator;
+
+    // "sync" or "assume"
+    static std::string sync_strategy;
+    
+    // allocator ids that are available
+    static index_t device_allocator;
+    static index_t host_allocator;
+    static index_t user_provided_allocator;
+
+public:
+    //------------------------------------------------------------------------
+    // opts node:
+    //   execution_policy: "host"|"device"|"input_location"
+    //     # choose host, device, or input location (use `use_with` to get a 
+    //     # policy for the input data).
+    //     # default is "input_location"
+    //   output_allocator: "host"|"device"|"input_allocator"|##
+    //     # choose host alloc, device alloc, input alloc (get the allocator 
+    //     # from the input node), or an index_t that is the allocator id to use
+    //     # default is "input_allocator"
+    //   sync_strategy: "sync"|"assume"
+    //     # choose to sync or assume
+    //     # default is "assume"
+    static void set(const Node &opts)
+    {
+        if (opts.has_child("execution_policy"))
+        {
+            if (opts["execution_policy"].dtype().is_string())
+            {
+                const std::string policy = opts["execution_policy"].as_string();
+                if (policy == "host" ||
+                    policy == "device" ||
+                    policy == "input_location")
+                {
+                    execution_policy = policy;
+                }
+                else
+                {
+                    CONDUIT_ERROR("ExecutionOptions: invalid execution_policy option.");
+                }
+            }
+            else
+            {
+                CONDUIT_ERROR("ExecutionOptions: invalid execution_policy option.");
+            }
+        }
+
+        if (opts.has_child("output_allocator"))
+        {
+            if (opts["output_allocator"].dtype().is_string())
+            {
+                const std::string out_alloc = opts["output_allocator"].as_string();
+                if (out_alloc == "host" ||
+                    out_alloc == "device" ||
+                    out_alloc == "input_allocator")
+                {
+                    output_allocator = out_alloc;
+                }
+                else
+                {
+                    CONDUIT_ERROR("ExecutionOptions: invalid output_allocator option.");
+                }
+            }
+            else if (opts["output_allocator"].dtype().is_integer())
+            {
+                output_allocator = "user_provided";
+                user_provided_allocator = opts["output_allocator"].as_index_t();
+            }
+            else
+            {
+                CONDUIT_ERROR("ExecutionOptions: invalid output_allocator option.");
+            }
+        }
+
+        if (opts.has_child("sync_strategy"))
+        {
+            if (opts["sync_strategy"].dtype().is_string())
+            {
+                const std::string strategy = opts["sync_strategy"].as_string();
+                if (strategy == "sync" ||
+                    strategy == "assume")
+                {
+                    sync_strategy = strategy;
+                }
+                else
+                {
+                    CONDUIT_ERROR("ExecutionOptions: invalid sync_strategy option.");
+                }
+            }
+            else
+            {
+                CONDUIT_ERROR("ExecutionOptions: invalid sync_strategy option.");
+            }
+        }
+    }
+
+    //------------------------------------------------------------------------
+    static void about(Node &opts)
+    {
+        opts.reset();
+
+        opts["execution_policy"].set(execution_policy);
+        opts["output_allocator"].set(output_allocator);
+        opts["sync_strategy"].set(sync_strategy);
+        opts["device_allocator"].set(device_allocator);
+        opts["host_allocator"].set(host_allocator);
+        opts["user_provided_allocator"].set(user_provided_allocator);
+    }
+
+    //------------------------------------------------------------------------
+    static const std::string& get_execution_policy_option()
+    {
+        return execution_policy;
+    }
+
+    //------------------------------------------------------------------------
+    static ExecutionPolicy get_execution_policy()
+    {
+        if ("host" == execution_policy)
+        {
+            return ExecutionPolicy::host();
+        }
+        if ("device" == execution_policy)
+        {
+            return ExecutionPolicy::device();
+        }
+        CONDUIT_ERROR("ExecutionOptions::policy() cannot resolve "
+                            "\"input_location\" without an input object.");
+        return ExecutionPolicy::empty();
+    }
+
+    //------------------------------------------------------------------------
+    static const std::string& get_output_allocator_option()
+    {
+        return output_allocator;
+    }
+
+    //------------------------------------------------------------------------
+    static index_t get_output_allocator_option_id()
+    {
+        if ("host" == output_allocator)
+        {
+            return host_allocator;
+        }
+        if ("device" == output_allocator)
+        {
+            return device_allocator;
+        }
+        if ("user_provided" == output_allocator)
+        {
+            return user_provided_allocator;
+        }
+        CONDUIT_ERROR("ExecutionOptions::get_output_allocator_option_id() cannot resolve "
+                            "\"input_allocator\" without an input object.");
+        return -1;
+    }
+
+    //------------------------------------------------------------------------
+    static const std::string& get_sync_strategy_option()
+    {
+        return sync_strategy;
+    }
+
+    //------------------------------------------------------------------------
+    static index_t get_device_allocator_id()
+    {
+        return device_allocator;
+    }
+
+    //------------------------------------------------------------------------
+    static index_t get_host_allocator_id()
+    {
+        return host_allocator;
+    }
+};
+
+//
+// default execution settings
+//
+
+std::string ExecutionOptions::execution_policy = "input_location";
+// allocator to use
+std::string ExecutionOptions::output_allocator = "input_allocator";
+// "sync" or "assume"
+std::string ExecutionOptions::sync_strategy = "assume";
+
+// allocator ids that are available - use lambdas to avoid overload ambiguity
+index_t ExecutionOptions::device_allocator =
+    conduit::utils::register_allocator(
+        [](size_t num_items, size_t item_size) -> void *
+        {
+            return DeviceMemory::allocate(num_items, item_size);
+        },
+        DeviceMemory::deallocate);
+index_t ExecutionOptions::host_allocator =
+    conduit::utils::register_allocator(
+        [](size_t num_items, size_t item_size) -> void *
+        {
+            return HostMemory::allocate(num_items, item_size);
+        },
+        HostMemory::deallocate);
+index_t ExecutionOptions::user_provided_allocator = -1;
+
+//-----------------------------------------------------------------------------
+void
+execution_set_options(const Node &opts)
+{
+    ExecutionOptions::set(opts);
+}
+
+//-----------------------------------------------------------------------------
+void
+execution_options(Node &opts)
+{
+    ExecutionOptions::about(opts);
 }
 
 //---------------------------------------------------------------------------//
