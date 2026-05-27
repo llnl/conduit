@@ -220,7 +220,7 @@ ExecutionPolicy::is_serial_enabled()
 bool
 ExecutionPolicy::is_cuda_enabled()
 {
-#if defined(CONDUIT_USE_CUDA)
+#if defined(CONDUIT_USE_CUDA) && defined(CONDUIT_USE_UMPIRE)
     return true;
 #else
     return false;
@@ -231,7 +231,7 @@ ExecutionPolicy::is_cuda_enabled()
 bool
 ExecutionPolicy::is_hip_enabled()
 {
-#if defined(CONDUIT_USE_HIP)
+#if defined(CONDUIT_USE_HIP) && defined(CONDUIT_USE_UMPIRE)
     return true;
 #else
     return false;
@@ -260,7 +260,7 @@ ExecutionPolicy::is_host_enabled()
 bool
 ExecutionPolicy::is_device_enabled()
 {
-#if defined(CONDUIT_USE_UMPIRE)
+#if defined(CONDUIT_USE_DEVICE)
     return is_cuda_enabled() || is_hip_enabled();
 #else
     return false;
