@@ -46,7 +46,7 @@ TEST(conduit_blueprint_mesh_rename, bad_options)
     conduit::Node n_opts;
     n_opts["topologies"] = 1;
     EXPECT_THROW(conduit::blueprint::mesh::rename(n_opts,n_mesh),conduit::Error);
-    // entries are current name to desired naem
+    // entries are current name to desired name
     n_opts["topologies/bonkers"] = 1;
     EXPECT_THROW(conduit::blueprint::mesh::rename(n_opts,n_mesh),conduit::Error);
     n_opts.reset();
