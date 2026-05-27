@@ -260,7 +260,11 @@ ExecutionPolicy::is_host_enabled()
 bool
 ExecutionPolicy::is_device_enabled()
 {
+#if defined(CONDUIT_USE_UMPIRE)
     return is_cuda_enabled() || is_hip_enabled();
+#else
+    return false;
+#endif
 }
 
 //---------------------------------------------------------------------------//
