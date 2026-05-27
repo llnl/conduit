@@ -30,6 +30,7 @@ set(BLUEPRINT_TESTS t_blueprint_smoke
                     t_blueprint_mesh_matset_accessor
                     t_blueprint_mesh_topology_metadata
                     t_blueprint_mesh_remove
+                    t_blueprint_mesh_rename
                     t_blueprint_mesh_utils
                     t_blueprint_table_verify
                     t_blueprint_table_examples

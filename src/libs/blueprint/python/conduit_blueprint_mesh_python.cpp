@@ -393,6 +393,86 @@ PyBlueprint_mesh_remove(PyObject *, //self
 }
 
 
+//---------------------------------------------------------------------------//
+// conduit::blueprint::mesh::rename
+//---------------------------------------------------------------------------//
+
+// doc str
+const char *PyBlueprint_mesh_rename_doc_str =
+"rename(options, mesh)\n"
+"\n"
+"Assumes mesh::verify() is True\n"
+"\n"
+"Renames subcomponents of a blueprint mesh tree\n"
+"\n"
+"Arguments:\n"
+"  options: options node (conduit.Node instance)\n"
+"  mesh: input node (conduit.Node instance)\n"
+"\n"
+"Example Options:\n"
+"topologies:\n"
+"  topo: mytopo\n"
+"\n";
+
+// py func
+static PyObject *
+PyBlueprint_mesh_rename(PyObject *, //self
+                        PyObject *args,
+                        PyObject *kwargs)
+{
+
+    PyObject   *py_options  = NULL;
+    PyObject   *py_mesh     = NULL;
+
+    static const char *kwlist[] = {"options",
+                                   "mesh",
+                                   NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args,
+                                     kwargs,
+                                     "OO",
+                                     const_cast<char**>(kwlist),
+                                     &py_options,
+                                     &py_mesh))
+    {
+        return NULL;
+    }
+
+    if(!PyConduit_Node_Check(py_options))
+    {
+        PyErr_SetString(PyExc_TypeError,
+                        "'options' argument must be a "
+                        "conduit.Node instance");
+        return NULL;
+    }
+
+    if(!PyConduit_Node_Check(py_mesh))
+    {
+        PyErr_SetString(PyExc_TypeError,
+                        "'mesh' argument must be a "
+                        "conduit.Node instance");
+        return NULL;
+    }
+
+    try
+    {
+        Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
+        Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
+
+        blueprint::mesh::rename(options,mesh);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
+
+
+    Py_RETURN_NONE;
+}
+
+
 
 //---------------------------------------------------------------------------//
 // conduit::blueprint::mesh::partition
@@ -663,6 +743,10 @@ static PyMethodDef blueprint_mesh_python_funcs[] =
       _PyCFunction_CAST(PyBlueprint_mesh_remove),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_remove_doc_str},
+    {"rename",
+      _PyCFunction_CAST(PyBlueprint_mesh_rename),
+      METH_VARARGS | METH_KEYWORDS,
+      PyBlueprint_mesh_rename_doc_str},
     {"partition",
       _PyCFunction_CAST(PyBlueprint_mesh_partition),
       METH_VARARGS | METH_KEYWORDS,
