@@ -402,7 +402,10 @@ void CONDUIT_BLUEPRINT_API convert(const conduit::Node &n_mesh,
 /*!
  * @brief Remove specific components of mesh and their dependent entires.
  *        For example, remove a topology and all associated fields
-*
+ *
+ *        If patterns do not match, remove is a no-op and  no errors
+ *        are thrown.
+ *
  * @param n_mesh The node containing the input mesh (coordsets, topos, 
  *               fields, matsets, specsets, adjsets, and nestsets)
  *
@@ -436,8 +439,11 @@ void CONDUIT_BLUEPRINT_API remove(const conduit::Node &n_options,
  *        entires.
  *
  *        For example, rename topology to `my_topo` and update
- *        all associated fields
-*
+ *        all associated fields.
+ *
+ *        If components are not found rename is a no-op and
+ *        no errors are thrown.
+ *
  * @param n_mesh The node containing the input mesh (coordsets, topos,
  *               fields, matsets, specsets, adjsets, and nestsets)
  *
@@ -452,7 +458,8 @@ void CONDUIT_BLUEPRINT_API remove(const conduit::Node &n_options,
  *   topologies:
  *       topo_old : topo_new
  *   fields:
- *       field_old : field_new
+ *       field1_old : field1_new
+ *       field2_old : field2_new
  *   matsets:
  *       matset_old : matset_new
  *   specsets:
