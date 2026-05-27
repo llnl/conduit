@@ -78,9 +78,9 @@ endif()
 #
 
 ######
-# Conduit requires c++14 support
+# Conduit requires c++17 support
 ######
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 #######################################################
