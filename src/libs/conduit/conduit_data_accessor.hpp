@@ -250,6 +250,8 @@ public:
 
     void                                assume();
 
+    void                                data_movement(const std::string &strategy);
+
     conduit::execution::ExecutionPolicy active_space();
 
 //-----------------------------------------------------------------------------

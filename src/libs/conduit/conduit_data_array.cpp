@@ -742,7 +742,6 @@ DataArray<T>::sync()
     }
 }
 
-
 //---------------------------------------------------------------------------//
 template <typename T>
 void
@@ -775,6 +774,25 @@ DataArray<T>::assume()
         m_other_ptr = nullptr;
         m_do_i_own_it = false;
         m_other_dtype = DataType::empty();
+    }
+}
+
+//---------------------------------------------------------------------------//
+template <typename T>
+void
+DataArray<T>::data_movement(const std::string &strategy)
+{
+    if ("sync" == strategy)
+    {
+        sync();
+    }
+    else if ("assume" == strategy)
+    {
+        assume();
+    }
+    else
+    {
+        CONDUIT_ERROR("Unknown data movement strategy: " << strategy);
     }
 }
 

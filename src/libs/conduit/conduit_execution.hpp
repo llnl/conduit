@@ -91,19 +91,9 @@ void execution_set_options(const Node &opts);
 void execution_options(Node &opts);
 
 //-----------------------------------------------------------------------------
-/// Get the execution policy option.
-//-----------------------------------------------------------------------------
-const std::string& get_execution_policy_option();
-
-//-----------------------------------------------------------------------------
 /// Get an execution policy based on the policy option.
 //-----------------------------------------------------------------------------
 ExecutionPolicy get_execution_policy();
-
-//-----------------------------------------------------------------------------
-/// Get the output allocator option.
-//-----------------------------------------------------------------------------
-const std::string& get_output_allocator_option();
 
 //-----------------------------------------------------------------------------
 /// Get the output allocator id based on the allocator option.

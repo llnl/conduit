@@ -945,26 +945,9 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
             coordset["spacing"]["d"+csys_axis].to_float64() : 1.0;
         index_t dim_len = coordset["dims"][logical_axis].to_int64();
 
-        conduit::execution::ExecutionPolicy policy;
-        if (conduit::execution::get_execution_policy_option() == "input_location")
-        {
-            // special case; we have no input data to query
-            policy = conduit::execution::ExecutionPolicy::host();
-        }
-        else
-        {
-            policy = conduit::execution::get_execution_policy();
-        }
-        index_t allocator_id;
-        if (conduit::execution::get_output_allocator_option() == "input_allocator")
-        {
-            // special case; we have no input data to query
-            allocator_id = conduit::execution::get_host_allocator_id();
-        }
-        else
-        {
-            allocator_id = conduit::execution::get_output_allocator_id();
-        }
+        // execution setup
+        conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
+        const index_t allocator_id = conduit::execution::get_output_allocator_id();
         const std::string &sync_strategy = conduit::execution::get_sync_strategy_option();
 
         Node &dst_cvals_node = dest["values"][csys_axis];
@@ -980,14 +963,7 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
         });
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
-        if (sync_strategy == "sync")
-        {
-            dst_values.sync();
-        }
-        else // if (sync_strategy == "assume")
-        {
-            dst_values.assume();
-        }
+        dst_values.data_movement(sync_strategy);
     }
 }
 

@@ -433,13 +433,7 @@ public:
     }
 
     //------------------------------------------------------------------------
-    static const std::string& get_execution_policy_option()
-    {
-        return execution_policy;
-    }
-
-    //------------------------------------------------------------------------
-    static ExecutionPolicy get_execution_policy()
+    static ExecutionPolicy get_execution_policy_helper(Node *src_node)
     {
         if ("host" == execution_policy)
         {
@@ -449,19 +443,44 @@ public:
         {
             return ExecutionPolicy::device();
         }
-        CONDUIT_ERROR("ExecutionOptions::policy() cannot resolve "
-                            "\"input_location\" without an input object.");
+        if ("input_location" == execution_policy)
+        {
+            if (nullptr != src_node)
+            {
+                if (execution::DeviceMemory::is_device_ptr(src_node->data_ptr()))
+                {
+                    return execution::ExecutionPolicy::device();
+                }
+                else
+                {
+                    return execution::ExecutionPolicy::host();
+                }
+            }
+            else
+            {
+                CONDUIT_ERROR("ExecutionOptions::get_execution_policy() cannot resolve "
+                              "\"input_location\" without an input object.");
+            }
+        }
+        CONDUIT_ERROR("ExecutionOptions::get_execution_policy() cannot resolve "
+                      "policy " << execution_policy << ".");
         return ExecutionPolicy::empty();
     }
 
     //------------------------------------------------------------------------
-    static const std::string& get_output_allocator_option()
+    static ExecutionPolicy get_execution_policy(Node &src_node)
     {
-        return output_allocator;
+        return get_execution_policy_helper(&src_node);
     }
 
     //------------------------------------------------------------------------
-    static index_t get_output_allocator_id()
+    static ExecutionPolicy get_execution_policy()
+    {
+        return get_execution_policy_helper(nullptr);
+    }
+
+    //------------------------------------------------------------------------
+    static index_t get_output_allocator_id_helper(Node *src_node)
     {
         if ("host" == output_allocator)
         {
@@ -475,9 +494,33 @@ public:
         {
             return user_provided_allocator;
         }
-        CONDUIT_ERROR("ExecutionOptions::get_output_allocator_option_id() cannot resolve "
-                            "\"input_allocator\" without an input object.");
+        if ("input_allocator" == output_allocator)
+        {
+            if (nullptr != src_node)
+            {
+                return src_node->allocator();
+            }
+            else
+            {
+                CONDUIT_ERROR("ExecutionOptions::get_output_allocator_id() cannot resolve "
+                              "\"input_allocator\" without an input object.");
+            }
+        }
+        CONDUIT_ERROR("ExecutionOptions::get_output_allocator_id() cannot resolve "
+                      "output_allocator " << output_allocator << ".");
         return -1;
+    }
+
+    //------------------------------------------------------------------------
+    static index_t get_output_allocator_id(Node &src_node)
+    {
+        return get_output_allocator_id_helper(&src_node);
+    }
+
+    //------------------------------------------------------------------------
+    static index_t get_output_allocator_id()
+    {
+        return get_output_allocator_id_helper(nullptr);
     }
 
     //------------------------------------------------------------------------
@@ -541,24 +584,10 @@ execution_options(Node &opts)
 }
 
 //-----------------------------------------------------------------------------
-const std::string&
-get_execution_policy_option()
-{
-    return ExecutionOptions::get_execution_policy_option();
-}
-
-//-----------------------------------------------------------------------------
 ExecutionPolicy
 get_execution_policy()
 {
     return ExecutionOptions::get_execution_policy();
-}
-
-//-----------------------------------------------------------------------------
-const std::string&
-get_output_allocator_option()
-{
-    return ExecutionOptions::get_output_allocator_option();
 }
 
 //-----------------------------------------------------------------------------

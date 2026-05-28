@@ -600,7 +600,6 @@ DataAccessor<T>::sync()
     }
 }
 
-
 //---------------------------------------------------------------------------//
 template <typename T>
 void
@@ -636,6 +635,24 @@ DataAccessor<T>::assume()
     }
 }
 
+//---------------------------------------------------------------------------//
+template <typename T>
+void
+DataAccessor<T>::data_movement(const std::string &strategy)
+{
+    if ("sync" == strategy)
+    {
+        sync();
+    }
+    else if ("assume" == strategy)
+    {
+        assume();
+    }
+    else
+    {
+        CONDUIT_ERROR("Unknown data movement strategy: " << strategy);
+    }
+}
 
 //---------------------------------------------------------------------------//
 template <typename T>
