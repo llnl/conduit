@@ -460,7 +460,7 @@ public:
     }
 
     //------------------------------------------------------------------------
-    static index_t get_output_allocator_option_id()
+    static index_t get_output_allocator_id()
     {
         if ("host" == output_allocator)
         {
@@ -537,6 +537,55 @@ void
 execution_options(Node &opts)
 {
     ExecutionOptions::about(opts);
+}
+
+//-----------------------------------------------------------------------------
+const std::string&
+get_execution_policy_option()
+{
+    return ExecutionOptions::get_execution_policy_option();
+}
+
+//-----------------------------------------------------------------------------
+ExecutionPolicy
+get_execution_policy()
+{
+    return ExecutionOptions::get_execution_policy();
+}
+
+//-----------------------------------------------------------------------------
+const std::string&
+get_execution_output_allocator_option()
+{
+    return ExecutionOptions::get_output_allocator_option();
+}
+
+//-----------------------------------------------------------------------------
+index_t
+get_execution_output_allocator_id()
+{
+    return ExecutionOptions::get_output_allocator_id();
+}
+
+//-----------------------------------------------------------------------------
+const std::string&
+get_execution_sync_strategy_option()
+{
+    return ExecutionOptions::get_sync_strategy_option();
+}
+
+//-----------------------------------------------------------------------------
+index_t
+get_execution_device_allocator_id()
+{
+    return ExecutionOptions::get_device_allocator_id();
+}
+
+//-----------------------------------------------------------------------------
+index_t
+get_execution_host_allocator_id()
+{
+    return ExecutionOptions::get_host_allocator_id();
 }
 
 //---------------------------------------------------------------------------//

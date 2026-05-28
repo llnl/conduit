@@ -392,49 +392,40 @@ TEST(conduit_execution, strawman_data_accessor)
             //----------------------------------------------------------
             for (const std::string &policy_str : policies)
             {
-                ExecutionPolicy policy;
-                if (policy_str == "host")
+                if (policy_str == "device" && ! ExecutionPolicy::is_device_enabled())
                 {
-                    policy = ExecutionPolicy::host();
+                    continue;
                 }
-                else
-                {
-                    if (ExecutionPolicy::is_device_enabled())
-                    {
-                        policy = ExecutionPolicy::device();
-                    }
-                    else
-                    {
-                        continue;
-                    }
-                }
+
+                Node exec_opts;
+                exec_opts["execution_policy"].set(policy_str);
+                conduit::execution::execution_set_options(exec_opts);
 
                 CONDUIT_INFO("DataAccessor sync():\n" <<
                              "    policy="    << policy_str << "\n" <<
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
 
-                Node node;
-                float64 *src_device_ptr = nullptr;
-                float64 *des_device_ptr = nullptr;
+                ExecutionPolicy policy = conduit::execution::get_execution_policy();
+                Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set(src_vals);
+                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-                    node["src"].set_external(src_device_ptr, src_vals.size());
+                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set(des_vals);
+                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-                    node["des"].set_external(des_device_ptr, des_vals.size());
+                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
+                node["src"].set(src_vals);
+                node["des"].set(des_vals);
 
                 Node cali_opts;
                 cali_opts["config"] = "runtime-report";
@@ -474,15 +465,6 @@ TEST(conduit_execution, strawman_data_accessor)
                 }
 
                 node.reset();
-
-                if (src_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(src_device_ptr);
-                }
-                if (des_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(des_device_ptr);
-                }
             }
 
             //----------------------------------------------------------
@@ -492,49 +474,40 @@ TEST(conduit_execution, strawman_data_accessor)
             //----------------------------------------------------------
             for (const std::string &policy_str : policies)
             {
-                ExecutionPolicy policy;
-                if (policy_str == "host")
+                if (policy_str == "device" && ! ExecutionPolicy::is_device_enabled())
                 {
-                    policy = ExecutionPolicy::host();
+                    continue;
                 }
-                else
-                {
-                    if (ExecutionPolicy::is_device_enabled())
-                    {
-                        policy = ExecutionPolicy::device();
-                    }
-                    else
-                    {
-                        continue;
-                    }
-                }
+
+                Node exec_opts;
+                exec_opts["execution_policy"].set(policy_str);
+                conduit::execution::execution_set_options(exec_opts);
 
                 CONDUIT_INFO("DataAccessor assume():\n" <<
                              "    policy="    << policy_str << "\n" <<
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
 
-                Node node;
-                float64 *src_device_ptr = nullptr;
-                float64 *des_device_ptr = nullptr;
+                ExecutionPolicy policy = conduit::execution::get_execution_policy();
+                Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set(src_vals);
+                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-                    node["src"].set_external(src_device_ptr, src_vals.size());
+                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set(des_vals);
+                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-                    node["des"].set_external(des_device_ptr, des_vals.size());
+                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
+                node["src"].set(src_vals);
+                node["des"].set(des_vals);
 
                 Node cali_opts;
                 cali_opts["config"] = "runtime-report";
@@ -574,16 +547,6 @@ TEST(conduit_execution, strawman_data_accessor)
                 }
 
                 node.reset();
-
-                if (src_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(src_device_ptr);
-                }
-                // we only need to free if node now points somewhere else
-                if (des_start == "device" && policy_str == "host")
-                {
-                    execution::DeviceMemory::deallocate(des_device_ptr);
-                }
             }
 
             //----------------------------------------------------------
@@ -598,27 +561,25 @@ TEST(conduit_execution, strawman_data_accessor)
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
 
-                Node node;
-                float64 *src_device_ptr = nullptr;
-                float64 *des_device_ptr = nullptr;
+                Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set(src_vals);
+                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-                    node["src"].set_external(src_device_ptr, src_vals.size());
+                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set(des_vals);
+                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-                    node["des"].set_external(des_device_ptr, des_vals.size());
+                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
+                node["src"].set(src_vals);
+                node["des"].set(des_vals);
 
                 Node cali_opts;
                 cali_opts["config"] = "runtime-report";
@@ -668,15 +629,6 @@ TEST(conduit_execution, strawman_data_accessor)
                 }
 
                 node.reset();
-
-                if (src_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(src_device_ptr);
-                }
-                if (des_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(des_device_ptr);
-                }
             }
 
             //----------------------------------------------------------
@@ -686,49 +638,40 @@ TEST(conduit_execution, strawman_data_accessor)
             //----------------------------------------------------------
             for (const std::string &policy_str : policies)
             {
-                ExecutionPolicy policy;
-                if (policy_str == "host")
+                if (policy_str == "device" && ! ExecutionPolicy::is_device_enabled())
                 {
-                    policy = ExecutionPolicy::host();
+                    continue;
                 }
-                else
-                {
-                    if (ExecutionPolicy::is_device_enabled())
-                    {
-                        policy = ExecutionPolicy::device();
-                    }
-                    else
-                    {
-                        continue;
-                    }
-                }
+
+                Node exec_opts;
+                exec_opts["execution_policy"].set(policy_str);
+                conduit::execution::execution_set_options(exec_opts);
 
                 CONDUIT_INFO("DataAccessor dispatch() lambda:\n" <<
                              "    policy="    << policy_str << "\n" <<
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
 
-                Node node;
-                float64 *src_device_ptr = nullptr;
-                float64 *des_device_ptr = nullptr;
+                ExecutionPolicy policy = conduit::execution::get_execution_policy();
+                Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set(src_vals);
+                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-                    node["src"].set_external(src_device_ptr, src_vals.size());
+                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set(des_vals);
+                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-                    node["des"].set_external(des_device_ptr, des_vals.size());
+                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
+                node["src"].set(src_vals);
+                node["des"].set(des_vals);
 
                 Node cali_opts;
                 cali_opts["config"] = "runtime-report";
@@ -761,7 +704,6 @@ TEST(conduit_execution, strawman_data_accessor)
                     EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
                 }
 
-
                 float64_accessor result_acc(node["des"]);
                 // Verification runs on the host, so use a host execution policy
                 // in case node["des"] still owns device-backed data here.
@@ -773,15 +715,6 @@ TEST(conduit_execution, strawman_data_accessor)
                 }
 
                 node.reset();
-
-                if (src_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(src_device_ptr);
-                }
-                if (des_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(des_device_ptr);
-                }
             }
 
             //----------------------------------------------------------
@@ -791,49 +724,40 @@ TEST(conduit_execution, strawman_data_accessor)
             //----------------------------------------------------------
             for (const std::string &policy_str : policies)
             {
-                ExecutionPolicy policy;
-                if (policy_str == "host")
+                if (policy_str == "device" && ! ExecutionPolicy::is_device_enabled())
                 {
-                    policy = ExecutionPolicy::host();
+                    continue;
                 }
-                else
-                {
-                    if (ExecutionPolicy::is_device_enabled())
-                    {
-                        policy = ExecutionPolicy::device();
-                    }
-                    else
-                    {
-                        continue;
-                    }
-                }
+
+                Node exec_opts;
+                exec_opts["execution_policy"].set(policy_str);
+                conduit::execution::execution_set_options(exec_opts);
 
                 CONDUIT_INFO("DataAccessor dispatch() functor:\n" <<
                              "    policy="    << policy_str << "\n" <<
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
 
-                Node node;
-                float64 *src_device_ptr = nullptr;
-                float64 *des_device_ptr = nullptr;
+                ExecutionPolicy policy = conduit::execution::get_execution_policy();
+                Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set(src_vals);
+                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-                    node["src"].set_external(src_device_ptr, src_vals.size());
+                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set(des_vals);
+                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-                    node["des"].set_external(des_device_ptr, des_vals.size());
+                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
+                node["src"].set(src_vals);
+                node["des"].set(des_vals);
 
                 Node cali_opts;
                 cali_opts["config"] = "runtime-report";
@@ -866,7 +790,6 @@ TEST(conduit_execution, strawman_data_accessor)
                     EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
                 }
 
-
                 float64_accessor result_acc(node["des"]);
                 // Verification runs on the host, so use a host execution policy
                 // in case node["des"] still owns device-backed data here.
@@ -878,15 +801,6 @@ TEST(conduit_execution, strawman_data_accessor)
                 }
 
                 node.reset();
-
-                if (src_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(src_device_ptr);
-                }
-                if (des_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(des_device_ptr);
-                }
             }
         }
     }
@@ -917,55 +831,46 @@ TEST(conduit_execution, strawman_data_array)
             //----------------------------------------------------------
             for (const std::string &policy_str : policies)
             {
-                ExecutionPolicy policy;
-                if (policy_str == "host")
+                if (policy_str == "device" && ! ExecutionPolicy::is_device_enabled())
                 {
-                    policy = ExecutionPolicy::host();
+                    continue;
                 }
-                else
-                {
-                    if (ExecutionPolicy::is_device_enabled())
-                    {
-                        policy = ExecutionPolicy::device();
-                    }
-                    else
-                    {
-                        continue;
-                    }
-                }
+
+                Node exec_opts;
+                exec_opts["execution_policy"].set(policy_str);
+                conduit::execution::execution_set_options(exec_opts);
 
                 CONDUIT_INFO("DataArray sync():\n" <<
                              "    policy="    << policy_str << "\n" <<
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
 
-                Node node;
-                float64 *src_device_ptr = nullptr;
-                float64 *des_device_ptr = nullptr;
+                ExecutionPolicy policy = conduit::execution::get_execution_policy();
+                Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set(src_vals);
+                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-                    node["src"].set_external(src_device_ptr, src_vals.size());
+                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set(des_vals);
+                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-                    node["des"].set_external(des_device_ptr, des_vals.size());
+                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
+                node["src"].set(src_vals);
+                node["des"].set(des_vals);
 
                 Node cali_opts;
                 cali_opts["config"] = "runtime-report";
                 annotations::initialize(cali_opts);
 
-                run_data_accessor_policy_and_sync(node, policy);
+                run_data_array_policy_and_sync(node, policy);
 
                 annotations::finalize();
 
@@ -999,15 +904,6 @@ TEST(conduit_execution, strawman_data_array)
                 }
 
                 node.reset();
-
-                if (src_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(src_device_ptr);
-                }
-                if (des_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(des_device_ptr);
-                }
             }
 
             //----------------------------------------------------------
@@ -1017,55 +913,46 @@ TEST(conduit_execution, strawman_data_array)
             //----------------------------------------------------------
             for (const std::string &policy_str : policies)
             {
-                ExecutionPolicy policy;
-                if (policy_str == "host")
+                if (policy_str == "device" && ! ExecutionPolicy::is_device_enabled())
                 {
-                    policy = ExecutionPolicy::host();
+                    continue;
                 }
-                else
-                {
-                    if (ExecutionPolicy::is_device_enabled())
-                    {
-                        policy = ExecutionPolicy::device();
-                    }
-                    else
-                    {
-                        continue;
-                    }
-                }
+
+                Node exec_opts;
+                exec_opts["execution_policy"].set(policy_str);
+                conduit::execution::execution_set_options(exec_opts);
 
                 CONDUIT_INFO("DataArray assume():\n" <<
                              "    policy="    << policy_str << "\n" <<
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
 
-                Node node;
-                float64 *src_device_ptr = nullptr;
-                float64 *des_device_ptr = nullptr;
+                ExecutionPolicy policy = conduit::execution::get_execution_policy();
+                Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set(src_vals);
+                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-                    node["src"].set_external(src_device_ptr, src_vals.size());
+                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set(des_vals);
+                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-                    node["des"].set_external(des_device_ptr, des_vals.size());
+                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
+                node["src"].set(src_vals);
+                node["des"].set(des_vals);
 
                 Node cali_opts;
                 cali_opts["config"] = "runtime-report";
                 annotations::initialize(cali_opts);
 
-                run_data_accessor_policy_and_assume(node, policy);
+                run_data_array_policy_and_assume(node, policy);
 
                 annotations::finalize();
 
@@ -1099,16 +986,6 @@ TEST(conduit_execution, strawman_data_array)
                 }
 
                 node.reset();
-
-                if (src_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(src_device_ptr);
-                }
-                // we only need to free if node now points somewhere else
-                if (des_start == "device" && policy_str == "host")
-                {
-                    execution::DeviceMemory::deallocate(des_device_ptr);
-                }
             }
 
             //----------------------------------------------------------
@@ -1123,34 +1000,32 @@ TEST(conduit_execution, strawman_data_array)
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
 
-                Node node;
-                float64 *src_device_ptr = nullptr;
-                float64 *des_device_ptr = nullptr;
+                Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set(src_vals);
+                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-                    node["src"].set_external(src_device_ptr, src_vals.size());
+                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set(des_vals);
+                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-                    node["des"].set_external(des_device_ptr, des_vals.size());
+                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
+                node["src"].set(src_vals);
+                node["des"].set(des_vals);
 
                 Node cali_opts;
                 cali_opts["config"] = "runtime-report";
                 annotations::initialize(cali_opts);
 
                 ExecutionPolicy policy;
-                run_data_accessor_using_active_space(node, policy);
+                run_data_array_using_active_space(node, policy);
 
                 annotations::finalize();
 
@@ -1193,15 +1068,6 @@ TEST(conduit_execution, strawman_data_array)
                 }
 
                 node.reset();
-
-                if (src_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(src_device_ptr);
-                }
-                if (des_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(des_device_ptr);
-                }
             }
 
             //----------------------------------------------------------
@@ -1211,56 +1077,47 @@ TEST(conduit_execution, strawman_data_array)
             //----------------------------------------------------------
             for (const std::string &policy_str : policies)
             {
-                ExecutionPolicy policy;
-                if (policy_str == "host")
+                if (policy_str == "device" && ! ExecutionPolicy::is_device_enabled())
                 {
-                    policy = ExecutionPolicy::host();
+                    continue;
                 }
-                else
-                {
-                    if (ExecutionPolicy::is_device_enabled())
-                    {
-                        policy = ExecutionPolicy::device();
-                    }
-                    else
-                    {
-                        continue;
-                    }
-                }
+
+                Node exec_opts;
+                exec_opts["execution_policy"].set(policy_str);
+                conduit::execution::execution_set_options(exec_opts);
 
                 CONDUIT_INFO("DataArray dispatch() lambda:\n" <<
                              "    policy="    << policy_str << "\n" <<
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
 
-                Node node;
-                float64 *src_device_ptr = nullptr;
-                float64 *des_device_ptr = nullptr;
+                ExecutionPolicy policy = conduit::execution::get_execution_policy();
+                Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set(src_vals);
+                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-                    node["src"].set_external(src_device_ptr, src_vals.size());
+                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set(des_vals);
+                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-                    node["des"].set_external(des_device_ptr, des_vals.size());
+                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
+                node["src"].set(src_vals);
+                node["des"].set(des_vals);
 
                 Node cali_opts;
                 cali_opts["config"] = "runtime-report";
                 annotations::initialize(cali_opts);
 
                 float64 min_val; index_t min_loc;
-                run_data_accessor_dispatch_and_sync(node, policy, min_val, min_loc);
+                run_data_array_dispatch_and_sync(node, policy, min_val, min_loc);
 
                 annotations::finalize();
 
@@ -1298,15 +1155,6 @@ TEST(conduit_execution, strawman_data_array)
                 }
 
                 node.reset();
-
-                if (src_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(src_device_ptr);
-                }
-                if (des_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(des_device_ptr);
-                }
             }
 
             //----------------------------------------------------------
@@ -1316,56 +1164,47 @@ TEST(conduit_execution, strawman_data_array)
             //----------------------------------------------------------
             for (const std::string &policy_str : policies)
             {
-                ExecutionPolicy policy;
-                if (policy_str == "host")
+                if (policy_str == "device" && ! ExecutionPolicy::is_device_enabled())
                 {
-                    policy = ExecutionPolicy::host();
+                    continue;
                 }
-                else
-                {
-                    if (ExecutionPolicy::is_device_enabled())
-                    {
-                        policy = ExecutionPolicy::device();
-                    }
-                    else
-                    {
-                        continue;
-                    }
-                }
+
+                Node exec_opts;
+                exec_opts["execution_policy"].set(policy_str);
+                conduit::execution::execution_set_options(exec_opts);
 
                 CONDUIT_INFO("DataArray dispatch() functor:\n" <<
                              "    policy="    << policy_str << "\n" <<
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
 
-                Node node;
-                float64 *src_device_ptr = nullptr;
-                float64 *des_device_ptr = nullptr;
+                ExecutionPolicy policy = conduit::execution::get_execution_policy();
+                Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set(src_vals);
+                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    src_device_ptr = make_float64_device_buffer(src_vals.data(), src_vals.size());
-                    node["src"].set_external(src_device_ptr, src_vals.size());
+                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set(des_vals);
+                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
                 }
                 else
                 {
-                    des_device_ptr = make_float64_device_buffer(des_vals.data(), des_vals.size());
-                    node["des"].set_external(des_device_ptr, des_vals.size());
+                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
                 }
+                node["src"].set(src_vals);
+                node["des"].set(des_vals);
 
                 Node cali_opts;
                 cali_opts["config"] = "runtime-report";
                 annotations::initialize(cali_opts);
 
                 float64 min_val; index_t min_loc;
-                run_data_accessor_dispatch_and_sync(node, policy, min_val, min_loc);
+                run_data_array_dispatch_and_sync(node, policy, min_val, min_loc);
 
                 annotations::finalize();
 
@@ -1403,15 +1242,6 @@ TEST(conduit_execution, strawman_data_array)
                 }
 
                 node.reset();
-
-                if (src_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(src_device_ptr);
-                }
-                if (des_start == "device")
-                {
-                    execution::DeviceMemory::deallocate(des_device_ptr);
-                }
             }
         }
     }

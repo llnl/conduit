@@ -122,6 +122,9 @@ run_data_accessor_policy_and_sync(Node &node, ExecutionPolicy policy)
     float64_accessor acc_src(node["src"]);
     float64_accessor acc_des(node["des"]);
 
+    ExecutionPolicy as = acc_src.active_space();
+    std::cout << as.policy_name() << std::endl;
+
     // Ask the accessors to move their data to the memory space occupied
     // by the requested execution policy if their data is not already
     // there.
