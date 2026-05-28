@@ -29,18 +29,6 @@ conduit_device_prepare()
 }
 
 //-----------------------------------------------------------------------------
-float64 *
-make_float64_device_buffer(const float64 *host_vals, index_t num_vals)
-{
-    float64 *device_ptr = static_cast<float64*>(
-        execution::DeviceMemory::allocate(sizeof(float64) * num_vals));
-    conduit::execution::MagicMemory::copy(device_ptr,
-                                          host_vals,
-                                          sizeof(float64) * num_vals);
-    return device_ptr;
-}
-
-//-----------------------------------------------------------------------------
 std::vector<float64>
 make_execution_src_vals(index_t array_size)
 {

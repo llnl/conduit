@@ -343,7 +343,8 @@ public:
     //     # from the input node), or an index_t that is the allocator id to use
     //     # default is "input_allocator"
     //   sync_strategy: "sync"|"assume"
-    //     # choose to sync or assume
+    //     # choose to sync or assume (if we add a new option here we need to
+    //     # update all the use sites).
     //     # default is "assume"
     static void set(const Node &opts)
     {
@@ -555,35 +556,35 @@ get_execution_policy()
 
 //-----------------------------------------------------------------------------
 const std::string&
-get_execution_output_allocator_option()
+get_output_allocator_option()
 {
     return ExecutionOptions::get_output_allocator_option();
 }
 
 //-----------------------------------------------------------------------------
 index_t
-get_execution_output_allocator_id()
+get_output_allocator_id()
 {
     return ExecutionOptions::get_output_allocator_id();
 }
 
 //-----------------------------------------------------------------------------
 const std::string&
-get_execution_sync_strategy_option()
+get_sync_strategy_option()
 {
     return ExecutionOptions::get_sync_strategy_option();
 }
 
 //-----------------------------------------------------------------------------
 index_t
-get_execution_device_allocator_id()
+get_device_allocator_id()
 {
     return ExecutionOptions::get_device_allocator_id();
 }
 
 //-----------------------------------------------------------------------------
 index_t
-get_execution_host_allocator_id()
+get_host_allocator_id()
 {
     return ExecutionOptions::get_host_allocator_id();
 }

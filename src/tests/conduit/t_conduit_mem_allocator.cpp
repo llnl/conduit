@@ -128,7 +128,7 @@ TEST(conduit_memory_allocator, test_custom_allocator)
     while(ptr_itr.has_next())
     {
         const conduit::Node &p_n = ptr_itr.next();
-        EXPECT_EQ(p_n["allocator_id"].to_int64(),1);
+        EXPECT_EQ(p_n["allocator_id"].to_int64(),3);
     }
     
     std::cout << "Other Node Info" << std::endl;

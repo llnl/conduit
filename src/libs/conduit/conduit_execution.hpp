@@ -103,27 +103,27 @@ ExecutionPolicy get_execution_policy();
 //-----------------------------------------------------------------------------
 /// Get the output allocator option.
 //-----------------------------------------------------------------------------
-const std::string& get_execution_output_allocator_option();
+const std::string& get_output_allocator_option();
 
 //-----------------------------------------------------------------------------
 /// Get the output allocator id based on the allocator option.
 //-----------------------------------------------------------------------------
-index_t get_execution_output_allocator_id();
+index_t get_output_allocator_id();
 
 //-----------------------------------------------------------------------------
 /// Get the sync strategy option.
 //-----------------------------------------------------------------------------
-const std::string& get_execution_sync_strategy_option();
+const std::string& get_sync_strategy_option();
 
 //-----------------------------------------------------------------------------
 /// Get the device allocator id.
 //-----------------------------------------------------------------------------
-index_t get_execution_device_allocator_id();
+index_t get_device_allocator_id();
 
 //-----------------------------------------------------------------------------
 /// Get the host allocator id.
 //-----------------------------------------------------------------------------
-index_t get_execution_host_allocator_id();
+index_t get_host_allocator_id();
 
 
 //---------------------------------------------------------------------------//

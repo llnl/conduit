@@ -410,19 +410,19 @@ TEST(conduit_execution, strawman_data_accessor)
                 Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 node["src"].set(src_vals);
                 node["des"].set(des_vals);
@@ -492,19 +492,19 @@ TEST(conduit_execution, strawman_data_accessor)
                 Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 node["src"].set(src_vals);
                 node["des"].set(des_vals);
@@ -564,19 +564,19 @@ TEST(conduit_execution, strawman_data_accessor)
                 Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 node["src"].set(src_vals);
                 node["des"].set(des_vals);
@@ -656,19 +656,19 @@ TEST(conduit_execution, strawman_data_accessor)
                 Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 node["src"].set(src_vals);
                 node["des"].set(des_vals);
@@ -742,19 +742,19 @@ TEST(conduit_execution, strawman_data_accessor)
                 Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 node["src"].set(src_vals);
                 node["des"].set(des_vals);
@@ -849,19 +849,19 @@ TEST(conduit_execution, strawman_data_array)
                 Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 node["src"].set(src_vals);
                 node["des"].set(des_vals);
@@ -931,19 +931,19 @@ TEST(conduit_execution, strawman_data_array)
                 Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 node["src"].set(src_vals);
                 node["des"].set(des_vals);
@@ -1003,19 +1003,19 @@ TEST(conduit_execution, strawman_data_array)
                 Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 node["src"].set(src_vals);
                 node["des"].set(des_vals);
@@ -1095,19 +1095,19 @@ TEST(conduit_execution, strawman_data_array)
                 Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 node["src"].set(src_vals);
                 node["des"].set(des_vals);
@@ -1182,19 +1182,19 @@ TEST(conduit_execution, strawman_data_array)
                 Node node;                
                 if (src_start == "host")
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["src"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["src"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 if (des_start == "host")
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_host_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_host_allocator_id());
                 }
                 else
                 {
-                    node["des"].set_allocator(conduit::execution::get_execution_device_allocator_id());
+                    node["des"].set_allocator(conduit::execution::get_device_allocator_id());
                 }
                 node["src"].set(src_vals);
                 node["des"].set(des_vals);
