@@ -19,13 +19,18 @@
 #include "conduit_core.hpp"
 #include "conduit_data_type.hpp"
 #include "conduit_utils.hpp"
-#include "conduit_data_accessor.hpp"
 
 //-----------------------------------------------------------------------------
 // -- begin conduit:: --
 //-----------------------------------------------------------------------------
 namespace conduit
 {
+
+//-----------------------------------------------------------------------------
+// -- forward declarations required for conduit::DataArray --
+//-----------------------------------------------------------------------------
+template <typename T>
+class DataAccessor;
 
 //-----------------------------------------------------------------------------
 // -- begin conduit::DataArray --

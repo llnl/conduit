@@ -79,7 +79,7 @@ TEST(conduit_relay_io_silo, test_silo_detect)
 {
     // make sure bogus file doesn't return true
     EXPECT_FALSE(io::is_silo_file("BoGUS.txt"));
-    
+
     // make sure pure hdf5 file doesn't return true
     Node n_test;
     n_test["a"] = 42.0;
@@ -417,10 +417,10 @@ TEST(conduit_relay_io_silo, round_trip_venn_modded_matnos)
 
     auto replace_matno = [](int matno)
     {
-        return (matno == 1 ? 15 : 
-               (matno == 2 ? 37 : 
-               (matno == 3 ? 4  : 
-               (matno == 0 ? 22 : 
+        return (matno == 1 ? 15 :
+               (matno == 2 ? 37 :
+               (matno == 3 ? 4  :
+               (matno == 0 ? 22 :
                -1))));
     };
 
@@ -448,7 +448,7 @@ TEST(conduit_relay_io_silo, round_trip_venn_modded_matnos)
     EXPECT_EQ(bp_filename, io::blueprint::generate_root_filename(save_mesh, bp_basename, "hdf5"));
     remove_path_if_exists(bp_filename);
     io::blueprint::save_mesh(save_mesh, bp_basename, "hdf5");
-    
+
     io::silo::load_mesh(silo_filename, load_mesh);
     EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
 
@@ -462,31 +462,6 @@ TEST(conduit_relay_io_silo, round_trip_venn_modded_matnos)
     save_mesh["fields"]["mat_check"]["matset_values"].to_double_array(mat_check_new_matset_values);
     save_mesh["fields"]["mat_check"]["values"].set_external(mat_check_new_values);
     save_mesh["fields"]["mat_check"]["matset_values"].set_external(mat_check_new_matset_values);
-
-    // to_silo is going to reorder mixed materials least to greatest
-    // so we must do the same
-    int_array mat_ids = save_mesh["matsets"]["matset"]["material_ids"].value();
-    const auto mat_id10 = mat_ids[10];
-    const auto mat_id11 = mat_ids[11];
-    const auto mat_id12 = mat_ids[12];
-    mat_ids[10] = mat_id12;
-    mat_ids[11] = mat_id10;
-    mat_ids[12] = mat_id11;
-    auto field_itr = save_mesh["fields"].children();
-    while (field_itr.has_next())
-    {
-        const Node &n_field = field_itr.next();
-        if (n_field.has_child("matset"))
-        {
-            double_array matset_vals = n_field["matset_values"].value();
-            const auto matset_val10 = matset_vals[10];
-            const auto matset_val11 = matset_vals[11];
-            const auto matset_val12 = matset_vals[12];
-            matset_vals[10] = matset_val12;
-            matset_vals[11] = matset_val10;
-            matset_vals[12] = matset_val11;
-        }
-    }
 
     silo_name_changer("mesh", save_mesh);
 
@@ -506,7 +481,7 @@ TEST(conduit_relay_io_silo, round_trip_spiral_multi_dom_materials)
     blueprint::mesh::examples::spiral(ndomains, save_mesh);
     add_matset_to_spiral(save_mesh, ndomains);
     EXPECT_TRUE(blueprint::mesh::verify(save_mesh, info));
-    
+
     const std::string basename = "silo_multidom_materials_spiral";
     const std::string filename = basename + ".cycle_000000.root";
     EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, basename, "silo"));
@@ -527,7 +502,7 @@ TEST(conduit_relay_io_silo, round_trip_spiral_multi_dom_materials)
         n_matset["volume_fractions"].to_float64_array(vf_arr);
         n_matset["volume_fractions"].reset();
         n_matset["volume_fractions"].set(vf_arr);
-        
+
         // cheat a little bit - we don't have these to start
         n_matset["sizes"].set_external(load_mesh[child]["matsets"]["mesh_matset"]["sizes"]);
         n_matset["offsets"].set_external(load_mesh[child]["matsets"]["mesh_matset"]["offsets"]);
@@ -567,7 +542,7 @@ TEST(conduit_relay_io_silo, round_trip_grid_adjset)
     read_opts["matset_style"] = "multi_buffer_full";
 
     const std::string basename = "silo_grid_adjset";
-    const std::string filename = basename + "/OvlTop.silo";
+    const std::string filename = basename + conduit::utils::file_path_separator() + "OvlTop.silo";
     EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, basename, "silo", write_opts));
 
     remove_path_if_exists(filename);
@@ -582,7 +557,7 @@ TEST(conduit_relay_io_silo, round_trip_grid_adjset)
         Node &field_vel = save_mesh[child]["fields"]["vel"];
         Node &field_vel_u = save_mesh[child]["fields"]["vel_u"];
         Node &field_vel_v = save_mesh[child]["fields"]["vel_v"];
-        
+
         field_vel_u["topology"].set(field_vel["topology"]);
         field_vel_u["association"].set(field_vel["association"]);
         field_vel_u["values"].set(field_vel["values/u"]);
@@ -669,7 +644,7 @@ TEST(conduit_relay_io_silo, round_trip_units_and_labels)
 
         Node save_mesh, save_mesh_overlink, load_mesh, load_mesh_overlink, info;
         blueprint::mesh::examples::braid(mesh_type, nx, ny, nz, save_mesh);
-        
+
         // add units and labels to coordset
         save_mesh["coordsets"]["coords"]["units"]["x"] = "these are my x units";
         save_mesh["coordsets"]["coords"]["units"]["y"] = "these are my y units";
@@ -710,7 +685,7 @@ TEST(conduit_relay_io_silo, round_trip_units_and_labels)
         const std::string filename = basename + ".cycle_000100.root";
         EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, basename, "silo"));
         const std::string basename_ovl = "overlink_braid_units_and_labels_" + mesh_type + "_" + dim + "D";
-        const std::string filename_ovl = basename_ovl + "/OvlTop.silo";
+        const std::string filename_ovl = basename_ovl + conduit::utils::file_path_separator() + "OvlTop.silo";
         EXPECT_EQ(filename_ovl, io::blueprint::generate_root_filename(save_mesh, basename_ovl, "silo", write_opts));
 
         // remove existing root file, directory and any output files
@@ -743,7 +718,7 @@ TEST(conduit_relay_io_silo, round_trip_units_and_labels)
             save_mesh["fields"]["radial"]["association"].reset();
             save_mesh["fields"]["radial"]["association"] = "vertex";
         }
-        
+
         if (do_overlink_too)
         {
             save_mesh_overlink.set(save_mesh);
@@ -852,9 +827,9 @@ TEST(conduit_relay_io_silo, read_silo_units_for_fields)
 }
 
 //-----------------------------------------------------------------------------
-// 
+//
 // test read and write semantics
-// 
+//
 
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_silo, read_and_write_semantics)
@@ -893,13 +868,13 @@ TEST(conduit_relay_io_silo, read_and_write_semantics)
 }
 
 //-----------------------------------------------------------------------------
-// 
+//
 // special case tests
-// 
+//
 
 //-----------------------------------------------------------------------------
 // var is not defined on a domain
-// 
+//
 // tests the silo "EMPTY" capability
 TEST(conduit_relay_io_silo, missing_domain_var)
 {
@@ -940,7 +915,7 @@ TEST(conduit_relay_io_silo, missing_domain_var)
 
 //-----------------------------------------------------------------------------
 // matset is not defined on a domain
-// 
+//
 // tests the silo "EMPTY" capability
 TEST(conduit_relay_io_silo, missing_domain_matset)
 {
@@ -975,7 +950,7 @@ TEST(conduit_relay_io_silo, missing_domain_matset)
             n_matset["volume_fractions"].to_float64_array(vf_arr);
             n_matset["volume_fractions"].reset();
             n_matset["volume_fractions"].set(vf_arr);
-            
+
             // cheat a little bit - we don't have these to start
             n_matset["sizes"].set_external(load_mesh[child]["matsets"]["mesh_matset"]["sizes"]);
             n_matset["offsets"].set_external(load_mesh[child]["matsets"]["mesh_matset"]["offsets"]);
@@ -999,11 +974,11 @@ TEST(conduit_relay_io_silo, missing_domain_matset)
 
 //-----------------------------------------------------------------------------
 // mesh is not defined on a domain
-// 
+//
 // This case is much less interesting.
 // data passes through the clean mesh filter which
 // deletes domains that are missing topos.
-// They simply are not part of the mesh and so silo 
+// They simply are not part of the mesh and so silo
 // doesn't have to deal with it.
 TEST(conduit_relay_io_silo, missing_domain_mesh_trivial)
 {
@@ -1200,10 +1175,90 @@ TEST(conduit_relay_io_silo, unstructured_points)
 }
 
 //-----------------------------------------------------------------------------
+// tests missing material name
+TEST(conduit_relay_io_silo, missing_material_name)
+{
+    const std::string filepath = utils::join_file_path("overlink", "overlinkMatColorsNullMatnames.silo");
+    const std::string input_file = relay_test_silo_data_path(filepath);
 
-// 
+    Node load_mesh, write_opts;
+    io::silo::load_mesh(input_file, load_mesh);
+
+    EXPECT_TRUE(load_mesh.has_path("domain_000000/matsets/MMATERIAL/material_map/2"));
+    EXPECT_EQ(load_mesh["domain_000000/matsets/MMATERIAL/material_map/2"].as_int32(), 2);
+}
+
+//-----------------------------------------------------------------------------
+// Tests this Overlink rule: Number of species per material within a set must
+// agree across domains
+// This tests if we can find the error in the serial case.
+TEST(conduit_relay_io_silo, overlink_specset_rules)
+{
+    Node save_mesh, load_mesh, info;
+    blueprint::mesh::examples::misc("specsets", 3, 3, 1, save_mesh.append());
+    save_mesh[0]["matsets"].rename_child("mesh", "matset");
+    save_mesh[0]["specsets"].rename_child("mesh", "specset");
+    save_mesh[0]["specsets"]["specset"]["matset"].set("matset");
+    save_mesh[0]["state"]["domain_id"] = 0;
+
+    // duplicate
+    save_mesh.append().set(save_mesh[0]);
+    save_mesh[1]["state"]["domain_id"] = 1;
+
+    save_mesh[1]["specsets"]["specset"]["matset_values"]["mat2"]["spec3"].set(DataType::float64(4));
+
+    // the faulty specset passes verify
+    EXPECT_TRUE(blueprint::mesh::verify(save_mesh, info));
+
+    Node write_opts;
+    write_opts["file_style"] = "overlink";
+
+    // We will first try to save with Overlink, which should fail.
+    // Then we will save with regular Silo which should succeed.
+    const std::string basename = "silo_save_overlink_specset_rules";
+    const std::string filename = basename + ".cycle_000100.root";
+    EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, basename, "silo"));
+
+    Node read_opts;
+    read_opts["matset_style"] = "multi_buffer_full";
+
+    remove_path_if_exists(filename);
+
+    EXPECT_THROW(io::silo::save_mesh(save_mesh, basename, write_opts), conduit::Error);
+    
+    // now save without overlink
+    io::silo::save_mesh(save_mesh, basename);
+
+    io::silo::load_mesh(filename, read_opts, load_mesh);
+    EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
+
+    // make changes to save mesh so the diff will pass
+    // add bogus numbers to the specset; read behavior assumes this exists
+    save_mesh[0]["specsets"]["specset"]["matset_values"]["mat2"]["spec3"].set(DataType::float64(4));
+    float64_array spec3 = save_mesh[0]["specsets"]["specset"]["matset_values"]["mat2"]["spec3"].value();
+    spec3[0] = 1.0; spec3[1] = 0.0; spec3[2] = 1.0; spec3[3] = 0.0;
+    for (index_t child = 0; child < save_mesh.number_of_children(); child ++)
+    {
+        silo_name_changer("mesh", save_mesh[child]);
+    }
+
+    EXPECT_EQ(load_mesh.number_of_children(), save_mesh.number_of_children());
+    NodeConstIterator l_itr = load_mesh.children();
+    NodeConstIterator s_itr = save_mesh.children();
+    while (l_itr.has_next())
+    {
+        const Node &l_curr = l_itr.next();
+        const Node &s_curr = s_itr.next();
+
+        EXPECT_FALSE(l_curr.diff(s_curr, info, CONDUIT_EPSILON, true));
+    }
+}
+
+//-----------------------------------------------------------------------------
+
+//
 // save option tests
-// 
+//
 
 // save options:
 /// opts:
@@ -1237,7 +1292,7 @@ TEST(conduit_relay_io_silo, unstructured_points)
 ///      unified_types: "default", "yes", "no"
 ///            "default" ==> "yes"
 ///            prefer single mesh/var types versus writing an entire array
-///            of types. "yes" will prefer this if possible, "no" will 
+///            of types. "yes" will prefer this if possible, "no" will
 ///            always write the entire array.
 ///
 ///      number_of_files:  {# of files}
@@ -1298,8 +1353,8 @@ TEST(conduit_relay_io_silo, round_trip_save_option_number_of_files)
         opts["file_style"] = "multi_file";
         opts["number_of_files"] = number_of_files[i];
 
-        const std::string basename = "silo_save_option_number_of_files_" + 
-                                     std::to_string(number_of_files[i]) + 
+        const std::string basename = "silo_save_option_number_of_files_" +
+                                     std::to_string(number_of_files[i]) +
                                      "_spiral";
         const std::string filename = basename + ".cycle_000000.root";
 
@@ -1394,7 +1449,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_root_file_ext)
             actual_file_ext = "root";
         }
 
-        const std::string basename = "round_trip_save_option_root_file_ext_" + 
+        const std::string basename = "round_trip_save_option_root_file_ext_" +
                                      root_file_exts[i] + "_basic";
         const std::string filename = basename + "." + actual_file_ext;
 
@@ -1462,7 +1517,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_silo_type)
         io::silo::save_mesh(save_mesh, basename, opts);
         io::silo::load_mesh(filename, load_mesh);
         EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
-        
+
         silo_name_changer("mesh", save_mesh);
 
         // the loaded mesh will be in the multidomain format
@@ -1481,7 +1536,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_unified_types)
     const std::vector<std::string> unified_types = {"default", "yes", "no"};
     for (int i = 0; i < unified_types.size(); i ++)
     {
-        const std::string basename = "silo_save_option_unified_types_" + 
+        const std::string basename = "silo_save_option_unified_types_" +
                                      unified_types[i] + "_spiral";
         const std::string filename = basename + ".cycle_000000.root";
         const int ndomains = 5;
@@ -1518,18 +1573,18 @@ TEST(conduit_relay_io_silo, round_trip_save_option_unified_types)
         // open silo files and do some checks
 
         DBfile *rootfile = DBOpen(filename.c_str(), DB_UNKNOWN, DB_READ);
-        
+
         // check multimesh
         {
             EXPECT_TRUE(DBInqVarExists(rootfile, "mesh_topo"));
             EXPECT_TRUE(DBInqVarType(rootfile, "mesh_topo") == DB_MULTIMESH);
-    
+
             DBmultimesh *mmesh_ptr = DBGetMultimesh(rootfile, "mesh_topo");
-    
+
             // fetch pointers to elements inside the mmesh
             int *mesh_types = mmesh_ptr->meshtypes;
             int  block_type = mmesh_ptr->block_type;
-    
+
             if (unified_types[i] == "no")
             {
                 for (int i = 0; i < ndomains; i ++)
@@ -1543,7 +1598,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_unified_types)
                 EXPECT_EQ(mesh_types, nullptr);
                 EXPECT_EQ(block_type, DB_QUADMESH);
             }
-    
+
             DBFreeMultimesh(mmesh_ptr);
         }
 
@@ -1587,7 +1642,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_root_only)
     const std::vector<std::string> nameschemes = {"default", "yes", "no"};
     for (int i = 0; i < nameschemes.size(); i ++)
     {
-        const std::string basename = "silo_save_option_nameschemes_root_only_" + 
+        const std::string basename = "silo_save_option_nameschemes_root_only_" +
                                      nameschemes[i] + "_spiral";
         const std::string filename = basename + ".cycle_000000.root";
         const int ndomains = 5;
@@ -1627,7 +1682,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_root_only)
                 n_matset["volume_fractions"].to_float64_array(vf_arr);
                 n_matset["volume_fractions"].reset();
                 n_matset["volume_fractions"].set(vf_arr);
-                
+
                 // cheat a little bit - we don't have these to start
                 n_matset["sizes"].set_external(load_mesh[child]["matsets"]["mesh_matset"]["sizes"]);
                 n_matset["offsets"].set_external(load_mesh[child]["matsets"]["mesh_matset"]["offsets"]);
@@ -1662,16 +1717,16 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_root_only)
         {
             EXPECT_TRUE(DBInqVarExists(rootfile, "mesh_topo"));
             EXPECT_TRUE(DBInqVarType(rootfile, "mesh_topo") == DB_MULTIMESH);
-    
+
             DBmultimesh *mmesh_ptr = DBGetMultimesh(rootfile, "mesh_topo");
-    
+
             // fetch pointers to elements inside the mesh
             char **meshnames  = mmesh_ptr->meshnames;
             char  *file_ns    = mmesh_ptr->file_ns;
             char  *block_ns   = mmesh_ptr->block_ns;
             int   *empty_list = mmesh_ptr->empty_list;
             int    empty_cnt  = mmesh_ptr->empty_cnt;
-    
+
             if (nameschemes[i] == "yes")
             {
                 EXPECT_EQ(meshnames, nullptr);
@@ -1681,7 +1736,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_root_only)
             {
                 for (int domid = 0; domid < ndomains; domid ++)
                 {
-                    const std::string meshname = 
+                    const std::string meshname =
                         conduit_fmt::format("domain_{:06d}/mesh/topo", domid);
                     EXPECT_EQ(meshnames[domid], meshname);
                 }
@@ -1691,7 +1746,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_root_only)
             EXPECT_EQ(file_ns, nullptr);
             EXPECT_EQ(empty_list, nullptr);
             EXPECT_EQ(empty_cnt, 0);
-    
+
             DBFreeMultimesh(mmesh_ptr);
         }
 
@@ -1708,7 +1763,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_root_only)
             char  *block_ns   = mvar_ptr->block_ns;
             int   *empty_list = mvar_ptr->empty_list;
             int    empty_cnt  = mvar_ptr->empty_cnt;
-            
+
             if (nameschemes[i] == "yes")
             {
                 EXPECT_EQ(varnames, nullptr);
@@ -1727,7 +1782,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_root_only)
                     }
                     else
                     {
-                        const std::string varname = 
+                        const std::string varname =
                             conduit_fmt::format("domain_{:06d}/mesh/dist", domid);
                         EXPECT_EQ(varnames[domid], varname);
                     }
@@ -1755,7 +1810,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_root_only)
             char  *block_ns   = multimat_ptr->block_ns;
             int   *empty_list = multimat_ptr->empty_list;
             int    empty_cnt  = multimat_ptr->empty_cnt;
-            
+
             if (nameschemes[i] == "yes")
             {
                 EXPECT_EQ(matnames, nullptr);
@@ -1773,7 +1828,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_root_only)
                     }
                     else
                     {
-                        const std::string matname = 
+                        const std::string matname =
                             conduit_fmt::format("domain_{:06d}/mesh/matset", domid);
                         EXPECT_EQ(matnames[domid], matname);
                     }
@@ -1809,11 +1864,11 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
     {
         for (int j = 0; j < file_styles.size(); j ++)
         {
-            const std::string basename = std::string(file_styles[j] == "overlink" ? "overlink" : "silo") + 
-                                         "_save_option_nameschemes_n_files_n_domains_" + 
+            const std::string basename = std::string(file_styles[j] == "overlink" ? "overlink" : "silo") +
+                                         "_save_option_nameschemes_n_files_n_domains_" +
                                          nameschemes[i] + "_spiral";
-            const std::string filename = (file_styles[j] == "overlink" ? 
-                                          basename + "/OvlTop.silo" :
+            const std::string filename = (file_styles[j] == "overlink" ?
+                                          basename + conduit::utils::file_path_separator() + "OvlTop.silo" :
                                           basename + ".cycle_000000.root");
             const int ndomains = 5;
 
@@ -1844,6 +1899,8 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
             io::silo::load_mesh(filename, load_mesh);
             EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
 
+            EXPECT_EQ(load_mesh.number_of_children(), save_mesh.number_of_children());
+
             // make changes to save mesh so the diff will pass
             for (index_t child = 0; child < save_mesh.number_of_children(); child ++)
             {
@@ -1858,10 +1915,10 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
                     n_matset["volume_fractions"].reset();
                     n_matset["volume_fractions"].set(vf_arr);
 
-                    const std::string matset_name = (file_styles[j] == "overlink" ? 
-                                                     "MMATERIAL" : 
+                    const std::string matset_name = (file_styles[j] == "overlink" ?
+                                                     "MMATERIAL" :
                                                      "mesh_matset");
-                    
+
                     // cheat a little bit - we don't have these to start
                     n_matset["sizes"].set_external(load_mesh[child]["matsets"][matset_name]["sizes"]);
                     n_matset["offsets"].set_external(load_mesh[child]["matsets"][matset_name]["offsets"]);
@@ -1877,7 +1934,6 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
                 }
             }
 
-            EXPECT_EQ(load_mesh.number_of_children(), save_mesh.number_of_children());
             NodeConstIterator l_itr = load_mesh.children();
             NodeConstIterator s_itr = save_mesh.children();
             while (l_itr.has_next())
@@ -1899,25 +1955,25 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
 
             DBfile *rootfile = DBOpen(filename.c_str(), DB_UNKNOWN, DB_READ);
 
-            const std::string file_namescheme = (file_styles[j] == "overlink" ? 
-                                                 "|" + basename + "/domain%d.silo|n" : 
-                                                 "|" + basename + ".cycle_000000/domain_%06d.silo|n");
-            
+            const std::string file_namescheme = (file_styles[j] == "overlink" ?
+                                                 "|" + basename + conduit::utils::file_path_separator() +"domain%d.silo|n" :
+                                                 "|" + basename + ".cycle_000000" + conduit::utils::file_path_separator() + "domain_%06d.silo|n");
+
             // check multimesh
             {
                 const std::string topo_name = (file_styles[j] == "overlink" ? "MMESH" : "mesh_topo");
                 EXPECT_TRUE(DBInqVarExists(rootfile, topo_name.c_str()));
                 EXPECT_TRUE(DBInqVarType(rootfile, topo_name.c_str()) == DB_MULTIMESH);
-        
+
                 DBmultimesh *mmesh_ptr = DBGetMultimesh(rootfile, topo_name.c_str());
-        
+
                 // fetch pointers to elements inside the mesh
                 char **meshnames  = mmesh_ptr->meshnames;
                 char  *file_ns    = mmesh_ptr->file_ns;
                 char  *block_ns   = mmesh_ptr->block_ns;
                 int   *empty_list = mmesh_ptr->empty_list;
                 int    empty_cnt  = mmesh_ptr->empty_cnt;
-        
+
                 if (nameschemes[i] == "yes")
                 {
                     EXPECT_EQ(meshnames, nullptr);
@@ -1937,9 +1993,9 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
                     {
                         for (int domid = 0; domid < ndomains; domid ++)
                         {
-                            const std::string meshname = 
+                            const std::string meshname =
                                 conduit_fmt::format(
-                                    basename + "/domain{:d}.silo:MESH", domid);
+                                    basename + conduit::utils::file_path_separator() +"domain{:d}.silo:MESH", domid);
                             EXPECT_EQ(meshnames[domid], meshname);
                         }
                     }
@@ -1947,9 +2003,9 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
                     {
                         for (int domid = 0; domid < ndomains; domid ++)
                         {
-                            const std::string meshname = 
+                            const std::string meshname =
                                 conduit_fmt::format(
-                                    basename + ".cycle_000000/domain_{:06d}.silo:mesh/topo", domid);
+                                    basename + ".cycle_000000" + conduit::utils::file_path_separator() + "domain_{:06d}.silo:mesh/topo", domid);
                             EXPECT_EQ(meshnames[domid], meshname);
                         }
                     }
@@ -1959,7 +2015,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
 
                 EXPECT_EQ(empty_list, nullptr);
                 EXPECT_EQ(empty_cnt, 0);
-        
+
                 DBFreeMultimesh(mmesh_ptr);
             }
 
@@ -1977,7 +2033,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
                 char  *block_ns   = mvar_ptr->block_ns;
                 int   *empty_list = mvar_ptr->empty_list;
                 int    empty_cnt  = mvar_ptr->empty_cnt;
-                
+
                 if (nameschemes[i] == "yes")
                 {
                     EXPECT_EQ(varnames, nullptr);
@@ -2006,9 +2062,9 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
                             }
                             else
                             {
-                                const std::string varname = 
+                                const std::string varname =
                                     conduit_fmt::format(
-                                        basename + "/domain{:d}.silo:dist", domid);
+                                        basename + conduit::utils::file_path_separator() +"domain{:d}.silo:dist", domid);
                                 EXPECT_EQ(varnames[domid], varname);
                             }
                         }
@@ -2023,9 +2079,9 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
                             }
                             else
                             {
-                                const std::string varname = 
+                                const std::string varname =
                                     conduit_fmt::format(
-                                        basename + ".cycle_000000/domain_{:06d}.silo:mesh/dist", domid);
+                                        basename + ".cycle_000000" + conduit::utils::file_path_separator() + "domain_{:06d}.silo:mesh/dist", domid);
                                 EXPECT_EQ(varnames[domid], varname);
                             }
                         }
@@ -2053,7 +2109,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
                 char  *block_ns   = multimat_ptr->block_ns;
                 int   *empty_list = multimat_ptr->empty_list;
                 int    empty_cnt  = multimat_ptr->empty_cnt;
-                
+
                 if (nameschemes[i] == "yes")
                 {
                     EXPECT_EQ(matnames, nullptr);
@@ -2077,9 +2133,9 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
                     {
                         for (int domid = 0; domid < ndomains; domid ++)
                         {
-                            const std::string matname = 
+                            const std::string matname =
                                 conduit_fmt::format(
-                                    basename + "/domain{:d}.silo:MATERIAL", domid);
+                                    basename + conduit::utils::file_path_separator() + "domain{:d}.silo:MATERIAL", domid);
                             EXPECT_EQ(matnames[domid], matname);
                         }
                     }
@@ -2093,9 +2149,9 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
                             }
                             else
                             {
-                                const std::string matname = 
+                                const std::string matname =
                                     conduit_fmt::format(
-                                        basename + ".cycle_000000/domain_{:06d}.silo:mesh/matset", domid);
+                                        basename + ".cycle_000000" + conduit::utils::file_path_separator() +"domain_{:06d}.silo:mesh/matset", domid);
                                 EXPECT_EQ(matnames[domid], matname);
                             }
                         }
@@ -2130,11 +2186,11 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
     {
         for (int j = 0; j < file_styles.size(); j ++)
         {
-            const std::string basename = std::string(file_styles[j] == "overlink" ? "overlink" : "silo") + 
-                                         "_save_option_nameschemes_m_domains_n_files_" + 
+            const std::string basename = std::string(file_styles[j] == "overlink" ? "overlink" : "silo") +
+                                         "_save_option_nameschemes_m_domains_n_files_" +
                                          nameschemes[i] + "_spiral";
-            const std::string filename = (file_styles[j] == "overlink" ? 
-                                          basename + "/OvlTop.silo" :
+            const std::string filename = (file_styles[j] == "overlink" ?
+                                          basename + conduit::utils::file_path_separator() + "OvlTop.silo" :
                                           basename + ".cycle_000000.root");
             const int ndomains = 5;
 
@@ -2180,10 +2236,10 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                     n_matset["volume_fractions"].reset();
                     n_matset["volume_fractions"].set(vf_arr);
 
-                    const std::string matset_name = (file_styles[j] == "overlink" ? 
-                                                     "MMATERIAL" : 
+                    const std::string matset_name = (file_styles[j] == "overlink" ?
+                                                     "MMATERIAL" :
                                                      "mesh_matset");
-                    
+
                     // cheat a little bit - we don't have these to start
                     n_matset["sizes"].set_external(load_mesh[child]["matsets"][matset_name]["sizes"]);
                     n_matset["offsets"].set_external(load_mesh[child]["matsets"][matset_name]["offsets"]);
@@ -2227,26 +2283,26 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
             // open silo files and do some checks
 
             DBfile *rootfile = DBOpen(filename.c_str(), DB_UNKNOWN, DB_READ);
-            
-            const std::string file_namescheme = (file_styles[j] == "overlink" ? 
-                                                 "|" + basename + "/domfile%d.silo|#dom2filemap[n]" : 
-                                                 "|" + basename + ".cycle_000000/file_%06d.silo|#dom2filemap[n]");
+
+            const std::string file_namescheme = (file_styles[j] == "overlink" ?
+                                                  "|" + basename + conduit::utils::file_path_separator() + "domfile%d.silo|#dom2filemap[n]" :
+                                                  "|" + basename + ".cycle_000000" + conduit::utils::file_path_separator() + "file_%06d.silo|#dom2filemap[n]");
 
             // check multimesh
             {
                 const std::string topo_name = (file_styles[j] == "overlink" ? "MMESH" : "mesh_topo");
                 EXPECT_TRUE(DBInqVarExists(rootfile, topo_name.c_str()));
                 EXPECT_TRUE(DBInqVarType(rootfile, topo_name.c_str()) == DB_MULTIMESH);
-        
+
                 DBmultimesh *mmesh_ptr = DBGetMultimesh(rootfile, topo_name.c_str());
-        
+
                 // fetch pointers to elements inside the mesh
                 char **meshnames  = mmesh_ptr->meshnames;
                 char  *file_ns    = mmesh_ptr->file_ns;
                 char  *block_ns   = mmesh_ptr->block_ns;
                 int   *empty_list = mmesh_ptr->empty_list;
                 int    empty_cnt  = mmesh_ptr->empty_cnt;
-        
+
                 if (nameschemes[i] == "yes")
                 {
                     EXPECT_EQ(meshnames, nullptr);
@@ -2266,9 +2322,9 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                     {
                         for (int domid = 0; domid < ndomains; domid ++)
                         {
-                            const std::string meshname = 
+                            const std::string meshname =
                                 conduit_fmt::format(
-                                    basename + "/domfile{:d}.silo:domain{:d}/MESH",
+                                    basename + conduit::utils::file_path_separator() + "domfile{:d}.silo:domain{:d}/MESH",
                                     dom2filemap.at(domid),
                                     domid);
                             EXPECT_EQ(meshnames[domid], meshname);
@@ -2278,9 +2334,9 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                     {
                         for (int domid = 0; domid < ndomains; domid ++)
                         {
-                            const std::string meshname = 
+                            const std::string meshname =
                                 conduit_fmt::format(
-                                    basename + ".cycle_000000/file_{:06d}.silo:domain_{:06d}/mesh/topo",
+                                    basename + ".cycle_000000" + conduit::utils::file_path_separator() + "file_{:06d}.silo:domain_{:06d}/mesh/topo",
                                     dom2filemap.at(domid),
                                     domid);
                             EXPECT_EQ(meshnames[domid], meshname);
@@ -2292,7 +2348,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
 
                 EXPECT_EQ(empty_list, nullptr);
                 EXPECT_EQ(empty_cnt, 0);
-        
+
                 DBFreeMultimesh(mmesh_ptr);
             }
 
@@ -2310,7 +2366,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                 char  *block_ns   = mvar_ptr->block_ns;
                 int   *empty_list = mvar_ptr->empty_list;
                 int    empty_cnt  = mvar_ptr->empty_cnt;
-                
+
                 if (nameschemes[i] == "yes")
                 {
                     EXPECT_EQ(varnames, nullptr);
@@ -2339,14 +2395,14 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                             }
                             else
                             {
-                                const std::string varname = 
+                                const std::string varname =
                                     conduit_fmt::format(
-                                        basename + "/domfile{:d}.silo:domain{:d}/dist",
+                                        basename + conduit::utils::file_path_separator()  +"domfile{:d}.silo:domain{:d}/dist",
                                         dom2filemap.at(domid),
                                         domid);
                                 EXPECT_EQ(varnames[domid], varname);
                             }
-                            
+
                         }
                     }
                     else
@@ -2359,14 +2415,14 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                             }
                             else
                             {
-                                const std::string varname = 
+                                const std::string varname =
                                     conduit_fmt::format(
-                                        basename + ".cycle_000000/file_{:06d}.silo:domain_{:06d}/mesh/dist",
+                                        basename + ".cycle_000000" + conduit::utils::file_path_separator() + "file_{:06d}.silo:domain_{:06d}/mesh/dist",
                                         dom2filemap.at(domid),
                                         domid);
                                 EXPECT_EQ(varnames[domid], varname);
                             }
-                            
+
                         }
                     }
                     EXPECT_EQ(file_ns, nullptr);
@@ -2392,7 +2448,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                 char  *block_ns   = multimat_ptr->block_ns;
                 int   *empty_list = multimat_ptr->empty_list;
                 int    empty_cnt  = multimat_ptr->empty_cnt;
-                
+
                 if (nameschemes[i] == "yes")
                 {
                     EXPECT_EQ(matnames, nullptr);
@@ -2416,9 +2472,9 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                     {
                         for (int domid = 0; domid < ndomains; domid ++)
                         {
-                            const std::string matname = 
+                            const std::string matname =
                                 conduit_fmt::format(
-                                    basename + "/domfile{:d}.silo:domain{:d}/MATERIAL",
+                                    basename + conduit::utils::file_path_separator() + "domfile{:d}.silo:domain{:d}/MATERIAL",
                                     dom2filemap.at(domid),
                                     domid);
                             EXPECT_EQ(matnames[domid], matname);
@@ -2434,9 +2490,9 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                             }
                             else
                             {
-                                const std::string matname = 
+                                const std::string matname =
                                     conduit_fmt::format(
-                                        basename + ".cycle_000000/file_{:06d}.silo:domain_{:06d}/mesh/matset",
+                                        basename + ".cycle_000000" + conduit::utils::file_path_separator() +"file_{:06d}.silo:domain_{:06d}/mesh/matset",
                                         dom2filemap.at(domid),
                                         domid);
                                 EXPECT_EQ(matnames[domid], matname);
@@ -2500,7 +2556,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_overlink1)
         {
             basename = "silo_save_option_overlink_spiral_" + ovl_topo_names[i];
         }
-        const std::string filename = basename + "/OvlTop.silo";
+        const std::string filename = basename + conduit::utils::file_path_separator() + "OvlTop.silo";
 
         int ndomains = 2;
 
@@ -2524,7 +2580,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_overlink1)
             n_matset["volume_fractions"].to_float64_array(vf_arr);
             n_matset["volume_fractions"].reset();
             n_matset["volume_fractions"].set(vf_arr);
-            
+
             // cheat a little bit - we don't have these to start
             n_matset["sizes"].set_external(load_mesh[child]["matsets"]["MMATERIAL"]["sizes"]);
             n_matset["offsets"].set_external(load_mesh[child]["matsets"]["MMATERIAL"]["offsets"]);
@@ -2554,7 +2610,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_overlink2)
     read_opts["matset_style"] = "multi_buffer_full";
 
     const std::string basename = "silo_save_option_overlink_basic";
-    const std::string filename = basename + "/OvlTop.silo";
+    const std::string filename = basename + conduit::utils::file_path_separator() + "OvlTop.silo";
 
     Node save_mesh, load_mesh, info;
     blueprint::mesh::examples::basic("structured", 3, 3, 1, save_mesh);
@@ -2654,7 +2710,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_overlink2)
 
     // now check domain file
 
-    const std::string dom_filename = basename + "/domain0.silo";
+    const std::string dom_filename = basename + conduit::utils::file_path_separator() + "domain0.silo";
     DBfile *domfile = DBOpen(dom_filename.c_str(), DB_UNKNOWN, DB_READ);
 
     EXPECT_TRUE(DBInqVarExists(domfile, "DOMAIN_NEIGHBOR_NUMS"));
@@ -2697,7 +2753,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_overlink3)
     opts["file_style"] = "overlink";
 
     const std::string basename = "silo_save_option_overlink_venn";
-    const std::string filename = basename + "/OvlTop.silo";
+    const std::string filename = basename + conduit::utils::file_path_separator() + "OvlTop.silo";
     EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, basename, "silo", opts));
 
     remove_path_if_exists(filename);
@@ -2759,7 +2815,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_overlink4)
         read_opts["matset_style"] = "multi_buffer_full";
 
         const std::string basename = "silo_save_option_overlink_braid_" + mesh_type + "_" + dim + "D";
-        const std::string filename = basename + "/OvlTop.silo";
+        const std::string filename = basename + conduit::utils::file_path_separator() +"OvlTop.silo";
         EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, basename, "silo", write_opts));
 
         // remove existing root file, directory and any output files
@@ -2813,8 +2869,8 @@ TEST(conduit_relay_io_silo, round_trip_save_option_overlink5)
         read_opts["matset_style"] = "multi_buffer_full";
 
         const std::string basename = "silo_save_option_overlink_basic_" + mesh_type + "_" + dim + "D";
-        const std::string filename = basename + "/OvlTop.silo";
-        const std::string domfile = basename + "/domain0.silo";
+        const std::string filename = basename + conduit::utils::file_path_separator() + "OvlTop.silo";
+        const std::string domfile = basename + conduit::utils::file_path_separator() + "domain0.silo";
 
         // add a matset to make overlink happy
         int num_elems = (nx - 1) * (ny - 1);
@@ -2864,7 +2920,7 @@ TEST(conduit_relay_io_silo, round_trip_save_option_overlink6)
     read_opts["matset_style"] = "multi_buffer_full";
 
     const std::string basename = "silo_save_option_overlink_misc";
-    const std::string filename = basename + "/OvlTop.silo";
+    const std::string filename = basename + conduit::utils::file_path_separator() + "OvlTop.silo";
     EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, basename, "silo", write_opts));
 
     remove_path_if_exists(filename);
@@ -2885,9 +2941,9 @@ TEST(conduit_relay_io_silo, round_trip_save_option_overlink6)
 
 //-----------------------------------------------------------------------------
 
-// 
+//
 // read option tests
-// 
+//
 
 // read options:
 /// opts:
@@ -3136,7 +3192,7 @@ TEST(conduit_relay_io_silo, read_silo)
     // TODO what to do in the case where a multimesh points to no data? (mesh1_back)
     // fail silently, as we do now?
 
-    for (int i = 0; i < file_info.size(); i ++) 
+    for (int i = 0; i < file_info.size(); i ++)
     {
         const std::string dirname  = file_info[i][0];
         const std::string basename = file_info[i][1];
@@ -3152,7 +3208,7 @@ TEST(conduit_relay_io_silo, read_silo)
         io::silo::load_mesh(input_file, read_opts, load_mesh);
         EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
 
-        const std::string out_name = "read_silo_" + basename + 
+        const std::string out_name = "read_silo_" + basename +
                                      (meshname.empty() ? "" : "_" + meshname);
 
         // TODO are these remove paths doing anything? Don't they need filenames?
@@ -3184,7 +3240,7 @@ TEST(conduit_relay_io_silo, read_simple_silo)
         {"curv3d_colmajor", ".silo", "no"},
         // {"globe",           ".silo", "yes"}, // TODO need to add support for mixed shape topos
     };
-    for (int i = 0; i < file_info.size(); i ++) 
+    for (int i = 0; i < file_info.size(); i ++)
     {
         const std::string basename   = file_info[i][0];
         const std::string fileext    = file_info[i][1];
@@ -3238,7 +3294,7 @@ TEST(conduit_relay_io_silo, read_fake_overlink)
         {"utpyr4",                  "OvlTop", ".silo", "MMESH"},
     };
 
-    for (int i = 0; i < file_info.size(); i ++) 
+    for (int i = 0; i < file_info.size(); i ++)
     {
         const std::string dirname  = file_info[i][0];
         const std::string basename = file_info[i][1];
@@ -3254,7 +3310,7 @@ TEST(conduit_relay_io_silo, read_fake_overlink)
         io::silo::load_mesh(input_file, read_opts, load_mesh);
         EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
 
-        const std::string out_name = "read_fake_overlink_" + dirname + 
+        const std::string out_name = "read_fake_overlink_" + dirname +
                                      (meshname.empty() ? "" : "_" + meshname);
 
         remove_path_if_exists(out_name + "_write_blueprint");
@@ -3301,7 +3357,7 @@ TEST(conduit_relay_io_silo, read_overlink_symlink_format)
         {".", "tetra8",                 ".silo", "MMESH"},
     };
 
-    for (int i = 0; i < file_info.size(); i ++) 
+    for (int i = 0; i < file_info.size(); i ++)
     {
         const std::string dirname  = file_info[i][0];
         const std::string basename = file_info[i][1];
@@ -3317,7 +3373,7 @@ TEST(conduit_relay_io_silo, read_overlink_symlink_format)
         io::silo::load_mesh(input_file, read_opts, load_mesh);
         EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
 
-        const std::string out_name = "read_overlink_symlink_" + basename + 
+        const std::string out_name = "read_overlink_symlink_" + basename +
                                      (meshname.empty() ? "" : "_" + meshname);
 
         remove_path_if_exists(out_name + "_write_blueprint");
@@ -3363,7 +3419,7 @@ TEST(conduit_relay_io_silo, read_overlink_directly)
         {"tetra8",                 "OvlTop", ".silo", "MMESH"},
     };
 
-    for (int i = 0; i < file_info.size(); i ++) 
+    for (int i = 0; i < file_info.size(); i ++)
     {
         const std::string dirname  = file_info[i][0];
         const std::string basename = file_info[i][1];
@@ -3380,7 +3436,7 @@ TEST(conduit_relay_io_silo, read_overlink_directly)
         io::silo::load_mesh(input_file, read_opts, load_mesh);
         EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
 
-        const std::string out_name = "read_overlink_direct_" + dirname + 
+        const std::string out_name = "read_overlink_direct_" + dirname +
                                      (meshname.empty() ? "" : "_" + meshname);
 
         remove_path_if_exists(out_name + "_write_blueprint");

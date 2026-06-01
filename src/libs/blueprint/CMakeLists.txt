@@ -30,22 +30,26 @@ configure_file ("${CMAKE_CURRENT_SOURCE_DIR}/conduit_blueprint_exports.h.in"
 set(blueprint_headers
     conduit_blueprint.hpp
     conduit_blueprint_curves.hpp
+    conduit_blueprint_mcarray_examples.hpp
+    conduit_blueprint_mcarray.hpp
     conduit_blueprint_mesh.hpp
-    conduit_blueprint_mesh_utils.hpp
-    conduit_blueprint_mesh_kdtree.hpp
-    conduit_blueprint_mesh_topology_metadata.hpp
+    conduit_blueprint_mesh_examples.hpp
+    conduit_blueprint_mesh_examples_generate.hpp
+    conduit_blueprint_mesh_examples_gyre.hpp
     conduit_blueprint_mesh_examples.hpp
     conduit_blueprint_mesh_examples_julia.hpp
-    conduit_blueprint_mesh_examples_venn.hpp
-    conduit_blueprint_mesh_examples_related_boundary.hpp
     conduit_blueprint_mesh_examples_polystar.hpp
+    conduit_blueprint_mesh_examples_related_boundary.hpp
     conduit_blueprint_mesh_examples_rz_cylinder.hpp
     conduit_blueprint_mesh_examples_tiled.hpp
-    conduit_blueprint_mesh_examples_gyre.hpp
-    conduit_blueprint_mesh_examples_generate.hpp
+    conduit_blueprint_mesh_examples_venn.hpp
+    conduit_blueprint_mesh_partition.hpp
     conduit_blueprint_mesh_flatten.hpp
-    conduit_blueprint_mcarray.hpp
-    conduit_blueprint_mcarray_examples.hpp
+    conduit_blueprint_mesh_kdtree.hpp
+    conduit_blueprint_mesh_matset_accessor.hpp
+    conduit_blueprint_mesh_topology_metadata.hpp
+    conduit_blueprint_mesh_utils.hpp
+    conduit_blueprint_mesh_utils_iterate_elements.hpp
     conduit_blueprint_o2mrelation.hpp
     conduit_blueprint_o2mrelation_utils.hpp
     conduit_blueprint_o2mrelation_iterator.hpp
@@ -80,6 +84,7 @@ set(blueprint_sources
     conduit_blueprint_mesh_utils.cpp
     conduit_blueprint_mesh_topology_metadata.cpp
     conduit_blueprint_mesh_matset_xforms.cpp
+    conduit_blueprint_mesh_matset_accessor.cpp
     conduit_blueprint_mesh_examples.cpp
     conduit_blueprint_mesh_examples_julia.cpp
     conduit_blueprint_mesh_examples_venn.cpp

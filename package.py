@@ -25,7 +25,7 @@ def create_package(output_file,version):
          suffix = "tar"
          t = datetime.datetime.now()
          output_file = "%s.%04d.%02d.%02d.%s" % (repo_name,t.year,t.month,t.day,suffix)
-    cmd = "python " + pkg_script + " --prefix=conduit" 
+    cmd = "python3 " + pkg_script + " --prefix=conduit"
     if not version is None:
         cmd += "-" + version
     cmd +=  " " + output_file

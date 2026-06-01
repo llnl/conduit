@@ -6,21 +6,7 @@
 //-----------------------------------------------------------------------------
 // -- Python includes (these must be included first) -- 
 //-----------------------------------------------------------------------------
-#include <Python.h>
-#include <structmember.h>
-#include "bytesobject.h"
-
-#if PY_MAJOR_VERSION >= 3
-#define IS_PY3K
-#endif
-
-// use  proper strdup
-#ifdef CONDUIT_PLATFORM_WINDOWS
-    #define _conduit_strdup _strdup
-#else
-    #define _conduit_strdup strdup
-#endif
-
+#include "conduit_python_common.h"
 //-----------------------------------------------------------------------------
 // -- standard lib includes -- 
 //-----------------------------------------------------------------------------
@@ -37,7 +23,6 @@
 
 // conduit python module capi header
 #include "conduit_python.hpp"
-
 
 using namespace conduit;
 
@@ -95,11 +80,11 @@ PyBlueprint_mpi_mesh_examples_braid_uniform_multi_domain(PyObject *, //self
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
-    int rank = -1;
-
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
     try
     {
-        rank = relay::mpi::rank(comm);
+        relay::mpi::rank(comm);
     }
     catch(conduit::Error &e)
     {
@@ -107,9 +92,8 @@ PyBlueprint_mpi_mesh_examples_braid_uniform_multi_domain(PyObject *, //self
                         e.message().c_str());
         return NULL;
     }
-    
+
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
-    
     blueprint::mpi::mesh::examples::braid_uniform_multi_domain(node, comm);
 
     Py_RETURN_NONE;
@@ -174,11 +158,11 @@ PyBlueprint_mpi_mesh_examples_spiral_round_robin(PyObject *, //self
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
-    int rank = -1;
-
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
     try
     {
-        rank = relay::mpi::rank(comm);
+        relay::mpi::rank(comm);
     }
     catch(conduit::Error &e)
     {
@@ -186,13 +170,20 @@ PyBlueprint_mpi_mesh_examples_spiral_round_robin(PyObject *, //self
                         e.message().c_str());
         return NULL;
     }
-    
-    Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
-    
-    blueprint::mpi::mesh::examples::spiral_round_robin(ndoms,
-                                                       node,
-                                                       comm);
 
+    try
+    {
+        Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
+        blueprint::mpi::mesh::examples::spiral_round_robin(ndoms,
+                                                           node,
+                                                           comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
     Py_RETURN_NONE;
 }
 
@@ -204,12 +195,12 @@ static PyMethodDef blueprint_mpi_mesh_examples_python_funcs[] =
 {
     //-----------------------------------------------------------------------//
     {"braid_uniform_multi_domain",
-     (PyCFunction)PyBlueprint_mpi_mesh_examples_braid_uniform_multi_domain,
+      _PyCFunction_CAST(PyBlueprint_mpi_mesh_examples_braid_uniform_multi_domain),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mpi_mesh_examples_braid_uniform_multi_domain_doc_str},
     //-----------------------------------------------------------------------//
     {"spiral_round_robin",
-     (PyCFunction)PyBlueprint_mpi_mesh_examples_spiral_round_robin,
+      _PyCFunction_CAST(PyBlueprint_mpi_mesh_examples_spiral_round_robin),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mpi_mesh_examples_spiral_round_robin_doc_str},
     //-----------------------------------------------------------------------//

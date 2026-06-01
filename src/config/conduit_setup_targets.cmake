@@ -24,8 +24,10 @@ set(CONDUIT_INCLUDE_DIRS "${_IMPORT_ROOT}/include/conduit")
 
 # check for conduit fortran support
 if(EXISTS ${_IMPORT_ROOT}/include/conduit/conduit.mod)
+    set(CONDUIT_USE_FORTRAN TRUE)
     set(CONDUIT_FORTRAN_ENABLED TRUE)
 else()
+    set(CONDUIT_USE_FORTRAN FALSE)
     set(CONDUIT_FORTRAN_ENABLED FALSE)
 endif()
 
@@ -113,25 +115,61 @@ message(STATUS "Found Conduit: ${_IMPORT_ROOT} (found version ${CONDUIT_VERSION}
 if(NOT Conduit_FIND_QUIETLY)
     message(STATUS "CONDUIT_VERSION             = ${CONDUIT_VERSION}")
     message(STATUS "CONDUIT_INSTALL_PREFIX      = ${CONDUIT_INSTALL_PREFIX}")
-    message(STATUS "CONDUIT_IMPORT_ROOT         = ${_IMPORT_ROOT}")
-    message(STATUS "CONDUIT_USE_CXX14           = ${CONDUIT_USE_CXX14}")
-    message(STATUS "CONDUIT_USE_FMT             = ${CONDUIT_USE_FMT}")
-    message(STATUS "CONDUIT_USE_CALIPER         = ${CONDUIT_USE_CALIPER}")
-    message(STATUS "CONDUIT_USE_OPENMP          = ${CONDUIT_USE_OPENMP}")
     message(STATUS "CONDUIT_INCLUDE_DIRS        = ${CONDUIT_INCLUDE_DIRS}")
+    message(STATUS "CONDUIT_IMPORT_ROOT         = ${_IMPORT_ROOT}")
+
+    message(STATUS "CONDUIT_USE_CXX11           = ${CONDUIT_USE_CXX11}")
+    message(STATUS "CONDUIT_USE_CXX14           = ${CONDUIT_USE_CXX14}")
+    message(STATUS "CONDUIT_USE_FORTRAN         = ${CONDUIT_USE_FORTRAN}")
     message(STATUS "CONDUIT_FORTRAN_ENABLED     = ${CONDUIT_FORTRAN_ENABLED}")
+
+    message(STATUS "CONDUIT_USE_PYTHON          = ${CONDUIT_USE_PYTHON}")
     message(STATUS "CONDUIT_PYTHON_ENABLED      = ${CONDUIT_PYTHON_ENABLED}")
     message(STATUS "CONDUIT_PYTHON_EXECUTABLE   = ${CONDUIT_PYTHON_EXECUTABLE}")
     message(STATUS "CONDUIT_PYTHON_MODULE_DIR   = ${CONDUIT_PYTHON_MODULE_DIR}")
     message(STATUS "CONDUIT_PYTHON_MODULE_CUSTOM_PREFIX = ${CONDUIT_PYTHON_MODULE_CUSTOM_PREFIX}")
+
+    message(STATUS "CONDUIT_USE_FMT             = ${CONDUIT_USE_FMT}")
+    message(STATUS "CONDUIT_USE_MPI             = ${CONDUIT_USE_MPI}")
+    message(STATUS "CONDUIT_USE_OPENMP          = ${CONDUIT_USE_OPENMP}")
+    message(STATUS "CONDUIT_USE_CUDA            = ${CONDUIT_USE_CUDA}")
+    message(STATUS "CONDUIT_USE_HIP             = ${CONDUIT_USE_HIP}")
+
+    message(STATUS "CONDUIT_USE_CALIPER         = ${CONDUIT_USE_CALIPER}")
+    message(STATUS "CONDUIT_ADIAK_DIR           = ${CONDUIT_ADIAK_DIR}")
+    message(STATUS "CONDUIT_CALIPER_DIR         = ${CONDUIT_CALIPER_DIR}")
+
+    message(STATUS "CONDUIT_USE_CAMP            = ${CONDUIT_USE_CAMP}")
+    message(STATUS "CONDUIT_CAMP_DIR            = ${CONDUIT_CAMP_DIR}")
+
+    message(STATUS "CONDUIT_USE_RAJA            = ${CONDUIT_USE_RAJA}")
+    message(STATUS "CONDUIT_RAJA_DIR            = ${CONDUIT_RAJA_DIR}")
+
+    message(STATUS "CONDUIT_USE_UMPIRE          = ${CONDUIT_USE_UMPIRE}")
+    message(STATUS "CONDUIT_UMPIRE_DIR          = ${CONDUIT_UMPIRE_DIR}")
+
+    message(STATUS "CONDUIT_USE_ZLIB            = ${CONDUIT_USE_ZLIB}")
+    message(STATUS "CONDUIT_ZLIB_DIR            = ${CONDUIT_ZLIB_DIR}")
+
     message(STATUS "Conduit Relay features:")
     message(STATUS " CONDUIT_RELAY_WEBSERVER_ENABLED = ${CONDUIT_RELAY_WEBSERVER_ENABLED}")
+
     message(STATUS " CONDUIT_RELAY_HDF5_ENABLED      = ${CONDUIT_RELAY_HDF5_ENABLED}")
+    message(STATUS " CONDUIT_USE_HDF5                = ${CONDUIT_USE_HDF5}")
     message(STATUS " CONDUIT_HDF5_DIR                = ${CONDUIT_HDF5_DIR}")
+
     message(STATUS " CONDUIT_RELAY_ADIOS_ENABLED     = ${CONDUIT_RELAY_ADIOS_ENABLED}")
+    message(STATUS " CONDUIT_USE_ADIOS               = ${CONDUIT_USE_ADIOS}")
     message(STATUS " CONDUIT_ADIOS_DIR               = ${CONDUIT_ADIOS_DIR}")
+
+    message(STATUS " CONDUIT_USE_SILO                = ${CONDUIT_USE_SILO}")
     message(STATUS " CONDUIT_RELAY_SILO_ENABLED      = ${CONDUIT_RELAY_SILO_ENABLED}")
     message(STATUS " CONDUIT_SILO_DIR                = ${CONDUIT_SILO_DIR}")
+
+    message(STATUS " CONDUIT_USE_PARMETIS            = ${CONDUIT_USE_PARMETIS}")
+    message(STATUS " CONDUIT_METIS_DIR               = ${CONDUIT_METIS_DIR}")
+    message(STATUS " CONDUIT_PARMETIS_DIR            = ${CONDUIT_PARMETIS_DIR}")
+
     message(STATUS " CONDUIT_RELAY_MPI_ENABLED       = ${CONDUIT_RELAY_MPI_ENABLED}")
     message(STATUS " CONDUIT_USE_CMAKE_MPI_TARGETS   = ${CONDUIT_USE_CMAKE_MPI_TARGETS}")
 

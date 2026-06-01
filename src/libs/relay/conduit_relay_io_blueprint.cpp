@@ -217,7 +217,7 @@ public:
                 std::string res = pattern;
                 res.replace(pattern_idx,
                             4,
-                            conduit_fmt::format(pat,idx));
+                            conduit_fmt::format(conduit_fmt::runtime(pat),idx));
                 return res;
             }
         }
@@ -2433,9 +2433,63 @@ void read_mesh(const std::string &root_file_path,
         hnd.open(root_file_path, "sidre_hdf5", open_opts);
         for(int i = domain_start ; i < domain_end; i++)
         {
-            oss.str("");
-            oss << i << "/" << mesh_name;
-            hnd.read(oss.str(),mesh);
+            std::string mesh_path = conduit_fmt::format("domain_{:06d}",i);
+            Node &mesh_out = mesh[mesh_path];
+
+            // Read components of the mesh according to the mesh index.
+            // For Sidre roots, the per-domain tree id is the prefix and the
+            // blueprint index paths are relative to that tree.
+            NodeConstIterator outer_itr = mesh_index.children();
+            while(outer_itr.has_next())
+            {
+                const Node &outer = outer_itr.next();
+                std::string outer_name = outer_itr.name();
+
+                // special logic for state, since it may not include paths
+                if(outer_name == "state" )
+                {
+                    if(outer.has_child("path"))
+                    {
+                        const std::string fetch_path =
+                            utils::join_path(conduit_fmt::format("{}",i),
+                                             outer["path"].as_string());
+                        if(hnd.has_path(fetch_path))
+                        {
+                            hnd.read(fetch_path, mesh_out[outer_name]);
+                        }
+                    }
+                    else
+                    {
+                        if(outer.has_child("cycle"))
+                        {
+                             mesh_out[outer_name]["cycle"] = outer["cycle"];
+                        }
+
+                        if(outer.has_child("time"))
+                        {
+                            mesh_out[outer_name]["time"] = outer["time"];
+                        }
+                    }
+                }
+
+                NodeConstIterator itr = outer.children();
+                while(itr.has_next())
+                {
+                    const Node &entry = itr.next();
+                    if(entry.has_child("path"))
+                    {
+                        const std::string entry_name = itr.name();
+                        const std::string entry_path = entry["path"].as_string();
+                        const std::string fetch_path =
+                            utils::join_path(conduit_fmt::format("{}",i),
+                                             entry_path);
+                        if(hnd.has_path(fetch_path))
+                        {
+                            hnd.read(fetch_path, mesh_out[outer_name][entry_name]);
+                        }
+                    }
+                }
+            }
         }
     }
     else

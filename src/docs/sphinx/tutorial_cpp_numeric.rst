@@ -135,7 +135,6 @@ Alternately, we can use a DataAccessor to do the conversion as needed.
    :start-after: BEGIN_EXAMPLE("numeric_data_accessor")
    :end-before:  END_EXAMPLE("numeric_data_accessor")
    :language: cpp
-   :dedent: 4
 
 .. literalinclude:: t_conduit_docs_tutorial_numeric_out.txt
    :start-after: BEGIN_EXAMPLE("numeric_data_accessor")
@@ -151,6 +150,33 @@ to use the summary methods of DataAccessor and then prints the values in the
 array passed to it.  The DataAccessor casts each value as needed on access, thus
 incurring a small cost at each access.  The DataAccessor is also safer and
 simpler to use.
+
+It is also possible to convert between DataAccessors and DataArrays using their
+set methods. Below is an example of conversion from a DataArray to a DataAccessor.
+It is possible to convert from a DataAccessor to a DataArray as well.
+
+.. code-block:: c++
+
+    int64 i_vals[4] = {100,200,300,400};
+
+    Node n;
+    n["ints"].set(i_vals,
+                  2, // # of elements
+                  0, // offset in bytes
+                  sizeof(int64)*2); // stride in bytes
+
+    int64_array vals_arr = n["ints"].value();
+    n["floats"].set(DataType::float64(2));
+    float64_accessor vals_acc = n["floats"].as_float64_accessor();
+    vals_acc.set(vals_arr);
+    
+    std::cout << vals_acc[0] << std::endl;
+    std::cout << vals_acc[1] << std::endl;
+
+::
+
+   100.0
+   300.0
 
 
 C++11 Initializer Lists 

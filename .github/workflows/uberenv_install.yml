@@ -6,7 +6,7 @@ on:
 
 jobs:
   uberenv_install_ubuntu_22_04:
-    name: Uberenv Install ubuntu-22.04
+    name: Ubuntu Uberenv Install
     container: alpinedav/ascent-ci:ubuntu-22.04-devel
     runs-on: ubuntu-latest
     steps:

@@ -2,74 +2,129 @@
 # Project developers. See top-level LICENSE AND COPYRIGHT files for dates and
 # other details. No copyright assignment is required to contribute to Conduit.
 
-FROM ubuntu:18.04
+FROM ubuntu:24.04
 
-# fetch build env
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    build-essential \
-    gcc \
-    g++ \
-    gfortran \
-    zlib1g-dev \
-    python \
-    python3 \
-    tar \
-    unzip \
-    perl \
-    libncurses-dev \
-    libssl-dev \
-    libopenblas-dev \
-    zlib1g-dev \
-    libgdbm-dev \
-    libreadline-dev \
-    libsqlite3-dev \
-    libbz2-dev \
-    mpich \
-    libmpich-dev \
-    vim \
- && rm -rf /var/lib/apt/lists/*
+ARG TARGETARCH
+
+#####################
+# base deps
+#####################
+# add sudo to base ubuntu container
+# so we can install additional packages as
+# non-root, but admin default user on azure pipelines
+RUN apt-get update && apt-get -y install sudo
+# tzdata install wants to ask questions, so handled as sep case
+RUN DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata
+# install std packages
+#
+# Note: switched to openmpi due to issues with mpich in ubuntu 24.04
+#  https://github.com/pmodels/mpich/issues/7064
+#  https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1102612
+#  https://bugs.launchpad.net/ubuntu/+source/mpich/+bug/2072338
+#
+RUN apt-get update && apt-get -y install \
+             binutils \
+             cmake \
+             gcc \
+             g++ \
+             gfortran \
+             python3 \
+             python3-dev \
+             python-is-python3 \
+             python3.12-venv \
+             clang \
+             llvm \
+             perl \
+             git \
+             git-lfs \
+             curl \
+             wget \
+             tar \
+             unzip \
+             file \
+             build-essential \
+             libncurses-dev \
+             libssl-dev \
+             libblas-dev \
+             liblapack-dev \
+             liblapacke-dev \
+             zlib1g-dev \
+             libgdbm-dev \
+             libreadline-dev \
+             libsqlite3-dev \
+             libbz2-dev \
+             nodejs \
+             npm \
+             vim
+
+# manual mpich install
+# https://github.com/actions/runner-images/issues/13204
+#
+# amd64: curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/28285882/
+# arm64: curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/28285883/
+
+RUN case "$TARGETARCH" in \
+      "amd64") BUILD_NUM="28285882" ;; \
+      "arm64") BUILD_NUM="28285883" ;; \
+    esac; \
+    curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/${BUILD_NUM}/+files/libmpich12_4.2.0-5.1_${TARGETARCH}.deb
+
+RUN case "$TARGETARCH" in \
+          "amd64") BUILD_NUM="28285882" ;; \
+          "arm64") BUILD_NUM="28285883" ;; \
+    esac; \
+    curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/${BUILD_NUM}/+files/mpich_4.2.0-5.1_${TARGETARCH}.deb
+
+RUN case "$TARGETARCH" in \
+          "amd64") BUILD_NUM="28285882" ;; \
+          "arm64") BUILD_NUM="28285883" ;; \
+    esac; \
+    curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/${BUILD_NUM}/+files/libmpich-dev_4.2.0-5.1_${TARGETARCH}.deb
 
 
-# untar the current source  (created as part of example_build.sh)
+RUN apt install  -y ./libmpich12_4.2.0-5.1_${TARGETARCH}.deb
+RUN apt install  -y ./mpich_4.2.0-5.1_${TARGETARCH}.deb
+RUN apt install  -y ./libmpich-dev_4.2.0-5.1_${TARGETARCH}.deb
+
+RUN rm -rf /var/lib/apt/lists/*
+
+# untar the current source  (created as part of build.sh)
 COPY conduit.docker.src.tar /
 RUN tar -xf conduit.docker.src.tar
 
 # if you would like to clone conduit directly, you can use:
 #RUN git clone --depth 1 https://github.com/LLNL/conduit.git
 
-# at some sites ssl certs are intercepted, which cases issues fetching 
+# at some sites ssl certs are intercepted, which cases issues fetching
 # tpl sources via https
 
 # to resolve this, either:
-# 1) pass the "-k" option to uberenv (recommended), 
+# 1) pass the "-k" option to uberenv (recommended),
 # 2) install the proper certs into the image, or
-# 3) use  the following commands to disable ssl for git and 
+# 3) use  the following commands to disable ssl for git and
 #    curl (both are used by spack):
 #RUN git config --global http.sslVerify false
 #RUN echo insecure >> ~/.curlrc
 
 # bootstrap third party libs using spack and uberenv
-#  for this example we use mpich for MPI b/c openmpi's mpiexec
-#  will not run for the root user
 RUN cd conduit && python3 scripts/uberenv/uberenv.py \
     -k \
-    --spec "%gcc+mpi" \
-    --spack-env-file=scripts/uberenv_configs/spack_configs/envs/alpinedav-ubuntu_18.04_devel/spack.yaml
+    --prefix=/uberenv_libs \
+    --spec "+mpi%gcc" \
+    --spack-env-file=scripts/uberenv_configs/spack_configs/envs/ubuntu-24.04/spack.yaml
 
 # configure a debug build with cmake
 RUN cd conduit && \
-    uberenv_libs/spack/opt/spack/*/*/cmake*/bin/cmake \
-    -DCMAKE_BUILD_TYPE=Debug \
-    -DCMAKE_INSTALL_PREFIX=/conduit/install-debug \
-    -C /conduit/uberenv_libs/*-patch.cmake \
-    -B build-debug -S src
+    /uberenv_libs/spack/opt/spack/*/cmake-*/bin/cmake \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/conduit/install \
+    -C /uberenv_libs/*-patch.cmake \
+    -B build -S src
 
 # build, test, and install conduit
-RUN cd conduit/build-debug && make
-RUN cd conduit/build-debug && env CTEST_OUTPUT_ON_FAILURE=1 make test
-RUN cd conduit/build-debug && make install
+RUN cmake --build conduit/build --config Release
+RUN cmake -E env CTEST_OUTPUT_ON_FAILURE=1 cmake --build conduit/build
+RUN cmake --install conduit/build --config Release
 
 # open port 9000, for use by conduit relay
 EXPOSE 9000

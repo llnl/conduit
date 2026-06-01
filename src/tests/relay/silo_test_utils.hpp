@@ -128,6 +128,13 @@ silo_name_changer(const std::string &mmesh_name,
 
             const std::string old_topo_name = n_matset["topology"].as_string();
 
+            if (! n_matset.has_child("material_map"))
+            {
+                Node material_map;
+                conduit::blueprint::mesh::matset::create_or_reuse_material_map(n_matset, material_map);
+                n_matset["material_map"].set(material_map);
+            }
+
             if (old_to_new_names.find(old_topo_name) == old_to_new_names.end())
             {
                 continue;
@@ -176,7 +183,7 @@ silo_name_changer(const std::string &mmesh_name,
 
             const std::string &new_matset_name = old_to_new_names[old_matset_name];
             const Node &n_matset = save_mesh["matsets"][new_matset_name];
-            const int num_zones = blueprint::mesh::matset::count_zones_from_matset(n_matset);
+            const int num_zones = blueprint::mesh::matset::count_elements_from_matset(n_matset);
             Node &matset_values = n_specset["matset_values"];
 
             // we must modify the specset; see note below
@@ -187,7 +194,7 @@ silo_name_changer(const std::string &mmesh_name,
                 {
                     Node &mat = mat_itr.next();
                     const std::string matname = mat_itr.name();
-                    if (! blueprint::mesh::matset::is_material_in_zone(n_matset, matname, zone_id))
+                    if (! blueprint::mesh::matset::is_material_in_element(n_matset, matname, zone_id))
                     {
                         // if this material is not present in the zone, then we need
                         // to change the species mass fractions to all zero to pass
@@ -371,6 +378,13 @@ overlink_name_changer(conduit::Node &save_mesh)
         Node &n_matset = save_mesh["matsets"].children().next();
         const std::string matset_name = n_matset.name();
 
+        if (! n_matset.has_child("material_map"))
+        {
+            Node material_map;
+            conduit::blueprint::mesh::matset::create_or_reuse_material_map(n_matset, material_map);
+            n_matset["material_map"].set(material_map);
+        }
+
         // use new topo name
         n_matset["topology"].reset();
         n_matset["topology"] = "MMESH";
@@ -395,7 +409,7 @@ overlink_name_changer(conduit::Node &save_mesh)
             // later, we will need to add functionality here
 
             const Node &n_matset = save_mesh["matsets"]["MMATERIAL"];
-            const int num_zones = blueprint::mesh::matset::count_zones_from_matset(n_matset);
+            const int num_zones = blueprint::mesh::matset::count_elements_from_matset(n_matset);
             Node &matset_values = n_specset["matset_values"];
 
             // we must modify the specset; see note below
@@ -406,7 +420,7 @@ overlink_name_changer(conduit::Node &save_mesh)
                 {
                     Node &mat = mat_itr.next();
                     const std::string matname = mat_itr.name();
-                    if (! blueprint::mesh::matset::is_material_in_zone(n_matset, matname, zone_id))
+                    if (! blueprint::mesh::matset::is_material_in_element(n_matset, matname, zone_id))
                     {
                         // if this material is not present in the zone, then we need
                         // to change the species mass fractions to all zero to pass

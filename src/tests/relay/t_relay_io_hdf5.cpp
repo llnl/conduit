@@ -34,7 +34,6 @@ check_h5_open_ids()
     return nids;
 }
 
-
 //-----------------------------------------------------------------------------
 // helper to create an HDF5 dataset
 herr_t
@@ -69,8 +68,6 @@ create_hdf5_nd_dataset(std::string fname, std::string path, int rank, int const 
 
     return status;
 }
-
-
 
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_by_file_name)
@@ -121,9 +118,6 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_by_file_name)
     EXPECT_EQ(n_load_generic["myobj/a"].as_uint32(), a_val);
     EXPECT_EQ(n_load_generic["myobj/b"].as_uint32(), b_val);
     EXPECT_EQ(n_load_generic["myobj/c"].as_uint32(), c_val);
-
-
-
 
     // save load from generic io interface
     io::save(n_load_generic["myobj"],"tout_hdf5_wr_generic.hdf5:myobj");
@@ -189,7 +183,6 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_special_paths)
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
 
-
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_string)
 {
@@ -220,7 +213,6 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_string)
     // make sure we aren't leaking
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
-
 
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_array)
@@ -255,7 +247,6 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_array)
     // make sure we aren't leaking
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
-
 
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, conduit_hdf5_read_2D_array)
@@ -349,7 +340,6 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_read_2D_array)
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
 
-
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, write_and_read_conduit_leaf_to_hdf5_dataset_handle)
 {
@@ -418,7 +408,6 @@ TEST(conduit_relay_io_hdf5, write_and_read_conduit_leaf_to_hdf5_dataset_handle)
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
 
-
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, write_and_read_conduit_leaf_to_extendible_hdf5_dataset_handle_with_offset)
 {
@@ -447,12 +436,10 @@ TEST(conduit_relay_io_hdf5, write_and_read_conduit_leaf_to_extendible_hdf5_datas
     /*
      * Modify dataset creation properties, i.e. enable chunking.
      */
-    hid_t cparms;
     hsize_t chunk_dims[1] = {1};
 
-    cparms = H5Pcreate (H5P_DATASET_CREATE);
+    hid_t cparms = H5Pcreate (H5P_DATASET_CREATE);
     H5Pset_chunk(cparms, 1, chunk_dims);
-
 
     // create new dataset
     hid_t h5_dset_id  = H5Dcreate1(h5_file_id,
@@ -481,6 +468,7 @@ TEST(conduit_relay_io_hdf5, write_and_read_conduit_leaf_to_extendible_hdf5_datas
     Node n_read, opts_read;
 
     io::hdf5_read_info(h5_dset_id,opts_read,n_read);
+
     EXPECT_EQ(4,(int) n_read["num_elements"].to_value());
 
     io::hdf5_read(h5_dset_id,opts_read,n_read);
@@ -555,11 +543,9 @@ TEST(conduit_relay_io_hdf5, write_and_read_conduit_leaf_to_extendible_hdf5_datas
     H5Dclose(h5_dset_id);
     H5Fclose(h5_file_id);
 
-    // TODO AUDIT
-    // // make sure we aren't leaking
-    //EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
+    // make sure we aren't leaking
+    EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
-
 
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, write_and_read_conduit_leaf_to_fixed_hdf5_dataset_handle_with_offset)
@@ -575,8 +561,6 @@ TEST(conduit_relay_io_hdf5, write_and_read_conduit_leaf_to_fixed_hdf5_dataset_ha
                                  H5P_DEFAULT);
 
     // create a dataset for a 16-bit signed integer  array with 2 elements
-
-
     hid_t h5_dtype = H5T_NATIVE_SHORT;
 
     hsize_t num_eles = 2;
@@ -661,6 +645,7 @@ TEST(conduit_relay_io_hdf5, write_and_read_conduit_leaf_to_fixed_hdf5_dataset_ha
     opts_read["offset"] = 0;
     opts_read["stride"] = 1;
     io::hdf5_read(h5_dset_id,opts_read,n_read);
+
     // check values of data
     read_vals = n_read.value();
     EXPECT_EQ(-1,read_vals[0]);
@@ -686,12 +671,9 @@ TEST(conduit_relay_io_hdf5, write_and_read_conduit_leaf_to_fixed_hdf5_dataset_ha
     H5Dclose(h5_dset_id);
     H5Fclose(h5_file_id);
 
-    // TODO AUDIT!
     // make sure we aren't leaking
-    // EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
+    EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
-
-
 
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, write_conduit_object_to_hdf5_group_handle_with_offset)
@@ -845,12 +827,9 @@ TEST(conduit_relay_io_hdf5, write_conduit_object_to_hdf5_group_handle_with_offse
     H5Gclose(h5_group_id);
     H5Fclose(h5_file_id);
 
-    // TODO AUDIT
     // make sure we aren't leaking
-    //EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
+    EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
-
-
 
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, write_conduit_object_to_hdf5_group_handle)
@@ -986,7 +965,6 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_by_file_handle)
     // make sure we aren't leaking
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
-
 
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, conduit_hdf5_write_to_existing_dset)
@@ -1165,7 +1143,6 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_leaf_arrays)
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
 
-
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_empty)
 {
@@ -1188,7 +1165,6 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_empty)
     // make sure we aren't leaking
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
-
 
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, hdf5_write_zero_sized_leaf)
@@ -1216,7 +1192,6 @@ TEST(conduit_relay_io_hdf5, hdf5_write_zero_sized_leaf)
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
 
-
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_childless_object)
 {
@@ -1239,8 +1214,6 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_childless_object)
     // make sure we aren't leaking
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
-
-
 
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, conduit_hdf5_test_write_incompat)
@@ -1285,7 +1258,6 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_test_write_incompat)
     // make sure we aren't leaking
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
-
 
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, auto_endian)
@@ -1371,7 +1343,6 @@ TEST(conduit_relay_io_hdf5, hdf5_path_exists)
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
 
-
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, hdf5_create_append_methods)
 {
@@ -1444,8 +1415,6 @@ TEST(conduit_relay_io_hdf5, hdf5_create_append_methods)
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
 
-
-
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, hdf5_create_open_methods)
 {
@@ -1488,8 +1457,7 @@ TEST(conduit_relay_io_hdf5, hdf5_create_open_methods)
     // make sure we aren't leaking
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
-//
-//
+
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, conduit_hdf5_save_generic_options)
 {
@@ -1530,11 +1498,11 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_save_generic_options)
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
 
-
-
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, conduit_hdf5_save_libver)
 {
+    // get objects in flight already
+    int DO_NO_HARM = check_h5_open_ids();
 
     Node n, opts;
 
@@ -1546,6 +1514,11 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_save_libver)
 
     conduit::relay::io::hdf5_set_options(opts);
 
+    // show full set of options after set
+    Node curr_opts;
+    conduit::relay::io::hdf5_options(curr_opts);
+    std::cout<< curr_opts.to_yaml() << std::endl;
+
     utils::remove_path_if_exists(tout);
     // bad libver
     EXPECT_THROW(io::save(n,tout, "hdf5"),Error);
@@ -1556,6 +1529,9 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_save_libver)
     io::save(n,tout, "hdf5");
 
     EXPECT_TRUE(utils::is_file(tout));
+
+    // make sure we aren't leaking
+    EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
 
 //-----------------------------------------------------------------------------
@@ -1647,12 +1623,12 @@ TEST(conduit_relay_io_hdf5, check_if_file_is_hdf5_file)
 
     // check behavior with files that have open handles
     hid_t h5_file_id = io::hdf5_open_file_for_read_write(tout);
-    EXPECT_TRUE(io::is_hdf5_file(tout));
     io::hdf5_close_file(h5_file_id);
+    EXPECT_TRUE(io::is_hdf5_file(tout));
 
     h5_file_id = io::hdf5_open_file_for_read(tout);
-    EXPECT_TRUE(io::is_hdf5_file(tout));
     io::hdf5_close_file(h5_file_id);
+    EXPECT_TRUE(io::is_hdf5_file(tout));
 
     tout = "tout_hdf5_check_non_hdf5_file.json";
 
@@ -1965,7 +1941,7 @@ TEST(conduit_relay_io_hdf5, test_read_various_string_style)
     // make sure we aren't leaking
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
-//
+
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_string_compress)
 {
@@ -2005,8 +1981,8 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_string_compress)
     // make sure we aren't leaking
     EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
-//
-//
+
+
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, conduit_hdf5_list)
 {
@@ -2157,9 +2133,8 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_list_with_offset)
     EXPECT_EQ(4,read_vals[1]);
     EXPECT_EQ(2, read_vals.number_of_elements());
 
-   // TODO AUDIT!
    // make sure we aren't leaking
-   // EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
+   EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
 
 //-----------------------------------------------------------------------------
@@ -2235,9 +2210,8 @@ TEST(conduit_relay_io_hdf5, test_ref_path_error_msg)
         EXPECT_EQ(count,1);
     }
 
-   // // TODO AUDIT!
-   // //make sure we aren't leaking
-   // EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
+   //make sure we aren't leaking
+   EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
 
 //-----------------------------------------------------------------------------
@@ -2266,6 +2240,9 @@ TEST(conduit_relay_io_hdf5, wrong_proto_message)
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, conduit_hdf5_error_writing_incompat_leaf)
 {
+    // get objects in flight already
+    int DO_NO_HARM = check_h5_open_ids();
+
     Node n;
     n["thing"].set(42);
     bool err_occured = false;
@@ -2285,11 +2262,15 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_error_writing_incompat_leaf)
     }
 
     EXPECT_TRUE(err_occured);
+    EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, conduit_hdf5_error_writing_leaf_to_root)
 {
+    // get objects in flight already
+    int DO_NO_HARM = check_h5_open_ids();
+
     Node n;
     n.set(42);
     bool err_occured = false;
@@ -2309,6 +2290,7 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_error_writing_leaf_to_root)
     }
 
     EXPECT_TRUE(err_occured);
+    EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 }
 
 
@@ -2424,10 +2406,15 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_zfp_1d)
     // expect int diff to be in between -2 and 0
     EXPECT_TRUE( (-2 <= vsi_diff.max()) && (vsi_diff.max() <=0) );
 
-    // NOTE: This fails with 2 leaked objects
     // make sure we aren't leaking
-    // EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
+    EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
 
 }
 
+//-----------------------------------------------------------------------------
+TEST(conduit_relay_io_hdf5, conduit_hdf5_ZZZZ_final_handle_check)
+{
+    // get objects in flight already
+    int DO_NO_HARM = check_h5_open_ids();
+}
 

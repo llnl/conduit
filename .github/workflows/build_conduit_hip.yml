@@ -1,0 +1,50 @@
+name: build_conduit_hip
+
+on:
+  pull_request:
+    branches: [ develop ]
+
+jobs:
+  build_hip:
+    name: Ubuntu HIP
+    runs-on: ubuntu-22.04
+    container: alpinedav/ascent-devel:ubuntu-22.04-rocm-6.3.4-x86_64
+    env:
+      CMAKE_VERSION: 3.31.8
+    steps:
+    - name: Checkout
+      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4
+      with:
+        submodules: 'recursive'
+    - name: Install CMake
+      run: |
+        curl -L https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz -o cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz
+        tar -xzf cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz
+        cmake-${CMAKE_VERSION}-linux-x86_64/bin/cmake --version
+    - name: Build TPLs
+      run: |
+        export PATH=$PATH:cmake-${CMAKE_VERSION}-linux-x86_64/bin/
+        env enable_hip=ON \
+            enable_mpi=OFF \
+            enable_fortran=OFF \
+            enable_tests=OFF \
+            build_conduit=false \
+            enable_verbose=OFF \
+            build_jobs=2 \
+            ./scripts/build_conduit/build_conduit.sh
+    - name: Configure Conduit
+      run: |
+        export PATH=$PATH:cmake-${CMAKE_VERSION}-linux-x86_64/bin/
+        cmake --version
+        echo "**** Configuring Conduit"
+        cmake -S src -B build -C conduit-config.cmake -DCMAKE_INSTALL_PREFIX=install
+    - name: Build Conduit
+      run: |
+        export PATH=$PATH:cmake-${CMAKE_VERSION}-linux-x86_64/bin/
+        echo "**** Building Conduit"
+        cmake --build  build -j2 --config Release
+    - name: Install Conduit
+      run: |
+        export PATH=$PATH:cmake-${CMAKE_VERSION}-linux-x86_64/bin/
+        echo "**** Installing Conduit"
+        cmake --install  build --config Release

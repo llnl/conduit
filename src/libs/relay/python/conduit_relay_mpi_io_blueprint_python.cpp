@@ -5,21 +5,7 @@
 //-----------------------------------------------------------------------------
 // -- Python includes (these must be included first) -- 
 //-----------------------------------------------------------------------------
-#include <Python.h>
-#include <structmember.h>
-#include "bytesobject.h"
-
-#if PY_MAJOR_VERSION >= 3
-#define IS_PY3K
-#endif
-
-// use  proper strdup
-#ifdef CONDUIT_PLATFORM_WINDOWS
-    #define _conduit_strdup _strdup
-#else
-    #define _conduit_strdup strdup
-#endif
-
+#include "conduit_python_common.h"
 
 //-----------------------------------------------------------------------------
 // -- standard lib includes -- 
@@ -101,11 +87,11 @@ PyRelay_mpi_io_blueprint_write_mesh(PyObject *, //self
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
-    int rank = -1;
-
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
     try
     {
-        rank = relay::mpi::rank(comm);
+        relay::mpi::rank(comm);
     }
     catch(conduit::Error &e)
     {
@@ -208,11 +194,11 @@ PyRelay_mpi_io_blueprint_save_mesh(PyObject *, //self
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
-    int rank = -1;
-
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
     try
     {
-        rank = relay::mpi::rank(comm);
+        relay::mpi::rank(comm);
     }
     catch(conduit::Error &e)
     {
@@ -314,11 +300,11 @@ PyRelay_mpi_io_blueprint_read_mesh(PyObject *, //self
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
-    int rank = -1;
-
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
     try
     {
-        rank = relay::mpi::rank(comm);
+        relay::mpi::rank(comm);
     }
     catch(conduit::Error &e)
     {
@@ -410,11 +396,11 @@ PyRelay_mpi_io_blueprint_load_mesh(PyObject *, //self
     // get c mpi comm hnd
     MPI_Comm comm = MPI_Comm_f2c(mpi_comm_id);
 
-    int rank = -1;
-
+    // obtain rank to check that the passed mpi comm is valid
+    // return error state to python if check fails
     try
     {
-        rank = relay::mpi::rank(comm);
+        relay::mpi::rank(comm);
     }
     catch(conduit::Error &e)
     {
@@ -460,20 +446,20 @@ static PyMethodDef relay_mpi_io_blueprint_python_funcs[] =
     //-----------------------------------------------------------------------//
     //-----------------------------------------------------------------------//
     {"write_mesh",
-     (PyCFunction)PyRelay_mpi_io_blueprint_write_mesh,
+     _PyCFunction_CAST(PyRelay_mpi_io_blueprint_write_mesh),
       METH_VARARGS | METH_KEYWORDS,
       "Write blueprint mesh to files using 'write' (append) semantics"},
     //-----------------------------------------------------------------------//
     {"save_mesh",
-     (PyCFunction)PyRelay_mpi_io_blueprint_save_mesh,
+     _PyCFunction_CAST(PyRelay_mpi_io_blueprint_save_mesh),
       METH_VARARGS | METH_KEYWORDS,
       "Write blueprint mesh to files using 'save' (truncate) semantics"},
     {"read_mesh",
-     (PyCFunction)PyRelay_mpi_io_blueprint_read_mesh,
+     _PyCFunction_CAST(PyRelay_mpi_io_blueprint_read_mesh),
       METH_VARARGS | METH_KEYWORDS,
       "Read blueprint mesh from files into passed node"},
     {"load_mesh",
-     (PyCFunction)PyRelay_mpi_io_blueprint_load_mesh,
+     _PyCFunction_CAST(PyRelay_mpi_io_blueprint_load_mesh),
       METH_VARARGS | METH_KEYWORDS,
       "Reset passed node and load blueprint mesh from files into it"},
     //-----------------------------------------------------------------------//

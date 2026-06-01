@@ -5,6 +5,11 @@
 configure_file ("${CMAKE_CURRENT_SOURCE_DIR}/conduit_blueprint_python_exports.h.in"
                 "${CMAKE_CURRENT_BINARY_DIR}/conduit_blueprint_python_exports.h")
 
+
+# add main conduit python source dir to allow us to use conduit_python_common.h,
+# which has our standard python dev headers and macros
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}../../conduit/python)
+
 # add blueprint submodule
 PYTHON_ADD_COMPILED_MODULE(NAME          conduit_blueprint_python
                            DEST_DIR      python-modules

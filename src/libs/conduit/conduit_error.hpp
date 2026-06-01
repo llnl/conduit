@@ -54,6 +54,8 @@ public:
     Error();
     /// Copy constructor
     Error(const Error &err);
+    /// Copy assignment operator
+    Error &operator=(const Error &);
     /// Main constructor, used by CONDUIT_ERROR macro
     Error(const std::string &msg, 
           const std::string &file,

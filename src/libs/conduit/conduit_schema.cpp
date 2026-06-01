@@ -627,32 +627,46 @@ Schema::to_yaml_stream(std::ostream &os,
 {
     if(m_dtype.id() == DataType::OBJECT_ID)
     {
-        os << eoe;
         size_t nchildren = children().size();
-        for(size_t i=0; i <  nchildren;i++)
+        if (nchildren == 0)
         {
-            utils::indent(os,indent,depth,pad);
-            os << object_order()[i] << ": ";
-            children()[i]->to_yaml_stream(os,
-                                          indent,
-                                          depth+1,
-                                          pad,
-                                          eoe);
+            os << "{}" << eoe;
+        }
+        else
+        {
+            os << eoe;
+            for(size_t i=0; i <  nchildren;i++)
+            {
+                utils::indent(os,indent,depth,pad);
+                os << object_order()[i] << ": ";
+                children()[i]->to_yaml_stream(os,
+                                              indent,
+                                              depth+1,
+                                              pad,
+                                              eoe);
+            }
         }
     }
     else if(m_dtype.id() == DataType::LIST_ID)
     {
-        os << eoe;
         size_t nchildren = children().size();
-        for(size_t i=0; i < nchildren;i++)
+        if (nchildren == 0)
         {
-            utils::indent(os,indent,depth,pad);
-            os << "- ";
-            children()[i]->to_yaml_stream(os,
-                                          indent,
-                                          depth+1,
-                                          pad,
-                                          eoe);
+            os << "[]" << eoe;
+        }
+        else
+        {
+            os << eoe;
+            for(size_t i=0; i < nchildren;i++)
+            {
+                utils::indent(os,indent,depth,pad);
+                os << "- ";
+                children()[i]->to_yaml_stream(os,
+                                              indent,
+                                              depth+1,
+                                              pad,
+                                              eoe);
+            }
         }
     }
     else // assume leaf data type

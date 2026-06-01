@@ -1,0 +1,28 @@
+From 2f97eded4c027bf2514828abf9f0a1a05ae2b9dc Mon Sep 17 00:00:00 2001
+From: Cyrus Harrison <cyrush@llnl.gov>
+Date: Tue, 6 Jan 2026 12:28:44 -0800
+Subject: [PATCH] patch
+
+---
+ CMakeLists.txt | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 8a400b8..d89596c 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -425,7 +425,10 @@ if (CGNS_ENABLE_HDF5 AND HDF5_NEED_MPI)
+   set(CGNS_ENABLE_PARALLEL "OFF" CACHE BOOL "Enable or disable parallel interface ?")
+   mark_as_advanced(CLEAR CGNS_ENABLE_PARALLEL)
+   # Check that HDF5 has parallel support
+-  if (NOT (HDF5_IS_PARALLEL OR HDF5_ENABLE_PARALLEL))
++  # HDF5 2.0 changed the cmake var that indicates MPI support to HDF5_PROVIDES_PARALLEL, see:
++  # https://www.hdfgroup.org/2025/11/10/release-of-hdf5-2-0-0-newsletter-207/
++  # https://github.com/HDFGroup/hdf5/pull/5716
++  if (NOT (HDF5_IS_PARALLEL OR HDF5_ENABLE_PARALLEL OR HDF5_PROVIDES_PARALLEL))
+     message(FATAL_ERROR "HDF5 has been found, but is missing parallel support.")
+   endif()
+ else ()
+-- 
+2.50.1 (Apple Git-155)
+

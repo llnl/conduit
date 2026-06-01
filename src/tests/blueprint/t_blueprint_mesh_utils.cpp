@@ -1327,3 +1327,127 @@ topologies:
     EXPECT_NEAR(info.minEdgeLength, 0.1, eps);
     EXPECT_NEAR(info.maxEdgeLength, 4., eps);
 }
+
+//-----------------------------------------------------------------------------
+void make_mesh(conduit::Node &mesh)
+{
+  const char *yaml = R"(
+mesh:
+  coordsets: 
+    coords: 
+      type: explicit
+      values: 
+        x: [0.0, 1.0, 2.0, 0.0, 1.0, 2.0, 0.0, 1.0, 2.0]
+        y: [0.0, 0.0, 0.0, 1., 1., 1., 2., 2., 2.]
+  topologies: 
+    topo: 
+      type: unstructured
+      coordset: coords
+      elements:
+        shape: quad
+        connectivity: [0,1,4,3, 1,2,5,4, 3,4,7,6, 4,5,8,7]
+        sizes: [4,4,4,4]
+        offsets: [0,4,8,12]
+  matsets: 
+    mat: 
+      topology: topo
+      material_map: 
+        mat0: 0
+        mat1: 1
+        mat2: 2
+      material_ids: [0, 1, 2, 1, 2]
+      volume_fractions: [1., 1., 1., 0.5, 0.5]
+      sizes: [1, 1, 1, 2]
+      offsets: [0, 1, 2, 3]
+      indices: [0, 1, 2, 4, 5]
+  fields: 
+    elems: 
+      topology: topo
+      association: element
+      values: [0, 1, 2, 3]
+  state: 
+    cycle: 0
+    time: 0.0
+    domain_id: 0
+)";
+
+    // "Read" the mesh.
+    mesh.parse(yaml);
+}
+
+//-----------------------------------------------------------------------------
+void test_find_reference_node(const conduit::Node &mesh)
+{
+    namespace bputils = conduit::blueprint::mesh::utils;
+    const conduit::Node *fr_coordset = bputils::find_reference_node(mesh.fetch_existing("topologies/topo"), "coordset");
+    const conduit::Node *coordset = mesh.fetch_ptr("coordsets/coords");
+    EXPECT_TRUE(coordset != nullptr);
+    EXPECT_EQ(fr_coordset, coordset);
+    EXPECT_TRUE(fr_coordset->parent() != nullptr);
+
+    const conduit::Node *fr_topo = bputils::find_reference_node(mesh.fetch_existing("matsets/mat"), "topology");
+    const conduit::Node *topo = mesh.fetch_ptr("topologies/topo");
+    EXPECT_TRUE(fr_topo != nullptr);
+    EXPECT_EQ(fr_topo, topo);
+    EXPECT_TRUE(fr_topo->parent() != nullptr);
+
+    const conduit::Node *fr_topo2 = bputils::find_reference_node(mesh.fetch_existing("fields/elems"), "topology");
+    EXPECT_TRUE(fr_topo2 != nullptr);
+    EXPECT_EQ(fr_topo2, topo);
+    EXPECT_TRUE(fr_topo2->parent() != nullptr);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_utils, find_reference_node)
+{
+    conduit::Node whole;
+    make_mesh(whole);
+
+    test_find_reference_node(whole["mesh"]);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_utils, find_reference_node_set)
+{
+    conduit::Node whole;
+    make_mesh(whole);
+
+    conduit::Node mesh;
+    mesh.set(whole["mesh"]);
+
+    // Test find_reference_node with a copy.
+    test_find_reference_node(mesh);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_utils, find_reference_node_move)
+{
+    conduit::Node whole;
+    make_mesh(whole);
+  
+    conduit::Node mesh;
+    mesh.move(whole["mesh"]);
+
+    // Make sure the mesh node still has no parent.
+    EXPECT_EQ(mesh.parent(), nullptr);
+
+    // Make sure the paths to the children are right
+    EXPECT_EQ(mesh["coordsets"].path(), "coordsets");
+    EXPECT_EQ(mesh["topologies"].path(), "topologies");
+    EXPECT_EQ(mesh["matsets"].path(), "matsets");
+    EXPECT_EQ(mesh["fields"].path(), "fields");
+
+    // Make sure the children do not point to the old parent.
+    EXPECT_NE(mesh["topologies"].parent(), whole.fetch_ptr("mesh"));
+    EXPECT_NE(mesh["coordsets"].parent(), whole.fetch_ptr("mesh"));
+    EXPECT_NE(mesh["matsets"].parent(), whole.fetch_ptr("mesh"));
+    EXPECT_NE(mesh["fields"].parent(), whole.fetch_ptr("mesh"));
+
+    // Make sure they have the same parent.
+    EXPECT_EQ(mesh["topologies"].parent(), mesh["coordsets"].parent());
+    EXPECT_EQ(mesh["topologies"].parent(), mesh["matsets"].parent());
+    EXPECT_EQ(mesh["topologies"].parent(), mesh["fields"].parent());
+
+    // Test find_reference_node with a moved mesh.
+    test_find_reference_node(mesh);
+}

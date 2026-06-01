@@ -55,6 +55,8 @@ jobs:
         submodules: 'recursive'
     - name: Build & Test
       run: |
+        # we need pip 24 or newer
+        python3 -m pip install --upgrade pip
         env ENABLE_MPI=ON HDF5_DIR=/usr/ pip install -v .
         rm -rf build
         python3 -c "import conduit;print(conduit.about());"
@@ -112,6 +114,8 @@ jobs:
         submodules: 'recursive'
     - name: Build & Test
       run: |
+        # we need pip 24 or newer
+        python3 -m pip install --upgrade pip
         echo 'set(ENABLE_MPI "ON" CACHE BOOL "")'  >  conduit-config.cmake
         echo 'set(HDF5_DIR "/usr/" CACHE PATH "")' >> conduit-config.cmake
         cat conduit-config.cmake

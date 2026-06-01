@@ -1224,20 +1224,49 @@ assign_values(int datatype,
 
 //-----------------------------------------------------------------------------
 // check if mesh types or var types are the same
-// we also allow them to equal "-1" because that is a sentinel value
-// that means a domain does not contain that mesh or variable.
+// we ignore the missing domains
 // We are using this function to decide if we can save a single mesh/var type
 // or need to save mesh/var types for every domain. If some domains are missing
 // it doesn't matter if the rest of them have the same type. When we read, we
 // don't use missing mesh/var types to decide if we skip a domain or not, we use 
 // the mesh/var name.
 bool
-all_types_the_same(std::vector<int> &v)
+all_types_the_same(const int32_accessor &types_acc,
+                   const index_t_accessor &status_acc,
+                   int32 &first_non_trivial_type)
 {
-    return v.empty() || 
-           std::all_of(v.begin(), 
-                       v.end(), 
-                       [&](int elem){ return elem == v[0] || elem == -1; });
+    first_non_trivial_type = -1;
+    index_t first_non_trivial_type_index = -1;
+    for (index_t global_domain_id = 0;
+         global_domain_id < types_acc.number_of_elements();
+         global_domain_id ++)
+    {
+        if (status_acc[global_domain_id] == 1)
+        {
+            first_non_trivial_type = types_acc[global_domain_id];
+            first_non_trivial_type_index = global_domain_id;
+            break;
+        }
+    }
+
+    if (first_non_trivial_type_index == -1)
+    {
+        return true;
+    }
+
+    for (index_t global_domain_id = first_non_trivial_type_index;
+         global_domain_id < types_acc.number_of_elements();
+         global_domain_id ++)
+    {
+        if (status_acc[global_domain_id] == 1)
+        {
+            if (first_non_trivial_type != types_acc[global_domain_id])
+            {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -1248,32 +1277,16 @@ generate_silo_mb_data(const Node &n_mesh_state,
                       const int num_files,
                       const int global_num_domains,
                       const bool root_only,
-                      const Node &dom_flags_or_types,
-                      const int default_type,
-                      const bool do_types, // are we doing material or specset names
+                      const Node &dom_flags,
                       const bool do_nameschemes,
                       std::vector<std::string> &name_strings,
-                      std::vector<int> *types,
                       std::vector<int> *empty_domains)
 {
-    // TODO I believe that it is possible to use the types we collected in the
-    // root type domain info for writing out (instead of copying them all as we do
-    // here). The only thing we have to do differently is put in the default type 
-    // at the beginning and then record empty domains another way. That would 
-    // simplify this logic as well; if we knew empty domains all along we wouldn't 
-    // have to create them here.
-    // When I make the described change, the madness of this function will melt 
-    // away, leaving behind elegant and simple C++ where there once was darkness 
-    // and evil.
-
-    // this function does many things, and all need to be done in a loop over all the domains.
-    // we can 
-    //  - generate names for multi-block data paths,
-    //  - collect information about the types,
-    //  - and track the empty domains.
+    // this function does the following: 
+    //  - generates names for multi-block data paths,
+    //  - and tracks the empty domains.
     // we only generate names if we ARE NOT doing nameschemes, and we only
     // track the empty domains if we ARE doing nameschemes.
-    // we only collect type info if we are doing matsets or specsets.
 
     // a little helper to determine the domain or file
     auto determine_domain_or_file = [&](const std::string domain_or_file,
@@ -1290,134 +1303,74 @@ generate_silo_mb_data(const Node &n_mesh_state,
         }
     };
 
-    // these are the three shared cases for determining silo names
-    auto generate_cases = [&](const index_t domain_index,
-                              const index_t global_domain_id) -> std::string
-    {
-        // we have three cases, just as we had in write_mesh
-        // we don't want to be making any choices here, just using
-        // what was already decided in write_mesh
-
-        // single file case
-        if (root_only)
-        {
-            if (global_num_domains == 1)
-            {
-                return conduit_fmt::format(silo_path, silo_name);
-            }
-            else
-            {
-                return conduit_fmt::format(silo_path, domain_index, silo_name);
-            }
-        }
-        // num domains == num files case
-        else if (global_num_domains == num_files)
-        {
-            return conduit_fmt::format(silo_path, domain_index, silo_name);
-        }
-        // m to n case
-        else
-        {
-            // determine which file
-            index_t f = determine_domain_or_file("file", global_domain_id);
-            return conduit_fmt::format(silo_path, f, domain_index, silo_name);
-        }
-    };
-
-    // now we go ahead and use the lambdas we created
-
     // if we're doing nameschemes, we don't have to generate names but we do need
     // to track empty domains
     if (do_nameschemes)
     {
-        // meshes and variables need to track type information
-        if (do_types)
+        int_accessor domain_flags = dom_flags.value();
+        for (index_t global_domain_id = 0; global_domain_id < global_num_domains; global_domain_id ++)
         {
-            int_accessor stored_types = dom_flags_or_types.value();
-            for (index_t global_domain_id = 0; global_domain_id < global_num_domains; global_domain_id ++)
-            {
-                // determine which domain
-                const index_t domain_index = determine_domain_or_file("domain", global_domain_id);
+            // determine which domain
+            const index_t domain_index = determine_domain_or_file("domain", global_domain_id);
 
-                // we are missing a domain
-                if (stored_types[domain_index] == -1)
-                {
-                    types->push_back(default_type);
-                    empty_domains->push_back(domain_index);
-                }
-                else
-                {
-                    types->push_back(stored_types[domain_index]);
-                }
-            }
-        }
-        // simplified route for matsets and specsets, as they do not have type info
-        // to take into account
-        else
-        {
-            int_accessor domain_flags = dom_flags_or_types.value();
-            for (index_t global_domain_id = 0; global_domain_id < global_num_domains; global_domain_id ++)
+            // we are missing a domain
+            if (domain_flags[domain_index] == -1)
             {
-                // determine which domain
-                const index_t domain_index = determine_domain_or_file("domain", global_domain_id);
-
-                // we are missing a domain
-                if (domain_flags[domain_index] == -1)
-                {
-                    empty_domains->push_back(domain_index);
-                }
-                // else
+                empty_domains->push_back(domain_index);
             }
+            // else
         }
     }
     // we need to record per-block object names and do not need to track empty domains
     else
     {
-        // meshes and variables need to track type information
-        if (do_types)
+        int_accessor domain_flags = dom_flags.value();
+        for (index_t global_domain_id = 0; global_domain_id < global_num_domains; global_domain_id ++)
         {
-            int_accessor stored_types = dom_flags_or_types.value();
-            for (index_t global_domain_id = 0; global_domain_id < global_num_domains; global_domain_id ++)
-            {
-                // determine which domain
-                const index_t domain_index = determine_domain_or_file("domain", global_domain_id);
+            // determine which domain
+            const index_t domain_index = determine_domain_or_file("domain", global_domain_id);
 
-                // we are missing a domain
-                if (stored_types[domain_index] == -1)
-                {
-                    // we create the silo names
-                    name_strings.push_back("EMPTY");
-                    types->push_back(default_type);
-                }
-                else
-                {
-                    // we create the silo names
-                    name_strings.push_back(generate_cases(domain_index, global_domain_id));
-                    types->push_back(stored_types[domain_index]);
-                }
+            // we are missing a domain
+            if (domain_flags[domain_index] == -1)
+            {
+                // we create the silo names
+                name_strings.push_back("EMPTY");
             }
-        }
-        // simplified route for matsets and specsets, as they do not have type info
-        // to take into account
-        else
-        {
-            int_accessor domain_flags = dom_flags_or_types.value();
-            for (index_t global_domain_id = 0; global_domain_id < global_num_domains; global_domain_id ++)
+            else
             {
-                // determine which domain
-                const index_t domain_index = determine_domain_or_file("domain", global_domain_id);
+                // we create the silo names
+                
+                std::string generated_silo_name;
+                // we have three cases, just as we had in write_mesh
+                // we don't want to be making any choices here, just using
+                // what was already decided in write_mesh
 
-                // we are missing a domain
-                if (domain_flags[domain_index] == -1)
+                // single file case
+                if (root_only)
                 {
-                    // we create the silo names
-                    name_strings.push_back("EMPTY");
+                    if (global_num_domains == 1)
+                    {
+                        generated_silo_name = conduit_fmt::format(silo_path, silo_name);
+                    }
+                    else
+                    {
+                        generated_silo_name = conduit_fmt::format(silo_path, domain_index, silo_name);
+                    }
                 }
+                // num domains == num files case
+                else if (global_num_domains == num_files)
+                {
+                    generated_silo_name = conduit_fmt::format(silo_path, domain_index, silo_name);
+                }
+                // m to n case
                 else
                 {
-                    // we create the silo names
-                    name_strings.push_back(generate_cases(domain_index, global_domain_id));
+                    // determine which file
+                    const index_t f = determine_domain_or_file("file", global_domain_id);
+                    generated_silo_name = conduit_fmt::format(silo_path, f, domain_index, silo_name);
                 }
+
+                name_strings.push_back(generated_silo_name);
             }
         }
     }
@@ -1536,7 +1489,7 @@ read_dims_from_mesh_info(const Node &mesh_info_for_topo, int *dims)
     }
     else
     {
-        dims[0] = mesh_info_for_topo["num_elems"].to_value();
+        dims[0] = mesh_info_for_topo["num_elems"].to_int();
         return 1; // ndims == 1
     }
 }
@@ -2445,10 +2398,10 @@ read_variable_domain(const int vartype,
         }
         else if (opts_matset_style == "multi_buffer_full")
         {
-            conduit::blueprint::mesh::field::to_multi_buffer_full(original_matset,
-                                                                  intermediate_field,
-                                                                  matset_name,
-                                                                  field_out);
+            conduit::blueprint::mesh::field::to_multi_buffer_by_element(original_matset,
+                                                                        intermediate_field,
+                                                                        matset_name,
+                                                                        field_out);
         }
         else // "multi_buffer_by_material"
         {
@@ -2755,11 +2708,20 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
         }
     }
 
-    if (matset_ptr->datatype != DB_DOUBLE && matset_ptr->datatype != DB_FLOAT)
+    // We only need to check the data type is one of the allowed types
+    // if mixlen is greater than 0 (meaning that we have volume fractions
+    // and mixed zones). One user reported hitting this error with data
+    // that had no mixed zones, although we have not been able to reproduce,
+    // even using data they provided. Regardless, it doesn't hurt to relax
+    // the restriction here.
+    if (matset_ptr->mixlen > 0)
     {
-        CONDUIT_INFO("Volume fractions must be doubles or floats." <<
-                     " Unknown type for volume fractions for " << matset_name);
-        return false;
+        if (matset_ptr->datatype != DB_DOUBLE && matset_ptr->datatype != DB_FLOAT)
+        {
+            CONDUIT_INFO("Volume fractions must be doubles or floats." <<
+                         " Unknown type for volume fractions for " << matset_name);
+            return false;
+        }
     }
 
     std::vector<double> volume_fractions;
@@ -2790,7 +2752,9 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
     }
     else
     {
-        // we have verified up above that this is a float
+        // We have verified up above that this is a float, or that there
+        // are no mixed zones, in which case we won't need to use the
+        // `float` type.
         read_matlist<float>(matset_ptr,
                             nx, ny, nz,
                             volume_fractions,
@@ -2825,6 +2789,7 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
     // create an entry for this matset in the output
     Node &matset_out = mesh_out["matsets"][multimat_name];
 
+    // TODO encase these in try-catch blocks
     if (opts_matset_style == "default" || opts_matset_style == "sparse_by_element")
     {
         matset_out.move(intermediate_matset);
@@ -2834,7 +2799,7 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
     }
     else if (opts_matset_style == "multi_buffer_full")
     {
-        conduit::blueprint::mesh::matset::to_multi_buffer_full(intermediate_matset, matset_out);
+        conduit::blueprint::mesh::matset::to_multi_buffer_by_element(intermediate_matset, matset_out);
 
         // we only need to stash the matset for use in converters later if we need
         // a different flavor of matset
@@ -3860,7 +3825,14 @@ read_multimats(DBtoc *toc,
             {
                 for (int i = 0; i < nmatnos; i ++)
                 {
-                    material_map[matnames[i]] = matnos[i];
+                    if (nullptr != matnames[i])
+                    {
+                        material_map[matnames[i]] = matnos[i];
+                    }
+                    else
+                    {
+                        material_map[std::to_string(matnos[i])] = matnos[i];
+                    }
                 }
             }
             else
@@ -5480,13 +5452,13 @@ void silo_write_field(DBfile *dbfile,
         int dims[3] = {0, 0, 0};
         int num_dims = 2;
 
-        dims[0] = n_mesh_info[topo_name]["elements/i"].value();
-        dims[1] = n_mesh_info[topo_name]["elements/j"].value();
+        dims[0] = n_mesh_info[topo_name]["elements/i"].to_int();
+        dims[1] = n_mesh_info[topo_name]["elements/j"].to_int();
 
         if (n_mesh_info[topo_name]["elements"].has_path("k"))
         {
             num_dims = 3;
-            dims[2] = n_mesh_info[topo_name]["elements/k"].value();
+            dims[2] = n_mesh_info[topo_name]["elements/k"].to_int();
         }
 
         if (centering == DB_NODECENT)
@@ -5999,7 +5971,9 @@ void silo_write_ucd_zonelist(DBfile *dbfile,
     detail::conditional_compact(n_conn, n_conn_compact);
 
     const int conn_len = n_conn_compact.dtype().number_of_elements();
-    int *conn_ptr = n_conn_compact.value();
+
+    Node int_arrays;
+    detail::convert_to_c_int_array(n_conn_compact, int_arrays["conn_compact"]);
 
     n_mesh_info[topo_name]["num_elems"] = total_num_elems;
 
@@ -6009,20 +5983,20 @@ void silo_write_ucd_zonelist(DBfile *dbfile,
     const int ndims = n_mesh_info[topo_name]["ndims"].as_int();
 
     CONDUIT_CHECK_SILO_ERROR(
-        DBPutZonelist2(dbfile,             // silo file
-                       zlist_name.c_str(), // silo obj name
-                       total_num_elems,    // number of elements
-                       ndims,              // spatial dims
-                       conn_ptr,           // connectivity array
-                       conn_len,           // len of connectivity array
-                       0,                  // base offset
-                       0,                  // # ghosts low
-                       0,                  // # ghosts high
-                       shapetype.data(),   // list of shapes ids
-                       shapesize.data(),   // number of points per shape id
-                       shapecnt.data(),    // number of elements each shape id is used for
-                       num_shapes,         // number of shapes ids
-                       NULL),              // optlist
+        DBPutZonelist2(dbfile,                             // silo file
+                       zlist_name.c_str(),                 // silo obj name
+                       total_num_elems,                    // number of elements
+                       ndims,                              // spatial dims
+                       int_arrays["conn_compact"].value(), // connectivity array
+                       conn_len,                           // len of connectivity array
+                       0,                                  // base offset
+                       0,                                  // # ghosts low
+                       0,                                  // # ghosts high
+                       shapetype.data(),                   // list of shapes ids
+                       shapesize.data(),                   // number of points per shape id
+                       shapecnt.data(),                    // number of elements each shape id is used for
+                       num_shapes,                         // number of shapes ids
+                       NULL),                              // optlist
         "after saving ucd " + topo_shape + " topology");
 }
 
@@ -6568,10 +6542,9 @@ bool silo_write_matset(DBfile *dbfile,
     const std::string silo_meshname = write_overlink ? "MESH" : topo_name;
 
     // use to_silo utility to create the needed silo arrays
-    // cache all of these for later (in case we are writing specsets. If not, it doesn't hurt)
-    Node &silo_matset = n_mesh_info["matsets"][matset_name]["silo_matset"];
-    Node &silo_matset_compact = n_mesh_info["matsets"][matset_name]["silo_matset_compact"];
-    Node &silo_mix_vfs_final = n_mesh_info["matsets"][matset_name]["silo_mix_vfs_final"];
+    Node silo_matset;
+    Node silo_matset_compact;
+    Node silo_mix_vfs_final;
     conduit::blueprint::mesh::matset::to_silo(n_matset, silo_matset);
 
     // compact the arrays if necessary
@@ -6634,16 +6607,16 @@ bool silo_write_matset(DBfile *dbfile,
     detail::convert_to_c_int_array(silo_matset_compact["matlist"], int_arrays["matlist"]);
 
     CONDUIT_CHECK_SILO_ERROR(
-        DBPutMaterial(dbfile, // Database file pointer
-                      silo_matset_name.c_str(), // matset name
-                      silo_meshname.c_str(), // mesh name
-                      nmat, // number of materials
-                      matnos.data(), // material numbers
-                      int_arrays["matlist"].value(),
+        DBPutMaterial(dbfile,                         // Database file pointer
+                      silo_matset_name.c_str(),       // matset name
+                      silo_meshname.c_str(),          // mesh name
+                      nmat,                           // number of materials
+                      matnos.data(),                  // material numbers
+                      int_arrays["matlist"].value(),  // material list
                       dims,                           // number of elements in each dimension in matlist
                       ndims,                          // number of dimensions in dims
-                      int_arrays["mix_next"].value(),
-                      int_arrays["mix_mat"].value(),
+                      int_arrays["mix_next"].value(), // mix next list
+                      int_arrays["mix_mat"].value(),  // mix material id list
                       NULL,                           // mix zone is optional
                       silo_mix_vfs_final.data_ptr(),  // volume fractions
                       mixlen,                         // length of mixed data arrays
@@ -6671,6 +6644,7 @@ bool silo_write_matset(DBfile *dbfile,
 void silo_write_specset(DBfile *dbfile,
                         const std::string &specset_name,
                         const Node &n_specset,
+                        const Node &n_matset,
                         const std::string &matset_name,
                         const bool write_overlink,
                         const int local_num_domains,
@@ -6721,11 +6695,9 @@ void silo_write_specset(DBfile *dbfile,
         return;
     }
 
-    const Node &silo_matset = n_mesh_info["matsets"][matset_name]["silo_matset_compact"];
-
     // TODO remove this once we add support for all specset flavors to to_silo
-    if (silo_matset["buffer_style"].as_string() != "multi" ||
-        silo_matset["dominance"].as_string() != "element")
+    if (conduit::blueprint::mesh::matset::is_uni_buffer(n_matset) ||
+        conduit::blueprint::mesh::matset::is_material_dominant(n_matset))
     {
         CONDUIT_INFO("TODO Currently specsets can only be saved to silo if "
                      "they are multi_buffer + element_dominant.");
@@ -6733,7 +6705,7 @@ void silo_write_specset(DBfile *dbfile,
     }
 
     Node silo_specset;
-    conduit::blueprint::mesh::specset::to_silo(n_specset, silo_matset, silo_specset);
+    conduit::blueprint::mesh::specset::to_silo(n_specset, n_matset, silo_specset);
 
     // get the datatype of the species_mf
     const int datatype = DB_DOUBLE; // to_silo produces species_mf data using float64s
@@ -6973,12 +6945,14 @@ void silo_mesh_write(DBfile *dbfile,
                               << "/matset: " << matset_name);
                 continue;
             }
+            const Node &n_matset = mesh_domain["matsets"][matset_name];
             const std::string topo_name = n_mesh_info["matsets"][matset_name]["topo_name"].as_string();
             if (! write_overlink || topo_name == ovl_topo_name)
             {
                 silo_write_specset(dbfile,
                                    specset_name,
                                    n_specset,
+                                   n_matset,
                                    matset_name,
                                    write_overlink,
                                    local_num_domains,
@@ -7081,7 +7055,6 @@ void write_multimesh(DBfile *dbfile,
     const std::string &global_file_namescheme = root["global_file_namescheme"].as_string();
     const std::string &global_block_namescheme = root["global_block_namescheme"].as_string();
     std::vector<std::string> domain_name_strings;
-    std::vector<int> mesh_types;
     std::vector<int> empty_domains;
 
     detail::generate_silo_mb_data(n_mesh["state"],
@@ -7090,12 +7063,9 @@ void write_multimesh(DBfile *dbfile,
                                   num_files,
                                   global_num_domains,
                                   root_only,
-                                  root["type_domain_info"]["meshes"][topo_name],
-                                  DB_QUADMESH, // the default if we have an empty domain
-                                  true, // we are doing mesh or var names
+                                  root["type_domain_info"]["meshes"][topo_name + "_status"],
                                   do_nameschemes,
                                   domain_name_strings,
-                                  &mesh_types,
                                   &empty_domains);
 
     // create optlist
@@ -7136,10 +7106,13 @@ void write_multimesh(DBfile *dbfile,
 
     // need to create vars out here so that they have scope for the function lifetime
     int *mesh_types_ptr = nullptr;
-    int mesh_type;
-    if (prefer_unified_types && detail::all_types_the_same(mesh_types))
+    int32 mesh_type;
+    const bool all_types_the_same = detail::all_types_the_same(
+                                        root["type_domain_info"]["meshes"][topo_name + "_types"].value(),
+                                        root["type_domain_info"]["meshes"][topo_name + "_status"].value(),
+                                        mesh_type);
+    if (prefer_unified_types && all_types_the_same && mesh_type != -1)
     {
-        mesh_type = mesh_types.empty() ? 0 : mesh_types[0];
         CONDUIT_CHECK_SILO_ERROR(
             DBAddOption(optlist.getSiloObject(),
                         DBOPT_MB_BLOCK_TYPE,
@@ -7148,7 +7121,7 @@ void write_multimesh(DBfile *dbfile,
     }
     else
     {
-        mesh_types_ptr = mesh_types.data();
+        mesh_types_ptr = const_cast<int *>(root["type_domain_info"]["meshes"][topo_name + "_types"].as_int_ptr());
     }
 
     // need to create vars out here so they have lifetime thru the end of the function
@@ -7222,7 +7195,7 @@ void write_multimeshes(DBfile *dbfile,
             const std::string multimesh_name = opts_out_mesh_name + "_" + topo_name;
 
             // did we actually write this mesh to silo?
-            if (! n_type_dom_info.has_path("meshes/" + topo_name))
+            if (! n_type_dom_info.has_path("meshes/" + topo_name + "_status"))
             {
                 // we skipped this mesh before so we can skip it now
                 continue;
@@ -7285,7 +7258,7 @@ write_multivars(DBfile *dbfile,
                 }
                 else
                 {
-                    if (! n_type_dom_info.has_path("vars/" + var_name))
+                    if (! n_type_dom_info.has_path("vars/" + var_name + "_status"))
                     {
                         // we skipped this field before so we can skip it now
                         continue;
@@ -7294,7 +7267,7 @@ write_multivars(DBfile *dbfile,
             }
             else
             {
-                if (! n_type_dom_info.has_path("vars/" + var_name))
+                if (! n_type_dom_info.has_path("vars/" + var_name + "_status"))
                 {
                     // we skipped this field before so we can skip it now
                     continue;
@@ -7312,7 +7285,6 @@ write_multivars(DBfile *dbfile,
                 if (! write_overlink || linked_topo_name == ovl_topo_name)
                 {
                     std::vector<std::string> var_name_strings;
-                    std::vector<int> var_types;
                     std::vector<int> empty_domains;
                     detail::generate_silo_mb_data(n_mesh["state"],
                                                   root["silo_path"].as_string(),
@@ -7320,12 +7292,9 @@ write_multivars(DBfile *dbfile,
                                                   num_files,
                                                   global_num_domains,
                                                   root_only,
-                                                  root["type_domain_info"]["vars"][var_name],
-                                                  DB_QUADVAR, // the default if we have an empty domain
-                                                  true, // we are not doing mesh or var names
+                                                  root["type_domain_info"]["vars"][var_name + "_status"],
                                                   do_nameschemes,
                                                   var_name_strings,
-                                                  &var_types,
                                                   &empty_domains);
 
                     // create optlist
@@ -7356,9 +7325,12 @@ write_multivars(DBfile *dbfile,
 
                     int *var_types_ptr = nullptr;
                     int var_type;
-                    if (prefer_unified_types && detail::all_types_the_same(var_types))
+                    const bool all_types_the_same = detail::all_types_the_same(
+                                                        root["type_domain_info"]["vars"][var_name + "_types"].value(),
+                                                        root["type_domain_info"]["vars"][var_name + "_status"].value(),
+                                                        var_type);
+                    if (prefer_unified_types && all_types_the_same && var_type != -1)
                     {
-                        var_type = var_types.empty() ? 0 : var_types[0];
                         CONDUIT_CHECK_SILO_ERROR(
                             DBAddOption(optlist.getSiloObject(),
                                         DBOPT_MB_BLOCK_TYPE,
@@ -7367,7 +7339,7 @@ write_multivars(DBfile *dbfile,
                     }
                     else
                     {
-                        var_types_ptr = var_types.data();
+                        var_types_ptr = const_cast<int *>(root["type_domain_info"]["vars"][var_name + "_types"].as_int_ptr());
                     }
 
                     // need to create vars out here so they have lifetime thru the end of the function
@@ -7449,7 +7421,7 @@ write_multimats(DBfile *dbfile,
             const std::string matset_name = matset_itr.name();
 
             // did we actually write this matset to silo?
-            if (! n_type_dom_info.has_path("matsets/" + matset_name))
+            if (! n_type_dom_info.has_path("matsets/" + matset_name + "_status"))
             {
                 // we skipped this matset before so we can skip it now
                 continue;
@@ -7473,12 +7445,9 @@ write_multimats(DBfile *dbfile,
                                               num_files,
                                               global_num_domains,
                                               root_only,
-                                              root["type_domain_info"]["matsets"][matset_name],
-                                              -1, // default type. Not needed for matsets and specsets
-                                              false, // we are doing matset or specset names
+                                              root["type_domain_info"]["matsets"][matset_name + "_status"],
                                               do_nameschemes,
                                               matset_name_strings,
-                                              nullptr, // no need to pass a vector for types for matsets or specsets
                                               &empty_domains);
 
                 // create optlist
@@ -7597,7 +7566,7 @@ write_multimatspecs(DBfile *dbfile,
             const std::string specset_name = specset_itr.name();
 
             // did we actually write this specset to silo?
-            if (! n_type_dom_info.has_path("specsets/" + specset_name))
+            if (! n_type_dom_info.has_path("specsets/" + specset_name + "_status"))
             {
                 // we skipped this specset before so we can skip it now
                 continue;
@@ -7648,12 +7617,9 @@ write_multimatspecs(DBfile *dbfile,
                                               num_files,
                                               global_num_domains,
                                               root_only,
-                                              root["type_domain_info"]["specsets"][specset_name],
-                                              -1, // default type. Not needed for matsets and specsets
-                                              false, // we are doing matset or specset names
+                                              root["type_domain_info"]["specsets"][specset_name + "_status"],
                                               do_nameschemes,
                                               specset_name_strings,
-                                              nullptr, // no need to pass a vector for types for matsets or specsets
                                               &empty_domains);
 
                 const std::string silo_matset_name = (write_overlink ? "MATERIAL" : linked_matset_name);
@@ -7847,7 +7813,7 @@ write_var_attributes(DBfile *dbfile,
             }
             else
             {
-                if (! n_type_dom_info.has_path("vars/" + var_name))
+                if (! n_type_dom_info.has_path("vars/" + var_name + "_status"))
                 {
                     // we skipped this field before so we can skip it now
                     continue;
@@ -8566,10 +8532,14 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     // I want the names of specsets that are associated with the first
     // matset associated with the chosen topology
     std::map<std::string, std::pair<std::string, std::string>> ovl_specset_names;
-    // we need this to ensure that all species get assigned a unique name
+    // maps the conduit specset name to the overlink name + an empty string OR
+    // maps the conduit specset name to the string "ERROR" + an error message
+    
+    // We need this to ensure that all species sets get assigned a unique name
     // for overlink, independent of the order they appear for a particular domain.
     // TODO test me, specset1 and specset2, specset1 appears first on one dom
     // and second on the other dom.
+    // TODO does this work in parallel?
     if (write_overlink)
     {
         int ovl_mspecies_object_index = 0;
@@ -8622,18 +8592,16 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
             if (ovl_mspecies_object_index == 0)
             {
                 ovl_specset_names[specset_name] = std::make_pair("SPECIES", "");
+                ovl_mspecies_object_index ++;
             }
             else
             {
                 ovl_specset_names[specset_name] = std::make_pair(
                     "SPECIES" + std::to_string(ovl_mspecies_object_index), "");
+                ovl_mspecies_object_index ++;
             }
         }
     }
-
-    // TODO for overlink: Number of species per material within a set must agree
-    // across domains, and agree with that specified in the corresponding
-    // DBPutMultimatspecies call.
 
     // new style bp index partition_map
     // NOTE: the part_map is inited during write process for N domains
@@ -9103,6 +9071,257 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         }
     }
 
+    //
+    // OVERLINK species set requirements
+    //
+
+    // We must enforce the following species set requirements:
+    // - All domains must contain the same number of specie sets.
+    // - The number of species per material in each set must be 
+    //   the same for all domains.
+
+    // We warn if Overlink is not enabled and one of these conditions is not true.
+
+    // This is scoped since to avoid naming/declaration issues
+    {
+        //
+        // step 1. generate a map with the number of species per material for each
+        //         specset and check that all local domains match
+        //
+
+        // map from specset name to map from matname to number of species per material
+        Node num_spec_for_mats;
+        // i.e.
+        // specset1:
+        //    mat1: 3
+        //    mat2: 4
+        // specset2:
+        //    mat1: 1
+        //    mat2: 2
+        //    mat3: 6
+        // ...
+
+        int error = 0;
+        int num_specsets_on_domain = -1;
+
+        auto child_itr = multi_dom.children();
+        while (child_itr.has_next())
+        {
+            const Node &child = child_itr.next();
+            if (child.has_child("specsets") && local_type_domain_info.has_child("specsets"))
+            {
+                const Node &specsets = child["specsets"];
+                const int num_specsets_written = local_type_domain_info["specsets"].number_of_children();
+                if (-1 == num_specsets_on_domain)
+                {
+                    num_specsets_on_domain = num_specsets_written;
+                }
+                else
+                {
+                    if (num_specsets_written != num_specsets_on_domain)
+                    {
+                        error = 1;
+                        break;
+                    }
+                }
+                auto specset_itr = specsets.children();
+                while (specset_itr.has_next())
+                {
+                    const Node &specset = specset_itr.next();
+                    const std::string specset_name = specset_itr.name();
+
+                    if (! local_type_domain_info.has_path("specsets/" + specset_name))
+                    {
+                        continue;
+                    }
+
+                    std::vector<std::string> matnames;
+                    conduit::blueprint::mesh::specset::get_material_names(specset, matnames);
+
+                    // if we already have an entry for this specset from some domain
+                    if (num_spec_for_mats.has_child(specset_name))
+                    {
+                        const Node &specset_entry = num_spec_for_mats[specset_name];
+                        // if there is a mismatch in the number of materials
+                        if (specset_entry.number_of_children() != static_cast<index_t>(matnames.size()))
+                        {
+                            error = 1;
+                            break;
+                        }
+                        else
+                        {
+                            for (const auto &matname : matnames)
+                            {
+                                const index_t num_spec_for_mat = conduit::blueprint::mesh::specset::get_num_species_for_material(specset, matname);
+                                const index_t other_num_spec_for_mat = specset_entry[matname].to_index_t();
+                                if (num_spec_for_mat != other_num_spec_for_mat)
+                                {
+                                    error = 1;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    // our first time encountering this species set on any local domain
+                    else
+                    {
+                        for (const auto &matname : matnames)
+                        {
+                            const index_t num_spec_for_mat = conduit::blueprint::mesh::specset::get_num_species_for_material(specset, matname);
+                            num_spec_for_mats[specset_name][matname] = num_spec_for_mat;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                continue;
+            }
+        }
+
+        //
+        // step 2. globally check that all local results are acceptable
+        //
+
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+        Node n_local, n_global;
+        n_local["err"].set((int)error);
+        relay::mpi::sum_all_reduce(n_local["err"],
+                                   n_global["err"],
+                                   mpi_comm);
+
+        error = n_global["err"].as_int();
+
+        n_local["num_specsets_on_dom"].set(num_specsets_on_domain);
+        relay::mpi::min_all_reduce(n_local["num_specsets_on_dom"],
+                                   n_global["min_specsets_on_dom"],
+                                   mpi_comm);
+        relay::mpi::max_all_reduce(n_local["num_specsets_on_dom"],
+                                   n_global["max_specsets_on_dom"],
+                                   mpi_comm);
+        const int min_num_specsets_on_dom = n_global["min_specsets_on_dom"].as_int();
+        const int max_num_specsets_on_dom = n_global["max_specsets_on_dom"].as_int();
+
+        if (0 != error || min_num_specsets_on_dom != max_num_specsets_on_dom)
+        {
+            if (write_overlink)
+            {
+                CONDUIT_ERROR("Number of species per material within a set must agree across domains; "
+                              "Number of species sets must be the same on all domains.");
+            }
+            else
+            {
+                CONDUIT_INFO("Number of species per material within a set must agree across domains; "
+                             "Number of species sets must be the same on all domains.");
+            }
+        }
+
+#else
+        // non MPI case, throw error
+        if (0 != error)
+        {
+            if (write_overlink)
+            {
+                CONDUIT_ERROR("Number of species per material within a set must agree across domains; "
+                              "Number of species sets must be the same on all domains.");
+            }
+            else
+            {
+                CONDUIT_INFO("Number of species per material within a set must agree across domains; "
+                             "Number of species sets must be the same on all domains.");
+            }
+        }
+#endif
+
+        //
+        // step 3. gather global results
+        //
+
+        Node global_num_spec_for_mats;
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+        relay::mpi::all_gather_using_schema(num_spec_for_mats,
+                                            global_num_spec_for_mats,
+                                            mpi_comm);
+#else
+        global_num_spec_for_mats.append().set_external(num_spec_for_mats);
+#endif
+        if (global_num_spec_for_mats.number_of_children() != 1)
+        {
+            std::map<std::string, std::map<std::string, index_t>> global_n_spec_for_mats_map;
+            auto num_spec_for_mat_for_dom_itr = global_num_spec_for_mats.children();
+            while (num_spec_for_mat_for_dom_itr.has_next())
+            {
+                const Node &num_spec_for_mat_for_dom = num_spec_for_mat_for_dom_itr.next();
+                const std::vector<std::string> &specset_names = num_spec_for_mat_for_dom.child_names();
+                for (const auto &specset_name : specset_names)
+                {
+                    const Node &specset_entry = num_spec_for_mat_for_dom[specset_name];
+                    if (global_n_spec_for_mats_map.count(specset_name))
+                    {
+                        // investigate if each number is right
+                        const std::vector<std::string> &matnames = specset_entry.child_names();
+                        
+                        const size_t num_mat_in_specset = global_n_spec_for_mats_map.at(specset_name).size();
+
+                        if (num_mat_in_specset != matnames.size())
+                        {
+                            error = 1;
+                            break;
+                        }
+
+                        for (const auto &matname : matnames)
+                        {
+                            // if we contain an entry for this material
+                            if (global_n_spec_for_mats_map.at(specset_name).count(matname))
+                            {
+                                const index_t recorded_num = global_n_spec_for_mats_map.at(specset_name).at(matname);
+                                const index_t local_num = specset_entry[matname].to_index_t();
+                                if (recorded_num != local_num)
+                                {
+                                    error = 1;
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                error = 1;
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // fill the map
+                        const std::vector<std::string> &matnames = specset_entry.child_names();
+                        for (const auto &matname : matnames)
+                        {
+                            global_n_spec_for_mats_map[specset_name][matname] = specset_entry[matname].to_index_t();
+                        }
+                    }
+                }
+            }
+        }
+
+        //
+        // step 4. globally check that global results are acceptable
+        //
+
+        // we did an all gather above so every rank has everything; error will happen on all ranks
+        if (0 != error)
+        {
+            if (write_overlink)
+            {
+                CONDUIT_ERROR("Number of species per material within a set must agree across domains; "
+                              "Number of species sets must be the same on all domains.");
+            }
+            else
+            {
+                CONDUIT_INFO("Number of species per material within a set must agree across domains; "
+                             "Number of species sets must be the same on all domains.");
+            }
+        }
+    }
+
     int root_file_writer = 0;
     if(local_num_domains == 0)
     {
@@ -9154,22 +9373,28 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         // (one entry in each list for each domain)
         //
         // meshes:
-        //   mesh1: [ucdmesh, ucdmesh, ...]
-        //   mesh2: [ucdmesh, pointmesh, ...]
-        //   mesh3: [quadmesh, quadmesh, ...]
+        //   mesh1_types: [ucdmesh, ucdmesh, ...]
+        //   mesh1_status: [1, 1, 1, ...]
+        //   mesh2_types: [ucdmesh, pointmesh, ...]
+        //   mesh2_status: [1, 1, 1, ...]
+        //   mesh3_types: [quadmesh, quadmesh, ...]
+        //   mesh3_status: [1, -1, 1, ...]
         //   ...
         // vars:
-        //   var1: [ucdvar, ucdvar, ...]
-        //   var2: [ucdvar, pointvar, ...]
-        //   var3: [quadvar, quadvar, ...]
+        //   var1_types: [ucdvar, ucdvar, ...]
+        //   var1_status: [1, 1, -1, ...]
+        //   var2_types: [ucdvar, pointvar, ...]
+        //   var2_status: [1, 1, 1, ...]
+        //   var3_types: [quadvar, quadvar, ...]
+        //   var3_status: [1, 1, 1, ...]
         //   ...
         // matsets:
-        //   matset1: [1, 1, -1, ...]
-        //   matset2: [1, -1, 1, ...]
+        //   matset1_status: [1, 1, -1, ...]
+        //   matset2_status: [1, -1, 1, ...]
         //   ...
         // specsets:
-        //   specset1: [1, 1, -1, ...]
-        //   specset2: [1, -1, 1, ...]
+        //   specset1_status: [1, 1, -1, ...]
+        //   specset2_status: [1, -1, 1, ...]
         //   ...
         // ovl_var_datatypes:              (used for overlink only)
         //   var1: [1, 1, 0, -1, ...]
@@ -9189,7 +9414,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
             //
             // workhorse lambda to put together the root_type_domain_info object
             //
-            auto assemble_root_type_dom_info = [&](std::string comp)
+            auto assemble_root_type_dom_info = [&](const std::string comp, const int32 default_value = -1)
             {
                 // comp is "meshes", "vars", "matsets", or "specsets"
                 Node &root_type_domain_info_comp = root_type_domain_info[comp];
@@ -9210,19 +9435,28 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                         const std::string read_comp_name = read_comp_itr.name();
 
                         // if this object has never been seen before on any domain
-                        if (!root_type_domain_info_comp.has_child(read_comp_name))
+                        if (!root_type_domain_info_comp.has_child(read_comp_name + "_status"))
                         {
                             // For this object, we allocate an array that is num domains long.
-                            // Into this array we will put relevant information for this object,
-                            // like the meshtype or vartype or just if this object exists for a
-                            // particular domain.
-                            root_type_domain_info_comp[read_comp_name].set(DataType::index_t(global_num_domains));
+                            // Into this array we will record the status of thee domain, i.e.
+                            // whether this object exists for a particular domain.
+                            root_type_domain_info_comp[read_comp_name + "_status"].set(DataType::index_t(global_num_domains));
                             // get a pointer to our new array
-                            index_t_array root_comp_types = root_type_domain_info_comp[read_comp_name].value();
+                            index_t_array root_comp_status = root_type_domain_info_comp[read_comp_name + "_status"].value();
                             // -1 is our special flag that indicates that a domain does not
                             // contain our object. We initialize our array to contain all
                             // -1 to start and then fill in domains that we have information for.
-                            root_comp_types.fill(-1);
+                            root_comp_status.fill(-1);
+
+                            if (comp == "meshes" || comp == "vars")
+                            {
+                                // for meshes and vars we additionally save an array containing the types
+                                root_type_domain_info_comp[read_comp_name + "_types"].set(DataType::c_int(global_num_domains));
+                                int_array root_comp_types = root_type_domain_info_comp[read_comp_name + "_types"].value();
+                                // we fill this with our default value, which is DB_QUADMESH for meshes and 
+                                // DB_QUADVAR for vars.
+                                root_comp_types.fill(default_value);
+                            }
 
                             // for overlink, we need the overlink data type for each var
                             // to save out in the var attributes
@@ -9241,27 +9475,15 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                             }
                         }
                         // this is where we are writing the data to
-                        index_t_array root_comp_types = root_type_domain_info_comp[read_comp_name].value();
+                        index_t_array root_comp_status = root_type_domain_info_comp[read_comp_name + "_status"].value();
 
                         // the global domain ids array is of length local domain ids
                         // local domain ids index into it to read global domain ids out
                         index_t_accessor global_domain_ids = read_comp_type_domain_info["domain_ids"].value();
 
-                        if (comp == "matsets" || comp == "specsets")
+                        if (comp == "meshes" || comp == "vars")
                         {
-                            for (index_t local_domain_id = 0;
-                                 local_domain_id < global_domain_ids.number_of_elements();
-                                 local_domain_id ++)
-                            {
-                                index_t global_domain_index = global_domain_ids[local_domain_id];
-                                if (global_domain_index != -1)
-                                {
-                                    root_comp_types[global_domain_index] = 1;
-                                }
-                            }
-                        }
-                        else
-                        {
+                            int_array root_comp_types = root_type_domain_info_comp[read_comp_name + "_types"].value();
                             index_t_accessor read_comp_types = read_comp_type_domain_info["types"].value();
                             for (index_t local_domain_id = 0;
                                  local_domain_id < global_domain_ids.number_of_elements();
@@ -9271,6 +9493,20 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                                 if (global_domain_index != -1)
                                 {
                                     root_comp_types[global_domain_index] = read_comp_types[local_domain_id];
+                                    root_comp_status[global_domain_index] = 1;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            for (index_t local_domain_id = 0;
+                                 local_domain_id < global_domain_ids.number_of_elements();
+                                 local_domain_id ++)
+                            {
+                                index_t global_domain_index = global_domain_ids[local_domain_id];
+                                if (global_domain_index != -1)
+                                {
+                                    root_comp_status[global_domain_index] = 1;
                                 }
                             }
                         }
@@ -9278,8 +9514,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                 }
             };
 
-            assemble_root_type_dom_info("meshes");
-            assemble_root_type_dom_info("vars");
+            assemble_root_type_dom_info("meshes", DB_QUADMESH);
+            assemble_root_type_dom_info("vars", DB_QUADVAR);
             assemble_root_type_dom_info("matsets");
             assemble_root_type_dom_info("specsets");
         }
@@ -9522,12 +9758,6 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                         root,
                         write_overlink,
                         opts_nameschemes);
-
-        // TODO for overlink: Specie sets: A domain may contain multiple specie
-        // sets. All domains must contain the same number of specie sets. The
-        // numbers of species per material in each set may be different for the
-        // same material in different sets. The number of species per material
-        // in each set must be the same for all domains.
 
         const int num_specsets_written =
             write_multimatspecs(dbfile.getSiloObject(),

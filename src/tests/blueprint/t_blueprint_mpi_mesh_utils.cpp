@@ -19,7 +19,6 @@
 #if defined(CONDUIT_BLUEPRINT_MPI_PARMETIS_ENABLED)
   #include "conduit_blueprint_mpi_mesh_partition.hpp"
   #include "conduit_blueprint_mpi_mesh_parmetis.hpp"
-  #pragma message "Building parmetis support into testing."
 #endif
 
 #include "blueprint_test_helpers.hpp"

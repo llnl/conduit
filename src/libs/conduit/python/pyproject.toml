@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "conduit"
+version = "0.9.7"
+description = "conduit"
+requires-python = ">=3.8"
+
+[tool.setuptools.package-dir]
+conduit = "py_src"
+
+[tool.setuptools]
+zip-safe = false
+packages = [
+    "conduit",
+    "conduit.utils",
+    "conduit.blueprint",
+    "conduit.blueprint.mcarray",
+    "conduit.blueprint.mcarray.examples",
+    "conduit.blueprint.mesh",
+    "conduit.blueprint.mesh.examples",
+    "conduit.blueprint.table",
+    "conduit.blueprint.table.examples",
+    "conduit.blueprint.mpi",
+    "conduit.blueprint.mpi.mesh",
+    "conduit.blueprint.mpi.mesh.examples",
+    "conduit.relay",
+    "conduit.relay.io",
+    "conduit.relay.io.blueprint",
+    "conduit.relay.io.silo",
+    "conduit.relay.mpi",
+    "conduit.relay.mpi.io",
+    "conduit.relay.mpi.io.blueprint",
+    "conduit.relay.web",
+]
+

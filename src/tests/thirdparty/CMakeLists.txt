@@ -8,6 +8,15 @@
 
 message(STATUS "Adding thirdparty lib unit tests")
 
+set(smoke_device_deps)
+
+if(CUDA_FOUND)
+    list(APPEND smoke_device_deps cuda)
+endif()
+
+if(HIP_FOUND)
+    list(APPEND smoke_device_deps blt::hip)
+endif()
 
 if(ENABLE_YYJSON)
     add_cpp_test(TEST t_yyjson_smoke
@@ -123,6 +132,17 @@ else()
     message(STATUS "Fortran disabled: Skipping related tests")
 endif()
 
+if(RAJA_FOUND)
+    message(STATUS "Adding raja smoke test")
+    set(raja_smoke_deps RAJA ${smoke_device_deps})
+    add_cpp_test(TEST t_raja_smoke DEPENDS_ON ${raja_smoke_deps})
+endif()
+
+if(UMPIRE_FOUND)
+    message(STATUS "Adding umpire smoke test")
+    set(umpire_smoke_deps umpire ${smoke_device_deps})
+    add_cpp_test(TEST t_umpire_smoke DEPENDS_ON ${umpire_smoke_deps})
+endif()
 
 if(ZFP_FOUND)
     message(STATUS "Zfp enabled: Adding related unit tests")
@@ -152,6 +172,8 @@ if(PARMETIS_FOUND)
                      NUM_MPI_TASKS 2
                      DEPENDS_ON parmetis
                      FOLDER tests/thirdparty)
+    # make sure parmetis test doens't use MPI C++ API and libs to implement MPI C API
+    target_compile_definitions(t_parmetis_smoke PUBLIC ${CONDUIT_MPI_SKIP_MPICXX_DEFINES} )
 else()
     message(STATUS "Parmetis disabled: Skipping related tests")
 endif()

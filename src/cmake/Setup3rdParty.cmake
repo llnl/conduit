@@ -61,11 +61,11 @@ include_directories(thirdparty_builtin/libyaml-690a781/include)
 set(CONDUIT_USE_FMT TRUE)
 
 # setup include dirs used during conduit build
-include_directories(thirdparty_builtin/fmt-7.1.0/)
+include_directories(thirdparty_builtin/fmt-12.1.0/)
 
 # setup install of fmt headers for downstream users
 install(DIRECTORY 
-        thirdparty_builtin/fmt-7.1.0/conduit_fmt
+        thirdparty_builtin/fmt-12.1.0/conduit_fmt
         DESTINATION include/conduit/)
 
 ################################
@@ -198,6 +198,37 @@ if(CALIPER_DIR)
     include(cmake/thirdparty/SetupCaliper.cmake)
     if(NOT CALIPER_FOUND)
         message(FATAL_ERROR "CALIPER_DIR is set, but Caliper wasn't found.")
+    endif()
+endif()
+
+
+################################
+# Camp
+################################
+if(CAMP_DIR) # optional for now
+    include(cmake/thirdparty/SetupCamp.cmake)
+    if(NOT CAMP_FOUND)
+        message(FATAL_ERROR "CAMP_DIR is set, but CAMP wasn't found.")
+    endif()
+endif()
+
+################################
+# RAJA
+################################
+if(RAJA_DIR)  # optional for now
+    include(cmake/thirdparty/SetupRAJA.cmake)
+    if(NOT RAJA_FOUND)
+        message(FATAL_ERROR "RAJA_DIR is set, but RAJA wasn't found.")
+    endif()
+endif()
+
+################################
+# Umpire
+################################
+if(UMPIRE_DIR) # optional for now
+    include(cmake/thirdparty/SetupUmpire.cmake)
+    if(NOT UMPIRE_FOUND)
+        message(FATAL_ERROR "UMPIRE_DIR is set, but Umpire wasn't found.")
     endif()
 endif()
 
