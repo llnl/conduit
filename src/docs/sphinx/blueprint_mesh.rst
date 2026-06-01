@@ -942,7 +942,12 @@ Adjacency Set Variants
 
 There's a great deal of flexibility in how the adjacency groups of an Adjacency Set can be constructed.
 Blueprint Mesh contains detection and transformation functions for the most commonly targeted formats.
-The two variants currently supported are **pairwise** and **max-share**.
+The two variants currently supported by the core Blueprint adjset utilities are **pairwise** and **max-share**.
+
+Some tools also consume a third, specialized adjset variant used to describe the *interface* between
+neighboring structured domains (including coarse/fine neighbors in AMR). This variant is used by
+``conduit::blueprint::mpi::mesh::to_polytopal`` when converting structured multi-domain meshes into
+polygonal / polyhedral meshes.
 
 
 Pairwise Adjacency Sets
@@ -1020,6 +1025,65 @@ The following diagram illustrates a simple **max-share** material set example:
               domain_0_1:
                 neighbors: [1]
                 values: [v01]
+
+
+Structured Neighbor Window Adjacency Sets
+************************************************
+
+This adjset variant is intended for structured meshes where each adjacency *group* describes a single
+neighboring domain and includes enough information to locate the overlap (in structured index space) on
+both the local and neighbor domains. Unlike pairwise/max-share adjsets, these groups do **not** contain
+a ``values`` array.
+
+Each group contains:
+
+  * ``neighbors``: integer pair of the IDs of the current domain and the neighbor domain  ``[domain_id, neighbor_domain_id]``.
+  * ``rank``: the neighbor domain's MPI rank.
+  * ``windows``: an object holding two per-domain "window" descriptions, keyed by the zero-padded domain id for each domain (e.g. ``window_000012``).
+  * ``orientation`` (optional): an integer vector for the orientation in rotated multi-block meshes
+  - Each entry is one of {±1, ±2, ±3}:
+      - abs(value) is the axis index being mapped (1→i/x, 2→j/y, 3→k/z).
+      - sign(value) is the direction along that axis (+ means aligned, − means
+        reversed).
+
+Each window describes the overlap in structured index space for the corresponding domain:
+
+  * ``level_id``: the AMR level for that domain.
+  * ``origin/{i,j,k}``: the starting index of the overlap window.
+  * ``dims/{i,j,k}``: the extents (number of points) of the overlap window.
+  * ``ratio/{i,j,k}``: refinement ratio information for the overlap.
+  * ``partial_lo/{i,j}``, ``partial_hi/{i,j}`` (optional, 2D only): present only on the fine-side window of a coarse/fine adjacency. They count padded fine-side samples at the low and high ends of the window, along the varying dimension(s), used when the overlap is not aligned to an exact refinement multiple. Consumers skip the first ``partial_lo`` samples and the last ``partial_hi`` samples from that fine-side window.
+
+An example for a single domain with one neighbor looks like:
+
+  .. code:: yaml
+
+      domain_000010:
+        state:
+          domain_id: 10
+          level_id: 1
+        adjsets:
+          adjset:
+            association: vertex
+            topology: topology
+            groups:
+              group_000011:
+                neighbors: [10, 11]
+                rank: 3
+                orientation: [1, 2, 3]  # optional
+                windows:
+                  window_000010:          # local side of the interface
+                    level_id: 1
+                    origin: {i: 32, j: 0}
+                    dims:   {i: 1,  j: 65}
+                    ratio:  {i: 2,  j: 2}
+                    partial_lo: {j: 0}   # optional
+                    partial_hi: {j: 0}   # optional
+                  window_000011:          # neighbor side of the interface
+                    level_id: 0
+                    origin: {i: 32, j: 0}
+                    dims:   {i: 1,  j: 33}
+                    ratio:  {i: 2,  j: 2}
 
 
 State
@@ -2086,7 +2150,3 @@ them in ``<`` and ``>`` characters. An example expressions entry in the index is
 
 .. Properties and Transforms
 .. ---------------------------
-
-
-
-
