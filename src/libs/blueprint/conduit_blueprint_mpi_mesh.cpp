@@ -2208,13 +2208,13 @@ void to_polygonal(const Node &n,
                                 index_t part_hi = 0;
                                 if(ref_size_i > 1)
                                 {
-                                    part_lo = ref_win.has_path("partial_lo/i") ? ref_win["partial_lo/i"].to_index_t() : 0;
-                                    part_hi = ref_win.has_path("partial_hi/i") ? ref_win["partial_hi/i"].to_index_t() : 0;
+                                    part_lo = nbr_win.has_path("partial_lo/i") ? nbr_win["partial_lo/i"].to_index_t() : 0;
+                                    part_hi = nbr_win.has_path("partial_hi/i") ? nbr_win["partial_hi/i"].to_index_t() : 0;
                                 }
                                 else if(ref_size_j > 1)
                                 {
-                                    part_lo = ref_win.has_path("partial_lo/j") ? ref_win["partial_lo/j"].to_index_t() : 0;
-                                    part_hi = ref_win.has_path("partial_hi/j") ? ref_win["partial_hi/j"].to_index_t() : 0;
+                                    part_lo = nbr_win.has_path("partial_lo/j") ? nbr_win["partial_lo/j"].to_index_t() : 0;
+                                    part_hi = nbr_win.has_path("partial_hi/j") ? nbr_win["partial_hi/j"].to_index_t() : 0;
                                 }
 
                                 // Handle cases with differing axis
@@ -2226,8 +2226,6 @@ void to_polygonal(const Node &n,
                                 if (group.has_child("orientation"))
                                 {
                                     auto& orientation = group["orientation"].as_int_array();
-                                    index_t ref_size_i = ref_win["dims/i"].to_index_t();
-                                    index_t ref_size_j = ref_win["dims/j"].to_index_t();
                                     if (ref_size_i == 1 && orientation[0] < 0)
                                     {
                                         flip = true;
@@ -2239,6 +2237,7 @@ void to_polygonal(const Node &n,
                                 }
 
                                 index_t buf_size = (index_t)xbuffer.size();
+
                                 // Build the list of fine-side vertices
                                 // that should actually become new
                                 // coordset points.
@@ -2283,6 +2282,7 @@ void to_polygonal(const Node &n,
                                 {
                                     (flip ? trim_front : trim_back) += use_ratio - part_hi;
                                 }
+
                                 // Tie-breaker for ratio=2 partial corner
                                 // cases.  If a coarse element's hanging
                                 // vertex is at the location of the corners
@@ -2290,7 +2290,7 @@ void to_polygonal(const Node &n,
                                 // the contribution of one of the neighbors
                                 // so that the vertex isn't contributed twice.
                                 //
-                                // Heuristic:  Trim the contriburtion 
+                                // Heuristic:  Trim the contribution 
                                 // from the neighbor with the high-end
                                 // corner.
                                 if(use_ratio == 2 && part_hi == 1)
@@ -2355,7 +2355,9 @@ void to_polygonal(const Node &n,
                                                                            use_ratio,
                                                                            new_vertex,
                                                                            poly_elems,
-                                                                           flip);
+                                                                           flip,
+                                                                           part_lo,
+                                                                           part_hi);
                             }
                         }
                     }
@@ -2457,30 +2459,55 @@ void to_polygonal(const Node &n,
                         const index_t ref_level =
                             ref_win.has_child("level_id") ? ref_win["level_id"].to_index_t() : 0;
                         const index_t nbr_level =
-                            (nbr_id >= 0 && windows.has_child(nbr_win_name) &&
-                             windows[nbr_win_name].has_child("level_id"))
+                            (nbr_id >= 0 && windows[nbr_win_name].has_child("level_id"))
                                 ? windows[nbr_win_name]["level_id"].to_index_t()
                                 : ref_level;
                         const index_t origin_i = ref_win["origin/i"].to_index_t();
                         const index_t origin_j = ref_win["origin/j"].to_index_t();
                         const index_t dims_i   = ref_win["dims/i"].to_index_t();
                         const index_t dims_j   = ref_win["dims/j"].to_index_t();
-                        index_t raw_part_lo = 0;
-                        index_t raw_part_hi = 0;
-                        if(dims_i > 1)
-                        {
-                            raw_part_lo = ref_win.has_path("partial_lo/i") ? ref_win["partial_lo/i"].to_index_t() : 0;
-                            raw_part_hi = ref_win.has_path("partial_hi/i") ? ref_win["partial_hi/i"].to_index_t() : 0;
-                        }
-                        else if(dims_j > 1)
-                        {
-                            raw_part_lo = ref_win.has_path("partial_lo/j") ? ref_win["partial_lo/j"].to_index_t() : 0;
-                            raw_part_hi = ref_win.has_path("partial_hi/j") ? ref_win["partial_hi/j"].to_index_t() : 0;
-                        }
-                        index_t structured_trim_lo = 0;
-                        index_t structured_trim_hi = 0;
+
                         const bool coarse_side = ref_level < nbr_level;
                         const bool fine_side = ref_level > nbr_level;
+
+                        // partial_lo/partial_hi should only exist on the fine-side window.
+                        // Read from the appropriate window based on which side is fine.
+                        index_t raw_part_lo = 0;
+                        index_t raw_part_hi = 0;
+
+                        if(fine_side)
+                        {
+                            // ref is fine, read from ref_win
+                            if(dims_i > 1)
+                            {
+                                raw_part_lo = ref_win.has_path("partial_lo/i") ? ref_win["partial_lo/i"].to_index_t() : 0;
+                                raw_part_hi = ref_win.has_path("partial_hi/i") ? ref_win["partial_hi/i"].to_index_t() : 0;
+                            }
+                            else if(dims_j > 1)
+                            {
+                                raw_part_lo = ref_win.has_path("partial_lo/j") ? ref_win["partial_lo/j"].to_index_t() : 0;
+                                raw_part_hi = ref_win.has_path("partial_hi/j") ? ref_win["partial_hi/j"].to_index_t() : 0;
+                            }
+                        }
+                        else if(coarse_side && nbr_id >= 0)
+                        {
+                            // ref is coarse, neighbor is fine, read from nbr_win
+                            const Node& nbr_win = windows[nbr_win_name];
+                            if(dims_i > 1)
+                            {
+                                raw_part_lo = nbr_win.has_path("partial_lo/i") ? nbr_win["partial_lo/i"].to_index_t() : 0;
+                                raw_part_hi = nbr_win.has_path("partial_hi/i") ? nbr_win["partial_hi/i"].to_index_t() : 0;
+                            }
+                            else if(dims_j > 1)
+                            {
+                                raw_part_lo = nbr_win.has_path("partial_lo/j") ? nbr_win["partial_lo/j"].to_index_t() : 0;
+                                raw_part_hi = nbr_win.has_path("partial_hi/j") ? nbr_win["partial_hi/j"].to_index_t() : 0;
+                            }
+                        }
+                        // else: same level or no neighbor window, leave as 0
+
+                        index_t structured_trim_lo = 0;
+                        index_t structured_trim_hi = 0;
                         // partial_lo/partial_hi count padded fine-side samples.
                         //
                         // When this domain is the fine side of a coarse-fine
@@ -2492,7 +2519,7 @@ void to_polygonal(const Node &n,
                         // walk only visits coarse boundary vertices and the
                         // rest of the overlap is represented by appended
                         // hanging-node vertices, so at most one coarse
-			// endpoint can be trimmed
+                        // endpoint can be trimmed
                         // away on each side.
                         if(fine_side)
                         {
