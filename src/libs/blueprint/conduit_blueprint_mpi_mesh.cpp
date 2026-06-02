@@ -74,37 +74,74 @@ namespace mesh
 namespace detail
 {
 
+// Sorted vertex-id pair for an edge in the local topology.
 using LocalEdge = std::pair<index_t, index_t>;
+
+// Sorted pair of positions into a neighbor adjset group's values array; this
+// lets two ranks compare the same shared edge without sharing global ids.
 using NeighborEdgeKey = std::array<index_t, 2>;
+
+// Sorted vertex-id list for a face in the local topology.
 using LocalFace = std::vector<index_t>;
+
+// Sorted list of positions into a neighbor adjset group's values array; this
+// is the variable-length face equivalent of NeighborEdgeKey.
 using NeighborFaceKey = std::vector<index_t>;
+
+// A confirmed or candidate edge match, keyed by neighbor domain and that
+// neighbor's local adjset-value positions.
 using MatchedEdge = std::pair<index_t, NeighborEdgeKey>;
+
+// A confirmed or candidate face match, keyed by neighbor domain and that
+// neighbor's local adjset-value positions.
 using MatchedFace = std::pair<index_t, NeighborFaceKey>;
 
+// The following Info structs are for bookkeeping during the boundary
+// topology generation. If an edge (2D) or face (3D) only exists on one
+// element of a local domain, it is either part of the boundary or shared
+// with a remote domain. The boundary generation figures out which ones
+// are shared, and the remaining ones form the boundary. These structs are
+// used in the functions to figure out which is which.
+
+// 2D boundary-generation scratch data. candidate_shared_edges maps each
+// singly-used local edge to possible neighbor-domain matches, while
+// shareable_edges_by_neighbor is the inverse form sent through MPI.
 struct EdgeSharingInfo
 {
     std::map<LocalEdge, std::set<MatchedEdge>> candidate_shared_edges;
     std::map<index_t, std::set<NeighborEdgeKey>> shareable_edges_by_neighbor;
 };
 
+// 3D face counting result. face_count detects locally interior faces, and
+// face_to_subelem_id preserves the original subelement id needed when emitting
+// a boundary topology.
 struct FaceCountInfo
 {
     std::map<LocalFace, index_t> face_count;
     std::map<LocalFace, index_t> face_to_subelem_id;
 };
 
+// 3D boundary-generation scratch data. candidate_shared_faces maps each
+// singly-used local face to possible neighbor-domain matches, while
+// shareable_faces_by_neighbor is the inverse form sent through MPI.
 struct FaceSharingInfo
 {
     std::map<LocalFace, std::set<MatchedFace>> candidate_shared_faces;
     std::map<index_t, std::set<NeighborFaceKey>> shareable_faces_by_neighbor;
 };
 
+// Pairwise vertex adjset lookups used by generate_boundary. vertex_neighbors
+// records which domains share each local vertex; neighbor_vertex_pos records
+// the position of each local vertex in each neighbor's adjset values list.
 struct PairwiseVertexAdjInfo
 {
     std::map<index_t, std::set<index_t>> vertex_neighbors;
     std::map<index_t, std::map<index_t, index_t>> neighbor_vertex_pos;
 };
 
+// Gather variable-length index_t payloads from all ranks into one concatenated
+// vector. The edge and face matching handshakes use this for request/response
+// records, so empty ranks can still participate in the collective.
 std::vector<index_t>
 allgather_index_vector(const std::vector<index_t> &local, MPI_Comm comm)
 {
@@ -138,12 +175,16 @@ allgather_index_vector(const std::vector<index_t> &local, MPI_Comm comm)
     return gathered;
 }
 
+// Create an orientation-independent edge key in neighbor-local adjset-value
+// coordinates for use in edge matching.
 NeighborEdgeKey
 make_neighbor_edge_key(index_t p0, index_t p1)
 {
     return (p0 < p1) ? NeighborEdgeKey{{p0, p1}} : NeighborEdgeKey{{p1, p0}};
 }
 
+// Append one fixed-width edge match request/response record:
+// source domain, destination domain, and the neighbor-local edge key.
 void
 append_neighbor_edge_message(index_t src_domain,
                              index_t dst_domain,
@@ -156,12 +197,17 @@ append_neighbor_edge_message(index_t src_domain,
     packed.push_back(edge[1]);
 }
 
+// Read the edge key portion of a fixed-width edge match record; callers read
+// the source and destination domains from the first two packed entries.
 NeighborEdgeKey
 read_neighbor_edge_message(const std::vector<index_t> &packed, std::size_t offset)
 {
     return NeighborEdgeKey{{packed[offset + 2], packed[offset + 3]}};
 }
 
+// Append one variable-width face match request/response record:
+// source domain, destination domain, face vertex count, then the
+// neighbor-local face key.
 void
 append_neighbor_face_message(index_t src_domain,
                              index_t dst_domain,
@@ -174,6 +220,8 @@ append_neighbor_face_message(index_t src_domain,
     packed.insert(packed.end(), face.begin(), face.end());
 }
 
+// Read the face key portion of a variable-width face match record and,
+// optionally, return the offset of the next packed record.
 NeighborFaceKey
 read_neighbor_face_message(const std::vector<index_t> &packed,
                            std::size_t offset,
@@ -191,6 +239,10 @@ read_neighbor_face_message(const std::vector<index_t> &packed,
     return face;
 }
 
+// Build pairwise vertex-sharing lookup tables from vertex-associated adjset
+// groups for one topology. generate_boundary uses the result to translate
+// local edge/face vertices into neighbor-local adjset positions before the MPI
+// match handshake.
 PairwiseVertexAdjInfo
 build_pairwise_vertex_adj_info(const conduit::Node &mesh,
                                const std::string &topo_name)
@@ -245,6 +297,7 @@ build_pairwise_vertex_adj_info(const conduit::Node &mesh,
     return info;
 }
 
+// Return the intersection of two sorted neighbor-domain sets.
 std::set<index_t>
 intersect_neighbors(const std::set<index_t> &a,
                     const std::set<index_t> &b)
@@ -256,6 +309,9 @@ intersect_neighbors(const std::set<index_t> &a,
     return result;
 }
 
+// Return domains that share every vertex in a candidate face. If any vertex
+// lacks pairwise adjset data, the face cannot be proven shared and an empty set
+// is returned.
 std::set<index_t>
 intersect_neighbors_for_vertices(const PairwiseVertexAdjInfo &info,
                                  const std::vector<index_t> &verts)
@@ -287,7 +343,9 @@ intersect_neighbors_for_vertices(const PairwiseVertexAdjInfo &info,
 }
 
 //-----------------------------------------------------------------------------
-// Generate canonical adjset group name based on domain_id and neighbors
+// Generate a stable adjset group name from the sorted local and neighbor domain
+// ids. normalize_adjset_groups uses this when rewriting list-format or
+// duplicated groups into object-format Blueprint groups.
 //-----------------------------------------------------------------------------
 std::string
 canonical_adjset_group_name(index_t domain_id,
@@ -308,9 +366,9 @@ canonical_adjset_group_name(index_t domain_id,
 }
 
 //-----------------------------------------------------------------------------
-// Normalize adjset groups: merge duplicates, sort spatially, canonicalize names
-// This is called at the end of to_polytopal to ensure adjsets follow a
-// consistent format.
+// Normalize adjset groups after to_polytopal repartitioning: merge duplicates,
+// sort spatially, and rewrite groups using canonical names. This keeps adjsets
+// produced from partitioned chunks in a consistent object-format layout.
 //-----------------------------------------------------------------------------
 void
 normalize_adjset_groups(conduit::Node& mesh_data)
@@ -360,7 +418,8 @@ normalize_adjset_groups(conduit::Node& mesh_data)
             continue;
         }
 
-        // Structure to hold merged group information
+        // Temporary accumulator for one canonical output group while duplicate
+        // or list-format input groups are being merged.
         struct NormalizedAdjsetGroup
         {
             std::set<index_t> neighbors;
@@ -539,6 +598,8 @@ normalize_adjset_groups(conduit::Node& mesh_data)
     }
 }
 
+// Initialize fields common to the generated boundary topologies. The 2D and 3D
+// emit helpers fill in the element connectivity after this.
 void
 initialize_boundary_topology(conduit::Node &boundary_topo,
                              const std::string &coordset_name,
@@ -549,6 +610,9 @@ initialize_boundary_topology(conduit::Node &boundary_topo,
     boundary_topo["elements/shape"].set(shape_name);
 }
 
+// Count orientation-independent local polygon edges. Edges with count one are
+// potential physical boundaries unless the MPI neighbor handshake proves they
+// are shared with another domain.
 std::map<LocalEdge, index_t>
 count_local_edges(const conduit::Node &elements)
 {
@@ -575,6 +639,9 @@ count_local_edges(const conduit::Node &elements)
     return edge_count;
 }
 
+// For each locally singly-used edge, use vertex adjset information to find
+// neighbor domains that contain both vertices and encode the candidate edge in
+// that neighbor's adjset-value coordinates.
 EdgeSharingInfo
 find_candidate_shared_edges(const std::map<LocalEdge, index_t> &edge_count,
                             const PairwiseVertexAdjInfo &pairwise_adj_info)
@@ -620,6 +687,9 @@ find_candidate_shared_edges(const std::map<LocalEdge, index_t> &edge_count,
     return info;
 }
 
+// Confirm 2D shared-edge candidates with a two-phase all-rank MPI handshake.
+// A rank sends edge keys to candidate neighbors; a candidate is accepted only
+// when the destination rank has the same key pointed back at the requester.
 std::set<MatchedEdge>
 exchange_matched_edges(index_t local_domain,
                        const std::map<index_t, std::set<NeighborEdgeKey>> &shareable_edges_by_neighbor,
@@ -680,6 +750,8 @@ exchange_matched_edges(index_t local_domain,
     return matched_edges;
 }
 
+// Select the 2D edges to emit as the boundary: locally singly-used edges whose
+// candidate neighbor matches were not confirmed by exchange_matched_edges.
 std::vector<LocalEdge>
 select_boundary_edges(const std::map<LocalEdge, index_t> &edge_count,
                       const EdgeSharingInfo &sharing_info,
@@ -715,6 +787,8 @@ select_boundary_edges(const std::map<LocalEdge, index_t> &edge_count,
     return boundary_edges;
 }
 
+// Emit a Mesh Blueprint line topology for selected 2D boundary edges, using
+// the integer dtype selected from the source topology.
 void
 emit_2d_boundary_topology(const std::vector<LocalEdge> &boundary_edges,
                           const std::string &coordset_name,
@@ -740,6 +814,9 @@ emit_2d_boundary_topology(const std::vector<LocalEdge> &boundary_edges,
     temp.to_data_type(int_dtype.id(), boundary_topo["elements/connectivity"]);
 }
 
+// Count orientation-independent polyhedral faces by their sorted vertex ids.
+// Faces with count one are potential physical boundaries; face_to_subelem_id
+// records the source subelement id needed to copy their original connectivity.
 FaceCountInfo
 count_local_faces(const conduit::Node &elements,
                   const conduit::Node &subelements)
@@ -778,6 +855,9 @@ count_local_faces(const conduit::Node &elements,
     return info;
 }
 
+// For each locally singly-used face, use vertex adjset information to find
+// neighbor domains that contain every face vertex and encode the face in that
+// neighbor's adjset-value coordinates.
 FaceSharingInfo
 find_candidate_shared_faces(const std::map<LocalFace, index_t> &face_count,
                             const PairwiseVertexAdjInfo &pairwise_adj_info)
@@ -827,6 +907,9 @@ find_candidate_shared_faces(const std::map<LocalFace, index_t> &face_count,
     return info;
 }
 
+// Confirm 3D shared-face candidates with a two-phase all-rank MPI handshake.
+// Face records are variable length, but the acceptance rule mirrors edge
+// matching: both domains must advertise the same neighbor-local key.
 std::set<MatchedFace>
 exchange_matched_faces(index_t local_domain,
                        const std::map<index_t, std::set<NeighborFaceKey>> &shareable_faces_by_neighbor,
@@ -883,6 +966,9 @@ exchange_matched_faces(index_t local_domain,
     return matched_faces;
 }
 
+// Select the 3D face subelement ids to emit as the boundary: locally singly-used
+// faces whose candidate neighbor matches were not confirmed by
+// exchange_matched_faces.
 std::vector<index_t>
 select_boundary_face_ids(const FaceCountInfo &face_info,
                          const FaceSharingInfo &sharing_info,
@@ -918,6 +1004,8 @@ select_boundary_face_ids(const FaceCountInfo &face_info,
     return boundary_face_ids;
 }
 
+// Emit a Mesh Blueprint polygonal topology for selected 3D boundary faces,
+// copying each chosen subelement's original vertex order and sizes.
 void
 emit_3d_boundary_topology(const std::vector<index_t> &boundary_face_ids,
                           const conduit::Node &subelements,
@@ -971,6 +1059,8 @@ emit_3d_boundary_topology(const std::vector<index_t> &boundary_face_ids,
 }
 
 //-------------------------------------------------------------------------
+// Per fine-neighbor face data produced by match_nbr_elems. to_polytopal later
+// uses it to replace one coarse boundary face with the matching fine faces.
 struct SharedFace
 {
     index_t m_face_id;
@@ -978,16 +1068,20 @@ struct SharedFace
 };
 
 
+// Coarse/fine boundary bookkeeping for one coarse domain touching one finer
+// neighbor domain. The adjset-window scan initializes the coarse side and
+// coarse elements; match_nbr_elems fills the fine neighbor element and face maps
+// consumed when to_polytopal subdivides the coarse boundary face.
 struct PolyBndry
 {
-    index_t side; //which 3D side 0-5
+    index_t side; //which coarse/reference 3D side, 0-5
     index_t m_nbr_rank;
     index_t m_nbr_id;
-    size_t m_nbrs_per_face;
-    std::vector<index_t> m_elems; //elems of nbr domain that touch side
-    std::map<index_t, index_t> m_bface; //map from nbr elem to face of nbr elem
-    std::map<index_t, std::vector<index_t> > m_nbr_elems; //map from local
-                                                          //elem to all
+    size_t m_nbrs_per_face; //fine faces expected to cover a full coarse face
+    std::vector<index_t> m_elems; //coarse elems that touch this boundary side
+    std::map<index_t, index_t> m_bface; //map from coarse elem to coarse face id
+    std::map<index_t, std::vector<index_t> > m_nbr_elems; //map from coarse
+                                                          //elem to all fine
                                                           //nbr elems that
                                                           //touch it
     //outer map: local elem, inner map: nbr elem to face
