@@ -4741,6 +4741,14 @@ misc(const std::string &mesh_type,
 void
 adjset_uniform(Node &res)
 {
+    // This sets up a set of structured domains in a 4x2 layout, like:
+    //
+    //                1  3  5  7
+    //                0  2  4  6
+    //
+    // The adjsets are set up using the structured neighbor window variant
+    // of adjacency sets, for each pair of adjacent domains.
+
     for(int32 i = 0; i < 8; i++)
     {
         std::ostringstream oss;
@@ -4782,540 +4790,64 @@ adjset_uniform(Node &res)
         domain_adjsets["topology"].set_string("topo");
         Node &adjset_groups = domain_adjsets["groups"];
 
-        if (i == 0)
+        for(int32 nbr = 0; nbr < 8; nbr++)
         {
-            adjset_groups["group_000001/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000002/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000003/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000001/neighbors"].as_int_array()[0] = 0;
-            adjset_groups["group_000002/neighbors"].as_int_array()[0] = 0;
-            adjset_groups["group_000003/neighbors"].as_int_array()[0] = 0;
-            adjset_groups["group_000001/neighbors"].as_int_array()[1] = 1;
-            adjset_groups["group_000002/neighbors"].as_int_array()[1] = 2;
-            adjset_groups["group_000003/neighbors"].as_int_array()[1] = 3;
-            Node &windows_node1 = adjset_groups["group_000001/windows"];
-            for(index_t w = 0; w <= 1; w++)
+            if(nbr == i)
             {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node1[window_name]["origin/i"] = 0;
-                windows_node1[window_name]["origin/j"] = 20;
-                windows_node1[window_name]["dims/i"] = 21;
-                windows_node1[window_name]["dims/j"] = 1;
-                windows_node1[window_name]["ratio/i"] = 1;
-                windows_node1[window_name]["ratio/j"] = 1;
+                continue;
             }
-            Node &windows_node2 = adjset_groups["group_000002/windows"];
-            for(index_t w = 0; w <= 2; w += 2)
+
+            const int32 col = i / 2;
+            const int32 row = i % 2;
+            const int32 nbr_col = nbr / 2;
+            const int32 nbr_row = nbr % 2;
+            const int32 col_diff = col > nbr_col ? col - nbr_col : nbr_col - col;
+            const int32 row_diff = row > nbr_row ? row - nbr_row : nbr_row - row;
+
+            if(col_diff > 1 || row_diff > 1)
             {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node2[window_name]["origin/i"] = 0;
-                windows_node2[window_name]["origin/j"] = 20;
-                windows_node2[window_name]["dims/i"] = 21;
-                windows_node2[window_name]["dims/j"] = 1;
-                windows_node2[window_name]["ratio/i"] = 1;
-                windows_node2[window_name]["ratio/j"] = 1;
+                continue;
             }
-            Node &windows_node3 = adjset_groups["group_000003/windows"];
-            for(index_t w = 0; w <= 3; w += 3)
+
+            std::ostringstream group_oss;
+            group_oss << "group_" << std::setfill('0') << std::setw(6) << nbr;
+            Node &adjset_group = adjset_groups[group_oss.str()];
+
+            adjset_group["neighbors"] = DataType::int32(2);
+            adjset_group["neighbors"].as_int_array()[0] = i;
+            adjset_group["neighbors"].as_int_array()[1] = nbr;
+
+            const int32 i0 = 20 * col;
+            const int32 i1 = i0 + 20;
+            const int32 j0 = 20 * row;
+            const int32 j1 = j0 + 20;
+            const int32 nbr_i0 = 20 * nbr_col;
+            const int32 nbr_i1 = nbr_i0 + 20;
+            const int32 nbr_j0 = 20 * nbr_row;
+            const int32 nbr_j1 = nbr_j0 + 20;
+
+            const int32 origin_i = i0 > nbr_i0 ? i0 : nbr_i0;
+            const int32 origin_j = j0 > nbr_j0 ? j0 : nbr_j0;
+            const int32 end_i = i1 < nbr_i1 ? i1 : nbr_i1;
+            const int32 end_j = j1 < nbr_j1 ? j1 : nbr_j1;
+            const int32 dims_i = end_i - origin_i + 1;
+            const int32 dims_j = end_j - origin_j + 1;
+
+            Node &windows_node = adjset_group["windows"];
+            for(int32 w = 0; w < 2; w++)
             {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node3[window_name]["origin/i"] = 20;
-                windows_node3[window_name]["origin/j"] = 20;
-                windows_node3[window_name]["dims/i"] = 1;
-                windows_node3[window_name]["dims/j"] = 1;
-                windows_node3[window_name]["ratio/i"] = 1;
-                windows_node3[window_name]["ratio/j"] = 1;
-            }
-        }
-        else if (i == 1)
-        {
-            adjset_groups["group_000000/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000002/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000003/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000000/neighbors"].as_int_array()[0] = 1;
-            adjset_groups["group_000002/neighbors"].as_int_array()[0] = 1;
-            adjset_groups["group_000003/neighbors"].as_int_array()[0] = 1;
-            adjset_groups["group_000000/neighbors"].as_int_array()[1] = 0;
-            adjset_groups["group_000002/neighbors"].as_int_array()[1] = 2;
-            adjset_groups["group_000003/neighbors"].as_int_array()[1] = 3;
-            Node &windows_node0 = adjset_groups["group_000000/windows"];
-            for(index_t w = 0; w <= 1; w++)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node0[window_name]["origin/i"] = 0;
-                windows_node0[window_name]["origin/j"] = 20;
-                windows_node0[window_name]["dims/i"] = 21;
-                windows_node0[window_name]["dims/j"] = 1;
-                windows_node0[window_name]["ratio/i"] = 1;
-                windows_node0[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node2 = adjset_groups["group_000002/windows"];
-            for(index_t w = 1; w <= 2; w++)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node2[window_name]["origin/i"] = 20;
-                windows_node2[window_name]["origin/j"] = 20;
-                windows_node2[window_name]["dims/i"] = 1;
-                windows_node2[window_name]["dims/j"] = 1;
-                windows_node2[window_name]["ratio/i"] = 1;
-                windows_node2[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node3 = adjset_groups["group_000003/windows"];
-            for(index_t w = 1; w <= 3; w += 2)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node3[window_name]["origin/i"] = 20;
-                windows_node3[window_name]["origin/j"] = 20;
-                windows_node3[window_name]["dims/i"] = 1;
-                windows_node3[window_name]["dims/j"] = 21;
-                windows_node3[window_name]["ratio/i"] = 1;
-                windows_node3[window_name]["ratio/j"] = 1;
-            }
-        }
-        else if (i == 2)
-        {
-            adjset_groups["group_000000/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000001/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000003/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000004/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000005/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000000/neighbors"].as_int_array()[0] = 2;
-            adjset_groups["group_000001/neighbors"].as_int_array()[0] = 2;
-            adjset_groups["group_000003/neighbors"].as_int_array()[0] = 2;
-            adjset_groups["group_000004/neighbors"].as_int_array()[0] = 2;
-            adjset_groups["group_000005/neighbors"].as_int_array()[0] = 2;
-            adjset_groups["group_000000/neighbors"].as_int_array()[1] = 0;
-            adjset_groups["group_000001/neighbors"].as_int_array()[1] = 1;
-            adjset_groups["group_000003/neighbors"].as_int_array()[1] = 3;
-            adjset_groups["group_000004/neighbors"].as_int_array()[1] = 4;
-            adjset_groups["group_000005/neighbors"].as_int_array()[1] = 5;
-            Node &windows_node0 = adjset_groups["group_000000/windows"];
-            for(index_t w = 0; w <= 2; w += 2)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node0[window_name]["origin/i"] = 20;
-                windows_node0[window_name]["origin/j"] = 0;
-                windows_node0[window_name]["dims/i"] = 1;
-                windows_node0[window_name]["dims/j"] = 21;
-                windows_node0[window_name]["ratio/i"] = 1;
-                windows_node0[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node1 = adjset_groups["group_000001/windows"];
-            for(index_t w = 1; w <= 2; w++)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node1[window_name]["origin/i"] = 20;
-                windows_node1[window_name]["origin/j"] = 20;
-                windows_node1[window_name]["dims/i"] = 1;
-                windows_node1[window_name]["dims/j"] = 1;
-                windows_node1[window_name]["ratio/i"] = 1;
-                windows_node1[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node3 = adjset_groups["group_000003/windows"];
-            for(index_t w = 2; w <= 3; w++)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node3[window_name]["origin/i"] = 20;
-                windows_node3[window_name]["origin/j"] = 20;
-                windows_node3[window_name]["dims/i"] = 21;
-                windows_node3[window_name]["dims/j"] = 1;
-                windows_node3[window_name]["ratio/i"] = 1;
-                windows_node3[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node4 = adjset_groups["group_000004/windows"];
-            for(index_t w = 2; w <= 4; w += 2)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node4[window_name]["origin/i"] = 40;
-                windows_node4[window_name]["origin/j"] = 0;
-                windows_node4[window_name]["dims/i"] = 1;
-                windows_node4[window_name]["dims/j"] = 21;
-                windows_node4[window_name]["ratio/i"] = 1;
-                windows_node4[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node5 = adjset_groups["group_000005/windows"];
-            for(index_t w = 2; w <= 5; w += 3)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node5[window_name]["origin/i"] = 40;
-                windows_node5[window_name]["origin/j"] = 20;
-                windows_node5[window_name]["dims/i"] = 1;
-                windows_node5[window_name]["dims/j"] = 1;
-                windows_node5[window_name]["ratio/i"] = 1;
-                windows_node5[window_name]["ratio/j"] = 1;
-            }
-        }
-        else if (i == 3)
-        {
-            adjset_groups["group_000000/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000001/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000002/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000004/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000005/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000000/neighbors"].as_int_array()[0] = 3;
-            adjset_groups["group_000001/neighbors"].as_int_array()[0] = 3;
-            adjset_groups["group_000002/neighbors"].as_int_array()[0] = 3;
-            adjset_groups["group_000004/neighbors"].as_int_array()[0] = 3;
-            adjset_groups["group_000005/neighbors"].as_int_array()[0] = 3;
-            adjset_groups["group_000000/neighbors"].as_int_array()[1] = 0;
-            adjset_groups["group_000001/neighbors"].as_int_array()[1] = 1;
-            adjset_groups["group_000002/neighbors"].as_int_array()[1] = 2;
-            adjset_groups["group_000004/neighbors"].as_int_array()[1] = 4;
-            adjset_groups["group_000005/neighbors"].as_int_array()[1] = 5;
-            Node &windows_node0 = adjset_groups["group_000000/windows"];
-            for(index_t w = 0; w <= 3; w += 3)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node0[window_name]["origin/i"] = 20;
-                windows_node0[window_name]["origin/j"] = 20;
-                windows_node0[window_name]["dims/i"] = 1;
-                windows_node0[window_name]["dims/j"] = 1;
-                windows_node0[window_name]["ratio/i"] = 1;
-                windows_node0[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node1 = adjset_groups["group_000001/windows"];
-            for(index_t w = 1; w <= 3; w += 2)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node1[window_name]["origin/i"] = 20;
-                windows_node1[window_name]["origin/j"] = 20;
-                windows_node1[window_name]["dims/i"] = 1;
-                windows_node1[window_name]["dims/j"] = 21;
-                windows_node1[window_name]["ratio/i"] = 1;
-                windows_node1[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node2 = adjset_groups["group_000002/windows"];
-            for(index_t w = 2; w <= 3; w++)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node2[window_name]["origin/i"] = 20;
-                windows_node2[window_name]["origin/j"] = 20;
-                windows_node2[window_name]["dims/i"] = 21;
-                windows_node2[window_name]["dims/j"] = 1;
-                windows_node2[window_name]["ratio/i"] = 1;
-                windows_node2[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node4 = adjset_groups["group_000004/windows"];
-            for(index_t w = 3; w <= 4; w++)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node4[window_name]["origin/i"] = 40;
-                windows_node4[window_name]["origin/j"] = 20;
-                windows_node4[window_name]["dims/i"] = 1;
-                windows_node4[window_name]["dims/j"] = 1;
-                windows_node4[window_name]["ratio/i"] = 1;
-                windows_node4[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node5 = adjset_groups["group_000005/windows"];
-            for(index_t w = 3; w <= 4; w += 2)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node5[window_name]["origin/i"] = 40;
-                windows_node5[window_name]["origin/j"] = 20;
-                windows_node5[window_name]["dims/i"] = 1;
-                windows_node5[window_name]["dims/j"] = 21;
-                windows_node5[window_name]["ratio/i"] = 1;
-                windows_node5[window_name]["ratio/j"] = 1;
-            }
-        }
-        else if (i == 4)
-        {
-            adjset_groups["group_000002/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000003/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000005/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000006/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000007/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000002/neighbors"].as_int_array()[0] = 4;
-            adjset_groups["group_000003/neighbors"].as_int_array()[0] = 4;
-            adjset_groups["group_000005/neighbors"].as_int_array()[0] = 4;
-            adjset_groups["group_000006/neighbors"].as_int_array()[0] = 4;
-            adjset_groups["group_000007/neighbors"].as_int_array()[0] = 4;
-            adjset_groups["group_000002/neighbors"].as_int_array()[1] = 2;
-            adjset_groups["group_000003/neighbors"].as_int_array()[1] = 3;
-            adjset_groups["group_000005/neighbors"].as_int_array()[1] = 5;
-            adjset_groups["group_000006/neighbors"].as_int_array()[1] = 6;
-            adjset_groups["group_000007/neighbors"].as_int_array()[1] = 7;
-            Node &windows_node2 = adjset_groups["group_000002/windows"];
-            for(index_t w = 2; w <= 4; w += 2)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node2[window_name]["origin/i"] = 40;
-                windows_node2[window_name]["origin/j"] = 0;
-                windows_node2[window_name]["dims/i"] = 1;
-                windows_node2[window_name]["dims/j"] = 21;
-                windows_node2[window_name]["ratio/i"] = 1;
-                windows_node2[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node3 = adjset_groups["group_000003/windows"];
-            for(index_t w = 3; w <= 4; w++)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node3[window_name]["origin/i"] = 40;
-                windows_node3[window_name]["origin/j"] = 20;
-                windows_node3[window_name]["dims/i"] = 1;
-                windows_node3[window_name]["dims/j"] = 1;
-                windows_node3[window_name]["ratio/i"] = 1;
-                windows_node3[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node5 = adjset_groups["group_000005/windows"];
-            for(index_t w = 4; w <= 5; w++)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node5[window_name]["origin/i"] = 40;
-                windows_node5[window_name]["origin/j"] = 20;
-                windows_node5[window_name]["dims/i"] = 21;
-                windows_node5[window_name]["dims/j"] = 1;
-                windows_node5[window_name]["ratio/i"] = 1;
-                windows_node5[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node6 = adjset_groups["group_000006/windows"];
-            for(index_t w = 4; w <= 6; w += 2)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node6[window_name]["origin/i"] = 60;
-                windows_node6[window_name]["origin/j"] = 0;
-                windows_node6[window_name]["dims/i"] = 1;
-                windows_node6[window_name]["dims/j"] = 21;
-                windows_node6[window_name]["ratio/i"] = 1;
-                windows_node6[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node7 = adjset_groups["group_000007/windows"];
-            for(index_t w = 4; w <= 7; w += 3)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node7[window_name]["origin/i"] = 60;
-                windows_node7[window_name]["origin/j"] = 20;
-                windows_node7[window_name]["dims/i"] = 1;
-                windows_node7[window_name]["dims/j"] = 1;
-                windows_node7[window_name]["ratio/i"] = 1;
-                windows_node7[window_name]["ratio/j"] = 1;
-            }
-        }
-        else if (i == 5)
-        {
-            adjset_groups["group_000002/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000003/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000004/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000006/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000007/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000002/neighbors"].as_int_array()[0] = 5;
-            adjset_groups["group_000003/neighbors"].as_int_array()[0] = 5;
-            adjset_groups["group_000004/neighbors"].as_int_array()[0] = 5;
-            adjset_groups["group_000006/neighbors"].as_int_array()[0] = 5;
-            adjset_groups["group_000007/neighbors"].as_int_array()[0] = 5;
-            adjset_groups["group_000002/neighbors"].as_int_array()[1] = 2;
-            adjset_groups["group_000003/neighbors"].as_int_array()[1] = 3;
-            adjset_groups["group_000004/neighbors"].as_int_array()[1] = 4;
-            adjset_groups["group_000006/neighbors"].as_int_array()[1] = 6;
-            adjset_groups["group_000007/neighbors"].as_int_array()[1] = 7;
-            Node &windows_node2 = adjset_groups["group_000002/windows"];
-            for(index_t w = 2; w <= 5; w += 3)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node2[window_name]["origin/i"] = 40;
-                windows_node2[window_name]["origin/j"] = 20;
-                windows_node2[window_name]["dims/i"] = 1;
-                windows_node2[window_name]["dims/j"] = 1;
-                windows_node2[window_name]["ratio/i"] = 1;
-                windows_node2[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node3 = adjset_groups["group_000003/windows"];
-            for(index_t w = 3; w <= 5; w += 2)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node3[window_name]["origin/i"] = 40;
-                windows_node3[window_name]["origin/j"] = 20;
-                windows_node3[window_name]["dims/i"] = 1;
-                windows_node3[window_name]["dims/j"] = 21;
-                windows_node3[window_name]["ratio/i"] = 1;
-                windows_node3[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node4 = adjset_groups["group_000004/windows"];
-            for(index_t w = 4; w <= 5; w++)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node4[window_name]["origin/i"] = 40;
-                windows_node4[window_name]["origin/j"] = 20;
-                windows_node4[window_name]["dims/i"] = 1;
-                windows_node4[window_name]["dims/j"] = 21;
-                windows_node4[window_name]["ratio/i"] = 1;
-                windows_node4[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node6 = adjset_groups["group_000006/windows"];
-            for(index_t w = 5; w <= 6; w++)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node6[window_name]["origin/i"] = 60;
-                windows_node6[window_name]["origin/j"] = 20;
-                windows_node6[window_name]["dims/i"] = 1;
-                windows_node6[window_name]["dims/j"] = 1;
-                windows_node6[window_name]["ratio/i"] = 1;
-                windows_node6[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node7 = adjset_groups["group_000007/windows"];
-            for(index_t w = 5; w <= 7; w++)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node7[window_name]["origin/i"] = 60;
-                windows_node7[window_name]["origin/j"] = 20;
-                windows_node7[window_name]["dims/i"] = 1;
-                windows_node7[window_name]["dims/j"] = 21;
-                windows_node7[window_name]["ratio/i"] = 1;
-                windows_node7[window_name]["ratio/j"] = 1;
-            }
-        }
-        else if (i == 6)
-        {
-            adjset_groups["group_000004/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000005/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000007/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000004/neighbors"].as_int_array()[0] = 6;
-            adjset_groups["group_000005/neighbors"].as_int_array()[0] = 6;
-            adjset_groups["group_000007/neighbors"].as_int_array()[0] = 6;
-            adjset_groups["group_000004/neighbors"].as_int_array()[1] = 4;
-            adjset_groups["group_000005/neighbors"].as_int_array()[1] = 5;
-            adjset_groups["group_000007/neighbors"].as_int_array()[1] = 7;
-            Node &windows_node4 = adjset_groups["group_000004/windows"];
-            for(index_t w = 4; w <= 6; w += 2)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node4[window_name]["origin/i"] = 60;
-                windows_node4[window_name]["origin/j"] = 0;
-                windows_node4[window_name]["dims/i"] = 1;
-                windows_node4[window_name]["dims/j"] = 21;
-                windows_node4[window_name]["ratio/i"] = 1;
-                windows_node4[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node5 = adjset_groups["group_000005/windows"];
-            for(index_t w = 5; w <= 6; w++)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node5[window_name]["origin/i"] = 60;
-                windows_node5[window_name]["origin/j"] = 20;
-                windows_node5[window_name]["dims/i"] = 1;
-                windows_node5[window_name]["dims/j"] = 1;
-                windows_node5[window_name]["ratio/i"] = 1;
-                windows_node5[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node7 = adjset_groups["group_000007/windows"];
-            for(index_t w = 6; w <= 7; w++)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node7[window_name]["origin/i"] = 60;
-                windows_node7[window_name]["origin/j"] = 20;
-                windows_node7[window_name]["dims/i"] = 21;
-                windows_node7[window_name]["dims/j"] = 1;
-                windows_node7[window_name]["ratio/i"] = 1;
-                windows_node7[window_name]["ratio/j"] = 1;
-            }
-        }
-        else if (i == 7)
-        {
-            adjset_groups["group_000004/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000005/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000006/neighbors"] = DataType::int32(2);
-            adjset_groups["group_000004/neighbors"].as_int_array()[0] = 7;
-            adjset_groups["group_000005/neighbors"].as_int_array()[0] = 7;
-            adjset_groups["group_000006/neighbors"].as_int_array()[0] = 7;
-            adjset_groups["group_000004/neighbors"].as_int_array()[1] = 4;
-            adjset_groups["group_000005/neighbors"].as_int_array()[1] = 5;
-            adjset_groups["group_000006/neighbors"].as_int_array()[1] = 6;
-            Node &windows_node4 = adjset_groups["group_000004/windows"];
-            for(index_t w = 4; w <= 7; w += 3)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node4[window_name]["origin/i"] = 60;
-                windows_node4[window_name]["origin/j"] = 20;
-                windows_node4[window_name]["dims/i"] = 1;
-                windows_node4[window_name]["dims/j"] = 1;
-                windows_node4[window_name]["ratio/i"] = 1;
-                windows_node4[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node5 = adjset_groups["group_000005/windows"];
-            for(index_t w = 5; w <= 7; w += 2)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node5[window_name]["origin/i"] = 60;
-                windows_node5[window_name]["origin/j"] = 20;
-                windows_node5[window_name]["dims/i"] = 1;
-                windows_node5[window_name]["dims/j"] = 21;
-                windows_node5[window_name]["ratio/i"] = 1;
-                windows_node5[window_name]["ratio/j"] = 1;
-            }
-            Node &windows_node6 = adjset_groups["group_000006/windows"];
-            for(index_t w = 6; w <= 7; w++)
-            {
-                std::ostringstream w_oss;
-                w_oss << "window_00000" << w;
-                const std::string window_name = w_oss.str();
-                windows_node6[window_name]["origin/i"] = 60;
-                windows_node6[window_name]["origin/j"] = 20;
-                windows_node6[window_name]["dims/i"] = 21;
-                windows_node6[window_name]["dims/j"] = 1;
-                windows_node6[window_name]["ratio/i"] = 1;
-                windows_node6[window_name]["ratio/j"] = 1;
+                const int32 window_id = w == 0 ? i : nbr;
+
+                std::ostringstream window_oss;
+                window_oss << "window_" << std::setfill('0') << std::setw(6)
+                           << window_id;
+                Node &window_node = windows_node[window_oss.str()];
+                window_node["origin/i"] = origin_i;
+                window_node["origin/j"] = origin_j;
+                window_node["dims/i"] = dims_i;
+                window_node["dims/j"] = dims_j;
+                window_node["ratio/i"] = 1;
+                window_node["ratio/j"] = 1;
             }
         }
     }

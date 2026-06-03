@@ -1497,6 +1497,38 @@ TEST(conduit_blueprint_mesh_verify, adjset_general)
             CHECK_MESH(verify_adjset,n,info,true);
         }
 
+        { // Structured Window Optional Field Tests //
+            n.reset();
+            n["topology"].set("mesh");
+            n["association"].set("vertex");
+            n["groups/g1/neighbors"].set(DataType::int32(2));
+            n["groups/g1/neighbors"].as_int32_array()[0] = 0;
+            n["groups/g1/neighbors"].as_int32_array()[1] = 1;
+
+            Node &w0 = n["groups/g1/windows/window_000000"];
+            w0["origin/i"] = 0;
+            w0["origin/j"] = 0;
+            w0["dims/i"] = 1;
+            w0["dims/j"] = 1;
+            w0["ratio/i"] = 1;
+            w0["ratio/j"] = 1;
+
+            Node &w1 = n["groups/g1/windows/window_000001"];
+            w1.set(w0);
+
+            CHECK_MESH(verify_adjset,n,info,true);
+
+            n["groups/g1/rank"].set(0.0);
+            CHECK_MESH(verify_adjset,n,info,false);
+            n["groups/g1/rank"].set(0);
+            CHECK_MESH(verify_adjset,n,info,true);
+
+            n["groups/g1/windows/window_000000/level_id"].set(0.0);
+            CHECK_MESH(verify_adjset,n,info,false);
+            n["groups/g1/windows/window_000000/level_id"].set(0);
+            CHECK_MESH(verify_adjset,n,info,true);
+        }
+
         { // Association Field Tests //
             n.remove("association");
             CHECK_MESH(verify_adjset,n,info,false);
@@ -2733,4 +2765,3 @@ TEST(conduit_blueprint_mesh_verify, empty_mesh_vs_gen_index)
     
     
 }
-

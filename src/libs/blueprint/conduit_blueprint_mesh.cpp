@@ -7331,12 +7331,14 @@ mesh::adjset::verify(const Node &adjset,
 
                 // Structured neighbor "window" adjset groups (can be used in
                 // multi-domain meshes with structured topologies) are expected
-		// to include:
-                // - neighbors: [domain_id, neighbor_domain_id]
-                // - rank: neighbor MPI rank
+                // to include neighbors: [domain_id, neighbor_domain_id].
+                // If rank is provided, it must be an integer.
                 bool strict_window_group = true;
                 strict_window_group &= verify_integer_field(protocol, chld, chld_info, "neighbors");
-                strict_window_group &= verify_integer_field(protocol, chld, chld_info, "rank");
+                if(chld.has_child("rank"))
+                {
+                    group_res &= verify_integer_field(protocol, chld, chld_info, "rank");
+                }
 
                 index_t dom_id = -1;
                 index_t nbr_id = -1;
@@ -7378,8 +7380,11 @@ mesh::adjset::verify(const Node &adjset,
                         wndw_info, "ratio") &&
                         mesh::logical_dims::verify(wndw["ratio"],
                             wndw_info["ratio"]);
-                    window_res &= verify_integer_field(protocol, wndw,
-                        wndw_info, "level_id");
+                    if(wndw.has_child("level_id"))
+                    {
+                        window_res &= verify_integer_field(protocol, wndw,
+                            wndw_info, "level_id");
+                    }
 
                     // verify that dimensions for "origin" and
                     // "dims" and "ratio" are the same
@@ -7473,6 +7478,7 @@ mesh::adjset::verify(const Node &adjset,
                 }
 
                 log::validation(chld_info["windows"],windows_res);
+                group_res &= windows_res;
                 res &= windows_res;
 
                 if(chld.has_child("orientation"))
