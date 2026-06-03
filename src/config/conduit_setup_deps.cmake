@@ -421,6 +421,21 @@ else()
     endif()
 endif()
 
+###############################################################################
+# Setup NetCDF
+###############################################################################
+if(CONDUIT_USE_NETCDF)
+    if(CONDUIT_NETCDF_DIR)
+        if(NOT Conduit_FIND_QUIETLY)
+            message(STATUS "Conduit was built with NetCDF Support")
+            message(STATUS "Looking for NetCDF at: " ${CONDUIT_NETCDF_DIR})
+        endif()
+        find_dependency(netCDF REQUIRED
+                        NO_DEFAULT_PATH
+                        PATHS ${CONDUIT_NETCDF_DIR})
+    endif()
+endif()
+
 if(POLICY CMP0074)
     # clear CMP0074
     cmake_policy(POP)

@@ -111,6 +111,18 @@ else()
     message(STATUS "Silo disabled: Skipping related tests")
 endif()
 
+if(NETCDF_FOUND)
+    if(HDF5_IS_PARALLEL)
+       set(HDF5_MPI_DEP ${conduit_blt_mpi_deps})
+    endif()
+    message(STATUS "NetCDF enabled: Adding related unit tests")
+        add_cpp_test(TEST t_netcdf_smoke
+                     DEPENDS_ON netCDF::netcdf hdf5 ${HDF5_MPI_DEP}
+                     FOLDER tests/thirdparty)
+else()
+    message(STATUS "NetCDF disabled: Skipping related tests")
+endif()
+
 if(ADIOS_FOUND)
     set(serial_adios_deps adios_nompi)
     if(UNIX AND NOT APPLE)

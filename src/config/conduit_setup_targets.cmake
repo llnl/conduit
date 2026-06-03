@@ -166,6 +166,9 @@ if(NOT Conduit_FIND_QUIETLY)
     message(STATUS " CONDUIT_RELAY_SILO_ENABLED      = ${CONDUIT_RELAY_SILO_ENABLED}")
     message(STATUS " CONDUIT_SILO_DIR                = ${CONDUIT_SILO_DIR}")
 
+    message(STATUS " CONDUIT_USE_NETCDF              = ${CONDUIT_USE_NETCDF}")
+    message(STATUS " CONDUIT_NETCDF_DIR              = ${CONDUIT_NETCDF_DIR}")
+
     message(STATUS " CONDUIT_USE_PARMETIS            = ${CONDUIT_USE_PARMETIS}")
     message(STATUS " CONDUIT_METIS_DIR               = ${CONDUIT_METIS_DIR}")
     message(STATUS " CONDUIT_PARMETIS_DIR            = ${CONDUIT_PARMETIS_DIR}")
