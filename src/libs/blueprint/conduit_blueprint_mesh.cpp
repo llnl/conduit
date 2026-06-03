@@ -7399,45 +7399,73 @@ mesh::adjset::verify(const Node &adjset,
                                 wndw_info, "ratio", false, window_dim);
                     }
 
-                    // verify partial_lo / partial_hi (if present),
-                    // and ensure they match the window dimensionality.
+                    // verify partial_lo / partial_hi entries independently
+                    // when present. Missing entries are treated as zero by
+                    // structured adjset consumers.
                     if(window_res && (wndw.has_child("partial_lo") || wndw.has_child("partial_hi")))
                     {
                         bool partial_res = true;
-                        partial_res &= verify_object_field(protocol, wndw,
-                            wndw_info, "partial_lo", false, wndw["origin"].number_of_children());
-                        partial_res &= verify_object_field(protocol, wndw,
-                            wndw_info, "partial_hi", false, wndw["origin"].number_of_children());
 
-                        // If ratio exists, enforce 0 <= partial_* < ratio.
-                        if(partial_res && wndw.has_child("ratio"))
+                        const std::string partial_names[2] =
+                            {"partial_lo", "partial_hi"};
+                        for(index_t pi = 0; pi < 2; pi++)
                         {
-                            const Node &ratio = wndw["ratio"];
-                            const Node &plo = wndw["partial_lo"];
-                            const Node &phi = wndw["partial_hi"];
-                            NodeConstIterator ritr = ratio.children();
-                            while(ritr.has_next())
+                            const std::string &partial_name = partial_names[pi];
+                            if(!wndw.has_child(partial_name))
                             {
-                                const Node &r = ritr.next();
-                                const std::string dim_name = ritr.name();
-                                if(!plo.has_child(dim_name) || !phi.has_child(dim_name))
-                                {
-                                    partial_res = false;
-                                    break;
-                                }
-                                const index_t rv = r.to_index_t();
-                                const index_t lov = plo[dim_name].to_index_t();
-                                const index_t hiv = phi[dim_name].to_index_t();
-                                if(rv <= 0 || lov < 0 || hiv < 0 || lov >= rv || hiv >= rv)
-                                {
-                                    partial_res = false;
-                                    break;
-                                }
+                                continue;
                             }
-                        }
 
-                        log::validation(wndw_info["partial_lo"], partial_res);
-                        log::validation(wndw_info["partial_hi"], partial_res);
+                            bool partial_field_res = verify_object_field(protocol,
+                                wndw, wndw_info, partial_name, false, true);
+                            if(partial_field_res)
+                            {
+                                const Node &partial = wndw[partial_name];
+                                NodeConstIterator pitr = partial.children();
+                                while(pitr.has_next())
+                                {
+                                    const Node &p = pitr.next();
+                                    const std::string dim_name = pitr.name();
+                                    bool partial_dim_res = true;
+
+                                    if(!wndw["origin"].has_child(dim_name))
+                                    {
+                                        log::error(wndw_info[partial_name][dim_name],
+                                                   protocol,
+                                                   log::quote(partial_name + "/" + dim_name) +
+                                                   "does not match a window dimension");
+                                        partial_dim_res = false;
+                                    }
+                                    partial_dim_res &= verify_integer_field(protocol,
+                                        partial, wndw_info[partial_name], dim_name);
+
+                                    // If ratio exists for this dimension, enforce
+                                    // 0 <= partial_* < ratio.
+                                    if(partial_dim_res && wndw.has_path("ratio/" + dim_name))
+                                    {
+                                        const index_t rv = wndw["ratio"][dim_name].to_index_t();
+                                        const index_t pv = p.to_index_t();
+                                        if(rv <= 0 || pv < 0 || pv >= rv)
+                                        {
+                                            log::error(wndw_info[partial_name][dim_name],
+                                                       protocol,
+                                                       log::quote(partial_name + "/" + dim_name) +
+                                                       "is outside the valid range");
+                                            partial_dim_res = false;
+                                        }
+                                    }
+
+                                    log::validation(wndw_info[partial_name][dim_name],
+                                                    partial_dim_res);
+                                    partial_field_res &= partial_dim_res;
+                                }
+
+                                log::validation(wndw_info[partial_name],
+                                                partial_field_res);
+                            }
+
+                            partial_res &= partial_field_res;
+                        }
                         window_res &= partial_res;
                     }
 

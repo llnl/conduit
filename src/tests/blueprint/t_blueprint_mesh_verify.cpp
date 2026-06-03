@@ -1518,6 +1518,19 @@ TEST(conduit_blueprint_mesh_verify, adjset_general)
 
             CHECK_MESH(verify_adjset,n,info,true);
 
+            w0["partial_lo/j"] = 0;
+            CHECK_MESH(verify_adjset,n,info,true);
+            w0.remove("partial_lo");
+            w0["partial_hi/j"] = 0;
+            CHECK_MESH(verify_adjset,n,info,true);
+            w0["partial_hi/j"] = 1;
+            CHECK_MESH(verify_adjset,n,info,false);
+            w0["partial_hi/j"] = 0;
+            w0["partial_hi/q"] = 0;
+            CHECK_MESH(verify_adjset,n,info,false);
+            w0["partial_hi"].remove("q");
+            CHECK_MESH(verify_adjset,n,info,true);
+
             n["groups/g1/rank"].set(0.0);
             CHECK_MESH(verify_adjset,n,info,false);
             n["groups/g1/rank"].set(0);
