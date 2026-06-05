@@ -1551,10 +1551,21 @@ Each group contains:
   * ``rank``: the neighbor domain's MPI rank.
   * ``windows``: an object holding two per-domain "window" descriptions, keyed by the zero-padded domain id for each domain (e.g. ``window_000012``).
   * ``orientation`` (optional): an integer vector for the orientation in rotated multi-block meshes
-  - Each entry is one of {±1, ±2, ±3}:
-      - abs(value) is the axis index being mapped (1→i/x, 2→j/y, 3→k/z).
-      - sign(value) is the direction along that axis (+ means aligned, − means
-        reversed).
+  - The vector is indexed by the neighbor domain's logical axes in ``[i, j, k]`` order.
+  - Each entry describes how positive traversal of a neighbor's axis maps onto the
+    current domain's logical axes.
+  - Each entry is one of {+/-1, +/-2, +/-3}:
+      - abs(value) is an integer representation of the axis labels,
+        (1->i, 2->j, 3->k).
+      - sign(value) is the direction along that current-domain axis
+        (+ means aligned, - means reversed).
+  - For example, in 2D ``orientation: [-2, 1]`` means:
+      - traversing the neighbor's ``+i`` direction corresponds to traversing the
+        current domain's ``-j`` direction
+      - traversing the neighbor's ``+j`` direction corresponds to traversing the
+        current domain's ``+i`` direction
+    The corresponding group stored on the neighbor domain would use the inverse
+    mapping, ``[2, -1]``.
 
 Each window describes the overlap in structured index space for the corresponding domain:
 
