@@ -903,7 +903,7 @@ fi
 if [[ "$enable_cuda" == "ON" ]]; then
     echo 'set(ENABLE_CUDA ON CACHE BOOL "")' >> ${cmake_host_config}
     echo 'set(CMAKE_CUDA_ARCHITECTURES ' ${CUDA_ARCH} ' CACHE PATH "")' >> ${cmake_host_config}
-    echo 'set(CMAKE_CUDA_FLAGS "--expt-extended-lambda" CACHE STRING "")'
+    echo 'set(CMAKE_CUDA_FLAGS "--expt-extended-lambda" CACHE STRING "")' >> ${cmake_host_config}
 fi
 
 if [[ "$enable_hip" == "ON" ]]; then
