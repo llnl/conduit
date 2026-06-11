@@ -7329,12 +7329,14 @@ mesh::adjset::verify(const Node &adjset,
                 group_res &= verify_object_field(protocol, chld,
                     chld_info, "windows");
 
-                // Structured neighbor "window" adjset groups (can be used in
-                // multi-domain meshes with structured topologies) are expected
+                // Structured neighbor "window" adjset groups are used in
+                // meshes with structured topologies and are required
                 // to include neighbors: [domain_id, neighbor_domain_id].
                 // If rank is provided, it must be an integer.
-                bool strict_window_group = true;
-                strict_window_group &= verify_integer_field(protocol, chld, chld_info, "neighbors");
+                bool has_neighbor_pair = true;
+                has_neighbor_pair &= verify_integer_field(protocol, chld, chld_info, "neighbors");
+                group_res &= has_neighbor_pair;
+
                 if(chld.has_child("rank"))
                 {
                     group_res &= verify_integer_field(protocol, chld, chld_info, "rank");
@@ -7342,7 +7344,7 @@ mesh::adjset::verify(const Node &adjset,
 
                 index_t dom_id = -1;
                 index_t nbr_id = -1;
-                if(strict_window_group)
+                if(has_neighbor_pair)
                 {
                     const auto nbrs = chld["neighbors"].as_index_t_accessor();
                     if(nbrs.number_of_elements() != 2)
@@ -7350,7 +7352,8 @@ mesh::adjset::verify(const Node &adjset,
                         log::error(info, protocol,
                                    "adjset group 'neighbors' must have exactly 2 entries "
                                    "([domain_id, neighbor_domain_id])");
-                        strict_window_group = false;
+                        has_neighbor_pair = false;
+                        group_res = false;
                     }
                     else
                     {
@@ -7475,7 +7478,7 @@ mesh::adjset::verify(const Node &adjset,
 
                 // Enforce that window group contains exactly the two expected
                 // window entries: window_<domain_id> and window_<neighbor_id>.
-                if(strict_window_group && windows_res)
+                if(has_neighbor_pair && windows_res)
                 {
                     const index_t num_windows = chld["windows"].number_of_children();
                     if(num_windows != 2)
