@@ -253,6 +253,16 @@ index_t CONDUIT_BLUEPRINT_API find_domain_id(const Node &node);
 
 //-----------------------------------------------------------------------------
 /**
+ @brief Generate a default name with prefix and zero-padded 6-digit id.
+
+ @param prefix The string prefix (e.g., "window", "domain").
+ @param id The numeric id to format.
+ @return A string in the format "prefix_######".
+ */
+std::string CONDUIT_BLUEPRINT_API gen_default_name(const std::string &prefix, index_t id);
+
+//-----------------------------------------------------------------------------
+/**
  @brief Slice a node containing array data and copy data for the supplied ids
         to a new node.
 

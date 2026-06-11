@@ -14,6 +14,7 @@
 #include <cfenv>
 #include <cmath>
 #include <deque>
+#include <iomanip>
 #include <string>
 #include <limits>
 #include <map>
@@ -488,6 +489,15 @@ find_domain_id(const Node &node)
     }
 
     return domain_id;
+}
+
+//-----------------------------------------------------------------------------
+std::string
+gen_default_name(const std::string &prefix, index_t id)
+{
+    std::ostringstream oss;
+    oss << prefix << "_" << std::setw(6) << std::setfill('0') << id;
+    return oss.str();
 }
 
 //---------------------------------------------------------------------------

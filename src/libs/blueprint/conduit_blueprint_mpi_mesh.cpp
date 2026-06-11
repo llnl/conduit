@@ -309,9 +309,9 @@ intersect_neighbors(const std::set<index_t> &a,
     return result;
 }
 
-// Return domains that share every vertex in a candidate face. If any vertex
-// lacks pairwise adjset data, the face cannot be proven shared and an empty set
-// is returned.
+// Find which domains share ALL vertices of a face/edge by intersecting the
+// neighbor sets of each vertex. Returns empty if any vertex lacks adjacency
+// data or if no domain shares all vertices.
 std::set<index_t>
 intersect_neighbors_for_vertices(const PairwiseVertexAdjInfo &info,
                                  const std::vector<index_t> &verts)
@@ -649,6 +649,10 @@ find_candidate_shared_edges(const std::map<LocalEdge, index_t> &edge_count,
     EdgeSharingInfo info;
     for(const auto &entry : edge_count)
     {
+        // Only process edges used by exactly one local element. Edges with
+        // count == 2 are interior (shared by two local elements), so they
+        // cannot be domain boundaries. Edges with count == 1 are candidates
+        // for either physical boundaries or inter-domain boundaries.
         if(entry.second != 1)
         {
             continue;
@@ -659,6 +663,9 @@ find_candidate_shared_edges(const std::map<LocalEdge, index_t> &edge_count,
         if(v0_it != pairwise_adj_info.vertex_neighbors.end() &&
            v1_it != pairwise_adj_info.vertex_neighbors.end())
         {
+            // Find neighbor domains that share both vertices of this edge.
+            // If a neighbor shares both vertices, the edge is the
+            // inter-domain boundary with that neighbor.
             const std::set<index_t> common_neighbors =
                 intersect_neighbors(v0_it->second, v1_it->second);
             for(const index_t nbr : common_neighbors)
@@ -688,13 +695,16 @@ find_candidate_shared_edges(const std::map<LocalEdge, index_t> &edge_count,
 }
 
 // Confirm 2D shared-edge candidates with a two-phase all-rank MPI handshake.
-// A rank sends edge keys to candidate neighbors; a candidate is accepted only
-// when the destination rank has the same key pointed back at the requester.
+// A rank sends edge keys to candidate neighbors; a candidate is accepted
+// only when the destination rank has the same key pointed back at the
+// requester.
 std::set<MatchedEdge>
 exchange_matched_edges(index_t local_domain,
                        const std::map<index_t, std::set<NeighborEdgeKey>> &shareable_edges_by_neighbor,
                        MPI_Comm comm)
 {
+    // Phase 1: Broadcast candidate edges to all ranks.
+    // Each rank sends: "I have edge X that might be shared with domain Y."
     std::vector<index_t> requests;
     for(const auto &entry : shareable_edges_by_neighbor)
     {
@@ -711,6 +721,9 @@ exchange_matched_edges(index_t local_domain,
         CONDUIT_ERROR("MPI generate_boundary gathered malformed edge requests.");
     }
 
+    // Phase 2: Process requests and send responses.
+    // Only respond if we also have the same edge as a boundary candidate.
+    // This ensures both domains agree the edge is shared.
     std::vector<index_t> responses;
     for(std::size_t offset = 0; offset < all_requests.size(); offset += tuple_size)
     {
@@ -726,6 +739,7 @@ exchange_matched_edges(index_t local_domain,
         if(it != shareable_edges_by_neighbor.end() &&
            it->second.find(edge_key) != it->second.end())
         {
+            // Confirm: we have the same edge as src_domain.
             append_neighbor_edge_message(local_domain, src_domain, edge_key, responses);
         }
     }
@@ -736,6 +750,7 @@ exchange_matched_edges(index_t local_domain,
         CONDUIT_ERROR("MPI generate_boundary gathered malformed edge responses.");
     }
 
+    // Collect edges that were mutually confirmed.
     std::set<MatchedEdge> matched_edges;
     for(std::size_t offset = 0; offset < all_responses.size(); offset += tuple_size)
     {
@@ -750,8 +765,9 @@ exchange_matched_edges(index_t local_domain,
     return matched_edges;
 }
 
-// Select the 2D edges to emit as the boundary: locally singly-used edges whose
-// candidate neighbor matches were not confirmed by exchange_matched_edges.
+// Select the 2D edges to emit as the boundary: locally singly-used edges
+// whose candidate neighbor matches were not confirmed to be shared with
+// a neighbor domain.
 std::vector<LocalEdge>
 select_boundary_edges(const std::map<LocalEdge, index_t> &edge_count,
                       const EdgeSharingInfo &sharing_info,
@@ -760,11 +776,16 @@ select_boundary_edges(const std::map<LocalEdge, index_t> &edge_count,
     std::vector<LocalEdge> boundary_edges;
     for(const auto &entry : edge_count)
     {
+        // Skip interior edges (count >= 2). Only edges used by exactly one
+        // local element can be part of a boundary.
         if(entry.second != 1)
         {
             continue;
         }
 
+        // Check if this edge was confirmed as shared with a neighbor via
+        // the MPI handshake. If confirmed, it's an inter-domain boundary,
+        // not a physical boundary.
         auto shared_it = sharing_info.candidate_shared_edges.find(entry.first);
         bool matched = false;
         if(shared_it != sharing_info.candidate_shared_edges.end())
@@ -778,6 +799,8 @@ select_boundary_edges(const std::map<LocalEdge, index_t> &edge_count,
                 }
             }
         }
+        // Edge with count == 1 that was NOT matched with
+        // a neighbor = physical boundary.
         if(!matched)
         {
             boundary_edges.push_back(entry.first);
@@ -865,11 +888,17 @@ find_candidate_shared_faces(const std::map<LocalFace, index_t> &face_count,
     FaceSharingInfo info;
     for(const auto &entry : face_count)
     {
+        // Only process faces used by exactly one local element. Faces with
+        // count >= 2 are interior (shared by multiple local elements), so
+        // they cannot be domain boundaries. Faces with count == 1 are 
+        // candidates for either physical boundaries or inter-domain
+        // boundaries.
         if(entry.second != 1)
         {
             continue;
         }
 
+        // Find neighbor domains that share all vertices of this face.
         const std::set<index_t> common_neighbors =
             intersect_neighbors_for_vertices(pairwise_adj_info, entry.first);
         for(const index_t nbr : common_neighbors)
@@ -915,6 +944,8 @@ exchange_matched_faces(index_t local_domain,
                        const std::map<index_t, std::set<NeighborFaceKey>> &shareable_faces_by_neighbor,
                        MPI_Comm comm)
 {
+    // Phase 1: Broadcast candidate faces to all ranks.
+    // Each rank sends: "I have face X that might be shared with domain Y."
     std::vector<index_t> requests;
     for(const auto &entry : shareable_faces_by_neighbor)
     {
@@ -925,6 +956,9 @@ exchange_matched_faces(index_t local_domain,
     }
     const std::vector<index_t> all_requests = allgather_index_vector(requests, comm);
 
+    // Phase 2: Process requests and send responses.
+    // Only respond if we have the same face as a boundary candidate.
+    // This ensures both domains agree the face is shared.
     std::vector<index_t> responses;
     for(std::size_t offset = 0; offset < all_requests.size();)
     {
@@ -943,11 +977,13 @@ exchange_matched_faces(index_t local_domain,
         if(it != shareable_faces_by_neighbor.end() &&
            it->second.find(face_key) != it->second.end())
         {
+            // Confirm: we have the same face pointing back at src_domain.
             append_neighbor_face_message(local_domain, src_domain, face_key, responses);
         }
     }
 
     const std::vector<index_t> all_responses = allgather_index_vector(responses, comm);
+    // Collect faces that were mutually confirmed.
     std::set<MatchedFace> matched_faces;
     for(std::size_t offset = 0; offset < all_responses.size();)
     {
@@ -966,9 +1002,8 @@ exchange_matched_faces(index_t local_domain,
     return matched_faces;
 }
 
-// Select the 3D face subelement ids to emit as the boundary: locally singly-used
-// faces whose candidate neighbor matches were not confirmed by
-// exchange_matched_faces.
+// Select the 3D face subelement ids to emit as the boundary: locally
+// singly-used faces who were not confirmed to be shared with a neighbor.
 std::vector<index_t>
 select_boundary_face_ids(const FaceCountInfo &face_info,
                          const FaceSharingInfo &sharing_info,
@@ -977,11 +1012,16 @@ select_boundary_face_ids(const FaceCountInfo &face_info,
     std::vector<index_t> boundary_face_ids;
     for(const auto &entry : face_info.face_count)
     {
+        // Skip interior faces (count >= 2). Only faces used by exactly one
+        // local element can be part of a boundary.
         if(entry.second != 1)
         {
             continue;
         }
 
+        // Check if this face was confirmed as shared with a neighbor via
+        // the MPI handshake. If confirmed, it's an inter-domain boundary,
+        // not a physical boundary.
         auto shared_it = sharing_info.candidate_shared_faces.find(entry.first);
         bool matched = false;
         if(shared_it != sharing_info.candidate_shared_faces.end())
@@ -995,6 +1035,8 @@ select_boundary_face_ids(const FaceCountInfo &face_info,
                 }
             }
         }
+        // Face with count == 1 that was NOT matched with
+        // a neighbor = physical boundary.
         if(!matched)
         {
             boundary_face_ids.push_back(face_info.face_to_subelem_id.at(entry.first));
@@ -1144,12 +1186,13 @@ generate_boundary(conduit::Node &mesh,
     // This is valid for ranks with no local domains - they still participate in collectives
     const bool mesh_is_empty = mesh.dtype().is_empty();
 
+    const std::string topo_path("topologies/" + topo_name);
+
     // Determine topology dimension via MPI collective
     // Ranks with mesh data will have valid dim, empty ranks will have dim=-1
     int local_dim = -1;
     if(!mesh_is_empty)
     {
-        const std::string topo_path("topologies/" + topo_name);
         if(mesh.has_path(topo_path))
         {
             const conduit::Node &topo = mesh.fetch_existing(topo_path);
@@ -1182,7 +1225,6 @@ generate_boundary(conduit::Node &mesh,
         return;
     }
 
-    const std::string topo_path("topologies/" + topo_name);
     if(!mesh.has_path(topo_path))
     {
         CONDUIT_ERROR("generate_boundary requires topology " << topo_name << " in the input mesh.");
@@ -1637,13 +1679,6 @@ void to_polygonal(const Node &n,
 {
     // Helper Functions //
 
-    const static auto gen_default_name = [] (const std::string &prefix, const index_t id)
-    {
-        std::ostringstream oss;
-        oss << prefix << "_" << std::setw(6) << std::setfill('0') << id;
-        return oss.str();
-    };
-
     const static auto is_domain_local = [] (const conduit::Node &root, const std::string &key)
     {
         return ::conduit::blueprint::mesh::is_multi_domain(root) && root.has_child(key);
@@ -1773,7 +1808,7 @@ void to_polygonal(const Node &n,
 
             const index_t domain_id = dom["state/domain_id"].to_index_t();
             const index_t level_id = dom["state/level_id"].to_index_t();
-            const std::string ref_name = gen_default_name("window", domain_id);
+            const std::string ref_name = bputils::gen_default_name("window", domain_id);
 
             const index_t i_lo = in_topo["elements/origin/i0"].to_index_t();
             const index_t j_lo = in_topo["elements/origin/j0"].to_index_t();
@@ -1827,10 +1862,10 @@ void to_polygonal(const Node &n,
                         temp.set_external(DataType(group["neighbors"].dtype().id(), 1),
                                           (void*)group["neighbors"].element_ptr(1));
                         const index_t nbr_id = temp.to_index_t();
-                        const std::string nbr_name = gen_default_name("domain", nbr_id);
+                        const std::string nbr_name = bputils::gen_default_name("domain", nbr_id);
 
                         const Node &in_windows = group["windows"];
-                        const std::string nbr_win_name = gen_default_name("window", nbr_id);
+                        const std::string nbr_win_name = bputils::gen_default_name("window", nbr_id);
 
                         const Node &ref_win = in_windows[ref_name];
                         const Node &nbr_win = in_windows[nbr_win_name];
@@ -2549,7 +2584,7 @@ void to_polygonal(const Node &n,
                             nbr_id = temp.to_index_t();
                         }
                         const std::string nbr_win_name =
-                            (nbr_id >= 0) ? gen_default_name("window", nbr_id) : std::string();
+                            (nbr_id >= 0) ? bputils::gen_default_name("window", nbr_id) : std::string();
                         const index_t ref_level =
                             ref_win.has_child("level_id") ? ref_win["level_id"].to_index_t() : 0;
                         const index_t nbr_level =
@@ -2649,86 +2684,76 @@ void to_polygonal(const Node &n,
                             }
                         }
 
-                        const auto append_boundary_vids =
-                            [&](index_t lo_trim,
-                                index_t hi_trim,
-                                std::vector<index_t> &dst)
-                        {
-                            if(dims_i == 1 && dims_j == 1)
-                            {
-                                if(lo_trim + hi_trim < 1)
-                                {
-                                    const index_t vid =
-                                        (origin_j - j_lo) * niwidth + (origin_i - i_lo);
-                                    if(vid >= 0 && vid < num_verts)
-                                    {
-                                        dst.push_back(vid);
-                                    }
-                                }
-                            }
-                            if(dims_i == 1 && dims_j != 1)
-                            {
-                                const index_t jstart = origin_j + lo_trim;
-                                const index_t jend   = origin_j + dims_j - hi_trim;
-                                const index_t i = origin_i;
-                                if(flip)
-                                {
-                                    for(index_t j = jend; j-- > jstart;)
-                                    {
-                                        const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
-                                        if(vid >= 0 && vid < num_verts)
-                                        {
-                                            dst.push_back(vid);
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    for(index_t j = jstart; j < jend; ++j)
-                                    {
-                                        const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
-                                        if(vid >= 0 && vid < num_verts)
-                                        {
-                                            dst.push_back(vid);
-                                        }
-                                    }
-                                }
-                            }
-                            else if(dims_j == 1 && dims_i != 1)
-                            {
-                                const index_t istart = origin_i + lo_trim;
-                                const index_t iend   = origin_i + dims_i - hi_trim;
-                                const index_t j = origin_j;
-                                if(flip)
-                                {
-                                    for(index_t i = iend; i-- > istart;)
-                                    {
-                                        const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
-                                        if(vid >= 0 && vid < num_verts)
-                                        {
-                                            dst.push_back(vid);
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    for(index_t i = istart; i < iend; ++i)
-                                    {
-                                        const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
-                                        if(vid >= 0 && vid < num_verts)
-                                        {
-                                            dst.push_back(vid);
-                                        }
-                                    }
-                                }
-                            }
-                        };
-
                         // Find the vertex ids along the adjacency boundary
                         // for both cases of dims_i == 1 or dims_j == 1.
-                        append_boundary_vids(structured_trim_lo,
-                                             structured_trim_hi,
-                                             vids);
+                        if(dims_i == 1 && dims_j == 1)
+                        {
+                            if(structured_trim_lo + structured_trim_hi < 1)
+                            {
+                                const index_t vid =
+                                    (origin_j - j_lo) * niwidth + (origin_i - i_lo);
+                                if(vid >= 0 && vid < num_verts)
+                                {
+                                    vids.push_back(vid);
+                                }
+                            }
+                        }
+                        if(dims_i == 1 && dims_j != 1)
+                        {
+                            const index_t jstart = origin_j + structured_trim_lo;
+                            const index_t jend   = origin_j + dims_j - structured_trim_hi;
+                            const index_t i = origin_i;
+                            if(flip)
+                            {
+                                for(index_t j = jend; j-- > jstart;)
+                                {
+                                    const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
+                                    if(vid >= 0 && vid < num_verts)
+                                    {
+                                        vids.push_back(vid);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                for(index_t j = jstart; j < jend; ++j)
+                                {
+                                    const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
+                                    if(vid >= 0 && vid < num_verts)
+                                    {
+                                        vids.push_back(vid);
+                                    }
+                                }
+                            }
+                        }
+                        else if(dims_j == 1 && dims_i != 1)
+                        {
+                            const index_t istart = origin_i + structured_trim_lo;
+                            const index_t iend   = origin_i + dims_i - structured_trim_hi;
+                            const index_t j = origin_j;
+                            if(flip)
+                            {
+                                for(index_t i = iend; i-- > istart;)
+                                {
+                                    const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
+                                    if(vid >= 0 && vid < num_verts)
+                                    {
+                                        vids.push_back(vid);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                for(index_t i = istart; i < iend; ++i)
+                                {
+                                    const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
+                                    if(vid >= 0 && vid < num_verts)
+                                    {
+                                        vids.push_back(vid);
+                                    }
+                                }
+                            }
+                        }
 
                         // If this domain is coarse relative to this neighbor,
                         // include any new vertices that were appended during

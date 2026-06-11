@@ -7489,14 +7489,8 @@ mesh::adjset::verify(const Node &adjset,
                     }
                     else
                     {
-                        auto mk_win_name = [](index_t id) -> std::string
-                        {
-                            std::ostringstream oss;
-                            oss << "window_" << std::setw(6) << std::setfill('0') << id;
-                            return oss.str();
-                        };
-                        const std::string dom_win = mk_win_name(dom_id);
-                        const std::string nbr_win = mk_win_name(nbr_id);
+                        const std::string dom_win = bputils::gen_default_name("window", dom_id);
+                        const std::string nbr_win = bputils::gen_default_name("window", nbr_id);
                         if(!chld["windows"].has_child(dom_win) ||
                            !chld["windows"].has_child(nbr_win))
                         {

@@ -4838,10 +4838,9 @@ adjset_uniform(Node &res)
             {
                 const int32 window_id = w == 0 ? i : nbr;
 
-                std::ostringstream window_oss;
-                window_oss << "window_" << std::setfill('0') << std::setw(6)
-                           << window_id;
-                Node &window_node = windows_node[window_oss.str()];
+                const std::string window_name =
+                    conduit::blueprint::mesh::utils::gen_default_name("window", window_id);
+                Node &window_node = windows_node[window_name];
                 window_node["origin/i"] = origin_i;
                 window_node["origin/j"] = origin_j;
                 window_node["dims/i"] = dims_i;
