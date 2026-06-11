@@ -2599,115 +2599,79 @@ void to_polygonal(const Node &n,
                         const bool coarse_side = ref_level < nbr_level;
                         const bool fine_side = ref_level > nbr_level;
 
-                        // partial_lo/partial_hi should only exist on the fine-side window.
-                        // Read from the appropriate window based on which side is fine.
+                        // Helper to read partial_lo/partial_hi from a window for a given dimension
+                        auto read_partial = [](const Node &win, char dim) -> std::pair<index_t, index_t> {
+                            const std::string lo_path = std::string("partial_lo/") + dim;
+                            const std::string hi_path = std::string("partial_hi/") + dim;
+
+                            const index_t lo = win.has_path(lo_path) ? win[lo_path].to_index_t() : 0;
+                            const index_t hi = win.has_path(hi_path) ? win[hi_path].to_index_t() : 0;
+
+                            return {lo, hi};
+                        };
+
                         index_t raw_part_lo = 0;
                         index_t raw_part_hi = 0;
-
-                        if(fine_side)
+                        if(fine_side && (dims_i > 1 || dims_j > 1))
                         {
-                            // ref is fine, read from ref_win
-                            if(dims_i > 1)
-                            {
-                                raw_part_lo = ref_win.has_path("partial_lo/i") ? ref_win["partial_lo/i"].to_index_t() : 0;
-                                raw_part_hi = ref_win.has_path("partial_hi/i") ? ref_win["partial_hi/i"].to_index_t() : 0;
-                            }
-                            else if(dims_j > 1)
-                            {
-                                raw_part_lo = ref_win.has_path("partial_lo/j") ? ref_win["partial_lo/j"].to_index_t() : 0;
-                                raw_part_hi = ref_win.has_path("partial_hi/j") ? ref_win["partial_hi/j"].to_index_t() : 0;
-                            }
+                            const char dim = (dims_i > 1) ? 'i' : 'j';
+                            std::tie(raw_part_lo, raw_part_hi) = read_partial(ref_win, dim);
                         }
-                        else if(coarse_side && nbr_id >= 0)
+                        else if(coarse_side && nbr_id >= 0 && (dims_i > 1 || dims_j > 1))
                         {
-                            // ref is coarse, neighbor is fine, read from nbr_win
                             const Node& nbr_win = windows[nbr_win_name];
-                            if(dims_i > 1)
-                            {
-                                raw_part_lo = nbr_win.has_path("partial_lo/i") ? nbr_win["partial_lo/i"].to_index_t() : 0;
-                                raw_part_hi = nbr_win.has_path("partial_hi/i") ? nbr_win["partial_hi/i"].to_index_t() : 0;
-                            }
-                            else if(dims_j > 1)
-                            {
-                                raw_part_lo = nbr_win.has_path("partial_lo/j") ? nbr_win["partial_lo/j"].to_index_t() : 0;
-                                raw_part_hi = nbr_win.has_path("partial_hi/j") ? nbr_win["partial_hi/j"].to_index_t() : 0;
-                            }
+                            const char dim = (dims_i > 1) ? 'i' : 'j';
+                            std::tie(raw_part_lo, raw_part_hi) = read_partial(nbr_win, dim);
                         }
-                        // else: same level or no neighbor window, leave as 0
 
-                        index_t structured_trim_lo = 0;
-                        index_t structured_trim_hi = 0;
                         // partial_lo/partial_hi count padded fine-side samples.
                         //
-                        // When this domain is the fine side of a coarse-fine
-                        // adjacency, the structured boundary walk is already
-                        // in the fine-side vertex space, so it should honor
-                        // the raw counts directly.
+                        // When this domain is the fine side, the structured boundary walk
+                        // honors the raw counts directly.
                         //
-                        // When this domain is the coarse side, the structured
-                        // walk only visits coarse boundary vertices and the
-                        // rest of the overlap is represented by appended
-                        // hanging-node vertices, so at most one coarse
-                        // endpoint can be trimmed
-                        // away on each side.
-                        if(fine_side)
-                        {
-                            structured_trim_lo = raw_part_lo;
-                            structured_trim_hi = raw_part_hi;
-                        }
-                        else if(coarse_side)
-                        {
-                            structured_trim_lo = (raw_part_lo > 0) ? 1 : 0;
-                            structured_trim_hi = (raw_part_hi > 0) ? 1 : 0;
-                        }
+                        // When this domain is the coarse side, at most one coarse endpoint
+                        // can be trimmed away on each side (the rest of the overlap is
+                        // represented by appended hanging-node vertices).
+                        index_t structured_trim_lo = fine_side ? raw_part_lo : (coarse_side && raw_part_lo > 0 ? 1 : 0);
+                        index_t structured_trim_hi = fine_side ? raw_part_hi : (coarse_side && raw_part_hi > 0 ? 1 : 0);
 
                         auto &vids = vids_by_rank[nbr_rank];
 
-                        // Use orientation hints to traverse the boundary in a
-                        // way that matches the neighbor's sense of direction.
-                        // The adjset semantics are set-based, but keeping a
-                        // consistent ordering improves debuggability
-                        // and downstream comparisons.
+                        // Use orientation hints to traverse the boundary in a way that
+                        // matches the neighbor's sense of direction.
                         bool flip = false;
                         if(group.has_child("orientation"))
                         {
                             const auto &orientation = group["orientation"].as_int_array();
-                            if(dims_i == 1 && orientation.number_of_elements() > 0 &&
-                               orientation[0] < 0)
-                            {
-                                flip = true;
-                            }
-                            if(dims_j == 1 && orientation.number_of_elements() > 1 &&
-                               orientation[1] < 0)
-                            {
-                                flip = true;
-                            }
+                            const index_t idx = (dims_i == 1) ? 0 : 1;
+                            flip = (orientation.number_of_elements() > idx && orientation[idx] < 0);
                         }
 
-                        // Find the vertex ids along the adjacency boundary
-                        // for both cases of dims_i == 1 or dims_j == 1.
+                        // Collect vertex IDs along the adjacency boundary
                         if(dims_i == 1 && dims_j == 1)
                         {
                             if(structured_trim_lo + structured_trim_hi < 1)
                             {
-                                const index_t vid =
-                                    (origin_j - j_lo) * niwidth + (origin_i - i_lo);
+                                const index_t vid = (origin_j - j_lo) * niwidth + (origin_i - i_lo);
                                 if(vid >= 0 && vid < num_verts)
                                 {
                                     vids.push_back(vid);
                                 }
                             }
                         }
-                        if(dims_i == 1 && dims_j != 1)
+                        else if(dims_i == 1 || dims_j == 1)
                         {
-                            const index_t jstart = origin_j + structured_trim_lo;
-                            const index_t jend   = origin_j + dims_j - structured_trim_hi;
-                            const index_t i = origin_i;
+                            const bool walk_j = (dims_i == 1);
+                            const index_t start = walk_j ? origin_j + structured_trim_lo : origin_i + structured_trim_lo;
+                            const index_t end = walk_j ? origin_j + dims_j - structured_trim_hi : origin_i + dims_i - structured_trim_hi;
+                            const index_t fixed = walk_j ? origin_i : origin_j;
+
                             if(flip)
                             {
-                                for(index_t j = jend; j-- > jstart;)
+                                for(index_t idx = end; idx-- > start;)
                                 {
-                                    const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
+                                    const index_t vid = walk_j ? (idx - j_lo) * niwidth + (fixed - i_lo)
+                                                               : (fixed - j_lo) * niwidth + (idx - i_lo);
                                     if(vid >= 0 && vid < num_verts)
                                     {
                                         vids.push_back(vid);
@@ -2716,37 +2680,10 @@ void to_polygonal(const Node &n,
                             }
                             else
                             {
-                                for(index_t j = jstart; j < jend; ++j)
+                                for(index_t idx = start; idx < end; ++idx)
                                 {
-                                    const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
-                                    if(vid >= 0 && vid < num_verts)
-                                    {
-                                        vids.push_back(vid);
-                                    }
-                                }
-                            }
-                        }
-                        else if(dims_j == 1 && dims_i != 1)
-                        {
-                            const index_t istart = origin_i + structured_trim_lo;
-                            const index_t iend   = origin_i + dims_i - structured_trim_hi;
-                            const index_t j = origin_j;
-                            if(flip)
-                            {
-                                for(index_t i = iend; i-- > istart;)
-                                {
-                                    const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
-                                    if(vid >= 0 && vid < num_verts)
-                                    {
-                                        vids.push_back(vid);
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                for(index_t i = istart; i < iend; ++i)
-                                {
-                                    const index_t vid = (j - j_lo) * niwidth + (i - i_lo);
+                                    const index_t vid = walk_j ? (idx - j_lo) * niwidth + (fixed - i_lo)
+                                                               : (fixed - j_lo) * niwidth + (idx - i_lo);
                                     if(vid >= 0 && vid < num_verts)
                                     {
                                         vids.push_back(vid);
