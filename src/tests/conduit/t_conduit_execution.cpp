@@ -26,6 +26,138 @@ using conduit::execution::ExecutionPolicy;
 index_t EXECUTION_TEST_ARRAY_SIZE = 4;
 
 //-----------------------------------------------------------------------------
+// Standalone kernel to bypass NVCC / GTest private access restrictions
+//-----------------------------------------------------------------------------
+void run_test_forall_kernel(ExecutionPolicy policy, index_t size, index_t* vals_ptr)
+{
+    conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+    {
+        vals_ptr[i] = i;
+    });
+}
+
+//-----------------------------------------------------------------------------
+// Functors to bypass NVCC's generic lambda ("auto") restrictions inside dispatch
+//-----------------------------------------------------------------------------
+
+struct RunReduceSum {
+    ExecutionPolicy policy;
+    index_t size;
+    index_t* vals_ptr;
+    index_t result = 0;
+    template<typename Exec> void operator()(Exec&) {
+        conduit::execution::ReduceSum<Exec, index_t> reducer(0);
+        index_t* d_vals = vals_ptr;
+        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i) {
+            reducer += d_vals[i];
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        result = reducer.get();
+    }
+};
+
+struct RunReduceMin {
+    ExecutionPolicy policy;
+    index_t size;
+    index_t* vals_ptr;
+    index_t result = 0;
+    template<typename Exec> void operator()(Exec&) {
+        conduit::execution::ReduceMin<Exec, index_t> reducer(std::numeric_limits<index_t>::max());
+        index_t* d_vals = vals_ptr;
+        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i) {
+            reducer.min(d_vals[i]);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        result = reducer.get();
+    }
+};
+
+struct RunReduceMinLoc {
+    ExecutionPolicy policy;
+    index_t size;
+    index_t* vals_ptr;
+    index_t result = 0;
+    index_t loc = -1;
+    template<typename Exec> void operator()(Exec&) {
+        conduit::execution::ReduceMinLoc<Exec, index_t> reducer(std::numeric_limits<index_t>::max(), -1);
+        index_t* d_vals = vals_ptr;
+        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i) {
+            reducer.minloc(d_vals[i], i);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        result = reducer.get();
+        loc = reducer.getLoc();
+    }
+};
+
+struct RunReduceMax {
+    ExecutionPolicy policy;
+    index_t size;
+    index_t* vals_ptr;
+    index_t result = 0;
+    template<typename Exec> void operator()(Exec&) {
+        conduit::execution::ReduceMax<Exec, index_t> reducer(std::numeric_limits<index_t>::lowest());
+        index_t* d_vals = vals_ptr;
+        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i) {
+            reducer.max(d_vals[i]);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        result = reducer.get();
+    }
+};
+
+struct RunReduceMaxLoc {
+    ExecutionPolicy policy;
+    index_t size;
+    index_t* vals_ptr;
+    index_t result = 0;
+    index_t loc = -1;
+    template<typename Exec> void operator()(Exec&) {
+        conduit::execution::ReduceMaxLoc<Exec, index_t> reducer(std::numeric_limits<index_t>::lowest(), -1);
+        index_t* d_vals = vals_ptr;
+        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i) {
+            reducer.maxloc(d_vals[i], i);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        result = reducer.get();
+        loc = reducer.getLoc();
+    }
+};
+
+struct RunAtomicAdd {
+    index_t size;
+    index_t* vals_ptr;
+    template<typename Exec> void operator()(Exec&) {
+        index_t* d_vals = vals_ptr;
+        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i) {
+            conduit::execution::atomic_add<Exec>(d_vals + i, i);
+        });
+    }
+};
+
+struct RunAtomicMin {
+    index_t size;
+    index_t* vals_ptr;
+    template<typename Exec> void operator()(Exec&) {
+        index_t* d_vals = vals_ptr;
+        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i) {
+            conduit::execution::atomic_min<Exec>(d_vals + i, static_cast<index_t>(-10));
+        });
+    }
+};
+
+struct RunAtomicMax {
+    index_t size;
+    index_t* vals_ptr;
+    template<typename Exec> void operator()(Exec&) {
+        index_t* d_vals = vals_ptr;
+        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i) {
+            conduit::execution::atomic_max<Exec>(d_vals + i, static_cast<index_t>(10));
+        });
+    }
+};
+
+//-----------------------------------------------------------------------------
 TEST(conduit_execution, policy_aliases)
 {
     const ExecutionPolicy host = ExecutionPolicy::host();
@@ -104,21 +236,18 @@ TEST(conduit_execution, test_forall)
         index_t *vals_ptr = nullptr;
         if (policy.is_device_policy())
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::DeviceMemory::allocate(sizeof(index_t) * size));
         }
         else
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::HostMemory::allocate(sizeof(index_t) * size));
         }
 
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
-        {
-            vals_ptr[i] = i;
-        });
+        run_test_forall_kernel(policy, size, vals_ptr);
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
         conduit::execution::MagicMemory::copy(&host_vals[0],
@@ -159,13 +288,13 @@ TEST(conduit_execution, test_reductions)
         index_t *vals_ptr = nullptr;
         if (policy.is_device_policy())
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::DeviceMemory::allocate(sizeof(index_t) * size));
         }
         else
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::HostMemory::allocate(sizeof(index_t) * size));
         }
@@ -174,85 +303,27 @@ TEST(conduit_execution, test_reductions)
                                               &host_vals[0],
                                               sizeof(index_t) * size);
 
-        index_t sum_result = 0;
-        conduit::execution::dispatch(policy, [&](auto exec)
-        {
-            using Exec = decltype(exec);
-            conduit::execution::ReduceSum<Exec, index_t> sum_reducer(0);
-            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
-            {
-                sum_reducer += vals_ptr[i];
-            });
-            CONDUIT_DEVICE_ERROR_CHECK(policy);
-            sum_result = sum_reducer.get();
-        });
-        EXPECT_EQ(sum_result, 5);
+        RunReduceSum run_sum{policy, size, vals_ptr, 0};
+        conduit::execution::dispatch(policy, run_sum);
+        EXPECT_EQ(run_sum.result, 5);
 
-        index_t min_result = 0;
-        conduit::execution::dispatch(policy, [&](auto exec)
-        {
-            using Exec = decltype(exec);
-            conduit::execution::ReduceMin<Exec, index_t>
-                min_reducer(std::numeric_limits<index_t>::max());
-            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
-            {
-                min_reducer.min(vals_ptr[i]);
-            });
-            CONDUIT_DEVICE_ERROR_CHECK(policy);
-            min_result = min_reducer.get();
-        });
-        EXPECT_EQ(min_result, -10);
+        RunReduceMin run_min{policy, size, vals_ptr, 0};
+        conduit::execution::dispatch(policy, run_min);
+        EXPECT_EQ(run_min.result, -10);
 
-        index_t minloc_result = 0;
-        index_t minloc_index = -1;
-        conduit::execution::dispatch(policy, [&](auto exec)
-        {
-            using Exec = decltype(exec);
-            conduit::execution::ReduceMinLoc<Exec, index_t>
-                minloc_reducer(std::numeric_limits<index_t>::max(), -1);
-            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
-            {
-                minloc_reducer.minloc(vals_ptr[i], i);
-            });
-            CONDUIT_DEVICE_ERROR_CHECK(policy);
-            minloc_result = minloc_reducer.get();
-            minloc_index = minloc_reducer.getLoc();
-        });
-        EXPECT_EQ(minloc_result, -10);
-        EXPECT_EQ(minloc_index, 1);
+        RunReduceMinLoc run_minloc{policy, size, vals_ptr, 0, -1};
+        conduit::execution::dispatch(policy, run_minloc);
+        EXPECT_EQ(run_minloc.result, -10);
+        EXPECT_EQ(run_minloc.loc, 1);
 
-        index_t max_result = 0;
-        conduit::execution::dispatch(policy, [&](auto exec)
-        {
-            using Exec = decltype(exec);
-            conduit::execution::ReduceMax<Exec, index_t>
-                max_reducer(std::numeric_limits<index_t>::lowest());
-            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
-            {
-                max_reducer.max(vals_ptr[i]);
-            });
-            CONDUIT_DEVICE_ERROR_CHECK(policy);
-            max_result = max_reducer.get();
-        });
-        EXPECT_EQ(max_result, 10);
+        RunReduceMax run_max{policy, size, vals_ptr, 0};
+        conduit::execution::dispatch(policy, run_max);
+        EXPECT_EQ(run_max.result, 10);
 
-        index_t maxloc_result = 0;
-        index_t maxloc_index = -1;
-        conduit::execution::dispatch(policy, [&](auto exec)
-        {
-            using Exec = decltype(exec);
-            conduit::execution::ReduceMaxLoc<Exec, index_t>
-                maxloc_reducer(std::numeric_limits<index_t>::lowest(), -1);
-            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
-            {
-                maxloc_reducer.maxloc(vals_ptr[i], i);
-            });
-            CONDUIT_DEVICE_ERROR_CHECK(policy);
-            maxloc_result = maxloc_reducer.get();
-            maxloc_index = maxloc_reducer.getLoc();
-        });
-        EXPECT_EQ(maxloc_result, 10);
-        EXPECT_EQ(maxloc_index, 2);
+        RunReduceMaxLoc run_maxloc{policy, size, vals_ptr, 0, -1};
+        conduit::execution::dispatch(policy, run_maxloc);
+        EXPECT_EQ(run_maxloc.result, 10);
+        EXPECT_EQ(run_maxloc.loc, 2);
 
         if (policy.is_device_policy())
         {
@@ -283,13 +354,13 @@ TEST(conduit_execution, test_atomics)
         index_t *vals_ptr = nullptr;
         if (policy.is_device_policy())
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::DeviceMemory::allocate(sizeof(index_t) * size));
         }
         else
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::HostMemory::allocate(sizeof(index_t) * size));
         }
@@ -298,14 +369,8 @@ TEST(conduit_execution, test_atomics)
                                               &host_vals[0],
                                               sizeof(index_t) * size);
 
-        conduit::execution::dispatch(policy, [&](auto exec)
-        {
-            using Exec = decltype(exec);
-            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
-            {
-                conduit::execution::atomic_add<Exec>(vals_ptr + i, i);
-            });
-        });
+        RunAtomicAdd run_add{size, vals_ptr};
+        conduit::execution::dispatch(policy, run_add);
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
         conduit::execution::MagicMemory::copy(&host_vals[0],
@@ -316,15 +381,8 @@ TEST(conduit_execution, test_atomics)
             EXPECT_EQ(host_vals[i], 0);
         }
 
-        conduit::execution::dispatch(policy, [&](auto exec)
-        {
-            using Exec = decltype(exec);
-            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
-            {
-                conduit::execution::atomic_min<Exec>(vals_ptr + i,
-                                                     static_cast<index_t>(-10));
-            });
-        });
+        RunAtomicMin run_min{size, vals_ptr};
+        conduit::execution::dispatch(policy, run_min);
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
         conduit::execution::MagicMemory::copy(&host_vals[0],
@@ -335,15 +393,8 @@ TEST(conduit_execution, test_atomics)
             EXPECT_EQ(host_vals[i], -10);
         }
 
-        conduit::execution::dispatch(policy, [&](auto exec)
-        {
-            using Exec = decltype(exec);
-            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
-            {
-                conduit::execution::atomic_max<Exec>(vals_ptr + i,
-                                                     static_cast<index_t>(10));
-            });
-        });
+        RunAtomicMax run_max{size, vals_ptr};
+        conduit::execution::dispatch(policy, run_max);
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
         conduit::execution::MagicMemory::copy(&host_vals[0],
@@ -407,7 +458,7 @@ TEST(conduit_execution, strawman_data_accessor)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -489,7 +540,7 @@ TEST(conduit_execution, strawman_data_accessor)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -561,7 +612,7 @@ TEST(conduit_execution, strawman_data_accessor)
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
 
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -653,7 +704,7 @@ TEST(conduit_execution, strawman_data_accessor)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -739,7 +790,7 @@ TEST(conduit_execution, strawman_data_accessor)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -846,7 +897,7 @@ TEST(conduit_execution, strawman_data_array)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -928,7 +979,7 @@ TEST(conduit_execution, strawman_data_array)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -1000,7 +1051,7 @@ TEST(conduit_execution, strawman_data_array)
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
 
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -1092,7 +1143,7 @@ TEST(conduit_execution, strawman_data_array)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -1142,7 +1193,6 @@ TEST(conduit_execution, strawman_data_array)
                 {
                     EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
                 }
-
 
                 float64_array result_arr(node["des"]);
                 // Verification runs on the host, so use a host execution policy
@@ -1179,7 +1229,7 @@ TEST(conduit_execution, strawman_data_array)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -1229,7 +1279,6 @@ TEST(conduit_execution, strawman_data_array)
                 {
                     EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
                 }
-
 
                 float64_array result_arr(node["des"]);
                 // Verification runs on the host, so use a host execution policy

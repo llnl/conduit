@@ -298,121 +298,11 @@ run_data_array_using_active_space(Node &node, ExecutionPolicy &exec_policy)
 }
 
 //-----------------------------------------------------------------------------
-void
-run_data_accessor_dispatch_and_sync(Node &node,
-                                    ExecutionPolicy policy,
-                                    float64 &min_val,
-                                    index_t &min_loc)
-{
-    // DataAccessors wrap node leaf data.
-    float64_accessor acc_src(node["src"]);
-    float64_accessor acc_des(node["des"]);
-
-    // Ask the accessors to move their data to the memory space occupied
-    // by the requested execution policy if their data is not already
-    // there.
-    acc_src.use_with(policy);
-    acc_des.use_with(policy);
-
-    // Initialize values.
-    min_val = 0.0;
-    min_loc = -1;
-
-    // Dispatch maps a runtime policy choice to a compile-time concrete
-    // execution tag object.
-    conduit::execution::dispatch(policy, [&](auto exec_tag)
-    {
-        // recover a concrete execution tag type Exec
-        using Exec = decltype(exec_tag);
-
-        // Instantiate a reducer using compile-time Exec::reduce_policy.
-        // Reducers require a compile-time concrete tag object.
-        conduit::execution::ReduceMinLoc<Exec, float64>
-            reducer(std::numeric_limits<float64>::max(), -1);
-
-        // Our forall will execute in the memory space selected by the
-        // requested Exec concrete tag object.
-        index_t size = acc_src.number_of_elements();
-        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t idx)
-        {
-            const float64 val = 2.0 * acc_src[idx];
-            reducer.minloc(val, idx);
-            acc_des.set(idx, val);
-        });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-        // Collect the results.
-        min_val = reducer.get();
-        min_loc = reducer.getLoc();
-    });
-
-    // Sync values to node["des"].
-    // This is a no op if node["des"] was originally in the same memory
-    // space as the requested execution policy.
-    acc_des.sync();
-}
-
-//-----------------------------------------------------------------------------
-void
-run_data_array_dispatch_and_sync(Node &node,
-                                 ExecutionPolicy policy,
-                                 float64 &min_val,
-                                 index_t &min_loc)
-{
-    // DataArrays wrap node leaf data.
-    float64_array arr_src(node["src"]);
-    float64_array arr_des(node["des"]);
-
-    // Ask the arrays to move their data to the memory space occupied
-    // by the requested execution policy if their data is not already
-    // there.
-    arr_src.use_with(policy);
-    arr_des.use_with(policy);
-
-    // Initialize values.
-    min_val = 0.0;
-    min_loc = -1;
-
-    // Dispatch maps a runtime policy choice to a compile-time concrete
-    // execution tag object.
-    conduit::execution::dispatch(policy, [&](auto exec_tag)
-    {
-        // recover a concrete execution tag type Exec
-        using Exec = decltype(exec_tag);
-
-        // Instantiate a reducer using compile-time Exec::reduce_policy.
-        // Reducers require a compile-time concrete tag object.
-        conduit::execution::ReduceMinLoc<Exec, float64>
-            reducer(std::numeric_limits<float64>::max(), -1);
-
-        // Our forall will execute in the memory space selected by the
-        // requested Exec concrete tag object.
-        index_t size = arr_src.number_of_elements();
-        conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t idx)
-        {
-            const float64 val = 2.0 * arr_src[idx];
-            reducer.minloc(val, idx);
-            arr_des.set(idx, val);
-        });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-        // Collect the results.
-        min_val = reducer.get();
-        min_loc = reducer.getLoc();
-    });
-
-    // Sync values to node["des"].
-    // This is a no op if node["des"] was originally in the same memory
-    // space as the requested execution policy.
-    arr_des.sync();
-}
-
-//-----------------------------------------------------------------------------
 struct DataAccessorDispatchFunctor
 {
     // We must provide a policy (for device error-checking).
     ExecutionPolicy policy;
-    
+
     // We must provide DataAccessors that wrap node leaf data.
     float64_accessor acc_src;
     float64_accessor acc_des;
@@ -519,7 +409,7 @@ struct DataArrayDispatchFunctor
         // small device-usable views, not the enclosing host-side functor object.
         const float64_array src = arr_src;
         const float64_array des = arr_des;
-        
+
         // Our forall will execute in the memory space selected by the
         // requested Exec concrete tag object.
         index_t size = arr_src.number_of_elements();
@@ -571,6 +461,28 @@ run_data_array_dispatch_functor_and_sync(Node &node,
     // This is a no op if node["des"] was originally in the same memory
     // space as the requested execution policy.
     arr_des.sync();
+}
+
+//-----------------------------------------------------------------------------
+void
+run_data_accessor_dispatch_and_sync(Node &node,
+                                    ExecutionPolicy policy,
+                                    float64 &min_val,
+                                    index_t &min_loc)
+{
+    // Workaround to avoid NVCC's generic lambda restriction.
+    run_data_accessor_dispatch_functor_and_sync(node, policy, min_val, min_loc);
+}
+
+//-----------------------------------------------------------------------------
+void
+run_data_array_dispatch_and_sync(Node &node,
+                                 ExecutionPolicy policy,
+                                 float64 &min_val,
+                                 index_t &min_loc)
+{
+    // Workaround to avoid NVCC's generic lambda restriction.
+    run_data_array_dispatch_functor_and_sync(node, policy, min_val, min_loc);
 }
 
 #endif
