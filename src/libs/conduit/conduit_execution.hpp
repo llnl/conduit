@@ -13,13 +13,12 @@
 
 #include "conduit_config.hpp"
 
+// CONDUIT_DEVICE_ERROR_CHECK: error checking macro
+#define CONDUIT_DEVICE_ERROR_CHECK( policy ) conduit::execution::device_error_check(policy, __FILE__, __LINE__);
 
 #include "conduit_execution_macros.hpp"
 #include "conduit_execution_policy.hpp"
 #include "conduit_annotations.hpp"
-
-// CONDUIT_DEVICE_ERROR_CHECK: error checking macro
-#define CONDUIT_DEVICE_ERROR_CHECK( policy ) conduit::execution::device_error_check(policy, __FILE__, __LINE__);
 
 #include <algorithm>
 #include <iostream>
