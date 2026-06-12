@@ -117,13 +117,58 @@ forall_exec(ExecPolicyTag,
 }
 
 //-----------------------------------------------------------------------------
+template <typename Iterator>
+inline void
+sort_exec(SerialExec,
+          Iterator begin,
+          Iterator end) noexcept
+{
+    std::sort(begin, end);
+}
+
+//-----------------------------------------------------------------------------
+template <typename Iterator, typename Predicate>
+inline void
+sort_exec(SerialExec,
+          Iterator begin,
+          Iterator end,
+          Predicate &&predicate) noexcept
+{
+    std::sort(begin, end, std::forward<Predicate>(predicate));
+}
+
+//-----------------------------------------------------------------------------
+#if defined(CONDUIT_USE_OPENMP)
+template <typename Iterator>
+inline void
+sort_exec(OpenMPExec,
+          Iterator begin,
+          Iterator end) noexcept
+{
+    std::sort(begin, end);
+}
+
+//-----------------------------------------------------------------------------
+template <typename Iterator, typename Predicate>
+inline void
+sort_exec(OpenMPExec,
+          Iterator begin,
+          Iterator end,
+          Predicate &&predicate) noexcept
+{
+    std::sort(begin, end, std::forward<Predicate>(predicate));
+}
+#endif
+
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Iterator>
 inline void
 sort_exec(ExecPolicyTag,
           Iterator begin,
           Iterator end) noexcept
 {
-    std::sort(begin, end);
+    auto span = RAJA::make_span(begin, end - begin);
+    RAJA::sort<typename ExecPolicyTag::sort_policy>(span);
 }
 
 //-----------------------------------------------------------------------------
@@ -134,7 +179,8 @@ sort_exec(ExecPolicyTag,
           Iterator end,
           Predicate &&predicate) noexcept
 {
-    std::sort(begin, end, std::forward<Predicate>(predicate));
+    auto span = RAJA::make_span(begin, end - begin);
+    RAJA::sort<typename ExecPolicyTag::sort_policy>(span, std::forward<Predicate>(predicate));
 }
 
 //-----------------------------------------------------------------------------
@@ -252,7 +298,7 @@ sort_exec(ExecPolicyTag,
           Iterator end,
           Predicate &&predicate) noexcept
 {
-    std::sort(begin, end, predicate);
+    std::sort(begin, end, std::forward<Predicate>(predicate));
 }
 
 //-----------------------------------------------------------------------------
@@ -274,7 +320,7 @@ sort_exec(OpenMPExec,
           Iterator end,
           Predicate &&predicate) noexcept
 {
-    std::sort(begin, end);
+    std::sort(begin, end, std::forward<Predicate>(predicate));
 }
 #endif
 
@@ -735,11 +781,19 @@ sort(ExecutionPolicy &policy,
     }
     else if (policy.is_cuda())
     {
-        CONDUIT_ERROR("sort does not exist for CUDA.");
+#if defined(CONDUIT_TU_IS_CUDA)
+        sort<CudaExec>(begin, end);
+#else
+        CONDUIT_ERROR("Conduit was not built with CUDA.");
+#endif
     }
     else if (policy.is_hip())
     {
-        CONDUIT_ERROR("sort does not exist for HIP.");
+#if defined(CONDUIT_TU_IS_HIP)
+        sort<HipExec>(begin, end);
+#else
+        CONDUIT_ERROR("Conduit was not built with HIP.");
+#endif
     }
     else if (policy.is_openmp())
     {
@@ -770,11 +824,19 @@ sort(ExecutionPolicy &policy,
     }
     else if (policy.is_cuda())
     {
-        CONDUIT_ERROR("sort does not exist for CUDA.");
+#if defined(CONDUIT_TU_IS_CUDA)
+        sort<CudaExec>(begin, end, std::forward<Predicate>(predicate));
+#else
+        CONDUIT_ERROR("Conduit was not built with CUDA.");
+#endif
     }
     else if (policy.is_hip())
     {
-        CONDUIT_ERROR("sort does not exist for HIP.");
+#if defined(CONDUIT_TU_IS_HIP)
+        sort<HipExec>(begin, end, std::forward<Predicate>(predicate));
+#else
+        CONDUIT_ERROR("Conduit was not built with HIP.");
+#endif
     }
     else if (policy.is_openmp())
     {
