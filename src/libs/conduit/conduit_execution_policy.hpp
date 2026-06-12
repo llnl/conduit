@@ -12,6 +12,7 @@
 #define CONDUIT_EXECUTION_POLICY_HPP
 
 #include "conduit_config.h"
+#include "conduit_execution_macros.hpp"
 #include "conduit_utils.hpp"
 #include "conduit_memory_manager.hpp"
 
