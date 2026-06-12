@@ -764,7 +764,7 @@ TEST(conduit_execution, strawman_data_accessor)
                 annotations::initialize(cali_opts);
 
                 float64 min_val; index_t min_loc;
-                run_data_accessor_dispatch_and_sync(node, policy, min_val, min_loc);
+                run_data_accessor_dispatch_functor_and_sync(node, policy, min_val, min_loc);
 
                 annotations::finalize();
 
@@ -1204,7 +1204,7 @@ TEST(conduit_execution, strawman_data_array)
                 annotations::initialize(cali_opts);
 
                 float64 min_val; index_t min_loc;
-                run_data_array_dispatch_and_sync(node, policy, min_val, min_loc);
+                run_data_accessor_dispatch_functor_and_sync(node, policy, min_val, min_loc);
 
                 annotations::finalize();
 
