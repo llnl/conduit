@@ -11,6 +11,8 @@
 #ifndef CONDUIT_EXECUTION_MACROS_HPP
 #define CONDUIT_EXECUTION_MACROS_HPP
 
+#include "conduit_config.h"
+
 //
 // Macro disambiguation:
 //
@@ -53,8 +55,5 @@
 #else
 #define CONDUIT_EXEC
 #endif
-
-// 6. CONDUIT_DEVICE_ERROR_CHECK: error checking macro
-#define CONDUIT_DEVICE_ERROR_CHECK( policy ) conduit::execution::device_error_check(policy, __FILE__, __LINE__);
 
 #endif
