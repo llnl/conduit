@@ -49,6 +49,19 @@ make_execution_des_vals(index_t array_size)
 }
 
 //-----------------------------------------------------------------------------
+// NVCC forces us to define the CONDUIT_EXEC lambda in a named function,
+// not inside the test body
+void
+run_forall(ExecutionPolicy policy, const index_t size, index_t *vals_ptr)
+{
+    conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+    {
+        vals_ptr[i] = i;
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
 template <typename Func>
 void
 for_each_enabled_policy(Func &&func)

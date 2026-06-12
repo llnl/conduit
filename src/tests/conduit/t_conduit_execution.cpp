@@ -115,11 +115,7 @@ TEST(conduit_execution, test_forall)
                     execution::HostMemory::allocate(sizeof(index_t) * size));
         }
 
-        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
-        {
-            vals_ptr[i] = i;
-        });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        run_forall(policy, size, vals_ptr);
 
         conduit::execution::MagicMemory::copy(&host_vals[0],
                                               vals_ptr,
