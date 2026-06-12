@@ -91,6 +91,16 @@ void execution_set_options(const Node &opts);
 void execution_options(Node &opts);
 
 //-----------------------------------------------------------------------------
+/// Reset execution options to their default values.
+//-----------------------------------------------------------------------------
+void reset_execution_options();
+
+//-----------------------------------------------------------------------------
+/// Get an execution policy based on the policy option.
+//-----------------------------------------------------------------------------
+ExecutionPolicy get_execution_policy(Node &src_node);
+
+//-----------------------------------------------------------------------------
 /// Get an execution policy based on the policy option.
 //-----------------------------------------------------------------------------
 ExecutionPolicy get_execution_policy();
@@ -101,9 +111,14 @@ ExecutionPolicy get_execution_policy();
 index_t get_output_allocator_id();
 
 //-----------------------------------------------------------------------------
+/// Get the output allocator id based on the allocator option.
+//-----------------------------------------------------------------------------
+index_t get_output_allocator_id(Node &src_node);
+
+//-----------------------------------------------------------------------------
 /// Get the sync strategy option.
 //-----------------------------------------------------------------------------
-const std::string& get_sync_strategy_option();
+const std::string& get_sync_strategy();
 
 //-----------------------------------------------------------------------------
 /// Get the device allocator id.

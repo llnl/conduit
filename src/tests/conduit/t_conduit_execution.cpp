@@ -88,6 +88,255 @@ TEST(conduit_execution, policy_aliases)
 }
 
 //-----------------------------------------------------------------------------
+TEST(conduit_execution, execution_settings)
+{
+    // container for opts whenever we fetch them
+    Node get_opts;
+
+    // if new allocators are added earlier, then these values could change
+    const index_t DEVICE_ALLOC_ID = 1;
+    const index_t HOST_ALLOC_ID = 2;
+
+    // put nodes on host and device
+    Node host_data, device_data;
+
+    // ------------------------------
+    //
+    // Test host and device allocators
+    //
+    // ------------------------------
+    {
+        const index_t host_alloc_id = execution::get_host_allocator_id();
+        const index_t device_alloc_id = execution::get_device_allocator_id();
+        host_data.set_allocator(host_alloc_id);
+        device_data.set_allocator(device_alloc_id);    
+        const std::vector<float64> src_vals = make_execution_src_vals(EXECUTION_TEST_ARRAY_SIZE);
+        host_data.set(src_vals);
+        device_data.set(src_vals);
+
+        // test that allocators are what we expect
+        EXPECT_EQ(device_alloc_id, DEVICE_ALLOC_ID);
+        EXPECT_EQ(host_alloc_id, HOST_ALLOC_ID);
+
+        // prove that memory is alloc'd in the right spot
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(host_data.data_ptr()));
+        EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(device_data.data_ptr()));
+    }
+
+
+    
+    // ------------------------------
+    //
+    // test default settings
+    //
+    // ------------------------------
+    {
+        Node default_opts;
+        execution::execution_options(default_opts);
+        EXPECT_TRUE(default_opts.has_child("execution_policy"));
+        EXPECT_EQ(default_opts["execution_policy"].as_string(), "input_location");
+        EXPECT_TRUE(default_opts.has_child("output_allocator"));
+        EXPECT_EQ(default_opts["output_allocator"].as_string(), "input_allocator");
+        EXPECT_TRUE(default_opts.has_child("sync_strategy"));
+        EXPECT_EQ(default_opts["sync_strategy"].as_string(), "assume");
+        EXPECT_TRUE(default_opts.has_child("device_allocator"));
+        EXPECT_EQ(default_opts["device_allocator"].as_index_t(), DEVICE_ALLOC_ID);
+        EXPECT_TRUE(default_opts.has_child("host_allocator"));
+        EXPECT_EQ(default_opts["host_allocator"].as_index_t(), HOST_ALLOC_ID);
+        EXPECT_TRUE(default_opts.has_child("user_provided_allocator"));
+        EXPECT_EQ(default_opts["user_provided_allocator"].as_index_t(), -1);
+        execution::reset_execution_options();
+    }
+
+    // ------------------------------
+    //
+    // Test Execution Policy settings
+    //
+    // ------------------------------
+
+    // test bad execution policy
+    {
+        Node exec_opts;
+        exec_opts["execution_policy"] = "banana";
+        EXPECT_THROW(execution::execution_set_options(exec_opts),
+                     conduit::Error);
+        execution::reset_execution_options();
+    }
+
+    // test host exec policy
+    {
+        Node exec_opts;
+        exec_opts["execution_policy"] = "host";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        execution::ExecutionPolicy default_policy = execution::get_execution_policy();
+        execution::ExecutionPolicy host_supplied_policy = execution::get_execution_policy(host_data);
+        execution::ExecutionPolicy device_supplied_policy = execution::get_execution_policy(device_data);
+        EXPECT_TRUE(default_policy.is_host_policy());
+        EXPECT_TRUE(host_supplied_policy.is_host_policy());
+        EXPECT_TRUE(device_supplied_policy.is_host_policy());
+        EXPECT_TRUE(get_opts.has_child("execution_policy"));
+        EXPECT_EQ(get_opts["execution_policy"].as_string(), "host");
+        execution::reset_execution_options();
+    }
+
+    // test device exec policy
+    {
+        Node exec_opts;
+        exec_opts["execution_policy"] = "device";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        execution::ExecutionPolicy default_policy = execution::get_execution_policy();
+        execution::ExecutionPolicy host_supplied_policy = execution::get_execution_policy(host_data);
+        execution::ExecutionPolicy device_supplied_policy = execution::get_execution_policy(device_data);
+        EXPECT_TRUE(default_policy.is_device_policy());
+        EXPECT_TRUE(host_supplied_policy.is_device_policy());
+        EXPECT_TRUE(device_supplied_policy.is_device_policy());
+        EXPECT_TRUE(get_opts.has_child("execution_policy"));
+        EXPECT_EQ(get_opts["execution_policy"].as_string(), "device");
+        execution::reset_execution_options();
+    }
+
+    // test input_location exec policy
+    {
+        Node exec_opts;
+        exec_opts["execution_policy"] = "input_location";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        EXPECT_THROW(execution::get_execution_policy(), conduit::Error);
+        execution::ExecutionPolicy host_supplied_policy = execution::get_execution_policy(host_data);
+        execution::ExecutionPolicy device_supplied_policy = execution::get_execution_policy(device_data);
+        EXPECT_TRUE(host_supplied_policy.is_host_policy());
+        EXPECT_TRUE(device_supplied_policy.is_device_policy());
+        EXPECT_TRUE(get_opts.has_child("execution_policy"));
+        EXPECT_EQ(get_opts["execution_policy"].as_string(), "input_location");
+        execution::reset_execution_options();
+    }
+
+    // ------------------------------
+    //
+    // Test Output Allocator settings
+    //
+    // ------------------------------
+
+    // test bad output allocator
+    {
+        Node exec_opts;
+        exec_opts["output_allocator"] = "banana";
+        EXPECT_THROW(execution::execution_set_options(exec_opts),
+                     conduit::Error);
+        execution::reset_execution_options();
+    }
+
+    // test host output allocator
+    {
+        Node exec_opts;
+        exec_opts["output_allocator"] = "host";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        index_t default_alloc_id = execution::get_output_allocator_id();
+        index_t host_supplied_alloc_id = execution::get_output_allocator_id(host_data);
+        index_t device_supplied_alloc_id = execution::get_output_allocator_id(device_data);
+        EXPECT_EQ(default_alloc_id, HOST_ALLOC_ID);
+        EXPECT_EQ(host_supplied_alloc_id, HOST_ALLOC_ID);
+        EXPECT_EQ(device_supplied_alloc_id, HOST_ALLOC_ID);
+        EXPECT_TRUE(get_opts.has_child("output_allocator"));
+        EXPECT_EQ(get_opts["output_allocator"].as_string(), "host");
+        execution::reset_execution_options();
+    }
+
+    // test device output allocator
+    {
+        Node exec_opts;
+        exec_opts["output_allocator"] = "device";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        index_t default_alloc_id = execution::get_output_allocator_id();
+        index_t host_supplied_alloc_id = execution::get_output_allocator_id(host_data);
+        index_t device_supplied_alloc_id = execution::get_output_allocator_id(device_data);
+        EXPECT_EQ(default_alloc_id, DEVICE_ALLOC_ID);
+        EXPECT_EQ(host_supplied_alloc_id, DEVICE_ALLOC_ID);
+        EXPECT_EQ(device_supplied_alloc_id, DEVICE_ALLOC_ID);
+        EXPECT_TRUE(get_opts.has_child("output_allocator"));
+        EXPECT_EQ(get_opts["output_allocator"].as_string(), "device");
+        execution::reset_execution_options();
+    }
+
+    // test input_allocator output allocator
+    {
+        Node exec_opts;
+        exec_opts["output_allocator"] = "input_allocator";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        EXPECT_THROW(execution::get_output_allocator_id(), conduit::Error);
+        index_t host_supplied_alloc_id = execution::get_output_allocator_id(host_data);
+        index_t device_supplied_alloc_id = execution::get_output_allocator_id(device_data);
+        EXPECT_EQ(host_supplied_alloc_id, HOST_ALLOC_ID);
+        EXPECT_EQ(device_supplied_alloc_id, DEVICE_ALLOC_ID);
+        EXPECT_TRUE(get_opts.has_child("output_allocator"));
+        EXPECT_EQ(get_opts["output_allocator"].as_string(), "input_allocator");
+        execution::reset_execution_options();
+    }
+
+    // test user_provided output allocator
+    {
+        Node exec_opts;
+        exec_opts["output_allocator"] = 12345;
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        index_t default_alloc_id = execution::get_output_allocator_id();
+        index_t host_supplied_alloc_id = execution::get_output_allocator_id(host_data);
+        index_t device_supplied_alloc_id = execution::get_output_allocator_id(device_data);
+        EXPECT_EQ(default_alloc_id, 12345);
+        EXPECT_EQ(host_supplied_alloc_id, 12345);
+        EXPECT_EQ(device_supplied_alloc_id, 12345);
+        EXPECT_TRUE(get_opts.has_child("output_allocator"));
+        EXPECT_EQ(get_opts["output_allocator"].as_string(), "user_provided");
+        execution::reset_execution_options();
+    }
+
+    // ------------------------------
+    //
+    // Test Sync Strategy settings
+    //
+    // ------------------------------
+
+    // test bad sync strategy
+    {
+        Node exec_opts;
+        exec_opts["sync_strategy"] = "banana";
+        EXPECT_THROW(execution::execution_set_options(exec_opts),
+                     conduit::Error);
+    }
+
+    // test sync sync strategy
+    {
+        Node exec_opts;
+        exec_opts["sync_strategy"] = "sync";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        const std::string &sync_strategy = execution::get_sync_strategy();
+        EXPECT_EQ(sync_strategy, "sync");
+        EXPECT_TRUE(get_opts.has_child("sync_strategy"));
+        EXPECT_EQ(get_opts["sync_strategy"].as_string(), "sync");
+        execution::reset_execution_options();
+    }
+
+    // test assume sync strategy
+    {
+        Node exec_opts;
+        exec_opts["sync_strategy"] = "assume";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        const std::string &sync_strategy = execution::get_sync_strategy();
+        EXPECT_EQ(sync_strategy, "assume");
+        EXPECT_TRUE(get_opts.has_child("sync_strategy"));
+        EXPECT_EQ(get_opts["sync_strategy"].as_string(), "assume");
+        execution::reset_execution_options();
+    }
+}
+
+//-----------------------------------------------------------------------------
 TEST(conduit_execution, test_forall)
 {
     conduit_device_prepare();
