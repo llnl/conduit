@@ -524,7 +524,7 @@ public:
     }
 
     //------------------------------------------------------------------------
-    static const std::string& get_sync_strategy_option()
+    static const std::string& get_sync_strategy()
     {
         return sync_strategy;
     }
@@ -599,9 +599,9 @@ get_output_allocator_id()
 
 //-----------------------------------------------------------------------------
 const std::string&
-get_sync_strategy_option()
+get_sync_strategy()
 {
-    return ExecutionOptions::get_sync_strategy_option();
+    return ExecutionOptions::get_sync_strategy();
 }
 
 //-----------------------------------------------------------------------------

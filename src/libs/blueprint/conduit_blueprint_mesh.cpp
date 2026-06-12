@@ -948,7 +948,7 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
         // execution setup
         conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
         const index_t allocator_id = conduit::execution::get_output_allocator_id();
-        const std::string &sync_strategy = conduit::execution::get_sync_strategy_option();
+        const std::string &sync_strategy = conduit::execution::get_sync_strategy();
 
         Node &dst_cvals_node = dest["values"][csys_axis];
         dst_cvals_node.set_allocator(allocator_id);

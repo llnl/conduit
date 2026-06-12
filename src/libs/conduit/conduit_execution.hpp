@@ -82,6 +82,19 @@ namespace execution
 
 //-----------------------------------------------------------------------------
 /// Pass a Node to set execution options.
+// opts node:
+//   execution_policy: "host"|"device"|"input_location"
+//     # choose host, device, or input location (use `use_with` to get a 
+//     # policy for the input data).
+//     # default is "input_location"
+//   output_allocator: "host"|"device"|"input_allocator"|##
+//     # choose host alloc, device alloc, input alloc (get the allocator 
+//     # from the input node), or an index_t that is the allocator id to use
+//     # default is "input_allocator"
+//   sync_strategy: "sync"|"assume"
+//     # choose to sync or assume (if we add a new option here we need to
+//     # update all the use sites).
+//     # default is "assume"
 //-----------------------------------------------------------------------------
 void execution_set_options(const Node &opts);
 
@@ -103,7 +116,7 @@ index_t get_output_allocator_id();
 //-----------------------------------------------------------------------------
 /// Get the sync strategy option.
 //-----------------------------------------------------------------------------
-const std::string& get_sync_strategy_option();
+const std::string& get_sync_strategy();
 
 //-----------------------------------------------------------------------------
 /// Get the device allocator id.
