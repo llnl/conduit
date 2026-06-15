@@ -1558,12 +1558,6 @@ TEST(conduit_execution, strawman_data_array)
 }
 
 //-----------------------------------------------------------------------------
-struct DescendingCompare
-{
-    CONDUIT_EXEC bool operator()(index_t a, index_t b) const { return a > b; }
-};
-
-//-----------------------------------------------------------------------------
 TEST(conduit_execution, test_sort)
 {
     conduit_device_prepare();
@@ -1648,7 +1642,8 @@ TEST(conduit_execution, test_sort_with_predicate)
         });
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
-        conduit::execution::sort(policy, vals_ptr, vals_ptr + size, DescendingCompare{});
+        // Using std::greater<index_t> will automatically map to RAJA::operators::greater<index_t>
+        conduit::execution::sort(policy, vals_ptr, vals_ptr + size, std::greater<index_t>{});
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
         std::vector<index_t> host_vals(size);

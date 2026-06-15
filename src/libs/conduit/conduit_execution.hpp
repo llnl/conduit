@@ -232,6 +232,30 @@ sort_exec(OpenMPExec,
 #endif // defined(CONDUIT_USE_OPENMP)
 
 //-----------------------------------------------------------------------------
+// Maps std::less/std::greater to their RAJA equivalents so that RAJA can
+// dispatch to more performant sort implementations. All other predicates
+// pass through unchanged, falling back to the slower general-purpose sort.
+template <typename ValueType, typename Predicate>
+auto normalize_predicate(Predicate &&p)
+{
+    using P = std::decay_t<Predicate>;
+    if constexpr (std::is_same_v<P, std::less<ValueType>> ||
+                  std::is_same_v<P, std::less<void>>)
+    {
+        return RAJA::operators::less<ValueType>{};
+    }
+    else if constexpr (std::is_same_v<P, std::greater<ValueType>> ||
+                       std::is_same_v<P, std::greater<void>>)
+    {
+        return RAJA::operators::greater<ValueType>{};
+    }
+    else // Not mappable to a RAJA operator
+    {
+        return std::forward<Predicate>(p);
+    }
+}
+
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Iterator>
 inline void
 sort_exec(ExecPolicyTag,
@@ -250,8 +274,11 @@ sort_exec(ExecPolicyTag,
           Iterator end,
           Predicate &&predicate) noexcept
 {
+    using ValueType = typename std::iterator_traits<Iterator>::value_type;
     auto span = RAJA::make_span(begin, end - begin);
-    RAJA::sort<typename ExecPolicyTag::sort_policy>(span, std::forward<Predicate>(predicate));
+    RAJA::sort<typename ExecPolicyTag::sort_policy>(
+        span,
+        normalize_predicate<ValueType>(std::forward<Predicate>(predicate)));
 }
 
 //-----------------------------------------------------------------------------
