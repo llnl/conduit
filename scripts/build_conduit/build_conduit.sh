@@ -863,6 +863,7 @@ echo 'set(CMAKE_INSTALL_PREFIX ' ${conduit_install_dir} ' CACHE PATH "")' >> ${c
 echo 'set(ENABLE_TESTS ' ${enable_tests} ' CACHE BOOL "")' >> ${cmake_host_config}
 echo 'set(ENABLE_MPI ' ${enable_mpi} ' CACHE BOOL "")' >> ${cmake_host_config}
 echo 'set(ENABLE_FIND_MPI ' ${enable_find_mpi} ' CACHE BOOL "")' >> ${cmake_host_config}
+echo 'set(ENABLE_OPENMP ' ${enable_openmp} ' CACHE BOOL "")' >> ${cmake_host_config}
 echo 'set(ENABLE_FORTRAN ' ${enable_fortran} ' CACHE BOOL "")' >> ${cmake_host_config}
 echo 'set(ENABLE_PYTHON ' ${enable_python} ' CACHE BOOL "")' >> ${cmake_host_config}
 if ${build_pyvenv}; then
