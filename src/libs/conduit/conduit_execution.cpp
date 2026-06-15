@@ -389,7 +389,7 @@ public:
             else if (opts["output_allocator"].dtype().is_integer())
             {
                 output_allocator = "user_provided";
-                user_provided_allocator = opts["output_allocator"].as_index_t();
+                user_provided_allocator = opts["output_allocator"].to_index_t();
             }
             else
             {
@@ -430,6 +430,17 @@ public:
         opts["device_allocator"].set(device_allocator);
         opts["host_allocator"].set(host_allocator);
         opts["user_provided_allocator"].set(user_provided_allocator);
+    }
+
+    //------------------------------------------------------------------------
+    static void reset()
+    {
+        execution_policy = "input_location";
+        output_allocator = "input_allocator";
+        sync_strategy = "assume";
+        // no need to reset device_allocator
+        // no need to reset host_allocator
+        user_provided_allocator = -1;
     }
 
     //------------------------------------------------------------------------
@@ -524,7 +535,7 @@ public:
     }
 
     //------------------------------------------------------------------------
-    static const std::string& get_sync_strategy_option()
+    static const std::string& get_sync_strategy()
     {
         return sync_strategy;
     }
@@ -584,10 +595,32 @@ execution_options(Node &opts)
 }
 
 //-----------------------------------------------------------------------------
+void
+reset_execution_options()
+{
+    ExecutionOptions::reset();
+}
+
+
+//-----------------------------------------------------------------------------
+ExecutionPolicy
+get_execution_policy(Node &src_node)
+{
+    return ExecutionOptions::get_execution_policy(src_node);
+}
+
+//-----------------------------------------------------------------------------
 ExecutionPolicy
 get_execution_policy()
 {
     return ExecutionOptions::get_execution_policy();
+}
+
+//-----------------------------------------------------------------------------
+index_t
+get_output_allocator_id(Node &src_node)
+{
+    return ExecutionOptions::get_output_allocator_id(src_node);
 }
 
 //-----------------------------------------------------------------------------
@@ -599,9 +632,9 @@ get_output_allocator_id()
 
 //-----------------------------------------------------------------------------
 const std::string&
-get_sync_strategy_option()
+get_sync_strategy()
 {
-    return ExecutionOptions::get_sync_strategy_option();
+    return ExecutionOptions::get_sync_strategy();
 }
 
 //-----------------------------------------------------------------------------

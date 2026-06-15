@@ -185,6 +185,7 @@ DeviceMemory::deallocate(void *data_ptr)
 // HIP and CUDA are mutually exclusive
 
 //-----------------------------------------------------------------------------
+// TODO why doesn't this method return a bool
 void
 DeviceMemory::is_device_ptr(const void *ptr, bool &is_gpu, bool &is_unified)
 {
