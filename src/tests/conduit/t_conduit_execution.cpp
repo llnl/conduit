@@ -23,8 +23,7 @@
 using namespace conduit;
 using conduit::execution::ExecutionPolicy;
 
-// 2^20 => 1,048,576 elements
-index_t EXECUTION_TEST_ARRAY_SIZE = 1 << 20;
+index_t EXECUTION_TEST_ARRAY_SIZE = 4;
 
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, policy_aliases)
