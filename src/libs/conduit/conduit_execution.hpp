@@ -90,11 +90,15 @@ index_t get_device_allocator_id();
 index_t get_host_allocator_id();
 
 
-// Defined here so that both the RAJA and non-RAJA codepaths can use this.
+// Defined in this scope so that both the RAJA and non-RAJA paths can use it.
 #if defined(CONDUIT_USE_OPENMP)
 //-----------------------------------------------------------------------------
 // Parallel quicksort using OpenMP: tasks are spawned for
 // at most ceil(log2(num_threads)) levels of recursion.
+//
+// TODO: Needs benchmarking. This is surely only better than std::sort beyond
+// a certain size/thread threshold. A solution is to add a heuristic that does
+// a plain std::sort for small inputs. That would need benchmarking as well.
 template <typename Iterator, typename Compare>
 void
 omp_quicksort(Iterator begin,
@@ -141,6 +145,7 @@ omp_quicksort(Iterator begin,
 inline int
 get_thread_depth()
 {
+    // TODO: Do performance testing to determine if this is a good heuristic.
     return static_cast<int>(std::ceil(std::log2(static_cast<double>(omp_get_num_threads()))));
 }
 #endif // defined(CONDUIT_USE_OPENMP)
