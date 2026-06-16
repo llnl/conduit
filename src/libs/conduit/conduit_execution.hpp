@@ -179,6 +179,7 @@ sort_exec(SerialExec,
 }
 
 //-----------------------------------------------------------------------------
+// TODO: Evaluate RAJA's openmp performance vs bespoke implementation.
 template <typename ExecPolicyTag, typename Iterator>
 inline void
 sort_exec(ExecPolicyTag,

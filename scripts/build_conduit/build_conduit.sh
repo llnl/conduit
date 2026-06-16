@@ -585,7 +585,8 @@ fi
 if [ ! -d ${raja_src_dir} ]; then
   echo "**** Extracting ${raja_tarball}"
   tar ${tar_extra_args} -xzf ${raja_tarball} -C ${source_dir}
-  # fix ambiguous unqualified partition call
+  # Fix ambiguous unqualified partition call
+  # TODO: Remove this patch after upgrading to RAJA v2026.xx.x
   cd ${raja_src_dir}
   patch -p1 < ${script_dir}/2026_06_15_raja_sort_partition_ambiguity_fix.patch
   cd ${root_dir}
