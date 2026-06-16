@@ -1558,12 +1558,12 @@ TEST(conduit_execution, strawman_data_array)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_execution, test_sort)
+TEST(conduit_execution, test_sort_ascending)
 {
     conduit_device_prepare();
     for_each_enabled_policy([](ExecutionPolicy policy)
     {
-        CONDUIT_INFO("test_sort policy=" << policy.policy_name());
+        CONDUIT_INFO("test_sort_ascending policy=" << policy.policy_name());
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
@@ -1587,7 +1587,7 @@ TEST(conduit_execution, test_sort)
         });
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
-        conduit::execution::sort(policy, vals_ptr, vals_ptr + size);
+        conduit::execution::sort_ascending(policy, vals_ptr, vals_ptr + size);
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
         std::vector<index_t> host_vals(size);
@@ -1613,12 +1613,12 @@ TEST(conduit_execution, test_sort)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_execution, test_sort_with_predicate)
+TEST(conduit_execution, test_sort_descending)
 {
     conduit_device_prepare();
     for_each_enabled_policy([](ExecutionPolicy policy)
     {
-        CONDUIT_INFO("test_sort_with_predicate policy=" << policy.policy_name());
+        CONDUIT_INFO("test_sort_descending policy=" << policy.policy_name());
         Node cali_opts;
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
@@ -1642,8 +1642,7 @@ TEST(conduit_execution, test_sort_with_predicate)
         });
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
-        // Using std::greater<index_t> will automatically map to RAJA::operators::greater<index_t>
-        conduit::execution::sort(policy, vals_ptr, vals_ptr + size, std::greater<index_t>{});
+        conduit::execution::sort_descending(policy, vals_ptr, vals_ptr + size);
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
         std::vector<index_t> host_vals(size);

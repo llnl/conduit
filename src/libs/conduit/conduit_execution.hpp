@@ -117,92 +117,47 @@ forall_exec(ExecPolicyTag,
 }
 
 //-----------------------------------------------------------------------------
-// RAJA's sort API requires comparators to be RAJA operator types
-// (e.g. RAJA::operators::less<T>) to use optimized algorithms
-// (e.g. a GPU radix sort), so passing std::less<T> directly would
-// either crash or fall back to a slower general-purpose implementation.
-//
-// This function translates the common std comparators to their
-// RAJA counterparts at compile time (via if constexpr). Any other predicate
-// is forwarded unchanged.
-//
-// std::decay_t strips references and cv-qualifiers from Predicate so that
-// the is_same_v checks work regardless of whether p was passed as an lvalue
-// or rvalue reference. Both the typed form (e.g. std::less<int>) and the
-// transparent/type-deduced form (std::less<void>) are handled.
-template <typename ValueType, typename Predicate>
-auto normalize_predicate(Predicate &&p)
-{
-    // Strip references to get the bare comparator type for matching.
-    using P = std::decay_t<Predicate>;
-
-    // std::is_same_v<A, B> is a compile-time boolean that is true only when A and B
-    // are exactly the same type.
-    if constexpr (std::is_same_v<P, std::less<ValueType>> ||
-                  std::is_same_v<P, std::less<void>>)
-    {
-        // Map std::less -> RAJA::operators::less.
-        return RAJA::operators::less<ValueType>{};
-    }
-    else if constexpr (std::is_same_v<P, std::greater<ValueType>> ||
-                       std::is_same_v<P, std::greater<void>>)
-    {
-        // Map std::greater -> RAJA::operators::greater.
-        return RAJA::operators::greater<ValueType>{};
-    }
-    else // Custom predicate: not mappable to a RAJA operator.
-    {
-        // Forward the predicate unchanged.
-        return std::forward<Predicate>(p);
-    }
-}
-
-//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Iterator>
 inline void
-sort_exec(SerialExec,
-          Iterator begin,
-          Iterator end) noexcept
+sort_ascending(SerialExec,
+               Iterator begin,
+               Iterator end) noexcept
 {
     std::sort(begin, end);
 }
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename Iterator, typename Predicate>
+template <typename ExecPolicyTag, typename Iterator>
 inline void
-sort_exec(SerialExec,
-          Iterator begin,
-          Iterator end,
-          Predicate &&predicate) noexcept
+sort_descending(SerialExec,
+                Iterator begin,
+                Iterator end) noexcept
 {
-    std::sort(begin, end, std::forward<Predicate>(predicate));
+    std::sort(begin, end, std::greater<>{});
 }
 
 //-----------------------------------------------------------------------------
-// TODO: Evaluate RAJA's openmp performance vs bespoke implementation.
 template <typename ExecPolicyTag, typename Iterator>
 inline void
-sort_exec(ExecPolicyTag,
-          Iterator begin,
-          Iterator end) noexcept
+sort_ascending(ExecPolicyTag,
+               Iterator begin,
+               Iterator end) noexcept
 {
     auto span = RAJA::make_span(begin, end - begin);
     RAJA::sort<typename ExecPolicyTag::sort_policy>(span);
 }
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename Iterator, typename Predicate>
+template <typename ExecPolicyTag, typename Iterator>
 inline void
-sort_exec(ExecPolicyTag,
-          Iterator begin,
-          Iterator end,
-          Predicate &&predicate) noexcept
+sort_descending(ExecPolicyTag,
+                Iterator begin,
+                Iterator end) noexcept
 {
-    using ValueType = typename std::iterator_traits<Iterator>::value_type;
     auto span = RAJA::make_span(begin, end - begin);
     RAJA::sort<typename ExecPolicyTag::sort_policy>(
         span,
-        normalize_predicate<ValueType>(std::forward<Predicate>(predicate)));
+        RAJA::operators::greater<typename std::iterator_traits<Iterator>::value_type>{});
 }
 
 //-----------------------------------------------------------------------------
@@ -320,7 +275,11 @@ omp_quicksort(Iterator begin,
 
     // Copy pivot value so the lambda is safe after the iter_swap below.
     auto pivot = *last;
-    Iterator split = std::partition(begin, last, [&](const auto &val){ return comp(val, pivot); });
+    Iterator split = std::partition(begin,
+                                    last,
+                                    [&](const auto &val){
+                                        return comp(val, pivot);
+                                    });
     std::iter_swap(split, last);
 
     // Recursively sort each partition.
@@ -335,7 +294,9 @@ omp_quicksort(Iterator begin,
 inline int
 get_thread_depth()
 {
-    return static_cast<int>(std::ceil(std::log2(static_cast<double>(omp_get_num_threads()))));
+    return static_cast<int>(
+        std::ceil(std::log2(static_cast<double>(omp_get_num_threads())))
+    );
 }
 
 //-----------------------------------------------------------------------------
@@ -353,9 +314,9 @@ get_sort_threshold()
 // TODO: Needs benchmarking and tuning.
 template <typename Iterator>
 inline void
-sort_exec(OpenMPExec,
-          Iterator begin,
-          Iterator end) noexcept
+sort_ascending(OpenMPExec,
+               Iterator begin,
+               Iterator end) noexcept
 {
     if (end - begin < get_sort_threshold())
     {
@@ -372,23 +333,22 @@ sort_exec(OpenMPExec,
 
 //-----------------------------------------------------------------------------
 // TODO: Needs benchmarking and tuning.
-template <typename Iterator, typename Predicate>
+template <typename Iterator>
 inline void
-sort_exec(OpenMPExec,
-          Iterator begin,
-          Iterator end,
-          Predicate &&predicate) noexcept
+sort_descending(OpenMPExec,
+                Iterator begin,
+                Iterator end) noexcept
 {
     if (end - begin < get_sort_threshold())
     {
-        std::sort(begin, end, predicate);
+        std::sort(begin, end, std::greater<>{});
         return;
     }
     #pragma omp parallel
     #pragma omp single nowait
     {
         const int depth = get_thread_depth();
-        omp_quicksort(begin, end, predicate, depth);
+        omp_quicksort(begin, end, std::greater<>{}, depth);
     }
 }
 #endif // defined(CONDUIT_USE_OPENMP)
@@ -410,22 +370,21 @@ forall_exec(ExecPolicyTag,
 //-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Iterator>
 inline void
-sort_exec(ExecPolicyTag,
-          Iterator begin,
-          Iterator end) noexcept
+sort_ascending(ExecPolicyTag,
+               Iterator begin,
+               Iterator end) noexcept
 {
     std::sort(begin, end);
 }
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename Iterator, typename Predicate>
+template <typename ExecPolicyTag, typename Iterator>
 inline void
-sort_exec(ExecPolicyTag,
-          Iterator begin,
-          Iterator end,
-          Predicate &&predicate) noexcept
+sort_descending(ExecPolicyTag,
+                Iterator begin,
+                Iterator end) noexcept
 {
-    std::sort(begin, end, std::forward<Predicate>(predicate));
+    std::sort(begin, end, std::greater<>{});
 }
 
 //-----------------------------------------------------------------------------
@@ -737,20 +696,19 @@ forall(const int& begin,
 //-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Iterator>
 inline void
-sort(Iterator begin,
-     Iterator end) noexcept
+sort_ascending(Iterator begin,
+               Iterator end) noexcept
 {
-    detail::sort_exec(ExecPolicyTag{}, begin, end);
+    detail::sort_ascending(ExecPolicyTag{}, begin, end);
 }
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename Iterator, typename Predicate>
+template <typename ExecPolicyTag, typename Iterator>
 inline void
-sort(Iterator begin,
-     Iterator end,
-     Predicate &&predicate) noexcept
+sort_descending(Iterator begin,
+                Iterator end) noexcept
 {
-    detail::sort_exec(ExecPolicyTag{}, begin, end, std::forward<Predicate>(predicate));
+    detail::sort_descending(ExecPolicyTag{}, begin, end);
 }
 
 //-----------------------------------------------------------------------------
@@ -874,19 +832,19 @@ forall(ExecutionPolicy &policy,
 //-----------------------------------------------------------------------------
 template <typename Iterator>
 inline void
-sort(ExecutionPolicy &policy,
-     Iterator begin,
-     Iterator end) noexcept
+sort_ascending(ExecutionPolicy &policy,
+               Iterator begin,
+               Iterator end) noexcept
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
     if (policy.is_serial())
     {
-        sort<SerialExec>(begin, end);
+        sort_ascending<SerialExec>(begin, end);
     }
     else if (policy.is_cuda())
     {
 #if defined(CONDUIT_TU_IS_CUDA)
-        sort<CudaExec>(begin, end);
+        sort_ascending<CudaExec>(begin, end);
 #else
         CONDUIT_ERROR("Conduit was not built with CUDA.");
 #endif
@@ -894,7 +852,7 @@ sort(ExecutionPolicy &policy,
     else if (policy.is_hip())
     {
 #if defined(CONDUIT_TU_IS_HIP)
-        sort<HipExec>(begin, end);
+        sort_ascending<HipExec>(begin, end);
 #else
         CONDUIT_ERROR("Conduit was not built with HIP.");
 #endif
@@ -902,34 +860,33 @@ sort(ExecutionPolicy &policy,
     else if (policy.is_openmp())
     {
 #if defined(CONDUIT_USE_OPENMP)
-        sort<OpenMPExec>(begin, end);
+        sort_ascending<OpenMPExec>(begin, end);
 #else
         CONDUIT_ERROR("Conduit was not built with OpenMP.");
 #endif
     }
     else
     {
-        CONDUIT_ERROR("Cannot call sort with an empty policy.");
+        CONDUIT_ERROR("Cannot call sort_ascending with an empty policy.");
     }
 }
 
 //-----------------------------------------------------------------------------
-template <typename Iterator, typename Predicate>
+template <typename Iterator>
 inline void
-sort(ExecutionPolicy &policy,
-     Iterator begin,
-     Iterator end,
-     Predicate &&predicate) noexcept
+sort_descending(ExecutionPolicy &policy,
+                Iterator begin,
+                Iterator end) noexcept
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
     if (policy.is_serial())
     {
-        sort<SerialExec>(begin, end, std::forward<Predicate>(predicate));
+        sort_descending<SerialExec>(begin, end);
     }
     else if (policy.is_cuda())
     {
 #if defined(CONDUIT_TU_IS_CUDA)
-        sort<CudaExec>(begin, end, std::forward<Predicate>(predicate));
+        sort_descending<CudaExec>(begin, end);
 #else
         CONDUIT_ERROR("Conduit was not built with CUDA.");
 #endif
@@ -937,7 +894,7 @@ sort(ExecutionPolicy &policy,
     else if (policy.is_hip())
     {
 #if defined(CONDUIT_TU_IS_HIP)
-        sort<HipExec>(begin, end, std::forward<Predicate>(predicate));
+        sort_descending<HipExec>(begin, end);
 #else
         CONDUIT_ERROR("Conduit was not built with HIP.");
 #endif
@@ -945,14 +902,14 @@ sort(ExecutionPolicy &policy,
     else if (policy.is_openmp())
     {
 #if defined(CONDUIT_USE_OPENMP)
-        sort<OpenMPExec>(begin, end, std::forward<Predicate>(predicate));
+        sort_descending<OpenMPExec>(begin, end);
 #else
         CONDUIT_ERROR("Conduit was not built with OpenMP.");
 #endif
     }
     else
     {
-        CONDUIT_ERROR("Cannot call sort with an empty policy.");
+        CONDUIT_ERROR("Cannot call sort_descending with an empty policy.");
     }
 }
 

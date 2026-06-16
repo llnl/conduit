@@ -956,7 +956,7 @@ private:
         // general faceid, then by their elemface "ef", which should keep the
         // elements in order.
         CONDUIT_ANNOTATE_MARK_BEGIN("Sort labels");
-        conduit::execution::sort(policy, faceid_to_ef.begin(), faceid_to_ef.end());
+        conduit::execution::sort_ascending(policy, faceid_to_ef.begin(), faceid_to_ef.end());
         CONDUIT_ANNOTATE_MARK_END("Sort labels");
 #ifdef DEBUG_PRINT
         std::cout << "faceid_to_ef.sorted = " << faceid_to_ef << std::endl;
@@ -975,13 +975,7 @@ private:
 #endif
 
         // Sort on ef to get back to a ef->unique mapping.
-        conduit::execution::sort(
-            policy, ef_to_unique.begin(), ef_to_unique.end(),
-            [&](const std::pair<uint64, uint64> &lhs, const std::pair<uint64, uint64> &rhs)
-            {
-                // Only sort using the ef value.
-                return lhs.first < rhs.first;
-            });
+        conduit::execution::sort_ascending(policy, ef_to_unique.begin(), ef_to_unique.end());
         CONDUIT_ANNOTATE_MARK_END("Sort ef->unique");
 #ifdef DEBUG_PRINT
         std::cout << "ef_to_unique.sorted = " << ef_to_unique << std::endl;
@@ -1167,7 +1161,7 @@ private:
 
         // Sort edgeid_to_ee so any like edges will be sorted.
         CONDUIT_ANNOTATE_MARK_BEGIN("Sort labels");
-        conduit::execution::sort(policy, edgeid_to_ee.begin(), edgeid_to_ee.end());
+        conduit::execution::sort_ascending(policy, edgeid_to_ee.begin(), edgeid_to_ee.end());
         CONDUIT_ANNOTATE_MARK_END("Sort labels");
 #ifdef DEBUG_PRINT
         std::cout << "edgeid_to_ee.sorted = " << edgeid_to_ee << std::endl;
@@ -1183,13 +1177,7 @@ private:
 #endif
 
         // Sort on ef to get back to a ef->unique mapping.
-        conduit::execution::sort(
-            policy, ee_to_unique.begin(), ee_to_unique.end(),
-            [&](const std::pair<uint64, uint64> &lhs, const std::pair<uint64, uint64> &rhs)
-            {
-                // Only sort using the ee value.
-                return lhs.first < rhs.first;
-            });
+        conduit::execution::sort_ascending(policy, ee_to_unique.begin(), ee_to_unique.end());
         CONDUIT_ANNOTATE_MARK_END("Sort ef->unique");
 #ifdef DEBUG_PRINT
         std::cout << "ee_to_unique.sorted = " << ee_to_unique << std::endl;
@@ -2188,13 +2176,8 @@ TopologyMetadata::Implementation::build_edge_key_to_id(
 
     // Sort the edges by the ids.
     conduit::execution::ExecutionPolicy sort_policy = conduit::execution::ExecutionPolicy::host();
-    conduit::execution::sort(
-        sort_policy, edge_key_to_id.begin(), edge_key_to_id.end(),
-        [&](const std::pair<uint64, index_t> &lhs,
-            const std::pair<uint64, index_t> &rhs) 
-        {
-            return lhs.first < rhs.first;
-        });
+    conduit::execution::sort_ascending(
+        sort_policy, edge_key_to_id.begin(), edge_key_to_id.end());
 }
 
 //---------------------------------------------------------------------------
@@ -2484,7 +2467,7 @@ TopologyMetadata::Implementation::build_child_to_parent_association(int e, int a
 #endif
     // Sort p2c by child.
     conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy::host();
-    conduit::execution::sort(policy, p2c.begin(), p2c.end(),
+    std::sort(p2c.begin(), p2c.end(),
         [&](const std::pair<index_t, index_t> &lhs,
             const std::pair<index_t, index_t> &rhs)
     {
