@@ -93,9 +93,14 @@ TEST(conduit_execution, execution_settings)
     // container for opts whenever we fetch them
     Node get_opts;
 
+#if defined(CONDUIT_USE_DEVICE)
     // if new allocators are added earlier, then these values could change
     const index_t DEVICE_ALLOC_ID = 1;
     const index_t HOST_ALLOC_ID = 2;
+#else
+    const index_t DEVICE_ALLOC_ID = -1;
+    const index_t HOST_ALLOC_ID = 0;
+#endif
 
     // put nodes on host and device
     Node host_data, device_data;

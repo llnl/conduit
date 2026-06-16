@@ -615,6 +615,7 @@ std::string ExecutionOptions::sync_strategy = "assume";
 // fallback if both exec and output location are "input" and there is no input
 std::string ExecutionOptions::fallback_location = "host";
 
+#if defined(CONDUIT_USE_DEVICE)
 // allocator ids that are available - use lambdas to avoid overload ambiguity
 index_t ExecutionOptions::device_allocator =
     conduit::utils::register_allocator(
@@ -630,6 +631,10 @@ index_t ExecutionOptions::host_allocator =
             return HostMemory::allocate(num_items, item_size);
         },
         HostMemory::deallocate);
+#else
+index_t ExecutionOptions::device_allocator = -1;
+index_t ExecutionOptions::host_allocator = 0;
+#endif
 index_t ExecutionOptions::user_provided_allocator = -1;
 
 //-----------------------------------------------------------------------------
