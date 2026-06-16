@@ -117,27 +117,65 @@ forall_exec(ExecPolicyTag,
 }
 
 //-----------------------------------------------------------------------------
-// Maps std::less/std::greater to their RAJA equivalents so that RAJA can
-// dispatch to more performant sort implementations. All other predicates
-// pass through unchanged, falling back to the slower general-purpose sort.
+// RAJA's sort API requires comparators to be RAJA operator types
+// (e.g. RAJA::operators::less<T>) to use optimized algorithms
+// (e.g. a GPU radix sort), so passing std::less<T> directly would
+// either crash or fall back to a slower general-purpose implementation.
+//
+// This function translates the common std comparators to their
+// RAJA counterparts at compile time (via if constexpr). Any other predicate
+// is forwarded unchanged.
+//
+// std::decay_t strips references and cv-qualifiers from Predicate so that
+// the is_same_v checks work regardless of whether p was passed as an lvalue
+// or rvalue reference. Both the typed form (e.g. std::less<int>) and the
+// transparent/type-deduced form (std::less<void>) are handled.
 template <typename ValueType, typename Predicate>
 auto normalize_predicate(Predicate &&p)
 {
+    // Strip references to get the bare comparator type for matching.
     using P = std::decay_t<Predicate>;
+
+    // std::is_same_v<A, B> is a compile-time boolean that is true only when A and B
+    // are exactly the same type.
     if constexpr (std::is_same_v<P, std::less<ValueType>> ||
                   std::is_same_v<P, std::less<void>>)
     {
+        // Map std::less -> RAJA::operators::less.
         return RAJA::operators::less<ValueType>{};
     }
     else if constexpr (std::is_same_v<P, std::greater<ValueType>> ||
                        std::is_same_v<P, std::greater<void>>)
     {
+        // Map std::greater -> RAJA::operators::greater.
         return RAJA::operators::greater<ValueType>{};
     }
-    else // Not mappable to a RAJA operator
+    else // Custom predicate: not mappable to a RAJA operator.
     {
+        // Forward the predicate unchanged.
         return std::forward<Predicate>(p);
     }
+}
+
+//-----------------------------------------------------------------------------
+template <typename ExecPolicyTag, typename Iterator>
+inline void
+sort_exec(SerialExec,
+          Iterator begin,
+          Iterator end) noexcept
+{
+    std::sort(begin, end);
+}
+
+//-----------------------------------------------------------------------------
+template <typename ExecPolicyTag, typename Iterator, typename Predicate>
+inline void
+sort_exec(SerialExec,
+          Iterator begin,
+          Iterator end,
+          Predicate &&predicate) noexcept
+{
+    std::sort(begin, end, std::forward<Predicate>(predicate));
 }
 
 //-----------------------------------------------------------------------------
@@ -250,10 +288,6 @@ forall_exec(OpenMPExec,
 //-----------------------------------------------------------------------------
 // Parallel quicksort using OpenMP: tasks are spawned for
 // at most ceil(log2(num_threads)) levels of recursion.
-//
-// TODO: Needs benchmarking. This is surely only better than std::sort beyond
-// a certain size/thread threshold. A solution is to add a heuristic that does
-// a plain std::sort for small inputs. That would need benchmarking as well.
 template <typename Iterator, typename Compare>
 void
 omp_quicksort(Iterator begin,
@@ -300,17 +334,33 @@ omp_quicksort(Iterator begin,
 inline int
 get_thread_depth()
 {
-    // TODO: Do performance testing to determine if this is a good heuristic.
     return static_cast<int>(std::ceil(std::log2(static_cast<double>(omp_get_num_threads()))));
 }
 
 //-----------------------------------------------------------------------------
+// Returns the minimum number of elements required to use the parallel
+// quicksort. Matches the heuristic used by RAJA's OpenMP sort implementation.
+inline int
+get_sort_threshold()
+{
+    // 128 is what RAJA uses as the minimum number of elements per thread.
+    const int min_elements_per_thread = 128;
+    return min_elements_per_thread * omp_get_max_threads();
+}
+
+//-----------------------------------------------------------------------------
+// TODO: Needs benchmarking and tuning.
 template <typename Iterator>
 inline void
 sort_exec(OpenMPExec,
           Iterator begin,
           Iterator end) noexcept
 {
+    if (end - begin < get_sort_threshold())
+    {
+        std::sort(begin, end);
+        return;
+    }
     #pragma omp parallel
     #pragma omp single nowait
     {
@@ -320,6 +370,7 @@ sort_exec(OpenMPExec,
 }
 
 //-----------------------------------------------------------------------------
+// TODO: Needs benchmarking and tuning.
 template <typename Iterator, typename Predicate>
 inline void
 sort_exec(OpenMPExec,
@@ -327,6 +378,11 @@ sort_exec(OpenMPExec,
           Iterator end,
           Predicate &&predicate) noexcept
 {
+    if (end - begin < get_sort_threshold())
+    {
+        std::sort(begin, end, predicate);
+        return;
+    }
     #pragma omp parallel
     #pragma omp single nowait
     {
