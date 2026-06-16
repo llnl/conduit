@@ -89,67 +89,6 @@ index_t get_device_allocator_id();
 //-----------------------------------------------------------------------------
 index_t get_host_allocator_id();
 
-
-// Defined in this scope so that both the RAJA and non-RAJA paths can use it.
-#if defined(CONDUIT_USE_OPENMP)
-//-----------------------------------------------------------------------------
-// Parallel quicksort using OpenMP: tasks are spawned for
-// at most ceil(log2(num_threads)) levels of recursion.
-//
-// TODO: Needs benchmarking. This is surely only better than std::sort beyond
-// a certain size/thread threshold. A solution is to add a heuristic that does
-// a plain std::sort for small inputs. That would need benchmarking as well.
-template <typename Iterator, typename Compare>
-void
-omp_quicksort(Iterator begin,
-              Iterator end,
-              Compare comp,
-              int depth)
-{
-    if (depth == 0 || end - begin <= 1)
-    {
-        std::sort(begin, end, comp);
-        return;
-    }
-
-    // Pivot selection.
-    Iterator mid  = begin + (end - begin) / 2;
-    Iterator last = end - 1;
-    if (comp(*mid, *begin))
-    {
-        std::iter_swap(begin, mid);
-    }
-    if (comp(*last, *begin))
-    {
-        std::iter_swap(begin, last);
-    }
-    if (comp(*mid, *last))
-    {
-        std::iter_swap(mid, last);
-    }
-
-    // Copy pivot value so the lambda is safe after the iter_swap below.
-    auto pivot = *last;
-    Iterator split = std::partition(begin, last, [&](const auto &val){ return comp(val, pivot); });
-    std::iter_swap(split, last);
-
-    // Recursively sort each partition.
-    #pragma omp task
-    omp_quicksort(begin, split, comp, depth - 1);
-    #pragma omp task
-    omp_quicksort(split + 1, end, comp, depth - 1);
-    #pragma omp taskwait
-}
-
-//-----------------------------------------------------------------------------
-inline int
-get_thread_depth()
-{
-    // TODO: Do performance testing to determine if this is a good heuristic.
-    return static_cast<int>(std::ceil(std::log2(static_cast<double>(omp_get_num_threads()))));
-}
-#endif // defined(CONDUIT_USE_OPENMP)
-
 //---------------------------------------------------------------------------//
 #if defined(CONDUIT_USE_RAJA)
 //---------------------------------------------------------------------------//
@@ -176,60 +115,6 @@ forall_exec(ExecPolicyTag,
         RAJA::RangeSegment(begin, end),
         std::forward<Kernel>(kernel));
 }
-
-//-----------------------------------------------------------------------------
-template <typename Iterator>
-inline void
-sort_exec(SerialExec,
-          Iterator begin,
-          Iterator end) noexcept
-{
-    std::sort(begin, end);
-}
-
-//-----------------------------------------------------------------------------
-template <typename Iterator, typename Predicate>
-inline void
-sort_exec(SerialExec,
-          Iterator begin,
-          Iterator end,
-          Predicate &&predicate) noexcept
-{
-    std::sort(begin, end, std::forward<Predicate>(predicate));
-}
-
-#if defined(CONDUIT_USE_OPENMP)
-//-----------------------------------------------------------------------------
-template <typename Iterator>
-inline void
-sort_exec(OpenMPExec,
-          Iterator begin,
-          Iterator end) noexcept
-{
-    #pragma omp parallel
-    #pragma omp single nowait
-    {
-        const int depth = get_thread_depth();
-        omp_quicksort(begin, end, std::less<>{}, depth);
-    }
-}
-
-//-----------------------------------------------------------------------------
-template <typename Iterator, typename Predicate>
-inline void
-sort_exec(OpenMPExec,
-          Iterator begin,
-          Iterator end,
-          Predicate &&predicate) noexcept
-{
-    #pragma omp parallel
-    #pragma omp single nowait
-    {
-        const int depth = get_thread_depth();
-        omp_quicksort(begin, end, predicate, depth);
-    }
-}
-#endif // defined(CONDUIT_USE_OPENMP)
 
 //-----------------------------------------------------------------------------
 // Maps std::less/std::greater to their RAJA equivalents so that RAJA can
@@ -360,6 +245,63 @@ forall_exec(OpenMPExec,
     {
         kernel(i);
     }
+}
+
+//-----------------------------------------------------------------------------
+// Parallel quicksort using OpenMP: tasks are spawned for
+// at most ceil(log2(num_threads)) levels of recursion.
+//
+// TODO: Needs benchmarking. This is surely only better than std::sort beyond
+// a certain size/thread threshold. A solution is to add a heuristic that does
+// a plain std::sort for small inputs. That would need benchmarking as well.
+template <typename Iterator, typename Compare>
+void
+omp_quicksort(Iterator begin,
+              Iterator end,
+              Compare comp,
+              int depth)
+{
+    if (depth == 0 || end - begin <= 1)
+    {
+        std::sort(begin, end, comp);
+        return;
+    }
+
+    // Pivot selection.
+    Iterator mid  = begin + (end - begin) / 2;
+    Iterator last = end - 1;
+    if (comp(*mid, *begin))
+    {
+        std::iter_swap(begin, mid);
+    }
+    if (comp(*last, *begin))
+    {
+        std::iter_swap(begin, last);
+    }
+    if (comp(*mid, *last))
+    {
+        std::iter_swap(mid, last);
+    }
+
+    // Copy pivot value so the lambda is safe after the iter_swap below.
+    auto pivot = *last;
+    Iterator split = std::partition(begin, last, [&](const auto &val){ return comp(val, pivot); });
+    std::iter_swap(split, last);
+
+    // Recursively sort each partition.
+    #pragma omp task
+    omp_quicksort(begin, split, comp, depth - 1);
+    #pragma omp task
+    omp_quicksort(split + 1, end, comp, depth - 1);
+    #pragma omp taskwait
+}
+
+//-----------------------------------------------------------------------------
+inline int
+get_thread_depth()
+{
+    // TODO: Do performance testing to determine if this is a good heuristic.
+    return static_cast<int>(std::ceil(std::log2(static_cast<double>(omp_get_num_threads()))));
 }
 
 //-----------------------------------------------------------------------------
