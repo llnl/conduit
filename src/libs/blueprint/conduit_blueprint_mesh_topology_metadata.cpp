@@ -2466,7 +2466,6 @@ TopologyMetadata::Implementation::build_child_to_parent_association(int e, int a
     std::cout << "p2c=" << p2c << std::endl;
 #endif
     // Sort p2c by child.
-    conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy::host();
     std::sort(p2c.begin(), p2c.end(),
         [&](const std::pair<index_t, index_t> &lhs,
             const std::pair<index_t, index_t> &rhs)
