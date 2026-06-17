@@ -144,6 +144,7 @@ sort_ascending(ExecPolicyTag,
                Iterator end) noexcept
 {
     auto span = RAJA::make_span(begin, end - begin);
+    // RAJA performs an ascending sort by default.
     RAJA::sort<typename ExecPolicyTag::sort_policy>(span);
 }
 
@@ -291,6 +292,7 @@ omp_quicksort(Iterator begin,
 }
 
 //-----------------------------------------------------------------------------
+// Computes recursion depth based on the number of threads.
 inline int
 get_thread_depth()
 {
