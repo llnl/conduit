@@ -114,7 +114,7 @@ TEST(conduit_execution, execution_settings)
         const index_t host_alloc_id = execution::get_host_allocator_id();
         const index_t device_alloc_id = execution::get_device_allocator_id();
         host_data.set_allocator(host_alloc_id);
-        device_data.set_allocator(device_alloc_id);    
+        device_data.set_allocator(device_alloc_id);
         const std::vector<float64> src_vals = make_execution_src_vals(EXECUTION_TEST_ARRAY_SIZE);
         host_data.set(src_vals);
         device_data.set(src_vals);
@@ -127,7 +127,7 @@ TEST(conduit_execution, execution_settings)
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(host_data.data_ptr()));
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(device_data.data_ptr()));
     }
-    
+
     // ------------------------------
     //
     // test default settings
@@ -406,13 +406,13 @@ TEST(conduit_execution, test_forall)
         index_t *vals_ptr = nullptr;
         if (policy.is_device_policy())
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::DeviceMemory::allocate(sizeof(index_t) * size));
         }
         else
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::HostMemory::allocate(sizeof(index_t) * size));
         }
@@ -461,13 +461,13 @@ TEST(conduit_execution, test_reductions)
         index_t *vals_ptr = nullptr;
         if (policy.is_device_policy())
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::DeviceMemory::allocate(sizeof(index_t) * size));
         }
         else
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::HostMemory::allocate(sizeof(index_t) * size));
         }
@@ -585,13 +585,13 @@ TEST(conduit_execution, test_atomics)
         index_t *vals_ptr = nullptr;
         if (policy.is_device_policy())
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::DeviceMemory::allocate(sizeof(index_t) * size));
         }
         else
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::HostMemory::allocate(sizeof(index_t) * size));
         }
@@ -679,6 +679,10 @@ TEST(conduit_execution, strawman_data_accessor)
 
     // our main loop iterates over these items
     // comment out specific entries to test a specific combination
+    // TODO: This crashes if RAJA is built without CUDA or HIP because the
+    // Umpire "DEVICE" allocator is unavailable when "device" src/des locations
+    // are used. The "device" entries should be skipped when device memory is
+    // not available.
     const std::vector<std::string> src_locations = {"host", "device"};
     const std::vector<std::string> des_locations = {"host", "device"};
     const std::vector<std::string> policies      = {"host", "device"};
@@ -709,7 +713,7 @@ TEST(conduit_execution, strawman_data_accessor)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -791,7 +795,7 @@ TEST(conduit_execution, strawman_data_accessor)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -863,7 +867,7 @@ TEST(conduit_execution, strawman_data_accessor)
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
 
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -955,7 +959,7 @@ TEST(conduit_execution, strawman_data_accessor)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -1041,7 +1045,7 @@ TEST(conduit_execution, strawman_data_accessor)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -1118,6 +1122,10 @@ TEST(conduit_execution, strawman_data_array)
 
     // our main loop iterates over these items
     // comment out specific entries to test a specific combination
+    // TODO: This crashes if RAJA is built without CUDA or HIP because the
+    // Umpire "DEVICE" allocator is unavailable when "device" src/des locations
+    // are used. The "device" entries should be skipped when device memory is
+    // not available.
     const std::vector<std::string> src_locations = {"host", "device"};
     const std::vector<std::string> des_locations = {"host", "device"};
     const std::vector<std::string> policies      = {"host", "device"};
@@ -1148,7 +1156,7 @@ TEST(conduit_execution, strawman_data_array)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -1230,7 +1238,7 @@ TEST(conduit_execution, strawman_data_array)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -1302,7 +1310,7 @@ TEST(conduit_execution, strawman_data_array)
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
 
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -1394,7 +1402,7 @@ TEST(conduit_execution, strawman_data_array)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -1481,7 +1489,7 @@ TEST(conduit_execution, strawman_data_array)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -1547,6 +1555,116 @@ TEST(conduit_execution, strawman_data_array)
             }
         }
     }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, test_sort_ascending)
+{
+    conduit_device_prepare();
+    for_each_enabled_policy([](ExecutionPolicy policy)
+    {
+        CONDUIT_INFO("test_sort_ascending policy=" << policy.policy_name());
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+
+        const index_t size = EXECUTION_TEST_ARRAY_SIZE;
+
+        index_t *vals_ptr = nullptr;
+        if (policy.is_device_policy())
+        {
+            vals_ptr = static_cast<index_t *>(execution::DeviceMemory::allocate(sizeof(index_t) * size));
+        }
+        else // if (!policy.is_device_policy())
+        {
+            vals_ptr = static_cast<index_t *>(execution::HostMemory::allocate(sizeof(index_t) * size));
+        }
+
+        // Fill the array with descending numbers
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+        {
+            vals_ptr[i] = size - 1 - i;
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        conduit::execution::sort_ascending(policy, vals_ptr, vals_ptr + size);
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        std::vector<index_t> host_vals(size);
+        conduit::execution::MagicMemory::copy(host_vals.data(), vals_ptr, sizeof(index_t) * size);
+
+        // Validate that the array is sorted in ascending order
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(host_vals[i], i);
+        }
+
+        if (policy.is_device_policy())
+        {
+            execution::DeviceMemory::deallocate(vals_ptr);
+        }
+        else // if (!policy.is_device_policy())
+        {
+            execution::HostMemory::deallocate(vals_ptr);
+        }
+
+        annotations::finalize();
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, test_sort_descending)
+{
+    conduit_device_prepare();
+    for_each_enabled_policy([](ExecutionPolicy policy)
+    {
+        CONDUIT_INFO("test_sort_descending policy=" << policy.policy_name());
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+
+        const index_t size = EXECUTION_TEST_ARRAY_SIZE;
+
+        index_t *vals_ptr = nullptr;
+        if (policy.is_device_policy())
+        {
+            vals_ptr = static_cast<index_t *>(execution::DeviceMemory::allocate(sizeof(index_t) * size));
+        }
+        else // if (!policy.is_device_policy())
+        {
+            vals_ptr = static_cast<index_t *>(execution::HostMemory::allocate(sizeof(index_t) * size));
+        }
+
+        // Fill the array with ascending numbers
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+        {
+            vals_ptr[i] = i;
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        conduit::execution::sort_descending(policy, vals_ptr, vals_ptr + size);
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        std::vector<index_t> host_vals(size);
+        conduit::execution::MagicMemory::copy(host_vals.data(), vals_ptr, sizeof(index_t) * size);
+
+        // Validate that the array is sorted in descending order
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(host_vals[i], size - 1 - i);
+        }
+
+        if (policy.is_device_policy())
+        {
+            execution::DeviceMemory::deallocate(vals_ptr);
+        }
+        else // if (!policy.is_device_policy())
+        {
+            execution::HostMemory::deallocate(vals_ptr);
+        }
+
+        annotations::finalize();
+    });
 }
 
 //-----------------------------------------------------------------------------
