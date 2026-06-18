@@ -31,7 +31,7 @@ TEST(conduit_blueprint_mesh_transform, uniform_to_rect)
     blueprint::mesh::examples::braid("rectilinear", 100, 100, 100, baseline);
     
     Node exec_opts;
-    // for each choice in the matrix of choices...
+    // TODO for each choice in the matrix of choices...
     {
         // set execution options
         exec_opts["execution_location"] = "host";
