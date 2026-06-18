@@ -1,0 +1,11 @@
+--- a/include/RAJA/util/sort.hpp
++++ b/include/RAJA/util/sort.hpp
+@@ -389,7 +389,7 @@
+     }
+ 
+     // partition
+-    mid = partition(begin, last, [&](Iter it) {
++    mid = detail::partition(begin, last, [&](Iter it) {
+       return comp(*it, *pivot);
+     });
+ 

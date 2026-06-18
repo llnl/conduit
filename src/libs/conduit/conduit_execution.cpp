@@ -317,14 +317,17 @@ ExecutionPolicy::policy_id_to_name(const PolicyID policy_id)
 class ExecutionOptions
 {
 public:
-    // chosen execution policy
-    static std::string execution_policy;
+    // chosen execution location
+    static std::string execution_location;
 
-    // allocator to use
-    static std::string output_allocator;
+    // chosen output location
+    static std::string output_location;
 
     // "sync" or "assume"
     static std::string sync_strategy;
+
+    // "host" or "device"
+    static std::string fallback_location;
     
     // allocator ids that are available
     static index_t device_allocator;
@@ -334,66 +337,71 @@ public:
 public:
     //------------------------------------------------------------------------
     // opts node:
-    //   execution_policy: "host"|"device"|"input_location"
-    //     # choose host, device, or input location (use `use_with` to get a 
+    //   execution_location: "host"|"device"|"input"
+    //     # choose host, device, or input (use `use_with` to get a 
     //     # policy for the input data).
-    //     # default is "input_location"
-    //   output_allocator: "host"|"device"|"input_allocator"|##
+    //     # default is "input"
+    //   output_location: "host"|"device"|"input"|##
     //     # choose host alloc, device alloc, input alloc (get the allocator 
     //     # from the input node), or an index_t that is the allocator id to use
-    //     # default is "input_allocator"
+    //     # default is "input"
     //   sync_strategy: "sync"|"assume"
     //     # choose to sync or assume (if we add a new option here we need to
     //     # update all the use sites).
     //     # default is "assume"
+    //   fallback_location: "host"|"device"
+    //     # choose a fallback in the case that "input" is chosen for either 
+    //     # execution_location or output_location and there is no input to 
+    //     # operate on/reason about.
+    //     # default is "host"
     static void set(const Node &opts)
     {
-        if (opts.has_child("execution_policy"))
+        if (opts.has_child("execution_location"))
         {
-            if (opts["execution_policy"].dtype().is_string())
+            if (opts["execution_location"].dtype().is_string())
             {
-                const std::string policy = opts["execution_policy"].as_string();
+                const std::string policy = opts["execution_location"].as_string();
                 if (policy == "host" ||
                     policy == "device" ||
-                    policy == "input_location")
+                    policy == "input")
                 {
-                    execution_policy = policy;
+                    execution_location = policy;
                 }
                 else
                 {
-                    CONDUIT_ERROR("ExecutionOptions: invalid execution_policy option.");
+                    CONDUIT_ERROR("ExecutionOptions: invalid execution_location option.");
                 }
             }
             else
             {
-                CONDUIT_ERROR("ExecutionOptions: invalid execution_policy option.");
+                CONDUIT_ERROR("ExecutionOptions: invalid execution_location option.");
             }
         }
 
-        if (opts.has_child("output_allocator"))
+        if (opts.has_child("output_location"))
         {
-            if (opts["output_allocator"].dtype().is_string())
+            if (opts["output_location"].dtype().is_string())
             {
-                const std::string out_alloc = opts["output_allocator"].as_string();
+                const std::string out_alloc = opts["output_location"].as_string();
                 if (out_alloc == "host" ||
                     out_alloc == "device" ||
-                    out_alloc == "input_allocator")
+                    out_alloc == "input")
                 {
-                    output_allocator = out_alloc;
+                    output_location = out_alloc;
                 }
                 else
                 {
-                    CONDUIT_ERROR("ExecutionOptions: invalid output_allocator option.");
+                    CONDUIT_ERROR("ExecutionOptions: invalid output_location option.");
                 }
             }
-            else if (opts["output_allocator"].dtype().is_integer())
+            else if (opts["output_location"].dtype().is_integer())
             {
-                output_allocator = "user_provided";
-                user_provided_allocator = opts["output_allocator"].as_index_t();
+                output_location = "user_provided";
+                user_provided_allocator = opts["output_location"].to_index_t();
             }
             else
             {
-                CONDUIT_ERROR("ExecutionOptions: invalid output_allocator option.");
+                CONDUIT_ERROR("ExecutionOptions: invalid output_location option.");
             }
         }
 
@@ -417,6 +425,27 @@ public:
                 CONDUIT_ERROR("ExecutionOptions: invalid sync_strategy option.");
             }
         }
+
+        if (opts.has_child("fallback_location"))
+        {
+            if (opts["fallback_location"].dtype().is_string())
+            {
+                const std::string fallback = opts["fallback_location"].as_string();
+                if (fallback == "host" ||
+                    fallback == "device")
+                {
+                    fallback_location = fallback;
+                }
+                else
+                {
+                    CONDUIT_ERROR("ExecutionOptions: invalid fallback_location option.");
+                }
+            }
+            else
+            {
+                CONDUIT_ERROR("ExecutionOptions: invalid fallback_location option.");
+            }
+        }
     }
 
     //------------------------------------------------------------------------
@@ -424,26 +453,39 @@ public:
     {
         opts.reset();
 
-        opts["execution_policy"].set(execution_policy);
-        opts["output_allocator"].set(output_allocator);
+        opts["execution_location"].set(execution_location);
+        opts["output_location"].set(output_location);
         opts["sync_strategy"].set(sync_strategy);
+        opts["fallback_location"].set(fallback_location);
         opts["device_allocator"].set(device_allocator);
         opts["host_allocator"].set(host_allocator);
         opts["user_provided_allocator"].set(user_provided_allocator);
     }
 
     //------------------------------------------------------------------------
+    static void reset()
+    {
+        execution_location = "input";
+        output_location = "input";
+        sync_strategy = "assume";
+        fallback_location = "host";
+        // no need to reset device_allocator
+        // no need to reset host_allocator
+        user_provided_allocator = -1;
+    }
+
+    //------------------------------------------------------------------------
     static ExecutionPolicy get_execution_policy_helper(Node *src_node)
     {
-        if ("host" == execution_policy)
+        if ("host" == execution_location)
         {
             return ExecutionPolicy::host();
         }
-        if ("device" == execution_policy)
+        if ("device" == execution_location)
         {
             return ExecutionPolicy::device();
         }
-        if ("input_location" == execution_policy)
+        if ("input" == execution_location)
         {
             if (nullptr != src_node)
             {
@@ -458,12 +500,21 @@ public:
             }
             else
             {
+                if ("host" == fallback_location)
+                {
+                    return ExecutionPolicy::host();
+                }
+                if ("device" == fallback_location)
+                {
+                    return ExecutionPolicy::device();
+                }
                 CONDUIT_ERROR("ExecutionOptions::get_execution_policy() cannot resolve "
-                              "\"input_location\" without an input object.");
+                              "execution_location " << fallback_location << ".");
+                return ExecutionPolicy::empty();
             }
         }
         CONDUIT_ERROR("ExecutionOptions::get_execution_policy() cannot resolve "
-                      "policy " << execution_policy << ".");
+                      "execution_location " << execution_location << ".");
         return ExecutionPolicy::empty();
     }
 
@@ -482,19 +533,19 @@ public:
     //------------------------------------------------------------------------
     static index_t get_output_allocator_id_helper(Node *src_node)
     {
-        if ("host" == output_allocator)
+        if ("host" == output_location)
         {
             return host_allocator;
         }
-        if ("device" == output_allocator)
+        if ("device" == output_location)
         {
             return device_allocator;
         }
-        if ("user_provided" == output_allocator)
+        if ("user_provided" == output_location)
         {
             return user_provided_allocator;
         }
-        if ("input_allocator" == output_allocator)
+        if ("input" == output_location)
         {
             if (nullptr != src_node)
             {
@@ -502,12 +553,21 @@ public:
             }
             else
             {
+                if ("host" == fallback_location)
+                {
+                    return host_allocator;
+                }
+                if ("device" == fallback_location)
+                {
+                    return device_allocator;
+                }
                 CONDUIT_ERROR("ExecutionOptions::get_output_allocator_id() cannot resolve "
-                              "\"input_allocator\" without an input object.");
+                              "output_location " << fallback_location << ".");
+                return -1;
             }
         }
         CONDUIT_ERROR("ExecutionOptions::get_output_allocator_id() cannot resolve "
-                      "output_allocator " << output_allocator << ".");
+                      "output_location " << output_location << ".");
         return -1;
     }
 
@@ -546,12 +606,16 @@ public:
 // default execution settings
 //
 
-std::string ExecutionOptions::execution_policy = "input_location";
-// allocator to use
-std::string ExecutionOptions::output_allocator = "input_allocator";
+// execution location
+std::string ExecutionOptions::execution_location = "input";
+// output allocation location
+std::string ExecutionOptions::output_location = "input";
 // "sync" or "assume"
 std::string ExecutionOptions::sync_strategy = "assume";
+// fallback if both exec and output location are "input" and there is no input
+std::string ExecutionOptions::fallback_location = "host";
 
+#if defined(CONDUIT_USE_DEVICE)
 // allocator ids that are available - use lambdas to avoid overload ambiguity
 index_t ExecutionOptions::device_allocator =
     conduit::utils::register_allocator(
@@ -567,6 +631,10 @@ index_t ExecutionOptions::host_allocator =
             return HostMemory::allocate(num_items, item_size);
         },
         HostMemory::deallocate);
+#else
+index_t ExecutionOptions::device_allocator = -1;
+index_t ExecutionOptions::host_allocator = 0;
+#endif
 index_t ExecutionOptions::user_provided_allocator = -1;
 
 //-----------------------------------------------------------------------------
@@ -584,10 +652,32 @@ execution_options(Node &opts)
 }
 
 //-----------------------------------------------------------------------------
+void
+reset_execution_options()
+{
+    ExecutionOptions::reset();
+}
+
+
+//-----------------------------------------------------------------------------
+ExecutionPolicy
+get_execution_policy(Node &src_node)
+{
+    return ExecutionOptions::get_execution_policy(src_node);
+}
+
+//-----------------------------------------------------------------------------
 ExecutionPolicy
 get_execution_policy()
 {
     return ExecutionOptions::get_execution_policy();
+}
+
+//-----------------------------------------------------------------------------
+index_t
+get_output_allocator_id(Node &src_node)
+{
+    return ExecutionOptions::get_output_allocator_id(src_node);
 }
 
 //-----------------------------------------------------------------------------
