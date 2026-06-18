@@ -905,7 +905,7 @@ TEST(conduit_execution, strawman_data_accessor)
             }
 
             //----------------------------------------------------------
-            // DataAccessor reducer lambda
+            // DataAccessor reduction
             // Run with an explicit execution policy, reduce directly inside
             // forall(policy, ...), and call sync().
             // node["des"] is then synced back to where it started.
@@ -921,7 +921,7 @@ TEST(conduit_execution, strawman_data_accessor)
                 exec_opts["execution_location"].set(policy_str);
                 conduit::execution::execution_set_options(exec_opts);
 
-                CONDUIT_INFO("DataAccessor reducer lambda:\n" <<
+                CONDUIT_INFO("DataAccessor reduction:\n" <<
                              "    policy="    << policy_str << "\n" <<
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
@@ -952,7 +952,7 @@ TEST(conduit_execution, strawman_data_accessor)
                 annotations::initialize(cali_opts);
 
                 float64 min_val; index_t min_loc;
-                run_data_accessor_reduce_lambda_and_sync(node, policy, min_val, min_loc);
+                run_data_accessor_reduction_and_sync(node, policy, min_val, min_loc);
 
                 annotations::finalize();
 
@@ -1263,7 +1263,7 @@ TEST(conduit_execution, strawman_data_array)
             }
 
             //----------------------------------------------------------
-            // DataArray reducer lambda
+            // DataArray reduction
             // Run with an explicit execution policy, reduce directly inside
             // forall(policy, ...), and call sync().
             // node["des"] is then synced back to where it started.
@@ -1279,7 +1279,7 @@ TEST(conduit_execution, strawman_data_array)
                 exec_opts["execution_location"].set(policy_str);
                 conduit::execution::execution_set_options(exec_opts);
 
-                CONDUIT_INFO("DataArray reducer lambda:\n" <<
+                CONDUIT_INFO("DataArray reduction:\n" <<
                              "    policy="    << policy_str << "\n" <<
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
@@ -1310,7 +1310,7 @@ TEST(conduit_execution, strawman_data_array)
                 annotations::initialize(cali_opts);
 
                 float64 min_val; index_t min_loc;
-                run_data_array_reduce_lambda_and_sync(node, policy, min_val, min_loc);
+                run_data_array_reduction_and_sync(node, policy, min_val, min_loc);
 
                 annotations::finalize();
 

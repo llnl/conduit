@@ -226,7 +226,7 @@ atomic_max_exec(T *acc, T value)
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// Reducers no longer expose execution-tag selection at the API surface. Their
+// Reducers do not expose execution-tag selection at the API surface. Their
 // implementation backend is chosen from translation-unit capability so users
 // can use them directly inside forall(policy, ...) kernels.
 template <typename T>
@@ -460,8 +460,8 @@ atomic_max_exec(T *acc, T value)
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// Reducers stay runtime-neutral here too so the RAJA-on and RAJA-off APIs
-// match. The host fallback implementation does not need an execution tag.
+// Reducers are runtime-neutral; the RAJA-on and RAJA-off APIs match. The host
+// fallback implementation does not need an execution tag.
 template <typename T>
 class ReduceSum
 {

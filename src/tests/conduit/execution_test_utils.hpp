@@ -299,10 +299,10 @@ run_data_array_using_active_space(Node &node, ExecutionPolicy &exec_policy)
 
 //-----------------------------------------------------------------------------
 void
-run_data_accessor_reduce_lambda_and_sync(Node &node,
-                                         ExecutionPolicy policy,
-                                         float64 &min_val,
-                                         index_t &min_loc)
+run_data_accessor_reduction_and_sync(Node &node,
+                                     ExecutionPolicy policy,
+                                     float64 &min_val,
+                                     index_t &min_loc)
 {
     // DataAccessors wrap node leaf data.
     float64_accessor acc_src(node["src"]);
@@ -346,10 +346,10 @@ run_data_accessor_reduce_lambda_and_sync(Node &node,
 
 //-----------------------------------------------------------------------------
 void
-run_data_array_reduce_lambda_and_sync(Node &node,
-                                      ExecutionPolicy policy,
-                                      float64 &min_val,
-                                      index_t &min_loc)
+run_data_array_reduction_and_sync(Node &node,
+                                  ExecutionPolicy policy,
+                                  float64 &min_val,
+                                  index_t &min_loc)
 {
     // DataArrays wrap node leaf data.
     float64_array arr_src(node["src"]);

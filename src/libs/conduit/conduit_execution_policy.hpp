@@ -125,16 +125,16 @@ struct EmptyPolicy
 #if defined(CONDUIT_USE_RAJA)
 struct SerialExec
 {
-    using for_policy    = RAJA::seq_exec;
-    using sort_policy   = RAJA::seq_exec;
+    using for_policy  = RAJA::seq_exec;
+    using sort_policy = RAJA::seq_exec;
     static std::string memory_space;
 };
 
 #if defined(CONDUIT_TU_IS_CUDA)
 struct CudaExec
 {
-    using for_policy    = RAJA::cuda_exec<CUDA_BLOCK_SIZE>;
-    using sort_policy   = RAJA::cuda_exec<CUDA_BLOCK_SIZE>;
+    using for_policy  = RAJA::cuda_exec<CUDA_BLOCK_SIZE>;
+    using sort_policy = RAJA::cuda_exec<CUDA_BLOCK_SIZE>;
     static std::string memory_space;
 };
 #endif
@@ -142,8 +142,8 @@ struct CudaExec
 #if defined(CONDUIT_TU_IS_HIP)
 struct HipExec
 {
-    using for_policy    = RAJA::hip_exec<HIP_BLOCK_SIZE>;
-    using sort_policy   = RAJA::hip_exec<HIP_BLOCK_SIZE>;
+    using for_policy  = RAJA::hip_exec<HIP_BLOCK_SIZE>;
+    using sort_policy = RAJA::hip_exec<HIP_BLOCK_SIZE>;
     static std::string memory_space;
 };
 #endif
@@ -151,8 +151,8 @@ struct HipExec
 #if defined(CONDUIT_USE_OPENMP)
 struct OpenMPExec
 {
-    using for_policy    = RAJA::omp_parallel_for_exec;
-    using sort_policy   = RAJA::omp_parallel_for_exec;
+    using for_policy  = RAJA::omp_parallel_for_exec;
+    using sort_policy = RAJA::omp_parallel_for_exec;
     static std::string memory_space;
 };
 #endif
@@ -161,16 +161,16 @@ struct OpenMPExec
 
 struct SerialExec
 {
-    using for_policy    = EmptyPolicy;
-    using sort_policy   = EmptyPolicy;
+    using for_policy  = EmptyPolicy;
+    using sort_policy = EmptyPolicy;
     static std::string memory_space;
 };
 
 #if defined(CONDUIT_USE_OPENMP)
 struct OpenMPExec
 {
-    using for_policy    = EmptyPolicy;
-    using sort_policy   = EmptyPolicy;
+    using for_policy  = EmptyPolicy;
+    using sort_policy = EmptyPolicy;
     static std::string memory_space;
 };
 #endif
