@@ -117,6 +117,28 @@ using DefaultReducePolicy = RAJA::seq_reduce;
 #endif
 
 //-----------------------------------------------------------------------------
+// Atomics also follow translation-unit capability instead of the runtime loop
+// policy. GPU-capable translation units use device atomics in device compile
+// paths, with host fallback selected once here for all runtime policies.
+#if defined(CONDUIT_TU_IS_CUDA)
+  #if defined(CONDUIT_USE_OPENMP)
+using DefaultAtomicPolicy = RAJA::cuda_atomic_explicit<RAJA::omp_atomic>;
+  #else
+using DefaultAtomicPolicy = RAJA::cuda_atomic;
+  #endif
+#elif defined(CONDUIT_TU_IS_HIP)
+  #if defined(CONDUIT_USE_OPENMP)
+using DefaultAtomicPolicy = RAJA::hip_atomic_explicit<RAJA::omp_atomic>;
+  #else
+using DefaultAtomicPolicy = RAJA::hip_atomic;
+  #endif
+#elif defined(CONDUIT_USE_OPENMP)
+using DefaultAtomicPolicy = RAJA::omp_atomic;
+#else
+using DefaultAtomicPolicy = RAJA::seq_atomic;
+#endif
+
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Kernel>
 inline void
 forall_exec(ExecPolicyTag,
@@ -175,27 +197,27 @@ sort_descending(ExecPolicyTag,
 }
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
+template <typename T>
 CONDUIT_EXEC T
 atomic_add_exec(T *acc, T value)
 {
-    return RAJA::atomicAdd(typename ExecPolicyTag::atomic_policy{}, acc, value);
+    return RAJA::atomicAdd(DefaultAtomicPolicy{}, acc, value);
 }
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
+template <typename T>
 CONDUIT_EXEC T
 atomic_min_exec(T *acc, T value)
 {
-    return RAJA::atomicMin(typename ExecPolicyTag::atomic_policy{}, acc, value);
+    return RAJA::atomicMin(DefaultAtomicPolicy{}, acc, value);
 }
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
+template <typename T>
 CONDUIT_EXEC T
 atomic_max_exec(T *acc, T value)
 {
-    return RAJA::atomicMax(typename ExecPolicyTag::atomic_policy{}, acc, value);
+    return RAJA::atomicMax(DefaultAtomicPolicy{}, acc, value);
 }
 
 }
@@ -403,7 +425,7 @@ sort_descending(ExecPolicyTag,
 }
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
+template <typename T>
 CONDUIT_EXEC T
 atomic_add_exec(T *acc, T value)
 {
@@ -413,7 +435,7 @@ atomic_add_exec(T *acc, T value)
 }
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
+template <typename T>
 CONDUIT_EXEC T
 atomic_min_exec(T *acc, T value)
 {
@@ -423,7 +445,7 @@ atomic_min_exec(T *acc, T value)
 }
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
+template <typename T>
 CONDUIT_EXEC T
 atomic_max_exec(T *acc, T value)
 {
@@ -724,77 +746,30 @@ sort_descending(Iterator begin,
 }
 
 //-----------------------------------------------------------------------------
-// Atomics are typed on the execution tag so callers must resolve the runtime
-// policy before entering the hot loop. That keeps backend selection out of the
-// atomic call site and lets RAJA instantiate the correct atomic policy once.
-template <typename ExecPolicyTag, typename T>
+// Atomics are runtime-neutral at the API surface. Backend selection is chosen
+// once from translation-unit capability so callers can use atomics directly
+// inside forall(policy, ...) kernels.
+template <typename T>
 CONDUIT_EXEC T
 atomic_add(T *acc, T value)
 {
-    return detail::atomic_add_exec<ExecPolicyTag>(acc, value);
+    return detail::atomic_add_exec(acc, value);
 }
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
+template <typename T>
 CONDUIT_EXEC T
 atomic_min(T *acc, T value)
 {
-    return detail::atomic_min_exec<ExecPolicyTag>(acc, value);
+    return detail::atomic_min_exec(acc, value);
 }
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
+template <typename T>
 CONDUIT_EXEC T
 atomic_max(T *acc, T value)
 {
-    return detail::atomic_max_exec<ExecPolicyTag>(acc, value);
-}
-
-//-----------------------------------------------------------------------------
-// dispatch() converts a runtime policy object into a compile-time backend tag type
-// We use std::forward so dispatch preserves whether the callable was passed as an
-// lvalue or rvalue, rather than always treating it as an lvalue inside the function.
-template <typename Function>
-void
-dispatch(ExecutionPolicy policy, Function&& func)
-{
-    CONDUIT_ANNOTATE_MARK_FUNCTION;
-    if (policy.is_serial())
-    {
-        SerialExec se;
-        std::forward<Function>(func)(se);
-    }
-    else if (policy.is_cuda())
-    {
-#if defined(CONDUIT_TU_IS_CUDA)
-        CudaExec ce;
-        std::forward<Function>(func)(ce);
-#else
-        CONDUIT_ERROR("Conduit was not built with CUDA.");
-#endif
-    }
-    else if (policy.is_hip())
-    {
-#if defined(CONDUIT_TU_IS_HIP)
-        HipExec he;
-        std::forward<Function>(func)(he);
-#else
-        CONDUIT_ERROR("Conduit was not built with HIP.");
-#endif
-    }
-    else if (policy.is_openmp())
-    {
-#if defined(CONDUIT_USE_OPENMP)
-        OpenMPExec ompe;
-        std::forward<Function>(func)(ompe);
-#else
-        CONDUIT_ERROR("Conduit was not built with OpenMP.");
-#endif
-    }
-    else
-    {
-        CONDUIT_ERROR("Cannot invoke with an empty policy.");
-    }
+    return detail::atomic_max_exec(acc, value);
 }
 
 //-----------------------------------------------------------------------------

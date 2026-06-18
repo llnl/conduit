@@ -127,14 +127,6 @@ struct SerialExec
 {
     using for_policy    = RAJA::seq_exec;
     using sort_policy   = RAJA::seq_exec;
-#if defined(CONDUIT_TU_IS_CUDA)
-    using reduce_policy = RAJA::cuda_reduce;
-#elif defined(CONDUIT_TU_IS_HIP)
-    using reduce_policy = RAJA::hip_reduce;
-#else
-    using reduce_policy = RAJA::seq_reduce;
-#endif
-    using atomic_policy = RAJA::seq_atomic;
     static std::string memory_space;
 };
 
@@ -143,8 +135,6 @@ struct CudaExec
 {
     using for_policy    = RAJA::cuda_exec<CUDA_BLOCK_SIZE>;
     using sort_policy   = RAJA::cuda_exec<CUDA_BLOCK_SIZE>;
-    using reduce_policy = RAJA::cuda_reduce;
-    using atomic_policy = RAJA::cuda_atomic;
     static std::string memory_space;
 };
 #endif
@@ -154,8 +144,6 @@ struct HipExec
 {
     using for_policy    = RAJA::hip_exec<HIP_BLOCK_SIZE>;
     using sort_policy   = RAJA::hip_exec<HIP_BLOCK_SIZE>;
-    using reduce_policy = RAJA::hip_reduce;
-    using atomic_policy = RAJA::hip_atomic;
     static std::string memory_space;
 };
 #endif
@@ -165,14 +153,6 @@ struct OpenMPExec
 {
     using for_policy    = RAJA::omp_parallel_for_exec;
     using sort_policy   = RAJA::omp_parallel_for_exec;
-#if defined(CONDUIT_TU_IS_CUDA)
-    using reduce_policy = RAJA::cuda_reduce;
-#elif defined(CONDUIT_TU_IS_HIP)
-    using reduce_policy = RAJA::hip_reduce;
-#else
-    using reduce_policy = RAJA::omp_reduce;
-#endif
-    using atomic_policy = RAJA::omp_atomic;
     static std::string memory_space;
 };
 #endif
@@ -183,8 +163,6 @@ struct SerialExec
 {
     using for_policy    = EmptyPolicy;
     using sort_policy   = EmptyPolicy;
-    using reduce_policy = EmptyPolicy;
-    using atomic_policy = EmptyPolicy;
     static std::string memory_space;
 };
 
@@ -193,8 +171,6 @@ struct OpenMPExec
 {
     using for_policy    = EmptyPolicy;
     using sort_policy   = EmptyPolicy;
-    using reduce_policy = EmptyPolicy;
-    using atomic_policy = EmptyPolicy;
     static std::string memory_space;
 };
 #endif
