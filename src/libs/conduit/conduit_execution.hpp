@@ -104,6 +104,19 @@ namespace detail
 {
 
 //-----------------------------------------------------------------------------
+// Reducers follow translation-unit capability rather than the runtime loop
+// policy. In GPU-capable translation units, RAJA reduction objects can use the
+// device reduction backend regardless of whether the surrounding forall runs
+// with host or device execution policy.
+#if defined(CONDUIT_TU_IS_CUDA)
+using DefaultReducePolicy = RAJA::cuda_reduce;
+#elif defined(CONDUIT_TU_IS_HIP)
+using DefaultReducePolicy = RAJA::hip_reduce;
+#else
+using DefaultReducePolicy = RAJA::seq_reduce;
+#endif
+
+//-----------------------------------------------------------------------------
 template <typename ExecPolicyTag, typename Kernel>
 inline void
 forall_exec(ExecPolicyTag,
@@ -167,27 +180,27 @@ atomic_max_exec(T *acc, T value)
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// Reducers are typed on the execution tag so the selected backend is concrete
-// before the reducer is captured into a forall kernel. Each reducer extracts
-// ExecPolicyTag::reduce_policy internally so call sites stay at the Exec level.
-template <typename ExecPolicyTag, typename T>
-using ReduceSum = RAJA::ReduceSum<typename ExecPolicyTag::reduce_policy, T>;
+// Reducers no longer expose execution-tag selection at the API surface. Their
+// implementation backend is chosen from translation-unit capability so users
+// can use them directly inside forall(policy, ...) kernels.
+template <typename T>
+using ReduceSum = RAJA::ReduceSum<detail::DefaultReducePolicy, T>;
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
-using ReduceMin = RAJA::ReduceMin<typename ExecPolicyTag::reduce_policy, T>;
+template <typename T>
+using ReduceMin = RAJA::ReduceMin<detail::DefaultReducePolicy, T>;
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
-using ReduceMinLoc = RAJA::ReduceMinLoc<typename ExecPolicyTag::reduce_policy, T>;
+template <typename T>
+using ReduceMinLoc = RAJA::ReduceMinLoc<detail::DefaultReducePolicy, T>;
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
-using ReduceMax = RAJA::ReduceMax<typename ExecPolicyTag::reduce_policy, T>;
+template <typename T>
+using ReduceMax = RAJA::ReduceMax<detail::DefaultReducePolicy, T>;
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
-using ReduceMaxLoc = RAJA::ReduceMaxLoc<typename ExecPolicyTag::reduce_policy, T>;
+template <typename T>
+using ReduceMaxLoc = RAJA::ReduceMaxLoc<detail::DefaultReducePolicy, T>;
 
 //---------------------------------------------------------------------------//
 #else
@@ -314,12 +327,9 @@ atomic_max_exec(T *acc, T value)
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// Reducers are typed on the execution tag so the selected backend is concrete
-// before the reducer is captured into a forall kernel. Each reducer extracts
-// ExecPolicyTag::reduce_policy internally so call sites stay at the Exec level.
-
-//-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
+// Reducers stay runtime-neutral here too so the RAJA-on and RAJA-off APIs
+// match. The host fallback implementation does not need an execution tag.
+template <typename T>
 class ReduceSum
 {
 public:
@@ -365,7 +375,7 @@ private:
 };
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
+template <typename T>
 class ReduceMin
 {
 public:
@@ -408,7 +418,7 @@ private:
 };
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
+template <typename T>
 class ReduceMinLoc
 {
 public:
@@ -466,7 +476,7 @@ private:
 };
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
+template <typename T>
 class ReduceMax
 {
 public:
@@ -509,7 +519,7 @@ private:
 };
 
 //-----------------------------------------------------------------------------
-template <typename ExecPolicyTag, typename T>
+template <typename T>
 class ReduceMaxLoc
 {
 public:

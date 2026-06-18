@@ -16,7 +16,6 @@
 
 #include <cstdlib>
 #include <iostream>
-#include <type_traits>
 #include <vector>
 #include "gtest/gtest.h"
 
@@ -424,82 +423,62 @@ TEST(conduit_execution, test_reductions)
                                               sizeof(index_t) * size);
 
         index_t sum_result = 0;
-        conduit::execution::dispatch(policy, [&](auto exec)
+        conduit::execution::ReduceSum<index_t> sum_reducer(0);
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
         {
-            using Exec = decltype(exec);
-            conduit::execution::ReduceSum<Exec, index_t> sum_reducer(0);
-            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
-            {
-                sum_reducer += vals_ptr[i];
-            });
-            CONDUIT_DEVICE_ERROR_CHECK(policy);
-            sum_result = sum_reducer.get();
+            sum_reducer += vals_ptr[i];
         });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        sum_result = sum_reducer.get();
         EXPECT_EQ(sum_result, 5);
 
         index_t min_result = 0;
-        conduit::execution::dispatch(policy, [&](auto exec)
+        conduit::execution::ReduceMin<index_t>
+            min_reducer(std::numeric_limits<index_t>::max());
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
         {
-            using Exec = decltype(exec);
-            conduit::execution::ReduceMin<Exec, index_t>
-                min_reducer(std::numeric_limits<index_t>::max());
-            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
-            {
-                min_reducer.min(vals_ptr[i]);
-            });
-            CONDUIT_DEVICE_ERROR_CHECK(policy);
-            min_result = min_reducer.get();
+            min_reducer.min(vals_ptr[i]);
         });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        min_result = min_reducer.get();
         EXPECT_EQ(min_result, -10);
 
         index_t minloc_result = 0;
         index_t minloc_index = -1;
-        conduit::execution::dispatch(policy, [&](auto exec)
+        conduit::execution::ReduceMinLoc<index_t>
+            minloc_reducer(std::numeric_limits<index_t>::max(), -1);
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
         {
-            using Exec = decltype(exec);
-            conduit::execution::ReduceMinLoc<Exec, index_t>
-                minloc_reducer(std::numeric_limits<index_t>::max(), -1);
-            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
-            {
-                minloc_reducer.minloc(vals_ptr[i], i);
-            });
-            CONDUIT_DEVICE_ERROR_CHECK(policy);
-            minloc_result = minloc_reducer.get();
-            minloc_index = minloc_reducer.getLoc();
+            minloc_reducer.minloc(vals_ptr[i], i);
         });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        minloc_result = minloc_reducer.get();
+        minloc_index = minloc_reducer.getLoc();
         EXPECT_EQ(minloc_result, -10);
         EXPECT_EQ(minloc_index, 1);
 
         index_t max_result = 0;
-        conduit::execution::dispatch(policy, [&](auto exec)
+        conduit::execution::ReduceMax<index_t>
+            max_reducer(std::numeric_limits<index_t>::lowest());
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
         {
-            using Exec = decltype(exec);
-            conduit::execution::ReduceMax<Exec, index_t>
-                max_reducer(std::numeric_limits<index_t>::lowest());
-            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
-            {
-                max_reducer.max(vals_ptr[i]);
-            });
-            CONDUIT_DEVICE_ERROR_CHECK(policy);
-            max_result = max_reducer.get();
+            max_reducer.max(vals_ptr[i]);
         });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        max_result = max_reducer.get();
         EXPECT_EQ(max_result, 10);
 
         index_t maxloc_result = 0;
         index_t maxloc_index = -1;
-        conduit::execution::dispatch(policy, [&](auto exec)
+        conduit::execution::ReduceMaxLoc<index_t>
+            maxloc_reducer(std::numeric_limits<index_t>::lowest(), -1);
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
         {
-            using Exec = decltype(exec);
-            conduit::execution::ReduceMaxLoc<Exec, index_t>
-                maxloc_reducer(std::numeric_limits<index_t>::lowest(), -1);
-            conduit::execution::forall<Exec>(0, size, [=] CONDUIT_EXEC(index_t i)
-            {
-                maxloc_reducer.maxloc(vals_ptr[i], i);
-            });
-            CONDUIT_DEVICE_ERROR_CHECK(policy);
-            maxloc_result = maxloc_reducer.get();
-            maxloc_index = maxloc_reducer.getLoc();
+            maxloc_reducer.maxloc(vals_ptr[i], i);
         });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+        maxloc_result = maxloc_reducer.get();
+        maxloc_index = maxloc_reducer.getLoc();
         EXPECT_EQ(maxloc_result, 10);
         EXPECT_EQ(maxloc_index, 2);
 
@@ -881,8 +860,9 @@ TEST(conduit_execution, strawman_data_accessor)
             }
 
             //----------------------------------------------------------
-            // DataAccessor dispatch lambda
-            // Run with an explicit execution policy and call sync().
+            // DataAccessor reducer lambda
+            // Run with an explicit execution policy, reduce directly inside
+            // forall(policy, ...), and call sync().
             // node["des"] is then synced back to where it started.
             //----------------------------------------------------------
             for (const std::string &policy_str : policies)
@@ -896,7 +876,7 @@ TEST(conduit_execution, strawman_data_accessor)
                 exec_opts["execution_policy"].set(policy_str);
                 conduit::execution::execution_set_options(exec_opts);
 
-                CONDUIT_INFO("DataAccessor dispatch() lambda:\n" <<
+                CONDUIT_INFO("DataAccessor reducer lambda:\n" <<
                              "    policy="    << policy_str << "\n" <<
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
@@ -927,7 +907,7 @@ TEST(conduit_execution, strawman_data_accessor)
                 annotations::initialize(cali_opts);
 
                 float64 min_val; index_t min_loc;
-                run_data_accessor_dispatch_and_sync(node, policy, min_val, min_loc);
+                run_data_accessor_reduce_lambda_and_sync(node, policy, min_val, min_loc);
 
                 annotations::finalize();
 
@@ -966,91 +946,6 @@ TEST(conduit_execution, strawman_data_accessor)
                 node.reset();
             }
 
-            //----------------------------------------------------------
-            // DataAccessor dispatch functor
-            // Run with an explicit execution policy and call sync().
-            // node["des"] is then synced back to where it started.
-            //----------------------------------------------------------
-            for (const std::string &policy_str : policies)
-            {
-                if (policy_str == "device" && ! ExecutionPolicy::is_device_enabled())
-                {
-                    continue;
-                }
-
-                Node exec_opts;
-                exec_opts["execution_policy"].set(policy_str);
-                conduit::execution::execution_set_options(exec_opts);
-
-                CONDUIT_INFO("DataAccessor dispatch() functor:\n" <<
-                             "    policy="    << policy_str << "\n" <<
-                             "    src_start=" << src_start << "\n" <<
-                             "    des_start=" << des_start);
-
-                ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
-                if (src_start == "host")
-                {
-                    node["src"].set_allocator(conduit::execution::get_host_allocator_id());
-                }
-                else
-                {
-                    node["src"].set_allocator(conduit::execution::get_device_allocator_id());
-                }
-                if (des_start == "host")
-                {
-                    node["des"].set_allocator(conduit::execution::get_host_allocator_id());
-                }
-                else
-                {
-                    node["des"].set_allocator(conduit::execution::get_device_allocator_id());
-                }
-                node["src"].set(src_vals);
-                node["des"].set(des_vals);
-
-                Node cali_opts;
-                cali_opts["config"] = "runtime-report";
-                annotations::initialize(cali_opts);
-
-                float64 min_val; index_t min_loc;
-                run_data_accessor_dispatch_functor_and_sync(node, policy, min_val, min_loc);
-
-                annotations::finalize();
-
-                EXPECT_EQ(min_val, 2.0);
-                EXPECT_EQ(min_loc, 0);
-
-                // src data will never change from where it started
-                if (src_start == "host")
-                {
-                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-                }
-                else
-                {
-                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-                }
-                // des data is sync'd back to where it started
-                if (des_start == "host")
-                {
-                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-                }
-                else
-                {
-                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-                }
-
-                float64_accessor result_acc(node["des"]);
-                // Verification runs on the host, so use a host execution policy
-                // in case node["des"] still owns device-backed data here.
-                result_acc.use_with(ExecutionPolicy::host());
-                EXPECT_EQ(result_acc.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
-                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
-                {
-                    EXPECT_EQ(result_acc[i], 2.0 * static_cast<float64>(i + 1));
-                }
-
-                node.reset();
-            }
         }
     }
 }
@@ -1320,8 +1215,9 @@ TEST(conduit_execution, strawman_data_array)
             }
 
             //----------------------------------------------------------
-            // DataArray dispatch lambda
-            // Run with an explicit execution policy and call sync().
+            // DataArray reducer lambda
+            // Run with an explicit execution policy, reduce directly inside
+            // forall(policy, ...), and call sync().
             // node["des"] is then synced back to where it started.
             //----------------------------------------------------------
             for (const std::string &policy_str : policies)
@@ -1335,7 +1231,7 @@ TEST(conduit_execution, strawman_data_array)
                 exec_opts["execution_policy"].set(policy_str);
                 conduit::execution::execution_set_options(exec_opts);
 
-                CONDUIT_INFO("DataArray dispatch() lambda:\n" <<
+                CONDUIT_INFO("DataArray reducer lambda:\n" <<
                              "    policy="    << policy_str << "\n" <<
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
@@ -1366,7 +1262,7 @@ TEST(conduit_execution, strawman_data_array)
                 annotations::initialize(cali_opts);
 
                 float64 min_val; index_t min_loc;
-                run_data_array_dispatch_and_sync(node, policy, min_val, min_loc);
+                run_data_array_reduce_lambda_and_sync(node, policy, min_val, min_loc);
 
                 annotations::finalize();
 
@@ -1406,92 +1302,6 @@ TEST(conduit_execution, strawman_data_array)
                 node.reset();
             }
 
-            //----------------------------------------------------------
-            // DataArray dispatch functor
-            // Run with an explicit execution policy and call sync().
-            // node["des"] is then synced back to where it started.
-            //----------------------------------------------------------
-            for (const std::string &policy_str : policies)
-            {
-                if (policy_str == "device" && ! ExecutionPolicy::is_device_enabled())
-                {
-                    continue;
-                }
-
-                Node exec_opts;
-                exec_opts["execution_policy"].set(policy_str);
-                conduit::execution::execution_set_options(exec_opts);
-
-                CONDUIT_INFO("DataArray dispatch() functor:\n" <<
-                             "    policy="    << policy_str << "\n" <<
-                             "    src_start=" << src_start << "\n" <<
-                             "    des_start=" << des_start);
-
-                ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
-                if (src_start == "host")
-                {
-                    node["src"].set_allocator(conduit::execution::get_host_allocator_id());
-                }
-                else
-                {
-                    node["src"].set_allocator(conduit::execution::get_device_allocator_id());
-                }
-                if (des_start == "host")
-                {
-                    node["des"].set_allocator(conduit::execution::get_host_allocator_id());
-                }
-                else
-                {
-                    node["des"].set_allocator(conduit::execution::get_device_allocator_id());
-                }
-                node["src"].set(src_vals);
-                node["des"].set(des_vals);
-
-                Node cali_opts;
-                cali_opts["config"] = "runtime-report";
-                annotations::initialize(cali_opts);
-
-                float64 min_val; index_t min_loc;
-                run_data_array_dispatch_functor_and_sync(node, policy, min_val, min_loc);
-
-                annotations::finalize();
-
-                EXPECT_EQ(min_val, 2.0);
-                EXPECT_EQ(min_loc, 0);
-
-                // src data will never change from where it started
-                if (src_start == "host")
-                {
-                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-                }
-                else
-                {
-                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["src"].data_ptr()));
-                }
-                // des data is sync'd back to where it started
-                if (des_start == "host")
-                {
-                    EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-                }
-                else
-                {
-                    EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(node["des"].data_ptr()));
-                }
-
-
-                float64_array result_arr(node["des"]);
-                // Verification runs on the host, so use a host execution policy
-                // in case node["des"] still owns device-backed data here.
-                result_arr.use_with(ExecutionPolicy::host());
-                EXPECT_EQ(result_arr.number_of_elements(), EXECUTION_TEST_ARRAY_SIZE);
-                for (index_t i = 0; i < EXECUTION_TEST_ARRAY_SIZE; i ++)
-                {
-                    EXPECT_EQ(result_arr[i], 2.0 * static_cast<float64>(i + 1));
-                }
-
-                node.reset();
-            }
         }
     }
 }
