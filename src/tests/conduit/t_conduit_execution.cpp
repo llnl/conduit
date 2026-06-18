@@ -92,9 +92,14 @@ TEST(conduit_execution, execution_settings)
     // container for opts whenever we fetch them
     Node get_opts;
 
+#if defined(CONDUIT_USE_DEVICE)
     // if new allocators are added earlier, then these values could change
     const index_t DEVICE_ALLOC_ID = 1;
     const index_t HOST_ALLOC_ID = 2;
+#else
+    const index_t DEVICE_ALLOC_ID = -1;
+    const index_t HOST_ALLOC_ID = 0;
+#endif
 
     // put nodes on host and device
     Node host_data, device_data;
@@ -108,7 +113,7 @@ TEST(conduit_execution, execution_settings)
         const index_t host_alloc_id = execution::get_host_allocator_id();
         const index_t device_alloc_id = execution::get_device_allocator_id();
         host_data.set_allocator(host_alloc_id);
-        device_data.set_allocator(device_alloc_id);    
+        device_data.set_allocator(device_alloc_id);
         const std::vector<float64> src_vals = make_execution_src_vals(EXECUTION_TEST_ARRAY_SIZE);
         host_data.set(src_vals);
         device_data.set(src_vals);
@@ -122,8 +127,6 @@ TEST(conduit_execution, execution_settings)
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(device_data.data_ptr()));
     }
 
-
-    
     // ------------------------------
     //
     // test default settings
@@ -132,12 +135,14 @@ TEST(conduit_execution, execution_settings)
     {
         Node default_opts;
         execution::execution_options(default_opts);
-        EXPECT_TRUE(default_opts.has_child("execution_policy"));
-        EXPECT_EQ(default_opts["execution_policy"].as_string(), "input_location");
-        EXPECT_TRUE(default_opts.has_child("output_allocator"));
-        EXPECT_EQ(default_opts["output_allocator"].as_string(), "input_allocator");
+        EXPECT_TRUE(default_opts.has_child("execution_location"));
+        EXPECT_EQ(default_opts["execution_location"].as_string(), "input");
+        EXPECT_TRUE(default_opts.has_child("output_location"));
+        EXPECT_EQ(default_opts["output_location"].as_string(), "input");
         EXPECT_TRUE(default_opts.has_child("sync_strategy"));
         EXPECT_EQ(default_opts["sync_strategy"].as_string(), "assume");
+        EXPECT_TRUE(default_opts.has_child("fallback_location"));
+        EXPECT_EQ(default_opts["fallback_location"].as_string(), "host");
         EXPECT_TRUE(default_opts.has_child("device_allocator"));
         EXPECT_EQ(default_opts["device_allocator"].as_index_t(), DEVICE_ALLOC_ID);
         EXPECT_TRUE(default_opts.has_child("host_allocator"));
@@ -156,7 +161,7 @@ TEST(conduit_execution, execution_settings)
     // test bad execution policy
     {
         Node exec_opts;
-        exec_opts["execution_policy"] = "banana";
+        exec_opts["execution_location"] = "banana";
         EXPECT_THROW(execution::execution_set_options(exec_opts),
                      conduit::Error);
         execution::reset_execution_options();
@@ -165,7 +170,7 @@ TEST(conduit_execution, execution_settings)
     // test host exec policy
     {
         Node exec_opts;
-        exec_opts["execution_policy"] = "host";
+        exec_opts["execution_location"] = "host";
         execution::execution_set_options(exec_opts);
         execution::execution_options(get_opts);
         execution::ExecutionPolicy default_policy = execution::get_execution_policy();
@@ -174,15 +179,15 @@ TEST(conduit_execution, execution_settings)
         EXPECT_TRUE(default_policy.is_host_policy());
         EXPECT_TRUE(host_supplied_policy.is_host_policy());
         EXPECT_TRUE(device_supplied_policy.is_host_policy());
-        EXPECT_TRUE(get_opts.has_child("execution_policy"));
-        EXPECT_EQ(get_opts["execution_policy"].as_string(), "host");
+        EXPECT_TRUE(get_opts.has_child("execution_location"));
+        EXPECT_EQ(get_opts["execution_location"].as_string(), "host");
         execution::reset_execution_options();
     }
 
     // test device exec policy
     {
         Node exec_opts;
-        exec_opts["execution_policy"] = "device";
+        exec_opts["execution_location"] = "device";
         execution::execution_set_options(exec_opts);
         execution::execution_options(get_opts);
         execution::ExecutionPolicy default_policy = execution::get_execution_policy();
@@ -191,24 +196,48 @@ TEST(conduit_execution, execution_settings)
         EXPECT_TRUE(default_policy.is_device_policy());
         EXPECT_TRUE(host_supplied_policy.is_device_policy());
         EXPECT_TRUE(device_supplied_policy.is_device_policy());
-        EXPECT_TRUE(get_opts.has_child("execution_policy"));
-        EXPECT_EQ(get_opts["execution_policy"].as_string(), "device");
+        EXPECT_TRUE(get_opts.has_child("execution_location"));
+        EXPECT_EQ(get_opts["execution_location"].as_string(), "device");
         execution::reset_execution_options();
     }
 
-    // test input_location exec policy
+    // test input exec policy & w/ host fallback
     {
         Node exec_opts;
-        exec_opts["execution_policy"] = "input_location";
+        exec_opts["execution_location"] = "input";
+        exec_opts["fallback_location"] = "host";
         execution::execution_set_options(exec_opts);
         execution::execution_options(get_opts);
-        EXPECT_THROW(execution::get_execution_policy(), conduit::Error);
+        execution::ExecutionPolicy fallback_policy = execution::get_execution_policy();
         execution::ExecutionPolicy host_supplied_policy = execution::get_execution_policy(host_data);
         execution::ExecutionPolicy device_supplied_policy = execution::get_execution_policy(device_data);
+        EXPECT_TRUE(fallback_policy.is_host_policy());
         EXPECT_TRUE(host_supplied_policy.is_host_policy());
         EXPECT_TRUE(device_supplied_policy.is_device_policy());
-        EXPECT_TRUE(get_opts.has_child("execution_policy"));
-        EXPECT_EQ(get_opts["execution_policy"].as_string(), "input_location");
+        EXPECT_TRUE(get_opts.has_child("execution_location"));
+        EXPECT_EQ(get_opts["execution_location"].as_string(), "input");
+        EXPECT_TRUE(get_opts.has_child("fallback_location"));
+        EXPECT_EQ(get_opts["fallback_location"].as_string(), "host");
+        execution::reset_execution_options();
+    }
+
+    // test input exec policy & w/ device fallback
+    {
+        Node exec_opts;
+        exec_opts["execution_location"] = "input";
+        exec_opts["fallback_location"] = "device";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        execution::ExecutionPolicy fallback_policy = execution::get_execution_policy();
+        execution::ExecutionPolicy host_supplied_policy = execution::get_execution_policy(host_data);
+        execution::ExecutionPolicy device_supplied_policy = execution::get_execution_policy(device_data);
+        EXPECT_TRUE(fallback_policy.is_device_policy());
+        EXPECT_TRUE(host_supplied_policy.is_host_policy());
+        EXPECT_TRUE(device_supplied_policy.is_device_policy());
+        EXPECT_TRUE(get_opts.has_child("execution_location"));
+        EXPECT_EQ(get_opts["execution_location"].as_string(), "input");
+        EXPECT_TRUE(get_opts.has_child("fallback_location"));
+        EXPECT_EQ(get_opts["fallback_location"].as_string(), "device");
         execution::reset_execution_options();
     }
 
@@ -221,7 +250,7 @@ TEST(conduit_execution, execution_settings)
     // test bad output allocator
     {
         Node exec_opts;
-        exec_opts["output_allocator"] = "banana";
+        exec_opts["output_location"] = "banana";
         EXPECT_THROW(execution::execution_set_options(exec_opts),
                      conduit::Error);
         execution::reset_execution_options();
@@ -230,7 +259,7 @@ TEST(conduit_execution, execution_settings)
     // test host output allocator
     {
         Node exec_opts;
-        exec_opts["output_allocator"] = "host";
+        exec_opts["output_location"] = "host";
         execution::execution_set_options(exec_opts);
         execution::execution_options(get_opts);
         index_t default_alloc_id = execution::get_output_allocator_id();
@@ -239,15 +268,15 @@ TEST(conduit_execution, execution_settings)
         EXPECT_EQ(default_alloc_id, HOST_ALLOC_ID);
         EXPECT_EQ(host_supplied_alloc_id, HOST_ALLOC_ID);
         EXPECT_EQ(device_supplied_alloc_id, HOST_ALLOC_ID);
-        EXPECT_TRUE(get_opts.has_child("output_allocator"));
-        EXPECT_EQ(get_opts["output_allocator"].as_string(), "host");
+        EXPECT_TRUE(get_opts.has_child("output_location"));
+        EXPECT_EQ(get_opts["output_location"].as_string(), "host");
         execution::reset_execution_options();
     }
 
     // test device output allocator
     {
         Node exec_opts;
-        exec_opts["output_allocator"] = "device";
+        exec_opts["output_location"] = "device";
         execution::execution_set_options(exec_opts);
         execution::execution_options(get_opts);
         index_t default_alloc_id = execution::get_output_allocator_id();
@@ -256,31 +285,55 @@ TEST(conduit_execution, execution_settings)
         EXPECT_EQ(default_alloc_id, DEVICE_ALLOC_ID);
         EXPECT_EQ(host_supplied_alloc_id, DEVICE_ALLOC_ID);
         EXPECT_EQ(device_supplied_alloc_id, DEVICE_ALLOC_ID);
-        EXPECT_TRUE(get_opts.has_child("output_allocator"));
-        EXPECT_EQ(get_opts["output_allocator"].as_string(), "device");
+        EXPECT_TRUE(get_opts.has_child("output_location"));
+        EXPECT_EQ(get_opts["output_location"].as_string(), "device");
         execution::reset_execution_options();
     }
 
-    // test input_allocator output allocator
+    // test input output allocator & w/ host fallback
     {
         Node exec_opts;
-        exec_opts["output_allocator"] = "input_allocator";
+        exec_opts["output_location"] = "input";
+        exec_opts["fallback_location"] = "host";
         execution::execution_set_options(exec_opts);
         execution::execution_options(get_opts);
-        EXPECT_THROW(execution::get_output_allocator_id(), conduit::Error);
+        index_t fallback_alloc_id = execution::get_output_allocator_id();
         index_t host_supplied_alloc_id = execution::get_output_allocator_id(host_data);
         index_t device_supplied_alloc_id = execution::get_output_allocator_id(device_data);
+        EXPECT_EQ(fallback_alloc_id, HOST_ALLOC_ID);
         EXPECT_EQ(host_supplied_alloc_id, HOST_ALLOC_ID);
         EXPECT_EQ(device_supplied_alloc_id, DEVICE_ALLOC_ID);
-        EXPECT_TRUE(get_opts.has_child("output_allocator"));
-        EXPECT_EQ(get_opts["output_allocator"].as_string(), "input_allocator");
+        EXPECT_TRUE(get_opts.has_child("output_location"));
+        EXPECT_EQ(get_opts["output_location"].as_string(), "input");
+        EXPECT_TRUE(get_opts.has_child("fallback_location"));
+        EXPECT_EQ(get_opts["fallback_location"].as_string(), "host");
+        execution::reset_execution_options();
+    }
+
+    // test input output allocator & w/ device fallback
+    {
+        Node exec_opts;
+        exec_opts["output_location"] = "input";
+        exec_opts["fallback_location"] = "device";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        index_t fallback_alloc_id = execution::get_output_allocator_id();
+        index_t host_supplied_alloc_id = execution::get_output_allocator_id(host_data);
+        index_t device_supplied_alloc_id = execution::get_output_allocator_id(device_data);
+        EXPECT_EQ(fallback_alloc_id, DEVICE_ALLOC_ID);
+        EXPECT_EQ(host_supplied_alloc_id, HOST_ALLOC_ID);
+        EXPECT_EQ(device_supplied_alloc_id, DEVICE_ALLOC_ID);
+        EXPECT_TRUE(get_opts.has_child("output_location"));
+        EXPECT_EQ(get_opts["output_location"].as_string(), "input");
+        EXPECT_TRUE(get_opts.has_child("fallback_location"));
+        EXPECT_EQ(get_opts["fallback_location"].as_string(), "device");
         execution::reset_execution_options();
     }
 
     // test user_provided output allocator
     {
         Node exec_opts;
-        exec_opts["output_allocator"] = 12345;
+        exec_opts["output_location"] = 12345;
         execution::execution_set_options(exec_opts);
         execution::execution_options(get_opts);
         index_t default_alloc_id = execution::get_output_allocator_id();
@@ -289,8 +342,8 @@ TEST(conduit_execution, execution_settings)
         EXPECT_EQ(default_alloc_id, 12345);
         EXPECT_EQ(host_supplied_alloc_id, 12345);
         EXPECT_EQ(device_supplied_alloc_id, 12345);
-        EXPECT_TRUE(get_opts.has_child("output_allocator"));
-        EXPECT_EQ(get_opts["output_allocator"].as_string(), "user_provided");
+        EXPECT_TRUE(get_opts.has_child("output_location"));
+        EXPECT_EQ(get_opts["output_location"].as_string(), "user_provided");
         execution::reset_execution_options();
     }
 
@@ -352,13 +405,13 @@ TEST(conduit_execution, test_forall)
         index_t *vals_ptr = nullptr;
         if (policy.is_device_policy())
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::DeviceMemory::allocate(sizeof(index_t) * size));
         }
         else
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::HostMemory::allocate(sizeof(index_t) * size));
         }
@@ -407,13 +460,13 @@ TEST(conduit_execution, test_reductions)
         index_t *vals_ptr = nullptr;
         if (policy.is_device_policy())
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::DeviceMemory::allocate(sizeof(index_t) * size));
         }
         else
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::HostMemory::allocate(sizeof(index_t) * size));
         }
@@ -511,13 +564,13 @@ TEST(conduit_execution, test_atomics)
         index_t *vals_ptr = nullptr;
         if (policy.is_device_policy())
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::DeviceMemory::allocate(sizeof(index_t) * size));
         }
         else
         {
-            vals_ptr = 
+            vals_ptr =
                 static_cast<index_t *>(
                     execution::HostMemory::allocate(sizeof(index_t) * size));
         }
@@ -605,6 +658,10 @@ TEST(conduit_execution, strawman_data_accessor)
 
     // our main loop iterates over these items
     // comment out specific entries to test a specific combination
+    // TODO: This crashes if RAJA is built without CUDA or HIP because the
+    // Umpire "DEVICE" allocator is unavailable when "device" src/des locations
+    // are used. The "device" entries should be skipped when device memory is
+    // not available.
     const std::vector<std::string> src_locations = {"host", "device"};
     const std::vector<std::string> des_locations = {"host", "device"};
     const std::vector<std::string> policies      = {"host", "device"};
@@ -626,7 +683,7 @@ TEST(conduit_execution, strawman_data_accessor)
                 }
 
                 Node exec_opts;
-                exec_opts["execution_policy"].set(policy_str);
+                exec_opts["execution_location"].set(policy_str);
                 conduit::execution::execution_set_options(exec_opts);
 
                 CONDUIT_INFO("DataAccessor sync():\n" <<
@@ -635,7 +692,7 @@ TEST(conduit_execution, strawman_data_accessor)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -708,7 +765,7 @@ TEST(conduit_execution, strawman_data_accessor)
                 }
 
                 Node exec_opts;
-                exec_opts["execution_policy"].set(policy_str);
+                exec_opts["execution_location"].set(policy_str);
                 conduit::execution::execution_set_options(exec_opts);
 
                 CONDUIT_INFO("DataAccessor assume():\n" <<
@@ -717,7 +774,7 @@ TEST(conduit_execution, strawman_data_accessor)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -789,7 +846,7 @@ TEST(conduit_execution, strawman_data_accessor)
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
 
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -873,7 +930,7 @@ TEST(conduit_execution, strawman_data_accessor)
                 }
 
                 Node exec_opts;
-                exec_opts["execution_policy"].set(policy_str);
+                exec_opts["execution_location"].set(policy_str);
                 conduit::execution::execution_set_options(exec_opts);
 
                 CONDUIT_INFO("DataAccessor reducer lambda:\n" <<
@@ -882,7 +939,7 @@ TEST(conduit_execution, strawman_data_accessor)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -945,7 +1002,6 @@ TEST(conduit_execution, strawman_data_accessor)
 
                 node.reset();
             }
-
         }
     }
 }
@@ -960,6 +1016,10 @@ TEST(conduit_execution, strawman_data_array)
 
     // our main loop iterates over these items
     // comment out specific entries to test a specific combination
+    // TODO: This crashes if RAJA is built without CUDA or HIP because the
+    // Umpire "DEVICE" allocator is unavailable when "device" src/des locations
+    // are used. The "device" entries should be skipped when device memory is
+    // not available.
     const std::vector<std::string> src_locations = {"host", "device"};
     const std::vector<std::string> des_locations = {"host", "device"};
     const std::vector<std::string> policies      = {"host", "device"};
@@ -981,7 +1041,7 @@ TEST(conduit_execution, strawman_data_array)
                 }
 
                 Node exec_opts;
-                exec_opts["execution_policy"].set(policy_str);
+                exec_opts["execution_location"].set(policy_str);
                 conduit::execution::execution_set_options(exec_opts);
 
                 CONDUIT_INFO("DataArray sync():\n" <<
@@ -990,7 +1050,7 @@ TEST(conduit_execution, strawman_data_array)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -1063,7 +1123,7 @@ TEST(conduit_execution, strawman_data_array)
                 }
 
                 Node exec_opts;
-                exec_opts["execution_policy"].set(policy_str);
+                exec_opts["execution_location"].set(policy_str);
                 conduit::execution::execution_set_options(exec_opts);
 
                 CONDUIT_INFO("DataArray assume():\n" <<
@@ -1072,7 +1132,7 @@ TEST(conduit_execution, strawman_data_array)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -1144,7 +1204,7 @@ TEST(conduit_execution, strawman_data_array)
                              "    src_start=" << src_start << "\n" <<
                              "    des_start=" << des_start);
 
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -1228,7 +1288,7 @@ TEST(conduit_execution, strawman_data_array)
                 }
 
                 Node exec_opts;
-                exec_opts["execution_policy"].set(policy_str);
+                exec_opts["execution_location"].set(policy_str);
                 conduit::execution::execution_set_options(exec_opts);
 
                 CONDUIT_INFO("DataArray reducer lambda:\n" <<
@@ -1237,7 +1297,7 @@ TEST(conduit_execution, strawman_data_array)
                              "    des_start=" << des_start);
 
                 ExecutionPolicy policy = conduit::execution::get_execution_policy();
-                Node node;                
+                Node node;
                 if (src_start == "host")
                 {
                     node["src"].set_allocator(conduit::execution::get_host_allocator_id());
@@ -1301,9 +1361,118 @@ TEST(conduit_execution, strawman_data_array)
 
                 node.reset();
             }
-
         }
     }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, test_sort_ascending)
+{
+    conduit_device_prepare();
+    for_each_enabled_policy([](ExecutionPolicy policy)
+    {
+        CONDUIT_INFO("test_sort_ascending policy=" << policy.policy_name());
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+
+        const index_t size = EXECUTION_TEST_ARRAY_SIZE;
+
+        index_t *vals_ptr = nullptr;
+        if (policy.is_device_policy())
+        {
+            vals_ptr = static_cast<index_t *>(execution::DeviceMemory::allocate(sizeof(index_t) * size));
+        }
+        else // if (!policy.is_device_policy())
+        {
+            vals_ptr = static_cast<index_t *>(execution::HostMemory::allocate(sizeof(index_t) * size));
+        }
+
+        // Fill the array with descending numbers
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+        {
+            vals_ptr[i] = size - 1 - i;
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        conduit::execution::sort_ascending(policy, vals_ptr, vals_ptr + size);
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        std::vector<index_t> host_vals(size);
+        conduit::execution::MagicMemory::copy(host_vals.data(), vals_ptr, sizeof(index_t) * size);
+
+        // Validate that the array is sorted in ascending order
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(host_vals[i], i);
+        }
+
+        if (policy.is_device_policy())
+        {
+            execution::DeviceMemory::deallocate(vals_ptr);
+        }
+        else // if (!policy.is_device_policy())
+        {
+            execution::HostMemory::deallocate(vals_ptr);
+        }
+
+        annotations::finalize();
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, test_sort_descending)
+{
+    conduit_device_prepare();
+    for_each_enabled_policy([](ExecutionPolicy policy)
+    {
+        CONDUIT_INFO("test_sort_descending policy=" << policy.policy_name());
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+
+        const index_t size = EXECUTION_TEST_ARRAY_SIZE;
+
+        index_t *vals_ptr = nullptr;
+        if (policy.is_device_policy())
+        {
+            vals_ptr = static_cast<index_t *>(execution::DeviceMemory::allocate(sizeof(index_t) * size));
+        }
+        else // if (!policy.is_device_policy())
+        {
+            vals_ptr = static_cast<index_t *>(execution::HostMemory::allocate(sizeof(index_t) * size));
+        }
+
+        // Fill the array with ascending numbers
+        conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+        {
+            vals_ptr[i] = i;
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        conduit::execution::sort_descending(policy, vals_ptr, vals_ptr + size);
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        std::vector<index_t> host_vals(size);
+        conduit::execution::MagicMemory::copy(host_vals.data(), vals_ptr, sizeof(index_t) * size);
+
+        // Validate that the array is sorted in descending order
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(host_vals[i], size - 1 - i);
+        }
+
+        if (policy.is_device_policy())
+        {
+            execution::DeviceMemory::deallocate(vals_ptr);
+        }
+        else // if (!policy.is_device_policy())
+        {
+            execution::HostMemory::deallocate(vals_ptr);
+        }
+
+        annotations::finalize();
+    });
 }
 
 //-----------------------------------------------------------------------------
