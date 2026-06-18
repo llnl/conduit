@@ -4,7 +4,7 @@
 
 //-----------------------------------------------------------------------------
 ///
-/// file: TODO.cpp
+/// file: t_blueprint_mesh_execution.cpp
 ///
 //-----------------------------------------------------------------------------
 
@@ -19,29 +19,44 @@
 using namespace conduit;
 
 //-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_transform, coordset_transforms)
+TEST(conduit_blueprint_mesh_transform, uniform_to_rect)
 {
-    Node exec_opts;
-    exec_opts["execution_policy"] = "host";
-    exec_opts["output_allocator"] = "host";
-    exec_opts["sync_strategy"] = "sync";
-    execution::execution_set_options(exec_opts);
-
+    // create example mesh
     Node mesh;
     blueprint::mesh::examples::braid("uniform", 100, 100, 100, mesh);
-
-    Node cali_opts;
-    cali_opts["config"] = "runtime-report";
-    annotations::initialize(cali_opts);
-
     const Node &uniform_coords = mesh["coordsets"]["coords"];
-    Node rect_coords;
-    blueprint::mesh::coordset::uniform::to_rectilinear(uniform_coords, rect_coords);
 
-    annotations::finalize();
-
-    Node info;
-    EXPECT_TRUE(blueprint::mesh::coordset::rectilinear::verify(rect_coords, info));
+    // create baseline result for correctness checking
+    Node baseline;
+    blueprint::mesh::examples::braid("rectilinear", 100, 100, 100, baseline);
     
-    // EXPECT_FALSE(rect_coords.diff(TODO, info));
+    Node exec_opts;
+    // for each choice in the matrix of choices...
+    {
+        // set execution options
+        exec_opts["execution_location"] = "host";
+        exec_opts["output_location"] = "host";
+        exec_opts["sync_strategy"] = "sync";
+        exec_opts["fallback_location"] = "host";
+        execution::execution_set_options(exec_opts);
+
+        // start timing
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+
+        // perform transform
+        Node rect_coords;
+        blueprint::mesh::coordset::uniform::to_rectilinear(uniform_coords, rect_coords);
+    
+        // end timing
+        annotations::finalize();
+
+        // verification check
+        Node info;
+        EXPECT_TRUE(blueprint::mesh::coordset::rectilinear::verify(rect_coords, info));
+        
+        // quick correctness check
+        EXPECT_FALSE(rect_coords.diff(baseline["coordsets"]["coords"], info));
+    }
 }
