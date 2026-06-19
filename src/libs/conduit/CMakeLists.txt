@@ -50,6 +50,7 @@ set(conduit_headers
     conduit_data_type.hpp
     conduit_endianness.hpp
     conduit_execution.hpp
+    conduit_execution_macros.hpp
     conduit_execution_policy.hpp
     conduit_memory_manager.hpp
     conduit_data_array.hpp
@@ -239,4 +240,3 @@ if(FORTRAN_FOUND)
    ${CMAKE_Fortran_MODULE_DIRECTORY}/
    DESTINATION include/conduit)
 endif()
-
