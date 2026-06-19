@@ -200,7 +200,7 @@ DeviceMemory::is_device_ptr(const void *ptr, bool &is_gpu, bool &is_unified)
 
     // clear last error so other error checking does
     // not pick it up
-    cudaError_t error = cudaGetLastError();
+    (void)cudaGetLastError();
     is_gpu = (perr == cudaSuccess) &&
              (atts.type == cudaMemoryTypeDevice ||
               atts.type == cudaMemoryTypeManaged   );
@@ -237,7 +237,7 @@ DeviceMemory::is_device_ptr(const void *ptr)
     const cudaError_t perr = cudaPointerGetAttributes(&atts, ptr);
     // clear last error so other error checking does
     // not pick it up
-    cudaError_t error = cudaGetLastError();
+    (void)cudaGetLastError();
     return perr == cudaSuccess &&
                 (atts.type == cudaMemoryTypeDevice ||
                  atts.type == cudaMemoryTypeManaged);
