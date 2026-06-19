@@ -89,6 +89,8 @@ TEST(conduit_execution, policy_aliases)
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, execution_settings)
 {
+    conduit_device_prepare();
+    
     // container for opts whenever we fetch them
     Node get_opts;
 
@@ -389,7 +391,8 @@ TEST(conduit_execution, execution_settings)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_execution, test_forall)
+void
+run_test_forall()
 {
     conduit_device_prepare();
     for_each_enabled_policy([](ExecutionPolicy policy)
@@ -445,7 +448,15 @@ TEST(conduit_execution, test_forall)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_execution, test_reductions)
+TEST(conduit_execution, test_forall)
+{
+    // this is a separate func to avoid issue with lambda vs gtest macro
+    run_test_forall();
+}
+
+//-----------------------------------------------------------------------------
+void
+run_test_reductions()
 {
     conduit_device_prepare();
     for_each_enabled_policy([](ExecutionPolicy policy)
@@ -549,7 +560,15 @@ TEST(conduit_execution, test_reductions)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_execution, test_atomics)
+TEST(conduit_execution, test_reductions)
+{
+    // this is a separate func to avoid issue with lambda vs gtest macro
+    run_test_reductions();
+}
+
+//-----------------------------------------------------------------------------
+void
+run_test_atomics()
 {
     conduit_device_prepare();
     for_each_enabled_policy([](ExecutionPolicy policy)
@@ -634,6 +653,13 @@ TEST(conduit_execution, test_atomics)
 
         annotations::finalize();
     });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, test_atomics)
+{
+    // this is a separate func to avoid issue with lambda vs gtest macro
+    run_test_atomics();
 }
 
 //-----------------------------------------------------------------------------
@@ -1354,7 +1380,8 @@ TEST(conduit_execution, strawman_data_array)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_execution, test_sort_ascending)
+void
+run_test_sort_ascending()
 {
     conduit_device_prepare();
     for_each_enabled_policy([](ExecutionPolicy policy)
@@ -1409,7 +1436,15 @@ TEST(conduit_execution, test_sort_ascending)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_execution, test_sort_descending)
+TEST(conduit_execution, test_sort_ascending)
+{
+    // this is a separate func to avoid issue with lambda vs gtest macro
+    run_test_sort_ascending();
+}
+
+//-----------------------------------------------------------------------------
+void
+run_test_sort_descending()
 {
     conduit_device_prepare();
     for_each_enabled_policy([](ExecutionPolicy policy)
@@ -1461,6 +1496,13 @@ TEST(conduit_execution, test_sort_descending)
 
         annotations::finalize();
     });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, test_sort_descending)
+{
+    // this is a separate func to avoid issue with lambda vs gtest macro
+    run_test_sort_descending();
 }
 
 //-----------------------------------------------------------------------------
