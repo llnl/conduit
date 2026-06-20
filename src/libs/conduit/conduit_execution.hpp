@@ -12,6 +12,7 @@
 #define CONDUIT_EXECUTION_HPP
 
 #include "conduit_config.hpp"
+#include "conduit_exports.h"
 
 // CONDUIT_DEVICE_ERROR_CHECK: error checking macro
 #define CONDUIT_DEVICE_ERROR_CHECK( policy ) conduit::execution::device_error_check(policy, __FILE__, __LINE__);
@@ -42,52 +43,52 @@ namespace execution
 //-----------------------------------------------------------------------------
 /// Pass a Node to set execution options.
 //-----------------------------------------------------------------------------
-void execution_set_options(const Node &opts);
+CONDUIT_API void execution_set_options(const Node &opts);
 
 //-----------------------------------------------------------------------------
 /// Get a Node that contains execution options.
 //-----------------------------------------------------------------------------
-void execution_options(Node &opts);
+CONDUIT_API void execution_options(Node &opts);
 
 //-----------------------------------------------------------------------------
 /// Reset execution options to their default values.
 //-----------------------------------------------------------------------------
-void reset_execution_options();
+CONDUIT_API void reset_execution_options();
 
 //-----------------------------------------------------------------------------
 /// Get an execution policy based on the policy option.
 //-----------------------------------------------------------------------------
-ExecutionPolicy get_execution_policy(Node &src_node);
+CONDUIT_API ExecutionPolicy get_execution_policy(Node &src_node);
 
 //-----------------------------------------------------------------------------
 /// Get an execution policy based on the policy option.
 //-----------------------------------------------------------------------------
-ExecutionPolicy get_execution_policy();
+CONDUIT_API ExecutionPolicy get_execution_policy();
 
 //-----------------------------------------------------------------------------
 /// Get the output allocator id based on the allocator option.
 //-----------------------------------------------------------------------------
-index_t get_output_allocator_id();
+CONDUIT_API index_t get_output_allocator_id();
 
 //-----------------------------------------------------------------------------
 /// Get the output allocator id based on the allocator option.
 //-----------------------------------------------------------------------------
-index_t get_output_allocator_id(Node &src_node);
+CONDUIT_API index_t get_output_allocator_id(Node &src_node);
 
 //-----------------------------------------------------------------------------
 /// Get the sync strategy option.
 //-----------------------------------------------------------------------------
-const std::string& get_sync_strategy();
+CONDUIT_API const std::string& get_sync_strategy();
 
 //-----------------------------------------------------------------------------
 /// Get the device allocator id.
 //-----------------------------------------------------------------------------
-index_t get_device_allocator_id();
+CONDUIT_API index_t get_device_allocator_id();
 
 //-----------------------------------------------------------------------------
 /// Get the host allocator id.
 //-----------------------------------------------------------------------------
-index_t get_host_allocator_id();
+CONDUIT_API index_t get_host_allocator_id();
 
 //---------------------------------------------------------------------------//
 #if defined(CONDUIT_USE_RAJA)

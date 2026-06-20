@@ -17,6 +17,7 @@
 // conduit lib includes
 //-----------------------------------------------------------------------------
 #include "conduit_config.h"
+#include "conduit_exports.h"
 
 //-----------------------------------------------------------------------------
 // -- begin conduit --
@@ -39,7 +40,7 @@ namespace execution
 ///  Uses a Conduit-owned Umpire host allocator when Umpire is enabled,
 ///  Uses malloc/free when Umpire is disabled. 
 //-----------------------------------------------------------------------------
-struct HostMemory
+struct CONDUIT_API HostMemory
 {
     static void *allocate(size_t bytes);
     static void *allocate(size_t items, size_t item_size);
@@ -56,7 +57,7 @@ private:
 ///  Uses a Conduit-owned Umpire device allocator when Umpire is enabled.
 ///  allocate() and deallocate() throw errors when Umpire is disabled.
 //-----------------------------------------------------------------------------
-struct DeviceMemory
+struct CONDUIT_API DeviceMemory
 {
     static void *allocate(size_t bytes);
     static void *allocate(size_t items, size_t item_size);
@@ -72,7 +73,7 @@ private:
 };
 
 //-----------------------------------------------------------------------------
-struct MagicMemory
+struct CONDUIT_API MagicMemory
 {
     static void set(void *ptr, int value, size_t num);
     static void copy(void *destination, const void *source, size_t num);
