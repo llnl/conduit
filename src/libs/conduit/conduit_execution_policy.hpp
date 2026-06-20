@@ -114,10 +114,10 @@ private:
 };
 
 //-----------------------------------------------------------------------------
-void init_device_memory_handlers();
+CONDUIT_API void init_device_memory_handlers();
 
 //-----------------------------------------------------------------------------
-void device_error_check(ExecutionPolicy policy, const char *file, const int line);
+CONDUIT_API void device_error_check(ExecutionPolicy policy, const char *file, const int line);
 
 struct EmptyPolicy
 {};
