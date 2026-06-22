@@ -81,7 +81,6 @@ TEST(conduit_execution, policy_aliases)
     EXPECT_TRUE(parallel.is_serial());
     EXPECT_EQ(parallel.policy_name(), "serial");
 #endif
-
     const ExecutionPolicy parallel_from_name("parallel");
     EXPECT_EQ(parallel_from_name.policy_id(), parallel.policy_id());
 }
@@ -114,19 +113,28 @@ TEST(conduit_execution, execution_settings)
     {
         const index_t host_alloc_id = execution::get_host_allocator_id();
         const index_t device_alloc_id = execution::get_device_allocator_id();
-        host_data.set_allocator(host_alloc_id);
-        device_data.set_allocator(device_alloc_id);
         const std::vector<float64> src_vals = make_execution_src_vals(EXECUTION_TEST_ARRAY_SIZE);
+
+        host_data.set_allocator(host_alloc_id);
         host_data.set(src_vals);
-        device_data.set(src_vals);
 
         // test that allocators are what we expect
         EXPECT_EQ(device_alloc_id, DEVICE_ALLOC_ID);
         EXPECT_EQ(host_alloc_id, HOST_ALLOC_ID);
 
-        // prove that memory is alloc'd in the right spot
+        // prove that host data is on host
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(host_data.data_ptr()));
+
+#if defined(CONDUIT_USE_DEVICE)
+        // with device support, allocate device_data on the device
+        device_data.set_allocator(device_alloc_id);
+        device_data.set(src_vals);
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(device_data.data_ptr()));
+#else // !defined(CONDUIT_USE_DEVICE)
+        // without device support, device_data stays on host
+        device_data.set(src_vals);
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(device_data.data_ptr()));
+#endif // !defined(CONDUIT_USE_DEVICE)
     }
 
     // ------------------------------
@@ -186,6 +194,7 @@ TEST(conduit_execution, execution_settings)
         execution::reset_execution_options();
     }
 
+#if defined(CONDUIT_USE_DEVICE)
     // test device exec policy
     {
         Node exec_opts;
@@ -202,6 +211,7 @@ TEST(conduit_execution, execution_settings)
         EXPECT_EQ(get_opts["execution_location"].as_string(), "device");
         execution::reset_execution_options();
     }
+#endif // defined(CONDUIT_USE_DEVICE)
 
     // test input exec policy & w/ host fallback
     {
@@ -215,7 +225,13 @@ TEST(conduit_execution, execution_settings)
         execution::ExecutionPolicy device_supplied_policy = execution::get_execution_policy(device_data);
         EXPECT_TRUE(fallback_policy.is_host_policy());
         EXPECT_TRUE(host_supplied_policy.is_host_policy());
+#if defined(CONDUIT_USE_DEVICE)
+        // with device, device_data is on the device, so input policy gives device policy
         EXPECT_TRUE(device_supplied_policy.is_device_policy());
+#else // !defined(CONDUIT_USE_DEVICE)
+        // without device, device_data is on host, so input policy gives host policy
+        EXPECT_TRUE(device_supplied_policy.is_host_policy());
+#endif // !defined(CONDUIT_USE_DEVICE)
         EXPECT_TRUE(get_opts.has_child("execution_location"));
         EXPECT_EQ(get_opts["execution_location"].as_string(), "input");
         EXPECT_TRUE(get_opts.has_child("fallback_location"));
@@ -223,6 +239,7 @@ TEST(conduit_execution, execution_settings)
         execution::reset_execution_options();
     }
 
+#if defined(CONDUIT_USE_DEVICE)
     // test input exec policy & w/ device fallback
     {
         Node exec_opts;
@@ -242,6 +259,7 @@ TEST(conduit_execution, execution_settings)
         EXPECT_EQ(get_opts["fallback_location"].as_string(), "device");
         execution::reset_execution_options();
     }
+#endif // defined(CONDUIT_USE_DEVICE)
 
     // ------------------------------
     //
@@ -304,7 +322,13 @@ TEST(conduit_execution, execution_settings)
         index_t device_supplied_alloc_id = execution::get_output_allocator_id(device_data);
         EXPECT_EQ(fallback_alloc_id, HOST_ALLOC_ID);
         EXPECT_EQ(host_supplied_alloc_id, HOST_ALLOC_ID);
+#if defined(CONDUIT_USE_DEVICE)
+        // with device, device_data is on the device and returns its device allocator
         EXPECT_EQ(device_supplied_alloc_id, DEVICE_ALLOC_ID);
+#else // !defined(CONDUIT_USE_DEVICE)
+        // without device, device_data is on host and returns the host allocator
+        EXPECT_EQ(device_supplied_alloc_id, HOST_ALLOC_ID);
+#endif // !defined(CONDUIT_USE_DEVICE)
         EXPECT_TRUE(get_opts.has_child("output_location"));
         EXPECT_EQ(get_opts["output_location"].as_string(), "input");
         EXPECT_TRUE(get_opts.has_child("fallback_location"));
@@ -324,7 +348,13 @@ TEST(conduit_execution, execution_settings)
         index_t device_supplied_alloc_id = execution::get_output_allocator_id(device_data);
         EXPECT_EQ(fallback_alloc_id, DEVICE_ALLOC_ID);
         EXPECT_EQ(host_supplied_alloc_id, HOST_ALLOC_ID);
+#if defined(CONDUIT_USE_DEVICE)
+        // with device, device_data is on the device and returns its device allocator
         EXPECT_EQ(device_supplied_alloc_id, DEVICE_ALLOC_ID);
+#else // !defined(CONDUIT_USE_DEVICE)
+        // without device, device_data is on host and returns the host allocator
+        EXPECT_EQ(device_supplied_alloc_id, HOST_ALLOC_ID);
+#endif // !defined(CONDUIT_USE_DEVICE)
         EXPECT_TRUE(get_opts.has_child("output_location"));
         EXPECT_EQ(get_opts["output_location"].as_string(), "input");
         EXPECT_TRUE(get_opts.has_child("fallback_location"));
@@ -402,7 +432,7 @@ run_test_forall()
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
 
-        const index_t size = 10;
+        const index_t size = EXECUTION_TEST_ARRAY_SIZE;
 
         index_t host_vals[size];
         index_t *vals_ptr = nullptr;
@@ -672,18 +702,22 @@ TEST(conduit_execution, strawman_data_accessor)
 
     // our main loop iterates over these items
     // comment out specific entries to test a specific combination
-    // TODO: This crashes if RAJA is built without CUDA or HIP because the
-    // Umpire "DEVICE" allocator is unavailable when "device" src/des locations
-    // are used. The "device" entries should be skipped when device memory is
-    // not available.
     const std::vector<std::string> src_locations = {"host", "device"};
     const std::vector<std::string> des_locations = {"host", "device"};
     const std::vector<std::string> policies      = {"host", "device"};
 
+    // TODO: This loop boilerplate can be extracted into a helper function and reused
     for (const std::string &src_start : src_locations)
     {
         for (const std::string &des_start : des_locations)
         {
+            // Skip device-memory combinations when no device is available.
+            if ((src_start == "device" || des_start == "device") &&
+                !ExecutionPolicy::is_device_enabled())
+            {
+                continue;
+            }
+
             //----------------------------------------------------------
             // DataAccessor sync
             // Run with an explicit execution policy and call sync().
@@ -1030,18 +1064,22 @@ TEST(conduit_execution, strawman_data_array)
 
     // our main loop iterates over these items
     // comment out specific entries to test a specific combination
-    // TODO: This crashes if RAJA is built without CUDA or HIP because the
-    // Umpire "DEVICE" allocator is unavailable when "device" src/des locations
-    // are used. The "device" entries should be skipped when device memory is
-    // not available.
     const std::vector<std::string> src_locations = {"host", "device"};
     const std::vector<std::string> des_locations = {"host", "device"};
     const std::vector<std::string> policies      = {"host", "device"};
 
+    // TODO: This loop boilerplate can be extracted into a helper function and reused
     for (const std::string &src_start : src_locations)
     {
         for (const std::string &des_start : des_locations)
         {
+            // Skip device-memory combinations when no device is available.
+            if ((src_start == "device" || des_start == "device") &&
+                !ExecutionPolicy::is_device_enabled())
+            {
+                continue;
+            }
+
             //----------------------------------------------------------
             // DataArray sync
             // Run with an explicit execution policy and call sync().
