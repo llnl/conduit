@@ -37,6 +37,7 @@ TEST(conduit_execution, policy_aliases)
     EXPECT_TRUE(host.is_openmp());
     EXPECT_EQ(host.policy_name(), "openmp");
 #else
+    // TODO: What if conduit is built with openmp off but CUDA/HIP on?
     EXPECT_TRUE(host.is_serial());
     EXPECT_EQ(host.policy_name(), "serial");
 #endif
@@ -81,7 +82,6 @@ TEST(conduit_execution, policy_aliases)
     EXPECT_TRUE(parallel.is_serial());
     EXPECT_EQ(parallel.policy_name(), "serial");
 #endif
-
     const ExecutionPolicy parallel_from_name("parallel");
     EXPECT_EQ(parallel_from_name.policy_id(), parallel.policy_id());
 }
@@ -114,19 +114,28 @@ TEST(conduit_execution, execution_settings)
     {
         const index_t host_alloc_id = execution::get_host_allocator_id();
         const index_t device_alloc_id = execution::get_device_allocator_id();
-        host_data.set_allocator(host_alloc_id);
-        device_data.set_allocator(device_alloc_id);
         const std::vector<float64> src_vals = make_execution_src_vals(EXECUTION_TEST_ARRAY_SIZE);
+
+        host_data.set_allocator(host_alloc_id);
         host_data.set(src_vals);
-        device_data.set(src_vals);
 
         // test that allocators are what we expect
         EXPECT_EQ(device_alloc_id, DEVICE_ALLOC_ID);
         EXPECT_EQ(host_alloc_id, HOST_ALLOC_ID);
 
-        // prove that memory is alloc'd in the right spot
+        // prove that host data is on host
         EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(host_data.data_ptr()));
+
+#if defined(CONDUIT_USE_DEVICE)
+        // with device support, allocate device_data on the device
+        device_data.set_allocator(device_alloc_id);
+        device_data.set(src_vals);
         EXPECT_TRUE(execution::DeviceMemory::is_device_ptr(device_data.data_ptr()));
+#else // !defined(CONDUIT_USE_DEVICE)
+        // without device support, device_data stays on host
+        device_data.set(src_vals);
+        EXPECT_FALSE(execution::DeviceMemory::is_device_ptr(device_data.data_ptr()));
+#endif // !defined(CONDUIT_USE_DEVICE)
     }
 
     // ------------------------------
@@ -186,6 +195,7 @@ TEST(conduit_execution, execution_settings)
         execution::reset_execution_options();
     }
 
+#if defined(CONDUIT_USE_DEVICE)
     // test device exec policy
     {
         Node exec_opts;
@@ -202,6 +212,7 @@ TEST(conduit_execution, execution_settings)
         EXPECT_EQ(get_opts["execution_location"].as_string(), "device");
         execution::reset_execution_options();
     }
+#endif // defined(CONDUIT_USE_DEVICE)
 
     // test input exec policy & w/ host fallback
     {
@@ -215,7 +226,13 @@ TEST(conduit_execution, execution_settings)
         execution::ExecutionPolicy device_supplied_policy = execution::get_execution_policy(device_data);
         EXPECT_TRUE(fallback_policy.is_host_policy());
         EXPECT_TRUE(host_supplied_policy.is_host_policy());
+#if defined(CONDUIT_USE_DEVICE)
+        // with device, device_data is on the device, so input policy gives device policy
         EXPECT_TRUE(device_supplied_policy.is_device_policy());
+#else // !defined(CONDUIT_USE_DEVICE)
+        // without device, device_data is on host, so input policy gives host policy
+        EXPECT_TRUE(device_supplied_policy.is_host_policy());
+#endif // !defined(CONDUIT_USE_DEVICE)
         EXPECT_TRUE(get_opts.has_child("execution_location"));
         EXPECT_EQ(get_opts["execution_location"].as_string(), "input");
         EXPECT_TRUE(get_opts.has_child("fallback_location"));
@@ -223,6 +240,7 @@ TEST(conduit_execution, execution_settings)
         execution::reset_execution_options();
     }
 
+#if defined(CONDUIT_USE_DEVICE)
     // test input exec policy & w/ device fallback
     {
         Node exec_opts;
@@ -242,6 +260,7 @@ TEST(conduit_execution, execution_settings)
         EXPECT_EQ(get_opts["fallback_location"].as_string(), "device");
         execution::reset_execution_options();
     }
+#endif // defined(CONDUIT_USE_DEVICE)
 
     // ------------------------------
     //
@@ -304,7 +323,13 @@ TEST(conduit_execution, execution_settings)
         index_t device_supplied_alloc_id = execution::get_output_allocator_id(device_data);
         EXPECT_EQ(fallback_alloc_id, HOST_ALLOC_ID);
         EXPECT_EQ(host_supplied_alloc_id, HOST_ALLOC_ID);
+#if defined(CONDUIT_USE_DEVICE)
+        // with device, device_data is on the device and returns its device allocator
         EXPECT_EQ(device_supplied_alloc_id, DEVICE_ALLOC_ID);
+#else // !defined(CONDUIT_USE_DEVICE)
+        // without device, device_data is on host and returns the host allocator
+        EXPECT_EQ(device_supplied_alloc_id, HOST_ALLOC_ID);
+#endif // !defined(CONDUIT_USE_DEVICE)
         EXPECT_TRUE(get_opts.has_child("output_location"));
         EXPECT_EQ(get_opts["output_location"].as_string(), "input");
         EXPECT_TRUE(get_opts.has_child("fallback_location"));
@@ -324,7 +349,13 @@ TEST(conduit_execution, execution_settings)
         index_t device_supplied_alloc_id = execution::get_output_allocator_id(device_data);
         EXPECT_EQ(fallback_alloc_id, DEVICE_ALLOC_ID);
         EXPECT_EQ(host_supplied_alloc_id, HOST_ALLOC_ID);
+#if defined(CONDUIT_USE_DEVICE)
+        // with device, device_data is on the device and returns its device allocator
         EXPECT_EQ(device_supplied_alloc_id, DEVICE_ALLOC_ID);
+#else // !defined(CONDUIT_USE_DEVICE)
+        // without device, device_data is on host and returns the host allocator
+        EXPECT_EQ(device_supplied_alloc_id, HOST_ALLOC_ID);
+#endif // !defined(CONDUIT_USE_DEVICE)
         EXPECT_TRUE(get_opts.has_child("output_location"));
         EXPECT_EQ(get_opts["output_location"].as_string(), "input");
         EXPECT_TRUE(get_opts.has_child("fallback_location"));
@@ -402,7 +433,7 @@ run_test_forall()
         cali_opts["config"] = "runtime-report";
         annotations::initialize(cali_opts);
 
-        const index_t size = 10;
+        const index_t size = EXECUTION_TEST_ARRAY_SIZE;
 
         index_t host_vals[size];
         index_t *vals_ptr = nullptr;
@@ -452,6 +483,77 @@ TEST(conduit_execution, test_forall)
 {
     // this is a separate func to avoid issue with lambda vs gtest macro
     run_test_forall();
+}
+
+//-----------------------------------------------------------------------------
+void
+run_test_forall_node_backed()
+{
+    conduit_device_prepare();
+    for_each_enabled_policy([](ExecutionPolicy policy)
+    {
+        CONDUIT_INFO("test_forall_node_backed policy=" << policy.policy_name());
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+
+        const index_t size = EXECUTION_TEST_ARRAY_SIZE;
+
+        // DataArray
+        {
+            Node node;
+            node["vals"].set(DataType::index_t(size));
+
+            index_t_array arr(node["vals"]);
+            arr.use_with(policy);
+
+            conduit::execution::forall(policy, 0, size, [arr] CONDUIT_EXEC(index_t i)
+            {
+                arr[i] = i;
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+            arr.sync();
+
+            index_t_array result(node["vals"]);
+            for (index_t i = 0; i < size; i++)
+            {
+                EXPECT_EQ(result[i], i);
+            }
+        }
+
+        // DataAccessor
+        {
+            Node node;
+            node["vals"].set(DataType::index_t(size));
+
+            index_t_accessor acc(node["vals"]);
+            acc.use_with(policy);
+
+            conduit::execution::forall(policy, 0, size, [acc] CONDUIT_EXEC(index_t i)
+            {
+                acc.set(i, i);
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+            acc.sync();
+
+            index_t_accessor result(node["vals"]);
+            for (index_t i = 0; i < size; i++)
+            {
+                EXPECT_EQ(result[i], (index_t)i);
+            }
+        }
+
+        annotations::finalize();
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, test_forall_node_backed)
+{
+    // this is a separate func to avoid issue with lambda vs gtest macro
+    run_test_forall_node_backed();
 }
 
 //-----------------------------------------------------------------------------
@@ -568,6 +670,176 @@ TEST(conduit_execution, test_reductions)
 
 //-----------------------------------------------------------------------------
 void
+run_test_reductions_node_backed()
+{
+    conduit_device_prepare();
+    for_each_enabled_policy([](ExecutionPolicy policy)
+    {
+        CONDUIT_INFO("test_reductions_node_backed policy=" << policy.policy_name());
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+
+        const index_t size = 4;
+        const index_t init_vals[4] = {0, -10, 10, 5};
+
+        // DataArray
+        {
+            Node node;
+            node["vals"].set(DataType::index_t(size));
+            {
+                index_t_array fill(node["vals"]);
+                for (index_t i = 0; i < size; i++)
+                {
+                    fill[i] = init_vals[i];
+                }
+            }
+
+            index_t_array arr(node["vals"]);
+            arr.use_with(policy);
+
+            index_t sum_result = 0;
+            conduit::execution::ReduceSum<index_t> sum_reducer(0);
+            conduit::execution::forall(policy, 0, size, [arr, sum_reducer] CONDUIT_EXEC(index_t i)
+            {
+                sum_reducer += arr[i];
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            sum_result = sum_reducer.get();
+            EXPECT_EQ(sum_result, 5);
+
+            index_t min_result = 0;
+            conduit::execution::ReduceMin<index_t> min_reducer(std::numeric_limits<index_t>::max());
+            conduit::execution::forall(policy, 0, size, [arr, min_reducer] CONDUIT_EXEC(index_t i)
+            {
+                min_reducer.min(arr[i]);
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            min_result = min_reducer.get();
+            EXPECT_EQ(min_result, -10);
+
+            index_t minloc_result = 0;
+            index_t minloc_index = -1;
+            conduit::execution::ReduceMinLoc<index_t> minloc_reducer(std::numeric_limits<index_t>::max(), -1);
+            conduit::execution::forall(policy, 0, size, [arr, minloc_reducer] CONDUIT_EXEC(index_t i)
+            {
+                minloc_reducer.minloc(arr[i], i);
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            minloc_result = minloc_reducer.get();
+            minloc_index = minloc_reducer.getLoc();
+            EXPECT_EQ(minloc_result, -10);
+            EXPECT_EQ(minloc_index, 1);
+
+            index_t max_result = 0;
+            conduit::execution::ReduceMax<index_t> max_reducer(std::numeric_limits<index_t>::lowest());
+            conduit::execution::forall(policy, 0, size, [arr, max_reducer] CONDUIT_EXEC(index_t i)
+            {
+                max_reducer.max(arr[i]);
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            max_result = max_reducer.get();
+            EXPECT_EQ(max_result, 10);
+
+            index_t maxloc_result = 0;
+            index_t maxloc_index = -1;
+            conduit::execution::ReduceMaxLoc<index_t> maxloc_reducer(std::numeric_limits<index_t>::lowest(), -1);
+            conduit::execution::forall(policy, 0, size, [arr, maxloc_reducer] CONDUIT_EXEC(index_t i)
+            {
+                maxloc_reducer.maxloc(arr[i], i);
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            maxloc_result = maxloc_reducer.get();
+            maxloc_index = maxloc_reducer.getLoc();
+            EXPECT_EQ(maxloc_result, 10);
+            EXPECT_EQ(maxloc_index, 2);
+        }
+
+        // DataAccessor
+        {
+            Node node;
+            node["vals"].set(DataType::index_t(size));
+            {
+                index_t_array fill(node["vals"]);
+                for (index_t i = 0; i < size; i++) 
+                {
+                    fill[i] = init_vals[i];
+                }
+            }
+
+            index_t_accessor acc(node["vals"]);
+            acc.use_with(policy);
+
+            index_t sum_result = 0;
+            conduit::execution::ReduceSum<index_t> sum_reducer(0);
+            conduit::execution::forall(policy, 0, size, [acc, sum_reducer] CONDUIT_EXEC(index_t i)
+            {
+                sum_reducer += acc[i];
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            sum_result = sum_reducer.get();
+            EXPECT_EQ(sum_result, 5);
+
+            index_t min_result = 0;
+            conduit::execution::ReduceMin<index_t> min_reducer(std::numeric_limits<index_t>::max());
+            conduit::execution::forall(policy, 0, size, [acc, min_reducer] CONDUIT_EXEC(index_t i)
+            {
+                min_reducer.min(acc[i]);
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            min_result = min_reducer.get();
+            EXPECT_EQ(min_result, -10);
+
+            index_t minloc_result = 0;
+            index_t minloc_index = -1;
+            conduit::execution::ReduceMinLoc<index_t> minloc_reducer(std::numeric_limits<index_t>::max(), -1);
+            conduit::execution::forall(policy, 0, size, [acc, minloc_reducer] CONDUIT_EXEC(index_t i)
+            {
+                minloc_reducer.minloc(acc[i], i);
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            minloc_result = minloc_reducer.get();
+            minloc_index = minloc_reducer.getLoc();
+            EXPECT_EQ(minloc_result, -10);
+            EXPECT_EQ(minloc_index, 1);
+
+            index_t max_result = 0;
+            conduit::execution::ReduceMax<index_t> max_reducer(std::numeric_limits<index_t>::lowest());
+            conduit::execution::forall(policy, 0, size, [acc, max_reducer] CONDUIT_EXEC(index_t i)
+            {
+                max_reducer.max(acc[i]);
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            max_result = max_reducer.get();
+            EXPECT_EQ(max_result, 10);
+
+            index_t maxloc_result = 0;
+            index_t maxloc_index = -1;
+            conduit::execution::ReduceMaxLoc<index_t> maxloc_reducer(std::numeric_limits<index_t>::lowest(), -1);
+            conduit::execution::forall(policy, 0, size, [acc, maxloc_reducer] CONDUIT_EXEC(index_t i)
+            {
+                maxloc_reducer.maxloc(acc[i], i);
+            });
+            CONDUIT_DEVICE_ERROR_CHECK(policy);
+            maxloc_result = maxloc_reducer.get();
+            maxloc_index = maxloc_reducer.getLoc();
+            EXPECT_EQ(maxloc_result, 10);
+            EXPECT_EQ(maxloc_index, 2);
+        }
+
+        annotations::finalize();
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, test_reductions_node_backed)
+{
+    // this is a separate func to avoid issue with lambda vs gtest macro
+    run_test_reductions_node_backed();
+}
+
+//-----------------------------------------------------------------------------
+void
 run_test_atomics()
 {
     conduit_device_prepare();
@@ -663,6 +935,94 @@ TEST(conduit_execution, test_atomics)
 }
 
 //-----------------------------------------------------------------------------
+void
+run_test_atomics_node_backed()
+{
+    conduit_device_prepare();
+    for_each_enabled_policy([](ExecutionPolicy policy)
+    {
+        CONDUIT_INFO("test_atomics_node_backed policy=" << policy.policy_name());
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+
+        const index_t size = 4;
+        const index_t init_vals[4] = {0, -1, -2, -3};
+
+        Node node;
+        node["vals"].set(DataType::index_t(size));
+        {
+            index_t_array fill(node["vals"]);
+            for (index_t i = 0; i < size; i++)
+            {
+                fill[i] = init_vals[i];
+            }
+        }
+
+        // DataArray
+        index_t_array arr(node["vals"]);
+        arr.use_with(policy);
+
+        // atomic_add
+        conduit::execution::forall(policy, 0, size, [arr] CONDUIT_EXEC(index_t i)
+        {
+            conduit::execution::atomic_add(&arr[i], i);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        arr.sync();
+        {
+            index_t_array verify(node["vals"]);
+            for (index_t i = 0; i < size; i++)
+            {
+                EXPECT_EQ(verify[i], 0);
+            }
+        }
+
+        // atomic_min
+        conduit::execution::forall(policy, 0, size, [arr] CONDUIT_EXEC(index_t i)
+        {
+            conduit::execution::atomic_min(&arr[i], static_cast<index_t>(-10));
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        arr.sync();
+        {
+            index_t_array verify(node["vals"]);
+            for (index_t i = 0; i < size; i++)
+            {
+                EXPECT_EQ(verify[i], -10);
+            }
+        }
+
+        // atomic_max
+        conduit::execution::forall(policy, 0, size, [arr] CONDUIT_EXEC(index_t i)
+        {
+            conduit::execution::atomic_max(&arr[i], static_cast<index_t>(10));
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        arr.sync();
+        {
+            index_t_array verify(node["vals"]);
+            for (index_t i = 0; i < size; i++)
+            {
+                EXPECT_EQ(verify[i], 10);
+            }
+        }
+
+        annotations::finalize();
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, test_atomics_node_backed)
+{
+    // this is a separate func to avoid issue with lambda vs gtest macro
+    run_test_atomics_node_backed();
+}
+
+//-----------------------------------------------------------------------------
 TEST(conduit_execution, strawman_data_accessor)
 {
     conduit_device_prepare();
@@ -672,10 +1032,6 @@ TEST(conduit_execution, strawman_data_accessor)
 
     // our main loop iterates over these items
     // comment out specific entries to test a specific combination
-    // TODO: This crashes if RAJA is built without CUDA or HIP because the
-    // Umpire "DEVICE" allocator is unavailable when "device" src/des locations
-    // are used. The "device" entries should be skipped when device memory is
-    // not available.
     const std::vector<std::string> src_locations = {"host", "device"};
     const std::vector<std::string> des_locations = {"host", "device"};
     const std::vector<std::string> policies      = {"host", "device"};
@@ -684,6 +1040,13 @@ TEST(conduit_execution, strawman_data_accessor)
     {
         for (const std::string &des_start : des_locations)
         {
+            // Skip device-memory combinations when no device is available.
+            if ((src_start == "device" || des_start == "device") &&
+                !ExecutionPolicy::is_device_enabled())
+            {
+                continue;
+            }
+
             //----------------------------------------------------------
             // DataAccessor sync
             // Run with an explicit execution policy and call sync().
@@ -1042,6 +1405,13 @@ TEST(conduit_execution, strawman_data_array)
     {
         for (const std::string &des_start : des_locations)
         {
+            // Skip device-memory combinations when no device is available.
+            if ((src_start == "device" || des_start == "device") &&
+                !ExecutionPolicy::is_device_enabled())
+            {
+                continue;
+            }
+
             //----------------------------------------------------------
             // DataArray sync
             // Run with an explicit execution policy and call sync().
@@ -1444,6 +1814,60 @@ TEST(conduit_execution, test_sort_ascending)
 
 //-----------------------------------------------------------------------------
 void
+run_test_sort_ascending_node_backed()
+{
+    conduit_device_prepare();
+    for_each_enabled_policy([](ExecutionPolicy policy)
+    {
+        CONDUIT_INFO("test_sort_ascending_node_backed policy=" << policy.policy_name());
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+
+        const index_t size = EXECUTION_TEST_ARRAY_SIZE;
+
+        Node node;
+        node["vals"].set(DataType::index_t(size));
+        {
+            // Fill with descending values so sort_ascending has work to do.
+            index_t_array fill(node["vals"]);
+            for (index_t i = 0; i < size; i++)
+            {
+                fill[i] = size - 1 - i;
+            }
+        }
+
+        // DataArray
+        index_t_array arr(node["vals"]);
+        arr.use_with(policy);
+
+        // Use arr[0] rather than node["vals"].as_index_t_ptr() because
+        // use_with() may have migrated the data to device memory.
+        index_t *ptr = &arr[0];
+        conduit::execution::sort_ascending(policy, ptr, ptr + size);
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        arr.sync();
+
+        index_t_array result(node["vals"]);
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(result[i], i);
+        }
+
+        annotations::finalize();
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, test_sort_ascending_node_backed)
+{
+    // this is a separate func to avoid issue with lambda vs gtest macro
+    run_test_sort_ascending_node_backed();
+}
+
+//-----------------------------------------------------------------------------
+void
 run_test_sort_descending()
 {
     conduit_device_prepare();
@@ -1503,6 +1927,60 @@ TEST(conduit_execution, test_sort_descending)
 {
     // this is a separate func to avoid issue with lambda vs gtest macro
     run_test_sort_descending();
+}
+
+//-----------------------------------------------------------------------------
+void
+run_test_sort_descending_node_backed()
+{
+    conduit_device_prepare();
+    for_each_enabled_policy([](ExecutionPolicy policy)
+    {
+        CONDUIT_INFO("test_sort_descending_node_backed policy=" << policy.policy_name());
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+        annotations::initialize(cali_opts);
+
+        const index_t size = EXECUTION_TEST_ARRAY_SIZE;
+
+        Node node;
+        node["vals"].set(DataType::index_t(size));
+        {
+            // Fill with ascending values so sort_descending has work to do.
+            index_t_array fill(node["vals"]);
+            for (index_t i = 0; i < size; i++)
+            {
+                fill[i] = i;
+            }
+        }
+
+        // DataArray
+        index_t_array arr(node["vals"]);
+        arr.use_with(policy);
+
+        // Use arr[0] rather than node["vals"].as_index_t_ptr() because
+        // use_with() may have migrated the data to device memory.
+        index_t *ptr = &arr[0];
+        conduit::execution::sort_descending(policy, ptr, ptr + size);
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        arr.sync();
+
+        index_t_array result(node["vals"]);
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(result[i], size - 1 - i);
+        }
+
+        annotations::finalize();
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, test_sort_descending_node_backed)
+{
+    // this is a separate func to avoid issue with lambda vs gtest macro
+    run_test_sort_descending_node_backed();
 }
 
 //-----------------------------------------------------------------------------

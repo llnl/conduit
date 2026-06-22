@@ -113,7 +113,9 @@ namespace detail
 using DefaultReducePolicy = RAJA::cuda_reduce;
 #elif defined(CONDUIT_TU_IS_HIP)
 using DefaultReducePolicy = RAJA::hip_reduce;
-#else
+#elif defined(CONDUIT_USE_OPENMP)
+using DefaultReducePolicy = RAJA::omp_reduce;
+#else // Sequential execution
 using DefaultReducePolicy = RAJA::seq_reduce;
 #endif
 
@@ -430,8 +432,17 @@ template <typename T>
 CONDUIT_EXEC T
 atomic_add_exec(T *acc, T value)
 {
-    T res = *acc;
-    *acc += value;
+    T res;
+#if defined(CONDUIT_USE_OPENMP)
+    // atomic capture does both the read and write atomically
+    #pragma omp atomic capture
+    { 
+#endif // defined(CONDUIT_USE_OPENMP)
+        res = *acc;
+        *acc += value;
+#if defined(CONDUIT_USE_OPENMP)
+    }
+#endif // defined(CONDUIT_USE_OPENMP)
     return res;
 }
 
@@ -440,8 +451,20 @@ template <typename T>
 CONDUIT_EXEC T
 atomic_min_exec(T *acc, T value)
 {
-    T res = *acc;
-    *acc = value < *acc ? value : *acc;
+    T res;
+#if defined(CONDUIT_USE_OPENMP)
+    // A conditional update can't use omp atomic, so we use a critical section instead
+    #pragma omp critical(conduit_atomic_min)
+    {
+#endif // defined(CONDUIT_USE_OPENMP)
+        res = *acc;
+        if (value < *acc)
+        {
+            *acc = value;
+        }
+#if defined(CONDUIT_USE_OPENMP)
+    }
+#endif // defined(CONDUIT_USE_OPENMP)
     return res;
 }
 
@@ -450,8 +473,20 @@ template <typename T>
 CONDUIT_EXEC T
 atomic_max_exec(T *acc, T value)
 {
-    T res = *acc;
-    *acc = value > *acc ? value : *acc;
+    T res;
+#if defined(CONDUIT_USE_OPENMP)
+    // A conditional update can't use omp atomic, so we use a critical section instead
+    #pragma omp critical(conduit_atomic_max)
+    {
+#endif // defined(CONDUIT_USE_OPENMP)
+        res = *acc;
+        if (value > *acc)
+        {
+            *acc = value;
+        }
+#if defined(CONDUIT_USE_OPENMP)
+    }
+#endif // defined(CONDUIT_USE_OPENMP)
     return res;
 }
 
@@ -488,13 +523,17 @@ public:
     //-----------------------------------------------------------------------------
     CONDUIT_EXEC void operator+=(const T value) const
     {
+#if defined(CONDUIT_USE_OPENMP)
+        #pragma omp atomic
+#endif // defined(CONDUIT_USE_OPENMP)
         m_value_ptr[0] += value;
     }
 
     //-----------------------------------------------------------------------------
     CONDUIT_EXEC void sum(const T value) const
     {
-        m_value_ptr[0] += value;
+        // Delegating to operator+= ensures thread safety for OpenMP
+        operator+=(value);
     }
 
     //-----------------------------------------------------------------------------
@@ -534,6 +573,11 @@ public:
     //-----------------------------------------------------------------------------
     CONDUIT_EXEC void min(const T value) const
     {
+#if defined(CONDUIT_USE_OPENMP)
+        // A conditional update can't use omp atomic, so we use a critical section instead
+        // TODO: there may be a more efficient way to do this reduction
+        #pragma omp critical(conduit_reduce_min)
+#endif
         if (value < m_value_ptr[0])
         {
             m_value_ptr[0] = value;
@@ -583,6 +627,11 @@ public:
     //-----------------------------------------------------------------------------
     CONDUIT_EXEC void minloc(const T value, index_t index) const
     {
+#if defined(CONDUIT_USE_OPENMP)
+        // A conditional update can't use omp atomic, so we use a critical section instead
+        // TODO: there may be a more efficient way to do this reduction
+        #pragma omp critical(conduit_reduce_minloc)
+#endif
         if (value < m_value_ptr[0])
         {
             m_value_ptr[0] = value;
@@ -635,6 +684,11 @@ public:
     //-----------------------------------------------------------------------------
     CONDUIT_EXEC void max(const T value) const
     {
+#if defined(CONDUIT_USE_OPENMP)
+        // A conditional update can't use omp atomic, so we use a critical section instead
+        // TODO: there may be a more efficient way to do this reduction
+        #pragma omp critical(conduit_reduce_max)
+#endif
         if (value > m_value_ptr[0])
         {
             m_value_ptr[0] = value;
@@ -684,6 +738,11 @@ public:
     //-----------------------------------------------------------------------------
     CONDUIT_EXEC void maxloc(const T value, index_t index) const
     {
+#if defined(CONDUIT_USE_OPENMP)
+        // A conditional update can't use omp atomic, so we use a critical section instead
+        // TODO: there may be a more efficient way to do this reduction
+        #pragma omp critical(conduit_reduce_maxloc)
+#endif
         if (value > m_value_ptr[0])
         {
             m_value_ptr[0] = value;
