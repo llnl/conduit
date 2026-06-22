@@ -706,6 +706,7 @@ TEST(conduit_execution, strawman_data_accessor)
     const std::vector<std::string> des_locations = {"host", "device"};
     const std::vector<std::string> policies      = {"host", "device"};
 
+    // TODO: This loop boilerplate can be extracted into a helper function and reused
     for (const std::string &src_start : src_locations)
     {
         for (const std::string &des_start : des_locations)
@@ -1067,6 +1068,7 @@ TEST(conduit_execution, strawman_data_array)
     const std::vector<std::string> des_locations = {"host", "device"};
     const std::vector<std::string> policies      = {"host", "device"};
 
+    // TODO: This loop boilerplate can be extracted into a helper function and reused
     for (const std::string &src_start : src_locations)
     {
         for (const std::string &des_start : des_locations)
