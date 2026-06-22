@@ -577,7 +577,7 @@ public:
         // A conditional update can't use omp atomic, so we use a critical section instead
         // TODO: there may be a more efficient way to do this reduction
         #pragma omp critical(conduit_reduce_min)
-#endif
+#endif // defined(CONDUIT_USE_OPENMP)
         if (value < m_value_ptr[0])
         {
             m_value_ptr[0] = value;
@@ -631,7 +631,7 @@ public:
         // A conditional update can't use omp atomic, so we use a critical section instead
         // TODO: there may be a more efficient way to do this reduction
         #pragma omp critical(conduit_reduce_minloc)
-#endif
+#endif // defined(CONDUIT_USE_OPENMP)
         if (value < m_value_ptr[0])
         {
             m_value_ptr[0] = value;
@@ -688,7 +688,7 @@ public:
         // A conditional update can't use omp atomic, so we use a critical section instead
         // TODO: there may be a more efficient way to do this reduction
         #pragma omp critical(conduit_reduce_max)
-#endif
+#endif // defined(CONDUIT_USE_OPENMP)
         if (value > m_value_ptr[0])
         {
             m_value_ptr[0] = value;
@@ -742,7 +742,7 @@ public:
         // A conditional update can't use omp atomic, so we use a critical section instead
         // TODO: there may be a more efficient way to do this reduction
         #pragma omp critical(conduit_reduce_maxloc)
-#endif
+#endif // defined(CONDUIT_USE_OPENMP)
         if (value > m_value_ptr[0])
         {
             m_value_ptr[0] = value;
