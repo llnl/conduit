@@ -94,9 +94,9 @@ TEST(conduit_data_accessor, as_bitwidth_style)
 //-----------------------------------------------------------------------------
 TEST(conduit_data_accessor, summary_stats)
 {
-    std::vector<int64>   v_int64 ={-1,0,1};
-    std::vector<uint64>  v_uint64 = {1,2,3};
-    std::vector<float64> v_float64= {-1.0,0.0,1.0};
+    std::vector<int64>   v_int64   = {-1,0,1};
+    std::vector<uint64>  v_uint64  = {1,2,3};
+    std::vector<float64> v_float64 = {-1.0,0.0,1.0};
 
     // void* / DataType constructor variants
     {
@@ -131,27 +131,27 @@ TEST(conduit_data_accessor, summary_stats)
         n["float64"].set(std::vector<float64>{-1.0,0.0,1.0});
 
         // Node ref variant
-        int64_accessor   nb_va_int64(n["int64"]);
-        uint64_accessor  nb_va_uint64(n["uint64"]);
-        float64_accessor nb_va_float64(n["float64"]);
+        int64_accessor   va_int64(n["int64"]);
+        uint64_accessor  va_uint64(n["uint64"]);
+        float64_accessor va_float64(n["float64"]);
 
-        EXPECT_EQ(nb_va_int64.min(),-1);
-        EXPECT_EQ(nb_va_int64.max(),1);
-        EXPECT_EQ(nb_va_int64.mean(),0);
-        EXPECT_EQ(nb_va_int64.sum(),0);
-        EXPECT_EQ(nb_va_int64.count(-1),1);
+        EXPECT_EQ(va_int64.min(),-1);
+        EXPECT_EQ(va_int64.max(),1);
+        EXPECT_EQ(va_int64.mean(),0);
+        EXPECT_EQ(va_int64.sum(),0);
+        EXPECT_EQ(va_int64.count(-1),1);
 
-        EXPECT_EQ(nb_va_uint64.min(),1);
-        EXPECT_EQ(nb_va_uint64.max(),3);
-        EXPECT_EQ(nb_va_uint64.mean(),2);
-        EXPECT_EQ(nb_va_uint64.sum(),6);
-        EXPECT_EQ(nb_va_uint64.count(2),1);
+        EXPECT_EQ(va_uint64.min(),1);
+        EXPECT_EQ(va_uint64.max(),3);
+        EXPECT_EQ(va_uint64.mean(),2);
+        EXPECT_EQ(va_uint64.sum(),6);
+        EXPECT_EQ(va_uint64.count(2),1);
 
-        EXPECT_EQ(nb_va_float64.min(),-1.0);
-        EXPECT_EQ(nb_va_float64.max(),1.0);
-        EXPECT_EQ(nb_va_float64.mean(),0.0);
-        EXPECT_EQ(nb_va_float64.sum(),0.0);
-        EXPECT_EQ(nb_va_float64.count(0.0),1);
+        EXPECT_EQ(va_float64.min(),-1.0);
+        EXPECT_EQ(va_float64.max(),1.0);
+        EXPECT_EQ(va_float64.mean(),0.0);
+        EXPECT_EQ(va_float64.sum(),0.0);
+        EXPECT_EQ(va_float64.count(0.0),1);
 
         // const Node ref variant
         const Node &cn = n;
@@ -261,51 +261,7 @@ TEST(conduit_data_accessor, default_construct)
 //-----------------------------------------------------------------------------
 TEST(conduit_data_accessor, set)
 {
-
-    {
-        Node n;
-        n.set(DataType::int8(10));
-    
-        int8_accessor  i8_acc(n);
-        int16_accessor i16_acc(n);
-        int32_accessor i32_acc(n);
-        int64_accessor i64_acc(n);
-    
-        uint8_accessor  ui8_acc(n);
-        uint16_accessor ui16_acc(n);
-        uint32_accessor ui32_acc(n);
-        uint64_accessor ui64_acc(n);
-    
-        float32_accessor f32_acc(n);
-        float64_accessor f64_acc(n);
-    
-        i8_acc.set(0,-4);
-        i16_acc.set(1,-8);
-        i32_acc.set(2,-16);
-        i64_acc.set(3,-32);
-    
-        ui8_acc.set(4, 4);
-        ui16_acc.set(5,8);
-        ui32_acc.set(6,16);
-        ui64_acc.set(7,32);
-    
-        f32_acc.set(8,16);
-        f64_acc.set(9,32);
-    
-        EXPECT_EQ(i32_acc[0],-4);
-        EXPECT_EQ(i32_acc[1],-8);
-        EXPECT_EQ(i32_acc[2],-16);
-        EXPECT_EQ(i32_acc[3],-32);
-    
-        EXPECT_EQ(i32_acc[4],4);
-        EXPECT_EQ(i32_acc[5],8);
-        EXPECT_EQ(i32_acc[6],16);
-        EXPECT_EQ(i32_acc[7],32);
-    
-        EXPECT_EQ(i32_acc[8],16);
-        EXPECT_EQ(i32_acc[9],32);
-    }
-
+    // Value variant
     {
         Node n;
         n.set(DataType::int8(10));
@@ -350,6 +306,200 @@ TEST(conduit_data_accessor, set)
         EXPECT_EQ(i32_acc[9],32);
     }
 
+    // Node ref variant
+    {
+        Node n;
+        n.set(DataType::int8(10));
+    
+        int8_accessor  i8_acc(n);
+        int16_accessor i16_acc(n);
+        int32_accessor i32_acc(n);
+        int64_accessor i64_acc(n);
+    
+        uint8_accessor  ui8_acc(n);
+        uint16_accessor ui16_acc(n);
+        uint32_accessor ui32_acc(n);
+        uint64_accessor ui64_acc(n);
+    
+        float32_accessor f32_acc(n);
+        float64_accessor f64_acc(n);
+    
+        i8_acc.set(0,-4);
+        i16_acc.set(1,-8);
+        i32_acc.set(2,-16);
+        i64_acc.set(3,-32);
+    
+        ui8_acc.set(4, 4);
+        ui16_acc.set(5,8);
+        ui32_acc.set(6,16);
+        ui64_acc.set(7,32);
+    
+        f32_acc.set(8,16);
+        f64_acc.set(9,32);
+    
+        EXPECT_EQ(i32_acc[0],-4);
+        EXPECT_EQ(i32_acc[1],-8);
+        EXPECT_EQ(i32_acc[2],-16);
+        EXPECT_EQ(i32_acc[3],-32);
+    
+        EXPECT_EQ(i32_acc[4],4);
+        EXPECT_EQ(i32_acc[5],8);
+        EXPECT_EQ(i32_acc[6],16);
+        EXPECT_EQ(i32_acc[7],32);
+    
+        EXPECT_EQ(i32_acc[8],16);
+        EXPECT_EQ(i32_acc[9],32);
+    }
+
+    // const Node ref variant
+    {
+        Node n;
+        n.set(DataType::int8(10));
+        const Node &cn = n;
+
+        int64_accessor   va_int64(cn);
+        uint64_accessor  va_uint64(cn);
+        float64_accessor va_float64(cn);
+
+        int8_accessor  i8_acc(cn);
+        int16_accessor i16_acc(cn);
+        int32_accessor i32_acc(cn);
+        int64_accessor i64_acc(cn);
+
+        uint8_accessor  ui8_acc(cn);
+        uint16_accessor ui16_acc(cn);
+        uint32_accessor ui32_acc(cn);
+        uint64_accessor ui64_acc(cn);
+
+        float32_accessor f32_acc(cn);
+        float64_accessor f64_acc(cn);
+
+        i8_acc.set(0,-4);
+        i16_acc.set(1,-8);
+        i32_acc.set(2,-16);
+        i64_acc.set(3,-32);
+
+        ui8_acc.set(4, 4);
+        ui16_acc.set(5,8);
+        ui32_acc.set(6,16);
+        ui64_acc.set(7,32);
+
+        f32_acc.set(8,16);
+        f64_acc.set(9,32);
+
+        EXPECT_EQ(i32_acc[0],-4);
+        EXPECT_EQ(i32_acc[1],-8);
+        EXPECT_EQ(i32_acc[2],-16);
+        EXPECT_EQ(i32_acc[3],-32);
+
+        EXPECT_EQ(i32_acc[4],4);
+        EXPECT_EQ(i32_acc[5],8);
+        EXPECT_EQ(i32_acc[6],16);
+        EXPECT_EQ(i32_acc[7],32);
+
+        EXPECT_EQ(i32_acc[8],16);
+        EXPECT_EQ(i32_acc[9],32);
+    }
+
+    // Node ptr variant
+    {
+        Node n;
+        n.set(DataType::int8(10));
+        int64_accessor va_int64_p(&n);
+
+        int64_accessor   va_int64(&n);
+        uint64_accessor  va_uint64(&n);
+        float64_accessor va_float64(&n);
+
+        int8_accessor  i8_acc(&n);
+        int16_accessor i16_acc(&n);
+        int32_accessor i32_acc(&n);
+        int64_accessor i64_acc(&n);
+
+        uint8_accessor  ui8_acc(&n);
+        uint16_accessor ui16_acc(&n);
+        uint32_accessor ui32_acc(&n);
+        uint64_accessor ui64_acc(&n);
+
+        float32_accessor f32_acc(&n);
+        float64_accessor f64_acc(&n);
+
+        i8_acc.set(0,-4);
+        i16_acc.set(1,-8);
+        i32_acc.set(2,-16);
+        i64_acc.set(3,-32);
+
+        ui8_acc.set(4, 4);
+        ui16_acc.set(5,8);
+        ui32_acc.set(6,16);
+        ui64_acc.set(7,32);
+
+        f32_acc.set(8,16);
+        f64_acc.set(9,32);
+
+        EXPECT_EQ(i32_acc[0],-4);
+        EXPECT_EQ(i32_acc[1],-8);
+        EXPECT_EQ(i32_acc[2],-16);
+        EXPECT_EQ(i32_acc[3],-32);
+
+        EXPECT_EQ(i32_acc[4],4);
+        EXPECT_EQ(i32_acc[5],8);
+        EXPECT_EQ(i32_acc[6],16);
+        EXPECT_EQ(i32_acc[7],32);
+
+        EXPECT_EQ(i32_acc[8],16);
+        EXPECT_EQ(i32_acc[9],32);
+    }
+
+    // const Node ptr variant
+    {
+        Node n;
+        n.set(DataType::int8(10));
+        const Node *cnp = &n;
+
+        int64_accessor   va_int64(cnp);
+        uint64_accessor  va_uint64(cnp);
+        float64_accessor va_float64(cnp);
+
+        int8_accessor  i8_acc(cnp);
+        int16_accessor i16_acc(cnp);
+        int32_accessor i32_acc(cnp);
+        int64_accessor i64_acc(cnp);
+
+        uint8_accessor  ui8_acc(cnp);
+        uint16_accessor ui16_acc(cnp);
+        uint32_accessor ui32_acc(cnp);
+        uint64_accessor ui64_acc(cnp);
+
+        float32_accessor f32_acc(cnp);
+        float64_accessor f64_acc(cnp);
+
+        i8_acc.set(0,-4);
+        i16_acc.set(1,-8);
+        i32_acc.set(2,-16);
+        i64_acc.set(3,-32);
+
+        ui8_acc.set(4, 4);
+        ui16_acc.set(5,8);
+        ui32_acc.set(6,16);
+        ui64_acc.set(7,32);
+
+        f32_acc.set(8,16);
+        f64_acc.set(9,32);
+
+        EXPECT_EQ(i32_acc[0],-4);
+        EXPECT_EQ(i32_acc[1],-8);
+        EXPECT_EQ(i32_acc[2],-16);
+        EXPECT_EQ(i32_acc[3],-32);
+
+        EXPECT_EQ(i32_acc[4],4);
+        EXPECT_EQ(i32_acc[5],8);
+        EXPECT_EQ(i32_acc[6],16);
+        EXPECT_EQ(i32_acc[7],32);
+
+        EXPECT_EQ(i32_acc[8],16);
+        EXPECT_EQ(i32_acc[9],32);
+    }
 }
 
 

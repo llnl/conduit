@@ -81,59 +81,59 @@ TEST(conduit_data_array, basic_construction)
         n1.set(std::vector<int8>(10,8));
 
         // Node ref variant
-        DataArray<int8> nb_da_1(n1);
+        DataArray<int8> da_1(n1);
 
         for(index_t i=0;i<10;i++)
         {
-            EXPECT_EQ(8,nb_da_1[i]);
+            EXPECT_EQ(8,da_1[i]);
         }
 
         // const Node ref variant
         const Node cn1(n1);
-        DataArray<int8> nb_da_2(cn1);
+        DataArray<int8> da_2(cn1);
 
         for(index_t i=0;i<10;i++)
         {
-            EXPECT_EQ(8,nb_da_2[i]);
+            EXPECT_EQ(8,da_2[i]);
         }
 
         // Node ptr variant
-        DataArray<int8> nb_da_3(&n1);
+        DataArray<int8> da_3(&n1);
 
         for(index_t i=0;i<10;i++)
         {
-            EXPECT_EQ(8,nb_da_3[i]);
+            EXPECT_EQ(8,da_3[i]);
         }
 
         // const Node ptr variant
         const Node *cn1_ptr = &n1;
-        DataArray<int8> nb_da_4(cn1_ptr);
+        DataArray<int8> da_4(cn1_ptr);
 
         for(index_t i=0;i<10;i++)
         {
-            EXPECT_EQ(8,nb_da_4[i]);
+            EXPECT_EQ(8,da_4[i]);
         }
 
         // copy construction from a Node-backed DataArray
-        DataArray<int8> nb_da_5(nb_da_1);
+        DataArray<int8> da_5(da_1);
         for(index_t i=0;i<10;i++)
         {
-            EXPECT_EQ(8,nb_da_5[i]);
+            EXPECT_EQ(8,da_5[i]);
         }
 
-        // DataArray assignment: rebinds nb_da_5 to point at n2's data
+        // DataArray assignment: rebinds da_5 to point at n2's data
         Node n2;
         n2.set(std::vector<int8>(10,-8));
-        DataArray<int8> nb_da_6(n2);
+        DataArray<int8> da_6(n2);
 
-        nb_da_5 = nb_da_6;
+        da_5 = da_6;
         for(index_t i=0;i<10;i++)
         {
-            EXPECT_EQ(-8,nb_da_5[i]);
+            EXPECT_EQ(-8,da_5[i]);
         }
 
         // write-through: element writes via DataArray should modify the Node's data
-        nb_da_1[0] = 42;
+        da_1[0] = 42;
         EXPECT_EQ(42, n1.as_int8_array()[0]);
     }
 }
