@@ -934,6 +934,12 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
 
     const std::vector<std::string> csys_axes = bputils::coordset::axes(coordset);
     const std::vector<std::string> &logical_axes = bputils::LOGICAL_AXES;
+
+    // execution setup
+    conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
+    const index_t allocator_id = conduit::execution::get_output_allocator_id();
+    const std::string &sync_strategy = conduit::execution::get_sync_strategy();
+    
     for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
     {
         const std::string& csys_axis = csys_axes[i];
@@ -944,11 +950,6 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
         float64 dim_spacing = coordset.has_child("spacing") ?
             coordset["spacing"]["d"+csys_axis].to_float64() : 1.0;
         index_t dim_len = coordset["dims"][logical_axis].to_int64();
-
-        // execution setup
-        conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
-        const index_t allocator_id = conduit::execution::get_output_allocator_id();
-        const std::string &sync_strategy = conduit::execution::get_sync_strategy();
 
         Node &dst_cvals_node = dest["values"][csys_axis];
         dst_cvals_node.set_allocator(allocator_id);
