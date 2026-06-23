@@ -1145,14 +1145,14 @@ TEST(conduit_data_array, compact_to_bytes)
 
         // const Node ptr variant
         const Node *cnp = &n;
-        int64_array varray_cp(cnp);
-        uint8 buff_cp[64*4];
-        varray_cp.compact_elements_to(buff_cp);
-        int64 *vals_cpt_cp = (int64*)buff_cp;
-        EXPECT_EQ(vals_cpt_cp[0],3);
-        EXPECT_EQ(vals_cpt_cp[1],7);
-        EXPECT_EQ(vals_cpt_cp[2],9);
-        EXPECT_EQ(vals_cpt_cp[3],11);
+        int64_array varray_cnp(cnp);
+        uint8 buff_cnp[64*4];
+        varray_cnp.compact_elements_to(buff_cnp);
+        int64 *vals_cpt_cnp = (int64*)buff_cnp;
+        EXPECT_EQ(vals_cpt_cnp[0],3);
+        EXPECT_EQ(vals_cpt_cnp[1],7);
+        EXPECT_EQ(vals_cpt_cnp[2],9);
+        EXPECT_EQ(vals_cpt_cnp[3],11);
     }
 }
 
@@ -1241,12 +1241,12 @@ TEST(conduit_data_array, summary_stats)
 
         // const Node ptr variant
         const Node *cnp = &n["int64"];
-        int64_array va_int64_cp(cnp);
-        EXPECT_EQ(va_int64_cp.min(),-1);
-        EXPECT_EQ(va_int64_cp.max(),1);
-        EXPECT_EQ(va_int64_cp.mean(),0);
-        EXPECT_EQ(va_int64_cp.sum(),0);
-        EXPECT_EQ(va_int64_cp.count(-1),1);
+        int64_array va_int64_cnp(cnp);
+        EXPECT_EQ(va_int64_cnp.min(),-1);
+        EXPECT_EQ(va_int64_cnp.max(),1);
+        EXPECT_EQ(va_int64_cnp.mean(),0);
+        EXPECT_EQ(va_int64_cnp.sum(),0);
+        EXPECT_EQ(va_int64_cnp.count(-1),1);
     }
 }
 
