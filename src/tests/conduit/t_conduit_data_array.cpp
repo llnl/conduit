@@ -24,49 +24,114 @@ TEST(conduit_data_array, basic_construction)
     void *data1_ptr = &data1[0];
     const void *cdata2_ptr = &data2[0];
 
-    DataArray<int8> da_1(data1_ptr,DataType::int8(10));
-
-    std::cout << da_1.to_string() << std::endl;
-
-    for(index_t i=0;i<10;i++)
+    // void* / DataType constructor variants
     {
-        EXPECT_EQ(8,da_1[i]);
+        // void* variant
+        DataArray<int8> da_1(data1_ptr,DataType::int8(10));
+
+        std::cout << da_1.to_string() << std::endl;
+
+        for(index_t i=0;i<10;i++)
+        {
+            EXPECT_EQ(8,da_1[i]);
+        }
+
+        // const void* variant
+        DataArray<int8> da_2(cdata2_ptr,DataType::int8(10));
+
+        std::cout << da_2.to_string() << std::endl;
+
+        for(index_t i=0;i<10;i++)
+        {
+            EXPECT_EQ(-8,da_2[i]);
+        }
+
+        // copy constructor
+        DataArray<int8> da_3(da_1);
+        for(index_t i=0;i<10;i++)
+        {
+            EXPECT_EQ(8,da_3[i]);
+        }
+
+        da_3[0] = 16;
+
+        // assignment operator
+        da_3 = da_2;
+
+        for(index_t i=0;i<10;i++)
+        {
+            EXPECT_EQ(-8,da_2[i]);
+        }
+
+        da_3[0] = -16;
+
+        std::cout << da_3.to_string() << std::endl;
+
+        // test other variants of to_string and to stream, etc
+        da_3.to_string_stream(std::cout);
+        da_3.to_json_stream(std::cout);
+
+        EXPECT_EQ(16,data1[0]);
+        EXPECT_EQ(-16,data2[0]);
     }
 
-    DataArray<int8> da_2(cdata2_ptr,DataType::int8(10));
-
-    std::cout << da_2.to_string() << std::endl;
-
-    for(index_t i=0;i<10;i++)
+    // Node-backed constructor variants
     {
-        EXPECT_EQ(-8,da_2[i]);
+        Node n1;
+        n1.set(std::vector<int8>(10,8));
+
+        // Node ref variant
+        DataArray<int8> nb_da_1(n1);
+
+        for(index_t i=0;i<10;i++)
+        {
+            EXPECT_EQ(8,nb_da_1[i]);
+        }
+
+        // const Node ref variant
+        const Node cn1(n1);
+        DataArray<int8> nb_da_2(cn1);
+
+        for(index_t i=0;i<10;i++)
+        {
+            EXPECT_EQ(8,nb_da_2[i]);
+        }
+
+        // Node ptr variant
+        DataArray<int8> nb_da_3(&n1);
+
+        for(index_t i=0;i<10;i++)
+        {
+            EXPECT_EQ(8,nb_da_3[i]);
+        }
+
+        // const Node ptr variant
+        const Node *cn1_ptr = &n1;
+        DataArray<int8> nb_da_4(cn1_ptr);
+
+        for(index_t i=0;i<10;i++)
+        {
+            EXPECT_EQ(8,nb_da_4[i]);
+        }
+
+        // copy construction from a Node-backed DataArray
+        DataArray<int8> nb_da_5(nb_da_1);
+        for(index_t i=0;i<10;i++)
+        {
+            EXPECT_EQ(8,nb_da_5[i]);
+        }
+
+        // write through DataArray should modify the Node's data
+        Node n2;
+        n2.set(std::vector<int8>(10,-8));
+        DataArray<int8> nb_da_6(n2);
+
+        nb_da_5 = nb_da_6;
+        for(index_t i=0;i<10;i++)
+        {
+            EXPECT_EQ(-8,nb_da_5[i]);
+        }
     }
-
-    DataArray<int8> da_3(da_1);
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(8,da_3[i]);
-    }
-
-    da_3[0] = 16;
-
-    da_3 = da_2;
-
-    for(index_t i=0;i<10;i++)
-    {
-        EXPECT_EQ(-8,da_2[i]);
-    }
-
-    da_3[0] = -16;
-
-    std::cout << da_3.to_string() << std::endl;
-
-    // test other variants of to_string and to stream, etc
-    da_3.to_string_stream(std::cout);
-    da_3.to_json_stream(std::cout);
-
-    EXPECT_EQ(16,data1[0]);
-    EXPECT_EQ(-16,data2[0]);
 }
 
 //-----------------------------------------------------------------------------
@@ -83,8 +148,8 @@ TEST(conduit_data_array, array_stride_int8)
     {
         data[i] = -i/2;
     }
+    
     std::cout << "Full Data" << std::endl;
-
     for(int i=0;i<20;i++)
     {
         std::cout << (int64) data[i] << " ";
@@ -99,7 +164,6 @@ TEST(conduit_data_array, array_stride_int8)
                    Endianness::DEFAULT_ID);
     Node n;
     n["value"].set_external(arr_t,&data[0]);
-
 
     int8_array arr = n["value"].as_int8_array();
 
@@ -117,13 +181,11 @@ TEST(conduit_data_array, array_stride_int8)
     EXPECT_EQ(data[2],100);
 
     std::cout << "Full Data" << std::endl;
-
     for(int i=0;i<20;i++)
     {
         std::cout << (int64) data[i] << " ";
     }
     std::cout << std::endl;
-
 
     Node n2(DataType::int8(10,sizeof(int8),sizeof(int8)*2),
             &data[0],
@@ -140,6 +202,31 @@ TEST(conduit_data_array, array_stride_int8)
 
     EXPECT_EQ(arr_2[0],0);
     EXPECT_EQ(arr_2[9],-9);
+
+    // Node-backed constructor variants (reusing the existing n["value"] with stride=2, offset=0)
+    // Note: arr[1] = 100 was written above, so data[2] == 100 at this point
+
+    // Node ref variant
+    int8_array arr_nb(n["value"]);
+    EXPECT_EQ(arr_nb[5],5);
+    EXPECT_EQ(arr_nb[9],9);
+
+    // const Node ref variant
+    const Node &cn_val = n["value"];
+    int8_array arr_c(cn_val);
+    EXPECT_EQ(arr_c[5],5);
+    EXPECT_EQ(arr_c[9],9);
+
+    // Node ptr variant
+    int8_array arr_p(&n["value"]);
+    EXPECT_EQ(arr_p[5],5);
+    EXPECT_EQ(arr_p[9],9);
+
+    // const Node ptr variant
+    const Node *cnp = &n["value"];
+    int8_array arr_cnp(cnp);
+    EXPECT_EQ(arr_cnp[5],5);
+    EXPECT_EQ(arr_cnp[9],9);
 
 }
 
@@ -456,6 +543,77 @@ TEST(conduit_data_array, set_single_element)
 
     float32_array  va_float32(&v_float32[0],DataType::float32(10));
     float64_array  va_float64(&v_float64[0],DataType::float64(10));
+
+    // change the second element in each array
+    va_int8.set(1,(int8)-4);
+    va_int16.set(1,(int16)-8);
+    va_int32.set(1,(int32)-16);
+    va_int64.set(1,(int64)-32);
+
+    va_uint8.set(1,(uint8) 4);
+    va_uint16.set(1,(uint16)8);
+    va_uint32.set(1,(uint32)16);
+    va_uint64.set(1,(uint64)32);
+
+    va_float32.set(1,(float32)16.0);
+    va_float64.set(1,(float64)32.0);
+
+    va_int8.print();
+    va_int16.print();
+    va_int32.print();
+    va_int64.print();
+
+    va_uint8.print();
+    va_uint16.print();
+    va_uint32.print();
+    va_uint64.print();
+
+    va_float32.print();
+    va_float64.print();
+
+    EXPECT_EQ(va_int8[1],(int8)-4);
+    EXPECT_EQ(va_int16[1],(int16)-8);
+    EXPECT_EQ(va_int32[1],(int32)-16);
+    EXPECT_EQ(va_int64[1],(int64)-32);
+
+    EXPECT_EQ(va_uint8[1],(int8)4);
+    EXPECT_EQ(va_uint16[1],(int16)8);
+    EXPECT_EQ(va_uint32[1],(int32) 16);
+    EXPECT_EQ(va_uint64[1],(int64)32);
+
+    EXPECT_EQ(va_float32[1],(float32) 16.0);
+    EXPECT_EQ(va_float64[1],(float32) 32.0);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_array, set_single_element_node_backed)
+{
+    Node n;
+    n["int8"].set(std::vector<int8>(10,-8));
+    n["int16"].set(std::vector<int16>(10,-16));
+    n["int32"].set(std::vector<int32>(10,-32));
+    n["int64"].set(std::vector<int64>(10,-64));
+
+    n["uint8"].set(std::vector<uint8>(10,8));
+    n["uint16"].set(std::vector<uint16>(10,16));
+    n["uint32"].set(std::vector<uint32>(10,32));
+    n["uint64"].set(std::vector<uint64>(10,64));
+
+    n["float32"].set(std::vector<float32>(10,32.0));
+    n["float64"].set(std::vector<float64>(10,64.0));
+
+    int8_array    va_int8(n["int8"]);
+    int16_array   va_int16(n["int16"]);
+    int32_array   va_int32(n["int32"]);
+    int64_array   va_int64(n["int64"]);
+
+    uint8_array   va_uint8(n["uint8"]);
+    uint16_array  va_uint16(n["uint16"]);
+    uint32_array  va_uint32(n["uint32"]);
+    uint64_array  va_uint64(n["uint64"]);
+
+    float32_array va_float32(n["float32"]);
+    float64_array va_float64(n["float64"]);
 
     // change the second element in each array
     va_int8.set(1,(int8)-4);
@@ -904,22 +1062,80 @@ TEST(conduit_data_array, compact_to_bytes)
     vals[4] = 9;
     vals[6] = 11;
 
-    // stride every 16 bytes (2 int64s)
-    int64_array   varray(&vals[0],
-                         DataType::int64(4,0,16));
+    // void* / DataType constructor variant
+    {
+        // stride every 16 bytes (2 int64s)
+        int64_array varray(&vals[0],DataType::int64(4,0,16));
 
-    std::cout << varray.to_string() << std::endl;
+        std::cout << varray.to_string() << std::endl;
 
-    uint8 buff[64*4];
-    
-    varray.compact_elements_to(buff);
+        uint8 buff[64*4];
 
-    int64 *vals_cpt = (int64*)buff;
+        varray.compact_elements_to(buff);
 
-    EXPECT_EQ(vals_cpt[0],3);
-    EXPECT_EQ(vals_cpt[1],7);
-    EXPECT_EQ(vals_cpt[2],9);
-    EXPECT_EQ(vals_cpt[3],11);
+        int64 *vals_cpt = (int64*)buff;
+
+        EXPECT_EQ(vals_cpt[0],3);
+        EXPECT_EQ(vals_cpt[1],7);
+        EXPECT_EQ(vals_cpt[2],9);
+        EXPECT_EQ(vals_cpt[3],11);
+    }
+
+    // Node-backed constructor variants
+    {
+        // set a strided view on a Node: 4 elements, stride every 16 bytes (2 int64s)
+        DataType strided_dt = DataType::int64(4,0,16);
+        Node n;
+        n.set_external(strided_dt,&vals[0]);
+
+        // Node ref variant
+        int64_array varray(n);
+
+        std::cout << varray.to_string() << std::endl;
+
+        uint8 buff[64*4];
+
+        varray.compact_elements_to(buff);
+
+        int64 *vals_cpt = (int64*)buff;
+
+        EXPECT_EQ(vals_cpt[0],3);
+        EXPECT_EQ(vals_cpt[1],7);
+        EXPECT_EQ(vals_cpt[2],9);
+        EXPECT_EQ(vals_cpt[3],11);
+
+        // const Node ref variant
+        const Node &cn = n;
+        int64_array varray_c(cn);
+        uint8 buff_c[64*4];
+        varray_c.compact_elements_to(buff_c);
+        int64 *vals_cpt_c = (int64*)buff_c;
+        EXPECT_EQ(vals_cpt_c[0],3);
+        EXPECT_EQ(vals_cpt_c[1],7);
+        EXPECT_EQ(vals_cpt_c[2],9);
+        EXPECT_EQ(vals_cpt_c[3],11);
+
+        // Node ptr variant
+        int64_array varray_p(&n);
+        uint8 buff_p[64*4];
+        varray_p.compact_elements_to(buff_p);
+        int64 *vals_cpt_p = (int64*)buff_p;
+        EXPECT_EQ(vals_cpt_p[0],3);
+        EXPECT_EQ(vals_cpt_p[1],7);
+        EXPECT_EQ(vals_cpt_p[2],9);
+        EXPECT_EQ(vals_cpt_p[3],11);
+
+        // const Node ptr variant
+        const Node *cnp = &n;
+        int64_array varray_cp(cnp);
+        uint8 buff_cp[64*4];
+        varray_cp.compact_elements_to(buff_cp);
+        int64 *vals_cpt_cp = (int64*)buff_cp;
+        EXPECT_EQ(vals_cpt_cp[0],3);
+        EXPECT_EQ(vals_cpt_cp[1],7);
+        EXPECT_EQ(vals_cpt_cp[2],9);
+        EXPECT_EQ(vals_cpt_cp[3],11);
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -933,30 +1149,88 @@ TEST(conduit_data_array, summary_stats)
     uint64_array  va_uint64(&v_uint64[0],DataType::uint64(3));
     float64_array va_float64(&v_float64[0],DataType::float64(3));
 
-    va_int64.set({-1,0,1});
-    va_uint64.set({1,2,3});
-    va_float64.set({-1.0,0.0,1.0});
+    // void* / DataType constructor variant
+    {
+        va_int64.set({-1,0,1});
+        va_uint64.set({1,2,3});
+        va_float64.set({-1.0,0.0,1.0});
 
-    EXPECT_EQ(va_int64.min(),-1);
-    EXPECT_EQ(va_int64.max(),1);
-    EXPECT_EQ(va_int64.mean(),0);
-    EXPECT_EQ(va_int64.sum(),0);
-    EXPECT_EQ(va_int64.count(-1),1);
+        EXPECT_EQ(va_int64.min(),-1);
+        EXPECT_EQ(va_int64.max(),1);
+        EXPECT_EQ(va_int64.mean(),0);
+        EXPECT_EQ(va_int64.sum(),0);
+        EXPECT_EQ(va_int64.count(-1),1);
 
-    EXPECT_EQ(va_uint64.min(),1);
-    EXPECT_EQ(va_uint64.max(),3);
-    EXPECT_EQ(va_uint64.mean(),2);
-    EXPECT_EQ(va_uint64.sum(),6);
-    EXPECT_EQ(va_uint64.count(2),1);
+        EXPECT_EQ(va_uint64.min(),1);
+        EXPECT_EQ(va_uint64.max(),3);
+        EXPECT_EQ(va_uint64.mean(),2);
+        EXPECT_EQ(va_uint64.sum(),6);
+        EXPECT_EQ(va_uint64.count(2),1);
 
-    EXPECT_EQ(va_float64.min(),-1.0);
-    EXPECT_EQ(va_float64.max(),1.0);
-    EXPECT_EQ(va_float64.mean(),0.0);
-    EXPECT_EQ(va_float64.sum(),0.0);
-    EXPECT_EQ(va_float64.count(0.0),1);
+        EXPECT_EQ(va_float64.min(),-1.0);
+        EXPECT_EQ(va_float64.max(),1.0);
+        EXPECT_EQ(va_float64.mean(),0.0);
+        EXPECT_EQ(va_float64.sum(),0.0);
+        EXPECT_EQ(va_float64.count(0.0),1);
+    }
 
+    // Node-backed constructor variants
+    {
+        Node n;
+        n["int64"].set(std::vector<int64>{-1,0,1});
+        n["uint64"].set(std::vector<uint64>{1,2,3});
+        n["float64"].set(std::vector<float64>{-1.0,0.0,1.0});
+
+        // Node ref variant
+        int64_array   va_int64(n["int64"]);
+        uint64_array  va_uint64(n["uint64"]);
+        float64_array va_float64(n["float64"]);
+
+        EXPECT_EQ(va_int64.min(),-1);
+        EXPECT_EQ(va_int64.max(),1);
+        EXPECT_EQ(va_int64.mean(),0);
+        EXPECT_EQ(va_int64.sum(),0);
+        EXPECT_EQ(va_int64.count(-1),1);
+
+        EXPECT_EQ(va_uint64.min(),1);
+        EXPECT_EQ(va_uint64.max(),3);
+        EXPECT_EQ(va_uint64.mean(),2);
+        EXPECT_EQ(va_uint64.sum(),6);
+        EXPECT_EQ(va_uint64.count(2),1);
+
+        EXPECT_EQ(va_float64.min(),-1.0);
+        EXPECT_EQ(va_float64.max(),1.0);
+        EXPECT_EQ(va_float64.mean(),0.0);
+        EXPECT_EQ(va_float64.sum(),0.0);
+        EXPECT_EQ(va_float64.count(0.0),1);
+
+        // const Node ref variant
+        const Node &cn = n;
+        int64_array va_int64_c(cn["int64"]);
+        EXPECT_EQ(va_int64_c.min(),-1);
+        EXPECT_EQ(va_int64_c.max(),1);
+        EXPECT_EQ(va_int64_c.mean(),0);
+        EXPECT_EQ(va_int64_c.sum(),0);
+        EXPECT_EQ(va_int64_c.count(-1),1);
+
+        // Node ptr variant
+        int64_array va_int64_p(&n["int64"]);
+        EXPECT_EQ(va_int64_p.min(),-1);
+        EXPECT_EQ(va_int64_p.max(),1);
+        EXPECT_EQ(va_int64_p.mean(),0);
+        EXPECT_EQ(va_int64_p.sum(),0);
+        EXPECT_EQ(va_int64_p.count(-1),1);
+
+        // const Node ptr variant
+        const Node *cnp = &n["int64"];
+        int64_array va_int64_cp(cnp);
+        EXPECT_EQ(va_int64_cp.min(),-1);
+        EXPECT_EQ(va_int64_cp.max(),1);
+        EXPECT_EQ(va_int64_cp.mean(),0);
+        EXPECT_EQ(va_int64_cp.sum(),0);
+        EXPECT_EQ(va_int64_cp.count(-1),1);
+    }
 }
-
 
 //-----------------------------------------------------------------------------
 TEST(conduit_data_array, summary_print)
@@ -1059,7 +1333,6 @@ TEST(conduit_data_array, cxx_11_init_lists)
     float32_array  va_float32(&v_float32[0],DataType::float32(3));
     float64_array  va_float64(&v_float64[0],DataType::float64(3));
 
-
     // int 8
     {
         va_int8.set({-1,2,-3});
@@ -1120,7 +1393,6 @@ TEST(conduit_data_array, cxx_11_init_lists)
         va_int8 = {1.0,2.0,3.0};
         va_int8.print();
     }
-
 
     // int 16
     {
@@ -1632,12 +1904,603 @@ TEST(conduit_data_array, cxx_11_init_lists)
         EXPECT_EQ(va_float64[1],2.0);
         EXPECT_EQ(va_float64[2],3.0);
     }
-
 }
 
+//-----------------------------------------------------------------------------
+TEST(conduit_data_array, cxx_11_init_lists_node_backed)
+{
+    Node n;
+    n["int8"].set(std::vector<int8>(3,-8));
+    n["int16"].set(std::vector<int16>(3,-16));
+    n["int32"].set(std::vector<int32>(3,-32));
+    n["int64"].set(std::vector<int64>(3,-64));
 
+    n["uint8"].set(std::vector<uint8>(3,8));
+    n["uint16"].set(std::vector<uint16>(3,16));
+    n["uint32"].set(std::vector<uint32>(3,32));
+    n["uint64"].set(std::vector<uint64>(3,64));
 
+    n["float32"].set(std::vector<float32>(3,32.0));
+    n["float64"].set(std::vector<float64>(3,64.0));
 
+    int8_array    va_int8(n["int8"]);
+    int16_array   va_int16(n["int16"]);
+    int32_array   va_int32(n["int32"]);
+    int64_array   va_int64(n["int64"]);
 
+    uint8_array   va_uint8(n["uint8"]);
+    uint16_array  va_uint16(n["uint16"]);
+    uint32_array  va_uint32(n["uint32"]);
+    uint64_array  va_uint64(n["uint64"]);
 
+    float32_array  va_float32(n["float32"]);
+    float64_array  va_float64(n["float64"]);
+    
+    // int 8
+    {
+        va_int8.set({-1,2,-3});
+        va_int8.print();
+        EXPECT_EQ(va_int8[0],-1);
+        EXPECT_EQ(va_int8[1],2);
+        EXPECT_EQ(va_int8[2],-3);
 
+        va_int8 = {-1,2,-3};
+        EXPECT_EQ(va_int8[0],-1);
+        EXPECT_EQ(va_int8[1],2);
+        EXPECT_EQ(va_int8[2],-3);
+        va_int8.print();
+
+        va_int8.set({1u,2u,3u});
+        va_int8.print();
+        EXPECT_EQ(va_int8[0],1);
+        EXPECT_EQ(va_int8[1],2);
+        EXPECT_EQ(va_int8[2],3);
+
+        va_int8 = {1u,2u,3u};
+        va_int8.print();
+        EXPECT_EQ(va_int8[0],1);
+        EXPECT_EQ(va_int8[1],2);
+        EXPECT_EQ(va_int8[2],3);
+
+        va_int8.set({-1l,2l,-3l});
+        va_int8.print();
+        EXPECT_EQ(va_int8[0],-1);
+        EXPECT_EQ(va_int8[1],2);
+        EXPECT_EQ(va_int8[2],-3);
+
+        va_int8 = {-1l,2l,-3l};
+        va_int8.print();
+        EXPECT_EQ(va_int8[0],-1);
+        EXPECT_EQ(va_int8[1],2);
+        EXPECT_EQ(va_int8[2],-3);
+
+        va_int8.set({1ul,2ul,3ul});
+        EXPECT_EQ(va_int8[0],1);
+        EXPECT_EQ(va_int8[1],2);
+        EXPECT_EQ(va_int8[2],3);
+        va_int8.print();
+
+        va_int8 = {1ul,2ul,3ul};
+        va_int8.print();
+        EXPECT_EQ(va_int8[0],1);
+        EXPECT_EQ(va_int8[1],2);
+        EXPECT_EQ(va_int8[2],3);
+
+        va_int8.set({1.0f,2.0f,3.0f});
+        va_int8.print();
+        va_int8 = {1.0f,2.0f,3.0f};
+        va_int8.print();
+
+        va_int8.set({1.0,2.0,3.0});
+        va_int8.print();
+        va_int8 = {1.0,2.0,3.0};
+        va_int8.print();
+    }
+
+    // int 16
+    {
+        va_int16.set({-1,2,-3});
+        va_int16.print();
+        EXPECT_EQ(va_int16[0],-1);
+        EXPECT_EQ(va_int16[1],2);
+        EXPECT_EQ(va_int16[2],-3);
+
+        va_int16 = {-1,2,-3};
+        va_int16.print();
+        EXPECT_EQ(va_int16[0],-1);
+        EXPECT_EQ(va_int16[1],2);
+        EXPECT_EQ(va_int16[2],-3);
+
+        va_int16.set({1u,2u,3u});
+        va_int16.print();
+        EXPECT_EQ(va_int16[0],1);
+        EXPECT_EQ(va_int16[1],2);
+        EXPECT_EQ(va_int16[2],3);
+
+        va_int16 = {1u,2u,3u};
+        va_int16.print();
+        EXPECT_EQ(va_int16[0],1);
+        EXPECT_EQ(va_int16[1],2);
+        EXPECT_EQ(va_int16[2],3);
+
+        va_int16.set({-1l,2l,-3l});
+        EXPECT_EQ(va_int16[0],-1);
+        EXPECT_EQ(va_int16[1],2);
+        EXPECT_EQ(va_int16[2],-3);
+        va_int16.print();
+
+        va_int16 = {-1l,2l,-3l};
+        va_int16.print();
+        EXPECT_EQ(va_int16[0],-1);
+        EXPECT_EQ(va_int16[1],2);
+        EXPECT_EQ(va_int16[2],-3);
+
+        va_int16.set({1ul,2ul,3ul});
+        va_int16.print();
+        EXPECT_EQ(va_int16[0],1);
+        EXPECT_EQ(va_int16[1],2);
+        EXPECT_EQ(va_int16[2],3);
+
+        va_int16 = {1ul,2ul,3ul};
+        va_int16.print();
+        EXPECT_EQ(va_int16[0],1);
+        EXPECT_EQ(va_int16[1],2);
+        EXPECT_EQ(va_int16[2],3);
+
+        va_int16.set({1.0f,2.0f,3.0f});
+        va_int16.print();
+        va_int16 = {1.0f,2.0f,3.0f};
+        va_int16.print();
+
+        va_int16.set({1.0,2.0,3.0});
+        va_int16.print();
+        va_int16 = {1.0,2.0,3.0};
+        va_int16.print();
+    }
+
+    // int 32
+    {
+        va_int32.set({-1,2,-3});
+        va_int32.print();
+        EXPECT_EQ(va_int32[0],-1);
+        EXPECT_EQ(va_int32[1],2);
+        EXPECT_EQ(va_int32[2],-3);
+
+        va_int32 = {-1,2,-3};
+        va_int32.print();
+        EXPECT_EQ(va_int32[0],-1);
+        EXPECT_EQ(va_int32[1],2);
+        EXPECT_EQ(va_int32[2],-3);
+
+        va_int32.set({1u,2u,3u});
+        va_int32.print();
+        EXPECT_EQ(va_int32[0],1);
+        EXPECT_EQ(va_int32[1],2);
+        EXPECT_EQ(va_int32[2],3);
+
+        va_int32 = {1u,2u,3u};
+        va_int32.print();
+        EXPECT_EQ(va_int32[0],1);
+        EXPECT_EQ(va_int32[1],2);
+        EXPECT_EQ(va_int32[2],3);
+
+        va_int32.set({-1l,2l,-3l});
+        va_int32.print();
+        EXPECT_EQ(va_int32[0],-1);
+        EXPECT_EQ(va_int32[1],2);
+        EXPECT_EQ(va_int32[2],-3);
+
+        va_int32 = {-1l,2l,-3l};
+        va_int32.print();
+        EXPECT_EQ(va_int32[0],-1);
+        EXPECT_EQ(va_int32[1],2);
+        EXPECT_EQ(va_int32[2],-3);
+
+        va_int32.set({1ul,2ul,3ul});
+        va_int32.print();
+        EXPECT_EQ(va_int32[0],1);
+        EXPECT_EQ(va_int32[1],2);
+        EXPECT_EQ(va_int32[2],3);
+
+        va_int32 = {1ul,2ul,3ul};
+        va_int32.print();
+        EXPECT_EQ(va_int32[0],1);
+        EXPECT_EQ(va_int32[1],2);
+        EXPECT_EQ(va_int32[2],3);
+
+        va_int32.set({1.0f,2.0f,3.0f});
+        va_int32.print();
+        va_int32 = {1.0f,2.0f,3.0f};
+        va_int32.print();
+
+        va_int32.set({1.0,2.0,3.0});
+        va_int32.print();
+        va_int32 = {1.0,2.0,3.0};
+        va_int32.print();
+    }
+
+    // int 64
+    {
+        va_int64.set({-1,2,-3});
+        va_int64.print();
+        EXPECT_EQ(va_int64[0],-1);
+        EXPECT_EQ(va_int64[1],2);
+        EXPECT_EQ(va_int64[2],-3);
+
+        va_int64 = {-1,2,-3};
+        va_int64.print();
+        EXPECT_EQ(va_int64[0],-1);
+        EXPECT_EQ(va_int64[1],2);
+        EXPECT_EQ(va_int64[2],-3);
+
+        va_int64.set({1u,2u,3u});
+        va_int64.print();
+        EXPECT_EQ(va_int64[0],1);
+        EXPECT_EQ(va_int64[1],2);
+        EXPECT_EQ(va_int64[2],3);
+
+        va_int64 = {1u,2u,3u};
+        va_int64.print();
+        EXPECT_EQ(va_int64[0],1);
+        EXPECT_EQ(va_int64[1],2);
+        EXPECT_EQ(va_int64[2],3);
+
+        va_int64.set({-1l,2l,-3l});
+        va_int64.print();
+        EXPECT_EQ(va_int64[0],-1);
+        EXPECT_EQ(va_int64[1],2);
+        EXPECT_EQ(va_int64[2],-3);
+
+        va_int64 = {-1l,2l,-3l};
+        va_int64.print();
+        EXPECT_EQ(va_int64[0],-1);
+        EXPECT_EQ(va_int64[1],2);
+        EXPECT_EQ(va_int64[2],-3);
+
+        va_int64.set({1ul,2ul,3ul});
+        va_int64.print();
+        EXPECT_EQ(va_int64[0],1);
+        EXPECT_EQ(va_int64[1],2);
+        EXPECT_EQ(va_int64[2],3);
+
+        va_int64 = {1ul,2ul,3ul};
+        va_int64.print();
+        EXPECT_EQ(va_int64[0],1);
+        EXPECT_EQ(va_int64[1],2);
+        EXPECT_EQ(va_int64[2],3);
+
+        va_int64.set({1.0f,2.0f,3.0f});
+        va_int64.print();
+        va_int64 = {1.0f,2.0f,3.0f};
+        va_int64.print();
+
+        va_int64.set({1.0,2.0,3.0});
+        va_int64.print();
+        va_int64 = {1.0,2.0,3.0};
+        va_int64.print();
+    }
+
+    // uint 8
+    {
+        va_uint8.set({1,2,3});
+        EXPECT_EQ(va_uint8[0],1);
+        EXPECT_EQ(va_uint8[1],2);
+        EXPECT_EQ(va_uint8[2],3);
+        va_uint8.print();
+
+        va_uint8 = {1,2,3};
+        va_uint8.print();
+        EXPECT_EQ(va_uint8[0],1);
+        EXPECT_EQ(va_uint8[1],2);
+        EXPECT_EQ(va_uint8[2],3);
+
+        va_uint8.set({1u,2u,3u});
+        va_uint8.print();
+        EXPECT_EQ(va_uint8[0],1);
+        EXPECT_EQ(va_uint8[1],2);
+        EXPECT_EQ(va_uint8[2],3);
+
+        va_uint8 = {1u,2u,3u};
+        va_uint8.print();
+        EXPECT_EQ(va_uint8[0],1);
+        EXPECT_EQ(va_uint8[1],2);
+        EXPECT_EQ(va_uint8[2],3);
+
+        va_uint8.set({1l,2l,3l});
+        va_uint8.print();
+        EXPECT_EQ(va_uint8[0],1);
+        EXPECT_EQ(va_uint8[1],2);
+        EXPECT_EQ(va_uint8[2],3);
+
+        va_uint8 = {1l,2l,3l};
+        va_uint8.print();
+        EXPECT_EQ(va_uint8[0],1);
+        EXPECT_EQ(va_uint8[1],2);
+        EXPECT_EQ(va_uint8[2],3);
+
+        va_uint8.set({1ul,2ul,3ul});
+        va_uint8.print();
+        EXPECT_EQ(va_uint8[0],1);
+        EXPECT_EQ(va_uint8[1],2);
+        EXPECT_EQ(va_uint8[2],3);
+
+        va_uint8 = {1ul,2ul,3ul};
+        va_uint8.print();
+        EXPECT_EQ(va_uint8[0],1);
+        EXPECT_EQ(va_uint8[1],2);
+        EXPECT_EQ(va_uint8[2],3);
+
+        va_uint8.set({1.0f,2.0f,3.0f});
+        va_uint8.print();
+        va_uint8 = {1.0f,2.0f,3.0f};
+        va_uint8.print();
+
+        va_uint8.set({1.0,2.0,3.0});
+        va_uint8.print();
+        va_uint8 = {1.0,2.0,3.0};
+        va_uint8.print();
+    }
+
+    // uint 16
+    {
+        va_uint16.set({1,2,3});
+        va_uint16.print();
+        EXPECT_EQ(va_uint16[0],1);
+        EXPECT_EQ(va_uint16[1],2);
+        EXPECT_EQ(va_uint16[2],3);
+
+        va_uint16 = {1,2,3};
+        va_uint16.print();
+        EXPECT_EQ(va_uint16[0],1);
+        EXPECT_EQ(va_uint16[1],2);
+        EXPECT_EQ(va_uint16[2],3);
+
+        va_uint16.set({1u,2u,3u});
+        va_uint16.print();
+        EXPECT_EQ(va_uint16[0],1);
+        EXPECT_EQ(va_uint16[1],2);
+        EXPECT_EQ(va_uint16[2],3);
+
+        va_uint16 = {1u,2u,3u};
+        va_uint16.print();
+        EXPECT_EQ(va_uint16[0],1);
+        EXPECT_EQ(va_uint16[1],2);
+        EXPECT_EQ(va_uint16[2],3);
+
+        va_uint16.set({1l,2l,3l});
+        va_uint16.print();
+        EXPECT_EQ(va_uint16[0],1);
+        EXPECT_EQ(va_uint16[1],2);
+        EXPECT_EQ(va_uint16[2],3);
+
+        va_uint16 = {1l,2l,3l};
+        va_uint16.print();
+        EXPECT_EQ(va_uint16[0],1);
+        EXPECT_EQ(va_uint16[1],2);
+        EXPECT_EQ(va_uint16[2],3);
+
+        va_uint16.set({1ul,2ul,3ul});
+        va_uint16.print();
+        EXPECT_EQ(va_uint16[0],1);
+        EXPECT_EQ(va_uint16[1],2);
+        EXPECT_EQ(va_uint16[2],3);
+
+        va_uint16 = {1ul,2ul,3ul};
+        va_uint16.print();
+        EXPECT_EQ(va_uint16[0],1);
+        EXPECT_EQ(va_uint16[1],2);
+        EXPECT_EQ(va_uint16[2],3);
+
+        va_uint16.set({1.0f,2.0f,3.0f});
+        va_uint16.print();
+        va_uint16 = {1.0f,2.0f,3.0f};
+        va_uint16.print();
+
+        va_uint16.set({1.0,2.0,3.0});
+        va_uint16.print();
+        va_uint16 = {1.0,2.0,3.0};
+        va_uint16.print();
+    }
+
+    // uint 32
+    {
+        va_uint32.set({1,2,3});
+        va_uint32.print();
+        EXPECT_EQ(va_uint32[0],1);
+        EXPECT_EQ(va_uint32[1],2);
+        EXPECT_EQ(va_uint32[2],3);
+
+        va_uint32 = {1,2,3};
+        va_uint32.print();
+        EXPECT_EQ(va_uint32[0],1);
+        EXPECT_EQ(va_uint32[1],2);
+        EXPECT_EQ(va_uint32[2],3);
+
+        va_uint32.set({1u,2u,3u});
+        va_uint32.print();
+        EXPECT_EQ(va_uint32[0],1);
+        EXPECT_EQ(va_uint32[1],2);
+        EXPECT_EQ(va_uint32[2],3);
+
+        va_uint32 = {1u,2u,3u};
+        va_uint32.print();
+        EXPECT_EQ(va_uint32[0],1);
+        EXPECT_EQ(va_uint32[1],2);
+        EXPECT_EQ(va_uint32[2],3);
+
+        va_uint32.set({1l,2l,3l});
+        va_uint32.print();
+        EXPECT_EQ(va_uint32[0],1);
+        EXPECT_EQ(va_uint32[1],2);
+        EXPECT_EQ(va_uint32[2],3);
+
+        va_uint32 = {1l,2l,3l};
+        va_uint32.print();
+        EXPECT_EQ(va_uint32[0],1);
+        EXPECT_EQ(va_uint32[1],2);
+        EXPECT_EQ(va_uint32[2],3);
+
+        va_uint32.set({1ul,2ul,3ul});
+        va_uint32.print();
+        EXPECT_EQ(va_uint32[0],1);
+        EXPECT_EQ(va_uint32[1],2);
+        EXPECT_EQ(va_uint32[2],3);
+
+        va_uint32 = {1ul,2ul,3ul};
+        va_uint32.print();
+        EXPECT_EQ(va_uint32[0],1);
+        EXPECT_EQ(va_uint32[1],2);
+        EXPECT_EQ(va_uint32[2],3);
+
+        va_uint32.set({1.0f,2.0f,3.0f});
+        va_uint32.print();
+        va_uint32 = {1.0f,2.0f,3.0f};
+        va_uint32.print();
+
+        va_uint32.set({1.0,2.0,3.0});
+        va_uint32.print();
+        va_uint32 = {1.0,2.0,3.0};
+        va_uint32.print();
+    }
+
+    // uint 64
+    {
+        va_uint64.set({1,2,3});
+        va_uint64.print();
+        EXPECT_EQ(va_uint64[0],1);
+        EXPECT_EQ(va_uint64[1],2);
+        EXPECT_EQ(va_uint64[2],3);
+
+        va_uint64 = {1,2,3};
+        va_uint64.print();
+        EXPECT_EQ(va_uint64[0],1);
+        EXPECT_EQ(va_uint64[1],2);
+        EXPECT_EQ(va_uint64[2],3);
+
+        va_uint64.set({1u,2u,3u});
+        va_uint64.print();
+        EXPECT_EQ(va_uint64[0],1);
+        EXPECT_EQ(va_uint64[1],2);
+        EXPECT_EQ(va_uint64[2],3);
+
+        va_uint64 = {1u,2u,3u};
+        va_uint64.print();
+        EXPECT_EQ(va_uint64[0],1);
+        EXPECT_EQ(va_uint64[1],2);
+        EXPECT_EQ(va_uint64[2],3);
+
+        va_uint64.set({1l,2l,3l});
+        va_uint64.print();
+        EXPECT_EQ(va_uint64[0],1);
+        EXPECT_EQ(va_uint64[1],2);
+        EXPECT_EQ(va_uint64[2],3);
+
+        va_uint64 = {1l,2l,3l};
+        va_uint64.print();
+        EXPECT_EQ(va_uint64[0],1);
+        EXPECT_EQ(va_uint64[1],2);
+        EXPECT_EQ(va_uint64[2],3);
+
+        va_uint64.set({1ul,2ul,3ul});
+        va_uint64.print();
+        EXPECT_EQ(va_uint64[0],1);
+        EXPECT_EQ(va_uint64[1],2);
+        EXPECT_EQ(va_uint64[2],3);
+
+        va_uint64 = {1ul,2ul,3ul};
+        va_uint64.print();
+        EXPECT_EQ(va_uint64[0],1);
+        EXPECT_EQ(va_uint64[1],2);
+        EXPECT_EQ(va_uint64[2],3);
+
+        va_uint64.set({1.0f,2.0f,3.0f});
+        va_uint64.print();
+        va_uint64 = {1.0f,2.0f,3.0f};
+        va_uint64.print();
+
+        va_uint64.set({1.0,2.0,3.0});
+        va_uint64.print();
+        va_uint64 = {1.0,2.0,3.0};
+        va_uint64.print();
+    }
+
+    // float 32
+    {
+        va_float32.set({-1,-2,-3});
+        va_float32.print();
+        va_float32 = {-1,2,-3};
+        va_float32.print();
+
+        va_float32.set({1u,2u,3u});
+        va_float32.print();
+        va_float32 = {1u,2u,3u};
+        va_float32.print();
+
+        va_float32.set({1l,2l,3l});
+        va_float32.print();
+        va_float32 = {-1l,2l,-3l};
+        va_float32.print();
+
+        va_float32.set({1ul,2ul,3ul});
+        va_float32.print();
+        va_float32 = {1ul,2ul,3ul};
+        va_float32.print();
+
+        va_float32.set({1.0f,2.0f,3.0f});
+        va_float32.print();
+        EXPECT_EQ(va_float32[0],1.0f);
+        EXPECT_EQ(va_float32[1],2.0f);
+        EXPECT_EQ(va_float32[2],3.0f);
+
+        va_float32 = {1.0f,2.0f,3.0f};
+        va_float32.print();
+        EXPECT_EQ(va_float32[0],1.0f);
+        EXPECT_EQ(va_float32[1],2.0f);
+        EXPECT_EQ(va_float32[2],3.0f);
+
+        va_float32.set({1.0,2.0,3.0});
+        va_float32.print();
+        va_float32 = {1.0,2.0,3.0};
+        va_float32.print();
+    }
+
+    // float 64
+    {
+        va_float64.set({-1,-2,-3});
+        va_float64.print();
+        va_float64 = {-1,2,-3};
+        va_float64.print();
+
+        va_float64.set({1u,2u,3u});
+        va_float64.print();
+        va_float64 = {1u,2u,3u};
+        va_float64.print();
+
+        va_float64.set({1l,2l,3l});
+        va_float64.print();
+        va_float64 = {-1l,2l,-3l};
+        va_float64.print();
+
+        va_float64.set({1ul,2ul,3ul});
+        va_float64.print();
+        va_float64 = {1ul,2ul,3ul};
+        va_float64.print();
+
+        va_float64.set({1.0f,2.0f,3.0f});
+        va_float64.print();
+        va_float64 = {1.0f,2.0f,3.0f};
+        va_float64.print();
+
+        va_float64.set({1.0,2.0,3.0});
+        va_float64.print();
+        EXPECT_EQ(va_float64[0],1.0);
+        EXPECT_EQ(va_float64[1],2.0);
+        EXPECT_EQ(va_float64[2],3.0);
+
+        va_float64 = {1.0,2.0,3.0};
+        va_float64.print();
+        EXPECT_EQ(va_float64[0],1.0);
+        EXPECT_EQ(va_float64[1],2.0);
+        EXPECT_EQ(va_float64[2],3.0);
+    }
+}
