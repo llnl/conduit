@@ -711,12 +711,8 @@ TEST(conduit_execution, strawman_data_accessor)
     {
         for (const std::string &des_start : des_locations)
         {
-            // Skip device-memory combinations when no device is available.
-            if ((src_start == "device" || des_start == "device") &&
-                !ExecutionPolicy::is_device_enabled())
-            {
-                continue;
-            }
+            // Compute this once since we'll use it in several places
+            const bool is_src_or_dst_device = (src_start == "device" || des_start == "device");
 
             //----------------------------------------------------------
             // DataAccessor sync
@@ -725,7 +721,9 @@ TEST(conduit_execution, strawman_data_accessor)
             //----------------------------------------------------------
             for (const std::string &policy_str : policies)
             {
-                if (policy_str == "device" && ! ExecutionPolicy::is_device_enabled())
+                // Skip device-dependent combos if conduit was built without device support
+                if ((is_src_or_dst_device || policy_str == "device") &&
+                    !ExecutionPolicy::is_device_enabled())
                 {
                     continue;
                 }
@@ -807,7 +805,9 @@ TEST(conduit_execution, strawman_data_accessor)
             //----------------------------------------------------------
             for (const std::string &policy_str : policies)
             {
-                if (policy_str == "device" && ! ExecutionPolicy::is_device_enabled())
+                // Skip device-dependent combos if conduit was built without device support
+                if ((is_src_or_dst_device || policy_str == "device") &&
+                    !ExecutionPolicy::is_device_enabled())
                 {
                     continue;
                 }
@@ -888,7 +888,7 @@ TEST(conduit_execution, strawman_data_accessor)
             // node["des"] is then synced back to where it started.
             //----------------------------------------------------------
             if ((src_start == "host" && des_start == "host") ||
-                (ExecutionPolicy::is_device_enabled()))
+                ExecutionPolicy::is_device_enabled())
             {
                 CONDUIT_INFO("DataAccessor active_space():\n" <<
                              "    src_start=" << src_start << "\n" <<
@@ -972,7 +972,9 @@ TEST(conduit_execution, strawman_data_accessor)
             //----------------------------------------------------------
             for (const std::string &policy_str : policies)
             {
-                if (policy_str == "device" && ! ExecutionPolicy::is_device_enabled())
+                // Skip device-dependent combos if conduit was built without device support
+                if ((is_src_or_dst_device || policy_str == "device") &&
+                    !ExecutionPolicy::is_device_enabled())
                 {
                     continue;
                 }
@@ -1073,12 +1075,8 @@ TEST(conduit_execution, strawman_data_array)
     {
         for (const std::string &des_start : des_locations)
         {
-            // Skip device-memory combinations when no device is available.
-            if ((src_start == "device" || des_start == "device") &&
-                !ExecutionPolicy::is_device_enabled())
-            {
-                continue;
-            }
+            // Compute this once since we'll use it in several places
+            const bool is_src_or_dst_device = (src_start == "device" || des_start == "device");
 
             //----------------------------------------------------------
             // DataArray sync
@@ -1087,7 +1085,9 @@ TEST(conduit_execution, strawman_data_array)
             //----------------------------------------------------------
             for (const std::string &policy_str : policies)
             {
-                if (policy_str == "device" && ! ExecutionPolicy::is_device_enabled())
+                // Skip device-dependent combos if conduit was built without device support
+                if ((is_src_or_dst_device || policy_str == "device") &&
+                    !ExecutionPolicy::is_device_enabled())
                 {
                     continue;
                 }
@@ -1169,7 +1169,9 @@ TEST(conduit_execution, strawman_data_array)
             //----------------------------------------------------------
             for (const std::string &policy_str : policies)
             {
-                if (policy_str == "device" && ! ExecutionPolicy::is_device_enabled())
+                // Skip device-dependent combos if conduit was built without device support
+                if ((is_src_or_dst_device || policy_str == "device") &&
+                    !ExecutionPolicy::is_device_enabled())
                 {
                     continue;
                 }
@@ -1250,7 +1252,7 @@ TEST(conduit_execution, strawman_data_array)
             // node["des"] is then synced back to where it started.
             //----------------------------------------------------------
             if ((src_start == "host" && des_start == "host") ||
-                (ExecutionPolicy::is_device_enabled()))
+                ExecutionPolicy::is_device_enabled())
             {
                 CONDUIT_INFO("DataArray active_space():\n" <<
                              "    src_start=" << src_start << "\n" <<
@@ -1334,7 +1336,9 @@ TEST(conduit_execution, strawman_data_array)
             //----------------------------------------------------------
             for (const std::string &policy_str : policies)
             {
-                if (policy_str == "device" && ! ExecutionPolicy::is_device_enabled())
+                // Skip device-dependent combos if conduit was built without device support
+                if ((is_src_or_dst_device || policy_str == "device") &&
+                    !ExecutionPolicy::is_device_enabled())
                 {
                     continue;
                 }
