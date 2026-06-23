@@ -124,13 +124,13 @@ TEST(conduit_data_accessor, summary_stats)
     }
 
     // Node-backed constructor variants
-    {
-        Node n;
-        n["int64"].set(std::vector<int64>{-1,0,1});
-        n["uint64"].set(std::vector<uint64>{1,2,3});
-        n["float64"].set(std::vector<float64>{-1.0,0.0,1.0});
+    Node n;
+    n["int64"].set(std::vector<int64>{-1,0,1});
+    n["uint64"].set(std::vector<uint64>{1,2,3});
+    n["float64"].set(std::vector<float64>{-1.0,0.0,1.0});
 
-        // Node ref variant
+    // Node ref variant
+    {
         int64_accessor   va_int64(n["int64"]);
         uint64_accessor  va_uint64(n["uint64"]);
         float64_accessor va_float64(n["float64"]);
@@ -152,8 +152,10 @@ TEST(conduit_data_accessor, summary_stats)
         EXPECT_EQ(va_float64.mean(),0.0);
         EXPECT_EQ(va_float64.sum(),0.0);
         EXPECT_EQ(va_float64.count(0.0),1);
+    }
 
-        // const Node ref variant
+    // const Node ref variant
+    {
         const Node &cn = n;
         int64_accessor va_int64_c(cn["int64"]);
         EXPECT_EQ(va_int64_c.min(),-1);
@@ -161,23 +163,27 @@ TEST(conduit_data_accessor, summary_stats)
         EXPECT_EQ(va_int64_c.mean(),0);
         EXPECT_EQ(va_int64_c.sum(),0);
         EXPECT_EQ(va_int64_c.count(-1),1);
+    }
 
-        // Node ptr variant
-        int64_accessor va_int64_p(&n["int64"]);
-        EXPECT_EQ(va_int64_p.min(),-1);
-        EXPECT_EQ(va_int64_p.max(),1);
-        EXPECT_EQ(va_int64_p.mean(),0);
-        EXPECT_EQ(va_int64_p.sum(),0);
-        EXPECT_EQ(va_int64_p.count(-1),1);
+    // Node ptr variant
+    {
+        int64_accessor va_uint64_p(&n["uint64"]);
+        EXPECT_EQ(va_uint64_p.min(),1);
+        EXPECT_EQ(va_uint64_p.max(),3);
+        EXPECT_EQ(va_uint64_p.mean(),2);
+        EXPECT_EQ(va_uint64_p.sum(),6);
+        EXPECT_EQ(va_uint64_p.count(2),1);
+    }
 
-        // const Node ptr variant
-        const Node *cnp = &n["int64"];
-        int64_accessor va_int64_cp(cnp);
-        EXPECT_EQ(va_int64_cp.min(),-1);
-        EXPECT_EQ(va_int64_cp.max(),1);
-        EXPECT_EQ(va_int64_cp.mean(),0);
-        EXPECT_EQ(va_int64_cp.sum(),0);
-        EXPECT_EQ(va_int64_cp.count(-1),1);
+    // const Node ptr variant
+    {
+        const Node *cnp = &n["float64"];
+        int64_accessor va_float64_cnp(cnp);
+        EXPECT_EQ(va_float64_cnp.min(),-1.0);
+        EXPECT_EQ(va_float64_cnp.max(),1.0);
+        EXPECT_EQ(va_float64_cnp.mean(),0.0);
+        EXPECT_EQ(va_float64_cnp.sum(),0.0);
+        EXPECT_EQ(va_float64_cnp.count(0.0),1);
     }
 }
 
@@ -357,10 +363,6 @@ TEST(conduit_data_accessor, set)
         n.set(DataType::int8(10));
         const Node &cn = n;
 
-        int64_accessor   va_int64(cn);
-        uint64_accessor  va_uint64(cn);
-        float64_accessor va_float64(cn);
-
         int8_accessor  i8_acc(cn);
         int16_accessor i16_acc(cn);
         int32_accessor i32_acc(cn);
@@ -405,11 +407,6 @@ TEST(conduit_data_accessor, set)
     {
         Node n;
         n.set(DataType::int8(10));
-        int64_accessor va_int64_p(&n);
-
-        int64_accessor   va_int64(&n);
-        uint64_accessor  va_uint64(&n);
-        float64_accessor va_float64(&n);
 
         int8_accessor  i8_acc(&n);
         int16_accessor i16_acc(&n);
@@ -456,10 +453,6 @@ TEST(conduit_data_accessor, set)
         Node n;
         n.set(DataType::int8(10));
         const Node *cnp = &n;
-
-        int64_accessor   va_int64(cnp);
-        uint64_accessor  va_uint64(cnp);
-        float64_accessor va_float64(cnp);
 
         int8_accessor  i8_acc(cnp);
         int16_accessor i16_acc(cnp);
