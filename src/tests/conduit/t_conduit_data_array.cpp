@@ -121,7 +121,7 @@ TEST(conduit_data_array, basic_construction)
             EXPECT_EQ(8,nb_da_5[i]);
         }
 
-        // write through DataArray should modify the Node's data
+        // DataArray assignment: rebinds nb_da_5 to point at n2's data
         Node n2;
         n2.set(std::vector<int8>(10,-8));
         DataArray<int8> nb_da_6(n2);
@@ -131,6 +131,10 @@ TEST(conduit_data_array, basic_construction)
         {
             EXPECT_EQ(-8,nb_da_5[i]);
         }
+
+        // write-through: element writes via DataArray should modify the Node's data
+        nb_da_1[0] = 42;
+        EXPECT_EQ(42, n1.as_int8_array()[0]);
     }
 }
 
@@ -576,13 +580,13 @@ TEST(conduit_data_array, set_single_element)
     EXPECT_EQ(va_int32[1],(int32)-16);
     EXPECT_EQ(va_int64[1],(int64)-32);
 
-    EXPECT_EQ(va_uint8[1],(int8)4);
-    EXPECT_EQ(va_uint16[1],(int16)8);
-    EXPECT_EQ(va_uint32[1],(int32) 16);
-    EXPECT_EQ(va_uint64[1],(int64)32);
+    EXPECT_EQ(va_uint8[1],(uint8)4);
+    EXPECT_EQ(va_uint16[1],(uint16)8);
+    EXPECT_EQ(va_uint32[1],(uint32)16);
+    EXPECT_EQ(va_uint64[1],(uint64)32);
 
     EXPECT_EQ(va_float32[1],(float32) 16.0);
-    EXPECT_EQ(va_float64[1],(float32) 32.0);
+    EXPECT_EQ(va_float64[1],(float64) 32.0);
 }
 
 //-----------------------------------------------------------------------------
@@ -647,13 +651,27 @@ TEST(conduit_data_array, set_single_element_node_backed)
     EXPECT_EQ(va_int32[1],(int32)-16);
     EXPECT_EQ(va_int64[1],(int64)-32);
 
-    EXPECT_EQ(va_uint8[1],(int8)4);
-    EXPECT_EQ(va_uint16[1],(int16)8);
-    EXPECT_EQ(va_uint32[1],(int32) 16);
-    EXPECT_EQ(va_uint64[1],(int64)32);
+    EXPECT_EQ(va_uint8[1],(uint8)4);
+    EXPECT_EQ(va_uint16[1],(uint16)8);
+    EXPECT_EQ(va_uint32[1],(uint32)16);
+    EXPECT_EQ(va_uint64[1],(uint64)32);
 
     EXPECT_EQ(va_float32[1],(float32) 16.0);
-    EXPECT_EQ(va_float64[1],(float32) 32.0);
+    EXPECT_EQ(va_float64[1],(float64) 32.0);
+
+    // verify write-through: changes made via DataArray should appear in the Node
+    EXPECT_EQ(n["int8"].as_int8_array()[1],    (int8)-4);
+    EXPECT_EQ(n["int16"].as_int16_array()[1],  (int16)-8);
+    EXPECT_EQ(n["int32"].as_int32_array()[1],  (int32)-16);
+    EXPECT_EQ(n["int64"].as_int64_array()[1],  (int64)-32);
+
+    EXPECT_EQ(n["uint8"].as_uint8_array()[1],   (uint8)4);
+    EXPECT_EQ(n["uint16"].as_uint16_array()[1], (uint16)8);
+    EXPECT_EQ(n["uint32"].as_uint32_array()[1], (uint32)16);
+    EXPECT_EQ(n["uint64"].as_uint64_array()[1], (uint64)32);
+
+    EXPECT_EQ(n["float32"].as_float32_array()[1], (float32)16.0);
+    EXPECT_EQ(n["float64"].as_float64_array()[1], (float64)32.0);
 }
 
 //-----------------------------------------------------------------------------
