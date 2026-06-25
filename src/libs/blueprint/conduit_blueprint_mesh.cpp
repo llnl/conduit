@@ -1004,7 +1004,7 @@ convert_coordset_to_explicit(const std::string &base_type,
         // rectilinear transform case.
         const Node &src_cvals_node = coordset.has_child("values") ?
             coordset["values"][csys_axis] : info;
-        float64_accessor src_cvals_acc = src_cvals_node.value();
+        float64_accessor src_cvals_acc(src_cvals_node);
         // NOTE: The following values are specific to the
         // uniform transform case.
         float64 dim_origin = coordset.has_child("origin") ?
@@ -1019,12 +1019,27 @@ convert_coordset_to_explicit(const std::string &base_type,
             dim_block_count *= (i < j) ? dim_lens[j] : 1;
         }
 
+        // execution setup
+        conduit::execution::ExecutionPolicy policy = is_base_rectilinear ?
+            conduit::execution::get_execution_policy(src_cvals_node) :
+            conduit::execution::get_execution_policy();
+        const index_t allocator_id = is_base_rectilinear ? 
+            conduit::execution::get_output_allocator_id(src_cvals_node) :
+            conduit::execution::get_output_allocator_id();
+        const std::string &sync_strategy = conduit::execution::get_sync_strategy();
+
         Node &dst_cvals_node = dest["values"][csys_axis];
+        dst_cvals_node.set_allocator(allocator_id);
         dst_cvals_node.set(DataType(float_dtype.id(), coords_len));
 
-        float64_accessor dst_cvals_acc = dst_cvals_node.value();
+        float64_accessor dst_cvals_acc(dst_cvals_node);
+        dst_cvals_acc.use_with(policy);
+        if (is_base_rectilinear)
+        {
+            src_cvals_acc.use_with(policy);
+        }
 
-        for(index_t d = 0; d < dim_lens[i]; d++)
+        conduit::execution::forall(policy, 0, dim_lens[i], [=] CONDUIT_EXEC(index_t d)
         {
             index_t doffset = d * dim_block_size;
             for(index_t b = 0; b < dim_block_count; b++)
@@ -1043,7 +1058,10 @@ convert_coordset_to_explicit(const std::string &base_type,
                     }
                 }
             }
-        }
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        dst_cvals_acc.data_movement(sync_strategy);
     }
 }
 
