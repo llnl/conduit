@@ -37,7 +37,8 @@ using EP = execution::ExecutionPolicy;
 enum class FillMode
 {
     Sequential,
-    Random
+    Random,
+    None  ///< Use when fill mode is not applicable to the benchmark
 };
 
 //-----------------------------------------------------------------------------
@@ -248,10 +249,10 @@ get_enabled_policies()
     // (and subsequently cause our benchmark "tests" to fail), we have to
     // do extra work to avoid asking for disabled policies
     detail::add_if_enabled(policies, EP::is_serial_enabled(),   [] { return EP::serial(); });
-    detail::add_if_enabled(policies, EP::is_parallel_enabled(), [] { return EP::parallel(); });
     detail::add_if_enabled(policies, EP::is_host_enabled(),     [] { return EP::host(); });
-    detail::add_if_enabled(policies, EP::is_device_enabled(),   [] { return EP::device(); });
     detail::add_if_enabled(policies, EP::is_openmp_enabled(),   [] { return EP::openmp(); });
+    detail::add_if_enabled(policies, EP::is_parallel_enabled(), [] { return EP::parallel(); });
+    detail::add_if_enabled(policies, EP::is_device_enabled(),   [] { return EP::device(); });
     detail::add_if_enabled(policies, EP::is_cuda_enabled(),     [] { return EP::cuda(); });
     detail::add_if_enabled(policies, EP::is_hip_enabled(),      [] { return EP::hip(); });
 
@@ -262,7 +263,10 @@ get_enabled_policies()
 // something like conduit::benchmark::(func) is possible/would be nicer
 template <typename BenchmarkFn>
 void
-exec(BenchmarkFn&& fn, const index_t warmup, const index_t iterations)
+exec(BenchmarkFn&& fn,
+     const index_t warmup,
+     const index_t iterations,
+     std::initializer_list<FillMode> modes = {FillMode::Sequential, FillMode::Random})
 {
     // Setup
     execution::init_device_memory_handlers();
@@ -272,14 +276,15 @@ exec(BenchmarkFn&& fn, const index_t warmup, const index_t iterations)
     
     for (const auto& policy : policies)
     {
-        // TODO: Somehow let the user decide which fill modes are enabled
-        for (const FillMode mode : {FillMode::Sequential, FillMode::Random})
+        for (const FillMode mode : modes)
         {
             // Warm-up
             for (index_t i = 0; i < warmup; i++)
             {
                 fn(policy, mode);
             }
+
+            std::cout << "\n" << policy.policy_name() << "," << warmup << "," << iterations << std::endl;
             
             // TODO: Do we care to have bespoke timing in the case that conduit was built
             // without caliper?

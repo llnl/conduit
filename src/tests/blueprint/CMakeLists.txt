@@ -9,6 +9,15 @@
 ################################
 # blueprint lib Unit Tests
 ################################
+set(BLUEPRINT_BENCHMARK_TESTS t_blueprint_mesh_transform_benchmark)
+
+message(STATUS "Adding blueprint lib benchmark tests")
+foreach(TEST ${BLUEPRINT_BENCHMARK_TESTS})
+    add_cpp_test(TEST ${TEST}
+                 DEPENDS_ON conduit conduit_blueprint conduit_relay
+                 FOLDER tests/blueprint)
+endforeach()
+
 set(BLUEPRINT_TESTS t_blueprint_smoke
                     t_blueprint_mcarray_verify
                     t_blueprint_mcarray_examples
