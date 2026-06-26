@@ -61,7 +61,7 @@ coordset_rectilinear_to_explicit(EP /*policy*/,
 }
 
 //-----------------------------------------------------------------------------
-TEST(blueprint_mesh_transform, coordset_to_explicit)
+TEST(blueprint_mesh_transform_execution, coordset_to_explicit)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
     benchmark::exec(coordset_uniform_to_explicit,
