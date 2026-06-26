@@ -36,9 +36,9 @@ using EP = execution::ExecutionPolicy;
 //-----------------------------------------------------------------------------
 enum class FillMode
 {
-    Sequential,
-    Random,
-    None  ///< Use when fill mode is not applicable to the benchmark
+    Sequential, // Fill with sequential values
+    Random,     // Fill with random values
+    None        // No-op for benchmarks that do not fill
 };
 
 //-----------------------------------------------------------------------------
