@@ -58,7 +58,7 @@ CONDUIT_API void reset_execution_options();
 //-----------------------------------------------------------------------------
 /// Get an execution policy based on the policy option.
 //-----------------------------------------------------------------------------
-CONDUIT_API ExecutionPolicy get_execution_policy(Node &src_node);
+CONDUIT_API ExecutionPolicy get_execution_policy(const Node &src_node);
 
 //-----------------------------------------------------------------------------
 /// Get an execution policy based on the policy option.
@@ -73,7 +73,7 @@ CONDUIT_API index_t get_output_allocator_id();
 //-----------------------------------------------------------------------------
 /// Get the output allocator id based on the allocator option.
 //-----------------------------------------------------------------------------
-CONDUIT_API index_t get_output_allocator_id(Node &src_node);
+CONDUIT_API index_t get_output_allocator_id(const Node &src_node);
 
 //-----------------------------------------------------------------------------
 /// Get the sync strategy option.
