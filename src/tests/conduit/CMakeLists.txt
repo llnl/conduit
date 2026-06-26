@@ -44,7 +44,6 @@ set(BASIC_TESTS t_conduit_smoke
                 t_conduit_schema
                 t_conduit_error
                 t_conduit_execution
-                t_conduit_execution_benchmark
                 t_conduit_log
                 t_conduit_utils
                 t_conduit_annotations
@@ -67,8 +66,7 @@ foreach(TEST ${BASIC_TESTS})
 endforeach()
 
 set(conduit_device_test_sources
-    t_conduit_execution.cpp
-    t_conduit_execution_benchmark.cpp)
+    t_conduit_execution.cpp)
 
 conduit_set_source_device_properties("${conduit_device_test_sources}")
 
@@ -91,5 +89,3 @@ if(FORTRAN_FOUND)
 else()
     message(STATUS "Fortran disabled: Skipping conduit fortran interface tests")
 endif()
-
-

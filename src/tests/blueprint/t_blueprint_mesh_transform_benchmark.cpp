@@ -16,62 +16,54 @@
 #include "gtest/gtest.h"
 
 using namespace conduit;
-using EP = execution::ExecutionPolicy;
 
-index_t BENCHMARK_ARRAY_SIZE            = 64;
+index_t BENCHMARK_DIM_SIZE              = 64;
 index_t BENCHMARK_NUM_WARMUP_ITERATIONS = 10;
 index_t BENCHMARK_NUM_ITERATIONS        = 100;
 
 //-----------------------------------------------------------------------------
 void
-coordset_uniform_to_explicit(EP /*policy*/,
-                             benchmark::FillMode /*mode*/)
+coordset_transform(const char *name,
+                   const std::string &src_type,
+                   void (*transform)(const Node &, Node &))
 {
-    CONDUIT_ANNOTATE_MARK_FUNCTION;
+    CONDUIT_ANNOTATE_MARK_SCOPE(name);
 
     Node mesh;
-    blueprint::mesh::examples::braid("uniform",
-                                     BENCHMARK_ARRAY_SIZE,
-                                     BENCHMARK_ARRAY_SIZE,
-                                     BENCHMARK_ARRAY_SIZE,
+    blueprint::mesh::examples::braid(src_type,
+                                     BENCHMARK_DIM_SIZE,
+                                     BENCHMARK_DIM_SIZE,
+                                     BENCHMARK_DIM_SIZE,
                                      mesh);
 
     const Node &coordset = mesh["coordsets"].child(0);
     Node dst;
-    blueprint::mesh::coordset::uniform::to_explicit(coordset, dst);
+    transform(coordset, dst);
 }
 
 //-----------------------------------------------------------------------------
-void
-coordset_rectilinear_to_explicit(EP /*policy*/,
-                                 benchmark::FillMode /*mode*/)
+void uniform_to_rectilinear()
 {
-    CONDUIT_ANNOTATE_MARK_FUNCTION;
+    coordset_transform(__FUNCTION__, "uniform", blueprint::mesh::coordset::uniform::to_rectilinear);
+}
 
-    Node mesh;
-    blueprint::mesh::examples::braid("rectilinear",
-                                     BENCHMARK_ARRAY_SIZE,
-                                     BENCHMARK_ARRAY_SIZE,
-                                     BENCHMARK_ARRAY_SIZE,
-                                     mesh);
+void uniform_to_explicit()
+{
+    coordset_transform(__FUNCTION__, "uniform", blueprint::mesh::coordset::uniform::to_explicit);
+}
 
-    const Node &coordset = mesh["coordsets"].child(0);
-    Node dst;
-    blueprint::mesh::coordset::rectilinear::to_explicit(coordset, dst);
+void rectilinear_to_explicit()
+{
+    coordset_transform(__FUNCTION__, "rectilinear", blueprint::mesh::coordset::rectilinear::to_explicit);
 }
 
 //-----------------------------------------------------------------------------
-TEST(blueprint_mesh_transform, coordset_to_explicit)
+TEST(blueprint_mesh_transform, coordset_conversion)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark::exec(coordset_uniform_to_explicit,
-                    BENCHMARK_NUM_WARMUP_ITERATIONS,
-                    BENCHMARK_NUM_ITERATIONS,
-                    {benchmark::FillMode::None});
-    benchmark::exec(coordset_rectilinear_to_explicit,
-                    BENCHMARK_NUM_WARMUP_ITERATIONS,
-                    BENCHMARK_NUM_ITERATIONS,
-                    {benchmark::FillMode::None});
+    benchmark::exec(uniform_to_rectilinear,  BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(uniform_to_explicit,     BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(rectilinear_to_explicit, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
 }
 
 //-----------------------------------------------------------------------------
@@ -89,7 +81,7 @@ int main(int argc, char *argv[])
     }
     if (argc >= 4)
     {
-        BENCHMARK_ARRAY_SIZE = static_cast<index_t>(atoll(argv[3]));
+        BENCHMARK_DIM_SIZE = static_cast<index_t>(atoll(argv[3]));
     }
 
     return RUN_ALL_TESTS();
