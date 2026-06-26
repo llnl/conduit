@@ -136,6 +136,10 @@ if(FORTRAN_FOUND)
 
 endif()
 
+# set(conduit_blueprint_device_sources
+#     conduit_blueprint_mesh.cpp)
+# conduit_set_source_device_properties("${conduit_blueprint_device_sources}")
+
 #
 # Setup conduit blueprint lib
 #
@@ -249,5 +253,3 @@ blt_add_target_compile_flags(TO conduit_blueprint_mpi FLAGS "-DCONDUIT_BLUEPRINT
 target_compile_definitions(conduit_blueprint_mpi PUBLIC ${CONDUIT_MPI_SKIP_MPICXX_DEFINES} )
 
 endif() # end if MPI_FOUND
-
-

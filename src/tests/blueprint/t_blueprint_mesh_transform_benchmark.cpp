@@ -25,7 +25,8 @@ index_t BENCHMARK_NUM_ITERATIONS        = 100;
 void
 coordset_transform(const char *name,
                    const std::string &src_type,
-                   void (*transform)(const Node &, Node &))
+                   void (*transform)(const Node &, Node &),
+                   const benchmark::ExecConfig &config)
 {
     CONDUIT_ANNOTATE_MARK_SCOPE(name);
 
@@ -36,25 +37,50 @@ coordset_transform(const char *name,
                                      BENCHMARK_DIM_SIZE,
                                      mesh);
 
-    const Node &coordset = mesh["coordsets"].child(0);
+    const Node &host_coordset = mesh["coordsets"].child(0);
     Node dst;
-    transform(coordset, dst);
+    if ("device" == config.location && host_coordset.has_child("values"))
+    {
+        // Move the coordinate arrays to device memory
+        const index_t alloc_id = execution::get_device_allocator_id();
+        Node device_coordset;
+        device_coordset["type"].set(host_coordset["type"]);
+        for (const std::string &axis : host_coordset["values"].child_names())
+        {
+            device_coordset["values"][axis].set_allocator(alloc_id);
+            device_coordset["values"][axis].set(host_coordset["values"][axis]);
+        }
+        transform(device_coordset, dst);
+    }
+    else
+    {
+        transform(host_coordset, dst);
+    }
 }
 
 //-----------------------------------------------------------------------------
-void uniform_to_rectilinear()
+void uniform_to_rectilinear(const benchmark::ExecConfig &config)
 {
-    coordset_transform(__FUNCTION__, "uniform", blueprint::mesh::coordset::uniform::to_rectilinear);
+    coordset_transform(__FUNCTION__,
+                       "uniform",
+                       blueprint::mesh::coordset::uniform::to_rectilinear,
+                       config);
 }
 
-void uniform_to_explicit()
+void uniform_to_explicit(const benchmark::ExecConfig &config)
 {
-    coordset_transform(__FUNCTION__, "uniform", blueprint::mesh::coordset::uniform::to_explicit);
+    coordset_transform(__FUNCTION__,
+                       "uniform",
+                       blueprint::mesh::coordset::uniform::to_explicit,
+                       config);
 }
 
-void rectilinear_to_explicit()
+void rectilinear_to_explicit(const benchmark::ExecConfig &config)
 {
-    coordset_transform(__FUNCTION__, "rectilinear", blueprint::mesh::coordset::rectilinear::to_explicit);
+    coordset_transform(__FUNCTION__,
+                       "rectilinear",
+                       blueprint::mesh::coordset::rectilinear::to_explicit,
+                       config);
 }
 
 //-----------------------------------------------------------------------------
