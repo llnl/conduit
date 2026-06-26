@@ -25,11 +25,12 @@ namespace conduit
 //-----------------------------------------------------------------------------
 namespace benchmark
 {
+    using EP = execution::ExecutionPolicy;
+    
     //-----------------------------------------------------------------------------
-    // TODO: This might be nice as a public helper in the execution:: API
     template <typename PolicyFn>
     void
-    add_if_enabled(std::vector<execution::ExecutionPolicy>& policies,
+    add_if_enabled(std::vector<EP>& policies,
                    bool enabled,
                    PolicyFn&& get_policy)
     {
@@ -39,14 +40,14 @@ namespace benchmark
             return;
         }
     
-        execution::ExecutionPolicy policy = get_policy();
+        EP policy = get_policy();
         const auto id = policy.policy_id();
     
         // Check if this policy is already in the vector
         auto it = std::find_if(
             policies.begin(),
             policies.end(),
-            [id](const execution::ExecutionPolicy& p)
+            [id](const EP& p)
             {
                 return p.policy_id() == id;
             });
@@ -59,22 +60,23 @@ namespace benchmark
     }
     
     //-----------------------------------------------------------------------------
-    std::vector<execution::ExecutionPolicy>
+    // TODO: This might be nice as a public helper in the execution:: API
+    std::vector<EP>
     get_enabled_policies()
     {
-        std::vector<execution::ExecutionPolicy> policies;
+        std::vector<EP> policies;
         policies.reserve(7);
 
         // Since asking for compile-time disabled policies will throw an error
         // (and subsequently cause our benchmark "tests" to fail), we have to
         // do extra work to avoid asking for disabled policies
-        add_if_enabled(policies, execution::ExecutionPolicy::is_serial_enabled(),   [] { return execution::ExecutionPolicy::serial(); });
-        add_if_enabled(policies, execution::ExecutionPolicy::is_parallel_enabled(), [] { return execution::ExecutionPolicy::parallel(); });
-        add_if_enabled(policies, execution::ExecutionPolicy::is_host_enabled(),     [] { return execution::ExecutionPolicy::host(); });
-        add_if_enabled(policies, execution::ExecutionPolicy::is_device_enabled(),   [] { return execution::ExecutionPolicy::device(); });
-        add_if_enabled(policies, execution::ExecutionPolicy::is_openmp_enabled(),   [] { return execution::ExecutionPolicy::openmp(); });
-        add_if_enabled(policies, execution::ExecutionPolicy::is_cuda_enabled(),     [] { return execution::ExecutionPolicy::cuda(); });
-        add_if_enabled(policies, execution::ExecutionPolicy::is_hip_enabled(),      [] { return execution::ExecutionPolicy::hip(); });
+        add_if_enabled(policies, EP::is_serial_enabled(),   [] { return EP::serial(); });
+        add_if_enabled(policies, EP::is_parallel_enabled(), [] { return EP::parallel(); });
+        add_if_enabled(policies, EP::is_host_enabled(),     [] { return EP::host(); });
+        add_if_enabled(policies, EP::is_device_enabled(),   [] { return EP::device(); });
+        add_if_enabled(policies, EP::is_openmp_enabled(),   [] { return EP::openmp(); });
+        add_if_enabled(policies, EP::is_cuda_enabled(),     [] { return EP::cuda(); });
+        add_if_enabled(policies, EP::is_hip_enabled(),      [] { return EP::hip(); });
     
         return policies;
     }
