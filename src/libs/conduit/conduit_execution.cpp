@@ -475,7 +475,7 @@ public:
     }
 
     //------------------------------------------------------------------------
-    static ExecutionPolicy get_execution_policy_helper(Node *src_node)
+    static ExecutionPolicy get_execution_policy_helper(const Node *src_node)
     {
         if ("host" == execution_location)
         {
@@ -519,7 +519,7 @@ public:
     }
 
     //------------------------------------------------------------------------
-    static ExecutionPolicy get_execution_policy(Node &src_node)
+    static ExecutionPolicy get_execution_policy(const Node &src_node)
     {
         return get_execution_policy_helper(&src_node);
     }
@@ -531,7 +531,7 @@ public:
     }
 
     //------------------------------------------------------------------------
-    static index_t get_output_allocator_id_helper(Node *src_node)
+    static index_t get_output_allocator_id_helper(const Node *src_node)
     {
         if ("host" == output_location)
         {
@@ -572,7 +572,7 @@ public:
     }
 
     //------------------------------------------------------------------------
-    static index_t get_output_allocator_id(Node &src_node)
+    static index_t get_output_allocator_id(const Node &src_node)
     {
         return get_output_allocator_id_helper(&src_node);
     }
@@ -661,7 +661,7 @@ reset_execution_options()
 
 //-----------------------------------------------------------------------------
 ExecutionPolicy
-get_execution_policy(Node &src_node)
+get_execution_policy(const Node &src_node)
 {
     return ExecutionOptions::get_execution_policy(src_node);
 }
@@ -675,7 +675,7 @@ get_execution_policy()
 
 //-----------------------------------------------------------------------------
 index_t
-get_output_allocator_id(Node &src_node)
+get_output_allocator_id(const Node &src_node)
 {
     return ExecutionOptions::get_output_allocator_id(src_node);
 }
