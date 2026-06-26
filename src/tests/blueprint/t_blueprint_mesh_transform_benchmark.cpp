@@ -58,7 +58,7 @@ void rectilinear_to_explicit()
 }
 
 //-----------------------------------------------------------------------------
-TEST(blueprint_mesh_transform, coordset_conversion)
+TEST(blueprint_mesh_transform_execution, coordset_to_explicit)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
     benchmark::exec(uniform_to_rectilinear,  BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
