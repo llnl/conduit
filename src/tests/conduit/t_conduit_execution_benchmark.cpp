@@ -10,6 +10,7 @@
 
 #include "conduit.hpp"
 #include "conduit_annotations.hpp"
+#include "conduit_benchmark.hpp"
 #include "conduit_execution.hpp"
 #include "conduit_execution_policy.hpp"
 #include "conduit_memory_manager.hpp"
@@ -17,58 +18,14 @@
 #include "gtest/gtest.h"
 
 using namespace conduit;
-using EP = conduit::execution::ExecutionPolicy;
+using EP = execution::ExecutionPolicy;
 
 index_t BENCHMARK_ARRAY_SIZE = 4;
 index_t BENCHMARK_NUM_WARMUP_ITERATIONS = 10;
-index_t BENCHMARK_NUM_ITERATIONS = 1000;
+index_t BENCHMARK_NUM_ITERATIONS = 100;
 
 //-----------------------------------------------------------------------------
-// TODO: This might be nice as a public helper in the execution:: API
-template <typename PolicyFn>
-void add_if_enabled(std::vector<EP>& policies, bool enabled, PolicyFn&& make_policy)
-{
-    // Don't execute policies that are compile-time disabled
-    if (!enabled)
-    {
-        return;
-    }
-
-    EP policy = make_policy();
-    const auto id = policy.policy_id();
-
-    // Don't insert repeat policies into the vector (so that we only
-    // do each one exactly once)
-    auto it = std::find_if(
-        policies.begin(),
-        policies.end(),
-        [id](const EP& p)
-        {
-            return p.policy_id() == id;
-        });
-
-    if (it == policies.end())
-    {
-        policies.push_back(policy);
-    }
-}
-
-//-----------------------------------------------------------------------------
-std::vector<EP> get_enabled_policies()
-{
-    std::vector<EP> policies;
-    policies.reserve(7);
-
-    add_if_enabled(policies, EP::is_serial_enabled(),   [] { return EP::serial(); });
-    add_if_enabled(policies, EP::is_parallel_enabled(), [] { return EP::parallel(); });
-    add_if_enabled(policies, EP::is_host_enabled(),     [] { return EP::host(); });
-    add_if_enabled(policies, EP::is_device_enabled(),   [] { return EP::device(); });
-    add_if_enabled(policies, EP::is_openmp_enabled(),   [] { return EP::openmp(); });
-    add_if_enabled(policies, EP::is_cuda_enabled(),     [] { return EP::cuda(); });
-    add_if_enabled(policies, EP::is_hip_enabled(),      [] { return EP::hip(); });
-
-    return policies;
-}
+// Atomic benchmarks
 
 //-----------------------------------------------------------------------------
 template <typename AtomicOp>
@@ -96,11 +53,11 @@ atomic_benchmark(const std::string& name, EP policy, AtomicOp&& atomic_op)
     CONDUIT_ANNOTATE_MARK_END("allocate");
 
     CONDUIT_ANNOTATE_MARK_BEGIN("copy");
-    conduit::execution::MagicMemory::copy(vals_ptr, &host_vals[0], sizeof(index_t) * size);
+    execution::MagicMemory::copy(vals_ptr, &host_vals[0], sizeof(index_t) * size);
     CONDUIT_ANNOTATE_MARK_END("copy");
 
     CONDUIT_ANNOTATE_MARK_BEGIN("exec");
-    conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+    execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
     {
         atomic_op(vals_ptr, i);
     });
@@ -126,7 +83,7 @@ atomic_add(EP policy)
 {
     atomic_benchmark("atomic_add", policy, [=] CONDUIT_EXEC(index_t* vals_ptr, index_t i)
     {
-        conduit::execution::atomic_add(vals_ptr + i, i);
+        execution::atomic_add(vals_ptr + i, i);
     });
 }
 
@@ -136,7 +93,7 @@ atomic_min(EP policy)
 {
     atomic_benchmark("atomic_min", policy, [=] CONDUIT_EXEC(index_t* vals_ptr, index_t i)
     {
-        conduit::execution::atomic_min(vals_ptr + i, i);
+        execution::atomic_min(vals_ptr + i, i);
     });
 }
 
@@ -146,72 +103,185 @@ atomic_max(EP policy)
 {
     atomic_benchmark("atomic_max", policy, [=] CONDUIT_EXEC(index_t* vals_ptr, index_t i)
     {
-        conduit::execution::atomic_max(vals_ptr + i, i);
+        execution::atomic_max(vals_ptr + i, i);
     });
 }
 
-template <typename BenchmarkFn>
+//-----------------------------------------------------------------------------
+// Reducer benchmarks
+
+//-----------------------------------------------------------------------------
+template <typename ReduceOp>
 void
-benchmark(BenchmarkFn&& fn)
+reduce_benchmark(const std::string& name, EP policy, ReduceOp&& reduce_op)
 {
-    // Setup
-    execution::init_device_memory_handlers();
-    auto policies = get_enabled_policies();
+    CONDUIT_ANNOTATE_MARK_BEGIN(name.c_str());
 
-    for (const auto& policy : policies)
+    // TODO: Generate arrays of random numbers and of arbitrary size,
+    // controllable from CLI
+    const index_t size = 4;
+    index_t host_vals[size] = {0, -10, 10, 5};
+    index_t *vals_ptr = nullptr;
+
+    CONDUIT_ANNOTATE_MARK_BEGIN("allocate");
+    if (policy.is_device_policy())
     {
-        // Warm-up
-        for (int i = 0; i < BENCHMARK_NUM_WARMUP_ITERATIONS; i++)
-        {
-            fn(policy);
-        }
-
-        std::cout << "\n" << policy.policy_name() << "," << BENCHMARK_NUM_WARMUP_ITERATIONS << "," << BENCHMARK_NUM_ITERATIONS << std::endl;
-
-        // TODO: Do we care to have bespoke timing in the case that conduit was built
-        // without caliper?
-
-        Node cali_opts;
-        cali_opts["config"] = "runtime-report";
-        annotations::initialize(cali_opts);
-
-        // Benchmark
-        for (int i = 0; i < BENCHMARK_NUM_ITERATIONS; i++)
-        {
-            fn(policy);
-        }
-
-        annotations::finalize();
+        vals_ptr = static_cast<index_t*>(execution::DeviceMemory::allocate(sizeof(index_t) * size));
     }
+    else // if (!policy.is_device_policy())
+    {
+        vals_ptr = static_cast<index_t*>(execution::HostMemory::allocate(sizeof(index_t) * size));
+    }
+    CONDUIT_ANNOTATE_MARK_END("allocate");
+
+    CONDUIT_ANNOTATE_MARK_BEGIN("copy");
+    execution::MagicMemory::copy(vals_ptr, &host_vals[0], sizeof(index_t) * size);
+    CONDUIT_ANNOTATE_MARK_END("copy");
+
+    CONDUIT_ANNOTATE_MARK_BEGIN("exec");
+    execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t i)
+    {
+        reduce_op(vals_ptr, i);
+    });
+    CONDUIT_ANNOTATE_MARK_END("exec");
+
+    CONDUIT_ANNOTATE_MARK_BEGIN("deallocate");
+    if (policy.is_device_policy())
+    {
+        execution::DeviceMemory::deallocate(vals_ptr);
+    }
+    else // if (!policy.is_device_policy())
+    {
+        execution::HostMemory::deallocate(vals_ptr);
+    }
+    CONDUIT_ANNOTATE_MARK_END("deallocate");
+
+    CONDUIT_ANNOTATE_MARK_END(name.c_str());
 }
+
+//-----------------------------------------------------------------------------
+void
+reduce_sum(EP policy)
+{
+    execution::ReduceSum<index_t> reducer(0);
+    reduce_benchmark("reduce_sum", policy, [=] CONDUIT_EXEC(index_t* vals_ptr, index_t i)
+    {
+        reducer += vals_ptr[i];
+    });
+}
+
+//-----------------------------------------------------------------------------
+void
+reduce_min(EP policy)
+{
+    execution::ReduceMin<index_t> reducer(std::numeric_limits<index_t>::max());
+    reduce_benchmark("reduce_min", policy, [=] CONDUIT_EXEC(index_t* vals_ptr, index_t i)
+    {
+        reducer.min(vals_ptr[i]);
+    });
+}
+
+//-----------------------------------------------------------------------------
+void
+reduce_max(EP policy)
+{
+    execution::ReduceMax<index_t> reducer(std::numeric_limits<index_t>::lowest());
+    reduce_benchmark("reduce_max", policy, [=] CONDUIT_EXEC(index_t* vals_ptr, index_t i)
+    {
+        reducer.max(vals_ptr[i]);
+    });
+}
+
+//-----------------------------------------------------------------------------
+void
+reduce_min_loc(EP policy)
+{
+    execution::ReduceMinLoc<index_t> reducer(std::numeric_limits<index_t>::max(), -1);
+    reduce_benchmark("reduce_min_loc", policy, [=] CONDUIT_EXEC(index_t* vals_ptr, index_t i)
+    {
+        reducer.minloc(vals_ptr[i], i);
+    });
+}
+
+//-----------------------------------------------------------------------------
+void
+reduce_max_loc(EP policy)
+{
+    execution::ReduceMaxLoc<index_t> reducer(std::numeric_limits<index_t>::lowest(), -1);
+    reduce_benchmark("reduce_max_loc", policy, [=] CONDUIT_EXEC(index_t* vals_ptr, index_t i)
+    {
+        reducer.maxloc(vals_ptr[i], i);
+    });
+}
+
+//-----------------------------------------------------------------------------
+// Atomic benchmarks
+// 
+// TODO: OpenMP w/ no RAJA seems incredibly slow, we should look at what RAJA
+// does differently to improve performance. Maybe limiting the number of threads
+// to 2-4 for atomics would help?
 
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, atomic_add)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark(atomic_add);
+    benchmark::exec(atomic_add, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, atomic_min)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark(atomic_min);
+    benchmark::exec(atomic_min, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, atomic_max)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark(atomic_max);
+    benchmark::exec(atomic_max, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
 }
 
+//-----------------------------------------------------------------------------
+// Reducer benchmarks
+// 
 // TODO: We are curious if we gain anything by using the bonus reducer policies:
 // https://raja.readthedocs.io/en/main/sphinx/user_guide/cook_book/reduction.html
 
-// TODO: Reducer benchmarks
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, reduce_sum)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+    benchmark::exec(reduce_sum, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+}
 
-// TODO: Blueprint mesh benchmarks
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, reduce_min)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+    benchmark::exec(reduce_min, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, reduce_max)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+    benchmark::exec(reduce_max, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, reduce_min_loc)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+    benchmark::exec(reduce_min_loc, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, reduce_max_loc)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+    benchmark::exec(reduce_max_loc, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+}
 
 //-----------------------------------------------------------------------------
 int main(int argc, char *argv[])
