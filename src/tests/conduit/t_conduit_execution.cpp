@@ -434,7 +434,7 @@ run_test_forall()
 
         const index_t size = EXECUTION_TEST_ARRAY_SIZE;
 
-        index_t host_vals[size];
+        std::vector<index_t> host_vals(size);
         index_t *vals_ptr = nullptr;
         if (policy.is_device_policy())
         {
@@ -455,7 +455,7 @@ run_test_forall()
         });
         CONDUIT_DEVICE_ERROR_CHECK(policy);
 
-        conduit::execution::MagicMemory::copy(&host_vals[0],
+        conduit::execution::MagicMemory::copy(host_vals.data(),
                                               vals_ptr,
                                               sizeof(index_t) * size);
 
