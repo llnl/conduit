@@ -15,45 +15,51 @@
 #include "conduit_execution_policy.hpp"
 #include "conduit_memory_manager.hpp"
 
+#include <vector>
+
 #include "gtest/gtest.h"
 
 using namespace conduit;
 using EP = execution::ExecutionPolicy;
 
-index_t BENCHMARK_ARRAY_SIZE = 4;
+index_t BENCHMARK_ARRAY_SIZE            = 1024;
 index_t BENCHMARK_NUM_WARMUP_ITERATIONS = 10;
-index_t BENCHMARK_NUM_ITERATIONS = 100;
+index_t BENCHMARK_NUM_ITERATIONS        = 100;
 
 //-----------------------------------------------------------------------------
 // Atomic benchmarks
 
 //-----------------------------------------------------------------------------
-template <typename AtomicOp>
+template <typename T, typename AtomicOp>
 void
-atomic_benchmark(const std::string& name, EP policy, AtomicOp&& atomic_op)
+atomic_benchmark(const std::string& name,
+                 EP policy,
+                 benchmark::FillMode mode,
+                 AtomicOp&& atomic_op)
 {
-    CONDUIT_ANNOTATE_MARK_BEGIN(name.c_str());
+    const std::string annotated_name = benchmark::get_annotated_name<T>(name, mode);
+    CONDUIT_ANNOTATE_MARK_BEGIN(annotated_name.c_str());
 
-    // TODO: Generate arrays of random numbers and of arbitrary size,
-    // controllable from CLI
-    const index_t size = 4;
-    const index_t size_bytes = sizeof(index_t) * size;
-    index_t host_vals[size] = {0, -1, -2, -3};
-    index_t* vals_ptr = nullptr;
+    const index_t size = BENCHMARK_ARRAY_SIZE;
+    const index_t size_bytes = static_cast<index_t>(sizeof(T)) * size;
+
+    std::vector<uint8_t> host_data;
+    benchmark::make_data(benchmark::dtype_of<T>(), size, host_data, mode);
+    T* vals_ptr = nullptr;
 
     CONDUIT_ANNOTATE_MARK_BEGIN("allocate");
     if (policy.is_device_policy())
     {
-        vals_ptr = static_cast<index_t*>(execution::DeviceMemory::allocate(size_bytes));
+        vals_ptr = static_cast<T*>(execution::DeviceMemory::allocate(size_bytes));
     }
     else // if (!policy.is_device_policy())
     {
-        vals_ptr = static_cast<index_t*>(execution::HostMemory::allocate(size_bytes));
+        vals_ptr = static_cast<T*>(execution::HostMemory::allocate(size_bytes));
     }
     CONDUIT_ANNOTATE_MARK_END("allocate");
 
     CONDUIT_ANNOTATE_MARK_BEGIN("copy");
-    execution::MagicMemory::copy(vals_ptr, &host_vals[0], size_bytes);
+    execution::MagicMemory::copy(vals_ptr, host_data.data(), size_bytes);
     CONDUIT_ANNOTATE_MARK_END("copy");
 
     CONDUIT_ANNOTATE_MARK_BEGIN("exec");
@@ -74,36 +80,42 @@ atomic_benchmark(const std::string& name, EP policy, AtomicOp&& atomic_op)
     }
     CONDUIT_ANNOTATE_MARK_END("deallocate");
 
-    CONDUIT_ANNOTATE_MARK_END(name.c_str());
+    CONDUIT_ANNOTATE_MARK_END(annotated_name.c_str());
 }
 
 //-----------------------------------------------------------------------------
+template <typename T>
 void
-atomic_add(EP policy)
+atomic_add(EP policy,
+           benchmark::FillMode mode)
 {
-    atomic_benchmark("atomic_add", policy, [=] CONDUIT_EXEC(index_t* vals_ptr, index_t i)
+    atomic_benchmark<T>("atomic_add", policy, mode, [=] CONDUIT_EXEC(T* vals_ptr, index_t i)
     {
-        execution::atomic_add(vals_ptr + i, i);
+        execution::atomic_add(vals_ptr + i, static_cast<T>(i));
     });
 }
 
 //-----------------------------------------------------------------------------
+template <typename T>
 void
-atomic_min(EP policy)
+atomic_min(EP policy,
+           benchmark::FillMode mode)
 {
-    atomic_benchmark("atomic_min", policy, [=] CONDUIT_EXEC(index_t* vals_ptr, index_t i)
+    atomic_benchmark<T>("atomic_min", policy, mode, [=] CONDUIT_EXEC(T* vals_ptr, index_t i)
     {
-        execution::atomic_min(vals_ptr + i, i);
+        execution::atomic_min(vals_ptr + i, static_cast<T>(i));
     });
 }
 
 //-----------------------------------------------------------------------------
+template <typename T>
 void
-atomic_max(EP policy)
+atomic_max(EP policy,
+           benchmark::FillMode mode)
 {
-    atomic_benchmark("atomic_max", policy, [=] CONDUIT_EXEC(index_t* vals_ptr, index_t i)
+    atomic_benchmark<T>("atomic_max", policy, mode, [=] CONDUIT_EXEC(T* vals_ptr, index_t i)
     {
-        execution::atomic_max(vals_ptr + i, i);
+        execution::atomic_max(vals_ptr + i, static_cast<T>(i));
     });
 }
 
@@ -111,32 +123,36 @@ atomic_max(EP policy)
 // Reducer benchmarks
 
 //-----------------------------------------------------------------------------
-template <typename ReduceOp>
+template <typename T, typename ReduceOp>
 void
-reduce_benchmark(const std::string& name, EP policy, ReduceOp&& reduce_op)
+reduce_benchmark(const std::string& name,
+                 EP policy,
+                 benchmark::FillMode mode,
+                 ReduceOp&& reduce_op)
 {
-    CONDUIT_ANNOTATE_MARK_BEGIN(name.c_str());
+    const std::string annotated_name = benchmark::get_annotated_name<T>(name, mode);
+    CONDUIT_ANNOTATE_MARK_BEGIN(annotated_name.c_str());
 
-    // TODO: Generate arrays of random numbers and of arbitrary size,
-    // controllable from CLI
-    const index_t size = 4;
-    const index_t size_bytes = sizeof(index_t) * size;
-    index_t host_vals[size] = {0, -10, 10, 5};
-    index_t *vals_ptr = nullptr;
+    const index_t size = BENCHMARK_ARRAY_SIZE;
+    const index_t size_bytes = static_cast<index_t>(sizeof(T)) * size;
+
+    std::vector<uint8_t> host_data;
+    benchmark::make_data(benchmark::dtype_of<T>(), size, host_data, mode);
+    T* vals_ptr = nullptr;
 
     CONDUIT_ANNOTATE_MARK_BEGIN("allocate");
     if (policy.is_device_policy())
     {
-        vals_ptr = static_cast<index_t*>(execution::DeviceMemory::allocate(size_bytes));
+        vals_ptr = static_cast<T*>(execution::DeviceMemory::allocate(size_bytes));
     }
     else // if (!policy.is_device_policy())
     {
-        vals_ptr = static_cast<index_t*>(execution::HostMemory::allocate(size_bytes));
+        vals_ptr = static_cast<T*>(execution::HostMemory::allocate(size_bytes));
     }
     CONDUIT_ANNOTATE_MARK_END("allocate");
 
     CONDUIT_ANNOTATE_MARK_BEGIN("copy");
-    execution::MagicMemory::copy(vals_ptr, &host_vals[0], size_bytes);
+    execution::MagicMemory::copy(vals_ptr, host_data.data(), size_bytes);
     CONDUIT_ANNOTATE_MARK_END("copy");
 
     CONDUIT_ANNOTATE_MARK_BEGIN("exec");
@@ -157,67 +173,77 @@ reduce_benchmark(const std::string& name, EP policy, ReduceOp&& reduce_op)
     }
     CONDUIT_ANNOTATE_MARK_END("deallocate");
 
-    CONDUIT_ANNOTATE_MARK_END(name.c_str());
+    CONDUIT_ANNOTATE_MARK_END(annotated_name.c_str());
 }
 
 //-----------------------------------------------------------------------------
+template <typename T>
 void
-reduce_sum(EP policy)
+reduce_sum(EP policy,
+           benchmark::FillMode mode)
 {
-    execution::ReduceSum<index_t> reducer(0);
-    reduce_benchmark("reduce_sum", policy, [=] CONDUIT_EXEC(index_t* vals_ptr, index_t i)
+    execution::ReduceSum<T> reducer(T(0));
+    reduce_benchmark<T>("reduce_sum", policy, mode, [=] CONDUIT_EXEC(T* vals_ptr, index_t i)
     {
         reducer += vals_ptr[i];
     });
 }
 
 //-----------------------------------------------------------------------------
+template <typename T>
 void
-reduce_min(EP policy)
+reduce_min(EP policy,
+           benchmark::FillMode mode)
 {
-    execution::ReduceMin<index_t> reducer(std::numeric_limits<index_t>::max());
-    reduce_benchmark("reduce_min", policy, [=] CONDUIT_EXEC(index_t* vals_ptr, index_t i)
+    execution::ReduceMin<T> reducer(std::numeric_limits<T>::max());
+    reduce_benchmark<T>("reduce_min", policy, mode, [=] CONDUIT_EXEC(T* vals_ptr, index_t i)
     {
         reducer.min(vals_ptr[i]);
     });
 }
 
 //-----------------------------------------------------------------------------
+template <typename T>
 void
-reduce_max(EP policy)
+reduce_max(EP policy,
+           benchmark::FillMode mode)
 {
-    execution::ReduceMax<index_t> reducer(std::numeric_limits<index_t>::lowest());
-    reduce_benchmark("reduce_max", policy, [=] CONDUIT_EXEC(index_t* vals_ptr, index_t i)
+    execution::ReduceMax<T> reducer(std::numeric_limits<T>::lowest());
+    reduce_benchmark<T>("reduce_max", policy, mode, [=] CONDUIT_EXEC(T* vals_ptr, index_t i)
     {
         reducer.max(vals_ptr[i]);
     });
 }
 
 //-----------------------------------------------------------------------------
+template <typename T>
 void
-reduce_min_loc(EP policy)
+reduce_min_loc(EP policy,
+               benchmark::FillMode mode)
 {
-    execution::ReduceMinLoc<index_t> reducer(std::numeric_limits<index_t>::max(), -1);
-    reduce_benchmark("reduce_min_loc", policy, [=] CONDUIT_EXEC(index_t* vals_ptr, index_t i)
+    execution::ReduceMinLoc<T> reducer(std::numeric_limits<T>::max(), -1);
+    reduce_benchmark<T>("reduce_min_loc", policy, mode, [=] CONDUIT_EXEC(T* vals_ptr, index_t i)
     {
         reducer.minloc(vals_ptr[i], i);
     });
 }
 
 //-----------------------------------------------------------------------------
+template <typename T>
 void
-reduce_max_loc(EP policy)
+reduce_max_loc(EP policy,
+               benchmark::FillMode mode)
 {
-    execution::ReduceMaxLoc<index_t> reducer(std::numeric_limits<index_t>::lowest(), -1);
-    reduce_benchmark("reduce_max_loc", policy, [=] CONDUIT_EXEC(index_t* vals_ptr, index_t i)
+    execution::ReduceMaxLoc<T> reducer(std::numeric_limits<T>::lowest(), -1);
+    reduce_benchmark<T>("reduce_max_loc", policy, mode, [=] CONDUIT_EXEC(T* vals_ptr, index_t i)
     {
         reducer.maxloc(vals_ptr[i], i);
     });
 }
 
 //-----------------------------------------------------------------------------
-// Atomic benchmarks
-// 
+// Atomic benchmark tests
+//
 // TODO: OpenMP w/ no RAJA seems incredibly slow (most obvious when doing many
 // iterations). We should look at what RAJA does differently to improve
 // performance. Maybe limiting the number of omp threads to 1-4 before atomics
@@ -227,26 +253,29 @@ reduce_max_loc(EP policy)
 TEST(conduit_execution, atomic_add)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark::exec(atomic_add, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(atomic_add<int32>, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(atomic_add<int64>, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, atomic_min)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark::exec(atomic_min, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(atomic_min<int32>, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(atomic_min<int64>, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, atomic_max)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark::exec(atomic_max, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(atomic_max<int32>, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(atomic_max<int64>, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
 }
 
 //-----------------------------------------------------------------------------
-// Reducer benchmarks
-// 
+// Reducer benchmark tests
+//
 // TODO: We are curious if we gain anything by using the bonus reducer policies:
 // https://raja.readthedocs.io/en/main/sphinx/user_guide/cook_book/reduction.html
 
@@ -254,35 +283,45 @@ TEST(conduit_execution, atomic_max)
 TEST(conduit_execution, reduce_sum)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark::exec(reduce_sum, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(reduce_sum<int32>,   BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(reduce_sum<int64>,   BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(reduce_sum<float64>, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, reduce_min)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark::exec(reduce_min, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(reduce_min<int32>,   BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(reduce_min<int64>,   BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(reduce_min<float64>, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, reduce_max)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark::exec(reduce_max, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(reduce_max<int32>,   BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(reduce_max<int64>,   BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(reduce_max<float64>, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, reduce_min_loc)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark::exec(reduce_min_loc, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(reduce_min_loc<int32>,   BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(reduce_min_loc<int64>,   BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(reduce_min_loc<float64>, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
 }
 
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, reduce_max_loc)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark::exec(reduce_max_loc, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(reduce_max_loc<int32>,   BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(reduce_max_loc<int64>,   BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(reduce_max_loc<float64>, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
 }
 
 //-----------------------------------------------------------------------------
@@ -290,16 +329,18 @@ int main(int argc, char *argv[])
 {
     ::testing::InitGoogleTest(&argc, argv);
 
-    // TODO: Do CLI input properly
-    if(argc == 2)
+    // TODO: Use a real argument parser
+    if (argc >= 2)
     {
-        BENCHMARK_NUM_WARMUP_ITERATIONS = atoi(argv[1]);
+        BENCHMARK_NUM_WARMUP_ITERATIONS = static_cast<index_t>(atoll(argv[1]));
     }
-
-    if(argc == 3)
+    if (argc >= 3)
     {
-        BENCHMARK_NUM_WARMUP_ITERATIONS = atoi(argv[1]);
-        BENCHMARK_NUM_ITERATIONS = atoi(argv[2]);
+        BENCHMARK_NUM_ITERATIONS = static_cast<index_t>(atoll(argv[2]));
+    }
+    if (argc >= 4)
+    {
+        BENCHMARK_ARRAY_SIZE = static_cast<index_t>(atoll(argv[3]));
     }
 
     return RUN_ALL_TESTS();
