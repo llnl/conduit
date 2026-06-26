@@ -711,7 +711,7 @@ get_host_allocator_id()
 //---------------------------------------------------------------------------//
 // TODO: All of our tests call this function unconditionally (regardless of
 // whether conduit was built with device support or not). Does this function
-// need to exist? Seems like we could reduce boilerplate by hide this from the
+// need to exist? Seems like we could reduce boilerplate by hiding this from the
 // user and just doing it automatically upon init or lazily upon first call of
 // any execution:: func 
 void
