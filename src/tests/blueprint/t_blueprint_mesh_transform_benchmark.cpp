@@ -23,8 +23,6 @@ index_t BENCHMARK_NUM_WARMUP_ITERATIONS = 10;
 index_t BENCHMARK_NUM_ITERATIONS        = 100;
 
 //-----------------------------------------------------------------------------
-// Benchmark: uniform coordset -> explicit coordset
-//-----------------------------------------------------------------------------
 void
 coordset_uniform_to_explicit(EP /*policy*/,
                              benchmark::FillMode /*mode*/)
