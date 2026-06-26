@@ -37,23 +37,23 @@ atomic_benchmark(const std::string& name, EP policy, AtomicOp&& atomic_op)
     // TODO: Generate arrays of random numbers and of arbitrary size,
     // controllable from CLI
     const index_t size = 4;
+    const index_t size_bytes = sizeof(index_t) * size;
     index_t host_vals[size] = {0, -1, -2, -3};
     index_t* vals_ptr = nullptr;
 
     CONDUIT_ANNOTATE_MARK_BEGIN("allocate");
     if (policy.is_device_policy())
     {
-        vals_ptr = static_cast<index_t*>(
-            execution::DeviceMemory::allocate(sizeof(index_t) * size));
+        vals_ptr = static_cast<index_t*>(execution::DeviceMemory::allocate(size_bytes));
     }
     else // if (!policy.is_device_policy())
     {
-        vals_ptr = static_cast<index_t*>(execution::HostMemory::allocate(sizeof(index_t) * size));
+        vals_ptr = static_cast<index_t*>(execution::HostMemory::allocate(size_bytes));
     }
     CONDUIT_ANNOTATE_MARK_END("allocate");
 
     CONDUIT_ANNOTATE_MARK_BEGIN("copy");
-    execution::MagicMemory::copy(vals_ptr, &host_vals[0], sizeof(index_t) * size);
+    execution::MagicMemory::copy(vals_ptr, &host_vals[0], size_bytes);
     CONDUIT_ANNOTATE_MARK_END("copy");
 
     CONDUIT_ANNOTATE_MARK_BEGIN("exec");
@@ -120,22 +120,23 @@ reduce_benchmark(const std::string& name, EP policy, ReduceOp&& reduce_op)
     // TODO: Generate arrays of random numbers and of arbitrary size,
     // controllable from CLI
     const index_t size = 4;
+    const index_t size_bytes = sizeof(index_t) * size;
     index_t host_vals[size] = {0, -10, 10, 5};
     index_t *vals_ptr = nullptr;
 
     CONDUIT_ANNOTATE_MARK_BEGIN("allocate");
     if (policy.is_device_policy())
     {
-        vals_ptr = static_cast<index_t*>(execution::DeviceMemory::allocate(sizeof(index_t) * size));
+        vals_ptr = static_cast<index_t*>(execution::DeviceMemory::allocate(size_bytes));
     }
     else // if (!policy.is_device_policy())
     {
-        vals_ptr = static_cast<index_t*>(execution::HostMemory::allocate(sizeof(index_t) * size));
+        vals_ptr = static_cast<index_t*>(execution::HostMemory::allocate(size_bytes));
     }
     CONDUIT_ANNOTATE_MARK_END("allocate");
 
     CONDUIT_ANNOTATE_MARK_BEGIN("copy");
-    execution::MagicMemory::copy(vals_ptr, &host_vals[0], sizeof(index_t) * size);
+    execution::MagicMemory::copy(vals_ptr, &host_vals[0], size_bytes);
     CONDUIT_ANNOTATE_MARK_END("copy");
 
     CONDUIT_ANNOTATE_MARK_BEGIN("exec");
@@ -217,9 +218,10 @@ reduce_max_loc(EP policy)
 //-----------------------------------------------------------------------------
 // Atomic benchmarks
 // 
-// TODO: OpenMP w/ no RAJA seems incredibly slow, we should look at what RAJA
-// does differently to improve performance. Maybe limiting the number of threads
-// to 2-4 for atomics would help?
+// TODO: OpenMP w/ no RAJA seems incredibly slow (most obvious when doing many
+// iterations). We should look at what RAJA does differently to improve
+// performance. Maybe limiting the number of omp threads to 1-4 before atomics
+// would help?
 
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, atomic_add)

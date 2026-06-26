@@ -25,24 +25,24 @@ namespace conduit
 //-----------------------------------------------------------------------------
 namespace benchmark
 {
-
     //-----------------------------------------------------------------------------
     // TODO: This might be nice as a public helper in the execution:: API
     template <typename PolicyFn>
     void
-    add_if_enabled(std::vector<execution::ExecutionPolicy>& policies, bool enabled, PolicyFn&& make_policy)
+    add_if_enabled(std::vector<execution::ExecutionPolicy>& policies,
+                   bool enabled,
+                   PolicyFn&& get_policy)
     {
-        // Don't execute policies that are compile-time disabled
+        // Don't try to add policies that are compile-time disabled
         if (!enabled)
         {
             return;
         }
     
-        execution::ExecutionPolicy policy = make_policy();
+        execution::ExecutionPolicy policy = get_policy();
         const auto id = policy.policy_id();
     
-        // Don't insert repeat policies into the vector (so that we only
-        // do each one exactly once)
+        // Check if this policy is already in the vector
         auto it = std::find_if(
             policies.begin(),
             policies.end(),
@@ -50,7 +50,8 @@ namespace benchmark
             {
                 return p.policy_id() == id;
             });
-    
+
+        // If the policy is not already in the vector, add it
         if (it == policies.end())
         {
             policies.push_back(policy);
@@ -63,7 +64,10 @@ namespace benchmark
     {
         std::vector<execution::ExecutionPolicy> policies;
         policies.reserve(7);
-    
+
+        // Since asking for compile-time disabled policies will throw an error
+        // (and subsequently cause our benchmark "tests" to fail), we have to
+        // do extra work to avoid asking for disabled policies
         add_if_enabled(policies, execution::ExecutionPolicy::is_serial_enabled(),   [] { return execution::ExecutionPolicy::serial(); });
         add_if_enabled(policies, execution::ExecutionPolicy::is_parallel_enabled(), [] { return execution::ExecutionPolicy::parallel(); });
         add_if_enabled(policies, execution::ExecutionPolicy::is_host_enabled(),     [] { return execution::ExecutionPolicy::host(); });
@@ -75,6 +79,8 @@ namespace benchmark
         return policies;
     }
 
+    // TODO: I think the current semantics are okay, but I want to investigate if
+    // conduit::benchmark::(func) is possible
     template <typename BenchmarkFn>
     void
     exec(BenchmarkFn&& fn, const int warmup, const int iterations)
@@ -95,7 +101,6 @@ namespace benchmark
     
             // TODO: Do we care to have bespoke timing in the case that conduit was built
             // without caliper?
-    
             Node cali_opts;
             cali_opts["config"] = "runtime-report";
             annotations::initialize(cali_opts);
