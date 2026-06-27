@@ -39,7 +39,7 @@ coordset_transform(const char *name,
 
     const Node &host_coordset = mesh["coordsets"].child(0);
     Node dst;
-    if ("device" == config.location && host_coordset.has_child("values"))
+    if ("device" == config.src_location && host_coordset.has_child("values"))
     {
         // Move the coordinate arrays to device memory
         const index_t alloc_id = execution::get_device_allocator_id();
@@ -110,5 +110,15 @@ int main(int argc, char *argv[])
         BENCHMARK_DIM_SIZE = static_cast<index_t>(atoll(argv[3]));
     }
 
-    return RUN_ALL_TESTS();
+    const std::string timestamp = benchmark::get_timestamp();
+    Node cali_opts;
+    // cali_opts["config"] = "hatchet-region-profile(output=" + timestamp + ".cali)";
+    cali_opts["config"] = "runtime-report(max_column_width=999)";
+    annotations::initialize(cali_opts);
+
+    const int result = RUN_ALL_TESTS();
+
+    annotations::finalize();
+    
+    return result;
 }

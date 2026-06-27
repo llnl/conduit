@@ -11,6 +11,8 @@
 #ifndef CONDUIT_BENCHMARK_HPP
 #define CONDUIT_BENCHMARK_HPP
 
+#include <ctime>
+#include <string>
 #include <vector>
 
 #include "conduit_annotations.hpp"
@@ -32,61 +34,28 @@ namespace benchmark
 using EP = execution::ExecutionPolicy;
 
 //-----------------------------------------------------------------------------
-struct ExecConfig
+inline
+std::string
+get_timestamp()
 {
-    EP policy;
-    std::string location;
-};
+    std::time_t t = std::time(nullptr);
+    char buf[32];
+    std::strftime(buf, sizeof(buf), "%Y%m%d_%H%M%S", std::localtime(&t));
+    return std::string(buf);
+}
 
 //-----------------------------------------------------------------------------
-// TODO: This might be nice as a public helper in the execution:: API
-inline
-std::vector<EP>
-get_enabled_policies()
+struct ExecConfig
 {
-    std::vector<EP> policies;
-    policies.reserve(7);
-
-    // Loop over the policy getters to make a list of enabled policies
-    using PolicyFn = EP (*)();
-    for (PolicyFn try_add : {EP::serial,
-                             EP::host,
-                             EP::openmp,
-                             EP::parallel,
-                             EP::device,
-                             EP::cuda,
-                             EP::hip})
-    {
-        try
-        {
-            EP policy = try_add();
-            const auto id = policy.policy_id();
-            auto it = std::find_if(
-                policies.begin(),
-                policies.end(),
-                [id](const EP& p)
-                {
-                    return p.policy_id() == id;
-                });
-            if (it == policies.end())
-            {
-                // Only add the policy if it is not already present
-                policies.push_back(policy);
-            }
-        }
-        catch (...)
-        {
-            // Conduit was not compiled with support for this policy
-        }
-    }
-
-    return policies;
-}
+    std::string src_location;
+    std::string exec_location;
+    std::string output_location;
+};
 
 //-----------------------------------------------------------------------------
 inline
 std::vector<std::string>
-get_enabled_data_locations()
+get_enabled_locations()
 {
     std::vector<std::string> locations;
     locations.push_back("host");
@@ -103,14 +72,15 @@ std::vector<ExecConfig>
 get_exec_configs()
 {
     std::vector<ExecConfig> configs;
-    const auto locations = get_enabled_data_locations();
-    const auto policies  = get_enabled_policies();
-    for (const auto &location : locations)
+    const auto locations = get_enabled_locations();
+
+    for (const auto &src_loc    : locations)
+    for (const auto &exec_loc   : locations)
+    for (const auto &output_loc : locations)
     {
-        for (const auto &policy : policies)
-        {
-            configs.push_back({policy, location});
-        }
+        configs.push_back({src_loc,
+                           exec_loc,
+                           output_loc});
     }
     return configs;
 }
@@ -125,38 +95,38 @@ exec(BenchmarkFn&& fn,
     // Setup
     execution::init_device_memory_handlers();
 
-    // Loop over all supported policies and locations
     for (const auto &config : get_exec_configs())
     {
-        // Set the execution location
+        // Set all execution options for this configuration
         Node exec_opts;
-        exec_opts["execution_location"].set(config.location);
+        exec_opts["execution_location"].set(config.exec_location);
+        exec_opts["output_location"].set(config.output_location);
+        exec_opts["sync_strategy"].set("sync");
         execution::execution_set_options(exec_opts);
 
         // Execute fn `warmup` times
-        for (index_t i = 0; i < warmup; i++)
         {
-            fn(config);
+            // Scope this separately to make it easier to disregard
+            // warmup iterations in the timing output
+            CONDUIT_ANNOTATE_MARK_SCOPE("warmup");
+            for (index_t i = 0; i < warmup; i++)
+            {
+                fn(config);
+            }
         }
-
-        // Outputs a file called region_profile.cali with profiling data
-        // for consumption by hatchet or thicket
-        Node cali_opts;
-        // cali_opts["config"] = "hatchet-region-profile";
-        cali_opts["config"] = "runtime-report,profile-cuda";
-        annotations::initialize(cali_opts);
 
         // Execute fn `iterations` times
         {
-            const std::string scope_name = "bench_" + config.policy.policy_name() + "_" + config.location;
+            const std::string scope_name = execution::get_execution_policy().policy_name()
+                + "_src-"  + config.src_location
+                + "_exec-" + config.exec_location
+                + "_out-"  + config.output_location;
             CONDUIT_ANNOTATE_MARK_SCOPE(scope_name.c_str());
             for (index_t i = 0; i < iterations; i++)
             {
                 fn(config);
             }
         }
-
-        annotations::finalize();
 
         execution::reset_execution_options();
     }
