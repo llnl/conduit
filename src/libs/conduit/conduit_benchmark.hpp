@@ -90,10 +90,10 @@ get_enabled_data_locations()
 {
     std::vector<std::string> locations;
     locations.push_back("host");
-    // if (EP::is_device_enabled())
-    // {
-    //     locations.push_back("device");
-    // }
+    if (EP::is_device_enabled())
+    {
+        locations.push_back("device");
+    }
     return locations;
 }
 
@@ -142,12 +142,13 @@ exec(BenchmarkFn&& fn,
         // Outputs a file called region_profile.cali with profiling data
         // for consumption by hatchet or thicket
         Node cali_opts;
-        cali_opts["config"] = "hatchet-region-profile";
+        // cali_opts["config"] = "hatchet-region-profile";
+        cali_opts["config"] = "runtime-report,profile-cuda";
         annotations::initialize(cali_opts);
 
         // Execute fn `iterations` times
         {
-            const std::string scope_name = config.policy.policy_name() + "/" + config.location;
+            const std::string scope_name = "bench_" + config.policy.policy_name() + "_" + config.location;
             CONDUIT_ANNOTATE_MARK_SCOPE(scope_name.c_str());
             for (index_t i = 0; i < iterations; i++)
             {

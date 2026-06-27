@@ -80,6 +80,7 @@ set(blueprint_c_headers
 set(blueprint_sources
     conduit_blueprint.cpp
     conduit_blueprint_mesh.cpp
+    conduit_blueprint_mesh_execution.cpp
     conduit_blueprint_mesh_partition.cpp
     conduit_blueprint_mesh_utils.cpp
     conduit_blueprint_mesh_topology_metadata.cpp
@@ -136,9 +137,10 @@ if(FORTRAN_FOUND)
 
 endif()
 
-# set(conduit_blueprint_device_sources
-#     conduit_blueprint_mesh.cpp)
-# conduit_set_source_device_properties("${conduit_blueprint_device_sources}")
+set(conduit_blueprint_device_sources
+    conduit_blueprint_mesh_execution.cpp)
+
+conduit_set_source_device_properties("${conduit_blueprint_device_sources}")
 
 #
 # Setup conduit blueprint lib
