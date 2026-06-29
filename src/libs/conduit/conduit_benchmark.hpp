@@ -74,14 +74,19 @@ get_exec_configs()
     std::vector<ExecConfig> configs;
     const auto locations = get_enabled_locations();
 
-    for (const auto &src_loc    : locations)
-    for (const auto &exec_loc   : locations)
-    for (const auto &output_loc : locations)
+    for (const auto &src_loc : locations)
     {
-        configs.push_back({src_loc,
-                           exec_loc,
-                           output_loc});
+        for (const auto &exec_loc : locations)
+        {
+            for (const auto &output_loc : locations)
+            {
+                configs.push_back({src_loc,
+                                   exec_loc,
+                                   output_loc});
+            }
+        }
     }
+
     return configs;
 }
 
@@ -95,6 +100,7 @@ exec(BenchmarkFn&& fn,
     // Setup
     execution::init_device_memory_handlers();
 
+    // Benchmark each possible configuration
     for (const auto &config : get_exec_configs())
     {
         // Set all execution options for this configuration

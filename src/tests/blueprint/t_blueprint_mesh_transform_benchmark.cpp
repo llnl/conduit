@@ -52,14 +52,15 @@ coordset_transform(const char *name,
         }
         transform(device_coordset, dst);
     }
-    else
+    else // Source data is on the host for this config, so nothing to do
     {
         transform(host_coordset, dst);
     }
 }
 
 //-----------------------------------------------------------------------------
-void uniform_to_rectilinear(const benchmark::ExecConfig &config)
+void
+uniform_to_rectilinear(const benchmark::ExecConfig &config)
 {
     coordset_transform(__FUNCTION__,
                        "uniform",
@@ -67,7 +68,9 @@ void uniform_to_rectilinear(const benchmark::ExecConfig &config)
                        config);
 }
 
-void uniform_to_explicit(const benchmark::ExecConfig &config)
+//-----------------------------------------------------------------------------
+void
+uniform_to_explicit(const benchmark::ExecConfig &config)
 {
     coordset_transform(__FUNCTION__,
                        "uniform",
@@ -75,7 +78,9 @@ void uniform_to_explicit(const benchmark::ExecConfig &config)
                        config);
 }
 
-void rectilinear_to_explicit(const benchmark::ExecConfig &config)
+//-----------------------------------------------------------------------------
+void
+rectilinear_to_explicit(const benchmark::ExecConfig &config)
 {
     coordset_transform(__FUNCTION__,
                        "rectilinear",
@@ -110,10 +115,10 @@ int main(int argc, char *argv[])
         BENCHMARK_DIM_SIZE = static_cast<index_t>(atoll(argv[3]));
     }
 
+    // TODO: Investigate creating a separate .cali file per benchmark
     const std::string timestamp = benchmark::get_timestamp();
     Node cali_opts;
-    // cali_opts["config"] = "hatchet-region-profile(output=" + timestamp + ".cali)";
-    cali_opts["config"] = "runtime-report(max_column_width=999)";
+    cali_opts["config"] = "hatchet-region-profile(output=" + timestamp + ".cali)";
     annotations::initialize(cali_opts);
 
     const int result = RUN_ALL_TESTS();

@@ -6,11 +6,6 @@
 ///
 /// file: conduit_blueprint_mesh_execution.cpp
 ///
-/// Coordset conversion functions that use conduit::execution::forall and are
-/// compiled as a device translation unit (CUDA/HIP) when device support is
-/// enabled.  Functions that are not yet ported to device live in
-/// conduit_blueprint_mesh.cpp instead.
-///
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
