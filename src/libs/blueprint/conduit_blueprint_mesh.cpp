@@ -916,9 +916,161 @@ verify_multi_domain(const Node &n,
 // - start internal topology helpers -
 //-----------------------------------------------------------------------------
 
-// convert_coordset_to_rectilinear and convert_coordset_to_explicit have been
-// moved to conduit_blueprint_mesh_execution.cpp so they can be compiled as a
-// device translation unit independently of the rest of this file.
+//-----------------------------------------------------------------------------
+// Internal helpers for the coordset to_explicit/to_rectilinear transforms.
+// These use the execution layer so they can run on host or device. They live
+// in an anonymous namespace so they have internal linkage to this TU.
+//-----------------------------------------------------------------------------
+namespace
+{
+
+//-----------------------------------------------------------------------------
+void
+convert_coordset_to_rectilinear(const std::string &/*base_type*/,
+                                const conduit::Node &coordset,
+                                conduit::Node &dest)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+
+    dest.reset();
+    dest["type"].set("rectilinear");
+
+    DataType float_dtype = bputils::find_widest_dtype(coordset, bputils::DEFAULT_FLOAT_DTYPE);
+
+    const std::vector<std::string> csys_axes = bputils::coordset::axes(coordset);
+    const std::vector<std::string> &logical_axes = bputils::LOGICAL_AXES;
+
+    // execution setup
+    conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
+    const index_t allocator_id = conduit::execution::get_output_allocator_id();
+    const std::string &sync_strategy = conduit::execution::get_sync_strategy();
+
+    for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
+    {
+        const std::string& csys_axis = csys_axes[i];
+        const std::string& logical_axis = logical_axes[i];
+
+        float64 dim_origin = coordset.has_child("origin") ?
+            coordset["origin"][csys_axis].to_float64() : 0.0;
+        float64 dim_spacing = coordset.has_child("spacing") ?
+            coordset["spacing"]["d"+csys_axis].to_float64() : 1.0;
+        index_t dim_len = coordset["dims"][logical_axis].to_int64();
+
+        Node &dst_cvals_node = dest["values"][csys_axis];
+        dst_cvals_node.set_allocator(allocator_id);
+        dst_cvals_node.set(DataType(float_dtype.id(), dim_len));
+
+        float64_accessor dst_values(dest["values"][csys_axis]);
+        dst_values.use_with(policy);
+        conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
+        {
+            const float64 val = dim_origin + d * dim_spacing;
+            dst_values.set(d, val);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        dst_values.data_movement(sync_strategy);
+    }
+}
+
+//-----------------------------------------------------------------------------
+void
+convert_coordset_to_explicit(const std::string &base_type,
+                             const conduit::Node &coordset,
+                             conduit::Node &dest)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+    bool is_base_rectilinear = base_type == "rectilinear";
+    bool is_base_uniform = base_type == "uniform";
+
+    dest.reset();
+    dest["type"].set("explicit");
+
+    DataType float_dtype = bputils::find_widest_dtype(coordset, bputils::DEFAULT_FLOAT_DTYPE);
+
+    const std::vector<std::string> csys_axes = bputils::coordset::axes(coordset);
+    const std::vector<std::string> &logical_axes = bputils::LOGICAL_AXES;
+
+    index_t dim_lens[3] = {0, 0, 0}, coords_len = 1;
+    for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
+    {
+        dim_lens[i] = is_base_rectilinear ?
+            coordset["values"][csys_axes[i]].dtype().number_of_elements() :
+            coordset["dims"][logical_axes[i]].to_int64();
+        coords_len *= dim_lens[i];
+    }
+
+    Node info;
+    for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
+    {
+        const std::string& csys_axis = csys_axes[i];
+
+        // NOTE: The following values are specific to the
+        // rectilinear transform case.
+        const Node &src_cvals_node = coordset.has_child("values") ?
+            coordset["values"][csys_axis] : info;
+        float64_accessor src_cvals_acc(src_cvals_node);
+        // NOTE: The following values are specific to the
+        // uniform transform case.
+        float64 dim_origin = coordset.has_child("origin") ?
+            coordset["origin"][csys_axis].to_float64() : 0.0;
+        float64 dim_spacing = coordset.has_child("spacing") ?
+            coordset["spacing"]["d"+csys_axis].to_float64() : 1.0;
+
+        index_t dim_block_size = 1, dim_block_count = 1;
+        for(index_t j = 0; j < (index_t)csys_axes.size(); j++)
+        {
+            dim_block_size *= (j < i) ? dim_lens[j] : 1;
+            dim_block_count *= (i < j) ? dim_lens[j] : 1;
+        }
+
+        // execution setup
+        conduit::execution::ExecutionPolicy policy = is_base_rectilinear ?
+            conduit::execution::get_execution_policy(src_cvals_node) :
+            conduit::execution::get_execution_policy();
+        const index_t allocator_id = is_base_rectilinear ?
+            conduit::execution::get_output_allocator_id(src_cvals_node) :
+            conduit::execution::get_output_allocator_id();
+        const std::string &sync_strategy = conduit::execution::get_sync_strategy();
+
+        Node &dst_cvals_node = dest["values"][csys_axis];
+        dst_cvals_node.set_allocator(allocator_id);
+        dst_cvals_node.set(DataType(float_dtype.id(), coords_len));
+
+        float64_accessor dst_cvals_acc(dst_cvals_node);
+        dst_cvals_acc.use_with(policy);
+        if (is_base_rectilinear)
+        {
+            src_cvals_acc.use_with(policy);
+        }
+
+        conduit::execution::forall(policy, 0, dim_lens[i], [=] CONDUIT_EXEC(index_t d)
+        {
+            index_t doffset = d * dim_block_size;
+            for(index_t b = 0; b < dim_block_count; b++)
+            {
+                index_t boffset = b * dim_block_size * dim_lens[i];
+                for(index_t bi = 0; bi < dim_block_size; bi++)
+                {
+                    index_t ioffset = doffset + boffset + bi;
+                    if(is_base_rectilinear)
+                    {
+                        dst_cvals_acc.set(ioffset, src_cvals_acc[d]);
+                    }
+                    else if(is_base_uniform)
+                    {
+                        dst_cvals_acc.set(ioffset, dim_origin + d * dim_spacing);
+                    }
+                }
+            }
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        dst_cvals_acc.data_movement(sync_strategy);
+    }
+}
+
+} // anonymous namespace
 
 //-------------------------------------------------------------------------
 void
@@ -4080,162 +4232,6 @@ mesh::coordset::generate_strip(const Node& coordset,
         coordset["values/x"].to_float64_array(coordset_dest["values/y"]);
     }
 }
-
-//-----------------------------------------------------------------------------
-// Internal helpers for the coordset to_explicit/to_rectilinear transforms.
-// These use the execution layer so they can run on host or device. They live
-// in an anonymous namespace so they have internal linkage to this TU.
-//-----------------------------------------------------------------------------
-namespace
-{
-
-//-----------------------------------------------------------------------------
-void
-convert_coordset_to_rectilinear(const std::string &/*base_type*/,
-                                const conduit::Node &coordset,
-                                conduit::Node &dest)
-{
-    CONDUIT_ANNOTATE_MARK_FUNCTION;
-
-    dest.reset();
-    dest["type"].set("rectilinear");
-
-    DataType float_dtype = bputils::find_widest_dtype(coordset, bputils::DEFAULT_FLOAT_DTYPE);
-
-    const std::vector<std::string> csys_axes = bputils::coordset::axes(coordset);
-    const std::vector<std::string> &logical_axes = bputils::LOGICAL_AXES;
-
-    // execution setup
-    conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
-    const index_t allocator_id = conduit::execution::get_output_allocator_id();
-    const std::string &sync_strategy = conduit::execution::get_sync_strategy();
-
-    for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
-    {
-        const std::string& csys_axis = csys_axes[i];
-        const std::string& logical_axis = logical_axes[i];
-
-        float64 dim_origin = coordset.has_child("origin") ?
-            coordset["origin"][csys_axis].to_float64() : 0.0;
-        float64 dim_spacing = coordset.has_child("spacing") ?
-            coordset["spacing"]["d"+csys_axis].to_float64() : 1.0;
-        index_t dim_len = coordset["dims"][logical_axis].to_int64();
-
-        Node &dst_cvals_node = dest["values"][csys_axis];
-        dst_cvals_node.set_allocator(allocator_id);
-        dst_cvals_node.set(DataType(float_dtype.id(), dim_len));
-
-        float64_accessor dst_values(dest["values"][csys_axis]);
-        dst_values.use_with(policy);
-        conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
-        {
-            const float64 val = dim_origin + d * dim_spacing;
-            dst_values.set(d, val);
-        });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-        dst_values.data_movement(sync_strategy);
-    }
-}
-
-//-----------------------------------------------------------------------------
-void
-convert_coordset_to_explicit(const std::string &base_type,
-                             const conduit::Node &coordset,
-                             conduit::Node &dest)
-{
-    CONDUIT_ANNOTATE_MARK_FUNCTION;
-    bool is_base_rectilinear = base_type == "rectilinear";
-    bool is_base_uniform = base_type == "uniform";
-
-    dest.reset();
-    dest["type"].set("explicit");
-
-    DataType float_dtype = bputils::find_widest_dtype(coordset, bputils::DEFAULT_FLOAT_DTYPE);
-
-    const std::vector<std::string> csys_axes = bputils::coordset::axes(coordset);
-    const std::vector<std::string> &logical_axes = bputils::LOGICAL_AXES;
-
-    index_t dim_lens[3] = {0, 0, 0}, coords_len = 1;
-    for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
-    {
-        dim_lens[i] = is_base_rectilinear ?
-            coordset["values"][csys_axes[i]].dtype().number_of_elements() :
-            coordset["dims"][logical_axes[i]].to_int64();
-        coords_len *= dim_lens[i];
-    }
-
-    Node info;
-    for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
-    {
-        const std::string& csys_axis = csys_axes[i];
-
-        // NOTE: The following values are specific to the
-        // rectilinear transform case.
-        const Node &src_cvals_node = coordset.has_child("values") ?
-            coordset["values"][csys_axis] : info;
-        float64_accessor src_cvals_acc(src_cvals_node);
-        // NOTE: The following values are specific to the
-        // uniform transform case.
-        float64 dim_origin = coordset.has_child("origin") ?
-            coordset["origin"][csys_axis].to_float64() : 0.0;
-        float64 dim_spacing = coordset.has_child("spacing") ?
-            coordset["spacing"]["d"+csys_axis].to_float64() : 1.0;
-
-        index_t dim_block_size = 1, dim_block_count = 1;
-        for(index_t j = 0; j < (index_t)csys_axes.size(); j++)
-        {
-            dim_block_size *= (j < i) ? dim_lens[j] : 1;
-            dim_block_count *= (i < j) ? dim_lens[j] : 1;
-        }
-
-        // execution setup
-        conduit::execution::ExecutionPolicy policy = is_base_rectilinear ?
-            conduit::execution::get_execution_policy(src_cvals_node) :
-            conduit::execution::get_execution_policy();
-        const index_t allocator_id = is_base_rectilinear ?
-            conduit::execution::get_output_allocator_id(src_cvals_node) :
-            conduit::execution::get_output_allocator_id();
-        const std::string &sync_strategy = conduit::execution::get_sync_strategy();
-
-        Node &dst_cvals_node = dest["values"][csys_axis];
-        dst_cvals_node.set_allocator(allocator_id);
-        dst_cvals_node.set(DataType(float_dtype.id(), coords_len));
-
-        float64_accessor dst_cvals_acc(dst_cvals_node);
-        dst_cvals_acc.use_with(policy);
-        if (is_base_rectilinear)
-        {
-            src_cvals_acc.use_with(policy);
-        }
-
-        conduit::execution::forall(policy, 0, dim_lens[i], [=] CONDUIT_EXEC(index_t d)
-        {
-            index_t doffset = d * dim_block_size;
-            for(index_t b = 0; b < dim_block_count; b++)
-            {
-                index_t boffset = b * dim_block_size * dim_lens[i];
-                for(index_t bi = 0; bi < dim_block_size; bi++)
-                {
-                    index_t ioffset = doffset + boffset + bi;
-                    if(is_base_rectilinear)
-                    {
-                        dst_cvals_acc.set(ioffset, src_cvals_acc[d]);
-                    }
-                    else if(is_base_uniform)
-                    {
-                        dst_cvals_acc.set(ioffset, dim_origin + d * dim_spacing);
-                    }
-                }
-            }
-        });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-        dst_cvals_acc.data_movement(sync_strategy);
-    }
-}
-
-} // anonymous namespace
 
 //-----------------------------------------------------------------------------
 void
