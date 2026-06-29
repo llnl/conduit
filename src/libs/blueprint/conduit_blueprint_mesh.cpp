@@ -50,8 +50,6 @@
 #include "conduit_utils.hpp"
 
 using namespace conduit;
-// Easier access to the Conduit logging functions
-using namespace conduit::utils;
 // access conduit path helper
 using ::conduit::utils::join_path;
 // access conduit blueprint mesh utilities
@@ -194,11 +192,11 @@ bool verify_field_exists(const std::string &protocol,
     {
         if(!node.has_child(field_name))
         {
-            log::error(info, protocol, "missing child" + log::quote(field_name, 1));
+            conduit::utils::log::error(info, protocol, "missing child" + conduit::utils::log::quote(field_name, 1));
             res = false;
         }
 
-        log::validation(info[field_name], res);
+        conduit::utils::log::validation(info[field_name], res);
     }
 
     return res;
@@ -219,12 +217,12 @@ bool verify_integer_field(const std::string &protocol,
 
         if(!field_node.dtype().is_integer())
         {
-            log::error(info, protocol, log::quote(field_name) + "is not an integer (array)");
+            conduit::utils::log::error(info, protocol, conduit::utils::log::quote(field_name) + "is not an integer (array)");
             res = false;
         }
     }
 
-    log::validation(field_info, res);
+    conduit::utils::log::validation(field_info, res);
 
     return res;
 }
@@ -245,12 +243,12 @@ bool verify_number_field(const std::string &protocol,
 
         if(!field_node.dtype().is_number())
         {
-            log::error(info, protocol, log::quote(field_name) + "is not a number");
+            conduit::utils::log::error(info, protocol, conduit::utils::log::quote(field_name) + "is not a number");
             res = false;
         }
     }
 
-    log::validation(field_info, res);
+    conduit::utils::log::validation(field_info, res);
 
     return res;
 }
@@ -271,12 +269,12 @@ bool verify_string_field(const std::string &protocol,
 
         if(!field_node.dtype().is_string())
         {
-            log::error(info, protocol, log::quote(field_name) + "is not a string");
+            conduit::utils::log::error(info, protocol, conduit::utils::log::quote(field_name) + "is not a string");
             res = false;
         }
     }
 
-    log::validation(field_info, res);
+    conduit::utils::log::validation(field_info, res);
 
     return res;
 }
@@ -301,13 +299,13 @@ bool verify_object_field(const std::string &protocol,
         if(!(field_node.dtype().is_object() ||
             (allow_list && field_node.dtype().is_list())))
         {
-            log::error(info, protocol, log::quote(field_name) + "is not an object" +
+            conduit::utils::log::error(info, protocol, conduit::utils::log::quote(field_name) + "is not an object" +
                                        (allow_list ? " or a list" : ""));
             res = false;
         }
         else if(!allow_empty && field_node.number_of_children() == 0)
         {
-            log::error(info,protocol, "has no children");
+            conduit::utils::log::error(info,protocol, "has no children");
             res = false;
         }
         else if(num_children && field_node.number_of_children() != num_children)
@@ -318,12 +316,12 @@ bool verify_object_field(const std::string &protocol,
                 << " vs "
                 << num_children
                 << ")";
-            log::error(info,protocol, oss.str());
+            conduit::utils::log::error(info,protocol, oss.str());
             res = false;
         }
     }
 
-    log::validation(field_info, res);
+    conduit::utils::log::validation(field_info, res);
 
     return res;
 }
@@ -344,15 +342,15 @@ bool verify_mcarray_field(const std::string &protocol,
         res = blueprint::mcarray::verify(field_node,field_info);
         if(res)
         {
-            log::info(info, protocol, log::quote(field_name) + "is an mcarray");
+            conduit::utils::log::info(info, protocol, conduit::utils::log::quote(field_name) + "is an mcarray");
         }
         else
         {
-            log::error(info, protocol, log::quote(field_name) + "is not an mcarray");
+            conduit::utils::log::error(info, protocol, conduit::utils::log::quote(field_name) + "is not an mcarray");
         }
     }
 
-    log::validation(field_info, res);
+    conduit::utils::log::validation(field_info, res);
 
     return res;
 }
@@ -376,15 +374,15 @@ bool verify_mlarray_field(const std::string &protocol,
         res = blueprint::mlarray::verify(field_node,field_info,min_depth,max_depth,leaf_uniformity);
         if(res)
         {
-            log::info(info, protocol, log::quote(field_name) + "is an mlarray");
+            conduit::utils::log::info(info, protocol, conduit::utils::log::quote(field_name) + "is an mlarray");
         }
         else
         {
-            log::error(info, protocol, log::quote(field_name) + "is not an mlarray");
+            conduit::utils::log::error(info, protocol, conduit::utils::log::quote(field_name) + "is not an mlarray");
         }
     }
 
-    log::validation(field_info, res);
+    conduit::utils::log::validation(field_info, res);
 
     return res;
 }
@@ -405,15 +403,15 @@ bool verify_o2mrelation_field(const std::string &protocol,
         res = blueprint::o2mrelation::verify(field_node,field_info);
         if(res)
         {
-            log::info(info, protocol, log::quote(field_name) + "describes a one-to-many relation");
+            conduit::utils::log::info(info, protocol, conduit::utils::log::quote(field_name) + "describes a one-to-many relation");
         }
         else
         {
-            log::error(info, protocol, log::quote(field_name) + "doesn't describe a one-to-many relation");
+            conduit::utils::log::error(info, protocol, conduit::utils::log::quote(field_name) + "doesn't describe a one-to-many relation");
         }
     }
 
-    log::validation(field_info, res);
+    conduit::utils::log::validation(field_info, res);
 
     return res;
 }
@@ -442,20 +440,20 @@ bool verify_enum_field(const std::string &protocol,
 
         if(is_field_enum)
         {
-            log::info(info, protocol, log::quote(field_name) +
+            conduit::utils::log::info(info, protocol, conduit::utils::log::quote(field_name) +
                                       "has valid value" +
-                                      log::quote(field_value, 1));
+                                      conduit::utils::log::quote(field_value, 1));
         }
         else
         {
-            log::error(info, protocol, log::quote(field_name) +
+            conduit::utils::log::error(info, protocol, conduit::utils::log::quote(field_name) +
                                        "has invalid value" +
-                                       log::quote(field_value, 1));
+                                       conduit::utils::log::quote(field_value, 1));
             res = false;
         }
     }
 
-    log::validation(field_info, res);
+    conduit::utils::log::validation(field_info, res);
 
     return res;
 }
@@ -477,20 +475,20 @@ bool verify_reference_field(const std::string &protocol,
 
         if(!node_tree.has_child(ref_path) || !node_tree[ref_path].has_child(ref_name))
         {
-            log::error(info, protocol, "reference to non-existent " + field_name +
-                                        log::quote(ref_name, 1));
+            conduit::utils::log::error(info, protocol, "reference to non-existent " + field_name +
+                                        conduit::utils::log::quote(ref_name, 1));
             res = false;
         }
         else if(info_tree[ref_path][ref_name]["valid"].as_string() != "true")
         {
-            log::error(info, protocol, "reference to invalid " + field_name +
-                                       log::quote(ref_name, 1));
+            conduit::utils::log::error(info, protocol, "reference to invalid " + field_name +
+                                       conduit::utils::log::quote(ref_name, 1));
             res = false;
         }
     }
 
-    log::validation(info[field_name], res);
-    log::validation(info, res);
+    conduit::utils::log::validation(info[field_name], res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -515,7 +513,7 @@ bool verify_shapes_node(const Node &node, const Node &shape_map, Node &info)
     const bool expectedShape = std::find(range.begin(), range.end(), shape) != range.end();
     if (!expectedShape)
     {
-      log::error(info, protocol, "shape not in shape_map");
+      conduit::utils::log::error(info, protocol, "shape not in shape_map");
     }
     res &= expectedShape;
   }
@@ -524,7 +522,7 @@ bool verify_shapes_node(const Node &node, const Node &shape_map, Node &info)
   {
     for(auto &child : shape_map.children())
     {
-      log::info(info, protocol, "cells found for shape "
+      conduit::utils::log::info(info, protocol, "cells found for shape "
         + child.name() + " ("
         + std::to_string(child.to_int32())
         + ").");
@@ -634,9 +632,9 @@ bool verify_poly_node(bool is_mixed_topo,
                         subnode_res = false;
                     }
 
-                    log::validation(subnode_info,subnode_res);
+                    conduit::utils::log::validation(subnode_info,subnode_res);
                 }
-                log::validation(info_subelems, subnode_res);
+                conduit::utils::log::validation(info_subelems, subnode_res);
             }
             elems_res &= subnode_res;
         }
@@ -671,7 +669,7 @@ verify_single_domain(const Node &n,
             cset_res &= blueprint::mesh::coordset::verify(chld, info["coordsets"][chld_name]);
         }
 
-        log::validation(info["coordsets"],cset_res);
+        conduit::utils::log::validation(info["coordsets"],cset_res);
         res &= cset_res;
     }
 
@@ -694,7 +692,7 @@ verify_single_domain(const Node &n,
                 chld, chld_info, "coordset", "coordsets");
         }
 
-        log::validation(info["topologies"],topo_res);
+        conduit::utils::log::validation(info["topologies"],topo_res);
         res &= topo_res;
     }
 
@@ -720,7 +718,7 @@ verify_single_domain(const Node &n,
                     chld, chld_info, "topology", "topologies");
             }
 
-            log::validation(info["matsets"],mset_res);
+            conduit::utils::log::validation(info["matsets"],mset_res);
             res &= mset_res;
         }
     }
@@ -747,7 +745,7 @@ verify_single_domain(const Node &n,
                     chld, chld_info, "matset", "matsets");
             }
 
-            log::validation(info["specsets"],sset_res);
+            conduit::utils::log::validation(info["specsets"],sset_res);
             res &= sset_res;
         }
     }
@@ -782,7 +780,7 @@ verify_single_domain(const Node &n,
                 }
             }
 
-            log::validation(info["fields"],field_res);
+            conduit::utils::log::validation(info["fields"],field_res);
             res &= field_res;
         }
     }
@@ -809,7 +807,7 @@ verify_single_domain(const Node &n,
                     chld, chld_info, "topology", "topologies");
             }
 
-            log::validation(info["adjsets"],aset_res);
+            conduit::utils::log::validation(info["adjsets"],aset_res);
             res &= aset_res;
         }
     }
@@ -836,7 +834,7 @@ verify_single_domain(const Node &n,
                     chld, chld_info, "topology", "topologies");
             }
 
-            log::validation(info["nestsets"],nset_res);
+            conduit::utils::log::validation(info["nestsets"],nset_res);
             res &= nset_res;
         }
     }
@@ -861,11 +859,11 @@ verify_single_domain(const Node &n,
             }
         }
 
-        log::validation(info["topologies"],topo_res);
+        conduit::utils::log::validation(info["topologies"],topo_res);
         res &= topo_res;
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -882,14 +880,14 @@ verify_multi_domain(const Node &n,
 
     if(!n.dtype().is_object() && !n.dtype().is_list() && !n.dtype().is_empty())
     {
-        log::error(info, protocol, "not an object, a list, or empty");
+        conduit::utils::log::error(info, protocol, "not an object, a list, or empty");
         res = false;
     }
     else
     {
         if(n.dtype().is_empty() || n.number_of_children() == 0)
         {
-            log::info(info, protocol, "is an empty mesh");
+            conduit::utils::log::info(info, protocol, "is an empty mesh");
         }
         else
         {
@@ -902,10 +900,10 @@ verify_multi_domain(const Node &n,
             }
         }
 
-        log::info(info, protocol, "is a multi domain mesh");
+        conduit::utils::log::info(info, protocol, "is a multi domain mesh");
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -2443,7 +2441,7 @@ mesh::can_generate_strip(const Node &mesh,
     std::string topo_type = topo["type"].as_string();
     if (!(cs_dim == 1 && topo_type != "points"))
     {
-        log::error(info, protocol, "coordset dimension != 1, or topology type is points");
+        conduit::utils::log::error(info, protocol, "coordset dimension != 1, or topology type is points");
         res = false;
     }
 
@@ -2456,9 +2454,9 @@ mesh::can_generate_strip(const Node &mesh,
         // This method requires fields to have "association" == "element".
         if (!f.has_child("association") || f["association"].as_string() != "element")
         {
-            log::error(info,
+            conduit::utils::log::error(info,
                        protocol,
-                       "fields[" + log::quote(fitr.name()) + "/association] != element");
+                       "fields[" + conduit::utils::log::quote(fitr.name()) + "/association] != element");
             res = false;
         }
     }
@@ -3817,7 +3815,7 @@ mesh::logical_dims::verify(const Node &dims,
         res &= verify_integer_field(protocol, dims, info, "k");
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -3839,7 +3837,7 @@ mesh::association::verify(const Node &assoc,
 
     res &= verify_enum_field(protocol, assoc, info, "", bputils::ASSOCIATIONS);
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -3872,7 +3870,7 @@ mesh::coordset::uniform::origin::verify(const Node &origin,
         }
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -3898,7 +3896,7 @@ mesh::coordset::uniform::spacing::verify(const Node &spacing,
         }
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -3920,19 +3918,19 @@ mesh::coordset::uniform::verify(const Node &coordset,
 
     if(coordset.has_child("origin"))
     {
-        log::optional(info, protocol, "has origin");
+        conduit::utils::log::optional(info, protocol, "has origin");
         res &= mesh::coordset::uniform::origin::verify(coordset["origin"],
                                                        info["origin"]);
     }
 
     if(coordset.has_child("spacing"))
     {
-        log::optional(info,protocol, "has spacing");
+        conduit::utils::log::optional(info,protocol, "has spacing");
         res &= mesh::coordset::uniform::spacing::verify(coordset["spacing"],
                                                         info["spacing"]);
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -3962,14 +3960,14 @@ mesh::coordset::rectilinear::verify(const Node &coordset,
             const std::string chld_name = itr.name();
             if(!chld.dtype().is_number())
             {
-                log::error(info, protocol, "value child " + log::quote(chld_name) +
+                conduit::utils::log::error(info, protocol, "value child " + conduit::utils::log::quote(chld_name) +
                                            " is not a number array");
                 res = false;
             }
         }
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -3989,7 +3987,7 @@ mesh::coordset::_explicit::verify(const Node &coordset,
 
     res &= verify_mcarray_field(protocol, coordset, info, "values");
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4025,7 +4023,7 @@ mesh::coordset::verify(const Node &coordset,
         }
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4084,6 +4082,205 @@ mesh::coordset::generate_strip(const Node& coordset,
 }
 
 //-----------------------------------------------------------------------------
+// Internal helpers for the coordset to_explicit/to_rectilinear transforms.
+// These use the execution layer so they can run on host or device. They live
+// in an anonymous namespace so they have internal linkage to this TU.
+//-----------------------------------------------------------------------------
+namespace
+{
+
+//-----------------------------------------------------------------------------
+void
+convert_coordset_to_rectilinear(const std::string &/*base_type*/,
+                                const conduit::Node &coordset,
+                                conduit::Node &dest)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+
+    dest.reset();
+    dest["type"].set("rectilinear");
+
+    DataType float_dtype = bputils::find_widest_dtype(coordset, bputils::DEFAULT_FLOAT_DTYPE);
+
+    const std::vector<std::string> csys_axes = bputils::coordset::axes(coordset);
+    const std::vector<std::string> &logical_axes = bputils::LOGICAL_AXES;
+
+    // execution setup
+    conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
+    const index_t allocator_id = conduit::execution::get_output_allocator_id();
+    const std::string &sync_strategy = conduit::execution::get_sync_strategy();
+
+    for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
+    {
+        const std::string& csys_axis = csys_axes[i];
+        const std::string& logical_axis = logical_axes[i];
+
+        float64 dim_origin = coordset.has_child("origin") ?
+            coordset["origin"][csys_axis].to_float64() : 0.0;
+        float64 dim_spacing = coordset.has_child("spacing") ?
+            coordset["spacing"]["d"+csys_axis].to_float64() : 1.0;
+        index_t dim_len = coordset["dims"][logical_axis].to_int64();
+
+        Node &dst_cvals_node = dest["values"][csys_axis];
+        dst_cvals_node.set_allocator(allocator_id);
+        dst_cvals_node.set(DataType(float_dtype.id(), dim_len));
+
+        float64_accessor dst_values(dest["values"][csys_axis]);
+        dst_values.use_with(policy);
+        conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
+        {
+            const float64 val = dim_origin + d * dim_spacing;
+            dst_values.set(d, val);
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        dst_values.data_movement(sync_strategy);
+    }
+}
+
+//-----------------------------------------------------------------------------
+void
+convert_coordset_to_explicit(const std::string &base_type,
+                             const conduit::Node &coordset,
+                             conduit::Node &dest)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+    bool is_base_rectilinear = base_type == "rectilinear";
+    bool is_base_uniform = base_type == "uniform";
+
+    dest.reset();
+    dest["type"].set("explicit");
+
+    DataType float_dtype = bputils::find_widest_dtype(coordset, bputils::DEFAULT_FLOAT_DTYPE);
+
+    const std::vector<std::string> csys_axes = bputils::coordset::axes(coordset);
+    const std::vector<std::string> &logical_axes = bputils::LOGICAL_AXES;
+
+    index_t dim_lens[3] = {0, 0, 0}, coords_len = 1;
+    for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
+    {
+        dim_lens[i] = is_base_rectilinear ?
+            coordset["values"][csys_axes[i]].dtype().number_of_elements() :
+            coordset["dims"][logical_axes[i]].to_int64();
+        coords_len *= dim_lens[i];
+    }
+
+    Node info;
+    for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
+    {
+        const std::string& csys_axis = csys_axes[i];
+
+        // NOTE: The following values are specific to the
+        // rectilinear transform case.
+        const Node &src_cvals_node = coordset.has_child("values") ?
+            coordset["values"][csys_axis] : info;
+        float64_accessor src_cvals_acc(src_cvals_node);
+        // NOTE: The following values are specific to the
+        // uniform transform case.
+        float64 dim_origin = coordset.has_child("origin") ?
+            coordset["origin"][csys_axis].to_float64() : 0.0;
+        float64 dim_spacing = coordset.has_child("spacing") ?
+            coordset["spacing"]["d"+csys_axis].to_float64() : 1.0;
+
+        index_t dim_block_size = 1, dim_block_count = 1;
+        for(index_t j = 0; j < (index_t)csys_axes.size(); j++)
+        {
+            dim_block_size *= (j < i) ? dim_lens[j] : 1;
+            dim_block_count *= (i < j) ? dim_lens[j] : 1;
+        }
+
+        // execution setup
+        conduit::execution::ExecutionPolicy policy = is_base_rectilinear ?
+            conduit::execution::get_execution_policy(src_cvals_node) :
+            conduit::execution::get_execution_policy();
+        const index_t allocator_id = is_base_rectilinear ?
+            conduit::execution::get_output_allocator_id(src_cvals_node) :
+            conduit::execution::get_output_allocator_id();
+        const std::string &sync_strategy = conduit::execution::get_sync_strategy();
+
+        Node &dst_cvals_node = dest["values"][csys_axis];
+        dst_cvals_node.set_allocator(allocator_id);
+        dst_cvals_node.set(DataType(float_dtype.id(), coords_len));
+
+        float64_accessor dst_cvals_acc(dst_cvals_node);
+        dst_cvals_acc.use_with(policy);
+        if (is_base_rectilinear)
+        {
+            src_cvals_acc.use_with(policy);
+        }
+
+        conduit::execution::forall(policy, 0, dim_lens[i], [=] CONDUIT_EXEC(index_t d)
+        {
+            index_t doffset = d * dim_block_size;
+            for(index_t b = 0; b < dim_block_count; b++)
+            {
+                index_t boffset = b * dim_block_size * dim_lens[i];
+                for(index_t bi = 0; bi < dim_block_size; bi++)
+                {
+                    index_t ioffset = doffset + boffset + bi;
+                    if(is_base_rectilinear)
+                    {
+                        dst_cvals_acc.set(ioffset, src_cvals_acc[d]);
+                    }
+                    else if(is_base_uniform)
+                    {
+                        dst_cvals_acc.set(ioffset, dim_origin + d * dim_spacing);
+                    }
+                }
+            }
+        });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+
+        dst_cvals_acc.data_movement(sync_strategy);
+    }
+}
+
+} // anonymous namespace
+
+//-----------------------------------------------------------------------------
+void
+mesh::coordset::to_explicit(const conduit::Node& coordset,
+                            conduit::Node& coordset_dest)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+    std::string type = coordset.fetch_existing("type").as_string();
+
+    if(type == "uniform")
+        mesh::coordset::uniform::to_explicit(coordset, coordset_dest);
+    else if(type == "rectilinear")
+        mesh::coordset::rectilinear::to_explicit(coordset, coordset_dest);
+    else if(type == "explicit")
+        coordset_dest.set_external(coordset);
+}
+
+//-----------------------------------------------------------------------------
+void
+mesh::coordset::uniform::to_rectilinear(const conduit::Node &coordset,
+                                        conduit::Node &dest)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+    convert_coordset_to_rectilinear("uniform", coordset, dest);
+}
+
+//-----------------------------------------------------------------------------
+void
+mesh::coordset::uniform::to_explicit(const conduit::Node &coordset,
+                                     conduit::Node &dest)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+    convert_coordset_to_explicit("uniform", coordset, dest);
+}
+
+//-----------------------------------------------------------------------------
+void
+mesh::coordset::rectilinear::to_explicit(const conduit::Node &coordset,
+                                         conduit::Node &dest)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+    convert_coordset_to_explicit("rectilinear", coordset, dest);
+}
+
+//-----------------------------------------------------------------------------
 // blueprint::mesh::coordset::type protocol interface
 //-----------------------------------------------------------------------------
 
@@ -4098,7 +4295,7 @@ mesh::coordset::type::verify(const Node &type,
 
     res &= verify_enum_field(protocol, type, info, "", bputils::COORD_TYPES);
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4157,14 +4354,14 @@ mesh::coordset::coord_system::verify(const Node &coord_sys,
 
             if(!axis_name_ok)
             {
-                log::error(info, protocol, "unsupported " + coord_sys_str +
+                conduit::utils::log::error(info, protocol, "unsupported " + coord_sys_str +
                                            " axis name: " + axis_name);
                 res = false;
             }
         }
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4189,7 +4386,7 @@ mesh::coordset::index::verify(const Node &coordset_idx,
     res &= verify_object_field(protocol, coordset_idx, info, "coord_system") &&
            coordset::coord_system::verify(coordset_idx["coord_system"], info["coord_system"]);
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4241,11 +4438,11 @@ mesh::topology::verify(const Node &topo,
 
     if(topo.has_child("grid_function"))
     {
-        log::optional(info, protocol, "includes grid_function");
+        conduit::utils::log::optional(info, protocol, "includes grid_function");
         res &= verify_string_field(protocol, topo, info, "grid_function");
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 
@@ -4317,7 +4514,7 @@ mesh::topology::points::verify(const Node &topo,
     // if needed in the future, can be used to verify optional info for
     // implicit 'points' topology
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4343,7 +4540,7 @@ mesh::topology::uniform::verify(const Node &topo,
     // future: will be used to verify optional info from "elements"
     // child of a uniform topology
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4399,7 +4596,7 @@ mesh::topology::rectilinear::verify(const Node &topo,
     // future: will be used to verify optional info from "elements"
     // child of a rectilinear topology
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4455,14 +4652,14 @@ mesh::topology::structured::verify(const Node &topo,
             verify_object_field(protocol, topo_elements, info_elements, "dims") &&
             mesh::logical_dims::verify(topo_elements["dims"], info_elements["dims"]);
 
-        log::validation(info_elements,elements_res);
+        conduit::utils::log::validation(info_elements,elements_res);
         res &= elements_res;
     }
 
     // FIXME: Add some verification code here for the optional origin in the
     // structured topology.
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4551,22 +4748,22 @@ mesh::topology::unstructured::verify(const Node &topo,
                 // Verify if child is polygonal or polyhedral
                 chld_res &= verify_poly_node (true, name, chld, chld_info, topo, info, elems_res);
 
-                log::validation(chld_info,chld_res);
+                conduit::utils::log::validation(chld_info,chld_res);
                 elems_res &= chld_res;
             }
         }
         else
         {
-            log::error(info,protocol,"invalid child 'elements'");
+            conduit::utils::log::error(info,protocol,"invalid child 'elements'");
             res = false;
         }
 
-        log::validation(info_elems,elems_res);
+        conduit::utils::log::validation(info_elems,elems_res);
         res &= elems_res;
         res &= subelems_res;
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -6353,11 +6550,11 @@ mesh::topology::index::verify(const Node &topo_idx,
 
     if (topo_idx.has_child("grid_function"))
     {
-        log::optional(info, protocol, "includes grid_function");
+        conduit::utils::log::optional(info, protocol, "includes grid_function");
         res &= verify_string_field(protocol, topo_idx, info, "grid_function");
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -6377,7 +6574,7 @@ mesh::topology::type::verify(const Node &type,
 
     res &= verify_enum_field(protocol, type, info, "", bputils::TOPO_TYPES);
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -6397,7 +6594,7 @@ mesh::topology::shape::verify(const Node &shape,
 
     res &= verify_enum_field(protocol, shape, info, "", bputils::TOPO_SHAPES);
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -6426,18 +6623,18 @@ mesh::topology::shape_map::verify(const Node& shape_map,
     }
     if (isEnum)
     {
-      log::info(info, protocol, "has valid value "+ log::quote(child.name()) +
+      conduit::utils::log::info(info, protocol, "has valid value "+ conduit::utils::log::quote(child.name()) +
       "(" + std::to_string(child.to_int32()) + ")");
     }
     else
     {
-      log::error(info, protocol, "has invalid value " + log::quote(child.name()) +
+      conduit::utils::log::error(info, protocol, "has invalid value " + conduit::utils::log::quote(child.name()) +
         "(" + std::to_string(child.to_int32()) + ")");
     }
     res &= isEnum;
   }
 
-  log::validation(info, res);
+  conduit::utils::log::validation(info, res);
 
   return res;
 }
@@ -6466,18 +6663,18 @@ bool verify_matset_material_map(const std::string &protocol,
             const Node &curr_child = itr.next();
             if(!curr_child.dtype().is_integer())
             {
-                log::error(info,
+                conduit::utils::log::error(info,
                            protocol,
-                           log::quote("material_map") +
+                           conduit::utils::log::quote("material_map") +
                            "child " +
-                           log::quote(itr.name()) +
+                           conduit::utils::log::quote(itr.name()) +
                            " is not an integer leaf.");
                 res = false;
             }
         }
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -6500,13 +6697,13 @@ mesh::matset::verify(const Node &matset,
         if(!matset["volume_fractions"].dtype().is_number() &&
             !matset["volume_fractions"].dtype().is_object())
         {
-            log::error(info, protocol, "'volume_fractions' isn't the correct type");
+            conduit::utils::log::error(info, protocol, "'volume_fractions' isn't the correct type");
             res &= vfs_res &= false;
         }
         else if(matset["volume_fractions"].dtype().is_number() &&
             verify_number_field(protocol, matset, info, "volume_fractions"))
         {
-            log::info(info, protocol, "detected uni-buffer matset");
+            conduit::utils::log::info(info, protocol, "detected uni-buffer matset");
             // materials_map is not optional in this case, signal
             // for opt check down the line
             mat_map_is_optional = false;
@@ -6519,7 +6716,7 @@ mesh::matset::verify(const Node &matset,
         else if(matset["volume_fractions"].dtype().is_object() &&
             verify_object_field(protocol, matset, info, "volume_fractions"))
         {
-            log::info(info, protocol, "detected multi-buffer matset");
+            conduit::utils::log::info(info, protocol, "detected multi-buffer matset");
 
             const Node &vfs = matset["volume_fractions"];
             Node &vfs_info = info["volume_fractions"];
@@ -6532,7 +6729,7 @@ mesh::matset::verify(const Node &matset,
 
                 if(mat.dtype().is_object())
                 {
-                    log::error(info, protocol,
+                    conduit::utils::log::error(info, protocol,
                         "material volume fractions must be a scalar array, not an object with children");
                     res &= false;
                 }
@@ -6543,13 +6740,13 @@ mesh::matset::verify(const Node &matset,
             }
 
             res &= vfs_res;
-            log::validation(vfs_info, vfs_res);
+            conduit::utils::log::validation(vfs_info, vfs_res);
         }
     }
 
     if(!mat_map_is_optional && !matset.has_child("material_map"))
     {
-        log::error(info, protocol,
+        conduit::utils::log::error(info, protocol,
             "'material_map' is missing (required for uni-buffer matsets) ");
         res &= false;
     }
@@ -6558,7 +6755,7 @@ mesh::matset::verify(const Node &matset,
     {
         if(mat_map_is_optional)
         {
-            log::optional(info, protocol, "includes material_map");
+            conduit::utils::log::optional(info, protocol, "includes material_map");
         }
 
         res &= verify_matset_material_map(protocol,matset,info);
@@ -6581,7 +6778,7 @@ mesh::matset::verify(const Node &matset,
                            " 'material_map' is missing child '"
                            << curr_name
                            <<"' which exists in 'volume_fractions`" ;
-                    log::error(info, protocol,oss.str());
+                    conduit::utils::log::error(info, protocol,oss.str());
                     res &= false;
                 }
             }
@@ -6597,7 +6794,7 @@ mesh::matset::verify(const Node &matset,
             if(!matset["element_ids"].dtype().is_integer() &&
                 !matset["element_ids"].dtype().is_object())
             {
-                log::error(info, protocol, "'element_ids' isn't the correct type");
+                conduit::utils::log::error(info, protocol, "'element_ids' isn't the correct type");
                 res &= eids_res &= false;
             }
             else if(matset["element_ids"].dtype().is_object() &&
@@ -6609,7 +6806,7 @@ mesh::matset::verify(const Node &matset,
                 const std::set<std::string> eid_matset(eid_mats.begin(), eid_mats.end());
                 if(vf_matset != eid_matset)
                 {
-                    log::error(info, protocol, "'element_ids' hierarchy must match 'volume_fractions'");
+                    conduit::utils::log::error(info, protocol, "'element_ids' hierarchy must match 'volume_fractions'");
                     eids_res &= false;
                 }
 
@@ -6624,7 +6821,7 @@ mesh::matset::verify(const Node &matset,
                 }
 
                 res &= eids_res;
-                log::validation(eids_info, eids_res);
+                conduit::utils::log::validation(eids_info, eids_res);
             }
             else if(matset["element_ids"].dtype().is_integer() &&
                 matset["volume_fractions"].dtype().is_number())
@@ -6633,13 +6830,13 @@ mesh::matset::verify(const Node &matset,
             }
             else
             {
-                log::error(info, protocol, "'element_ids' hierarchy must match 'volume_fractions'");
+                conduit::utils::log::error(info, protocol, "'element_ids' hierarchy must match 'volume_fractions'");
                 res &= eids_res &= false;
             }
         }
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -6703,7 +6900,7 @@ mesh::matset::index::verify(const Node &matset_idx,
 
     res &= verify_string_field(protocol, matset_idx, info, "path");
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -6725,7 +6922,7 @@ mesh::field::verify(const Node &field,
     bool has_basis = field.has_child("basis");
     if(!has_assoc && !has_basis)
     {
-        log::error(info, protocol, "missing child 'association' or 'basis'");
+        conduit::utils::log::error(info, protocol, "missing child 'association' or 'basis'");
         res = false;
     }
     if(has_assoc)
@@ -6743,7 +6940,7 @@ mesh::field::verify(const Node &field,
     bool has_matset_values = field.has_child("matset_values");
     if(!has_topo && !has_matset)
     {
-        log::error(info, protocol, "missing child 'topology' or 'matset'");
+        conduit::utils::log::error(info, protocol, "missing child 'topology' or 'matset'");
         res = false;
     }
 
@@ -6754,7 +6951,7 @@ mesh::field::verify(const Node &field,
             << " is present, but its companion "
             << "'" << (has_topo ? "values" : "topology") << "'"
             << " is missing";
-        log::error(info, protocol, oss.str());
+        conduit::utils::log::error(info, protocol, oss.str());
         res = false;
     }
     else if(has_topo && has_topo_values)
@@ -6770,7 +6967,7 @@ mesh::field::verify(const Node &field,
             << " is present, but its companion "
             << "'" << (has_matset ? "matset_values" : "matset") << "'"
             << " is missing";
-        log::error(info, protocol, oss.str());
+        conduit::utils::log::error(info, protocol, oss.str());
         res = false;
     }
     else if(has_matset && has_matset_values)
@@ -6783,7 +6980,7 @@ mesh::field::verify(const Node &field,
     // entry for fields.
     // res &= verify_enum_field(protocol, field, info, "volume_dependent", bputils::BOOLEANS);
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -6851,7 +7048,7 @@ mesh::field::basis::verify(const Node &basis,
 
     res &= verify_string_field(protocol, basis, info);
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -6873,7 +7070,7 @@ mesh::field::index::verify(const Node &field_idx,
     bool has_basis = field_idx.has_child("basis");
     if(!has_assoc && !has_basis)
     {
-        log::error(info, protocol, "missing child 'association' or 'basis'");
+        conduit::utils::log::error(info, protocol, "missing child 'association' or 'basis'");
         res = false;
     }
     if(has_assoc)
@@ -6889,7 +7086,7 @@ mesh::field::index::verify(const Node &field_idx,
     bool has_matset = field_idx.has_child("matset");
     if(!has_topo && !has_matset)
     {
-        log::error(info, protocol, "missing child 'topology' or 'matset'");
+        conduit::utils::log::error(info, protocol, "missing child 'topology' or 'matset'");
         res = false;
     }
     if(has_topo)
@@ -6904,7 +7101,7 @@ mesh::field::index::verify(const Node &field_idx,
     res &= verify_integer_field(protocol, field_idx, info, "number_of_components");
     res &= verify_string_field(protocol, field_idx, info, "path");
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -6932,18 +7129,18 @@ bool verify_specset_species_names(const std::string &protocol,
             const Node &curr_child = itr.next();
             if (!curr_child.dtype().is_object())
             {
-                log::error(info,
+                conduit::utils::log::error(info,
                            protocol,
-                           log::quote("species_names") +
+                           conduit::utils::log::quote("species_names") +
                            "child " +
-                           log::quote(itr.name()) +
+                           conduit::utils::log::quote(itr.name()) +
                            " is not an object.");
                 res = false;
             }
         }
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -6980,13 +7177,13 @@ mesh::specset::verify(const Node &specset,
         if (!specset["matset_values"].dtype().is_number() &&
             !specset["matset_values"].dtype().is_object())
         {
-            log::error(info, protocol, "'matset_values' isn't the correct type");
+            conduit::utils::log::error(info, protocol, "'matset_values' isn't the correct type");
             res &= mvs_res &= false;
         }
         else if (specset["matset_values"].dtype().is_number() &&
                  verify_number_field(protocol, specset, info, "matset_values"))
         {
-            log::info(info, protocol, "detected uni-buffer specset");
+            conduit::utils::log::info(info, protocol, "detected uni-buffer specset");
             // species_names is not optional in this case, signal
             // for opt check down the line
             specnames_are_optional = false;
@@ -6998,7 +7195,7 @@ mesh::specset::verify(const Node &specset,
         else if (specset["matset_values"].dtype().is_object() &&
                  verify_object_field(protocol, specset, info, "matset_values"))
         {
-            log::info(info, protocol, "detected multi-buffer specset");
+            conduit::utils::log::info(info, protocol, "detected multi-buffer specset");
 
             const Node &mfs = specset["matset_values"];
             Node &mfs_info = info["matset_values"];
@@ -7011,7 +7208,7 @@ mesh::specset::verify(const Node &specset,
 
                 if (!mat.dtype().is_object())
                 {
-                    log::error(info, protocol,
+                    conduit::utils::log::error(info, protocol,
                                "each material name must be the parent of species names (required for multi-buffer specsets) ");
                     res &= mvs_res &= false;
                 }
@@ -7035,18 +7232,18 @@ mesh::specset::verify(const Node &specset,
                     }
 
                     res &= mvs_res;
-                    log::validation(mat_info, mvs_res);
+                    conduit::utils::log::validation(mat_info, mvs_res);
                 }
             }
 
             res &= mvs_res;
-            log::validation(mfs_info, mvs_res);
+            conduit::utils::log::validation(mfs_info, mvs_res);
         }
     }
 
     if (!specnames_are_optional && !specset.has_child("species_names"))
     {
-        log::error(info, protocol,
+        conduit::utils::log::error(info, protocol,
             "'species_names' is missing (required for uni-buffer specsets) ");
         res &= false;
     }
@@ -7055,7 +7252,7 @@ mesh::specset::verify(const Node &specset,
     {
         if (specnames_are_optional)
         {
-            log::optional(info, protocol, "includes species_names");
+            conduit::utils::log::optional(info, protocol, "includes species_names");
         }
 
         res &= verify_specset_species_names(protocol,specset,info);
@@ -7085,7 +7282,7 @@ mesh::specset::verify(const Node &specset,
                                " 'matset_values' is missing child '"
                                << mat_name << "/" << spec_name
                                <<"' which exists in 'species_names`" ;
-                        log::error(info, protocol,oss.str());
+                        conduit::utils::log::error(info, protocol,oss.str());
                         res &= false;
                     }
                 }
@@ -7093,7 +7290,7 @@ mesh::specset::verify(const Node &specset,
         }
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -7118,7 +7315,7 @@ mesh::specset::index::verify(const Node &specset_idx,
     res &= verify_object_field(protocol, specset_idx, info, "species");
     res &= verify_string_field(protocol, specset_idx, info, "path");
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -7201,11 +7398,11 @@ mesh::adjset::verify(const Node &adjset,
                                 wndw_info, "ratio", false, window_dim);
                     }
 
-                    log::validation(wndw_info,window_res);
+                    conduit::utils::log::validation(wndw_info,window_res);
                     windows_res &= window_res;
                 }
 
-                log::validation(chld_info["windows"],windows_res);
+                conduit::utils::log::validation(chld_info["windows"],windows_res);
                 res &= windows_res;
 
                 if(chld.has_child("orientation"))
@@ -7215,15 +7412,15 @@ mesh::adjset::verify(const Node &adjset,
                 }
             }
 
-            log::validation(chld_info,group_res);
+            conduit::utils::log::validation(chld_info,group_res);
             groups_res &= group_res;
         }
 
-        log::validation(info["groups"],groups_res);
+        conduit::utils::log::validation(info["groups"],groups_res);
         res &= groups_res;
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -7489,7 +7686,7 @@ mesh::adjset::index::verify(const Node &adj_idx,
            mesh::association::verify(adj_idx["association"], info["association"]);
     res &= verify_string_field(protocol, adj_idx, info, "path");
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -7548,15 +7745,15 @@ mesh::nestset::verify(const Node &nestset,
                     verify_object_field(protocol, chld, chld_info, "dims", false, false, window_dim);
             }
 
-            log::validation(chld_info,window_res);
+            conduit::utils::log::validation(chld_info,window_res);
             windows_res &= window_res;
         }
 
-        log::validation(info["windows"],windows_res);
+        conduit::utils::log::validation(info["windows"],windows_res);
         res &= windows_res;
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -7579,7 +7776,7 @@ mesh::nestset::index::verify(const Node &nest_idx,
            mesh::association::verify(nest_idx["association"], info["association"]);
     res &= verify_string_field(protocol, nest_idx, info, "path");
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -7599,7 +7796,7 @@ mesh::nestset::type::verify(const Node &type,
 
     res &= verify_enum_field(protocol, type, info, "", bputils::NESTSET_TYPES);
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -7633,7 +7830,7 @@ mesh::index::verify(const Node &n,
             cset_res &= coordset::index::verify(chld, info["coordsets"][chld_name]);
         }
 
-        log::validation(info["coordsets"],cset_res);
+        conduit::utils::log::validation(info["coordsets"],cset_res);
         res &= cset_res;
     }
 
@@ -7656,7 +7853,7 @@ mesh::index::verify(const Node &n,
                 chld, chld_info, "coordset", "coordsets");
         }
 
-        log::validation(info["topologies"],topo_res);
+        conduit::utils::log::validation(info["topologies"],topo_res);
         res &= topo_res;
     }
 
@@ -7683,7 +7880,7 @@ mesh::index::verify(const Node &n,
                     chld, chld_info, "topology", "topologies");
             }
 
-            log::validation(info["matsets"],mset_res);
+            conduit::utils::log::validation(info["matsets"],mset_res);
             res &= mset_res;
         }
     }
@@ -7711,7 +7908,7 @@ mesh::index::verify(const Node &n,
                     chld, chld_info, "matset", "matsets");
             }
 
-            log::validation(info["specsets"],sset_res);
+            conduit::utils::log::validation(info["specsets"],sset_res);
             res &= sset_res;
         }
     }
@@ -7747,7 +7944,7 @@ mesh::index::verify(const Node &n,
                 }
             }
 
-            log::validation(info["fields"],field_res);
+            conduit::utils::log::validation(info["fields"],field_res);
             res &= field_res;
         }
     }
@@ -7775,7 +7972,7 @@ mesh::index::verify(const Node &n,
                     chld, chld_info, "topology", "topologies");
             }
 
-            log::validation(info["adjsets"],aset_res);
+            conduit::utils::log::validation(info["adjsets"],aset_res);
             res &= aset_res;
         }
     }
@@ -7803,12 +8000,12 @@ mesh::index::verify(const Node &n,
                     chld, chld_info, "topology", "topologies");
             }
 
-            log::validation(info["nestsets"],nset_res);
+            conduit::utils::log::validation(info["nestsets"],nset_res);
             res &= nset_res;
         }
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -8179,7 +8376,7 @@ void polyhedral_face_centers_normals(conduit::execution::ExecutionPolicy exec_po
     Vector *allFaceNormalsPtr = allFaceNormals.data();
 
     // Compute face centers and normals.
-    conduit::execution::forall(exec_policy, 0, totalNumFaces, [=](conduit::index_t f) {
+    conduit::execution::forall(exec_policy, 0, totalNumFaces, [=] CONDUIT_EXEC(conduit::index_t f) {
         const int NUM_VERTS = 4;
         const auto size = subelements_sizes[f];
         const auto offset = subelements_offsets[f];
@@ -8301,7 +8498,7 @@ void polyhedral_elem_centers(conduit::execution::ExecutionPolicy exec_policy,
     allElemCenters.resize(totalNumElems);
     Vector *allElemCentersPtr = allElemCenters.data();
     const Vector *allFaceCentersPtr = allFaceCenters.data();
-    conduit::execution::forall(exec_policy, 0, totalNumElems, [=](conduit::index_t i) {
+    conduit::execution::forall(exec_policy, 0, totalNumElems, [=] CONDUIT_EXEC(conduit::index_t i) {
         const auto size = elements_sizes[i];
         const auto offset = elements_offsets[i];
         Vector center {};
@@ -8315,8 +8512,26 @@ void polyhedral_elem_centers(conduit::execution::ExecutionPolicy exec_policy,
     });
 }
 
+template <typename IndexContainer>
+CONDUIT_EXEC void appendIndex(IndexContainer &vec, conduit::index_t value)
+{
+    bool found = false;
+    for(auto it = vec.begin(); it != vec.end(); ++it)
+    {
+        if(*it == value)
+        {
+            found = true;
+            break;
+        }
+    }
+    if(!found)
+    {
+        vec.push_back(value);
+    }
+}
+
 /*!
- * @brief Convert a polyhedral topology to an unstructured topology of hexes. If the
+ * @brief Convert a polyhedral topology to an unstructured topology of hexes.
  *        input topology does not contain exclusively hexes then it errors out.
  *
  * @param exec_policy The execution policy to use for the loop.
@@ -8392,14 +8607,6 @@ static void polyhedral_to_hexes(conduit::execution::ExecutionPolicy exec_policy,
 
     using IndexContainer = conduit::fixed_size_vector<conduit::index_t, 3>;
 
-    /// Add a value to a vector if the value does not exist in the vector.
-    auto appendIndex = [](IndexContainer &vec, conduit::index_t value) {
-        if(std::find(vec.begin(), vec.end(), value) == vec.end())
-        {
-            vec.push_back(value);
-        }
-    };
-
     // Compute the face centers for all faces.
     std::vector<Vector> allFaceCenters, allFaceNormals;
     polyhedral_face_centers_normals(exec_policy,
@@ -8426,7 +8633,7 @@ static void polyhedral_to_hexes(conduit::execution::ExecutionPolicy exec_policy,
     const Vector *allFaceCentersPtr = allFaceCenters.data();
     const Vector *allFaceNormalsPtr = allFaceNormals.data();
     const Vector *allElemCentersPtr = allElemCenters.data();
-    conduit::execution::forall(exec_policy, 0, nElem, [=](conduit::index_t i) {
+    conduit::execution::forall(exec_policy, 0, nElem, [=] CONDUIT_EXEC(conduit::index_t i) {
         constexpr int FORWARD = 1;
         constexpr int BACKWARD = -1;
         // Determine face orientations with respect to this element.
