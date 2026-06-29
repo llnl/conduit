@@ -917,14 +917,6 @@ verify_multi_domain(const Node &n,
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
-// Internal helpers for the coordset to_explicit/to_rectilinear transforms.
-// These use the execution layer so they can run on host or device. They live
-// in an anonymous namespace so they have internal linkage to this TU.
-//-----------------------------------------------------------------------------
-namespace
-{
-
-//-----------------------------------------------------------------------------
 void
 convert_coordset_to_rectilinear(const std::string &/*base_type*/,
                                 const conduit::Node &coordset,
@@ -973,7 +965,7 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
     }
 }
 
-//-----------------------------------------------------------------------------
+//-------------------------------------------------------------------------
 void
 convert_coordset_to_explicit(const std::string &base_type,
                              const conduit::Node &coordset,
@@ -1069,8 +1061,6 @@ convert_coordset_to_explicit(const std::string &base_type,
         dst_cvals_acc.data_movement(sync_strategy);
     }
 }
-
-} // anonymous namespace
 
 //-------------------------------------------------------------------------
 void
@@ -8508,6 +8498,9 @@ void polyhedral_elem_centers(conduit::execution::ExecutionPolicy exec_policy,
     });
 }
 
+//-------------------------------------------------------------------------
+// This needed to be extracted into its own function to avoid an NVCC
+// compilation error.
 template <typename IndexContainer>
 CONDUIT_EXEC void appendIndex(IndexContainer &vec, conduit::index_t value)
 {
@@ -8527,7 +8520,7 @@ CONDUIT_EXEC void appendIndex(IndexContainer &vec, conduit::index_t value)
 }
 
 /*!
- * @brief Convert a polyhedral topology to an unstructured topology of hexes.
+ * @brief Convert a polyhedral topology to an unstructured topology of hexes. If the
  *        input topology does not contain exclusively hexes then it errors out.
  *
  * @param exec_policy The execution policy to use for the loop.
