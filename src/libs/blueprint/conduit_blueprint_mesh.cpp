@@ -916,7 +916,7 @@ verify_multi_domain(const Node &n,
 // - start internal topology helpers -
 //-----------------------------------------------------------------------------
 
-//-----------------------------------------------------------------------------
+//-------------------------------------------------------------------------
 void
 convert_coordset_to_rectilinear(const std::string &/*base_type*/,
                                 const conduit::Node &coordset,
