@@ -22,14 +22,11 @@ index_t BENCHMARK_NUM_WARMUP_ITERATIONS  = 10;
 index_t BENCHMARK_NUM_ITERATIONS         = 100;
 
 //-----------------------------------------------------------------------------
-void
-coordset_transform(const char *name,
-                   const std::string &src_type,
-                   void (*transform)(const Node &, Node &),
-                   const benchmark::ExecConfig &config)
+// It's much faster to create the source coordset once and reuse it
+const Node
+make_coordset(const std::string &src_type,
+              const benchmark::ExecConfig &config)
 {
-    CONDUIT_ANNOTATE_MARK_SCOPE(name);
-
     Node mesh;
     blueprint::mesh::examples::braid(src_type,
                                      config.dim_size,
@@ -38,63 +35,64 @@ coordset_transform(const char *name,
                                      mesh);
 
     const Node &host_coordset = mesh["coordsets"].child(0);
-    Node dst;
+    Node src;
     if ("device" == config.src_location && host_coordset.has_child("values"))
     {
         // Move the coordinate arrays to device memory
         const index_t alloc_id = execution::get_device_allocator_id();
-        Node device_coordset;
-        device_coordset["type"].set(host_coordset["type"]);
-        for (const std::string &axis : host_coordset["values"].child_names())
+        src["type"].set(host_coordset["type"]);
+        for (const auto &axis : host_coordset["values"].child_names())
         {
-            device_coordset["values"][axis].set_allocator(alloc_id);
-            device_coordset["values"][axis].set(host_coordset["values"][axis]);
+            src["values"][axis].set_allocator(alloc_id);
+            src["values"][axis].set(host_coordset["values"][axis]);
         }
-        transform(device_coordset, dst);
     }
-    else // Source data is on the host for this config, so nothing to do
+    else // if ("host" == config.src_location)
     {
-        transform(host_coordset, dst);
+        src.set(host_coordset);
     }
+    return src;
 }
 
 //-----------------------------------------------------------------------------
 void
-uniform_to_rectilinear(const benchmark::ExecConfig &config)
+benchmark_transform(const char *name,
+                    const std::string &src_type,
+                    void (*transform)(const Node &, Node &))
 {
-    coordset_transform(__FUNCTION__,
-                       "uniform",
-                       blueprint::mesh::coordset::uniform::to_rectilinear,
-                       config);
+    // Create the source coordset once and reuse it for each iteration
+    auto setup = [&](const benchmark::ExecConfig &config) {
+        return make_coordset(src_type, config);
+    };
+
+    // Perform a transform on the source coordset
+    auto run = [=](const Node &src) {
+        Node dst;
+        transform(src, dst);
+    };
+
+    // Benchmark the transform function
+    benchmark::exec(name,
+                    setup,
+                    run,
+                    BENCHMARK_NUM_WARMUP_ITERATIONS,
+                    BENCHMARK_NUM_ITERATIONS,
+                    BENCHMARK_DIM_SIZES);
 }
 
 //-----------------------------------------------------------------------------
-void
-uniform_to_explicit(const benchmark::ExecConfig &config)
-{
-    coordset_transform(__FUNCTION__,
-                       "uniform",
-                       blueprint::mesh::coordset::uniform::to_explicit,
-                       config);
-}
-
-//-----------------------------------------------------------------------------
-void
-rectilinear_to_explicit(const benchmark::ExecConfig &config)
-{
-    coordset_transform(__FUNCTION__,
-                       "rectilinear",
-                       blueprint::mesh::coordset::rectilinear::to_explicit,
-                       config);
-}
-
-//-----------------------------------------------------------------------------
-TEST(blueprint_mesh_transform_execution, coordset_to_explicit)
+TEST(blueprint_mesh_transform_execution, coordset_transforms)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark::exec(uniform_to_rectilinear,  BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS, BENCHMARK_DIM_SIZES);
-    benchmark::exec(uniform_to_explicit,     BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS, BENCHMARK_DIM_SIZES);
-    benchmark::exec(rectilinear_to_explicit, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS, BENCHMARK_DIM_SIZES);
+    benchmark_transform("uniform_to_rectilinear",
+                        "uniform",
+                        blueprint::mesh::coordset::uniform::to_rectilinear);
+    benchmark_transform("uniform_to_explicit",
+                        "uniform",
+                        blueprint::mesh::coordset::uniform::to_explicit);
+    benchmark_transform("rectilinear_to_explicit",
+                        "rectilinear",
+                        blueprint::mesh::coordset::rectilinear::to_explicit);
 }
 
 //-----------------------------------------------------------------------------
@@ -119,14 +117,22 @@ int main(int argc, char *argv[])
         }
     }
 
+    // TODO: Look at Caliper options related to OpenMP/GPU profiling
+    // https://github.com/llnl/Caliper/blob/1aa3c362b41d36b5096a223231d0e0d104542a45/doc/sphinx/RegionFiltering.rst#L5
+    // https://github.com/llnl/Caliper/blob/1aa3c362b41d36b5096a223231d0e0d104542a45/doc/sphinx/OpenMP.rst#L106
+    // https://github.com/llnl/Caliper/blob/1aa3c362b41d36b5096a223231d0e0d104542a45/doc/sphinx/GPUProfiling.rst#L16
+    
     const std::string timestamp = benchmark::get_timestamp();
     Node cali_opts;
     cali_opts["config"] = "hatchet-region-profile(output=" + timestamp + ".cali)";
+
+    // Begin profiling
     annotations::initialize(cali_opts);
 
     // Begin benchmarking
     const int result = RUN_ALL_TESTS();
 
+    // End profiling
     annotations::finalize();
     
     return result;

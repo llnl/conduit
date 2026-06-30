@@ -75,11 +75,13 @@ get_exec_configs()
     std::vector<ExecConfig> configs;
     const auto locations = get_enabled_locations();
 
-    for (const auto& src_loc : locations)
+    // All of the source = host configs come first, as an optimization to
+    // only have to move test data to device memory once
+    for (const auto &src_loc : locations)
     {
-        for (const auto& exec_loc : locations)
+        for (const auto &exec_loc : locations)
         {
-            for (const auto& output_loc : locations)
+            for (const auto &output_loc : locations)
             {
                 configs.push_back({src_loc,
                                    exec_loc,
@@ -92,21 +94,23 @@ get_exec_configs()
 }
 
 //-----------------------------------------------------------------------------
-template <typename BenchmarkFn>
+template <typename SetupFn, typename RunFn>
 void
-exec(BenchmarkFn&& fn,
+exec(const char *name,
+     SetupFn &&setup,
+     RunFn &&run,
      const index_t warmup,
      const index_t iterations,
-     const std::vector<index_t>& dim_sizes)
+     const std::vector<index_t> &dim_sizes)
 {
     // Setup
     execution::init_device_memory_handlers();
 
     // Benchmark each data size
-    for (const auto& dim_size : dim_sizes)
+    for (const auto &dim_size : dim_sizes)
     {
         // Benchmark each possible configuration
-        for (auto& config : get_exec_configs())
+        for (auto &config : get_exec_configs())
         {
             config.dim_size = dim_size;
 
@@ -117,28 +121,33 @@ exec(BenchmarkFn&& fn,
             exec_opts["sync_strategy"].set("sync");
             execution::execution_set_options(exec_opts);
 
-            // Execute fn `warmup` times
+            // Build the input once, outside the timed regions
+            auto input = setup(config);
+
+            // Execute `run` `warmup` times
             {
                 // Scope this separately to make it easier to disregard
                 // warmup iterations in the timing output
                 CONDUIT_ANNOTATE_MARK_SCOPE("warmup");
                 for (index_t i = 0; i < warmup; i++)
                 {
-                    fn(config);
+                    run(input);
                 }
             }
 
-            // Execute fn `iterations` times
+            // Execute `run` `iterations` times
             {
-                const std::string scope_name = execution::get_execution_policy().policy_name()
+                const std::string scope_name = std::string(name)
+                    + "_" + execution::get_execution_policy().policy_name()
                     + "_dim-"  + std::to_string(dim_size)
                     + "_src-"  + config.src_location
                     + "_exec-" + config.exec_location
-                    + "_out-"  + config.output_location;
+                    + "_out-"  + config.output_location
+                    + "_iter-" + std::to_string(iterations);
                 CONDUIT_ANNOTATE_MARK_SCOPE(scope_name.c_str());
                 for (index_t i = 0; i < iterations; i++)
                 {
-                    fn(config);
+                    run(input);
                 }
             }
 
