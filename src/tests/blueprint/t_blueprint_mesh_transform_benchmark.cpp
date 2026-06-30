@@ -17,7 +17,7 @@
 
 using namespace conduit;
 
-std::vector<index_t> BENCHMARK_DIM_SIZES = {2, 4, 8, 16, 32, 64, 128};
+std::vector<index_t> BENCHMARK_DIM_SIZES = {2, 4, 8, 16, 32, 64, 128, 256};
 index_t BENCHMARK_NUM_WARMUP_ITERATIONS  = 10;
 index_t BENCHMARK_NUM_ITERATIONS         = 100;
 
@@ -116,6 +116,8 @@ int main(int argc, char *argv[])
             BENCHMARK_DIM_SIZES.push_back(static_cast<index_t>(atoll(argv[i])));
         }
     }
+
+    // TODO: Print some basic info, e.g. hostname, nproc, if openmp is available the number of openmp threads available, and if GPU is available.
 
     // TODO: Look at Caliper options related to OpenMP/GPU profiling
     // https://github.com/llnl/Caliper/blob/1aa3c362b41d36b5096a223231d0e0d104542a45/doc/sphinx/RegionFiltering.rst#L5
