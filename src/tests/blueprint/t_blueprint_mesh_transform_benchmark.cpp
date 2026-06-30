@@ -17,9 +17,9 @@
 
 using namespace conduit;
 
-index_t BENCHMARK_DIM_SIZE              = 64;
-index_t BENCHMARK_NUM_WARMUP_ITERATIONS = 10;
-index_t BENCHMARK_NUM_ITERATIONS        = 100;
+std::vector<index_t> BENCHMARK_DIM_SIZES = {2, 4, 8, 16, 32, 64, 128};
+index_t BENCHMARK_NUM_WARMUP_ITERATIONS  = 10;
+index_t BENCHMARK_NUM_ITERATIONS         = 100;
 
 //-----------------------------------------------------------------------------
 void
@@ -32,9 +32,9 @@ coordset_transform(const char *name,
 
     Node mesh;
     blueprint::mesh::examples::braid(src_type,
-                                     BENCHMARK_DIM_SIZE,
-                                     BENCHMARK_DIM_SIZE,
-                                     BENCHMARK_DIM_SIZE,
+                                     config.dim_size,
+                                     config.dim_size,
+                                     config.dim_size,
                                      mesh);
 
     const Node &host_coordset = mesh["coordsets"].child(0);
@@ -92,9 +92,9 @@ rectilinear_to_explicit(const benchmark::ExecConfig &config)
 TEST(blueprint_mesh_transform_execution, coordset_to_explicit)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark::exec(uniform_to_rectilinear,  BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
-    benchmark::exec(uniform_to_explicit,     BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
-    benchmark::exec(rectilinear_to_explicit, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS);
+    benchmark::exec(uniform_to_rectilinear,  BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS, BENCHMARK_DIM_SIZES);
+    benchmark::exec(uniform_to_explicit,     BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS, BENCHMARK_DIM_SIZES);
+    benchmark::exec(rectilinear_to_explicit, BENCHMARK_NUM_WARMUP_ITERATIONS, BENCHMARK_NUM_ITERATIONS, BENCHMARK_DIM_SIZES);
 }
 
 //-----------------------------------------------------------------------------
@@ -112,15 +112,19 @@ int main(int argc, char *argv[])
     }
     if (argc >= 4)
     {
-        BENCHMARK_DIM_SIZE = static_cast<index_t>(atoll(argv[3]));
+        BENCHMARK_DIM_SIZES.clear();
+        for (int i = 3; i < argc; i++)
+        {
+            BENCHMARK_DIM_SIZES.push_back(static_cast<index_t>(atoll(argv[i])));
+        }
     }
 
-    // TODO: Investigate creating a separate .cali file per benchmark
     const std::string timestamp = benchmark::get_timestamp();
     Node cali_opts;
     cali_opts["config"] = "hatchet-region-profile(output=" + timestamp + ".cali)";
     annotations::initialize(cali_opts);
 
+    // Begin benchmarking
     const int result = RUN_ALL_TESTS();
 
     annotations::finalize();

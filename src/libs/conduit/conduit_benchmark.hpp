@@ -50,6 +50,7 @@ struct ExecConfig
     std::string src_location;
     std::string exec_location;
     std::string output_location;
+    index_t dim_size = 1;
 };
 
 //-----------------------------------------------------------------------------
@@ -74,11 +75,11 @@ get_exec_configs()
     std::vector<ExecConfig> configs;
     const auto locations = get_enabled_locations();
 
-    for (const auto &src_loc : locations)
+    for (const auto& src_loc : locations)
     {
-        for (const auto &exec_loc : locations)
+        for (const auto& exec_loc : locations)
         {
-            for (const auto &output_loc : locations)
+            for (const auto& output_loc : locations)
             {
                 configs.push_back({src_loc,
                                    exec_loc,
@@ -95,46 +96,54 @@ template <typename BenchmarkFn>
 void
 exec(BenchmarkFn&& fn,
      const index_t warmup,
-     const index_t iterations)
+     const index_t iterations,
+     const std::vector<index_t>& dim_sizes)
 {
     // Setup
     execution::init_device_memory_handlers();
 
-    // Benchmark each possible configuration
-    for (const auto &config : get_exec_configs())
+    // Benchmark each data size
+    for (const auto& dim_size : dim_sizes)
     {
-        // Set all execution options for this configuration
-        Node exec_opts;
-        exec_opts["execution_location"].set(config.exec_location);
-        exec_opts["output_location"].set(config.output_location);
-        exec_opts["sync_strategy"].set("sync");
-        execution::execution_set_options(exec_opts);
-
-        // Execute fn `warmup` times
+        // Benchmark each possible configuration
+        for (auto& config : get_exec_configs())
         {
-            // Scope this separately to make it easier to disregard
-            // warmup iterations in the timing output
-            CONDUIT_ANNOTATE_MARK_SCOPE("warmup");
-            for (index_t i = 0; i < warmup; i++)
-            {
-                fn(config);
-            }
-        }
+            config.dim_size = dim_size;
 
-        // Execute fn `iterations` times
-        {
-            const std::string scope_name = execution::get_execution_policy().policy_name()
-                + "_src-"  + config.src_location
-                + "_exec-" + config.exec_location
-                + "_out-"  + config.output_location;
-            CONDUIT_ANNOTATE_MARK_SCOPE(scope_name.c_str());
-            for (index_t i = 0; i < iterations; i++)
-            {
-                fn(config);
-            }
-        }
+            // Set all execution options for this configuration
+            Node exec_opts;
+            exec_opts["execution_location"].set(config.exec_location);
+            exec_opts["output_location"].set(config.output_location);
+            exec_opts["sync_strategy"].set("sync");
+            execution::execution_set_options(exec_opts);
 
-        execution::reset_execution_options();
+            // Execute fn `warmup` times
+            {
+                // Scope this separately to make it easier to disregard
+                // warmup iterations in the timing output
+                CONDUIT_ANNOTATE_MARK_SCOPE("warmup");
+                for (index_t i = 0; i < warmup; i++)
+                {
+                    fn(config);
+                }
+            }
+
+            // Execute fn `iterations` times
+            {
+                const std::string scope_name = execution::get_execution_policy().policy_name()
+                    + "_dim-"  + std::to_string(dim_size)
+                    + "_src-"  + config.src_location
+                    + "_exec-" + config.exec_location
+                    + "_out-"  + config.output_location;
+                CONDUIT_ANNOTATE_MARK_SCOPE(scope_name.c_str());
+                for (index_t i = 0; i < iterations; i++)
+                {
+                    fn(config);
+                }
+            }
+
+            execution::reset_execution_options();
+        }
     }
 }
 
