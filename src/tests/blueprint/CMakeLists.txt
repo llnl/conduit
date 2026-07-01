@@ -146,3 +146,8 @@ message(STATUS "Adding blueprint lib Zfp unit tests")
 add_cpp_test(TEST t_blueprint_zfp
              DEPENDS_ON conduit conduit_blueprint
              FOLDER tests/blueprint)
+
+# Copy benchmark plotting script to the build directory
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/plot_benchmark_output.py"
+                "${CMAKE_CURRENT_BINARY_DIR}/plot_benchmark_output.py"
+                COPYONLY)

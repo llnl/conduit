@@ -24,9 +24,8 @@ namespace conduit
 {
 
 // TODO: This workaround could possibly be built into CONDUIT_ERROR itself?
-// Basically, HIP is unhappy with CONDUIT_ERROR so this macro conditionally replaces
-// it with an assert for the sake of making this file compile as a TU
-#if defined(CONDUIT_USE_DEVICE)
+// Maybe we already have something like it elsewhere?
+#if defined(CONDUIT_DEVICE_COMPILE)
 #define CONDUIT_ERROR_COMPAT_WRAPPER(MSG) assert(false && MSG)
 #else
 #define CONDUIT_ERROR_COMPAT_WRAPPER(MSG) CONDUIT_ERROR(MSG)

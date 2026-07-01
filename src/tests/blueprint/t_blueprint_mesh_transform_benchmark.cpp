@@ -117,13 +117,11 @@ int main(int argc, char *argv[])
         }
     }
 
-    // TODO: Print some basic info, e.g. hostname, nproc, if openmp is available the number of openmp threads available, and if GPU is available.
-
     // TODO: Look at Caliper options related to OpenMP/GPU profiling
     // https://github.com/llnl/Caliper/blob/1aa3c362b41d36b5096a223231d0e0d104542a45/doc/sphinx/RegionFiltering.rst#L5
     // https://github.com/llnl/Caliper/blob/1aa3c362b41d36b5096a223231d0e0d104542a45/doc/sphinx/OpenMP.rst#L106
     // https://github.com/llnl/Caliper/blob/1aa3c362b41d36b5096a223231d0e0d104542a45/doc/sphinx/GPUProfiling.rst#L16
-    
+
     const std::string timestamp = benchmark::get_timestamp();
     Node cali_opts;
     cali_opts["config"] = "hatchet-region-profile(output=" + timestamp + ".cali)";
