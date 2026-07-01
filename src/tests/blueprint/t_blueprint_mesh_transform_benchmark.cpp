@@ -17,12 +17,13 @@
 
 using namespace conduit;
 
-std::vector<index_t> BENCHMARK_DIM_SIZES = {2, 4, 8, 16, 32, 64, 128, 256};
+std::vector<index_t> BENCHMARK_DIM_SIZES = {2, 4, 8, 16, 32, 64, 128};
 index_t BENCHMARK_NUM_WARMUP_ITERATIONS  = 10;
 index_t BENCHMARK_NUM_ITERATIONS         = 100;
 
 //-----------------------------------------------------------------------------
-// It's much faster to create the source coordset once and reuse it
+// It's much faster to create the source coordset once and reuse it vs
+// recreating it before every iteration
 const Node
 make_coordset(const std::string &src_type,
               const benchmark::ExecConfig &config)
