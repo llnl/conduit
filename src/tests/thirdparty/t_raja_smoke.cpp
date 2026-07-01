@@ -78,19 +78,18 @@ copy_from_device_to_host(void *dest, void *src, int size)
 #endif
 }
 
-
 //-----------------------------------------------------------------------------
 void run_test()
 {
 // setup exec policy
-#if defined (RAJA_ENABLE_OPENMP)
-    using ExecPolicy = RAJA::omp_parallel_for_exec;
-#elif defined (RAJA_ENABLE_CUDA)
+#if defined (RAJA_ENABLE_CUDA)
     #define CUDA_BLOCK_SIZE 128
     using ExecPolicy = RAJA::cuda_exec<CUDA_BLOCK_SIZE>;
 #elif defined (RAJA_ENABLE_HIP)
     #define HIP_BLOCK_SIZE 256
     using ExecPolicy = RAJA::hip_exec<HIP_BLOCK_SIZE>;
+#elif defined (RAJA_ENABLE_OPENMP)
+    using ExecPolicy = RAJA::omp_parallel_for_exec;
 #else
     using ExecPolicy = RAJA::seq_exec;
 #endif
@@ -120,5 +119,3 @@ TEST(raja_smoke, basic_use_default_policy)
     // this is a separate func to avoid issue with lambda vs gtest macro
     run_test();
 }
-
-
