@@ -122,7 +122,8 @@ exec(const char *name,
             execution::execution_set_options(exec_opts);
 
             // Build the input once, outside the timed regions
-            auto input = setup(config);
+            Node input;
+            setup(config, input);
 
             // Execute `run` `warmup` times
             {

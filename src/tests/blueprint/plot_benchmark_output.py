@@ -91,8 +91,6 @@ def find_cali_file():
         + (f" ({skipped} other .cali file(s) skipped)" if skipped else "")
         + ":"
     )
-    for i, f in enumerate(cali_files):
-        print(f"  {f.name}" + ("  <- using this one" if i == 0 else ""))
     return cali_files[0]
 
 
@@ -113,6 +111,17 @@ def subtree_time(thicket, profile_id, node):
     return total
 
 
+LEAF_METRIC_NAMES = ("forall", "sync", "use_with")
+
+def accumulate_leaf_metrics(thicket, profile_id, node, totals):
+    name = node.frame["name"]
+    if name in LEAF_METRIC_NAMES:
+        val = node_time(thicket, profile_id, node)
+        totals[name] += 0.0 if np.isnan(val) else val
+    for child in node.children:
+        accumulate_leaf_metrics(thicket, profile_id, child, totals)
+
+
 def collect_data(thicket):
     profile_id = thicket.dataframe.index.get_level_values("profile")[0]
     data = {}
@@ -126,27 +135,14 @@ def collect_data(thicket):
         conv_name, cfg, dim, iters = parsed
         dims_seen.add(dim)
 
-        forall_t = np.nan
-        sync_acc = 0.0
-        usewith_acc = 0.0
-        for to_node in cfg_node.children:
-            for coordset_node in to_node.children:
-                for leaf in coordset_node.children:
-                    val = node_time(thicket, profile_id, leaf)
-                    val = 0.0 if np.isnan(val) else val
-                    name = leaf.frame["name"]
-                    if name == "forall":
-                        forall_t = val
-                    elif name == "sync":
-                        sync_acc += val
-                    elif name == "use_with":
-                        usewith_acc += val
+        totals = {name: 0.0 for name in LEAF_METRIC_NAMES}
+        accumulate_leaf_metrics(thicket, profile_id, cfg_node, totals)
 
         data[(cfg, conv_name, dim)] = {
             "inclusive": subtree_time(thicket, profile_id, cfg_node) / iters,
-            "forall": forall_t / iters,
-            "sync": sync_acc / iters,
-            "use_with": usewith_acc / iters,
+            "forall": totals["forall"] / iters,
+            "sync": totals["sync"] / iters,
+            "use_with": totals["use_with"] / iters,
         }
 
     return data, sorted(dims_seen)

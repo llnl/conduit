@@ -22,11 +22,10 @@ index_t BENCHMARK_NUM_WARMUP_ITERATIONS  = 10;
 index_t BENCHMARK_NUM_ITERATIONS         = 100;
 
 //-----------------------------------------------------------------------------
-// It's much faster to create the source coordset once and reuse it vs
-// recreating it before every iteration
-const Node
-make_coordset(const std::string &src_type,
-              const benchmark::ExecConfig &config)
+void
+make_braid_dataset(const std::string &src_type,
+                   const benchmark::ExecConfig &config,
+                   Node &src)
 {
     Node mesh;
     blueprint::mesh::examples::braid(src_type,
@@ -35,44 +34,41 @@ make_coordset(const std::string &src_type,
                                      config.dim_size,
                                      mesh);
 
+    // Coordset setup
     const Node &host_coordset = mesh["coordsets"].child(0);
-    Node src;
+    Node &src_coordset = src["coordsets"][host_coordset.name()];
+    src_coordset.set(host_coordset);
+
     if ("device" == config.src_location && host_coordset.has_child("values"))
     {
-        // Move the coordinate arrays to device memory
-        const index_t alloc_id = execution::get_device_allocator_id();
-        src["type"].set(host_coordset["type"]);
+        // Move the coordset arrays to device memory
+        const index_t allocator_id = execution::get_device_allocator_id();
         for (const auto &axis : host_coordset["values"].child_names())
         {
-            src["values"][axis].set_allocator(alloc_id);
-            src["values"][axis].set(host_coordset["values"][axis]);
+            src_coordset["values"][axis].set_allocator(allocator_id);
+            src_coordset["values"][axis].set(host_coordset["values"][axis]);
         }
     }
-    else // if ("host" == config.src_location)
-    {
-        src.set(host_coordset);
-    }
-    return src;
 }
 
 //-----------------------------------------------------------------------------
 void
-benchmark_transform(const char *name,
-                    const std::string &src_type,
-                    void (*transform)(const Node &, Node &))
+benchmark_coordset_transform(const char *name,
+                             const std::string &src_type,
+                             void (*transform)(const Node &, Node &))
 {
-    // Create the source coordset once and reuse it for each iteration
-    auto setup = [&](const benchmark::ExecConfig &config) {
-        return make_coordset(src_type, config);
+    // Create the source Node once and reuse it for each iteration
+    auto setup = [&](const benchmark::ExecConfig &config, Node &src) {
+        make_braid_dataset(src_type, config, src);
     };
 
-    // Perform a transform on the source coordset
+    // Perform a transform on the source Node
     auto run = [=](const Node &src) {
         Node dst;
-        transform(src, dst);
+        transform(src["coordsets"].child(0), dst);
     };
 
-    // Benchmark the transform function
+    // Benchmark the coorset transform function
     benchmark::exec(name,
                     setup,
                     run,
@@ -82,18 +78,18 @@ benchmark_transform(const char *name,
 }
 
 //-----------------------------------------------------------------------------
-TEST(blueprint_mesh_transform_execution, coordset_transforms)
+TEST(blueprint_mesh_transform_benchmark, coordset_transforms)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark_transform("uniform_to_rectilinear",
-                        "uniform",
-                        blueprint::mesh::coordset::uniform::to_rectilinear);
-    benchmark_transform("uniform_to_explicit",
-                        "uniform",
-                        blueprint::mesh::coordset::uniform::to_explicit);
-    benchmark_transform("rectilinear_to_explicit",
-                        "rectilinear",
-                        blueprint::mesh::coordset::rectilinear::to_explicit);
+    benchmark_coordset_transform("uniform_to_rectilinear",
+                                 "uniform",
+                                 blueprint::mesh::coordset::uniform::to_rectilinear);
+    benchmark_coordset_transform("uniform_to_explicit",
+                                 "uniform",
+                                 blueprint::mesh::coordset::uniform::to_explicit);
+    benchmark_coordset_transform("rectilinear_to_explicit",
+                                 "rectilinear",
+                                 blueprint::mesh::coordset::rectilinear::to_explicit);
 }
 
 //-----------------------------------------------------------------------------
