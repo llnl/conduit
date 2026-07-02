@@ -14,16 +14,33 @@ import numpy as np
 import thicket as th
 from caliperreader.readererror import ReaderError
 
-CONVERSIONS = [
+COORDSET_CONVERSIONS = [
     "rectilinear_to_explicit",
     "uniform_to_explicit",
     "uniform_to_rectilinear",
 ]
 
+TOPOLOGY_CONVERSIONS = [
+    "topology_uniform_to_rectilinear",
+    "topology_uniform_to_structured",
+    "topology_uniform_to_unstructured",
+    "topology_rectilinear_to_structured",
+    "topology_rectilinear_to_unstructured",
+    "topology_structured_to_unstructured",
+]
+
+CONVERSIONS = COORDSET_CONVERSIONS + TOPOLOGY_CONVERSIONS
+
 CONVERSION_LABELS = {
     "rectilinear_to_explicit": "rect→explicit",
     "uniform_to_explicit": "uniform→explicit",
     "uniform_to_rectilinear": "uniform→rect",
+    "topology_uniform_to_rectilinear": "uniform→rect",
+    "topology_uniform_to_structured": "uniform→struct",
+    "topology_uniform_to_unstructured": "uniform→unstruct",
+    "topology_rectilinear_to_structured": "rect→struct",
+    "topology_rectilinear_to_unstructured": "rect→unstruct",
+    "topology_structured_to_unstructured": "struct→unstruct",
 }
 
 CMAP = plt.get_cmap("tab10")
@@ -226,17 +243,22 @@ def main():
     out_dir = Path(cali_file.stem)
     out_dir.mkdir(exist_ok=True)
 
-    combined_panels = []
-    for conv in CONVERSIONS:
-        combined_panels.append((CONVERSION_LABELS[conv], conv, "inclusive"))
+    # Split the combined comparison chart
+    for group_name, group_conversions in (
+        ("coordset", COORDSET_CONVERSIONS),
+        ("topology", TOPOLOGY_CONVERSIONS),
+    ):
+        combined_panels = []
+        for conv in group_conversions:
+            combined_panels.append((CONVERSION_LABELS[conv], conv, "inclusive"))
 
-    plot_panels(
-        data, dims, cfg_keys,
-        combined_panels,
-        "avg conversion time vs data size",
-        out_dir / "inclusive_combined.png",
-        ymax,
-    )
+        plot_panels(
+            data, dims, cfg_keys,
+            combined_panels,
+            f"avg {group_name} conversion time vs data size",
+            out_dir / f"inclusive_combined_{group_name}.png",
+            ymax,
+        )
 
     for conv in CONVERSIONS:
         plot_panels(

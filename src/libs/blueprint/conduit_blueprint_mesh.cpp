@@ -84,6 +84,7 @@ typedef std::vector<conduit::index_t> (*CalcDimDecomposedFun)(const bputils::Sha
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
+CONDUIT_EXEC
 void grid_ijk_to_id(const index_t *ijk,
                     const index_t *dims,
                     index_t &grid_id)
@@ -102,6 +103,7 @@ void grid_ijk_to_id(const index_t *ijk,
 }
 
 //-----------------------------------------------------------------------------
+CONDUIT_EXEC
 void grid_id_to_ijk(const index_t id,
                     const index_t *dims,
                     index_t *grid_ijk)
@@ -1114,7 +1116,6 @@ convert_topology_to_rectilinear(const std::string &/*base_type*/,
                                 conduit::Node &cdest)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    // bool is_base_uniform = true;
 
     dest.reset();
     cdest.reset();
@@ -1122,6 +1123,8 @@ convert_topology_to_rectilinear(const std::string &/*base_type*/,
     const Node *coordset = bputils::find_reference_node(topo, "coordset");
     blueprint::mesh::coordset::uniform::to_rectilinear(*coordset, cdest);
 
+    const index_t allocator_id = conduit::execution::get_output_allocator_id();
+    dest.set_allocator(allocator_id);
     dest.set(topo);
     dest["type"].set("rectilinear");
     dest["coordset"].set(cdest.name());
@@ -1151,10 +1154,17 @@ convert_topology_to_structured(const std::string &base_type,
         blueprint::mesh::coordset::uniform::to_explicit(*coordset, cdest);
     }
 
+    const std::vector<std::string> csys_axes = bputils::coordset::axes(*coordset);
+
+    const index_t allocator_id = is_base_rectilinear ?
+        conduit::execution::get_output_allocator_id((*coordset)["values"][csys_axes[0]]) :
+        conduit::execution::get_output_allocator_id();
+
     dest["type"].set("structured");
     dest["coordset"].set(cdest.name());
     if(topo.has_child("origin"))
     {
+        dest["origin"].set_allocator(allocator_id);
         dest["origin"].set(topo["origin"]);
     }
 
@@ -1162,7 +1172,6 @@ convert_topology_to_structured(const std::string &base_type,
     // and use its types to inform those of the topology?
     DataType int_dtype = bputils::find_widest_dtype(topo, bputils::DEFAULT_INT_DTYPES);
 
-    const std::vector<std::string> csys_axes = bputils::coordset::axes(*coordset);
     const std::vector<std::string> &logical_axes = bputils::LOGICAL_AXES;
     for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
     {
@@ -1174,8 +1183,11 @@ convert_topology_to_structured(const std::string &base_type,
         // than the number of points along each dimension.
         src_dlen_node.set(src_dlen_node.to_int64() - 1);
 
-        Node &dst_dlen_node = dest["elements/dims"][logical_axes[i]];
-        src_dlen_node.to_data_type(int_dtype.id(), dst_dlen_node);
+        Node host_dlen_node;
+        src_dlen_node.to_data_type(int_dtype.id(), host_dlen_node);
+
+        dest["elements/dims"][logical_axes[i]].set_allocator(allocator_id);
+        dest["elements/dims"][logical_axes[i]].set(host_dlen_node);
     }
 }
 
@@ -1195,9 +1207,28 @@ convert_topology_to_unstructured(const std::string &base_type,
     cdest.reset();
 
     const Node *coordset = bputils::find_reference_node(topo, "coordset");
+    const std::vector<std::string> csys_axes = bputils::coordset::axes(*coordset);
+
+    const bool base_has_coordset_values = is_base_structured || is_base_rectilinear;
+    conduit::execution::ExecutionPolicy policy = base_has_coordset_values ?
+        conduit::execution::get_execution_policy((*coordset)["values"][csys_axes[0]]) :
+        conduit::execution::get_execution_policy();
+    const index_t allocator_id = base_has_coordset_values ?
+        conduit::execution::get_output_allocator_id((*coordset)["values"][csys_axes[0]]) :
+        conduit::execution::get_output_allocator_id();
+    const std::string &sync_strategy = conduit::execution::get_sync_strategy();
+
+    const index_t num_axes = static_cast<index_t>(csys_axes.size());
+
     if(is_base_structured)
     {
-        cdest.set(*coordset);
+        cdest["type"].set((*coordset)["type"]);
+        for(index_t i = 0; i < num_axes; i++)
+        {
+            Node &dst_cvals_node = cdest["values"][csys_axes[i]];
+            dst_cvals_node.set_allocator(allocator_id);
+            dst_cvals_node.set((*coordset)["values"][csys_axes[i]]);
+        }
     }
     else if(is_base_rectilinear)
     {
@@ -1212,6 +1243,7 @@ convert_topology_to_unstructured(const std::string &base_type,
     dest["coordset"].set(cdest.name());
     if(topo.has_child("origin"))
     {
+        dest["origin"].set_allocator(allocator_id);
         dest["origin"].set(topo["origin"]);
     }
 
@@ -1219,7 +1251,6 @@ convert_topology_to_unstructured(const std::string &base_type,
     // and use its types to inform those of the topology?
     DataType int_dtype = bputils::find_widest_dtype(topo, bputils::DEFAULT_INT_DTYPES);
 
-    const std::vector<std::string> csys_axes = bputils::coordset::axes(*coordset);
     dest["elements/shape"].set(
         (csys_axes.size() == 1) ? "line" : (
         (csys_axes.size() == 2) ? "quad" : (
@@ -1230,7 +1261,7 @@ convert_topology_to_unstructured(const std::string &base_type,
     if(is_base_structured)
     {
         const conduit::Node &dim_node = topo["elements/dims"];
-        for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
+        for(index_t i = 0; i < num_axes; i++)
         {
             edims_axes[i] = dim_node[logical_axes[i]].to_int();
         }
@@ -1238,7 +1269,7 @@ convert_topology_to_unstructured(const std::string &base_type,
     else if(is_base_rectilinear)
     {
         const conduit::Node &dim_node = (*coordset)["values"];
-        for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
+        for(index_t i = 0; i < num_axes; i++)
         {
             edims_axes[i] =
                 dim_node[csys_axes[i]].dtype().number_of_elements() - 1;
@@ -1247,7 +1278,7 @@ convert_topology_to_unstructured(const std::string &base_type,
     else if(is_base_uniform)
     {
         const conduit::Node &dim_node = (*coordset)["dims"];
-        for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
+        for(index_t i = 0; i < num_axes; i++)
         {
             edims_axes[i] = dim_node[logical_axes[i]].to_int() - 1;
         }
@@ -1259,35 +1290,39 @@ convert_topology_to_unstructured(const std::string &base_type,
         num_elems *= edims_axes[d];
         vdims_axes[d] = edims_axes[d] + 1;
     }
-    index_t indices_per_elem = (index_t) pow(2, csys_axes.size());
+
+    const index_t indices_per_elem = static_cast<index_t>(pow(2, csys_axes.size()));
 
     CONDUIT_ANNOTATE_MARK_BEGIN("to_unstructured_index_gen");
     conduit::Node &conn_node = dest["elements/connectivity"];
+    conn_node.set_allocator(allocator_id);
     conn_node.set(DataType(int_dtype.id(), num_elems * indices_per_elem));
 
-    int64_accessor conn_node_vals = conn_node.value();
-    Node src_idx_node, dst_idx_node;
-    index_t curr_elem[3], curr_vert[3];
-    index_t idx=0;
-    for(index_t e = 0; e < num_elems; e++)
+    int64_accessor conn_node_vals(conn_node);
+    conn_node_vals.use_with(policy);
+    conduit::execution::forall(policy, 0, num_elems, [=] CONDUIT_EXEC(index_t e)
     {
+        index_t curr_elem[3], curr_vert[3];
         grid_id_to_ijk(e, &edims_axes[0], &curr_elem[0]);
 
         // NOTE(JRC): In order to get all adjacent vertices for the
         // element, we use the bitwise interpretation of each index
         // per element to inform the direction (e.g. 5, which is
         // 101 bitwise, means (z+1, y+0, x+1)).
-        for(index_t i = 0, v = 0; i < indices_per_elem; i++)
+        for(index_t i = 0; i < indices_per_elem; i++)
         {
-            memcpy(&curr_vert[0], &curr_elem[0], 3 * sizeof(index_t));
-            for(index_t d = 0; d < (index_t)csys_axes.size(); d++)
+            curr_vert[0] = curr_elem[0];
+            curr_vert[1] = curr_elem[1];
+            curr_vert[2] = curr_elem[2];
+            for(index_t d = 0; d < num_axes; d++)
             {
-                curr_vert[d] += (i & (index_t)pow(2, d)) >> d;
+                curr_vert[d] += (i & ((index_t)1 << d)) >> d;
             }
+
+            index_t v;
             grid_ijk_to_id(&curr_vert[0], &vdims_axes[0], v);
 
-            conn_node_vals.set(idx,v);
-            idx++;
+            conn_node_vals.set(e * indices_per_elem + i, v);
         }
 
         // TODO(JRC): This loop inverts quads/hexes to conform to
@@ -1303,7 +1338,9 @@ convert_topology_to_unstructured(const std::string &base_type,
             conn_node_vals.set(p1,conn_node_vals[p2]);
             conn_node_vals.set(p2,value_swap);
         }
-    }
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    conn_node_vals.data_movement(sync_strategy);
 
     CONDUIT_ANNOTATE_MARK_END("to_unstructured_index_gen");
 }

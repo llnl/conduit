@@ -49,6 +49,28 @@ make_braid_dataset(const std::string &src_type,
             src_coordset["values"][axis].set(host_coordset["values"][axis]);
         }
     }
+
+    // Topology setup
+    const Node &host_topo = mesh["topologies"].child(0);
+    Node &src_topo = src["topologies"][host_topo.name()];
+    src_topo.set(host_topo);
+
+    if ("device" == config.src_location && host_topo.has_child("elements"))
+    {
+        // Move the topology arrays to device memory
+        const index_t allocator_id = execution::get_device_allocator_id();
+        const Node &host_elements = host_topo["elements"];
+        Node &src_elements = src_topo["elements"];
+        for (const auto &child_name : host_elements.child_names())
+        {
+            const Node &host_child = host_elements[child_name];
+            if (host_child.dtype().is_number())
+            {
+                src_elements[child_name].set_allocator(allocator_id);
+                src_elements[child_name].set(host_child);
+            }
+        }
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -68,7 +90,33 @@ benchmark_coordset_transform(const char *name,
         transform(src["coordsets"].child(0), dst);
     };
 
-    // Benchmark the coorset transform function
+    // Execute the benchmark
+    benchmark::exec(name,
+                    setup,
+                    run,
+                    BENCHMARK_NUM_WARMUP_ITERATIONS,
+                    BENCHMARK_NUM_ITERATIONS,
+                    BENCHMARK_DIM_SIZES);
+}
+
+//-----------------------------------------------------------------------------
+void
+benchmark_topology_transform(const char *name,
+                             const std::string &src_type,
+                             void (*transform)(const Node &, Node &, Node &))
+{
+    // Create the source Node once and reuse it for each iteration
+    auto setup = [&](const benchmark::ExecConfig &config, Node &src) {
+        make_braid_dataset(src_type, config, src);
+    };
+
+    // Perform a transform on the source Node
+    auto run = [=](const Node &src) {
+        Node topo_dst, coords_dst;
+        transform(src["topologies"].child(0), topo_dst, coords_dst);
+    };
+
+    // Execute the benchmark
     benchmark::exec(name,
                     setup,
                     run,
@@ -90,6 +138,30 @@ TEST(blueprint_mesh_transform_benchmark, coordset_transforms)
     benchmark_coordset_transform("rectilinear_to_explicit",
                                  "rectilinear",
                                  blueprint::mesh::coordset::rectilinear::to_explicit);
+}
+
+//-----------------------------------------------------------------------------
+TEST(blueprint_mesh_transform_benchmark, topology_transforms)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+    benchmark_topology_transform("topology_uniform_to_rectilinear",
+                                 "uniform",
+                                 blueprint::mesh::topology::uniform::to_rectilinear);
+    benchmark_topology_transform("topology_uniform_to_structured",
+                                 "uniform",
+                                 blueprint::mesh::topology::uniform::to_structured);
+    benchmark_topology_transform("topology_uniform_to_unstructured",
+                                 "uniform",
+                                 blueprint::mesh::topology::uniform::to_unstructured);
+    benchmark_topology_transform("topology_rectilinear_to_structured",
+                                 "rectilinear",
+                                 blueprint::mesh::topology::rectilinear::to_structured);
+    benchmark_topology_transform("topology_rectilinear_to_unstructured",
+                                 "rectilinear",
+                                 blueprint::mesh::topology::rectilinear::to_unstructured);
+    benchmark_topology_transform("topology_structured_to_unstructured",
+                                 "structured",
+                                 blueprint::mesh::topology::structured::to_unstructured);
 }
 
 //-----------------------------------------------------------------------------
