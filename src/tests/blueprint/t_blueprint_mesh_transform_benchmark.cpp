@@ -17,7 +17,7 @@
 
 using namespace conduit;
 
-std::vector<index_t> BENCHMARK_DIM_SIZES = {2, 4, 8, 16, 32, 64, 128};
+std::vector<index_t> BENCHMARK_DIM_SIZES = {2, 4, 8, 16, 32, 64};
 index_t BENCHMARK_NUM_WARMUP_ITERATIONS  = 10;
 index_t BENCHMARK_NUM_ITERATIONS         = 100;
 
