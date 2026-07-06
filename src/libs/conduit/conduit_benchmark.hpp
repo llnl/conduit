@@ -12,6 +12,8 @@
 #define CONDUIT_BENCHMARK_HPP
 
 #include <ctime>
+#include <iomanip>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -39,9 +41,9 @@ std::string
 get_timestamp()
 {
     std::time_t t = std::time(nullptr);
-    char buf[32];
-    std::strftime(buf, sizeof(buf), "%Y%m%d_%H%M%S", std::localtime(&t));
-    return std::string(buf);
+    std::ostringstream oss;
+    oss << std::put_time(std::localtime(&t), "%Y%m%d_%H%M%S");
+    return oss.str();
 }
 
 //-----------------------------------------------------------------------------
@@ -138,12 +140,18 @@ exec(const char *name,
 
             // Execute `run` `iterations` times
             {
+                // This scope name is used to identify specific benchmarks in
+                // the Caliper output and identify their attributes
+                // (dim size, policy, etc.)
                 const std::string scope_name = std::string(name)
                     + "_" + execution::get_execution_policy().policy_name()
                     + "_dim-"  + std::to_string(dim_size)
                     + "_src-"  + config.src_location
                     + "_exec-" + config.exec_location
                     + "_out-"  + config.output_location
+#if defined(CONDUIT_USE_OPENMP)
+                    + "_threads-" + std::to_string(omp_get_max_threads())
+#endif
                     + "_iter-" + std::to_string(iterations);
                 CONDUIT_ANNOTATE_MARK_SCOPE(scope_name.c_str());
                 for (index_t i = 0; i < iterations; i++)
