@@ -64,6 +64,7 @@ get_exec_configs()
 {
     // In the pre-device execution model world, we don't have the concept of
     // host vs device execution
+    //                                src       exec      dest
     std::vector<ExecConfig> configs{{"host", "host", "host"}};
     return configs;
 }
