@@ -16,9 +16,9 @@ from caliperreader.readererror import ReaderError
 from matplotlib.ticker import FormatStrFormatter
 
 COORDSET_CONVERSIONS = [
-    "rectilinear_to_explicit",
-    "uniform_to_explicit",
-    "uniform_to_rectilinear",
+    "coordset_rectilinear_to_explicit",
+    "coordset_uniform_to_explicit",
+    "coordset_uniform_to_rectilinear",
 ]
 
 TOPOLOGY_CONVERSIONS = [
@@ -33,9 +33,9 @@ TOPOLOGY_CONVERSIONS = [
 CONVERSIONS = COORDSET_CONVERSIONS + TOPOLOGY_CONVERSIONS
 
 CONVERSION_LABELS = {
-    "rectilinear_to_explicit": "rect→explicit",
-    "uniform_to_explicit": "uniform→explicit",
-    "uniform_to_rectilinear": "uniform→rect",
+    "coordset_rectilinear_to_explicit": "rect→explicit",
+    "coordset_uniform_to_explicit": "uniform→explicit",
+    "coordset_uniform_to_rectilinear": "uniform→rect",
     "topology_uniform_to_rectilinear": "uniform→rect",
     "topology_uniform_to_structured": "uniform→struct",
     "topology_uniform_to_unstructured": "uniform→unstruct",
