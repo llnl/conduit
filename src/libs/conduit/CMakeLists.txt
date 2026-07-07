@@ -65,6 +65,7 @@ set(conduit_headers
     conduit_utils.hpp
     conduit_vector_view.hpp
     conduit_annotations.hpp
+    conduit_benchmark.hpp
     ${CMAKE_CURRENT_BINARY_DIR}/conduit_exports.h
     ${CMAKE_CURRENT_BINARY_DIR}/conduit_config.h
     conduit_config.hpp
