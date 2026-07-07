@@ -59,21 +59,11 @@ struct ExecConfig
 
 //-----------------------------------------------------------------------------
 inline
-std::vector<std::string>
-get_enabled_locations()
-{
-    std::vector<std::string> locations;
-    locations.push_back("host");
-    return locations;
-}
-
-//-----------------------------------------------------------------------------
-inline
 std::vector<ExecConfig>
 get_exec_configs()
 {
     std::vector<ExecConfig> configs;
-    const auto locations = get_enabled_locations();
+    const std::vector<std::string> locations = {"host"};
 
     // All of the source = host configs come first, as an optimization to
     // only have to move test data to device memory once
