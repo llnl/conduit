@@ -62,24 +62,9 @@ inline
 std::vector<ExecConfig>
 get_exec_configs()
 {
-    std::vector<ExecConfig> configs;
-    const std::vector<std::string> locations = {"host"};
-
-    // All of the source = host configs come first, as an optimization to
-    // only have to move test data to device memory once
-    for (const auto &src_loc : locations)
-    {
-        for (const auto &exec_loc : locations)
-        {
-            for (const auto &output_loc : locations)
-            {
-                configs.push_back({src_loc,
-                                   exec_loc,
-                                   output_loc});
-            }
-        }
-    }
-
+    // In the pre-device execution model world, we don't have the concept of
+    // host vs device execution
+    std::vector<ExecConfig> configs{{"host", "host", "host"}};
     return configs;
 }
 
