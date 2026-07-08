@@ -122,6 +122,7 @@ exec(const char *name,
             Node exec_opts;
             exec_opts["execution_location"].set(config.exec_location);
             exec_opts["output_location"].set(config.output_location);
+            // TODO: Need to consider assume here as well
             exec_opts["sync_strategy"].set("sync");
             execution::execution_set_options(exec_opts);
 
