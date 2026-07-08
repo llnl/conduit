@@ -18,6 +18,7 @@ set(BLUEPRINT_TESTS t_blueprint_smoke
                     t_blueprint_mesh_verify
                     t_blueprint_mesh_convert
                     t_blueprint_mesh_transform
+                    t_blueprint_mesh_transform_benchmark
                     t_blueprint_mesh_partition
                     t_blueprint_mesh_query
                     t_blueprint_mesh_relay
@@ -143,3 +144,7 @@ add_cpp_test(TEST t_blueprint_zfp
              DEPENDS_ON conduit conduit_blueprint
              FOLDER tests/blueprint)
 
+# Copy benchmark plotting script to the build directory
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/plot_benchmark_output.py"
+                "${CMAKE_CURRENT_BINARY_DIR}/plot_benchmark_output.py"
+                COPYONLY)
