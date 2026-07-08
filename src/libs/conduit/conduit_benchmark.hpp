@@ -60,8 +60,9 @@ inline
 std::vector<ExecConfig>
 get_exec_configs()
 {
-    // src, exec, dest
+
     std::vector<ExecConfig> configs{
+        //src,      exec,     dest
         {"host",   "host",   "host"},
         {"host",   "host",   "device"},
         {"host",   "device", "host"},

@@ -23,8 +23,7 @@
 namespace conduit
 {
 
-// TODO: This workaround could possibly be built into CONDUIT_ERROR itself?
-// Maybe we already have something like it elsewhere?
+// Workaround for TU compilation, since CONDUIT_ERROR does not work on device
 #if defined(CONDUIT_DEVICE_COMPILE)
 #define CONDUIT_ERROR_COMPAT_WRAPPER(MSG) assert(false && MSG)
 #else

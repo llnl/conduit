@@ -17,6 +17,7 @@
 
 using namespace conduit;
 
+// Intentionally small by default, to minimize CI time spent benchmarking
 std::vector<index_t> BENCHMARK_DIM_SIZES = {2, 4};
 index_t BENCHMARK_NUM_WARMUP_ITERATIONS  = 10;
 index_t BENCHMARK_NUM_ITERATIONS         = 100;
