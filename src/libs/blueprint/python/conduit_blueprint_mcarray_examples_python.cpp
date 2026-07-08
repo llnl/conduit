@@ -80,13 +80,20 @@ PyBlueprint_mcarray_examples_xyz(PyObject *, //self
                         "conduit.Node instance");
         return NULL;
     }
-    
-    Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
-    
-    blueprint::mcarray::examples::xyz(std::string(mcarray_type),
-                                      npts,
-                                      node);
 
+    try
+    {
+        Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
+        blueprint::mcarray::examples::xyz(std::string(mcarray_type),
+                                          npts,
+                                         node);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
     Py_RETURN_NONE;
 }
 

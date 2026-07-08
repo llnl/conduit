@@ -12,6 +12,62 @@ https://github.com/LLNL/conduit/releases
 
 .. note:: Conduit uses `BLT <https://github.com/LLNL/blt>`__ as its core CMake build system. We leverage BLT as a git submodule, however github does not include submodule contents in its automatically created source tarballs. To avoid confusion, starting with v0.3.0 we provide our own source tarballs that include BLT. 
 
+v0.9.7
+---------------------------------
+
+* Released 2026-05-27
+* `Source Tarball <https://github.com/LLNL/conduit/releases/download/v0.9.7/conduit-v0.9.7-src-with-blt.tar.gz>`__
+
+Highlights
+++++++++++++++++++++++++++++++++++++
+
+(Extracted from Conduit's :download:`Changelog <../../../CHANGELOG.md>`)
+
+
+Added
+~~~~~
+
+
+* **Conduit**
+
+ * Added a bulk ``DataAccessor::set()`` method for setting many elements at once.
+
+* **Blueprint**
+
+ * Added ``conduit::blueprint::mesh::rename()`` helper that renames sub components of a valid mesh and their dependent references.  Example: rename a topology and ensure field topology references are updated.
+ * Added ``conduit::blueprint::mesh::remove()`` helper that removes sub components of a valid mesh and their dependencies.  Examples: remove a field by name, or remove a topology by name and any dependent entries.
+ * Added ``conduit::blueprint::mesh::matset::get_material_names()``, which returns material names for a material set.
+ * Added the ability for the Partitioner to handle field ``matset_values`` for both domain slicing and combination.
+
+Fixed
+~~~~~
+
+
+* **Conduit**
+
+ * Fixed an issue with fmt runtime use of a string that causes a compile error with gcc 13 and c++20.
+ * Add guard to prevent multiple calls of ``find_package(Conduit)`` from failing in downstream CMake logic. Guard logic existed in releases prior to 0.9.6, now restored.
+
+* **Blueprint**
+
+ * Fixed missing install of blueprint non-mpi mesh examples and mesh partition c++ headers.
+ * Handled the case in ``MatsetAccessor`` where a field or material set has a material that does not appear in any zones.
+ * Handled the case in material set transformations where a field, material set, or species set has a material that does not appear in any zones.
+ * Fixed bugs in ``MatsetAccessor`` causing copy construction to fail on Windows.
+
+* **Relay**
+
+ * Fixed a crash when reading Silo/Overlink files with missing material names.
+
+Changed
+~~~~~~~
+
+
+* **Relay**
+
+ * Disabled use of HDF5 file locking.
+
+
 v0.9.6
 ---------------------------------
 

@@ -171,12 +171,19 @@ PyBlueprint_mpi_mesh_examples_spiral_round_robin(PyObject *, //self
         return NULL;
     }
 
-    Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
-
-    blueprint::mpi::mesh::examples::spiral_round_robin(ndoms,
-                                                       node,
-                                                       comm);
-
+    try
+    {
+        Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
+        blueprint::mpi::mesh::examples::spiral_round_robin(ndoms,
+                                                           node,
+                                                           comm);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
     Py_RETURN_NONE;
 }
 

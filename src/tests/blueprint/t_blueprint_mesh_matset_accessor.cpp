@@ -115,6 +115,111 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_copy_lifetime)
 }
 
 //-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_copy_lifetime_missing_material_full)
+{
+    const index_t nx = 2, ny = 2;
+    const float64 radius = 0.25;
+
+    Node mesh, mesh_sbe;
+    blueprint::mesh::examples::venn_specsets("full", nx, ny, radius, mesh);
+    blueprint::mesh::examples::venn_specsets("sparse_by_element", nx, ny, radius, mesh_sbe);
+
+    Node material_map;
+    material_map.set(mesh_sbe["matsets/matset/material_map"]);
+    material_map["circle_d"].set(4);
+    material_map.remove_child("background");
+    material_map["background"].set(0);
+    mesh["matsets"]["matset"]["material_map"].set(material_map);
+
+    const Node &mset = mesh["matsets/matset"];
+    const Node &field = mesh["fields/importance"];
+    const Node &sset = mesh["specsets/specset"];
+
+    std::unique_ptr<MatsetAccessor> copied;
+    MatsetAccessor assigned;
+
+    {
+        MatsetAccessor source(mset, field, sset);
+        copied.reset(new MatsetAccessor(source));
+        assigned = source;
+    }
+
+    const std::vector<index_t> mat_ids_baseline = {1, 2, 3, 4, 0};
+    const std::vector<index_t> nspec_baseline = {2, 2, 3, 0, 1};
+    const std::vector<std::vector<float64>> vol_fracs_baseline = {
+        /* circle_a   */ {0.0, 0.0, 0.0, 0.333333333333333},
+        /* circle_b   */ {0.0, 0.0, 0.0, 0.333333333333333},
+        /* circle_c   */ {0.0, 0.0, 0.0, 0.333333333333333},
+        /* circle_d   */ {0.0, 0.0, 0.0, 0.0},
+        /* background */ {1.0, 1.0, 1.0, 0.0},
+    };
+    const std::vector<std::vector<float64>> mset_vals_baseline = {
+        /* circle_a   */ {0.0, 0.0, 0.0, 0.100000001490116},
+        /* circle_b   */ {0.0, 0.0, 0.0, 0.200000002980232},
+        /* circle_c   */ {0.0, 0.0, 0.0, 0.600000023841858},
+        /* circle_d   */ {0.0, 0.0, 0.0, 0.0},
+        /* background */ {0.0, 0.5, 0.5, 0.0},
+    };
+    const std::vector<std::vector<std::vector<float64>>> mf_vals_baseline = {
+        /* circle_a    */ {
+        /*    a_spec1  */    {0.0, 0.5, 0.0, 0.5},
+        /*    a_spec2  */    {1.0, 0.5, 1.0, 0.5},
+        },
+        /* circle_b    */ {
+        /*    b_spec1  */    {0.0, 0.0, 0.5, 0.5},
+        /*    b_spec2  */    {1.0, 1.0, 0.5, 0.5},
+        },
+        /* circle_c    */ {
+        /*    c_spec1  */    {1.0, 0.75, 0.75, 0.5},
+        /*    c_spec2  */    {0.0, 0.1875, 0.1875, 0.375},
+        /*    c_spec3  */    {0.0, 0.0625, 0.0625, 0.125},
+        },
+        /* circle_d  */ {
+        },
+        /* background  */ {
+        /*    bg_spec1 */    {1.0, 1.0, 1.0, 1.0},
+        },
+    };
+
+    auto check_accessor = [&](const MatsetAccessor &m_acc)
+    {
+        EXPECT_TRUE(m_acc.has_field());
+        EXPECT_TRUE(m_acc.has_specset());
+        EXPECT_EQ(4, m_acc.num_elems());
+        EXPECT_EQ(5, m_acc.num_mats());
+
+        for (index_t mat_idx = 0; mat_idx < m_acc.num_mats(); mat_idx ++)
+        {
+            EXPECT_EQ(mat_ids_baseline[mat_idx], m_acc.get_mat_id(0, mat_idx));
+            EXPECT_EQ(mat_idx, m_acc.get_mat_order_id(0, mat_idx));
+            EXPECT_EQ(nspec_baseline[mat_idx], m_acc.num_spec_for_mat(0, mat_idx));
+        }
+
+        for (index_t elem_idx = 0; elem_idx < m_acc.num_elems(); elem_idx ++)
+        {
+            for (index_t mat_idx = 0; mat_idx < m_acc.num_mats(); mat_idx ++)
+            {
+                EXPECT_EQ(elem_idx, m_acc.get_elem_id(elem_idx, mat_idx));
+                EXPECT_FLOAT_EQ(vol_fracs_baseline[mat_idx][elem_idx],
+                                m_acc.get_vol_frac(elem_idx, mat_idx));
+                EXPECT_FLOAT_EQ(mset_vals_baseline[mat_idx][elem_idx],
+                                m_acc.get_mset_val(elem_idx, mat_idx));
+
+                const index_t num_specs_for_mat = m_acc.num_spec_for_mat(elem_idx, mat_idx);
+                for (index_t spec_idx = 0; spec_idx < num_specs_for_mat; spec_idx ++)
+                {
+                    EXPECT_FLOAT_EQ(mf_vals_baseline[mat_idx][spec_idx][elem_idx],
+                                    m_acc.get_mass_frac(elem_idx, mat_idx, spec_idx));
+                }
+            }
+        }
+    };
+
+    check_accessor(*copied);
+    check_accessor(assigned);
+}
+
+//-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_layout_information)
 {
     const index_t nx = 4, ny = 4;
@@ -582,6 +687,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval)
 // 1. random material ids
 // 2. material order is different between matset/field/specset
 // 3. a material map is included for all cases
+// 4. an extra unused material is in the material map
 TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_special_cases)
 {
     const index_t nx = 2, ny = 2;
@@ -594,9 +700,14 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
 
     Node &material_map = mesh_sbe["matsets"]["matset"]["material_map"];
 
+    // scramble material numbers
     material_map["circle_a"].set(6);
     material_map["circle_b"].set(2);
     material_map["circle_c"].set(9);
+    // add extra unused material
+    material_map["circle_d"].set(7);
+    // remove and add back in background so circle_d is in the middle
+    material_map.remove_child("background");
     material_map["background"].set(17);
 
     // add material maps with strange material numbers to each matset
@@ -664,6 +775,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {6, 6, 6, 6},
             /* circle_b   */ {2, 2, 2, 2},
             /* circle_c   */ {9, 9, 9, 9},
+            /* circle_d   */ {7, 7, 7, 7},
             /* background */ {17, 17, 17, 17},
         };
 
@@ -672,7 +784,8 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {0, 0, 0, 0},
             /* circle_b   */ {1, 1, 1, 1},
             /* circle_c   */ {2, 2, 2, 2},
-            /* background */ {3, 3, 3, 3},
+            /* circle_d   */ {3, 3, 3, 3},
+            /* background */ {4, 4, 4, 4},
         };
 
         // index [mat_idx][elem_idx]
@@ -680,6 +793,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {0.0, 0.0, 0.0, 0.333333333333333},
             /* circle_b   */ {0.0, 0.0, 0.0, 0.333333333333333},
             /* circle_c   */ {0.0, 0.0, 0.0, 0.333333333333333},
+            /* circle_d   */ {0.0, 0.0, 0.0, 0.0},
             /* background */ {1.0, 1.0, 1.0, 0.0},
         };
 
@@ -688,6 +802,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {0.0, 0.0, 0.0, 0.100000001490116},
             /* circle_b   */ {0.0, 0.0, 0.0, 0.200000002980232},
             /* circle_c   */ {0.0, 0.0, 0.0, 0.600000023841858},
+            /* circle_d   */ {0.0, 0.0, 0.0, 0.0},
             /* background */ {0.0, 0.5, 0.5, 0.0},
         };
 
@@ -705,6 +820,8 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /*    c_spec1  */    {1.0, 0.75, 0.75, 0.5},
             /*    c_spec2  */    {0.0, 0.1875, 0.1875, 0.375},
             /*    c_spec3  */    {0.0, 0.0625, 0.0625, 0.125},
+            },
+            /* circle_d  */ {
             },
             /* background  */ {
             /*    bg_spec1 */    {1.0, 1.0, 1.0, 1.0},
@@ -760,9 +877,9 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
 
         // index [elem_idx][mat_idx]
         const std::vector<std::vector<index_t>> mat_order_ids_baseline = {
-            /* element 0 */ {3},
-            /* element 1 */ {3},
-            /* element 2 */ {3},
+            /* element 0 */ {4},
+            /* element 1 */ {4},
+            /* element 2 */ {4},
             /* element 3 */ {0, 1, 2},
         };
 
@@ -844,6 +961,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {6},
             /* circle_b   */ {2},
             /* circle_c   */ {9},
+            /* circle_d   */ {},
             /* background */ {17, 17, 17},
         };
 
@@ -852,7 +970,8 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {0},
             /* circle_b   */ {1},
             /* circle_c   */ {2},
-            /* background */ {3, 3, 3},
+            /* circle_d   */ {},
+            /* background */ {4, 4, 4},
         };
 
         // index [mat_idx][elem_idx]
@@ -860,6 +979,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {3},
             /* circle_b   */ {3},
             /* circle_c   */ {3},
+            /* circle_d   */ {},
             /* background */ {0, 1, 2},
         };
 
@@ -868,6 +988,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {0.333333333333333},
             /* circle_b   */ {0.333333333333333},
             /* circle_c   */ {0.333333333333333},
+            /* circle_d   */ {},
             /* background */ {1.0, 1.0, 1.0},
         };
 
@@ -876,6 +997,7 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /* circle_a   */ {0.100000001490116},
             /* circle_b   */ {0.200000002980232},
             /* circle_c   */ {0.600000023841858},
+            /* circle_d   */ {},
             /* background */ {0.0, 0.5, 0.5},
         };
 
@@ -893,6 +1015,8 @@ TEST(conduit_blueprint_mesh_matset_accessor, matset_accessor_data_retrieval_spec
             /*    c_spec1  */    {0.5},
             /*    c_spec2  */    {0.375},
             /*    c_spec3  */    {0.125},
+            },
+            /* circle_d  */ {
             },
             /* background  */ {
             /*    bg_spec1 */    {1.0, 1.0, 1.0},

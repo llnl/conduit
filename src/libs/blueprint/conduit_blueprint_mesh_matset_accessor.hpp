@@ -241,10 +241,10 @@ private:
 //
 //-----------------------------------------------------------------------------
 
+    void reset_state();
     void init(const Node &matset,
               const Node *field,
               const Node *specset);
-    void rebind_internal_accessors();
 
     //
     // Per layout implementations, only declarations here
@@ -350,6 +350,9 @@ private:
     index_t m_num_mats;
     bool m_has_field;
     bool m_has_specset;
+    const Node *m_src_matset;
+    const Node *m_src_field;
+    const Node *m_src_specset;
 
     // universal members
     // these are members that are useful for all layout types
