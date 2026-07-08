@@ -25,9 +25,10 @@ index_t BENCHMARK_NUM_ITERATIONS         = 100;
 #include "conduit_execution.hpp"
 #include "conduit_blueprint_mesh_examples.hpp"
 
-static void copy_numeric_arrays_to_device(const Node &src,
-                                          Node &dst,
-                                          index_t device_alloc)
+void
+copy_numeric_arrays_to_device(const Node &src,
+                              Node &dst,
+                              index_t device_alloc)
 {
     if(src.dtype().is_object())
     {
@@ -59,9 +60,10 @@ static void copy_numeric_arrays_to_device(const Node &src,
 }
 
 //-----------------------------------------------------------------------------
-void make_braid_dataset(const std::string &src_type,
-                        const benchmark::ExecConfig &config,
-                        Node &src)
+void
+make_braid_dataset(const std::string &src_type,
+                   const benchmark::ExecConfig &config,
+                   Node &src)
 {
     Node host_src;
     blueprint::mesh::examples::braid(src_type,
