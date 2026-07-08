@@ -60,17 +60,37 @@ inline
 std::vector<ExecConfig>
 get_exec_configs()
 {
-
+    // The device execution model includes the concept of an execution and
+    // output location, which determines whether host or device memory gets
+    // used for computing and storing a result respectively. This implies
+    // that data must sometimes be copied to/from memory spaces so that it
+    // is in the correct location at the correct time.
+    //
+    // It does not include the concept of source location, which can be
+    // thought of as the memory space in which data originates before
+    // execution. We have that concept here to help us determine which
+    // memory space the initial data should live in before starting the
+    // benchmark.
+    //
+    // For example: a host->device->host configutation implies that the
+    // input data lives in host memory to start off, which is its source
+    // location. The execution location is device memory but the input
+    // data is on the host, so the input must be copied to device memory
+    // before we can execute there. The output location is host memory,
+    // requiring that we perform a final data transfer.
+    //
+    // Data transfer overhead is non-existent in the host->host->host and
+    // device->device->device configurations.
     std::vector<ExecConfig> configs{
-        //src,      exec,     dest
-        {"host",   "host",   "host"},
-        {"host",   "host",   "device"},
-        {"host",   "device", "host"},
-        {"host",   "device", "device"},
-        {"device", "host",   "host"},
-        {"device", "host",   "device"},
-        {"device", "device", "host"},
-        {"device", "device", "device"},
+        //source location, execution location, output location
+        {"host",           "host",             "host"},
+        {"host",           "host",             "device"},
+        {"host",           "device",           "host"},
+        {"host",           "device",           "device"},
+        {"device",         "host",             "host"},
+        {"device",         "host",             "device"},
+        {"device",         "device",           "host"},
+        {"device",         "device",           "device"},
     };
     return configs;
 }
