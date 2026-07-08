@@ -22,16 +22,64 @@ index_t BENCHMARK_NUM_WARMUP_ITERATIONS  = 10;
 index_t BENCHMARK_NUM_ITERATIONS         = 100;
 
 //-----------------------------------------------------------------------------
-void
-make_braid_dataset(const std::string &src_type,
-                   const benchmark::ExecConfig &config,
-                   Node &src)
+#include "conduit_execution.hpp"
+#include "conduit_blueprint_mesh_examples.hpp"
+
+static void copy_numeric_arrays_to_device(const Node &src,
+                                          Node &dst,
+                                          index_t device_alloc)
 {
+    if(src.dtype().is_object())
+    {
+        NodeConstIterator itr = src.children();
+        while(itr.has_next())
+        {
+            const Node &src_child = itr.next();
+            copy_numeric_arrays_to_device(src_child, dst[itr.name()], device_alloc);
+        }
+    }
+    else if(src.dtype().is_list())
+    {
+        NodeConstIterator itr = src.children();
+        while(itr.has_next())
+        {
+            const Node &src_child = itr.next();
+            copy_numeric_arrays_to_device(src_child, dst.append(), device_alloc);
+        }
+    }
+    else if(src.dtype().is_number() && src.dtype().number_of_elements() > 1)
+    {
+        dst.set_allocator(device_alloc);
+        dst.set(src);
+    }
+    else // Not a numeric array, leave it in host memory
+    {
+        dst.set(src);
+    }
+}
+
+//-----------------------------------------------------------------------------
+void make_braid_dataset(const std::string &src_type,
+                        const benchmark::ExecConfig &config,
+                        Node &src)
+{
+    Node host_src;
     blueprint::mesh::examples::braid(src_type,
                                      config.dim_size,
                                      config.dim_size,
                                      config.dim_size,
-                                     src);
+                                     host_src);
+
+    if (config.src_location == "device")
+    {
+        copy_numeric_arrays_to_device(host_src,
+                                      src,
+                                      execution::get_device_allocator_id());
+    }
+    else // if (config.src_location == "host")
+    {
+        src.set(host_src);
+    }
 }
 
 //-----------------------------------------------------------------------------
