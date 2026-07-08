@@ -27,22 +27,11 @@ make_braid_dataset(const std::string &src_type,
                    const benchmark::ExecConfig &config,
                    Node &src)
 {
-    Node mesh;
     blueprint::mesh::examples::braid(src_type,
                                      config.dim_size,
                                      config.dim_size,
                                      config.dim_size,
-                                     mesh);
-
-    // Coordset setup
-    const Node &host_coordset = mesh["coordsets"].child(0);
-    Node &src_coordset = src["coordsets"][host_coordset.name()];
-    src_coordset.set(host_coordset);
-
-    // Topology setup
-    const Node &host_topo = mesh["topologies"].child(0);
-    Node &src_topo = src["topologies"][host_topo.name()];
-    src_topo.set(host_topo);
+                                     src);
 }
 
 //-----------------------------------------------------------------------------
