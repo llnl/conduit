@@ -923,6 +923,7 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
                                 conduit::Node &dest)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
+    // bool is_base_uniform = true;
 
     dest.reset();
     dest["type"].set("rectilinear");
