@@ -57,41 +57,20 @@ struct ExecConfig
 
 //-----------------------------------------------------------------------------
 inline
-std::vector<std::string>
-get_enabled_locations()
-{
-    std::vector<std::string> locations;
-    locations.push_back("host");
-    if (EP::is_device_enabled())
-    {
-        locations.push_back("device");
-    }
-    return locations;
-}
-
-//-----------------------------------------------------------------------------
-inline
 std::vector<ExecConfig>
 get_exec_configs()
 {
-    std::vector<ExecConfig> configs;
-    const auto locations = get_enabled_locations();
-
-    // All of the source = host configs come first, as an optimization to
-    // only have to move test data to device memory once
-    for (const auto &src_loc : locations)
-    {
-        for (const auto &exec_loc : locations)
-        {
-            for (const auto &output_loc : locations)
-            {
-                configs.push_back({src_loc,
-                                   exec_loc,
-                                   output_loc});
-            }
-        }
-    }
-
+    // src, exec, dest
+    std::vector<ExecConfig> configs{
+        {"host",   "host",   "host"},
+        {"host",   "host",   "device"},
+        {"host",   "device", "host"},
+        {"host",   "device", "device"},
+        {"device", "host",   "host"},
+        {"device", "host",   "device"},
+        {"device", "device", "host"},
+        {"device", "device", "device"},
+    };
     return configs;
 }
 

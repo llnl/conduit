@@ -42,6 +42,24 @@ namespace execution
 
 //-----------------------------------------------------------------------------
 /// Pass a Node to set execution options.
+// opts node:
+//   execution_location: "host"|"device"|"input"
+//     # choose host, device, or input (use `use_with` to get a 
+//     # policy for the input data).
+//     # default is "input"
+//   output_location: "host"|"device"|"input"|##
+//     # choose host alloc, device alloc, input alloc (get the allocator 
+//     # from the input node), or an index_t that is the allocator id to use
+//     # default is "input"
+//   sync_strategy: "sync"|"assume"
+//     # choose to sync or assume (if we add a new option here we need to
+//     # update all the use sites).
+//     # default is "assume"
+//   fallback_location: "host"|"device"
+//     # choose a fallback in the case that "input" is chosen for either 
+//     # execution_location or output_location and there is no input to 
+//     # operate on/reason about.
+//     # default is "host"
 //-----------------------------------------------------------------------------
 CONDUIT_API void execution_set_options(const Node &opts);
 

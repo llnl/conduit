@@ -4,12 +4,18 @@ Notable changes to Conduit are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project aspires to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.9.7] - Released 2026-05-27
 
 ### Added
 
 #### Conduit
 - Added a bulk `DataAccessor::set()` method for setting many elements at once.
+
+#### Blueprint
+- Added `conduit::blueprint::mesh::rename()` helper that renames sub components of a valid mesh and their dependent references.  Example: rename a topology and ensure field topology references are updated.
+- Added `conduit::blueprint::mesh::remove()` helper that removes sub components of a valid mesh and their dependencies.  Examples: remove a field by name, or remove a topology by name and any dependent entries.
+- Added `conduit::blueprint::mesh::matset::get_material_names()`, which returns material names for a material set.
+- Added the ability for the Partitioner to handle field `matset_values` for both domain slicing and combination.
 
 ### Fixed
 
@@ -19,9 +25,17 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 #### Blueprint
 - Fixed missing install of blueprint non-mpi mesh examples and mesh partition c++ headers.
+- Handled the case in `MatsetAccessor` where a field or material set has a material that does not appear in any zones.
+- Handled the case in material set transformations where a field, material set, or species set has a material that does not appear in any zones.
+- Fixed bugs in `MatsetAccessor` causing copy construction to fail on Windows.
 
 #### Relay
 - Fixed a crash when reading Silo/Overlink files with missing material names.
+
+### Changed
+
+#### Relay
+- Disabled use of HDF5 file locking.
 
 ## [0.9.6] - Released 2026-04-14
 

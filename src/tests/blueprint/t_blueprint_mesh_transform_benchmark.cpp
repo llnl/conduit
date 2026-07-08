@@ -17,7 +17,7 @@
 
 using namespace conduit;
 
-std::vector<index_t> BENCHMARK_DIM_SIZES = {2, 4, 8, 16, 32, 64};
+std::vector<index_t> BENCHMARK_DIM_SIZES = {2, 4};
 index_t BENCHMARK_NUM_WARMUP_ITERATIONS  = 10;
 index_t BENCHMARK_NUM_ITERATIONS         = 100;
 
@@ -27,28 +27,11 @@ make_braid_dataset(const std::string &src_type,
                    const benchmark::ExecConfig &config,
                    Node &src)
 {
-    Node mesh;
     blueprint::mesh::examples::braid(src_type,
                                      config.dim_size,
                                      config.dim_size,
                                      config.dim_size,
-                                     mesh);
-
-    // Coordset setup
-    const Node &host_coordset = mesh["coordsets"].child(0);
-    Node &src_coordset = src["coordsets"][host_coordset.name()];
-    src_coordset.set(host_coordset);
-
-    if ("device" == config.src_location && host_coordset.has_child("values"))
-    {
-        // Move the coordset arrays to device memory
-        const index_t allocator_id = execution::get_device_allocator_id();
-        for (const auto &axis : host_coordset["values"].child_names())
-        {
-            src_coordset["values"][axis].set_allocator(allocator_id);
-            src_coordset["values"][axis].set(host_coordset["values"][axis]);
-        }
-    }
+                                     src);
 }
 
 //-----------------------------------------------------------------------------
@@ -68,7 +51,33 @@ benchmark_coordset_transform(const char *name,
         transform(src["coordsets"].child(0), dst);
     };
 
-    // Benchmark the coorset transform function
+    // Execute the benchmark
+    benchmark::exec(name,
+                    setup,
+                    run,
+                    BENCHMARK_NUM_WARMUP_ITERATIONS,
+                    BENCHMARK_NUM_ITERATIONS,
+                    BENCHMARK_DIM_SIZES);
+}
+
+//-----------------------------------------------------------------------------
+void
+benchmark_topology_transform(const char *name,
+                             const std::string &src_type,
+                             void (*transform)(const Node &, Node &, Node &))
+{
+    // Create the source Node once and reuse it for each iteration
+    auto setup = [&](const benchmark::ExecConfig &config, Node &src) {
+        make_braid_dataset(src_type, config, src);
+    };
+
+    // Perform a transform on the source Node
+    auto run = [=](const Node &src) {
+        Node topo_dst, coords_dst;
+        transform(src["topologies"].child(0), topo_dst, coords_dst);
+    };
+
+    // Execute the benchmark
     benchmark::exec(name,
                     setup,
                     run,
@@ -81,15 +90,39 @@ benchmark_coordset_transform(const char *name,
 TEST(blueprint_mesh_transform_benchmark, coordset_transforms)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark_coordset_transform("uniform_to_rectilinear",
+    benchmark_coordset_transform("coordset_uniform_to_rectilinear",
                                  "uniform",
                                  blueprint::mesh::coordset::uniform::to_rectilinear);
-    benchmark_coordset_transform("uniform_to_explicit",
+    benchmark_coordset_transform("coordset_uniform_to_explicit",
                                  "uniform",
                                  blueprint::mesh::coordset::uniform::to_explicit);
-    benchmark_coordset_transform("rectilinear_to_explicit",
+    benchmark_coordset_transform("coordset_rectilinear_to_explicit",
                                  "rectilinear",
                                  blueprint::mesh::coordset::rectilinear::to_explicit);
+}
+
+//-----------------------------------------------------------------------------
+TEST(blueprint_mesh_transform_benchmark, topology_transforms)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+    benchmark_topology_transform("topology_uniform_to_rectilinear",
+                                 "uniform",
+                                 blueprint::mesh::topology::uniform::to_rectilinear);
+    benchmark_topology_transform("topology_uniform_to_structured",
+                                 "uniform",
+                                 blueprint::mesh::topology::uniform::to_structured);
+    benchmark_topology_transform("topology_uniform_to_unstructured",
+                                 "uniform",
+                                 blueprint::mesh::topology::uniform::to_unstructured);
+    benchmark_topology_transform("topology_rectilinear_to_structured",
+                                 "rectilinear",
+                                 blueprint::mesh::topology::rectilinear::to_structured);
+    benchmark_topology_transform("topology_rectilinear_to_unstructured",
+                                 "rectilinear",
+                                 blueprint::mesh::topology::rectilinear::to_unstructured);
+    benchmark_topology_transform("topology_structured_to_unstructured",
+                                 "structured",
+                                 blueprint::mesh::topology::structured::to_unstructured);
 }
 
 //-----------------------------------------------------------------------------
@@ -127,6 +160,6 @@ int main(int argc, char *argv[])
 
     // End profiling
     annotations::finalize();
-    
+
     return result;
 }
