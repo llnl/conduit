@@ -25,7 +25,7 @@ namespace conduit
 
 // Workaround for TU compilation, since CONDUIT_ERROR does not work on device
 #if defined(CONDUIT_DEVICE_COMPILE)
-#define CONDUIT_ERROR_COMPAT_WRAPPER(MSG) assert(false && MSG)
+#define CONDUIT_ERROR_COMPAT_WRAPPER(MSG) assert(false)
 #else
 #define CONDUIT_ERROR_COMPAT_WRAPPER(MSG) CONDUIT_ERROR(MSG)
 #endif
