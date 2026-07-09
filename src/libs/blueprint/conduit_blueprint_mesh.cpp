@@ -1234,7 +1234,6 @@ convert_topology_to_unstructured(const std::string &base_type,
     dest["coordset"].set(cdest.name());
     if(topo.has_child("origin"))
     {
-        dest["origin"].set_allocator(allocator_id);
         dest["origin"].set(topo["origin"]);
     }
 
