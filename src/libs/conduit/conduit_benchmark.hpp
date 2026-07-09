@@ -183,6 +183,9 @@ exec(const char *name,
             }
 
             execution::reset_execution_options();
+
+            // TODO: Investigate manually releasing device memory here once
+            // a config's runs are done
         }
     }
 }
