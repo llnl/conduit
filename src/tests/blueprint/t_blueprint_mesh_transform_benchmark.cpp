@@ -217,13 +217,13 @@ benchmark_topo_generate_offsets_inline(const char *name,
 TEST(blueprint_mesh_transform_benchmark, coordset_transforms)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark_coordset_transform("uniform_to_rectilinear",
+    benchmark_coordset_transform("coordset_uniform_to_rectilinear",
                                  "uniform",
                                  blueprint::mesh::coordset::uniform::to_rectilinear);
-    benchmark_coordset_transform("uniform_to_explicit",
+    benchmark_coordset_transform("coordset_uniform_to_explicit",
                                  "uniform",
                                  blueprint::mesh::coordset::uniform::to_explicit);
-    benchmark_coordset_transform("rectilinear_to_explicit",
+    benchmark_coordset_transform("coordset_rectilinear_to_explicit",
                                  "rectilinear",
                                  blueprint::mesh::coordset::rectilinear::to_explicit);
 }

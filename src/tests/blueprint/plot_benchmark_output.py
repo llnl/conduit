@@ -3,6 +3,7 @@
 # other details. No copyright assignment is required to contribute to Conduit.
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -22,31 +23,54 @@ COORDSET_CONVERSIONS = [
 ]
 
 TOPOLOGY_CONVERSIONS = [
-    "topology_uniform_to_rectilinear",
-    "topology_uniform_to_structured",
     "topology_uniform_to_unstructured",
-    "topology_rectilinear_to_structured",
     "topology_rectilinear_to_unstructured",
     "topology_structured_to_unstructured",
 ]
 
-CONVERSIONS = COORDSET_CONVERSIONS + TOPOLOGY_CONVERSIONS
+UNSTRUCTURED_GENERATE_FUNCTIONS = [
+    "to_polytopal",
+    "generate_offsets",
+    "generate_offsets_inline",
+    "generate_points",
+    "generate_lines",
+    "generate_faces",
+    "generate_centroids",
+    "generate_sides",
+    "generate_corners",
+]
+
+UNSTRUCTURED_GENERATE_ELEM_TYPES = ["quads", "hexs"]
+
+UNSTRUCTURED_GENERATE_CONVERSIONS = [
+    f"{fn}_{elem}"
+    for fn in UNSTRUCTURED_GENERATE_FUNCTIONS
+    for elem in UNSTRUCTURED_GENERATE_ELEM_TYPES
+]
+
+CONVERSIONS = COORDSET_CONVERSIONS + TOPOLOGY_CONVERSIONS + UNSTRUCTURED_GENERATE_CONVERSIONS
 
 CONVERSION_LABELS = {
     "coordset_rectilinear_to_explicit": "rect→explicit",
     "coordset_uniform_to_explicit": "uniform→explicit",
     "coordset_uniform_to_rectilinear": "uniform→rect",
-    "topology_uniform_to_rectilinear": "uniform→rect",
-    "topology_uniform_to_structured": "uniform→struct",
     "topology_uniform_to_unstructured": "uniform→unstruct",
-    "topology_rectilinear_to_structured": "rect→struct",
     "topology_rectilinear_to_unstructured": "rect→unstruct",
     "topology_structured_to_unstructured": "struct→unstruct",
+    **{
+        f"{fn}_{elem}": f"{fn} ({elem})"
+        for fn in UNSTRUCTURED_GENERATE_FUNCTIONS
+        for elem in UNSTRUCTURED_GENERATE_ELEM_TYPES
+    },
 }
 
 CONVERSION_GROUPS = [
     ("coordset", COORDSET_CONVERSIONS),
     ("topology", TOPOLOGY_CONVERSIONS),
+] + [
+    (f"unstructured_generate_{elem}",
+     [f"{fn}_{elem}" for fn in UNSTRUCTURED_GENERATE_FUNCTIONS])
+    for elem in UNSTRUCTURED_GENERATE_ELEM_TYPES
 ]
 
 END_TO_END_GROUP_PANELS = [
@@ -57,7 +81,7 @@ END_TO_END_GROUP_PANELS = [
 COMPONENT_METRICS = [
     ("use_with", "use_with"),
     ("forall", "forall"),
-    ("sync", "sync"),
+    ("data movement", "data_movement"),
     ("other processing", "other_processing"),
 ]
 
@@ -90,57 +114,53 @@ def format_range_label(prefix, values):
     return f"{prefix}={values[0]}-{values[-1]}"
 
 
+KNOWN_BACKENDS = {"openmp", "cuda", "hip", "serial"}
+
+CONFIG_NAME_RE = re.compile(r"^(.+?)_dim-(\d+)_(.+)$")
+
+
 def parse_config_name(name):
-    conv_name = None
-    for c in CONVERSIONS:
-        if name.startswith(c + "_"):
-            conv_name = c
-            break
-    if conv_name is None:
+    match = CONFIG_NAME_RE.match(name)
+    if match is None:
         return None
+    conv_name, dim_str, rest = match.groups()
 
-    rest = name[len(conv_name) + 1 :]
-    parts = rest.split("_")
-
-    if len(parts) not in (5, 6, 7):
-        return None
+    backend = None
+    conv_parts = conv_name.split("_")
+    if len(conv_parts) > 1 and conv_parts[-1] in KNOWN_BACKENDS:
+        backend = conv_parts[-1]
+        conv_name = "_".join(conv_parts[:-1])
 
     values = {}
-    backend = None
-
-    # If the first token has no dash, treat it as backend
-    start_idx = 0
-    if "-" not in parts[0]:
-        backend = parts[0]
-        start_idx = 1
-
-    for field in parts[start_idx:]:
+    for field in rest.split("_"):
         if "-" not in field:
             return None
         key, value = field.split("-", 1)
         values[key] = value
 
-    required = {"dim", "src", "exec", "out", "iter"}
-    if set(values) not in (required, required | {"threads"}):
+    required = {"iter"}
+    optional = {"src", "exec", "out", "sync", "threads"}
+    if not (required <= set(values) <= required | optional):
         return None
-
-    if values["src"] not in ("host", "device"):
+    if "src" in values and values["src"] not in ("host", "device"):
         return None
-    if values["exec"] not in ("host", "device"):
+    if "exec" in values and values["exec"] not in ("host", "device"):
         return None
-    if values["out"] not in ("host", "device"):
+    if "out" in values and values["out"] not in ("host", "device"):
         return None
-    if not values["dim"].isdigit() or not values["iter"].isdigit():
+    if "sync" in values and values["sync"] not in ("sync", "assume"):
         return None
-
+    if not dim_str.isdigit() or not values["iter"].isdigit():
+        return None
     threads = None
     if "threads" in values:
         if not values["threads"].isdigit():
             return None
         threads = int(values["threads"])
 
-    cfg = (backend, values["src"], values["exec"], values["out"])
-    return conv_name, cfg, int(values["dim"]), int(values["iter"]), threads
+    cfg = (backend, values.get("src"), values.get("exec"), values.get("out"))
+    sync_strategy = values.get("sync")
+    return conv_name, cfg, int(dim_str), int(values["iter"]), threads, sync_strategy
 
 
 def parse_timestamp(cali_file):
@@ -186,8 +206,7 @@ def subtree_time(thicket, profile_id, node):
         total += subtree_time(thicket, profile_id, child)
     return total
 
-
-LEAF_METRIC_NAMES = ("use_with", "forall", "sync")
+LEAF_METRIC_NAMES = ("use_with", "forall", "sync", "assume")
 
 def accumulate_leaf_metrics(thicket, profile_id, node, totals):
     name = node.frame["name"]
@@ -203,16 +222,18 @@ def collect_data(thicket):
     data = {}
     dims_seen = set()
     backends_seen = set()
+    syncs_seen = set()
 
     root = list(thicket.graph.roots)[0]
     for cfg_node in root.children:
         parsed = parse_config_name(cfg_node.frame["name"])
         if parsed is None:
             continue
-        conv_name, cfg, dim, iters, threads = parsed
+        conv_name, cfg, dim, iters, threads, sync_strategy = parsed
         backend, _, _, _ = cfg
 
         dims_seen.add(dim)
+        syncs_seen.add(sync_strategy)
         if backend is not None:
             backends_seen.add(backend)
 
@@ -222,19 +243,19 @@ def collect_data(thicket):
         end_to_end = subtree_time(thicket, profile_id, cfg_node) / iters
         use_with = totals["use_with"] / iters
         forall = totals["forall"] / iters
-        sync = totals["sync"] / iters
+        data_movement = (totals["sync"] + totals["assume"]) / iters
 
-        data[(cfg, conv_name, dim)] = {
+        data[(cfg, conv_name, dim, sync_strategy)] = {
             "end_to_end": end_to_end,
             "use_with": use_with,
             "forall": forall,
-            "sync": sync,
-            "other_processing": max(0.0, end_to_end - (use_with + forall + sync)),
+            "data_movement": data_movement,
+            "other_processing": max(0.0, end_to_end - (use_with + forall + data_movement)),
             "iters": iters,
             "threads": threads,
         }
 
-    return data, sorted(dims_seen), backends_seen
+    return data, sorted(dims_seen), backends_seen, syncs_seen
 
 
 def plot_panels(data, dims, cfg_keys, panels, suptitle, path, ylabel, iters_label, per_element=False):
@@ -287,7 +308,8 @@ def plot_panels(data, dims, cfg_keys, panels, suptitle, path, ylabel, iters_labe
         ax.set_title(title, fontsize=17)
         ax.tick_params(axis="both", which="major", labelsize=13)
 
-        if per_element:
+        positive_values = [v for v in panel_values if v > 0]
+        if per_element and positive_values:
             # Per-element cost spans many orders of magnitude, so use
             # a log-scale y-axis
             ax.set_yscale("log")
@@ -352,7 +374,7 @@ def generate_plots(data, dims, cfg_keys, iters_label, out_dir, suffix="", includ
             )
 
 
-def generate_per_element_plots(data, dims, cfg_keys, iters_label, out_dir):
+def generate_per_element_plots(data, dims, cfg_keys, iters_label, out_dir, suffix=""):
     ylabel = "avg time / element"
 
     for group_name, group_panels in END_TO_END_GROUP_PANELS:
@@ -360,7 +382,7 @@ def generate_per_element_plots(data, dims, cfg_keys, iters_label, out_dir):
             data, dims, cfg_keys,
             group_panels,
             f"avg {group_name} time per element vs data size",
-            out_dir / f"end_to_end_combined_{group_name}_per_element.png",
+            out_dir / f"end_to_end_combined_{group_name}_per_element{suffix}.png",
             ylabel,
             iters_label,
             per_element=True,
@@ -371,7 +393,7 @@ def generate_per_element_plots(data, dims, cfg_keys, iters_label, out_dir):
             data, dims, cfg_keys,
             [(CONVERSION_LABELS[conv], conv, "end_to_end")],
             f"{CONVERSION_LABELS[conv]} avg end-to-end time per element vs data size",
-            out_dir / f"end_to_end_{conv}_per_element.png",
+            out_dir / f"end_to_end_{conv}_per_element{suffix}.png",
             ylabel,
             iters_label,
             per_element=True,
@@ -395,11 +417,9 @@ def main():
     except ReaderError as e:
         sys.exit(f"failed to read {cali_file}: {e}")
 
-    data, dims, backends_seen = collect_data(thicket)
+    data, dims, backends_seen, syncs_seen = collect_data(thicket)
     if not data:
         sys.exit(f"no benchmark config nodes found in {cali_file}")
-
-    cfg_keys = sorted({cfg for cfg, _, _ in data})
 
     iters_label = format_range_label("n", {entry["iters"] for entry in data.values()})
     threads_seen = {entry["threads"] for entry in data.values() if entry["threads"] is not None}
@@ -413,21 +433,35 @@ def main():
     if serial_only:
         print("no backend field found, treating runs as serial-only")
 
-    generate_plots(
-        data, dims, cfg_keys, iters_label, out_dir,
-        include_components=not serial_only,
-    )
-    generate_per_element_plots(data, dims, cfg_keys, iters_label, out_dir)
+    multi_sync = len(syncs_seen) > 1
+    for sync_strategy in sorted(syncs_seen, key=lambda s: (s is None, s)):
+        sync_data = {
+            (cfg, conv_name, dim): entry
+            for (cfg, conv_name, dim, s), entry in data.items()
+            if s == sync_strategy
+        }
+        cfg_keys = sorted({cfg for cfg, _, _ in sync_data})
+        sync_suffix = f"_{sync_strategy or 'no-sync'}" if multi_sync else ""
 
-    if not serial_only:
-        for backend in sorted(backends_seen):
-            backend_keys = [cfg for cfg in cfg_keys if cfg[0] == backend]
-            if backend_keys:
-                generate_plots(
-                    data, dims, backend_keys, iters_label, out_dir,
-                    suffix=f"_{backend}",
-                    include_components=True,
-                )
+        generate_plots(
+            sync_data, dims, cfg_keys, iters_label, out_dir,
+            suffix=sync_suffix,
+            include_components=not serial_only,
+        )
+        generate_per_element_plots(
+            sync_data, dims, cfg_keys, iters_label, out_dir,
+            suffix=sync_suffix,
+        )
+
+        if not serial_only:
+            for backend in sorted(backends_seen):
+                backend_keys = [cfg for cfg in cfg_keys if cfg[0] == backend]
+                if backend_keys:
+                    generate_plots(
+                        sync_data, dims, backend_keys, iters_label, out_dir,
+                        suffix=f"{sync_suffix}_{backend}",
+                        include_components=True,
+                    )
 
     print(f"wrote plots to {out_dir}/")
 
