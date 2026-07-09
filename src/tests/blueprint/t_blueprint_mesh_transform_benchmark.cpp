@@ -86,28 +86,6 @@ make_braid_dataset(const std::string &src_type,
     {
         src.set(host_src);
     }
-
-    // Topology setup
-    const Node &host_topo = mesh["topologies"].child(0);
-    Node &src_topo = src["topologies"][host_topo.name()];
-    src_topo.set(host_topo);
-
-    if ("device" == config.src_location && host_topo.has_child("elements"))
-    {
-        // Move the topology arrays to device memory
-        const index_t allocator_id = execution::get_device_allocator_id();
-        const Node &host_elements = host_topo["elements"];
-        Node &src_elements = src_topo["elements"];
-        for (const auto &child_name : host_elements.child_names())
-        {
-            const Node &host_child = host_elements[child_name];
-            if (host_child.dtype().is_number())
-            {
-                src_elements[child_name].set_allocator(allocator_id);
-                src_elements[child_name].set(host_child);
-            }
-        }
-    }
 }
 
 //-----------------------------------------------------------------------------

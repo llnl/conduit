@@ -1117,6 +1117,7 @@ convert_topology_to_rectilinear(const std::string &/*base_type*/,
                                 conduit::Node &cdest)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
+    // bool is_base_uniform = true;
 
     dest.reset();
     cdest.reset();
@@ -1124,8 +1125,6 @@ convert_topology_to_rectilinear(const std::string &/*base_type*/,
     const Node *coordset = bputils::find_reference_node(topo, "coordset");
     blueprint::mesh::coordset::uniform::to_rectilinear(*coordset, cdest);
 
-    const index_t allocator_id = conduit::execution::get_output_allocator_id();
-    dest.set_allocator(allocator_id);
     dest.set(topo);
     dest["type"].set("rectilinear");
     dest["coordset"].set(cdest.name());
@@ -1155,17 +1154,10 @@ convert_topology_to_structured(const std::string &base_type,
         blueprint::mesh::coordset::uniform::to_explicit(*coordset, cdest);
     }
 
-    const std::vector<std::string> csys_axes = bputils::coordset::axes(*coordset);
-
-    const index_t allocator_id = is_base_rectilinear ?
-        conduit::execution::get_output_allocator_id((*coordset)["values"][csys_axes[0]]) :
-        conduit::execution::get_output_allocator_id();
-
     dest["type"].set("structured");
     dest["coordset"].set(cdest.name());
     if(topo.has_child("origin"))
     {
-        dest["origin"].set_allocator(allocator_id);
         dest["origin"].set(topo["origin"]);
     }
 
@@ -1173,6 +1165,7 @@ convert_topology_to_structured(const std::string &base_type,
     // and use its types to inform those of the topology?
     DataType int_dtype = bputils::find_widest_dtype(topo, bputils::DEFAULT_INT_DTYPES);
 
+    const std::vector<std::string> csys_axes = bputils::coordset::axes(*coordset);
     const std::vector<std::string> &logical_axes = bputils::LOGICAL_AXES;
     for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
     {
@@ -1184,11 +1177,8 @@ convert_topology_to_structured(const std::string &base_type,
         // than the number of points along each dimension.
         src_dlen_node.set(src_dlen_node.to_int64() - 1);
 
-        Node host_dlen_node;
-        src_dlen_node.to_data_type(int_dtype.id(), host_dlen_node);
-
-        dest["elements/dims"][logical_axes[i]].set_allocator(allocator_id);
-        dest["elements/dims"][logical_axes[i]].set(host_dlen_node);
+        Node &dst_dlen_node = dest["elements/dims"][logical_axes[i]];
+        src_dlen_node.to_data_type(int_dtype.id(), dst_dlen_node);
     }
 }
 
