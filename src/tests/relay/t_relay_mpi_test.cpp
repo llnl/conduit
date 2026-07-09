@@ -11,6 +11,7 @@
 #include "conduit_relay_mpi.hpp"
 #include <iostream>
 #include "math.h"
+#include <limits>
 #include "gtest/gtest.h"
 
 using namespace conduit;
@@ -82,6 +83,77 @@ TEST(conduit_mpi_test, mpi_dtype_to_conduit_dtype)
 
     EXPECT_TRUE(DataType(mpi_dtype_to_conduit_dtype_id(MPI_FLOAT)).is_float());
     EXPECT_TRUE(DataType(mpi_dtype_to_conduit_dtype_id(MPI_DOUBLE)).is_double());
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_mpi_test, safe_tag_clamps_to_mpi_tag_ub)
+{
+    int flag = 0;
+    int *tag_ub_ptr = nullptr;
+    const int mpi_error = MPI_Comm_get_attr(MPI_COMM_WORLD,
+                                            MPI_TAG_UB,
+                                            &tag_ub_ptr,
+                                            &flag);
+    ASSERT_EQ(mpi_error, MPI_SUCCESS);
+    ASSERT_NE(flag, 0);
+    ASSERT_NE(tag_ub_ptr, nullptr);
+
+    const int expected_tag_ub = *tag_ub_ptr;
+    EXPECT_EQ(safe_tag(std::numeric_limits<int>::max(), MPI_COMM_WORLD),
+              expected_tag_ub);
+    EXPECT_EQ(safe_tag(-42, MPI_COMM_WORLD), 0);
+
+    MPI_Comm dup_comm = MPI_COMM_NULL;
+    ASSERT_EQ(MPI_Comm_dup(MPI_COMM_WORLD, &dup_comm), MPI_SUCCESS);
+    EXPECT_EQ(safe_tag(std::numeric_limits<int>::max(), dup_comm),
+              expected_tag_ub);
+    EXPECT_EQ(MPI_Comm_free(&dup_comm), MPI_SUCCESS);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_mpi_test, mpi_minimum_tag_32767_is_valid)
+{
+    int flag = 0;
+    int *tag_ub_ptr = nullptr;
+    const int mpi_error = MPI_Comm_get_attr(MPI_COMM_WORLD,
+                                            MPI_TAG_UB,
+                                            &tag_ub_ptr,
+                                            &flag);
+    ASSERT_EQ(mpi_error, MPI_SUCCESS);
+    if(flag != 0 && tag_ub_ptr != nullptr)
+    {
+        EXPECT_GE(*tag_ub_ptr, 32767);
+    }
+
+    MPI_Comm dup_comm = MPI_COMM_NULL;
+    ASSERT_EQ(MPI_Comm_dup(MPI_COMM_WORLD, &dup_comm), MPI_SUCCESS);
+    ASSERT_EQ(MPI_Comm_set_errhandler(dup_comm, MPI_ERRORS_RETURN), MPI_SUCCESS);
+
+    int rank = 0, size = 1;
+    ASSERT_EQ(MPI_Comm_rank(dup_comm, &rank), MPI_SUCCESS);
+    ASSERT_EQ(MPI_Comm_size(dup_comm, &size), MPI_SUCCESS);
+
+    const int dest = (size > 1) ? ((rank + 1) % size) : rank;
+    const int src  = (size > 1) ? ((rank + size - 1) % size) : rank;
+
+    int send_value = rank;
+    int recv_value = -1;
+    EXPECT_EQ(MPI_Sendrecv(&send_value,
+                           1,
+                           MPI_INT,
+                           dest,
+                           32767,
+                           &recv_value,
+                           1,
+                           MPI_INT,
+                           src,
+                           32767,
+                           dup_comm,
+                           MPI_STATUS_IGNORE),
+              MPI_SUCCESS);
+    EXPECT_EQ(recv_value, src);
+
+    EXPECT_EQ(MPI_Comm_free(&dup_comm), MPI_SUCCESS);
 }
 
 //-----------------------------------------------------------------------------
@@ -1402,4 +1474,3 @@ int main(int argc, char* argv[])
 
     return result;
 }
-
