@@ -8509,15 +8509,16 @@ template <typename IndexContainer>
 CONDUIT_EXEC void appendIndex(IndexContainer &vec, conduit::index_t value)
 {
     bool found = false;
-    for(auto it = vec.begin(); it != vec.end(); ++it)
+    for (auto it = vec.begin(); it != vec.end(); ++it)
     {
-        if(*it == value)
+        if (*it == value)
         {
             found = true;
             break;
         }
     }
-    if(!found)
+
+    if (!found)
     {
         vec.push_back(value);
     }
