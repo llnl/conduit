@@ -52,6 +52,7 @@ struct ExecConfig
     std::string src_location;
     std::string exec_location;
     std::string output_location;
+    std::string sync_strategy;
     index_t dim_size = 1;
 };
 
@@ -66,34 +67,50 @@ get_exec_configs()
     used for computing and storing a result respectively. This implies
     that data must sometimes be copied to/from memory spaces so that it
     is in the correct location at the correct time.
-    
+
     It does not include the concept of source location, which can be
     thought of as the memory space in which data originates before
     execution. We have that concept here to help us determine which
     memory space the initial data should live in before starting the
     benchmark.
-    
+
     For example: a host->device->host configuration implies that the
     input data lives in host memory to start off, which is its source
     location. The execution location is device memory but the input
     data is on the host, so the input must be copied to device memory
     before we can execute there. The output location is host memory,
     requiring that we perform a final data transfer.
-    
+
     Data transfer overhead is non-existent in the host->host->host and
     device->device->device configurations.
+
+    The sync strategy determines how the result of that final data
+    transfer gets moved from the accessor's working buffer into the
+    destination Node: "sync" copies the data back, preserving the
+    destination's original allocation/location, while "assume" instead
+    hands the working buffer to the destination Node directly, avoiding
+    a copy but potentially leaving the result in a different memory
+    space than requested. The two strategies only behave differently
+    when the execution location differs from the output location
+    (otherwise there is no working buffer to move, and "assume" would be
+    a redundant no-op identical to "sync"), so we only benchmark both
+    strategies for the configurations where they can diverge.
     */
     std::vector<ExecConfig> configs{
-        //source location, execution location, output location
-        {"host",           "host",             "host"},
+        //source location, execution location, output location, sync strategy
+        {"host",           "host",             "host",          "sync"},
 #if defined(CONDUIT_USE_DEVICE)
-        {"host",           "host",             "device"},
-        {"host",           "device",           "host"},
-        {"host",           "device",           "device"},
-        {"device",         "host",             "host"},
-        {"device",         "host",             "device"},
-        {"device",         "device",           "host"},
-        {"device",         "device",           "device"},
+        {"host",           "host",             "device",        "sync"},
+        {"host",           "host",             "device",        "assume"},
+        {"host",           "device",           "host",          "sync"},
+        {"host",           "device",           "host",          "assume"},
+        {"host",           "device",           "device",        "sync"},
+        {"device",         "host",             "host",          "sync"},
+        {"device",         "host",             "device",        "sync"},
+        {"device",         "host",             "device",        "assume"},
+        {"device",         "device",           "host",          "sync"},
+        {"device",         "device",           "host",          "assume"},
+        {"device",         "device",           "device",        "sync"},
 #endif
     };
     return configs;
@@ -124,8 +141,7 @@ exec(const char *name,
             Node exec_opts;
             exec_opts["execution_location"].set(config.exec_location);
             exec_opts["output_location"].set(config.output_location);
-            // TODO: Need to consider assume here as well
-            exec_opts["sync_strategy"].set("sync");
+            exec_opts["sync_strategy"].set(config.sync_strategy);
             execution::execution_set_options(exec_opts);
 
             // Build the input once, outside the timed regions
@@ -154,6 +170,7 @@ exec(const char *name,
                     + "_src-"  + config.src_location
                     + "_exec-" + config.exec_location
                     + "_out-"  + config.output_location
+                    + "_sync-" + config.sync_strategy
 #if defined(CONDUIT_USE_OPENMP)
                     + "_threads-" + std::to_string(omp_get_max_threads())
 #endif
