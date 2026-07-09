@@ -3624,6 +3624,26 @@ create_hdf5_file_access_plist()
                                  << "property list " << h5_fa_props);
 
     }
+    
+    
+    if( (major_num == 1 && minor_num >= 10) ||
+         major_num > 1 )
+    {
+    
+    // H5Pset_file_locking() is available starting in 1.10.7 and beyond
+
+    #if H5_VERSION_GE(1, 10, 7)
+        
+        // for all versions after 1.10.7, ignore file locking
+        h5_status =  H5Pset_file_locking(h5_fa_props,
+                                         false, // use file locking == false
+                                         true); // ignore file locking when disabled
+        CONDUIT_CHECK_HDF5_ERROR(h5_status,
+                                 "Failed to disable file locking in "
+                                 << "property list " << h5_fa_props);
+    #endif
+    }
+    
     return h5_fa_props;
 }
 

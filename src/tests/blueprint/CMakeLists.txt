@@ -30,6 +30,8 @@ set(BLUEPRINT_TESTS t_blueprint_smoke
                     t_blueprint_mesh_matset_xforms
                     t_blueprint_mesh_matset_accessor
                     t_blueprint_mesh_topology_metadata
+                    t_blueprint_mesh_remove
+                    t_blueprint_mesh_rename
                     t_blueprint_mesh_utils
                     t_blueprint_table_verify
                     t_blueprint_table_examples
@@ -48,10 +50,10 @@ foreach(TEST ${BLUEPRINT_TESTS})
                  FOLDER tests/blueprint)
 endforeach()
 
-set(conduit_device_test_sources
+set(conduit_blueprint_device_test_sources
     t_blueprint_mesh_transform_benchmark.cpp)
 
-conduit_set_source_device_properties("${conduit_device_test_sources}")
+conduit_set_source_device_properties("${conduit_blueprint_device_test_sources}")
 
 ################################
 # Add c interface tests

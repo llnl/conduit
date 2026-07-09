@@ -397,6 +397,85 @@ void CONDUIT_BLUEPRINT_API convert(const conduit::Node &n_mesh,
                                    const conduit::Node &n_options,
                                    conduit::Node &n_output);
 
+
+//-------------------------------------------------------------------------
+/*!
+ * @brief Remove specific components of mesh and their dependent entires.
+ *        For example, remove a topology and all associated fields
+ *
+ *        If patterns do not match, remove is a no-op and  no errors
+ *        are thrown.
+ *
+ * @param n_mesh The node containing the input mesh (coordsets, topos, 
+ *               fields, matsets, specsets, adjsets, and nestsets)
+ *
+ * @param n_options A node containing options. Categories support
+ *                  both a single string or a list of strings
+ *
+ * @verbatim
+ * options:
+ *   coordsets:  mycoords  | [ mycoords1, mycoords2, ... ]
+ *   topologies: mytopo    | [ mytopo1, mytopo2, ... ]
+ *   fields:     myfield   | [ myfield1, myfield2, ... ]
+ *   matsets:    mymatset  | [ mymatset1, mymatset2, ... ]
+ *   specsets:   myspecset | [ myspecset1, myspecset3, ... ]
+ *   adjsets:    myadj     | [ myadj1,myadj2, ... ]
+ *   nestsets:   mynestset | [ mynestset1, mynestset2, ... ]
+ *
+ * This also supports glob style matching, for example:
+ *   topologies: *
+ *   fields: ve*
+ *
+ * @endverbatim
+ */
+void CONDUIT_BLUEPRINT_API remove(const conduit::Node &n_options,
+                                  conduit::Node &n_mesh);
+
+
+
+//-------------------------------------------------------------------------
+/*!
+ * @brief Rename specific components of mesh and update their dependent
+ *        entires.
+ *
+ *        For example, rename topology to `my_topo` and update
+ *        all associated fields.
+ *
+ *        If components are not found rename is a no-op and
+ *        no errors are thrown.
+ *
+ * @param n_mesh The node containing the input mesh (coordsets, topos,
+ *               fields, matsets, specsets, adjsets, and nestsets)
+ *
+ * @param n_options A node containing options. Entries
+ *                  should be an object with children that encode
+ *                  desired  old_name: new_name relationship.
+ *
+ * @verbatim
+ * options:
+ *   coordsets:
+ *       coords_old : coords_new
+ *   topologies:
+ *       topo_old : topo_new
+ *   fields:
+ *       field1_old : field1_new
+ *       field2_old : field2_new
+ *   matsets:
+ *       matset_old : matset_new
+ *   specsets:
+ *       specset_old : specset_new
+ *   adjsets:
+ *       adjset_old : adjset_new
+ *   nestsets:
+ *       nestset_old : nestset_new
+ *
+ * @endverbatim
+ */
+void CONDUIT_BLUEPRINT_API rename(const conduit::Node &n_options,
+                                  conduit::Node &n_mesh);
+
+
+
 //-----------------------------------------------------------------------------
 // blueprint::mesh::logical_dims protocol interface
 //-----------------------------------------------------------------------------
@@ -876,6 +955,9 @@ namespace matset
                                                       const std::string &matname,
                                                       const index_t elem_id,
                                                       const float64 epsilon = CONDUIT_EPSILON);
+    //-------------------------------------------------------------------------
+    void CONDUIT_BLUEPRINT_API get_material_names(const conduit::Node &matset,
+                                                  std::vector<std::string> &matnames);
     // _matset_info_methods_end
     //-----------------------------------------------------------------------------
     std::map<int, std::string> CONDUIT_BLUEPRINT_API create_reverse_material_map(
