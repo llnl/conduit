@@ -527,7 +527,8 @@ bool invalid_tag(int tag)
 /**
  @brief Return a tag value that is safe to use with MPI functions. The tag is
         determined dynamically the first time the function is called. If the
-        input tag is greater than the max tag then the value is clamped.
+        input tag is greater than the max tag then the value wraps into the
+        valid range.
 
  @param tag The input tag.
  @param comm The MPI communicator.
@@ -550,7 +551,10 @@ int safe_tag(int tag, MPI_Comm comm)
     const int tag_upper_bound = it->second;
     if(newtag > tag_upper_bound)
     {
-        newtag = tag_upper_bound;
+        if(tag_upper_bound < std::numeric_limits<int>::max())
+        {
+            newtag %= (tag_upper_bound + 1);
+        }
     }
 
     return newtag;

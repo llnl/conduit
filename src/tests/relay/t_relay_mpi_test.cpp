@@ -86,7 +86,7 @@ TEST(conduit_mpi_test, mpi_dtype_to_conduit_dtype)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_mpi_test, safe_tag_clamps_to_mpi_tag_ub)
+TEST(conduit_mpi_test, safe_tag_wraps_to_mpi_tag_ub_range)
 {
     int flag = 0;
     int *tag_ub_ptr = nullptr;
@@ -99,14 +99,19 @@ TEST(conduit_mpi_test, safe_tag_clamps_to_mpi_tag_ub)
     ASSERT_NE(tag_ub_ptr, nullptr);
 
     const int expected_tag_ub = *tag_ub_ptr;
-    EXPECT_EQ(safe_tag(std::numeric_limits<int>::max(), MPI_COMM_WORLD),
-              expected_tag_ub);
     EXPECT_EQ(safe_tag(-42, MPI_COMM_WORLD), 0);
+
+    const int wrapped_tag = expected_tag_ub > std::numeric_limits<int>::max() - 5
+        ? expected_tag_ub
+        : expected_tag_ub + 5;
+    const int expected_wrapped_tag = expected_tag_ub > std::numeric_limits<int>::max() - 5
+        ? expected_tag_ub
+        : 4;
+    EXPECT_EQ(safe_tag(wrapped_tag, MPI_COMM_WORLD), expected_wrapped_tag);
 
     MPI_Comm dup_comm = MPI_COMM_NULL;
     ASSERT_EQ(MPI_Comm_dup(MPI_COMM_WORLD, &dup_comm), MPI_SUCCESS);
-    EXPECT_EQ(safe_tag(std::numeric_limits<int>::max(), dup_comm),
-              expected_tag_ub);
+    EXPECT_EQ(safe_tag(wrapped_tag, dup_comm), expected_wrapped_tag);
     EXPECT_EQ(MPI_Comm_free(&dup_comm), MPI_SUCCESS);
 }
 
