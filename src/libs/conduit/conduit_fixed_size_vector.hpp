@@ -30,22 +30,22 @@ template <typename T, int N>
 class fixed_size_vector
 {
 public:
-    int size() const { return m_length; }
-    void clear() { m_length = 0; }
-    void resize(int sz) { m_length = std::min(sz, N); }
-    void push_back(const T &value)
+    CONDUIT_EXEC int size() const { return m_length; }
+    CONDUIT_EXEC void clear() { m_length = 0; }
+    CONDUIT_EXEC void resize(int sz) { m_length = std::min(sz, N); }
+    CONDUIT_EXEC void push_back(const T &value)
     {
         if(m_length < N)
         {
             m_data[m_length++] = value;
         }
     }
-    T &operator[](int index) { return m_data[index]; }
-    const T &operator[](int index) const { return m_data[index]; }
-    T *begin() { return m_data.data(); }
-    const T *cbegin() const { return m_data.data(); }
-    T *end() { return begin() + N; }
-    const T *cend() const { return cbegin() + N; }
+    CONDUIT_EXEC T &operator[](int index) { return m_data[index]; }
+    CONDUIT_EXEC const T &operator[](int index) const { return m_data[index]; }
+    CONDUIT_EXEC T *begin() { return m_data.data(); }
+    CONDUIT_EXEC const T *cbegin() const { return m_data.data(); }
+    CONDUIT_EXEC T *end() { return begin() + N; }
+    CONDUIT_EXEC const T *cend() const { return cbegin() + N; }
 
 private:
     std::array<T, N> m_data {};

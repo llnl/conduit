@@ -13,6 +13,8 @@
 #include <array>
 #include <cmath>
 
+#include "conduit_execution_macros.hpp"
+
 //-----------------------------------------------------------------------------
 // -- begin conduit --
 //-----------------------------------------------------------------------------
@@ -41,40 +43,40 @@ private:
     {
         data_type data;
 
-        constexpr operator T() const
+        constexpr CONDUIT_EXEC operator T() const
         {
             static_assert(Index < Size, "Invalid access into data.");
             return data[Index];
         }
 
-        T operator=(T v)
+        CONDUIT_EXEC T operator=(T v)
         {
             static_assert(Index < Size, "Invalid access into data.");
             return data[Index] = v;
         }
 
-        T operator +=(T v)
+        CONDUIT_EXEC T operator +=(T v)
         {
             static_assert(Index < Size, "Invalid access into data.");
             data[Index] += v;
             return data[Index];
         }
 
-        T operator -=(T v)
+        CONDUIT_EXEC T operator -=(T v)
         {
             static_assert(Index < Size, "Invalid access into data.");
             data[Index] -= v;
             return data[Index];
         }
 
-        T operator *=(T v)
+        CONDUIT_EXEC T operator *=(T v)
         {
             static_assert(Index < Size, "Invalid access into data.");
             data[Index] *= v;
             return data[Index];
         }
 
-        T operator /=(T v)
+        CONDUIT_EXEC T operator /=(T v)
         {
             static_assert(Index < Size, "Invalid access into data.");
             data[Index] /= v;
@@ -92,39 +94,39 @@ public:
         accessor<2>  z;
     };
 
-    vector()
+    CONDUIT_EXEC vector()
     {
         v = data_type{};
     }
 
     template <typename... S>
-    vector(S... args)
+    CONDUIT_EXEC vector(S... args)
         : v{static_cast<T>(args)...}
     {
         static_assert(sizeof...(S) == Size, "Incorrect number of arguments for vector");
     }
 
-    constexpr size_t size() const
+    constexpr CONDUIT_EXEC size_t size() const
     {
         return Size;
     }
 
-    const T &operator[](size_t index) const
+    CONDUIT_EXEC const T &operator[](size_t index) const
     {
         return v[index];
     }
 
-    T &operator[](size_t index)
+    CONDUIT_EXEC T &operator[](size_t index)
     {
         return v[index];
     }
 
-    void zero()
+    CONDUIT_EXEC void zero()
     {
         set_all(0);
     }
 
-    void set_all(T val)
+    CONDUIT_EXEC void set_all(T val)
     {
         for(size_t i = 0u; i < size(); i++)
         {
@@ -132,13 +134,13 @@ public:
         }
     }
 
-    void copy(const this_type &other)
+    CONDUIT_EXEC void copy(const this_type &other)
     {
         for(auto i = 0u; i < size(); i++)
             other.v[i] = v[i];
     }
 
-    bool operator <= (const this_type &other) const
+    CONDUIT_EXEC bool operator <= (const this_type &other) const
     {
         bool retval = true;
         for(size_t i = 0u; i < size(); i++)
@@ -146,7 +148,7 @@ public:
         return retval;
     }
 
-    bool operator >= (const this_type &other) const
+    CONDUIT_EXEC bool operator >= (const this_type &other) const
     {
         bool retval = true;
         for(size_t i = 0u; i < size(); i++)
@@ -154,7 +156,7 @@ public:
         return retval;
     }
 
-    this_type operator - () const
+    CONDUIT_EXEC this_type operator - () const
     {
         this_type retval;
         for(size_t i = 0u; i < size(); i++)
@@ -164,7 +166,7 @@ public:
         return retval;
     }   
 
-    this_type operator + (const this_type &other) const
+    CONDUIT_EXEC this_type operator + (const this_type &other) const
     {
         this_type retval;
         for(size_t i = 0u; i < size(); i++)
@@ -174,7 +176,7 @@ public:
         return retval;
     }
 
-    this_type operator - (const this_type &other) const
+    CONDUIT_EXEC this_type operator - (const this_type &other) const
     {
         this_type retval;
         for(size_t i = 0u; i < size(); i++)
@@ -184,7 +186,7 @@ public:
         return retval;
     }   
 
-    this_type operator + (T scalar) const
+    CONDUIT_EXEC this_type operator + (T scalar) const
     {
         this_type retval;
         for(size_t i = 0u; i < size(); i++)
@@ -194,7 +196,7 @@ public:
         return retval;
     }
 
-    this_type operator - (T scalar) const
+    CONDUIT_EXEC this_type operator - (T scalar) const
     {
         this_type retval;
         for(size_t i = 0u; i < size(); i++)
@@ -204,7 +206,7 @@ public:
         return retval;
     }
 
-    this_type operator * (T scalar) const
+    CONDUIT_EXEC this_type operator * (T scalar) const
     {
         this_type retval;
         for(size_t i = 0u; i < size(); i++)
@@ -214,7 +216,7 @@ public:
         return retval;
     }
 
-    this_type operator / (T scalar) const
+    CONDUIT_EXEC this_type operator / (T scalar) const
     {
         this_type retval;
         for(size_t i = 0u; i < size(); i++)
@@ -224,7 +226,7 @@ public:
         return retval;
     }
 
-    void operator += (const this_type &other)
+    CONDUIT_EXEC void operator += (const this_type &other)
     {
         for(size_t i = 0u; i < size(); i++)
         {
@@ -232,7 +234,7 @@ public:
         }
     }
 
-    void operator -= (const this_type &other)
+    CONDUIT_EXEC void operator -= (const this_type &other)
     {
         for(size_t i = 0u; i < size(); i++)
         {
@@ -240,7 +242,7 @@ public:
         }
     }
 
-    void operator *= (T scalar)
+    CONDUIT_EXEC void operator *= (T scalar)
     {
         for(size_t i = 0u; i < size(); i++)
         {
@@ -248,7 +250,7 @@ public:
         }
     }
 
-    void operator /= (T scalar)
+    CONDUIT_EXEC void operator /= (T scalar)
     {
         for(size_t i = 0u; i < size(); i++)
         {
@@ -256,12 +258,12 @@ public:
         }
     }
 
-    T norm() const
+    CONDUIT_EXEC T norm() const
     {
         return static_cast<T>(sqrt(dot(*this)));
     }
 
-    this_type normalize()
+    CONDUIT_EXEC this_type normalize()
     {
         auto n = norm();
         n = (n == 0.) ? T(1) : n;
@@ -272,7 +274,7 @@ public:
         return *this;
     }
 
-    T dot(const this_type &other) const
+    CONDUIT_EXEC T dot(const this_type &other) const
     {
         T sum{};
         for(size_t i = 0u; i < size(); i++)
@@ -283,7 +285,7 @@ public:
     }
 
     // Treat the vectors as points and compute distance squared.
-    T distance2(const this_type &other) const
+    CONDUIT_EXEC T distance2(const this_type &other) const
     {
         T d2{};
         for(size_t i = 0u; i < size(); i++)
@@ -295,19 +297,19 @@ public:
     }
 
     // Treat the vectors as points and compute distance.
-    T distance(const this_type &other) const
+    CONDUIT_EXEC T distance(const this_type &other) const
     {
         return static_cast<T>(std::sqrt(distance2(other)));
     }
 
     template <int DIM = Size>
-    typename std::enable_if<DIM == 2, T>::type cross(const this_type &other) const
+    CONDUIT_EXEC typename std::enable_if<DIM == 2, T>::type cross(const this_type &other) const
     {
         return x * other.y - y * other.x;
     }
 
     template <int DIM = Size>
-    typename std::enable_if<DIM == 3, this_type>::type cross(const this_type &other) const
+    CONDUIT_EXEC typename std::enable_if<DIM == 3, this_type>::type cross(const this_type &other) const
     {
         return this_type(y * other.z - z * other.y,
                          z * other.x - x * other.z,

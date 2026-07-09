@@ -136,6 +136,11 @@ if(FORTRAN_FOUND)
 
 endif()
 
+set(conduit_blueprint_device_sources
+    conduit_blueprint_mesh.cpp)
+
+conduit_set_source_device_properties("${conduit_blueprint_device_sources}")
+
 #
 # Setup conduit blueprint lib
 #

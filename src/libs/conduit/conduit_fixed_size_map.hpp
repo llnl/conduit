@@ -13,11 +13,22 @@
 
 #include <array>
 
+#if defined(CONDUIT_USE_DEVICE)
+#include <cassert>
+#endif
+
 //-----------------------------------------------------------------------------
 // -- begin conduit:: --
 //-----------------------------------------------------------------------------
 namespace conduit
 {
+
+// Workaround for TU compilation, since CONDUIT_ERROR does not work on device
+#if defined(CONDUIT_DEVICE_COMPILE)
+#define CONDUIT_ERROR_COMPAT_WRAPPER(MSG) assert(false)
+#else
+#define CONDUIT_ERROR_COMPAT_WRAPPER(MSG) CONDUIT_ERROR(MSG)
+#endif
 
 /*!
  * @brief This class represents a fixed-sized map where keys and values are
@@ -31,9 +42,9 @@ template <typename KeyType, typename ValueType, int N>
 class fixed_size_map
 {
 public:
-    int size() const { return m_length; }
-    const ValueType &get(int index) const { return m_values[index]; }
-    ValueType &operator[](const KeyType &key)
+    CONDUIT_EXEC int size() const { return m_length; }
+    CONDUIT_EXEC const ValueType &get(int index) const { return m_values[index]; }
+    CONDUIT_EXEC ValueType &operator[](const KeyType &key)
     {
         ValueType *v = find(key);
         if(v == nullptr)
@@ -47,17 +58,17 @@ public:
             }
             else
             {
-                CONDUIT_ERROR("Out of space.");
+                CONDUIT_ERROR_COMPAT_WRAPPER("Out of space.");
             }
         }
         return *v;
     }
-    const ValueType &operator[](const KeyType &key) const
+    CONDUIT_EXEC const ValueType &operator[](const KeyType &key) const
     {
         ValueType *v = find(key);
         if(v == nullptr)
         {
-            CONDUIT_ERROR("Key not found.");
+            CONDUIT_ERROR_COMPAT_WRAPPER("Key not found.");
         }
         return *v;
     }
@@ -72,7 +83,7 @@ private:
      *
      * @note These maps are assumed to be small so keys are searched in order.
      */
-    ValueType *find(const KeyType &k) const
+    CONDUIT_EXEC ValueType *find(const KeyType &k) const
     {
         for(int i = 0; i < m_length; i++)
         {
@@ -88,6 +99,8 @@ private:
     std::array<ValueType, N> m_values {};
     int m_length {0};
 };
+
+#undef CONDUIT_ERROR_COMPAT_WRAPPER
 
 }
 //-----------------------------------------------------------------------------
