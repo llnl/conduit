@@ -31,9 +31,9 @@ copy_numeric_arrays_to_device(const Node &src,
                               Node &dst,
                               index_t device_alloc)
 {
-    // TODO: Need to investigate whether this is sufficient, or if there are
-    // sometimes cases where it would make sense to have origin/stride live
-    // in device memory also.
+    // Scalars have to stay on the host, attempting to copy them to device
+    // will result in a segfault when the transform code later dereferences
+    // them directly.
     if(src.dtype().is_object())
     {
         NodeConstIterator itr = src.children();
