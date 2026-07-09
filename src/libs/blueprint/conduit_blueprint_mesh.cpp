@@ -89,17 +89,9 @@ void grid_ijk_to_id(const index_t *ijk,
                     const index_t *dims,
                     index_t &grid_id)
 {
-    grid_id = 0;
-    for(index_t d = 0; d < 3; d++)
-    {
-        index_t doffset = ijk[d];
-        for(index_t dd = 0; dd < d; dd++)
-        {
-            doffset *= dims[dd];
-        }
-
-        grid_id += doffset;
-    }
+    // Equivalent to the general N-dimensional stride formula,
+    // but specialized for 3 dimensions.
+    grid_id = ijk[0] + dims[0] * (ijk[1] + dims[1] * ijk[2]);
 }
 
 //-----------------------------------------------------------------------------
@@ -108,18 +100,13 @@ void grid_id_to_ijk(const index_t id,
                     const index_t *dims,
                     index_t *grid_ijk)
 {
-    index_t dremain = id;
-    for(index_t d = 3; d-- > 0;)
-    {
-        index_t dstride = 1;
-        for(index_t dd = 0; dd < d; dd++)
-        {
-            dstride *= dims[dd];
-        }
-
-        grid_ijk[d] = dremain / dstride;
-        dremain = dremain % dstride;
-    }
+    // Equivalent to the general N-dimensional inverse stride formula,
+    // but specialized for 3 dimensions.
+    const index_t dim01 = dims[0] * dims[1];
+    grid_ijk[2] = id / dim01;
+    const index_t rem = id % dim01;
+    grid_ijk[1] = rem / dims[0];
+    grid_ijk[0] = rem % dims[0];
 }
 
 //-----------------------------------------------------------------------------
@@ -1312,21 +1299,11 @@ convert_topology_to_unstructured(const std::string &base_type,
             index_t v;
             grid_ijk_to_id(&curr_vert[0], &vdims_axes[0], v);
 
-            conn_node_vals.set(e * indices_per_elem + i, v);
-        }
-
-        // TODO(JRC): This loop inverts quads/hexes to conform to
-        // the default Blueprint ordering. Once the ordering transforms
-        // are introduced, this code should be removed and replaced
-        // with initializing the ordering label value.
-        for(index_t p = 2; p < indices_per_elem; p += 4)
-        {
-            index_t p1 = e * indices_per_elem + p;
-            index_t p2 = e * indices_per_elem + p + 1;
-
-            int64 value_swap = conn_node_vals[p1];
-            conn_node_vals.set(p1,conn_node_vals[p2]);
-            conn_node_vals.set(p2,value_swap);
+            // TODO(JRC): Once the ordering transforms are introduced,
+            // this remapping should be removed and replaced with
+            // initializing the ordering label value.
+            const index_t out_i = (i & 2) ? (i ^ 1) : i;
+            conn_node_vals.set(e * indices_per_elem + out_i, v);
         }
     });
     CONDUIT_DEVICE_ERROR_CHECK(policy);
