@@ -86,6 +86,7 @@ get_exec_configs()
     std::vector<ExecConfig> configs{
         //source location, execution location, output location
         {"host",           "host",             "host"},
+#if defined(CONDUIT_USE_DEVICE)
         {"host",           "host",             "device"},
         {"host",           "device",           "host"},
         {"host",           "device",           "device"},
@@ -93,6 +94,7 @@ get_exec_configs()
         {"device",         "host",             "device"},
         {"device",         "device",           "host"},
         {"device",         "device",           "device"},
+#endif
     };
     return configs;
 }
