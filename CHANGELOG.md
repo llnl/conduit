@@ -4,6 +4,25 @@ Notable changes to Conduit are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project aspires to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+#### Conduit
+
+#### Blueprint
+
+### Fixed
+
+#### Conduit
+
+#### Blueprint
+
+#### Relay
+- The `conduit::relay::mpi::safe_tag` function and its underlying logic to probe the maximum allowable MPI tag were modified to avoid `MPI_Waitall`. Tag values now use modulo above the upper limit as opposed to clamping.
+
+### Changed
+
 ## [0.9.7] - Released 2026-05-27
 
 ### Added
