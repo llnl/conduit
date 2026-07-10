@@ -428,6 +428,9 @@ private:
      *
      * @note This cache is only used on the probe fallback path so the normal
      *       query path always reflects the communicator's current MPI_TAG_UB.
+     *       The fallback probe is only for communicators where MPI_TAG_UB is
+     *       unavailable or unusable, and probing performs MPI traffic on the
+     *       communicator while determining the limit.
      */
     static int cached_probe(MPI_Comm comm)
     {
@@ -454,7 +457,9 @@ private:
      *
      * @note MPI error handlers are installed that ignore problems, preventing the
      *       program from dying if the default handler is set to abort on error. The
-     *       error handler is restored when leaving this function.
+     *       error handler is restored when leaving this function. This probe is
+     *       only used when MPI_TAG_UB cannot be queried successfully, and it
+     *       performs MPI traffic on the supplied communicator.
      */
     static int probe(MPI_Comm comm)
     {
