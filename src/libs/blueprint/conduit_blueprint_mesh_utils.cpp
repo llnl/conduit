@@ -465,7 +465,7 @@ find_reference_node(const Node &node, const std::string &ref_key)
 
 //-----------------------------------------------------------------------------
 std::string
-resolve_output_name(const Node &source, const Node &dest)
+resolve_output_name(const Node &node, const std::string &ref_key, const Node &dest)
 {
     if (!dest.name().empty())
     {
@@ -477,12 +477,13 @@ resolve_output_name(const Node &source, const Node &dest)
     }
     else // if (dest.name().empty())
     {
-        // If the dest node has no name, use the source node's name. This is
-        // relevant when passing an empty output node when calling mesh
-        // transforms, where the output node is expected to inherit the
-        // coordset name from the source node. Not doing this was resulting
-        // in newly converted topologies to fail `verify`.
-        return source.name();
+        // If the dest node has no name, fall back to the name that 'node'
+        // itself references (e.g. node["coordset"]). This is relevant
+        // when passing an empty output node when calling mesh transforms,
+        // where the output node is expected to inherit the reference name
+        // from 'node'. Not doing this was resulting in newly converted
+        // topologies to fail `verify`.
+        return node[ref_key].as_string();
     }
 }
 
@@ -5143,4 +5144,3 @@ void CONDUIT_BLUEPRINT_API lerp(const Node& As,
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-
