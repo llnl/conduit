@@ -465,7 +465,19 @@ private:
     {
         // Temporarily override MPI error handler with a more benign one.
         HandleMPICommError err(comm);
-        return probeTagUpperBound(0, std::numeric_limits<int>::max(), comm);
+        int valid_low = minimum_upper_bound();
+        if(!testTag(valid_low, comm))
+        {
+            return valid_low;
+        }
+
+        const int invalid_high = findInvalidHigh(valid_low, comm);
+        if(invalid_high < 0)
+        {
+            return valid_low;
+        }
+
+        return probeTagUpperBound(valid_low, invalid_high, comm);
     }
 
     /**
@@ -505,6 +517,45 @@ private:
         }
 
         return valid_low;
+    }
+
+    /**
+     * @brief Find an invalid tag above a known-valid lower bound.
+     *
+     * @param valid_low A tag value already known to be valid.
+     * @param comm The MPI communicator.
+     *
+     * @return An invalid tag above @p valid_low, or -1 if none was found.
+     *
+     * @note Grow the search range gradually instead of testing INT_MAX first.
+     *       Some MPI stacks handle wildly invalid tags poorly even with
+     *       non-aborting error handlers installed.
+     */
+    static int findInvalidHigh(int valid_low, MPI_Comm comm)
+    {
+        const int max_search_tag = std::numeric_limits<int>::max() - 1;
+        int candidate = valid_low;
+
+        while(candidate < max_search_tag)
+        {
+            const int next = (candidate <= (max_search_tag - 1) / 2)
+                ? (candidate * 2) + 1
+                : max_search_tag;
+
+            if(next <= candidate)
+            {
+                break;
+            }
+
+            if(!testTag(next, comm))
+            {
+                return next;
+            }
+
+            candidate = next;
+        }
+
+        return -1;
     }
 
     /**
