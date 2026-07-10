@@ -236,7 +236,7 @@ public:
 
     void                                assume();
 
-    void                                data_movement(const std::string &strategy);
+    void                                data_movement(conduit::execution::SyncStrategy strategy);
 
     conduit::execution::ExecutionPolicy active_space();
 

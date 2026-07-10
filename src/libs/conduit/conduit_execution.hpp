@@ -41,6 +41,15 @@ namespace execution
 {
 
 //-----------------------------------------------------------------------------
+/// Internal sync/data movement strategy for execution helpers.
+//-----------------------------------------------------------------------------
+enum class SyncStrategy
+{
+    Sync,
+    Assume
+};
+
+//-----------------------------------------------------------------------------
 /// Pass a Node to set execution options.
 // opts node:
 //   execution_location: "host"|"device"|"input"
@@ -96,7 +105,7 @@ CONDUIT_API index_t get_output_allocator_id(const Node &src_node);
 //-----------------------------------------------------------------------------
 /// Get the sync strategy option.
 //-----------------------------------------------------------------------------
-CONDUIT_API const std::string& get_sync_strategy();
+CONDUIT_API SyncStrategy get_sync_strategy();
 
 //-----------------------------------------------------------------------------
 /// Get the device allocator id.

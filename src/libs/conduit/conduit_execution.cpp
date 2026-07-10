@@ -35,6 +35,45 @@ namespace conduit
 namespace execution
 {
 
+namespace
+{
+
+//-----------------------------------------------------------------------------
+const char *
+sync_strategy_to_string(SyncStrategy strategy)
+{
+    switch(strategy)
+    {
+        case SyncStrategy::Sync:
+            return "sync";
+        case SyncStrategy::Assume:
+            return "assume";
+    }
+
+    CONDUIT_ERROR("ExecutionOptions: invalid sync strategy enum value.");
+    return "";
+}
+
+//-----------------------------------------------------------------------------
+SyncStrategy
+sync_strategy_from_string(const std::string &strategy)
+{
+    if(strategy == "sync")
+    {
+        return SyncStrategy::Sync;
+    }
+
+    if(strategy == "assume")
+    {
+        return SyncStrategy::Assume;
+    }
+
+    CONDUIT_ERROR("ExecutionOptions: invalid sync_strategy option.");
+    return SyncStrategy::Assume;
+}
+
+}
+
 //-----------------------------------------------------------------------------
 /// policy constructor helpers
 //-----------------------------------------------------------------------------
@@ -324,7 +363,7 @@ public:
     static std::string output_location;
 
     // "sync" or "assume"
-    static std::string sync_strategy;
+    static SyncStrategy sync_strategy;
 
     // "host" or "device"
     static std::string fallback_location;
@@ -409,16 +448,8 @@ public:
         {
             if (opts["sync_strategy"].dtype().is_string())
             {
-                const std::string strategy = opts["sync_strategy"].as_string();
-                if (strategy == "sync" ||
-                    strategy == "assume")
-                {
-                    sync_strategy = strategy;
-                }
-                else
-                {
-                    CONDUIT_ERROR("ExecutionOptions: invalid sync_strategy option.");
-                }
+                sync_strategy = sync_strategy_from_string(
+                    opts["sync_strategy"].as_string());
             }
             else
             {
@@ -455,7 +486,7 @@ public:
 
         opts["execution_location"].set(execution_location);
         opts["output_location"].set(output_location);
-        opts["sync_strategy"].set(sync_strategy);
+        opts["sync_strategy"].set(sync_strategy_to_string(sync_strategy));
         opts["fallback_location"].set(fallback_location);
         opts["device_allocator"].set(device_allocator);
         opts["host_allocator"].set(host_allocator);
@@ -467,7 +498,7 @@ public:
     {
         execution_location = "input";
         output_location = "input";
-        sync_strategy = "assume";
+        sync_strategy = SyncStrategy::Assume;
         fallback_location = "host";
         // no need to reset device_allocator
         // no need to reset host_allocator
@@ -584,7 +615,7 @@ public:
     }
 
     //------------------------------------------------------------------------
-    static const std::string& get_sync_strategy()
+    static SyncStrategy get_sync_strategy()
     {
         return sync_strategy;
     }
@@ -611,7 +642,7 @@ std::string ExecutionOptions::execution_location = "input";
 // output allocation location
 std::string ExecutionOptions::output_location = "input";
 // "sync" or "assume"
-std::string ExecutionOptions::sync_strategy = "assume";
+SyncStrategy ExecutionOptions::sync_strategy = SyncStrategy::Assume;
 // fallback if both exec and output location are "input" and there is no input
 std::string ExecutionOptions::fallback_location = "host";
 
@@ -688,7 +719,7 @@ get_output_allocator_id()
 }
 
 //-----------------------------------------------------------------------------
-const std::string&
+SyncStrategy
 get_sync_strategy()
 {
     return ExecutionOptions::get_sync_strategy();
