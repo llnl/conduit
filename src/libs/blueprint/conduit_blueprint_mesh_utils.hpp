@@ -248,6 +248,18 @@ DataType CONDUIT_BLUEPRINT_API find_widest_dtype(const Node &node, const std::ve
 
 //-----------------------------------------------------------------------------
 CONDUIT_BLUEPRINT_API const Node * find_reference_node(const Node &node, const std::string &ref_key);
+
+//-----------------------------------------------------------------------------
+
+/**
+ @brief Get the name that a reference node (i.e. "coordset") should use for a
+        destination node. If the destination node is attached to a parent, the
+        parent's name is used. Otherwise, use the name of 'source'. This allows
+        topology transform outputs to retain the coordset name from the input
+        node while also preserving the previous behavior.
+ */
+std::string CONDUIT_BLUEPRINT_API get_reference_name(const Node &source, const Node &dest);
+
 //-----------------------------------------------------------------------------
 index_t CONDUIT_BLUEPRINT_API find_domain_id(const Node &node);
 

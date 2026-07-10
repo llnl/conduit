@@ -464,6 +464,23 @@ find_reference_node(const Node &node, const std::string &ref_key)
 
 
 //-----------------------------------------------------------------------------
+std::string
+get_reference_name(const Node &source, const Node &dest)
+{
+    if (dest.name().empty())
+    {
+        // This keeps the coordset name from the input node.
+        return source.name();
+    }
+    else // if (!dest.name().empty())
+    {
+        // This gives us the previous behavior.
+        return dest.name();
+    }
+}
+
+
+//-----------------------------------------------------------------------------
 // NOTE: 'node' can be any subtree of a Blueprint-compliant mesh
 index_t
 find_domain_id(const Node &node)
@@ -5119,4 +5136,3 @@ void CONDUIT_BLUEPRINT_API lerp(const Node& As,
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-

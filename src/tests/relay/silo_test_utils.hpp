@@ -45,6 +45,8 @@ silo_uniform_to_rect_conversion(const std::string &coordset_name,
     blueprint::mesh::topology::uniform::to_rectilinear(
         save_mesh["topologies"][topo_name],
         save_mesh_rect_topo, save_mesh_rect_coords);
+    // These names are set explicitly after topo conversion, do we instead
+    // want to trust to_rectilinear to set them for us?
     save_mesh["topologies"][topo_name].set(save_mesh_rect_topo);
     save_mesh["coordsets"][coordset_name].set(save_mesh_rect_coords);
 }
