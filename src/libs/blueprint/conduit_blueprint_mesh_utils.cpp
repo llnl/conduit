@@ -482,7 +482,7 @@ resolve_output_name(const Node &node, const std::string &ref_key, const Node &de
         // when passing an empty output node when calling mesh transforms,
         // where the output node is expected to inherit the reference name
         // from 'node'. Not doing this was resulting in newly converted
-        // topologies to fail `verify`.
+        // topologies to fail 'verify'.
         return node[ref_key].as_string();
     }
 }
