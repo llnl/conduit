@@ -35,9 +35,6 @@ namespace conduit
 namespace execution
 {
 
-namespace
-{
-
 //-----------------------------------------------------------------------------
 const char *
 sync_strategy_to_string(SyncStrategy strategy)
@@ -50,8 +47,7 @@ sync_strategy_to_string(SyncStrategy strategy)
             return "assume";
     }
 
-    CONDUIT_ERROR("ExecutionOptions: invalid sync strategy enum value.");
-    return "";
+    return "<invalid sync strategy>";
 }
 
 //-----------------------------------------------------------------------------
@@ -70,8 +66,6 @@ sync_strategy_from_string(const std::string &strategy)
 
     CONDUIT_ERROR("ExecutionOptions: invalid sync_strategy option.");
     return SyncStrategy::Assume;
-}
-
 }
 
 //-----------------------------------------------------------------------------

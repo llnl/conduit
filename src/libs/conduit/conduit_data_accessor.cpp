@@ -650,7 +650,9 @@ DataAccessor<T>::data_movement(conduit::execution::SyncStrategy strategy)
     }
     else
     {
-        CONDUIT_ERROR("Unknown data movement strategy.");
+        CONDUIT_ERROR("Unknown data movement strategy: "
+                      << conduit::execution::sync_strategy_to_string(strategy)
+                      << " (" << static_cast<int>(strategy) << ").");
     }
 }
 

@@ -50,6 +50,11 @@ enum class SyncStrategy
 };
 
 //-----------------------------------------------------------------------------
+/// Convert a sync strategy enum to a stable string name.
+//-----------------------------------------------------------------------------
+CONDUIT_API const char *sync_strategy_to_string(SyncStrategy strategy);
+
+//-----------------------------------------------------------------------------
 /// Pass a Node to set execution options.
 // opts node:
 //   execution_location: "host"|"device"|"input"
