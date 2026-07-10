@@ -36,39 +36,6 @@ namespace execution
 {
 
 //-----------------------------------------------------------------------------
-const char *
-sync_strategy_to_string(SyncStrategy strategy)
-{
-    switch(strategy)
-    {
-        case SyncStrategy::Sync:
-            return "sync";
-        case SyncStrategy::Assume:
-            return "assume";
-    }
-
-    return "<invalid sync strategy>";
-}
-
-//-----------------------------------------------------------------------------
-SyncStrategy
-sync_strategy_from_string(const std::string &strategy)
-{
-    if(strategy == "sync")
-    {
-        return SyncStrategy::Sync;
-    }
-
-    if(strategy == "assume")
-    {
-        return SyncStrategy::Assume;
-    }
-
-    CONDUIT_ERROR("ExecutionOptions: invalid sync_strategy option.");
-    return SyncStrategy::Assume;
-}
-
-//-----------------------------------------------------------------------------
 /// policy constructor helpers
 //-----------------------------------------------------------------------------
 ExecutionPolicy
@@ -731,6 +698,45 @@ index_t
 get_host_allocator_id()
 {
     return ExecutionOptions::get_host_allocator_id();
+}
+
+//-----------------------------------------------------------------------------
+std::string
+sync_strategy_to_string(SyncStrategy strategy)
+{
+    if (SyncStrategy::Sync == strategy)
+    {
+        return "sync";
+    }
+    else if (SyncStrategy::Assume == strategy)
+    {
+        return "assume";
+    }
+    else
+    {
+        CONDUIT_ERROR("Unknown data movement strategy: "
+                      << conduit::execution::sync_strategy_to_string(strategy)
+                      << " (" << static_cast<int>(strategy) << ").");
+        return "";
+    }
+}
+
+//-----------------------------------------------------------------------------
+SyncStrategy
+sync_strategy_from_string(const std::string &strategy)
+{
+    if (strategy == "sync")
+    {
+        return SyncStrategy::Sync;
+    }
+
+    if (strategy == "assume")
+    {
+        return SyncStrategy::Assume;
+    }
+
+    CONDUIT_ERROR("ExecutionOptions: invalid sync_strategy option.");
+    return SyncStrategy::Assume;
 }
 
 //---------------------------------------------------------------------------//

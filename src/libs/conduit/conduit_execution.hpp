@@ -50,9 +50,14 @@ enum class SyncStrategy
 };
 
 //-----------------------------------------------------------------------------
-/// Convert a sync strategy enum to a stable string name.
+/// Convert a sync strategy enum to a string name.
 //-----------------------------------------------------------------------------
-CONDUIT_API const char *sync_strategy_to_string(SyncStrategy strategy);
+CONDUIT_API std::string sync_strategy_to_string(SyncStrategy strategy);
+
+//-----------------------------------------------------------------------------
+/// Convert a string name to a sync strategy enum.
+//-----------------------------------------------------------------------------
+CONDUIT_API SyncStrategy sync_strategy_from_string(const std::string &strategy);
 
 //-----------------------------------------------------------------------------
 /// Pass a Node to set execution options.
