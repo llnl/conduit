@@ -1186,6 +1186,7 @@ TEST(conduit_blueprint_generate_unstructured, generate_centroids)
 
         const Node &grid_conn = grid_topo["elements/connectivity"];
         Node &cent_conn = cent_topo["elements/connectivity"];
+
         EXPECT_EQ(cent_topo["coordset"].as_string(), CENTROID_COORDSET_NAME);
         // relax exact type req, conn transforms will become index_t
         //EXPECT_EQ(cent_conn.dtype().id(), grid_conn.dtype().id());

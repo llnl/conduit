@@ -286,8 +286,6 @@ TEST(blueprint_mpi_parmetis, braid)
     conduit::blueprint::mesh::topology::unstructured::to_polygonal(unstruct_topo, unstruct_topo_poly);
     mesh[0]["state/domain_id"] = par_rank;
     mesh[0]["topologies/mesh"] = unstruct_topo_poly;
-    // This name is set explicitly after topo conversion, do we instead
-    // want to trust to_polygonal to set it for us?
     mesh[0]["topologies/mesh/coordset"] = "coords";
     mesh[0]["coordsets/coords"] = unstruct_coords;
 

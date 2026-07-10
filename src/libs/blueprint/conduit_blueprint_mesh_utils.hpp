@@ -250,7 +250,6 @@ DataType CONDUIT_BLUEPRINT_API find_widest_dtype(const Node &node, const std::ve
 CONDUIT_BLUEPRINT_API const Node * find_reference_node(const Node &node, const std::string &ref_key);
 
 //-----------------------------------------------------------------------------
-
 /**
  @brief Get the name that a reference node (i.e. "coordset") should use for a
         destination node. If the destination node has a name, use it; otherwise,
