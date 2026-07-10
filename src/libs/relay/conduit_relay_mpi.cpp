@@ -9,6 +9,7 @@
 //-----------------------------------------------------------------------------
 
 #include "conduit_relay_mpi.hpp"
+#include "conduit_relay_mpi_internal.hpp"
 #include <algorithm>
 #include <iostream>
 #include <limits>
@@ -476,36 +477,38 @@ private:
     /**
      * @brief Test whether a tag can be used safely on the communicator.
      *
-     * @note Use a single MPI_Sendrecv instead of self-posted Isend/Irecv +
-     *       MPI_Waitall. That avoids a problematic completion path on some MPI
-     *       stacks while still exercising the communicator and tag.
+     * @note Use a single MPI_Sendrecv to the local rank instead of
+     *       self-posted Isend/Irecv + MPI_Waitall. That avoids a problematic
+     *       completion path on some MPI stacks without introducing any
+     *       cross-rank coordination into safe_tag().
      */
     static bool testTag(int tag, MPI_Comm comm)
     {
-        int rank = 0, size = 1;
+        int rank = 0;
         MPI_Comm_rank(comm, &rank);
-        MPI_Comm_size(comm, &size);
-
-        const int dest = (size > 1) ? ((rank + 1) % size) : rank;
-        const int src  = (size > 1) ? ((rank + size - 1) % size) : rank;
 
         int send_value = rank;
         int recv_value = -1;
         const int mpi_error = MPI_Sendrecv(&send_value,
                                            1,
                                            MPI_INT,
-                                           dest,
+                                           rank,
                                            tag,
                                            &recv_value,
                                            1,
                                            MPI_INT,
-                                           src,
+                                           rank,
                                            tag,
                                            comm,
                                            MPI_STATUS_IGNORE);
         return mpi_error == MPI_SUCCESS;
     }
 };
+
+int detail::tag_upper_bound_probe(MPI_Comm comm)
+{
+    return TagLimits::probe(comm);
+}
 
 //---------------------------------------------------------------------------//
 /**

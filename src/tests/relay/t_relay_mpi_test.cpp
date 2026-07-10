@@ -9,6 +9,7 @@
 //-----------------------------------------------------------------------------
 
 #include "conduit_relay_mpi.hpp"
+#include "conduit_relay_mpi_internal.hpp"
 #include <iostream>
 #include "math.h"
 #include <limits>
@@ -158,6 +159,43 @@ TEST(conduit_mpi_test, mpi_minimum_tag_32767_is_valid)
               MPI_SUCCESS);
     EXPECT_EQ(recv_value, src);
 
+    EXPECT_EQ(MPI_Comm_free(&dup_comm), MPI_SUCCESS);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_mpi_test, tag_probe_is_rank_local)
+{
+    MPI_Comm dup_comm = MPI_COMM_NULL;
+    ASSERT_EQ(MPI_Comm_dup(MPI_COMM_WORLD, &dup_comm), MPI_SUCCESS);
+
+    int rank = 0;
+    ASSERT_EQ(MPI_Comm_rank(dup_comm, &rank), MPI_SUCCESS);
+
+    const int probe_count = 1 + (rank % 3);
+    for(int i = 0; i < probe_count; i++)
+    {
+        const int probed_tag_ub = detail::tag_upper_bound_probe(dup_comm);
+        EXPECT_GE(probed_tag_ub, 32767);
+
+        int send_value = rank;
+        int recv_value = -1;
+        EXPECT_EQ(MPI_Sendrecv(&send_value,
+                               1,
+                               MPI_INT,
+                               rank,
+                               probed_tag_ub,
+                               &recv_value,
+                               1,
+                               MPI_INT,
+                               rank,
+                               probed_tag_ub,
+                               dup_comm,
+                               MPI_STATUS_IGNORE),
+                  MPI_SUCCESS);
+        EXPECT_EQ(recv_value, rank);
+    }
+
+    EXPECT_EQ(MPI_Barrier(dup_comm), MPI_SUCCESS);
     EXPECT_EQ(MPI_Comm_free(&dup_comm), MPI_SUCCESS);
 }
 
