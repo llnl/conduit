@@ -14,6 +14,7 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include <mutex>
 
 //-----------------------------------------------------------------------------
 /// The CONDUIT_CHECK_MPI_ERROR macro is used to check return values for
@@ -378,7 +379,7 @@ public:
           return queried;
       }
 
-      const int probed = probe(comm);
+      const int probed = cached_probe(comm);
       if(probed >= 0)
       {
           return probed;
@@ -387,6 +388,8 @@ public:
       // MPI guarantees support for tags at least this large.
       return minimum_upper_bound();
     }
+
+    friend int detail::tag_upper_bound_probe(MPI_Comm comm);
 
 private:
     static int minimum_upper_bound()
@@ -417,6 +420,31 @@ private:
             }
         }
         return -1;
+    }
+
+    /**
+     * @brief Cache probed fallback results for communicators that do not
+     *        report a usable MPI_TAG_UB value.
+     *
+     * @note This cache is only used on the probe fallback path so the normal
+     *       query path always reflects the communicator's current MPI_TAG_UB.
+     */
+    static int cached_probe(MPI_Comm comm)
+    {
+        static std::map<MPI_Fint, int> probed_upper_bounds;
+        static std::mutex probed_upper_bounds_mutex;
+
+        const MPI_Fint comm_id = MPI_Comm_c2f(comm);
+        std::lock_guard<std::mutex> guard(probed_upper_bounds_mutex);
+
+        std::map<MPI_Fint, int>::const_iterator it = probed_upper_bounds.find(comm_id);
+        if(it == probed_upper_bounds.end())
+        {
+            it = probed_upper_bounds.insert(std::make_pair(comm_id,
+                                                           probe(comm))).first;
+        }
+
+        return it->second;
     }
 
     /**
@@ -540,18 +568,8 @@ bool invalid_tag(int tag)
  */
 int safe_tag(int tag, MPI_Comm comm)
 {
-    static std::map<MPI_Fint, int> tag_upper_bounds;
-    const MPI_Fint comm_id = MPI_Comm_c2f(comm);
-
-    std::map<MPI_Fint, int>::const_iterator it = tag_upper_bounds.find(comm_id);
-    if(it == tag_upper_bounds.end())
-    {
-        it = tag_upper_bounds.insert(std::make_pair(comm_id,
-                                                    TagLimits::upper_bound(comm))).first;
-    }
-
     int newtag = std::max(0, tag);
-    const int tag_upper_bound = it->second;
+    const int tag_upper_bound = TagLimits::upper_bound(comm);
     if(newtag > tag_upper_bound)
     {
         if(tag_upper_bound < std::numeric_limits<int>::max())
