@@ -625,11 +625,12 @@ send_using_schema(const Node &node, int dest, int tag, MPI_Comm comm)
                      "(" << std::numeric_limits<int>::max() << ")")
     }
 
+    const int newtag = safe_tag(tag, comm);
     int mpi_error = MPI_Send(const_cast<void*>(n_msg.data_ptr()),
                              static_cast<int>(msg_data_size),
                              MPI_BYTE,
                              dest,
-                             tag,
+                             newtag,
                              comm);
 
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
@@ -644,7 +645,8 @@ recv_using_schema(Node &node, int src, int tag, MPI_Comm comm)
 {
     MPI_Status status;
 
-    int mpi_error = MPI_Probe(src, tag, comm, &status);
+    const int newtag = safe_tag(tag, comm);
+    int mpi_error = MPI_Probe(src, newtag, comm, &status);
 
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
 
@@ -762,11 +764,12 @@ send(const Node &node, int dest, int tag, MPI_Comm comm)
                      "(" << std::numeric_limits<int>::max() << ")")
     }
 
+    const int newtag = safe_tag(tag, comm);
     int mpi_error = MPI_Send(const_cast<void*>(snd_ptr),
                              static_cast<int>(snd_size),
                              MPI_BYTE,
                              dest,
-                             tag,
+                             newtag,
                              comm);
 
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
@@ -806,11 +809,12 @@ recv(Node &node, int src, int tag, MPI_Comm comm)
     }
 
 
+    const int newtag = safe_tag(tag, comm);
     int mpi_error = MPI_Recv(const_cast<void*>(rcv_ptr),
                              static_cast<int>(rcv_size),
                              MPI_BYTE,
                              src,
-                             tag,
+                             newtag,
                              comm,
                              &status);
 

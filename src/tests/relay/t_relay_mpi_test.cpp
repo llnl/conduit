@@ -684,6 +684,53 @@ TEST(conduit_mpi_test, send_recv_without_using_schema)
 }
 
 //-----------------------------------------------------------------------------
+TEST(conduit_mpi_test, send_recv_without_using_schema_oversized_tag)
+{
+    MPI_Comm dup_comm = MPI_COMM_NULL;
+    ASSERT_EQ(MPI_Comm_dup(MPI_COMM_WORLD, &dup_comm), MPI_SUCCESS);
+
+    const int tag_ub = detail::tag_upper_bound_probe(dup_comm);
+    ASSERT_GE(tag_ub, 32767);
+
+    if(tag_ub > std::numeric_limits<int>::max() - 5)
+    {
+        GTEST_SKIP() << "Cannot test oversized blocking tags without overflow.";
+    }
+
+    const int oversized_tag = tag_ub + 5;
+
+    Node n;
+    int rank = mpi::rank(dup_comm);
+
+    n.set(DataType::c_double(3));
+
+    if(rank == 0)
+    {
+        double_array vals = n.value();
+        vals[0] = rank + 1;
+        vals[1] = 3.4124 * rank;
+        vals[2] = 10.7 - rank;
+
+        mpi::send(n, 1, oversized_tag, dup_comm);
+    }
+    else if(rank == 1)
+    {
+        mpi::recv(n, 0, oversized_tag, dup_comm);
+    }
+
+    if(rank == 0 || rank == 1)
+    {
+        double_array vals = n.value();
+        EXPECT_EQ(vals[0], 1);
+        EXPECT_EQ(vals[1], 0);
+        EXPECT_EQ(vals[2], 10.7);
+    }
+
+    EXPECT_EQ(MPI_Barrier(dup_comm), MPI_SUCCESS);
+    EXPECT_EQ(MPI_Comm_free(&dup_comm), MPI_SUCCESS);
+}
+
+//-----------------------------------------------------------------------------
 TEST(conduit_mpi_test, send_recv_without_using_schema_any_source_any_tag)
 {
     Node n;
