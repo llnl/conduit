@@ -1100,7 +1100,7 @@ convert_topology_to_rectilinear(const std::string &/*base_type*/,
 
     dest.set(topo);
     dest["type"].set("rectilinear");
-    dest["coordset"].set(coordset->name());
+    dest["coordset"].set(bputils::resolve_output_name(*coordset, cdest));
 }
 
 //-------------------------------------------------------------------------
@@ -1128,7 +1128,7 @@ convert_topology_to_structured(const std::string &base_type,
     }
 
     dest["type"].set("structured");
-    dest["coordset"].set(coordset->name());
+    dest["coordset"].set(bputils::resolve_output_name(*coordset, cdest));
     if(topo.has_child("origin"))
     {
         dest["origin"].set(topo["origin"]);
@@ -1185,8 +1185,7 @@ convert_topology_to_unstructured(const std::string &base_type,
     }
 
     dest["type"].set("unstructured");
-    dest["coordset"].set(coordset->name());
-
+    dest["coordset"].set(bputils::resolve_output_name(*coordset, cdest));
     if(topo.has_child("origin"))
     {
         dest["origin"].set(topo["origin"]);
@@ -5270,7 +5269,7 @@ mesh::topology::unstructured::generate_sides(const Node &topo,
 
     topo_dest.reset();
     topo_dest["type"].set("unstructured");
-    topo_dest["coordset"].set(coordset->name());
+    topo_dest["coordset"].set(bputils::resolve_output_name(*coordset, coords_dest));
     topo_dest["elements/shape"].set(side_shape.type());
     topo_dest["elements/connectivity"].set(DataType(int_dtype.id(),
         side_shape.indices * sides_num_elems));
@@ -6119,7 +6118,7 @@ mesh::topology::unstructured::generate_corners(const Node &topo,
 
     topo_dest.reset();
     topo_dest["type"].set("unstructured");
-    topo_dest["coordset"].set(coordset->name());
+    topo_dest["coordset"].set(bputils::resolve_output_name(*coordset, coords_dest));
     topo_dest["elements/shape"].set(corner_shape.type());
     if (is_topo_3d)
     {

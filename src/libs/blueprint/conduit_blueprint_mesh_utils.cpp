@@ -464,6 +464,30 @@ find_reference_node(const Node &node, const std::string &ref_key)
 
 
 //-----------------------------------------------------------------------------
+std::string
+resolve_output_name(const Node &source, const Node &dest)
+{
+    if (!dest.name().empty())
+    {
+        // If the dest node has a name, use it. This gives us the existing
+        // behavior, where output nodes are explicitly given coordset names
+        // with the expectation that the same coordset names will end up in
+        // the output node after mesh transforms.
+        return dest.name();
+    }
+    else // if (dest.name().empty())
+    {
+        // If the dest node has no name, use the source node's name. This is
+        // relevant when passing an empty output node when calling mesh
+        // transforms, where the output node is expected to inherit the
+        // coordset name from the source node. Not doing this was resulting
+        // in newly converted topologies to fail `verify`.
+        return source.name();
+    }
+}
+
+
+//-----------------------------------------------------------------------------
 // NOTE: 'node' can be any subtree of a Blueprint-compliant mesh
 index_t
 find_domain_id(const Node &node)

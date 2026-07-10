@@ -321,15 +321,14 @@ TEST(conduit_blueprint_mesh_transform, topology_transforms)
             Node dxtopology = xtopology;
             dxtopology["coordset"].set(itopology["coordset"].as_string());
 
-            // This test depends on coordset name being set explicity after
-            // topo conversion, do we need to preserve this behavior?
             EXPECT_FALSE(jtopology.diff(dxtopology, info));
             EXPECT_FALSE(jcoordset.diff(xcoordset, info));
 
-            // Destination nodes now get a valid coordset name
-            // after the transform.
+            // Perform another transform without explicitly setting a coordset
+            // name, to verify that the output coordset name matches the input.
             Node dtopology, dcoordset;
             to_new_topology(itopology, dtopology, dcoordset);
+            EXPECT_TRUE(verify_new_topology(dtopology, info));
             EXPECT_EQ(dtopology["coordset"].as_string(), icoordset.name());
 
             imesh["topologies"].remove("test");

@@ -1186,8 +1186,6 @@ TEST(conduit_blueprint_generate_unstructured, generate_centroids)
 
         const Node &grid_conn = grid_topo["elements/connectivity"];
         Node &cent_conn = cent_topo["elements/connectivity"];
-
-        // Test fails if we set the coordset name within generate_centroids
         EXPECT_EQ(cent_topo["coordset"].as_string(), CENTROID_COORDSET_NAME);
         // relax exact type req, conn transforms will become index_t
         //EXPECT_EQ(cent_conn.dtype().id(), grid_conn.dtype().id());
@@ -1505,7 +1503,6 @@ TEST(conduit_blueprint_generate_unstructured, generate_sides)
         const float64 side_volume = grid_mesh.elem_volume() / sides_per_elem;
 
         Node side_mesh, t2s_map, s2t_map;
-        // Test fails if we set the coordset name within generate_sides
         Node &side_coords = side_mesh["coordsets"][SIDE_COORDSET_NAME];
         Node &side_topo = side_mesh["topologies"][SIDE_TOPOLOGY_NAME];
         mesh::topology::unstructured::generate_sides(
