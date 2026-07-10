@@ -556,10 +556,11 @@ bool invalid_tag(int tag)
 
 //---------------------------------------------------------------------------//
 /**
- @brief Return a tag value that is safe to use with MPI functions. The tag is
-        determined dynamically the first time the function is called. If the
-        input tag is greater than the max tag then the value wraps into the
-        valid range.
+ @brief Return an MPI-valid tag in the range [0,MPI_TAG_UB].
+
+ @note This function guarantees MPI validity, not uniqueness. If the input tag
+       exceeds the communicator's upper bound, the wrapped result may alias a
+       different logical tag.
 
  @param tag The input tag.
  @param comm The MPI communicator.
