@@ -250,7 +250,7 @@ public:
 
     void                                assume();
 
-    void                                data_movement(conduit::execution::SyncStrategy strategy);
+    void                                data_movement(const conduit::execution::SyncStrategy strategy);
 
     conduit::execution::ExecutionPolicy active_space();
 

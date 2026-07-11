@@ -702,7 +702,7 @@ get_host_allocator_id()
 
 //-----------------------------------------------------------------------------
 std::string
-sync_strategy_to_string(SyncStrategy strategy)
+sync_strategy_to_string(const SyncStrategy strategy)
 {
     if (SyncStrategy::Sync == strategy)
     {
@@ -725,18 +725,19 @@ sync_strategy_to_string(SyncStrategy strategy)
 SyncStrategy
 sync_strategy_from_string(const std::string &strategy)
 {
-    if (strategy == "sync")
+    if ("sync" == strategy)
     {
         return SyncStrategy::Sync;
     }
-
-    if (strategy == "assume")
+    else if ("assume" == strategy)
     {
         return SyncStrategy::Assume;
     }
-
-    CONDUIT_ERROR("ExecutionOptions: invalid sync_strategy option.");
-    return SyncStrategy::Assume;
+    else
+    {
+        CONDUIT_ERROR("ExecutionOptions: invalid sync_strategy option.");
+        return SyncStrategy::Assume;
+    }
 }
 
 //---------------------------------------------------------------------------//

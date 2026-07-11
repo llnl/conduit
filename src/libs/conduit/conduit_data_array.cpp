@@ -780,7 +780,7 @@ DataArray<T>::assume()
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::data_movement(conduit::execution::SyncStrategy strategy)
+DataArray<T>::data_movement(const conduit::execution::SyncStrategy strategy)
 {
     if (conduit::execution::SyncStrategy::Sync == strategy)
     {

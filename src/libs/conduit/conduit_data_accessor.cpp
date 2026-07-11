@@ -638,7 +638,7 @@ DataAccessor<T>::assume()
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataAccessor<T>::data_movement(conduit::execution::SyncStrategy strategy)
+DataAccessor<T>::data_movement(const conduit::execution::SyncStrategy strategy)
 {
     if (conduit::execution::SyncStrategy::Sync == strategy)
     {
