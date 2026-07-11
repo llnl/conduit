@@ -399,8 +399,8 @@ TEST(conduit_execution, execution_settings)
         exec_opts["sync_strategy"] = "sync";
         execution::execution_set_options(exec_opts);
         execution::execution_options(get_opts);
-        const std::string &sync_strategy = execution::get_sync_strategy();
-        EXPECT_EQ(sync_strategy, "sync");
+        const execution::SyncStrategy sync_strategy = execution::get_sync_strategy();
+        EXPECT_EQ(sync_strategy, execution::SyncStrategy::Sync);
         EXPECT_TRUE(get_opts.has_child("sync_strategy"));
         EXPECT_EQ(get_opts["sync_strategy"].as_string(), "sync");
         execution::reset_execution_options();
@@ -412,8 +412,8 @@ TEST(conduit_execution, execution_settings)
         exec_opts["sync_strategy"] = "assume";
         execution::execution_set_options(exec_opts);
         execution::execution_options(get_opts);
-        const std::string &sync_strategy = execution::get_sync_strategy();
-        EXPECT_EQ(sync_strategy, "assume");
+        const execution::SyncStrategy sync_strategy = execution::get_sync_strategy();
+        EXPECT_EQ(sync_strategy, execution::SyncStrategy::Assume);
         EXPECT_TRUE(get_opts.has_child("sync_strategy"));
         EXPECT_EQ(get_opts["sync_strategy"].as_string(), "assume");
         execution::reset_execution_options();
