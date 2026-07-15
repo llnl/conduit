@@ -177,6 +177,15 @@ TEST(conduit_execution, execution_settings)
         execution::reset_execution_options();
     }
 
+    // test bad fallback policy
+    {
+        Node exec_opts;
+        exec_opts["fallback_location"] = "banana";
+        EXPECT_THROW(execution::execution_set_options(exec_opts),
+                     conduit::Error);
+        execution::reset_execution_options();
+    }
+
     // test host exec policy
     {
         Node exec_opts;
@@ -193,6 +202,42 @@ TEST(conduit_execution, execution_settings)
         EXPECT_EQ(get_opts["execution_location"].as_string(), "host");
         execution::reset_execution_options();
     }
+
+    // test serial exec policy
+    {
+        Node exec_opts;
+        exec_opts["execution_location"] = "serial";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        execution::ExecutionPolicy default_policy = execution::get_execution_policy();
+        execution::ExecutionPolicy host_supplied_policy = execution::get_execution_policy(host_data);
+        execution::ExecutionPolicy device_supplied_policy = execution::get_execution_policy(device_data);
+        EXPECT_TRUE(default_policy.is_serial());
+        EXPECT_TRUE(host_supplied_policy.is_serial());
+        EXPECT_TRUE(device_supplied_policy.is_serial());
+        EXPECT_TRUE(get_opts.has_child("execution_location"));
+        EXPECT_EQ(get_opts["execution_location"].as_string(), "serial");
+        execution::reset_execution_options();
+    }
+
+#if defined(CONDUIT_USE_OPENMP)
+    // test openmp exec policy
+    {
+        Node exec_opts;
+        exec_opts["execution_location"] = "openmp";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        execution::ExecutionPolicy default_policy = execution::get_execution_policy();
+        execution::ExecutionPolicy host_supplied_policy = execution::get_execution_policy(host_data);
+        execution::ExecutionPolicy device_supplied_policy = execution::get_execution_policy(device_data);
+        EXPECT_TRUE(default_policy.is_openmp());
+        EXPECT_TRUE(host_supplied_policy.is_openmp());
+        EXPECT_TRUE(device_supplied_policy.is_openmp());
+        EXPECT_TRUE(get_opts.has_child("execution_location"));
+        EXPECT_EQ(get_opts["execution_location"].as_string(), "openmp");
+        execution::reset_execution_options();
+    }
+#endif
 
 #if defined(CONDUIT_USE_DEVICE)
     // test device exec policy
@@ -212,6 +257,61 @@ TEST(conduit_execution, execution_settings)
         execution::reset_execution_options();
     }
 #endif // defined(CONDUIT_USE_DEVICE)
+
+#if defined(CONDUIT_USE_CUDA)
+    // test cuda exec policy
+    {
+        Node exec_opts;
+        exec_opts["execution_location"] = "cuda";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        execution::ExecutionPolicy default_policy = execution::get_execution_policy();
+        execution::ExecutionPolicy host_supplied_policy = execution::get_execution_policy(host_data);
+        execution::ExecutionPolicy device_supplied_policy = execution::get_execution_policy(device_data);
+        EXPECT_TRUE(default_policy.is_cuda());
+        EXPECT_TRUE(host_supplied_policy.is_cuda());
+        EXPECT_TRUE(device_supplied_policy.is_cuda());
+        EXPECT_TRUE(get_opts.has_child("execution_location"));
+        EXPECT_EQ(get_opts["execution_location"].as_string(), "cuda");
+        execution::reset_execution_options();
+    }
+#endif
+
+#if defined(CONDUIT_USE_HIP)
+    // test hip exec policy
+    {
+        Node exec_opts;
+        exec_opts["execution_location"] = "hip";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        execution::ExecutionPolicy default_policy = execution::get_execution_policy();
+        execution::ExecutionPolicy host_supplied_policy = execution::get_execution_policy(host_data);
+        execution::ExecutionPolicy device_supplied_policy = execution::get_execution_policy(device_data);
+        EXPECT_TRUE(default_policy.is_hip());
+        EXPECT_TRUE(host_supplied_policy.is_hip());
+        EXPECT_TRUE(device_supplied_policy.is_hip());
+        EXPECT_TRUE(get_opts.has_child("execution_location"));
+        EXPECT_EQ(get_opts["execution_location"].as_string(), "hip");
+        execution::reset_execution_options();
+    }
+#endif
+
+    // test parallel exec policy
+    {
+        Node exec_opts;
+        exec_opts["execution_location"] = "parallel";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        execution::ExecutionPolicy default_policy = execution::get_execution_policy();
+        execution::ExecutionPolicy host_supplied_policy = execution::get_execution_policy(host_data);
+        execution::ExecutionPolicy device_supplied_policy = execution::get_execution_policy(device_data);
+        EXPECT_EQ(default_policy.policy_id(), ExecutionPolicy::parallel().policy_id());
+        EXPECT_EQ(host_supplied_policy.policy_id(), ExecutionPolicy::parallel().policy_id());
+        EXPECT_EQ(device_supplied_policy.policy_id(), ExecutionPolicy::parallel().policy_id());
+        EXPECT_TRUE(get_opts.has_child("execution_location"));
+        EXPECT_EQ(get_opts["execution_location"].as_string(), "parallel");
+        execution::reset_execution_options();
+    }
 
     // test input exec policy & w/ host fallback
     {
@@ -239,6 +339,28 @@ TEST(conduit_execution, execution_settings)
         execution::reset_execution_options();
     }
 
+    // test input exec policy & w/ serial fallback
+    {
+        Node exec_opts;
+        exec_opts["execution_location"] = "input";
+        exec_opts["fallback_location"] = "serial";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        execution::ExecutionPolicy fallback_policy = execution::get_execution_policy();
+        execution::ExecutionPolicy host_supplied_policy = execution::get_execution_policy(host_data);
+        execution::ExecutionPolicy device_supplied_policy = execution::get_execution_policy(device_data);
+        EXPECT_TRUE(fallback_policy.is_serial());
+        EXPECT_TRUE(host_supplied_policy.is_host_policy());
+#if defined(CONDUIT_USE_DEVICE)
+        EXPECT_TRUE(device_supplied_policy.is_device_policy());
+#else
+        EXPECT_TRUE(device_supplied_policy.is_host_policy());
+#endif
+        EXPECT_TRUE(get_opts.has_child("fallback_location"));
+        EXPECT_EQ(get_opts["fallback_location"].as_string(), "serial");
+        execution::reset_execution_options();
+    }
+
 #if defined(CONDUIT_USE_DEVICE)
     // test input exec policy & w/ device fallback
     {
@@ -260,6 +382,92 @@ TEST(conduit_execution, execution_settings)
         execution::reset_execution_options();
     }
 #endif // defined(CONDUIT_USE_DEVICE)
+
+#if defined(CONDUIT_USE_OPENMP)
+    // test input exec policy & w/ openmp fallback
+    {
+        Node exec_opts;
+        exec_opts["execution_location"] = "input";
+        exec_opts["fallback_location"] = "openmp";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        execution::ExecutionPolicy fallback_policy = execution::get_execution_policy();
+        execution::ExecutionPolicy host_supplied_policy = execution::get_execution_policy(host_data);
+        execution::ExecutionPolicy device_supplied_policy = execution::get_execution_policy(device_data);
+        EXPECT_TRUE(fallback_policy.is_openmp());
+        EXPECT_TRUE(host_supplied_policy.is_host_policy());
+#if defined(CONDUIT_USE_DEVICE)
+        EXPECT_TRUE(device_supplied_policy.is_device_policy());
+#else
+        EXPECT_TRUE(device_supplied_policy.is_host_policy());
+#endif
+        EXPECT_TRUE(get_opts.has_child("fallback_location"));
+        EXPECT_EQ(get_opts["fallback_location"].as_string(), "openmp");
+        execution::reset_execution_options();
+    }
+#endif
+
+#if defined(CONDUIT_USE_CUDA)
+    // test input exec policy & w/ cuda fallback
+    {
+        Node exec_opts;
+        exec_opts["execution_location"] = "input";
+        exec_opts["fallback_location"] = "cuda";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        execution::ExecutionPolicy fallback_policy = execution::get_execution_policy();
+        execution::ExecutionPolicy host_supplied_policy = execution::get_execution_policy(host_data);
+        execution::ExecutionPolicy device_supplied_policy = execution::get_execution_policy(device_data);
+        EXPECT_TRUE(fallback_policy.is_cuda());
+        EXPECT_TRUE(host_supplied_policy.is_host_policy());
+        EXPECT_TRUE(device_supplied_policy.is_device_policy());
+        EXPECT_TRUE(get_opts.has_child("fallback_location"));
+        EXPECT_EQ(get_opts["fallback_location"].as_string(), "cuda");
+        execution::reset_execution_options();
+    }
+#endif
+
+#if defined(CONDUIT_USE_HIP)
+    // test input exec policy & w/ hip fallback
+    {
+        Node exec_opts;
+        exec_opts["execution_location"] = "input";
+        exec_opts["fallback_location"] = "hip";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        execution::ExecutionPolicy fallback_policy = execution::get_execution_policy();
+        execution::ExecutionPolicy host_supplied_policy = execution::get_execution_policy(host_data);
+        execution::ExecutionPolicy device_supplied_policy = execution::get_execution_policy(device_data);
+        EXPECT_TRUE(fallback_policy.is_hip());
+        EXPECT_TRUE(host_supplied_policy.is_host_policy());
+        EXPECT_TRUE(device_supplied_policy.is_device_policy());
+        EXPECT_TRUE(get_opts.has_child("fallback_location"));
+        EXPECT_EQ(get_opts["fallback_location"].as_string(), "hip");
+        execution::reset_execution_options();
+    }
+#endif
+
+    // test input exec policy & w/ parallel fallback
+    {
+        Node exec_opts;
+        exec_opts["execution_location"] = "input";
+        exec_opts["fallback_location"] = "parallel";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        execution::ExecutionPolicy fallback_policy = execution::get_execution_policy();
+        execution::ExecutionPolicy host_supplied_policy = execution::get_execution_policy(host_data);
+        execution::ExecutionPolicy device_supplied_policy = execution::get_execution_policy(device_data);
+        EXPECT_EQ(fallback_policy.policy_id(), ExecutionPolicy::parallel().policy_id());
+        EXPECT_TRUE(host_supplied_policy.is_host_policy());
+#if defined(CONDUIT_USE_DEVICE)
+        EXPECT_TRUE(device_supplied_policy.is_device_policy());
+#else
+        EXPECT_TRUE(device_supplied_policy.is_host_policy());
+#endif
+        EXPECT_TRUE(get_opts.has_child("fallback_location"));
+        EXPECT_EQ(get_opts["fallback_location"].as_string(), "parallel");
+        execution::reset_execution_options();
+    }
 
     // ------------------------------
     //
@@ -336,6 +544,28 @@ TEST(conduit_execution, execution_settings)
         execution::reset_execution_options();
     }
 
+    // test input output allocator & w/ serial fallback
+    {
+        Node exec_opts;
+        exec_opts["output_location"] = "input";
+        exec_opts["fallback_location"] = "serial";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        index_t fallback_alloc_id = execution::get_output_allocator_id();
+        index_t host_supplied_alloc_id = execution::get_output_allocator_id(host_data);
+        index_t device_supplied_alloc_id = execution::get_output_allocator_id(device_data);
+        EXPECT_EQ(fallback_alloc_id, HOST_ALLOC_ID);
+        EXPECT_EQ(host_supplied_alloc_id, HOST_ALLOC_ID);
+#if defined(CONDUIT_USE_DEVICE)
+        EXPECT_EQ(device_supplied_alloc_id, DEVICE_ALLOC_ID);
+#else
+        EXPECT_EQ(device_supplied_alloc_id, HOST_ALLOC_ID);
+#endif
+        EXPECT_TRUE(get_opts.has_child("fallback_location"));
+        EXPECT_EQ(get_opts["fallback_location"].as_string(), "serial");
+        execution::reset_execution_options();
+    }
+
     // test input output allocator & w/ device fallback
     {
         Node exec_opts;
@@ -359,6 +589,96 @@ TEST(conduit_execution, execution_settings)
         EXPECT_EQ(get_opts["output_location"].as_string(), "input");
         EXPECT_TRUE(get_opts.has_child("fallback_location"));
         EXPECT_EQ(get_opts["fallback_location"].as_string(), "device");
+        execution::reset_execution_options();
+    }
+
+#if defined(CONDUIT_USE_OPENMP)
+    // test input output allocator & w/ openmp fallback
+    {
+        Node exec_opts;
+        exec_opts["output_location"] = "input";
+        exec_opts["fallback_location"] = "openmp";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        index_t fallback_alloc_id = execution::get_output_allocator_id();
+        index_t host_supplied_alloc_id = execution::get_output_allocator_id(host_data);
+        index_t device_supplied_alloc_id = execution::get_output_allocator_id(device_data);
+        EXPECT_EQ(fallback_alloc_id, HOST_ALLOC_ID);
+        EXPECT_EQ(host_supplied_alloc_id, HOST_ALLOC_ID);
+#if defined(CONDUIT_USE_DEVICE)
+        EXPECT_EQ(device_supplied_alloc_id, DEVICE_ALLOC_ID);
+#else
+        EXPECT_EQ(device_supplied_alloc_id, HOST_ALLOC_ID);
+#endif
+        EXPECT_TRUE(get_opts.has_child("fallback_location"));
+        EXPECT_EQ(get_opts["fallback_location"].as_string(), "openmp");
+        execution::reset_execution_options();
+    }
+#endif
+
+#if defined(CONDUIT_USE_CUDA)
+    // test input output allocator & w/ cuda fallback
+    {
+        Node exec_opts;
+        exec_opts["output_location"] = "input";
+        exec_opts["fallback_location"] = "cuda";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        index_t fallback_alloc_id = execution::get_output_allocator_id();
+        index_t host_supplied_alloc_id = execution::get_output_allocator_id(host_data);
+        index_t device_supplied_alloc_id = execution::get_output_allocator_id(device_data);
+        EXPECT_EQ(fallback_alloc_id, DEVICE_ALLOC_ID);
+        EXPECT_EQ(host_supplied_alloc_id, HOST_ALLOC_ID);
+        EXPECT_EQ(device_supplied_alloc_id, DEVICE_ALLOC_ID);
+        EXPECT_TRUE(get_opts.has_child("fallback_location"));
+        EXPECT_EQ(get_opts["fallback_location"].as_string(), "cuda");
+        execution::reset_execution_options();
+    }
+#endif
+
+#if defined(CONDUIT_USE_HIP)
+    // test input output allocator & w/ hip fallback
+    {
+        Node exec_opts;
+        exec_opts["output_location"] = "input";
+        exec_opts["fallback_location"] = "hip";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        index_t fallback_alloc_id = execution::get_output_allocator_id();
+        index_t host_supplied_alloc_id = execution::get_output_allocator_id(host_data);
+        index_t device_supplied_alloc_id = execution::get_output_allocator_id(device_data);
+        EXPECT_EQ(fallback_alloc_id, DEVICE_ALLOC_ID);
+        EXPECT_EQ(host_supplied_alloc_id, HOST_ALLOC_ID);
+        EXPECT_EQ(device_supplied_alloc_id, DEVICE_ALLOC_ID);
+        EXPECT_TRUE(get_opts.has_child("fallback_location"));
+        EXPECT_EQ(get_opts["fallback_location"].as_string(), "hip");
+        execution::reset_execution_options();
+    }
+#endif
+
+    // test input output allocator & w/ parallel fallback
+    {
+        Node exec_opts;
+        exec_opts["output_location"] = "input";
+        exec_opts["fallback_location"] = "parallel";
+        execution::execution_set_options(exec_opts);
+        execution::execution_options(get_opts);
+        index_t fallback_alloc_id = execution::get_output_allocator_id();
+        index_t host_supplied_alloc_id = execution::get_output_allocator_id(host_data);
+        index_t device_supplied_alloc_id = execution::get_output_allocator_id(device_data);
+#if defined(CONDUIT_USE_DEVICE)
+        EXPECT_EQ(fallback_alloc_id, DEVICE_ALLOC_ID);
+#else
+        EXPECT_EQ(fallback_alloc_id, HOST_ALLOC_ID);
+#endif
+        EXPECT_EQ(host_supplied_alloc_id, HOST_ALLOC_ID);
+#if defined(CONDUIT_USE_DEVICE)
+        EXPECT_EQ(device_supplied_alloc_id, DEVICE_ALLOC_ID);
+#else
+        EXPECT_EQ(device_supplied_alloc_id, HOST_ALLOC_ID);
+#endif
+        EXPECT_TRUE(get_opts.has_child("fallback_location"));
+        EXPECT_EQ(get_opts["fallback_location"].as_string(), "parallel");
         execution::reset_execution_options();
     }
 
