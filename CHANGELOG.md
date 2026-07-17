@@ -4,6 +4,16 @@ Notable changes to Conduit are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project aspires to adhere to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+#### Blueprint
+- Fixed more C++20 issues with runtime fmt params in Silo support implementation and tests.
+
+
+#### Blueprint
+
 ## [0.9.7] - Released 2026-05-27
 
 ### Added
