@@ -1350,24 +1350,32 @@ generate_silo_mb_data(const Node &n_mesh_state,
                 {
                     if (global_num_domains == 1)
                     {
-                        generated_silo_name = conduit_fmt::format(silo_path, silo_name);
+                        generated_silo_name = conduit_fmt::format(conduit_fmt::runtime(silo_path),
+                                                                  silo_name);
                     }
                     else
                     {
-                        generated_silo_name = conduit_fmt::format(silo_path, domain_index, silo_name);
+                        generated_silo_name = conduit_fmt::format(conduit_fmt::runtime(silo_path),
+                                                                  domain_index,
+                                                                  silo_name);
                     }
                 }
                 // num domains == num files case
                 else if (global_num_domains == num_files)
                 {
-                    generated_silo_name = conduit_fmt::format(silo_path, domain_index, silo_name);
+                    generated_silo_name = conduit_fmt::format(conduit_fmt::runtime(silo_path),
+                                                              domain_index,
+                                                              silo_name);
                 }
                 // m to n case
                 else
                 {
                     // determine which file
                     const index_t f = determine_domain_or_file("file", global_domain_id);
-                    generated_silo_name = conduit_fmt::format(silo_path, f, domain_index, silo_name);
+                    generated_silo_name = conduit_fmt::format(conduit_fmt::runtime(silo_path),
+                                                              f,
+                                                              domain_index,
+                                                              silo_name);
                 }
 
                 name_strings.push_back(generated_silo_name);
@@ -1515,7 +1523,8 @@ handle_nameschemes_or_pathnames(const bool do_nameschemes,
 {
     if (do_nameschemes)
     {
-        block_namescheme = conduit_fmt::format(global_block_namescheme, silo_name);
+        block_namescheme = conduit_fmt::format(conduit_fmt::runtime(global_block_namescheme),
+                                               silo_name);
 
         if (! global_file_namescheme.empty())
         {
