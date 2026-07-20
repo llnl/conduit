@@ -48,7 +48,8 @@ benchmark_coordset_transform(const char *name,
     // Perform a transform on the source Node
     auto run = [=](const Node &src) {
         Node dst;
-        transform(src["coordsets"].child(0), dst);
+        Node &coords_dst = dst["coordsets/coords"];
+        transform(src["coordsets"].child(0), coords_dst);
     };
 
     // Execute the benchmark
@@ -73,7 +74,9 @@ benchmark_topology_transform(const char *name,
 
     // Perform a transform on the source Node
     auto run = [=](const Node &src) {
-        Node topo_dst, coords_dst;
+        Node dst;
+        Node &topo_dst = dst["topologies/mesh"];
+        Node &coords_dst = dst["coordsets/coords"];
         transform(src["topologies"].child(0), topo_dst, coords_dst);
     };
 

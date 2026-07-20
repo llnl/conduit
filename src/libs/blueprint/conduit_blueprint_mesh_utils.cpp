@@ -462,32 +462,6 @@ find_reference_node(const Node &node, const std::string &ref_key)
     return res;
 }
 
-
-//-----------------------------------------------------------------------------
-std::string
-resolve_output_name(const Node &node, const std::string &ref_key, const Node &dest)
-{
-    if (!dest.name().empty())
-    {
-        // If the dest node has a name, use it. This gives us the existing
-        // behavior, where output nodes are explicitly given coordset names
-        // with the expectation that the same coordset names will end up in
-        // the output node after mesh transforms.
-        return dest.name();
-    }
-    else // if (dest.name().empty())
-    {
-        // If the dest node has no name, fall back to the name that 'node'
-        // itself references (e.g. node["coordset"]). This is relevant
-        // when passing an empty output node when calling mesh transforms,
-        // where the output node is expected to inherit the reference name
-        // from 'node'. Not doing this was resulting in newly converted
-        // topologies to fail 'verify'.
-        return node[ref_key].as_string();
-    }
-}
-
-
 //-----------------------------------------------------------------------------
 // NOTE: 'node' can be any subtree of a Blueprint-compliant mesh
 index_t
@@ -1968,7 +1942,9 @@ topology::spatial_ordering(const conduit::Node &topo)
 {
     // Make a new centroid topo and coordset. The coordset will contain the
     // element centers. This ought to be an explicit coordset.
-    Node topo_dest, coords_dest, s2dmap, d2smap;
+    Node centroid_scratch, s2dmap, d2smap;
+    Node &topo_dest = centroid_scratch["topo"];
+    Node &coords_dest = centroid_scratch["coords"];
     mesh::topology::unstructured::generate_centroids(topo,
                                                      topo_dest,
                                                      coords_dest,
@@ -2169,7 +2145,9 @@ topology::hilbert_ordering(const conduit::Node &topo)
 {
     // Make a new centroid topo and coordset. The coordset will contain the
     // element centers. This ought to be an explicit coordset.
-    conduit::Node topo_dest, coords_dest, s2dmap, d2smap;
+    conduit::Node centroid_scratch, s2dmap, d2smap;
+    conduit::Node &topo_dest = centroid_scratch["topo"];
+    conduit::Node &coords_dest = centroid_scratch["coords"];
     conduit::blueprint::mesh::topology::unstructured::generate_centroids(topo,
                                                                          topo_dest,
                                                                          coords_dest,
@@ -5144,4 +5122,3 @@ void CONDUIT_BLUEPRINT_API lerp(const Node& As,
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-
