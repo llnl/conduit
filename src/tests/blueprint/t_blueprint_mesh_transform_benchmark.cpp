@@ -75,7 +75,7 @@ benchmark_topology_transform(const char *name,
     // Perform a transform on the source Node
     auto run = [=](const Node &src) {
         Node dst;
-        Node &topo_dst = dst["topologies/topo"];
+        Node &topo_dst = dst["topologies/mesh"];
         Node &coords_dst = dst["coordsets/coords"];
         transform(src["topologies"].child(0), topo_dst, coords_dst);
     };
