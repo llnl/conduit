@@ -14,7 +14,6 @@
 #include <iostream>
 #include <limits>
 #include <map>
-#include <mutex>
 
 //-----------------------------------------------------------------------------
 /// The CONDUIT_CHECK_MPI_ERROR macro is used to check return values for
@@ -435,10 +434,7 @@ private:
     static int cached_probe(MPI_Comm comm)
     {
         static std::map<MPI_Fint, int> probed_upper_bounds;
-        static std::mutex probed_upper_bounds_mutex;
-
         const MPI_Fint comm_id = MPI_Comm_c2f(comm);
-        std::lock_guard<std::mutex> guard(probed_upper_bounds_mutex);
 
         std::map<MPI_Fint, int>::const_iterator it = probed_upper_bounds.find(comm_id);
         if(it == probed_upper_bounds.end())
