@@ -84,29 +84,37 @@ typedef std::vector<conduit::index_t> (*CalcDimDecomposedFun)(const bputils::Sha
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
+// Converts 3D grid coordinates (i, j, k) into a flat, linear index
+// into a structured grid, using row-major order (i.e. the i-axis
+// varies fastest, then j, then k).
 CONDUIT_EXEC
 void grid_ijk_to_id(const index_t *ijk,
                     const index_t *dims,
                     index_t &grid_id)
 {
-    // Equivalent to the general N-dimensional stride formula,
-    // but specialized for 3 dimensions.
+    // This is the general N-dimensional stride formula, specialized to 3
+    // dimensions
     grid_id = ijk[0] + dims[0] * (ijk[1] + dims[1] * ijk[2]);
 }
 
 //-----------------------------------------------------------------------------
+// Converts a flat, linear grid index back into 3D grid coordinates
+// (i, j, k). This is the exact inverse of grid_ijk_to_id, above.
 CONDUIT_EXEC
 void grid_id_to_ijk(const index_t id,
                     const index_t *dims,
                     index_t *grid_ijk)
 {
-    // Equivalent to the general N-dimensional inverse stride formula,
-    // but specialized for 3 dimensions.
+    // This is the inverse of grid_ijk_to_id, using the same stride formula
     const index_t dim01 = dims[0] * dims[1];
     grid_ijk[2] = id / dim01;
-    const index_t rem = id % dim01;
+
+    // We can avoid computing id % dim01 by reusing the quotient from the division above
+    const index_t rem = id - grid_ijk[2] * dim01;
     grid_ijk[1] = rem / dims[0];
-    grid_ijk[0] = rem % dims[0];
+
+    // Same trick as above: reuse the quotient instead of computing rem % dims[0]
+    grid_ijk[0] = rem - grid_ijk[1] * dims[0];
 }
 
 //-----------------------------------------------------------------------------
@@ -1261,7 +1269,8 @@ convert_topology_to_unstructured(const std::string &base_type,
         }
     }
 
-    index_t vdims_axes[3] = {1, 1, 1}, num_elems = 1;
+    index_t vdims_axes[3] = {1, 1, 1};
+    index_t num_elems = 1;
     for(index_t d = 0; d < 3; d++)
     {
         num_elems *= edims_axes[d];
@@ -1279,30 +1288,84 @@ convert_topology_to_unstructured(const std::string &base_type,
     conn_node_vals.use_with(policy);
     conduit::execution::forall(policy, 0, num_elems, [=] CONDUIT_EXEC(index_t e)
     {
-        index_t curr_elem[3], curr_vert[3];
+        index_t curr_elem[3];
+        index_t curr_vert[3];
+
+        // Convert the grid ID to IJK coordinates for the current element
         grid_id_to_ijk(e, &edims_axes[0], &curr_elem[0]);
 
         // NOTE(JRC): In order to get all adjacent vertices for the
         // element, we use the bitwise interpretation of each index
         // per element to inform the direction (e.g. 5, which is
         // 101 bitwise, means (z+1, y+0, x+1)).
-        for(index_t i = 0; i < indices_per_elem; i++)
+        for (index_t i = 0; i < indices_per_elem; i++)
         {
             curr_vert[0] = curr_elem[0];
             curr_vert[1] = curr_elem[1];
             curr_vert[2] = curr_elem[2];
-            for(index_t d = 0; d < num_axes; d++)
+
+            // This loop visits each element's corner vertices in
+            // "binary counting" order. For example, bit 'dim' of 'i'
+            // says whether the corner is offset by +1 along axis 'dim'.
+            // For example, if i=3, the binary for 3 is 0b011, so we know
+            // that the corner is offset along both x and y. For a quad face,
+            // that means that the corners are visited in the order:
+            //
+            // 0b000, 0b001, 0b010, 0b011
+            // (0,0), (1,0), (0,1), (1,1)
+            //
+            // However, the connectivity array is expected to list corners
+            // in counter-clockwise order:
+            //
+            // 0b000, 0b001, 0b011, 0b010
+            // (0,0), (1,0), (1,1), (0,1)
+            //
+            // The swap applies to the top face of a hexahedron
+            // (z=1, i.e. bit 2 set). Those corners are visited in the
+            // order:
+            //
+            // 0b100,   0b101,   0b110,   0b111
+            // (0,0,1), (1,0,1), (0,1,1), (1,1,1)
+            //
+            // and need to end up in counter-clockwise order:
+            //
+            // 0b100,   0b101,   0b111,   0b110
+            // (0,0,1), (1,0,1), (1,1,1), (0,1,1)
+            for (index_t dim = 0; dim < num_axes; dim++)
             {
-                curr_vert[d] += (i & ((index_t)1 << d)) >> d;
+                curr_vert[dim] += (i & ((index_t)1 << dim)) >> dim;
             }
 
+            // Convert the IJK coordinates to a grid ID for the current vertex
             index_t v;
             grid_ijk_to_id(&curr_vert[0], &vdims_axes[0], v);
 
             // TODO(JRC): Once the ordering transforms are introduced,
             // this remapping should be removed and replaced with
             // initializing the ordering label value.
-            const index_t out_i = (i & 2) ? (i ^ 1) : i;
+
+            // Continuing from the above comment, we know that two
+            // of the corners were visited out of place with respect
+            // to the final counter-clockwise ordering that they need
+            // to have. These corners are the ones with their y-axis bit
+            // set, i.e. i == 2 (0b010), i == 3 (0b011), i == 6 (0b110), and
+            // i == 7 (0b111). Swapping the order of these corners can be done
+            // by flipping the x-axis bit (bit 0) of i whenever bit 1 is set.
+
+            // If the y-axis bit is not set, i is already correct
+            index_t out_i = i;
+
+            // Check if the y-axis bit (bit 1) is set to 1
+            if (i & 0x2)
+            {
+                // XOR with 0x1 to flip the x-axis bit (bit 0)
+                out_i ^= 0x1;
+            }
+
+            // Since we swapped the indices as needed, we can store the
+            // counter-clockwise-ordered indices directly
+            // without needing to first write them out of order and
+            // then swap them after.
             conn_node_vals.set(e * indices_per_elem + out_i, v);
         }
     });
