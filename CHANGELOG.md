@@ -11,8 +11,8 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Blueprint
 - Fixed more C++20 issues with runtime fmt params in Silo support implementation and tests.
 
-
-#### Blueprint
+#### Relay
+- The `conduit::relay::mpi::safe_tag` function and its underlying logic to probe the maximum allowable MPI tag were modified to avoid `MPI_Waitall`. Tag values now use modulo above the upper limit as opposed to clamping.
 
 ## [0.9.7] - Released 2026-05-27
 

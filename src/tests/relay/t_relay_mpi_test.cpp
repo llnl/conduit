@@ -9,13 +9,42 @@
 //-----------------------------------------------------------------------------
 
 #include "conduit_relay_mpi.hpp"
+#include "conduit_relay_mpi_internal.hpp"
 #include <iostream>
 #include "math.h"
+#include <limits>
 #include "gtest/gtest.h"
 
 using namespace conduit;
 using namespace conduit::relay;
 using namespace conduit::relay::mpi;
+
+namespace
+{
+
+// Mirror safe_tag() upper-bound selection so overflow-tag tests use the
+// same communicator limit as the implementation under test.
+int safe_tag_effective_upper_bound(MPI_Comm comm)
+{
+    int flag = 0;
+    int *tag_ub_ptr = nullptr;
+    const int mpi_error = MPI_Comm_get_attr(comm,
+                                            MPI_TAG_UB,
+                                            &tag_ub_ptr,
+                                            &flag);
+    if(mpi_error == MPI_SUCCESS &&
+       flag != 0 &&
+       tag_ub_ptr != nullptr &&
+       *tag_ub_ptr >= 0)
+    {
+        return *tag_ub_ptr;
+    }
+
+    const int probed_tag_ub = detail::tag_upper_bound_probe(comm);
+    return probed_tag_ub >= 0 ? probed_tag_ub : 32767;
+}
+
+}
 
 
 //-----------------------------------------------------------------------------
@@ -82,6 +111,184 @@ TEST(conduit_mpi_test, mpi_dtype_to_conduit_dtype)
 
     EXPECT_TRUE(DataType(mpi_dtype_to_conduit_dtype_id(MPI_FLOAT)).is_float());
     EXPECT_TRUE(DataType(mpi_dtype_to_conduit_dtype_id(MPI_DOUBLE)).is_double());
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_mpi_test, safe_tag_wraps_to_mpi_tag_ub_range)
+{
+    const int expected_tag_ub = safe_tag_effective_upper_bound(MPI_COMM_WORLD);
+    EXPECT_GE(expected_tag_ub, 32767);
+    EXPECT_EQ(safe_tag(-42, MPI_COMM_WORLD), 0);
+
+    const int wrapped_tag = expected_tag_ub > std::numeric_limits<int>::max() - 5
+        ? expected_tag_ub
+        : expected_tag_ub + 5;
+    const int expected_wrapped_tag = expected_tag_ub > std::numeric_limits<int>::max() - 5
+        ? expected_tag_ub
+        : 4;
+    EXPECT_EQ(safe_tag(wrapped_tag, MPI_COMM_WORLD), expected_wrapped_tag);
+
+    MPI_Comm dup_comm = MPI_COMM_NULL;
+    ASSERT_EQ(MPI_Comm_dup(MPI_COMM_WORLD, &dup_comm), MPI_SUCCESS);
+    EXPECT_EQ(safe_tag(wrapped_tag, dup_comm), expected_wrapped_tag);
+    EXPECT_EQ(MPI_Comm_free(&dup_comm), MPI_SUCCESS);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_mpi_test, mpi_minimum_tag_32767_is_valid)
+{
+    int flag = 0;
+    int *tag_ub_ptr = nullptr;
+    const int mpi_error = MPI_Comm_get_attr(MPI_COMM_WORLD,
+                                            MPI_TAG_UB,
+                                            &tag_ub_ptr,
+                                            &flag);
+    ASSERT_EQ(mpi_error, MPI_SUCCESS);
+    if(flag != 0 && tag_ub_ptr != nullptr)
+    {
+        EXPECT_GE(*tag_ub_ptr, 32767);
+    }
+
+    MPI_Comm dup_comm = MPI_COMM_NULL;
+    ASSERT_EQ(MPI_Comm_dup(MPI_COMM_WORLD, &dup_comm), MPI_SUCCESS);
+    ASSERT_EQ(MPI_Comm_set_errhandler(dup_comm, MPI_ERRORS_RETURN), MPI_SUCCESS);
+
+    int rank = 0, size = 1;
+    ASSERT_EQ(MPI_Comm_rank(dup_comm, &rank), MPI_SUCCESS);
+    ASSERT_EQ(MPI_Comm_size(dup_comm, &size), MPI_SUCCESS);
+
+    const int dest = (size > 1) ? ((rank + 1) % size) : rank;
+    const int src  = (size > 1) ? ((rank + size - 1) % size) : rank;
+
+    int send_value = rank;
+    int recv_value = -1;
+    EXPECT_EQ(MPI_Sendrecv(&send_value,
+                           1,
+                           MPI_INT,
+                           dest,
+                           32767,
+                           &recv_value,
+                           1,
+                           MPI_INT,
+                           src,
+                           32767,
+                           dup_comm,
+                           MPI_STATUS_IGNORE),
+              MPI_SUCCESS);
+    EXPECT_EQ(recv_value, src);
+
+    EXPECT_EQ(MPI_Comm_free(&dup_comm), MPI_SUCCESS);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_mpi_test, tag_probe_is_rank_local)
+{
+    MPI_Comm dup_comm = MPI_COMM_NULL;
+    ASSERT_EQ(MPI_Comm_dup(MPI_COMM_WORLD, &dup_comm), MPI_SUCCESS);
+
+    int rank = 0;
+    ASSERT_EQ(MPI_Comm_rank(dup_comm, &rank), MPI_SUCCESS);
+
+    const int probe_count = 1 + (rank % 3);
+    for(int i = 0; i < probe_count; i++)
+    {
+        const int probed_tag_ub = detail::tag_upper_bound_probe(dup_comm);
+        EXPECT_GE(probed_tag_ub, 32767);
+
+        int send_value = rank;
+        int recv_value = -1;
+        EXPECT_EQ(MPI_Sendrecv(&send_value,
+                               1,
+                               MPI_INT,
+                               rank,
+                               probed_tag_ub,
+                               &recv_value,
+                               1,
+                               MPI_INT,
+                               rank,
+                               probed_tag_ub,
+                               dup_comm,
+                               MPI_STATUS_IGNORE),
+                  MPI_SUCCESS);
+        EXPECT_EQ(recv_value, rank);
+    }
+
+    EXPECT_EQ(MPI_Barrier(dup_comm), MPI_SUCCESS);
+    EXPECT_EQ(MPI_Comm_free(&dup_comm), MPI_SUCCESS);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_mpi_test, tag_probe_upper_bound_is_consistent_across_ranks)
+{
+    MPI_Comm dup_comm = MPI_COMM_NULL;
+    ASSERT_EQ(MPI_Comm_dup(MPI_COMM_WORLD, &dup_comm), MPI_SUCCESS);
+
+    const int local_tag_ub = detail::tag_upper_bound_probe(dup_comm);
+    EXPECT_GE(local_tag_ub, 32767);
+
+    int min_tag_ub = -1;
+    int max_tag_ub = -1;
+    ASSERT_EQ(MPI_Allreduce(&local_tag_ub,
+                            &min_tag_ub,
+                            1,
+                            MPI_INT,
+                            MPI_MIN,
+                            dup_comm),
+              MPI_SUCCESS);
+    ASSERT_EQ(MPI_Allreduce(&local_tag_ub,
+                            &max_tag_ub,
+                            1,
+                            MPI_INT,
+                            MPI_MAX,
+                            dup_comm),
+              MPI_SUCCESS);
+
+    EXPECT_EQ(min_tag_ub, max_tag_ub);
+    EXPECT_EQ(local_tag_ub, min_tag_ub);
+
+    EXPECT_EQ(MPI_Comm_free(&dup_comm), MPI_SUCCESS);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_mpi_test, safe_tag_wraps_first_consecutive_overflow_tags)
+{
+    MPI_Comm dup_comm = MPI_COMM_NULL;
+    ASSERT_EQ(MPI_Comm_dup(MPI_COMM_WORLD, &dup_comm), MPI_SUCCESS);
+
+    const int tag_ub = safe_tag_effective_upper_bound(dup_comm);
+    EXPECT_GE(tag_ub, 32767);
+
+    int min_tag_ub = -1;
+    int max_tag_ub = -1;
+    ASSERT_EQ(MPI_Allreduce(&tag_ub,
+                            &min_tag_ub,
+                            1,
+                            MPI_INT,
+                            MPI_MIN,
+                            dup_comm),
+              MPI_SUCCESS);
+    ASSERT_EQ(MPI_Allreduce(&tag_ub,
+                            &max_tag_ub,
+                            1,
+                            MPI_INT,
+                            MPI_MAX,
+                            dup_comm),
+              MPI_SUCCESS);
+    ASSERT_EQ(min_tag_ub, max_tag_ub);
+
+    if(tag_ub > std::numeric_limits<int>::max() - 2)
+    {
+        GTEST_SKIP() << "Cannot test tags above the communicator upper bound without overflow.";
+    }
+
+    const int wrapped_tag0 = safe_tag(tag_ub + 1, dup_comm);
+    const int wrapped_tag1 = safe_tag(tag_ub + 2, dup_comm);
+
+    EXPECT_EQ(wrapped_tag0, 0);
+    EXPECT_EQ(wrapped_tag1, 1);
+    EXPECT_NE(wrapped_tag0, wrapped_tag1);
+
+    EXPECT_EQ(MPI_Comm_free(&dup_comm), MPI_SUCCESS);
 }
 
 //-----------------------------------------------------------------------------
@@ -492,6 +699,53 @@ TEST(conduit_mpi_test, send_recv_without_using_schema)
     EXPECT_EQ(vals[1], 0);
     EXPECT_EQ(vals[2], 10.7);
 
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_mpi_test, send_recv_without_using_schema_oversized_tag)
+{
+    MPI_Comm dup_comm = MPI_COMM_NULL;
+    ASSERT_EQ(MPI_Comm_dup(MPI_COMM_WORLD, &dup_comm), MPI_SUCCESS);
+
+    const int tag_ub = safe_tag_effective_upper_bound(dup_comm);
+    ASSERT_GE(tag_ub, 32767);
+
+    if(tag_ub > std::numeric_limits<int>::max() - 5)
+    {
+        GTEST_SKIP() << "Cannot test oversized blocking tags without overflow.";
+    }
+
+    const int oversized_tag = tag_ub + 5;
+
+    Node n;
+    int rank = mpi::rank(dup_comm);
+
+    n.set(DataType::c_double(3));
+
+    if(rank == 0)
+    {
+        double_array vals = n.value();
+        vals[0] = rank + 1;
+        vals[1] = 3.4124 * rank;
+        vals[2] = 10.7 - rank;
+
+        mpi::send(n, 1, oversized_tag, dup_comm);
+    }
+    else if(rank == 1)
+    {
+        mpi::recv(n, 0, oversized_tag, dup_comm);
+    }
+
+    if(rank == 0 || rank == 1)
+    {
+        double_array vals = n.value();
+        EXPECT_EQ(vals[0], 1);
+        EXPECT_EQ(vals[1], 0);
+        EXPECT_EQ(vals[2], 10.7);
+    }
+
+    EXPECT_EQ(MPI_Barrier(dup_comm), MPI_SUCCESS);
+    EXPECT_EQ(MPI_Comm_free(&dup_comm), MPI_SUCCESS);
 }
 
 //-----------------------------------------------------------------------------
@@ -1402,4 +1656,3 @@ int main(int argc, char* argv[])
 
     return result;
 }
-

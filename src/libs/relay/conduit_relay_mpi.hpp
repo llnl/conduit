@@ -78,9 +78,17 @@ namespace mpi
 //-----------------------------------------------------------------------------
 
     /**
-      @brief MPI tags can be in the range [0,MPI_TAG_UB]. The values are
-             implementation-dependent. If the tag is not in that range, return
-             MPI_TAG_UB so it is safe to use with MPI functions.
+      @brief Return an MPI-valid tag in the range [0,MPI_TAG_UB].
+
+             MPI tag limits are communicator-dependent and implementation-
+             dependent. If the input tag is outside the valid range, this
+             function wraps it into the valid range so it can be used safely
+             with MPI functions.
+
+             This function only guarantees MPI validity. It does not preserve
+             uniqueness when wrapping occurs, so distinct input tags may map to
+             the same MPI tag. Callers must not rely on wrapped tags as a
+             uniqueness mechanism.
 
       @param tag The input tag.
       @param comm The MPI communicator.
@@ -394,4 +402,3 @@ private:
 
 
 #endif
-
