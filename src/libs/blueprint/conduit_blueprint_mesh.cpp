@@ -1336,7 +1336,7 @@ convert_topology_to_unstructured(const std::string &base_type,
             // also.
             for (index_t dim = 0; dim < num_axes; dim++)
             {
-                curr_vert[dim] += (i & ((index_t)1 << dim)) >> dim;
+                curr_vert[dim] += (i & (index_t(1) << dim)) >> dim;
             }
 
             // Convert the IJK coordinates to a grid ID for the current vertex
