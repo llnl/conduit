@@ -22,10 +22,7 @@ COORDSET_CONVERSIONS = [
 ]
 
 TOPOLOGY_CONVERSIONS = [
-    "topology_uniform_to_rectilinear",
-    "topology_uniform_to_structured",
     "topology_uniform_to_unstructured",
-    "topology_rectilinear_to_structured",
     "topology_rectilinear_to_unstructured",
     "topology_structured_to_unstructured",
 ]
@@ -36,10 +33,7 @@ CONVERSION_LABELS = {
     "coordset_rectilinear_to_explicit": "rect→explicit",
     "coordset_uniform_to_explicit": "uniform→explicit",
     "coordset_uniform_to_rectilinear": "uniform→rect",
-    "topology_uniform_to_rectilinear": "uniform→rect",
-    "topology_uniform_to_structured": "uniform→struct",
     "topology_uniform_to_unstructured": "uniform→unstruct",
-    "topology_rectilinear_to_structured": "rect→struct",
     "topology_rectilinear_to_unstructured": "rect→unstruct",
     "topology_structured_to_unstructured": "struct→unstruct",
 }
