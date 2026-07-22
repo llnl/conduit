@@ -1210,7 +1210,7 @@ convert_topology_to_unstructured(const std::string &base_type,
         conduit::execution::get_output_allocator_id(*first_axis_values) :
         conduit::execution::get_output_allocator_id();
 
-    const std::string &sync_strategy = conduit::execution::get_sync_strategy();
+    const conduit::execution::SyncStrategy sync_strategy = conduit::execution::get_sync_strategy();
 
     if (is_base_structured)
     {
