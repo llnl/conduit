@@ -1183,9 +1183,9 @@ convert_topology_to_unstructured(const std::string &base_type,
                                  conduit::Node &cdest)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    bool is_base_structured = base_type == "structured";
-    bool is_base_rectilinear = base_type == "rectilinear";
-    bool is_base_uniform = base_type == "uniform";
+    const bool is_base_structured  = base_type == "structured";
+    const bool is_base_rectilinear = base_type == "rectilinear";
+    const bool is_base_uniform     = base_type == "uniform";
 
     dest.reset();
     cdest.reset();
@@ -1194,74 +1194,81 @@ convert_topology_to_unstructured(const std::string &base_type,
     const std::vector<std::string> csys_axes = bputils::coordset::axes(*coordset);
 
     const bool base_has_coordset_values = is_base_structured || is_base_rectilinear;
-    conduit::execution::ExecutionPolicy policy = base_has_coordset_values ?
-        conduit::execution::get_execution_policy((*coordset)["values"][csys_axes[0]]) :
+
+    // Both the policy and allocator ID are derived from the same source
+    // node when one is available, so only fetch it once.
+    const Node *first_axis_values = base_has_coordset_values ?
+        &(*coordset)["values"][csys_axes[0]] : nullptr;
+
+    conduit::execution::ExecutionPolicy policy = first_axis_values ?
+        conduit::execution::get_execution_policy(*first_axis_values) :
         conduit::execution::get_execution_policy();
-    const index_t allocator_id = base_has_coordset_values ?
-        conduit::execution::get_output_allocator_id((*coordset)["values"][csys_axes[0]]) :
+
+    const index_t allocator_id = first_axis_values ?
+        conduit::execution::get_output_allocator_id(*first_axis_values) :
         conduit::execution::get_output_allocator_id();
+
     const std::string &sync_strategy = conduit::execution::get_sync_strategy();
 
-    const index_t num_axes = static_cast<index_t>(csys_axes.size());
-
-    if(is_base_structured)
+    if (is_base_structured)
     {
         cdest["type"].set((*coordset)["type"]);
-        for(index_t i = 0; i < num_axes; i++)
-        {
-            Node &dst_cvals_node = cdest["values"][csys_axes[i]];
-            dst_cvals_node.set_allocator(allocator_id);
-            dst_cvals_node.set((*coordset)["values"][csys_axes[i]]);
-        }
+        // Setting the allocator on the parent "values" node is
+        // sufficient here because calling Node::set() copies each
+        // child using the destination's allocator.
+        cdest["values"].set_allocator(allocator_id);
+        cdest["values"].set((*coordset)["values"]);
     }
-    else if(is_base_rectilinear)
+    else if (is_base_rectilinear)
     {
         blueprint::mesh::coordset::rectilinear::to_explicit(*coordset, cdest);
     }
-    else if(is_base_uniform)
+    else if (is_base_uniform)
     {
         blueprint::mesh::coordset::uniform::to_explicit(*coordset, cdest);
     }
 
     dest["type"].set("unstructured");
     dest["coordset"].set(cdest.name());
-    if(topo.has_child("origin"))
+    if (topo.has_child("origin"))
     {
         dest["origin"].set(topo["origin"]);
     }
 
     // TODO(JRC): In this case, should we reach back into the coordset
     // and use its types to inform those of the topology?
-    DataType int_dtype = bputils::find_widest_dtype(topo, bputils::DEFAULT_INT_DTYPES);
+    const DataType int_dtype = bputils::find_widest_dtype(topo, bputils::DEFAULT_INT_DTYPES);
 
+    const index_t num_axes = static_cast<index_t>(csys_axes.size());
     dest["elements/shape"].set(
-        (csys_axes.size() == 1) ? "line" : (
-        (csys_axes.size() == 2) ? "quad" : (
-        (csys_axes.size() == 3) ? "hex"  : "")));
+        (num_axes == 1) ? "line" : (
+        (num_axes == 2) ? "quad" : (
+        (num_axes == 3) ? "hex"  : "")));
+
     const std::vector<std::string> &logical_axes = bputils::LOGICAL_AXES;
 
     index_t edims_axes[3] = {1, 1, 1};
-    if(is_base_structured)
+    if (is_base_structured)
     {
         const conduit::Node &dim_node = topo["elements/dims"];
-        for(index_t i = 0; i < num_axes; i++)
+        for (index_t i = 0; i < num_axes; i++)
         {
             edims_axes[i] = dim_node[logical_axes[i]].to_int();
         }
     }
-    else if(is_base_rectilinear)
+    else if (is_base_rectilinear)
     {
         const conduit::Node &dim_node = (*coordset)["values"];
-        for(index_t i = 0; i < num_axes; i++)
+        for (index_t i = 0; i < num_axes; i++)
         {
             edims_axes[i] =
                 dim_node[csys_axes[i]].dtype().number_of_elements() - 1;
         }
     }
-    else if(is_base_uniform)
+    else if (is_base_uniform)
     {
         const conduit::Node &dim_node = (*coordset)["dims"];
-        for(index_t i = 0; i < num_axes; i++)
+        for (index_t i = 0; i < num_axes; i++)
         {
             edims_axes[i] = dim_node[logical_axes[i]].to_int() - 1;
         }
@@ -1269,15 +1276,16 @@ convert_topology_to_unstructured(const std::string &base_type,
 
     index_t vdims_axes[3] = {1, 1, 1};
     index_t num_elems = 1;
-    for(index_t d = 0; d < 3; d++)
+    for (index_t dim = 0; dim < 3; dim++)
     {
-        num_elems *= edims_axes[d];
-        vdims_axes[d] = edims_axes[d] + 1;
+        num_elems *= edims_axes[dim];
+        vdims_axes[dim] = edims_axes[dim] + 1;
     }
 
-    const index_t indices_per_elem = static_cast<index_t>(pow(2, csys_axes.size()));
+    // indices_per_elem is 2^num_axes (2 for a line, 4 for a quad, 8 for a hex).
+    const index_t indices_per_elem = index_t(1) << num_axes;
 
-    CONDUIT_ANNOTATE_MARK_BEGIN("to_unstructured_index_gen");
+    CONDUIT_ANNOTATE_MARK_BEGIN("to_unstructured_connectivity_gen");
     conduit::Node &conn_node = dest["elements/connectivity"];
     conn_node.set_allocator(allocator_id);
     conn_node.set(DataType(int_dtype.id(), num_elems * indices_per_elem));
@@ -1360,14 +1368,14 @@ convert_topology_to_unstructured(const std::string &base_type,
             // IDs into the connectivity array in counter-clockwise order. Previously,
             // we would write the IDs in the wrong order first and then have to
             // swap the IDs around to fix ordering afterwards. It's less work to
-            // simply put IDs into the correct positions in the first place.
+            // simply put the IDs into their correct positions in the first place.
             conn_node_vals.set(e * indices_per_elem + out_i, v);
         }
     });
     CONDUIT_DEVICE_ERROR_CHECK(policy);
     conn_node_vals.data_movement(sync_strategy);
 
-    CONDUIT_ANNOTATE_MARK_END("to_unstructured_index_gen");
+    CONDUIT_ANNOTATE_MARK_END("to_unstructured_connectivity_gen");
 }
 
 //-------------------------------------------------------------------------
