@@ -88,7 +88,7 @@ exec(const std::string &name,
     for (const auto &dim_size : dim_sizes)
     {
         // Benchmark each possible configuration
-        for (ExecConfig &config : configs)
+        for (ExecConfig config : configs)
         {
             config.dim_size = dim_size;
 
