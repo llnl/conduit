@@ -4940,6 +4940,89 @@ read_mesh(const std::string &root_file_path,
         }
     }
 
+    //
+    // Post-processing
+    //
+
+    // We need an additional step to examine fields we have read from Silo.
+    // If a material is clean (unmixed) for an entire domain, then any
+    // material-dependent fields on that domain will not present as such.
+    // We have no way of knowing until after we have read in the entire mesh
+    // to check for this case. Blueprint requires material-dependent fields
+    // to have "matset" and "matset_vals" children, even if there is no
+    // material mixing for a particular domain. To keep Blueprint happy,
+    // it is necessary to perform post-processing for fields to ensure that
+    // material dependence is consistent across all domains.
+
+    Node local_fields_material_status;
+
+    for (int domain_id = domain_start; domain_id < domain_end; domain_id ++)
+    {
+        const std::string domain_path = conduit_fmt::format("domain_{:06d}", domain_id);
+        
+        if (! mesh.has_path(domain_path + "/fields"))
+        {
+            continue;
+        }
+        Node &mesh_fields = mesh[domain_path]["fields"];
+
+        auto field_itr = mesh_fields.children();
+        while (field_itr.has_next())
+        {
+            const Node &field = field_itr.next();
+            const std::string fieldname = field_itr.name();
+
+            const bool has_matset      = field.has_child("matset");
+            const bool has_matset_vals = field.has_child("matset_vals");
+
+            if (has_matset && has_matset_vals)
+            {
+                // Whether we have a note about this field or not,
+                // if we are material dependent on this domain then
+                // we want to mark this field as material dependent.
+                local_fields_material_status["fieldname"].set("yes");
+            }
+            else if (! has_matset && ! has_matset_vals)
+            {
+                // If we have already looked at the field, and on this 
+                // domain there is no matset association, then we defer 
+                // to other domains.
+                // If we have not already looked at the field, and on this
+                // domain there is no matset association, then we can note
+                // that down.
+                if (! local_fields_material_status.has_child(fieldname))
+                {
+                    local_fields_material_status["fieldname"].set("no");
+                }
+            }
+            else
+            {
+                // TODO parallel error checking
+                CONDUIT_ERROR("TODO");
+            }
+        }
+    }
+
+    Node global_fields_material_status;
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    relay::mpi::gather_using_schema(local_fields_material_status,
+                                    global_fields_material_status,
+                                    0, // rank 0
+                                    mpi_comm);
+#else
+    global_fields_material_status.append().set_external(local_type_domain_info);
+#endif
+
+    if (0 == par_rank)
+    {
+        // TODO left off here
+    }
+
+
+    //
+    // Cleanup
+    //
+
     delete mesh_path_gen;
     mesh_path_gen = nullptr;
 
