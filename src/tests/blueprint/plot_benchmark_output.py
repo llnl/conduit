@@ -5,6 +5,7 @@
 import argparse
 import re
 import sys
+from collections import namedtuple
 from pathlib import Path
 
 import matplotlib
@@ -41,9 +42,10 @@ UNSTRUCTURED_GENERATE_FUNCTIONS = [
 ]
 
 UNSTRUCTURED_GENERATE_ELEM_TYPES = ["quads", "hexs"]
+UNSTRUCTURED_GENERATE_ELEM_NDIMS = {"quads": 2, "hexs": 3}
 
 UNSTRUCTURED_GENERATE_CONVERSIONS = [
-    f"{fn}_{elem}"
+    f"unstructured_{fn}_{elem}"
     for fn in UNSTRUCTURED_GENERATE_FUNCTIONS
     for elem in UNSTRUCTURED_GENERATE_ELEM_TYPES
 ]
@@ -58,7 +60,7 @@ CONVERSION_LABELS = {
     "topology_rectilinear_to_unstructured": "rect→unstruct",
     "topology_structured_to_unstructured": "struct→unstruct",
     **{
-        f"{fn}_{elem}": f"{fn} ({elem})"
+        f"unstructured_{fn}_{elem}": f"{fn} ({elem})"
         for fn in UNSTRUCTURED_GENERATE_FUNCTIONS
         for elem in UNSTRUCTURED_GENERATE_ELEM_TYPES
     },
@@ -69,7 +71,7 @@ CONVERSION_GROUPS = [
     ("topology", TOPOLOGY_CONVERSIONS),
 ] + [
     (f"unstructured_generate_{elem}",
-     [f"{fn}_{elem}" for fn in UNSTRUCTURED_GENERATE_FUNCTIONS])
+     [f"unstructured_{fn}_{elem}" for fn in UNSTRUCTURED_GENERATE_FUNCTIONS])
     for elem in UNSTRUCTURED_GENERATE_ELEM_TYPES
 ]
 
@@ -78,12 +80,7 @@ END_TO_END_GROUP_PANELS = [
     for group_name, group_conversions in CONVERSION_GROUPS
 ]
 
-COMPONENT_METRICS = [
-    ("use_with", "use_with"),
-    ("forall", "forall"),
-    ("data movement", "data_movement"),
-    ("other processing", "other_processing"),
-]
+COMPONENT_METRICS = ["use_with", "forall", "data_movement", "other_processing"]
 
 CMAP = plt.get_cmap("tab10")
 MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
@@ -93,18 +90,39 @@ CFG_ABBREVIATIONS = {
     "device": "dev",
 }
 
+# A benchmark execution configuration: which backend ran it, plus where the
+# source data lives, where execution happens, and where the output lives.
+Cfg = namedtuple("Cfg", ["backend", "src", "exec", "out"])
+
 
 def format_cfg_label(cfg):
-    backend, src, exec_, out = cfg
-
-    if backend is None:
+    if cfg.backend is None:
         return "serial - before device support"
 
-    backend = CFG_ABBREVIATIONS.get(backend, backend)
-    src = CFG_ABBREVIATIONS.get(src, src)
-    exec_ = CFG_ABBREVIATIONS.get(exec_, exec_)
-    out = CFG_ABBREVIATIONS.get(out, out)
+    backend = CFG_ABBREVIATIONS.get(cfg.backend, cfg.backend)
+    src = CFG_ABBREVIATIONS.get(cfg.src, cfg.src)
+    exec_ = CFG_ABBREVIATIONS.get(cfg.exec, cfg.exec)
+    out = CFG_ABBREVIATIONS.get(cfg.out, cfg.out)
     return f"{backend}: {src}→{exec_}→{out}"
+
+
+def per_entity_kind(conv_name):
+    # Coordset transform cost scales with the number of points; topology
+    # transform cost scales with the number of elements.
+    return "point" if conv_name.startswith("coordset_") else "element"
+
+
+def per_entity_count(conv_name, dim):
+    # braid takes points per axis, so a mesh with `dim` points per axis has
+    # dim**k points and (dim - 1)**k elements, where k is the topological
+    # dimension of the mesh.
+    if per_entity_kind(conv_name) == "point":
+        return dim ** 3
+    for elem, ndims in UNSTRUCTURED_GENERATE_ELEM_NDIMS.items():
+        if conv_name.endswith(f"_{elem}"):
+            return max(dim - 1, 1) ** ndims
+    # topology_* conversions run on full 3D braid meshes
+    return max(dim - 1, 1) ** 3
 
 
 def format_range_label(prefix, values):
@@ -125,12 +143,6 @@ def parse_config_name(name):
         return None
     conv_name, dim_str, rest = match.groups()
 
-    backend = None
-    conv_parts = conv_name.split("_")
-    if len(conv_parts) > 1 and conv_parts[-1] in KNOWN_BACKENDS:
-        backend = conv_parts[-1]
-        conv_name = "_".join(conv_parts[:-1])
-
     values = {}
     for field in rest.split("_"):
         if "-" not in field:
@@ -139,8 +151,10 @@ def parse_config_name(name):
         values[key] = value
 
     required = {"iter"}
-    optional = {"src", "exec", "out", "sync", "threads"}
+    optional = {"backend", "src", "exec", "out", "sync", "threads"}
     if not (required <= set(values) <= required | optional):
+        return None
+    if "backend" in values and values["backend"] not in KNOWN_BACKENDS:
         return None
     if "src" in values and values["src"] not in ("host", "device"):
         return None
@@ -158,7 +172,10 @@ def parse_config_name(name):
             return None
         threads = int(values["threads"])
 
-    cfg = (backend, values.get("src"), values.get("exec"), values.get("out"))
+    cfg = Cfg(values.get("backend"),
+              values.get("src"),
+              values.get("exec"),
+              values.get("out"))
     sync_strategy = values.get("sync")
     return conv_name, cfg, int(dim_str), int(values["iter"]), threads, sync_strategy
 
@@ -187,6 +204,9 @@ def find_cali_file():
         + (f" ({skipped} other .cali file(s) skipped)" if skipped else "")
         + ":"
     )
+    for f in cali_files:
+        print(f"  {f.name} ({parse_timestamp(f)})")
+    print(f"using most recent: {cali_files[0].name}")
     return cali_files[0]
 
 
@@ -230,12 +250,11 @@ def collect_data(thicket):
         if parsed is None:
             continue
         conv_name, cfg, dim, iters, threads, sync_strategy = parsed
-        backend, _, _, _ = cfg
 
         dims_seen.add(dim)
         syncs_seen.add(sync_strategy)
-        if backend is not None:
-            backends_seen.add(backend)
+        if cfg.backend is not None:
+            backends_seen.add(cfg.backend)
 
         totals = {name: 0.0 for name in LEAF_METRIC_NAMES}
         accumulate_leaf_metrics(thicket, profile_id, cfg_node, totals)
@@ -258,7 +277,7 @@ def collect_data(thicket):
     return data, sorted(dims_seen), backends_seen, syncs_seen
 
 
-def plot_panels(data, dims, cfg_keys, panels, suptitle, path, ylabel, iters_label, per_element=False):
+def plot_panels(data, dims, cfg_keys, panels, suptitle, path, ylabel, iters_label, per_entity=False):
     n = len(panels)
     fig_width = 10
 
@@ -274,8 +293,8 @@ def plot_panels(data, dims, cfg_keys, panels, suptitle, path, ylabel, iters_labe
             for d in dims:
                 v = data.get((cfg, conv_name, d), {}).get(metric, np.nan)
                 if not np.isnan(v):
-                    if per_element:
-                        v = v / (d ** 3)  # dim is per axis, so the mesh has d**3 elements
+                    if per_entity:
+                        v = v / per_entity_count(conv_name, d)
                     v = v * scale
                 ys.append(v)
             raw_ys_by_cfg.append(ys)
@@ -297,7 +316,7 @@ def plot_panels(data, dims, cfg_keys, panels, suptitle, path, ylabel, iters_labe
                 dims, ys,
                 label=format_cfg_label(cfg),
                 color=CMAP(j % 10), marker=MARKERS[j % len(MARKERS)],
-                linestyle="-" if cfg[2] == "device" else "--",
+                linestyle="-" if cfg.exec == "device" else "--",
                 markersize=7, linewidth=2.2, alpha=0.9,
             )
 
@@ -309,8 +328,8 @@ def plot_panels(data, dims, cfg_keys, panels, suptitle, path, ylabel, iters_labe
         ax.tick_params(axis="both", which="major", labelsize=13)
 
         positive_values = [v for v in panel_values if v > 0]
-        if per_element and positive_values:
-            # Per-element cost spans many orders of magnitude, so use
+        if per_entity and positive_values:
+            # Per-entity cost spans many orders of magnitude, so use
             # a log-scale y-axis
             ax.set_yscale("log")
         else:
@@ -339,65 +358,58 @@ def plot_panels(data, dims, cfg_keys, panels, suptitle, path, ylabel, iters_labe
     print(f"saved {path}")
 
 
-def generate_plots(data, dims, cfg_keys, iters_label, out_dir, suffix="", include_components=True):
-    ylabel = "avg time / iter"
+def generate_plots(data, dims, cfg_keys, iters_label, out_dir, suffix="",
+                   include_components=True, per_entity=False):
+    # Per-entity plots normalize each conversion by its point/element count;
+    # every group is homogeneous in kind, so label each figure accordingly.
+    file_suffix = f"_per_entity{suffix}" if per_entity else suffix
 
     for group_name, group_panels in END_TO_END_GROUP_PANELS:
+        if per_entity:
+            kind = per_entity_kind(group_panels[0][1])
+            suptitle = f"avg {group_name} conversion time per {kind} vs data size"
+            ylabel = f"avg time / {kind}"
+        else:
+            suptitle = f"avg {group_name} conversion time vs data size"
+            ylabel = "avg time / iter"
         plot_panels(
             data, dims, cfg_keys,
             group_panels,
-            f"avg {group_name} conversion time vs data size",
-            out_dir / f"end_to_end_combined_{group_name}{suffix}.png",
+            suptitle,
+            out_dir / f"end_to_end_combined_{group_name}{file_suffix}.png",
             ylabel,
             iters_label,
+            per_entity=per_entity,
         )
 
     for conv in CONVERSIONS:
+        if per_entity:
+            kind = per_entity_kind(conv)
+            suptitle = f"{CONVERSION_LABELS[conv]} avg end-to-end time per {kind} vs data size"
+            ylabel = f"avg time / {kind}"
+        else:
+            suptitle = f"{CONVERSION_LABELS[conv]} avg end-to-end conversion time vs data size"
+            ylabel = "avg time / iter"
         plot_panels(
             data, dims, cfg_keys,
             [(CONVERSION_LABELS[conv], conv, "end_to_end")],
-            f"{CONVERSION_LABELS[conv]} avg end-to-end conversion time vs data size",
-            out_dir / f"end_to_end_{conv}{suffix}.png",
+            suptitle,
+            out_dir / f"end_to_end_{conv}{file_suffix}.png",
             ylabel,
             iters_label,
+            per_entity=per_entity,
         )
 
-        if include_components:
-            component_panels = [(title, conv, metric) for title, metric in COMPONENT_METRICS]
+        if include_components and not per_entity:
+            component_panels = [(metric, conv, metric) for metric in COMPONENT_METRICS]
             plot_panels(
                 data, dims, cfg_keys,
                 component_panels,
                 f"{CONVERSION_LABELS[conv]} components vs data size",
                 out_dir / f"components_{conv}{suffix}.png",
-                ylabel,
+                "avg time / iter",
                 iters_label,
             )
-
-
-def generate_per_element_plots(data, dims, cfg_keys, iters_label, out_dir, suffix=""):
-    ylabel = "avg time / element"
-
-    for group_name, group_panels in END_TO_END_GROUP_PANELS:
-        plot_panels(
-            data, dims, cfg_keys,
-            group_panels,
-            f"avg {group_name} time per element vs data size",
-            out_dir / f"end_to_end_combined_{group_name}_per_element{suffix}.png",
-            ylabel,
-            iters_label,
-            per_element=True,
-        )
-
-    for conv in CONVERSIONS:
-        plot_panels(
-            data, dims, cfg_keys,
-            [(CONVERSION_LABELS[conv], conv, "end_to_end")],
-            f"{CONVERSION_LABELS[conv]} avg end-to-end time per element vs data size",
-            out_dir / f"end_to_end_{conv}_per_element{suffix}.png",
-            ylabel,
-            iters_label,
-            per_element=True,
-        )
 
 
 def main():
@@ -448,14 +460,16 @@ def main():
             suffix=sync_suffix,
             include_components=not serial_only,
         )
-        generate_per_element_plots(
+        generate_plots(
             sync_data, dims, cfg_keys, iters_label, out_dir,
             suffix=sync_suffix,
+            include_components=False,
+            per_entity=True,
         )
 
         if not serial_only:
             for backend in sorted(backends_seen):
-                backend_keys = [cfg for cfg in cfg_keys if cfg[0] == backend]
+                backend_keys = [cfg for cfg in cfg_keys if cfg.backend == backend]
                 if backend_keys:
                     generate_plots(
                         sync_data, dims, backend_keys, iters_label, out_dir,

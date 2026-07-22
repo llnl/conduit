@@ -15,11 +15,30 @@
 
 #include "gtest/gtest.h"
 
+#include <iostream>
+#include <utility>
+
 using namespace conduit;
 
+// Intentionally small by default, to minimize CI time spent benchmarking
 std::vector<index_t> BENCHMARK_DIM_SIZES = {2, 4};
 index_t BENCHMARK_NUM_WARMUP_ITERATIONS  = 10;
 index_t BENCHMARK_NUM_ITERATIONS         = 100;
+
+//-----------------------------------------------------------------------------
+template <typename SetupFn, typename RunFn>
+void
+run_benchmark(const std::string &name,
+              SetupFn &&setup,
+              RunFn &&run)
+{
+    benchmark::exec(name,
+                    std::forward<SetupFn>(setup),
+                    std::forward<RunFn>(run),
+                    BENCHMARK_NUM_WARMUP_ITERATIONS,
+                    BENCHMARK_NUM_ITERATIONS,
+                    BENCHMARK_DIM_SIZES);
+}
 
 //-----------------------------------------------------------------------------
 void
@@ -35,11 +54,17 @@ make_braid_dataset(const std::string &src_type,
 }
 
 //-----------------------------------------------------------------------------
-// 2D braid element types error out if given a non-zero z dimension
+// 2D braid element types error out if given a non-zero z dimension,
+// so clamp npts_z to zero for them.
 index_t
-braid_bound_npts_z(const std::string &mesh_type, index_t npts_z)
+braid_npts_z(const std::string &mesh_type,
+             index_t npts_z)
 {
-    return (mesh_type == "tris" || mesh_type == "quads") ? 0 : npts_z;
+    if (mesh_type == "tris" || mesh_type == "quads")
+    {
+        return 0;
+    }
+    return npts_z;
 }
 
 //-----------------------------------------------------------------------------
@@ -51,13 +76,13 @@ make_unstructured_braid_dataset(const std::string &src_type,
     blueprint::mesh::examples::braid(src_type,
                                      config.dim_size,
                                      config.dim_size,
-                                     braid_bound_npts_z(src_type, config.dim_size),
+                                     braid_npts_z(src_type, config.dim_size),
                                      src);
 }
 
 //-----------------------------------------------------------------------------
 void
-benchmark_coordset_transform(const char *name,
+benchmark_coordset_transform(const std::string &name,
                              const std::string &src_type,
                              void (*transform)(const Node &, Node &))
 {
@@ -67,51 +92,43 @@ benchmark_coordset_transform(const char *name,
     };
 
     // Perform a transform on the source Node
-    auto run = [=](const Node &src) {
-        Node dst;
+    auto run = [&](const Node &src, Node &dst) {
         transform(src["coordsets"].child(0), dst);
     };
 
-    // Execute the benchmark
-    benchmark::exec(name,
-                    setup,
-                    run,
-                    BENCHMARK_NUM_WARMUP_ITERATIONS,
-                    BENCHMARK_NUM_ITERATIONS,
-                    BENCHMARK_DIM_SIZES);
+    run_benchmark(name, setup, run);
 }
 
 //-----------------------------------------------------------------------------
+// Benchmarks blueprint::mesh::convert(), which covers every topology and
+// unstructured-generate transform below.
 void
-benchmark_topology_transform(const char *name,
-                             const std::string &src_type,
-                             void (*transform)(const Node &, Node &, Node &))
+benchmark_mesh_convert(const std::string &name,
+                       void (*make_dataset)(const std::string &, const benchmark::ExecConfig &, Node &),
+                       const std::string &src_type,
+                       const std::string &target)
 {
     // Create the source Node once and reuse it for each iteration
     auto setup = [&](const benchmark::ExecConfig &config, Node &src) {
-        make_braid_dataset(src_type, config, src);
+        make_dataset(src_type, config, src);
     };
+
+    Node options;
+    options["target"] = target;
 
     // Perform a transform on the source Node
-    auto run = [=](const Node &src) {
-        Node topo_dst, coords_dst;
-        transform(src["topologies"].child(0), topo_dst, coords_dst);
+    auto run = [&](const Node &src, Node &dst) {
+        blueprint::mesh::convert(src, options, dst);
     };
 
-    // Execute the benchmark
-    benchmark::exec(name,
-                    setup,
-                    run,
-                    BENCHMARK_NUM_WARMUP_ITERATIONS,
-                    BENCHMARK_NUM_ITERATIONS,
-                    BENCHMARK_DIM_SIZES);
+    run_benchmark(name, setup, run);
 }
 
 //-----------------------------------------------------------------------------
+// generate_offsets has no blueprint::mesh::convert() target.
 void
-benchmark_topo_generate_single(const char *name,
-                               const std::string &src_type,
-                               void (*transform)(const Node &, Node &))
+benchmark_topology_generate_offsets(const std::string &name,
+                                    const std::string &src_type)
 {
     // Create the source Node once and reuse it for each iteration
     auto setup = [&](const benchmark::ExecConfig &config, Node &src) {
@@ -119,103 +136,51 @@ benchmark_topo_generate_single(const char *name,
     };
 
     // Perform a transform on the source Node
-    auto run = [=](const Node &src) {
-        Node dst;
-        transform(src["topologies"].child(0), dst);
+    auto run = [&](const Node &src, Node &dst) {
+        blueprint::mesh::topology::unstructured::generate_offsets(src["topologies"].child(0),
+                                                                  dst);
     };
 
-    // Execute the benchmark
-    benchmark::exec(name,
-                    setup,
-                    run,
-                    BENCHMARK_NUM_WARMUP_ITERATIONS,
-                    BENCHMARK_NUM_ITERATIONS,
-                    BENCHMARK_DIM_SIZES);
+    run_benchmark(name, setup, run);
 }
 
 //-----------------------------------------------------------------------------
+// generate_offsets_inline also has no blueprint::mesh::convert() target.
 void
-benchmark_topo_generate_maps(const char *name,
-                             const std::string &src_type,
-                             void (*transform)(const Node &, Node &, Node &, Node &))
+benchmark_topology_generate_offsets_inline(const std::string &name,
+                                           const std::string &src_type)
 {
-    // Create the source Node once and reuse it for each iteration
+    // generate_offsets_inline mutates its argument in place and is a no-op
+    // if offsets are already present, so keep a working copy of the source
+    // topology alive across iterations and strip its offsets before each
+    // run.
+    Node topo;
+
+    // Create the working topology once and reuse it for each iteration
     auto setup = [&](const benchmark::ExecConfig &config, Node &src) {
         make_unstructured_braid_dataset(src_type, config, src);
+        topo.set(src["topologies"].child(0));
     };
 
-    // Perform a transform on the source Node
-    auto run = [=](const Node &src) {
-        Node dst, s2dmap, d2smap;
-        transform(src["topologies"].child(0), dst, s2dmap, d2smap);
+    // Perform the transform on the working topology
+    auto run = [&](const Node &, Node &) {
+        if (topo.has_path("elements/offsets"))
+        {
+            topo["elements"].remove_child("offsets");
+        }
+        blueprint::mesh::topology::unstructured::generate_offsets_inline(topo);
     };
 
-    // Execute the benchmark
-    benchmark::exec(name,
-                    setup,
-                    run,
-                    BENCHMARK_NUM_WARMUP_ITERATIONS,
-                    BENCHMARK_NUM_ITERATIONS,
-                    BENCHMARK_DIM_SIZES);
-}
-
-//-----------------------------------------------------------------------------
-void
-benchmark_topo_generate_topo_coords_maps(const char *name,
-                                         const std::string &src_type,
-                                         void (*transform)(const Node &, Node &, Node &, Node &, Node &))
-{
-    // Create the source Node once and reuse it for each iteration
-    auto setup = [&](const benchmark::ExecConfig &config, Node &src) {
-        make_unstructured_braid_dataset(src_type, config, src);
-    };
-
-    // Perform a transform on the source Node
-    auto run = [=](const Node &src) {
-        Node topo_dst, coords_dst, s2dmap, d2smap;
-        transform(src["topologies"].child(0), topo_dst, coords_dst, s2dmap, d2smap);
-    };
-
-    // Execute the benchmark
-    benchmark::exec(name,
-                    setup,
-                    run,
-                    BENCHMARK_NUM_WARMUP_ITERATIONS,
-                    BENCHMARK_NUM_ITERATIONS,
-                    BENCHMARK_DIM_SIZES);
-}
-
-//-----------------------------------------------------------------------------
-void
-benchmark_topo_generate_offsets_inline(const char *name,
-                                       const std::string &src_type)
-{
-    // Create the source Node once and reuse it for each iteration
-    auto setup = [&](const benchmark::ExecConfig &config, Node &src) {
-        make_unstructured_braid_dataset(src_type, config, src);
-    };
-
-    // generate_offsets_inline mutates its argument in place and is a no-op if
-    // offsets are already present, so each iteration needs its own copy of
-    // the source topology to do real work.
-    auto run = [=](const Node &src) {
-        Node topo_copy;
-        topo_copy.set(src["topologies"].child(0));
-        blueprint::mesh::topology::unstructured::generate_offsets_inline(topo_copy);
-    };
-
-    // Execute the benchmark
-    benchmark::exec(name,
-                    setup,
-                    run,
-                    BENCHMARK_NUM_WARMUP_ITERATIONS,
-                    BENCHMARK_NUM_ITERATIONS,
-                    BENCHMARK_DIM_SIZES);
+    run_benchmark(name, setup, run);
 }
 
 //-----------------------------------------------------------------------------
 TEST(blueprint_mesh_transform_benchmark, coordset_transforms)
 {
+    // This is not an exhaustive benchmark of the coordset transforms;
+    // it only includes the ones that made sense to port to the device
+    // execution model.
+
     CONDUIT_ANNOTATE_MARK_FUNCTION;
     benchmark_coordset_transform("coordset_uniform_to_rectilinear",
                                  "uniform",
@@ -231,52 +196,67 @@ TEST(blueprint_mesh_transform_benchmark, coordset_transforms)
 //-----------------------------------------------------------------------------
 TEST(blueprint_mesh_transform_benchmark, topology_transforms)
 {
+    // This is not an exhaustive benchmark of the topology transforms;
+    // it only includes 'to_unstructured' since that is the only transform
+    // that made sense to port to the device execution model.
+
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark_topology_transform("topology_uniform_to_unstructured",
-                                 "uniform",
-                                 blueprint::mesh::topology::uniform::to_unstructured);
-    benchmark_topology_transform("topology_rectilinear_to_unstructured",
-                                 "rectilinear",
-                                 blueprint::mesh::topology::rectilinear::to_unstructured);
-    benchmark_topology_transform("topology_structured_to_unstructured",
-                                 "structured",
-                                 blueprint::mesh::topology::structured::to_unstructured);
+    benchmark_mesh_convert("topology_uniform_to_unstructured",
+                           make_braid_dataset,
+                           "uniform",
+                           "unstructured");
+    benchmark_mesh_convert("topology_rectilinear_to_unstructured",
+                           make_braid_dataset,
+                           "rectilinear",
+                           "unstructured");
+    benchmark_mesh_convert("topology_structured_to_unstructured",
+                           make_braid_dataset,
+                           "structured",
+                           "unstructured");
 }
 
 //-----------------------------------------------------------------------------
 TEST(blueprint_mesh_transform_benchmark, unstructured_generate_transforms)
 {
+    // This is not an exhaustive benchmark of the unstructured generate
+    // transforms; it only includes the ones that made sense to port to the
+    // device execution model.
+
     CONDUIT_ANNOTATE_MARK_FUNCTION;
     for (const std::string &src_type : {"quads", "hexs"})
     {
-        benchmark_topo_generate_single(("to_polytopal_" + src_type).c_str(),
-            src_type,
-            blueprint::mesh::topology::unstructured::to_polytopal);
-        benchmark_topo_generate_single(("generate_offsets_" + src_type).c_str(),
-            src_type,
-            static_cast<void (*)(const Node &, Node &)>(
-                blueprint::mesh::topology::unstructured::generate_offsets));
-        benchmark_topo_generate_maps(("generate_points_" + src_type).c_str(),
-            src_type,
-            blueprint::mesh::topology::unstructured::generate_points);
-        benchmark_topo_generate_maps(("generate_lines_" + src_type).c_str(),
-            src_type,
-            blueprint::mesh::topology::unstructured::generate_lines);
-        benchmark_topo_generate_maps(("generate_faces_" + src_type).c_str(),
-            src_type,
-            blueprint::mesh::topology::unstructured::generate_faces);
-        benchmark_topo_generate_topo_coords_maps(("generate_centroids_" + src_type).c_str(),
-            src_type,
-            blueprint::mesh::topology::unstructured::generate_centroids);
-        benchmark_topo_generate_topo_coords_maps(("generate_sides_" + src_type).c_str(),
-            src_type,
-            static_cast<void (*)(const Node &, Node &, Node &, Node &, Node &)>(
-                blueprint::mesh::topology::unstructured::generate_sides));
-        benchmark_topo_generate_topo_coords_maps(("generate_corners_" + src_type).c_str(),
-            src_type,
-            blueprint::mesh::topology::unstructured::generate_corners);
-        benchmark_topo_generate_offsets_inline(("generate_offsets_inline_" + src_type).c_str(),
-            src_type);
+        benchmark_mesh_convert("unstructured_to_polytopal_" + src_type,
+                               make_unstructured_braid_dataset,
+                               src_type,
+                               "polytopal");
+        benchmark_mesh_convert("unstructured_generate_points_" + src_type,
+                               make_unstructured_braid_dataset,
+                               src_type,
+                               "generate_points");
+        benchmark_mesh_convert("unstructured_generate_lines_" + src_type,
+                               make_unstructured_braid_dataset,
+                               src_type,
+                               "generate_lines");
+        benchmark_mesh_convert("unstructured_generate_faces_" + src_type,
+                               make_unstructured_braid_dataset,
+                               src_type,
+                               "generate_faces");
+        benchmark_mesh_convert("unstructured_generate_centroids_" + src_type,
+                               make_unstructured_braid_dataset,
+                               src_type,
+                               "generate_centroids");
+        benchmark_mesh_convert("unstructured_generate_sides_" + src_type,
+                               make_unstructured_braid_dataset,
+                               src_type,
+                               "generate_sides");
+        benchmark_mesh_convert("unstructured_generate_corners_" + src_type,
+                               make_unstructured_braid_dataset,
+                               src_type,
+                               "generate_corners");
+        benchmark_topology_generate_offsets("unstructured_generate_offsets_" + src_type,
+                                            src_type);
+        benchmark_topology_generate_offsets_inline("unstructured_generate_offsets_inline_" + src_type,
+                                                   src_type);
     }
 }
 
@@ -284,6 +264,13 @@ TEST(blueprint_mesh_transform_benchmark, unstructured_generate_transforms)
 int main(int argc, char *argv[])
 {
     ::testing::InitGoogleTest(&argc, argv);
+
+    if (!annotations::supported())
+    {
+        std::cout << "WARNING: conduit was built without Caliper support, "
+                     "so this benchmark will run but will not produce any "
+                     "timing output (.cali file)." << std::endl;
+    }
 
     if (argc >= 2)
     {

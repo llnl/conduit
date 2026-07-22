@@ -19,6 +19,7 @@
 
 #include "conduit_annotations.hpp"
 #include "conduit_data_type.hpp"
+#include "conduit_node.hpp"
 
 // This is not needed after device support is added back
 #if defined(CONDUIT_USE_OPENMP)
@@ -64,32 +65,40 @@ get_exec_configs()
 {
     // In the pre-device execution model world, we don't have the concept of
     // host vs device execution
-    //                                src       exec      dest
-    std::vector<ExecConfig> configs{{"host", "host", "host"}};
+    std::vector<ExecConfig> configs{
+        //source location, execution location, output location
+        {"host",           "host",             "host"},
+    };
     return configs;
 }
 
 //-----------------------------------------------------------------------------
 template <typename SetupFn, typename RunFn>
 void
-exec(const char *name,
+exec(const std::string &name,
      SetupFn &&setup,
      RunFn &&run,
      const index_t warmup,
      const index_t iterations,
      const std::vector<index_t> &dim_sizes)
 {
+    const std::vector<ExecConfig> configs = get_exec_configs();
+
     // Benchmark each data size
     for (const auto &dim_size : dim_sizes)
     {
         // Benchmark each possible configuration
-        for (auto &config : get_exec_configs())
+        for (ExecConfig config : configs)
         {
             config.dim_size = dim_size;
 
             // Build the input once, outside the timed regions
             Node input;
             setup(config, input);
+
+            // Reused across every iteration. It gets reset() immediately
+            // before each call, so run() always sees it empty.
+            Node dst;
 
             // Execute `run` `warmup` times
             {
@@ -98,7 +107,8 @@ exec(const char *name,
                 CONDUIT_ANNOTATE_MARK_SCOPE("warmup");
                 for (index_t i = 0; i < warmup; i++)
                 {
-                    run(input);
+                    dst.reset();
+                    run(input, dst);
                 }
             }
 
@@ -107,7 +117,7 @@ exec(const char *name,
                 // This scope name is used to identify specific benchmarks in
                 // the Caliper output and identify their attributes
                 // (dim size, policy, etc.)
-                const std::string scope_name = std::string(name)
+                const std::string scope_name = name
                     + "_dim-"  + std::to_string(dim_size)
                     + "_src-"  + config.src_location
                     + "_exec-" + config.exec_location
@@ -119,7 +129,8 @@ exec(const char *name,
                 CONDUIT_ANNOTATE_MARK_SCOPE(scope_name.c_str());
                 for (index_t i = 0; i < iterations; i++)
                 {
-                    run(input);
+                    dst.reset();
+                    run(input, dst);
                 }
             }
         }
