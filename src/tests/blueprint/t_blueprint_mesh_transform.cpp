@@ -381,12 +381,9 @@ TEST(conduit_blueprint_mesh_transform, topology_transform_dtypes)
                     Node &itopology = imesh["topologies"].child(0);
                     Node &icoordset = imesh["coordsets"].child(0);
 
-                    set_node_data(imesh, bputils::INT_DTYPES[ii]);
-                    set_node_data(imesh, bputils::FLOAT_DTYPES[fi]);
-
                     // FIXME(JRC): I think these should be references! i.e. Node &jtopology
                     // Changing them in this way causes this test to fail.
-                    //
+
                     // The above comment was correct: jtopology/jcoordset do need to be
                     // references for the coordset name to come through correctly.
                     // However, doing so reveals that 'find_widest_dtype' doesn't
@@ -396,6 +393,9 @@ TEST(conduit_blueprint_mesh_transform, topology_transform_dtypes)
                     Node jmesh;
                     Node &jtopology = jmesh["topologies"][itopology.name()];
                     Node &jcoordset = jmesh["coordsets"][icoordset.name()];
+
+                    set_node_data(imesh, bputils::INT_DTYPES[ii]);
+                    set_node_data(imesh, bputils::FLOAT_DTYPES[fi]);
 
                     to_new_topology(itopology, jtopology, jcoordset);
                     // See above comment.
