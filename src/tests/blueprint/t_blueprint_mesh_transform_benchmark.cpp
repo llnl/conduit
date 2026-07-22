@@ -166,9 +166,6 @@ TEST(blueprint_mesh_transform_benchmark, topology_transforms)
     benchmark_topology_transform("topology_uniform_to_unstructured",
                                  "uniform",
                                  blueprint::mesh::topology::uniform::to_unstructured);
-    benchmark_topology_transform("topology_rectilinear_to_structured",
-                                 "rectilinear",
-                                 blueprint::mesh::topology::rectilinear::to_structured);
     benchmark_topology_transform("topology_rectilinear_to_unstructured",
                                  "rectilinear",
                                  blueprint::mesh::topology::rectilinear::to_unstructured);
