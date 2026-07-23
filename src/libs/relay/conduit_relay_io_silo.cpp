@@ -4956,6 +4956,20 @@ read_mesh(const std::string &root_file_path,
 
     Node local_fields_material_status;
 
+    // we create a structure like this:
+    //
+    // mesh_area: "yes"
+    // mesh_background: "no"
+    // mesh_circle_a: "no"
+    // mesh_circle_b: "no"
+    // mesh_circle_c: "no"
+    // mesh_importance: "yes"
+    // mesh_mat_check: "yes"
+    // mesh_overlap: "no"
+    // mesh_radius_a: "no"
+    // mesh_radius_b: "no"
+    // mesh_radius_c: "no"
+
     for (int domain_id = domain_start; domain_id < domain_end; domain_id ++)
     {
         const std::string domain_path = conduit_fmt::format("domain_{:06d}", domain_id);
@@ -4971,16 +4985,15 @@ read_mesh(const std::string &root_file_path,
         {
             const Node &field = field_itr.next();
             const std::string fieldname = field_itr.name();
-
             const bool has_matset      = field.has_child("matset");
-            const bool has_matset_vals = field.has_child("matset_vals");
+            const bool has_matset_vals = field.has_child("matset_values");
 
             if (has_matset && has_matset_vals)
             {
                 // Whether we have a note about this field or not,
                 // if we are material dependent on this domain then
                 // we want to mark this field as material dependent.
-                local_fields_material_status["fieldname"].set("yes");
+                local_fields_material_status[fieldname].set("yes");
             }
             else if (! has_matset && ! has_matset_vals)
             {
@@ -4992,7 +5005,7 @@ read_mesh(const std::string &root_file_path,
                 // that down.
                 if (! local_fields_material_status.has_child(fieldname))
                 {
-                    local_fields_material_status["fieldname"].set("no");
+                    local_fields_material_status[fieldname].set("no");
                 }
             }
             else
@@ -5003,21 +5016,165 @@ read_mesh(const std::string &root_file_path,
         }
     }
 
-    Node global_fields_material_status;
+    Node global_collected_fields_material_status;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    relay::mpi::gather_using_schema(local_fields_material_status,
-                                    global_fields_material_status,
-                                    0, // rank 0
-                                    mpi_comm);
+    relay::mpi::all_gather_using_schema(local_fields_material_status,
+                                        global_collected_fields_material_status,
+                                        mpi_comm);
 #else
-    global_fields_material_status.append().set_external(local_type_domain_info);
+    global_collected_fields_material_status.append().set_external(local_fields_material_status);
 #endif
 
-    if (0 == par_rank)
+    global_collected_fields_material_status.print();
+
+    // after the communication, we have a structure like this:
+    // 
+    // - 
+    //   mesh_area: "yes"
+    //   mesh_background: "no"
+    //   mesh_circle_a: "no"
+    //   mesh_circle_b: "no"
+    //   mesh_circle_c: "no"
+    //   mesh_importance: "yes"
+    //   mesh_mat_check: "yes"
+    //   mesh_overlap: "no"
+    //   mesh_radius_a: "no"
+    //   mesh_radius_b: "no"
+    //   mesh_radius_c: "no"
+    // -
+    //   mesh_area: "yes"
+    //   mesh_background: "no"
+    //   mesh_circle_a: "no"
+    //   ...
+
+    // now we must unify the sources of truth across ranks
+    Node fields_material_status;
+    auto rank_data_itr = global_collected_fields_material_status.children();
+    while (rank_data_itr.has_next())
     {
-        // TODO left off here
+        const Node &rank_data = rank_data_itr.next();
+        auto field_status_itr = rank_data.children();
+        while (field_status_itr.has_next())
+        {
+            const Node &field_status = field_status_itr.next();
+            const std::string fieldname = field_status_itr.name();
+            
+            // if we already have an entry for this field
+            if (fields_material_status.has_child(fieldname))
+            {
+                // then we choose "yes" over "no"
+                if (field_status.as_string() == "yes" &&
+                    fields_material_status[fieldname].as_string() == "no")
+                {
+                    fields_material_status[fieldname].set(field_status);
+                }
+            }
+            // if we do not yet have an entry for this field
+            else
+            {
+                // then add the one we have found
+                fields_material_status[fieldname].set(field_status);
+            }
+        }
     }
 
+    // finally, we are back to a structure like this, but unified over all ranks:
+    //
+    // mesh_area: "yes"
+    // mesh_background: "no"
+    // mesh_circle_a: "no"
+    // mesh_circle_b: "no"
+    // mesh_circle_c: "no"
+    // mesh_importance: "yes"
+    // mesh_mat_check: "yes"
+    // mesh_overlap: "no"
+    // mesh_radius_a: "no"
+    // mesh_radius_b: "no"
+    // mesh_radius_c: "no"
+    //
+    // stored in `fields_material_status`
+
+    // now for the fun part - we must ensure that all of the fields that are globally
+    // material dependent have matset_values.
+
+    if (any_matdep_fields)
+    {
+        for (int domain_id = domain_start; domain_id < domain_end; domain_id ++)
+        {
+            const std::string domain_path = conduit_fmt::format("domain_{:06d}", domain_id);
+            
+            if (! mesh.has_path(domain_path + "/fields"))
+            {
+                continue;
+            }
+
+            // are there any material dependent fields on this domain?
+            const bool any_matdep_fields = [fields_material_status]()
+            {
+                bool are_there_any_matdep_fields = false;
+
+                Node &mesh_fields = mesh[domain_path]["fields"];
+                auto field_itr = mesh_fields.children();
+                while (field_itr.has_next())
+                {
+                    field_itr.next();
+                    const std::string fieldname = field_itr.name();
+                    if (fields_material_status[fieldname].as_string() == "yes")
+                    {
+                        are_there_any_matdep_fields = true;
+                    }
+                }
+            };
+
+            // if there are not any material dependent fields on this domain, we can skip
+            if (! any_matdep_fields)
+            {
+                continue;
+            }
+
+            // we have at least one material dependent field on this domain, so we must
+            // find its matset
+
+            if (! mesh.has_path(domain_path + "/matsets"))
+            {
+                CONDUIT_ERROR("TODO");
+                // TODO parallel error checking
+            }
+
+            const Node &mesh_matsets = mesh[domain_path]["matsets"];
+            const std::vector<std::string> matset_names = mesh_matsets.child_names();
+            if (matset_names.size() != 1)
+            {
+                CONDUIT_ERROR("TODO");
+                // TODO parallel error checking
+            }
+
+            const Node &matset = mesh_matsets[matset_names[0]];
+
+            // TODO JUSTIN
+            // we only need to check if matsets are clean if we have a 
+            // globally material dependent field while the local field
+            // is material-independent - but ideally we could only do this once for all fields
+
+            Node &mesh_fields = mesh[domain_path]["fields"];
+            auto field_itr = mesh_fields.children();
+            while (field_itr.has_next())
+            {
+                const Node &field = field_itr.next();
+                const std::string fieldname = field_itr.name();
+
+                const bool globally_matdep = fields_material_status[fieldname].as_string() == "yes";
+                const bool locally_matdep  = field.has_child("matset");
+
+                if (globally_matdep && ! locally_matdep)
+                {
+                    // TODO JUSTIN
+                    // I wrote a new helper just for you: has_mixed_elements
+                    // but I want to cache the result
+                }
+            }
+        }
+    }
 
     //
     // Cleanup

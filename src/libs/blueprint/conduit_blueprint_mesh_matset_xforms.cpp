@@ -2597,6 +2597,94 @@ get_material_names(const conduit::Node &matset,
 }
 
 //-----------------------------------------------------------------------------
+bool
+has_mixed_elements(const conduit::Node &matset,
+                   const float64 epsilon = CONDUIT_EPSILON)
+{
+    // extra seat belt here
+    if (! matset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::matset::has_mixed_elements"
+                      " passed matset node must be a valid matset tree.");
+    }
+
+    MatsetAccessor m_acc = MatsetAccessor(matset);
+
+    if (is_uni_buffer(matset))
+    {
+        if (is_element_dominant(matset))
+        {
+            const index_t num_elems = m_acc.num_elems();
+            for (index_t elem_idx = 0; elem_idx < num_elems; elem_idx ++)
+            {
+                if (m_acc.num_mats_for_elem(elem_idx) != index_t{1})
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        else // material-dominant
+        {
+            // unsupported uni-buffer by material
+            CONDUIT_ERROR("conduit::blueprint::mesh::matset::has_mixed_elements() "
+                          "material-dominant uni-buffer material set is unsupported.");
+            return false;
+        }
+    }
+    else // multi-buffer
+    {
+        if (is_element_dominant(matset))
+        {
+            // full
+            const index_t num_elems = m_acc.num_elems();
+            const index_t num_mats  = m_acc.num_mats();
+
+            for (index_t elem_idx = 0; elem_idx < num_elems; elem_idx ++)
+            {
+                for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
+                {
+                    const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
+                    const float64 diff = 1.0f - vol_frac;
+                    // volume fraction must be neither 1.0 nor 0.0 for this to 
+                    // be clean
+                    // if vol_frac is greater than 0 and
+                    // 1 - vol_frac is greater than 0 (1 is greater than vol_frac)
+                    if (vol_frac > epsilon && diff > epsilon)
+                    {
+                        // then we are mixed
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+        else // material-dominant
+        {
+            // sparse_by_material
+            const index_t num_elems = m_acc.num_elems();
+            const index_t num_mats  = m_acc.num_mats();
+
+            index_t running_sum = 0;
+            for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
+            {
+                running_sum += m_acc.num_elems_for_mat(mat_idx);
+            }
+
+            // if any of the elements are double counted
+            if (running_sum > num_elems)
+            {
+                return true;
+            }
+
+            return false;
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
 void
 to_multi_buffer_by_element(const conduit::Node &src_matset,
                            conduit::Node &dest_matset)
