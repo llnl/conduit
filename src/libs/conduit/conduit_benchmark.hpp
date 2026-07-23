@@ -55,7 +55,6 @@ struct ExecConfig
     std::string src_location;
     std::string exec_location;
     std::string output_location;
-    index_t dim_size = 1;
 };
 
 //-----------------------------------------------------------------------------
@@ -84,20 +83,20 @@ exec(const std::string &name,
 {
     const std::vector<ExecConfig> configs = get_exec_configs();
 
-    // Benchmark each data size
-    for (const auto &dim_size : dim_sizes)
+
+    // Benchmark each possible configuration
+    for (const ExecConfig &config : configs)
     {
-        // Benchmark each possible configuration
-        for (ExecConfig config : configs)
+        // Benchmark each data size
+        for (const auto &npts : dim_sizes)
         {
-            config.dim_size = dim_size;
-
-            // Build the input once, outside the timed regions
+            // Build the input mesh once, outside the timed regions
             Node input;
-            setup(config, input);
+            setup(config, npts, input);
 
-            // Reused across every iteration. It gets reset() immediately
-            // before each call, so run() always sees it empty.
+            // The output node, reused across every iteration. It
+            // gets reset() immediately before each call, so run()
+            // always receives an empty node.
             Node dst;
 
             // Execute `run` `warmup` times
@@ -107,8 +106,8 @@ exec(const std::string &name,
                 CONDUIT_ANNOTATE_MARK_SCOPE("warmup");
                 for (index_t i = 0; i < warmup; i++)
                 {
-                    dst.reset();
                     run(input, dst);
+                    dst.reset();
                 }
             }
 
@@ -118,7 +117,7 @@ exec(const std::string &name,
                 // the Caliper output and identify their attributes
                 // (dim size, policy, etc.)
                 const std::string scope_name = name
-                    + "_dim-"  + std::to_string(dim_size)
+                    + "_dim-"  + std::to_string(npts)
                     + "_src-"  + config.src_location
                     + "_exec-" + config.exec_location
                     + "_out-"  + config.output_location
@@ -129,8 +128,8 @@ exec(const std::string &name,
                 CONDUIT_ANNOTATE_MARK_SCOPE(scope_name.c_str());
                 for (index_t i = 0; i < iterations; i++)
                 {
-                    dst.reset();
                     run(input, dst);
+                    dst.reset();
                 }
             }
         }
