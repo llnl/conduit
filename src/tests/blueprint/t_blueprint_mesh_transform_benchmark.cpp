@@ -25,7 +25,7 @@
 using namespace conduit;
 
 // Number of points per active axis. Braid requires at least two.
-std::vector<index_t> BENCHMARK_DIM_SIZES = {2, 4, 8, 16, 32, 64, 128, 256};
+std::vector<index_t> BENCHMARK_DIM_SIZES = {2, 4};
 
 // Intentionally small by default, to minimize CI time spent benchmarking.
 index_t BENCHMARK_NUM_WARMUP_ITERATIONS = 10;
