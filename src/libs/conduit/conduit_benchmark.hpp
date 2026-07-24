@@ -19,7 +19,6 @@
 
 #include "conduit_annotations.hpp"
 #include "conduit_data_type.hpp"
-#include "conduit_node.hpp"
 
 // This is not needed after device support is added back
 #if defined(CONDUIT_USE_OPENMP)

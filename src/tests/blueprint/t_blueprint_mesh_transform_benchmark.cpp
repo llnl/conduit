@@ -166,9 +166,9 @@ TEST(blueprint_mesh_transform_benchmark, generate_transforms)
     const std::vector<std::string> shapes = {
         "quads",
         "hexs",
-        "pyramids", // particularly slow pre-device execution
+        "pyramids",    // particularly slow pre-device execution
         // "mixed_2d", // TODO: investigate why this segfaults
-        // "mixed" // TODO: investigate why this segfaults
+        // "mixed"     // TODO: investigate why this segfaults
     };
 
     // Building this list programatically makes it easy to benchmark with
@@ -233,7 +233,7 @@ main(int argc, char *argv[])
         }
     }
 
-    // TODO: Look at Caliper options related to OpenMP/GPU profiling.
+    // TODO: Look at Caliper options related to OpenMP/GPU profiling
     const std::string timestamp = benchmark::get_timestamp();
 
     // Caliper options can be configured here
