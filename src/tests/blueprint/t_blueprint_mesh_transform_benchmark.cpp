@@ -89,9 +89,9 @@ copy_numeric_arrays_to_device(const Node &src,
 
 //-----------------------------------------------------------------------------
 void
-make_braid_dataset(const std::string &src_type,
+make_braid_dataset(const benchmark::ExecConfig &config,
+                   const std::string &src_type,
                    const index_t npts,
-                   const benchmark::ExecConfig &config,
                    Node &src)
 {
     const bool is_2d = src_type == "tris" ||
@@ -130,15 +130,19 @@ struct ConvertConfig
 };
 
 //-----------------------------------------------------------------------------
+// Pass `host_only = true` for convert_configs whose targets have not been
+// ported to the device execution model. Otherwise, you'll get a segfault
+// when executing on device.
 void
-run_benchmarks(const std::vector<ConvertConfig> &convert_configs)
+run_benchmarks(const std::vector<ConvertConfig> &convert_configs,
+               const bool host_only = false)
 {
     // Setup
     execution::init_device_memory_handlers();
-    
+
     // The available execution configurations (host/device) based
     // on what Conduit was compiled with.
-    const auto exec_configs = benchmark::get_exec_configs();
+    const auto exec_configs = benchmark::get_exec_configs(host_only);
 
     // We create src and dst nodes once and reuse them across all benchmarks
     Node src;
@@ -158,9 +162,9 @@ run_benchmarks(const std::vector<ConvertConfig> &convert_configs)
         {
             // Set all execution options for this configuration
             Node exec_opts;
-            exec_opts["execution_location"].set(config.exec_location);
-            exec_opts["output_location"].set(config.output_location);
-            exec_opts["sync_strategy"].set(config.sync_strategy);
+            exec_opts["execution_location"].set(exec_config.exec_location);
+            exec_opts["output_location"].set(exec_config.output_location);
+            exec_opts["sync_strategy"].set(exec_config.sync_strategy);
             execution::execution_set_options(exec_opts);
 
             // This iterates over all of the benchmark configurations
@@ -173,7 +177,10 @@ run_benchmarks(const std::vector<ConvertConfig> &convert_configs)
                 // when the next entry's (src_type, npts) differs.
                 if (convert_config.src_type != built_src_type)
                 {
-                    make_braid_dataset(convert_config.src_type, npts, src);
+                    make_braid_dataset(exec_config,
+                                       convert_config.src_type,
+                                       npts,
+                                       src);
                     built_src_type = convert_config.src_type;
                 }
 
@@ -221,12 +228,10 @@ TEST(blueprint_mesh_transform_benchmark, mesh_transforms)
 
 //-----------------------------------------------------------------------------
 TEST(blueprint_mesh_transform_benchmark, generate_transforms)
-// Benchmarks that measure the performance of mesh generation transforms
+// Benchmarks that measure the performance of mesh generation transforms.
+// Since these APIs have not been ported to the device execution model yet,
+// this benchmark only works on host.
 {
-    // This is not an exhaustive benchmark of the topology transforms;
-    // it only includes 'to_unstructured' since that is the only transform
-    // that made sense to port to the device execution model.
-
     CONDUIT_ANNOTATE_MARK_FUNCTION;
     
     const std::vector<std::string> shapes = {
@@ -251,7 +256,7 @@ TEST(blueprint_mesh_transform_benchmark, generate_transforms)
         configs.push_back({"generate_corners_" + shape,   shape, "generate_corners"});
     }
 
-    run_benchmarks(configs);
+    run_benchmarks(configs, /*host_only=*/true);
 }
 
 //-----------------------------------------------------------------------------

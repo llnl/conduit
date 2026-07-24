@@ -52,12 +52,13 @@ struct ExecConfig
     std::string src_location;
     std::string exec_location;
     std::string output_location;
+    std::string sync_strategy;
 };
 
 //-----------------------------------------------------------------------------
 inline
 std::vector<ExecConfig>
-get_exec_configs()
+get_exec_configs(const bool host_only = false)
 {
     /*
     The device execution model includes the concept of an execution and
@@ -94,6 +95,15 @@ get_exec_configs()
     a redundant no-op identical to "sync"), so we only benchmark both
     strategies for the configurations where they can diverge.
     */
+
+    // Useful for benchmarks that exercise code which has not yet been
+    // ported to the device execution model. Attempting to run a device
+    // config with them will result in a segfault.
+    if (host_only)
+    {
+        return {{"host", "host", "host", "sync"}};
+    }
+
     std::vector<ExecConfig> configs{
         //source location, execution location, output location, sync strategy
         {"host",           "host",             "host",          "sync"},
