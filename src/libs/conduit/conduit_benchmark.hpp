@@ -63,7 +63,7 @@ std::vector<ExecConfig>
 get_exec_configs()
 {
     // In the pre-device execution model world, we don't have the concept of
-    // host vs device execution
+    // host vs device execution.
     std::vector<ExecConfig> configs{
         //source location, execution location, output location
         {"host",           "host",             "host"},
@@ -72,66 +72,56 @@ get_exec_configs()
 }
 
 //-----------------------------------------------------------------------------
-template <typename SetupFn, typename RunFn>
+template <typename RunFn, typename SizeFn>
 void
 exec(const std::string &name,
-     SetupFn &&setup,
+     const Node &input,
+     Node &output,
      RunFn &&run,
+     SizeFn &&size_info,
+     const ExecConfig &config,
+     const index_t npts,
      const index_t warmup,
-     const index_t iterations,
-     const std::vector<index_t> &dim_sizes)
+     const index_t iterations)
 {
-    const std::vector<ExecConfig> configs = get_exec_configs();
+    // Capture input/output data sizes to include in the scope name below.
+    // This is a function of (name, npts) and never changes between
+    // iterations.
+    run(input, output);
+    const std::string sizes = size_info(input, output);
+    output.reset();
 
-
-    // Benchmark each possible configuration
-    for (const ExecConfig &config : configs)
+    // Execute `run` `warmup` times
     {
-        // Benchmark each data size
-        for (const auto &npts : dim_sizes)
+        // Scope this separately to make it easier to disregard warmup
+        // iterations in the timing output.
+        CONDUIT_ANNOTATE_MARK_SCOPE("warmup");
+        for (index_t i = 0; i < warmup; i++)
         {
-            // Build the input mesh once, outside the timed regions
-            Node input;
-            setup(config, npts, input);
+            run(input, output);
+            output.reset();
+        }
+    }
 
-            // The output node, reused across every iteration. It
-            // gets reset() immediately before each call, so run()
-            // always receives an empty node.
-            Node dst;
-
-            // Execute `run` `warmup` times
-            {
-                // Scope this separately to make it easier to disregard
-                // warmup iterations in the timing output
-                CONDUIT_ANNOTATE_MARK_SCOPE("warmup");
-                for (index_t i = 0; i < warmup; i++)
-                {
-                    run(input, dst);
-                    dst.reset();
-                }
-            }
-
-            // Execute `run` `iterations` times
-            {
-                // This scope name is used to identify specific benchmarks in
-                // the Caliper output and identify their attributes
-                // (dim size, policy, etc.)
-                const std::string scope_name = name
-                    + "_dim-"  + std::to_string(npts)
-                    + "_src-"  + config.src_location
-                    + "_exec-" + config.exec_location
-                    + "_out-"  + config.output_location
+    // Execute `run` `iterations` times
+    {
+        // This scope name is used to identify specific benchmarks in the
+        // Caliper output and identify their attributes.
+        const std::string scope_name = name
+            + "_dim-"  + std::to_string(npts)
+            + "_" + sizes
+            + "_src-"  + config.src_location
+            + "_exec-" + config.exec_location
+            + "_out-"  + config.output_location
 #if defined(CONDUIT_USE_OPENMP)
-                    + "_threads-" + std::to_string(omp_get_max_threads())
+            + "_threads-" + std::to_string(omp_get_max_threads())
 #endif
-                    + "_iter-" + std::to_string(iterations);
-                CONDUIT_ANNOTATE_MARK_SCOPE(scope_name.c_str());
-                for (index_t i = 0; i < iterations; i++)
-                {
-                    run(input, dst);
-                    dst.reset();
-                }
-            }
+            + "_iter-" + std::to_string(iterations);
+        CONDUIT_ANNOTATE_MARK_SCOPE(scope_name.c_str());
+        for (index_t i = 0; i < iterations; i++)
+        {
+            run(input, output);
+            output.reset();
         }
     }
 }

@@ -19,37 +19,40 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
-#include <utility>
 #include <vector>
 
 using namespace conduit;
 
-// Number of points per active axis. Braid requires at least two.
-std::vector<index_t> BENCHMARK_DIM_SIZES = {2, 4};
+// Number of vertices per axis, braid requires at least two. Larger sizes
+// (e.g. 8) can be passed on the command line for deeper, one-off runs; some
+// shapes (e.g. pyramids) scale much worse than others at that size.
+std::vector<index_t> BENCHMARK_DIM_SIZES = {2};
 
-// Intentionally small by default, to minimize CI time spent benchmarking.
-index_t BENCHMARK_NUM_WARMUP_ITERATIONS = 10;
-index_t BENCHMARK_NUM_ITERATIONS = 100;
+// Small by default, to minimize CI time spent benchmarking
+index_t BENCHMARK_NUM_WARMUP_ITERATIONS = 2;
+index_t BENCHMARK_NUM_ITERATIONS = 20;
 
 //-----------------------------------------------------------------------------
-template <typename SetupFn, typename RunFn>
-void
-run_benchmark(const std::string &name,
-              SetupFn &&setup,
-              RunFn &&run)
+// Reports vertex/element counts for the input and output meshes. Some
+// operations (e.g. generate_corners) produce far more elements than they
+// started with, so it's worth recording both sides.
+std::string
+mesh_size_info(const Node &input, const Node &output)
 {
-    benchmark::exec(name,
-                    std::forward<SetupFn>(setup),
-                    std::forward<RunFn>(run),
-                    BENCHMARK_NUM_WARMUP_ITERATIONS,
-                    BENCHMARK_NUM_ITERATIONS,
-                    BENCHMARK_DIM_SIZES);
+    const index_t inverts  = blueprint::mesh::coordset::length(input["coordsets"].child(0));
+    const index_t inelems  = blueprint::mesh::topology::length(input["topologies"].child(0));
+    const index_t outverts = blueprint::mesh::coordset::length(output["coordsets"].child(0));
+    const index_t outelems = blueprint::mesh::topology::length(output["topologies"].child(0));
+
+    return "inverts-"   + std::to_string(inverts)
+         + "_inelems-"  + std::to_string(inelems)
+         + "_outverts-" + std::to_string(outverts)
+         + "_outelems-" + std::to_string(outelems);
 }
 
 //-----------------------------------------------------------------------------
 void
 make_braid_dataset(const std::string &src_type,
-                   const benchmark::ExecConfig &config,
                    const index_t npts,
                    Node &src)
 {
@@ -59,6 +62,7 @@ make_braid_dataset(const std::string &src_type,
 
     const index_t npts_z = is_2d ? 0 : npts;
 
+    // Braid will reset `src` for us internally 
     blueprint::mesh::examples::braid(src_type,
                                      npts,
                                      npts,
@@ -67,171 +71,121 @@ make_braid_dataset(const std::string &src_type,
 }
 
 //-----------------------------------------------------------------------------
-void
-benchmark_mesh_convert(const std::string &name,
-                       const std::string &src_type,
-                       const std::string &target)
+// One mesh::convert() benchmark: convert a braid `src_type` mesh to `target`.
+struct ConvertConfig
 {
-    // Create the source Node once and reuse it for every iteration
-    auto setup = [&](const benchmark::ExecConfig &config,
-                               const index_t npts,
-                               Node &src) {
-        make_braid_dataset(src_type, config, npts, src);
-    };
-
-    // The type being converted to
-    Node options;
-    options["target"] = target;
-
-    // Perform the conversion
-    auto run = [&](const Node &src, Node &dst) {
-        blueprint::mesh::convert(src, options, dst);
-    };
-
-    // Launch the benchmark
-    run_benchmark(name, setup, run);
-}
+    std::string name;
+    std::string src_type;
+    std::string target;
+};
 
 //-----------------------------------------------------------------------------
-// generate_offsets has no blueprint::mesh::convert() target.
 void
-benchmark_topology_generate_offsets(const std::string &name,
-                                    const std::string &src_type)
+run_benchmarks(const std::vector<ConvertConfig> &convert_configs)
 {
-    // Create the source Node once and reuse it for every iteration
-    auto setup = [&](const benchmark::ExecConfig &config,
-                               const index_t npts,
-                               Node &src) {
-        make_braid_dataset(src_type, config, npts, src);
-    };
+    // The available execution configurations (host/device) based
+    // on what Conduit was compiled with.
+    const auto exec_configs = benchmark::get_exec_configs();
 
-    // Perform the conversion
-    auto run = [&](const Node &src, Node &dst) {
-        blueprint::mesh::topology::unstructured::generate_offsets(
-            src["topologies"].child(0),
-            dst);
-    };
+    // We create src and dst nodes once and reuse them across all benchmarks
+    Node src;
+    Node dst;
 
-    // Launch the benchmark
-    run_benchmark(name, setup, run);
-}
-
-//-----------------------------------------------------------------------------
-// generate_offsets_inline also has no blueprint::mesh::convert() target.
-void
-benchmark_topology_generate_offsets_inline(const std::string &name,
-                                           const std::string &src_type)
-{
-    // This conversion is unique in that it mutates its argument in place,
-    // and is a no-op if the offsets already exist.
-    Node topo;
-
-    // Create the source Node once, but in this case we reuse topo
-    // instead of src.
-    auto setup = [&](const benchmark::ExecConfig &config,
-                               const index_t npts,
-                               Node &src) {
-        make_braid_dataset(src_type, config, npts, src);
-        topo.set(src["topologies"].child(0));
-    };
-
-    // Perform the conversion
-    auto run = [&](const Node &, Node &) {
-        if (topo.has_path("elements/offsets"))
+    // Iterating over the dimension sizes first allows us to reuse `src`
+    // across benchmarks that use the same `src_type` and `npts`, reducing
+    // overall runtime and memory usage.
+    for (const auto npts : BENCHMARK_DIM_SIZES)
+    {
+        // Iterating over `exec_configs` second will allow us to reuse `src`
+        // across all configurations of a particular `src_location`. This
+        // allows us to create `src` once for host and once for device,
+        // per `src_type` and `npts` combination.
+        std::string built_src_type;
+        for (const auto &exec_config : exec_configs)
         {
-            // Remove the offsets before each iteration to
-            // avoid a no-op.
-            topo["elements"].remove_child("offsets");
+            // This iterates over all of the benchmark configurations
+            // themselves (i.e., which source and target types to use).
+            for (const auto &convert_config : convert_configs)
+            {
+                // Since multiple benchmarks will use the same
+                // src_type and npts, we can improve performance and
+                // limit memory utilization by only rebuilding `src`
+                // when the next entry's (src_type, npts) differs.
+                if (convert_config.src_type != built_src_type)
+                {
+                    make_braid_dataset(convert_config.src_type, npts, src);
+                    built_src_type = convert_config.src_type;
+                }
+
+                // TODO: There may be other interesting options
+                Node options;
+                options["target"] = convert_config.target;
+
+                // This lambda defines the code to be benchmarked
+                auto run = [&](const Node &input, Node &output) {
+                    blueprint::mesh::convert(input, options, output);
+                };
+
+                // This executes a benchmark of the current configuration
+                benchmark::exec(convert_config.name,
+                                src,
+                                dst,
+                                run,
+                                mesh_size_info,
+                                exec_config,
+                                npts,
+                                BENCHMARK_NUM_WARMUP_ITERATIONS,
+                                BENCHMARK_NUM_ITERATIONS);
+            }
         }
-
-        blueprint::mesh::topology::unstructured::
-            generate_offsets_inline(topo);
-    };
-
-    // Launch the benchmark
-    run_benchmark(name, setup, run);
+    }
 }
 
 //-----------------------------------------------------------------------------
+// Benchmarks that measure the performance of full mesh conversions
 TEST(blueprint_mesh_transform_benchmark, mesh_transforms)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
 
-    // mesh::convert converts an entire mesh, including both its coordset and
-    // topology.
-    benchmark_mesh_convert("mesh_uniform_to_rectilinear",
-                           "uniform",
-                           "rectilinear");
-
-    benchmark_mesh_convert("mesh_uniform_to_structured",
-                           "uniform",
-                           "structured");
-
-    benchmark_mesh_convert("mesh_uniform_to_unstructured",
-                           "uniform",
-                           "unstructured");
-
-    benchmark_mesh_convert("mesh_rectilinear_to_structured",
-                           "rectilinear",
-                           "structured");
-
-    benchmark_mesh_convert("mesh_rectilinear_to_unstructured",
-                           "rectilinear",
-                           "unstructured");
-
-    benchmark_mesh_convert("mesh_structured_to_unstructured",
-                           "structured",
-                           "unstructured");
+    run_benchmarks({
+        {"mesh_uniform_to_rectilinear",      "uniform",     "rectilinear"},
+        {"mesh_uniform_to_structured",       "uniform",     "structured"},
+        {"mesh_uniform_to_unstructured",     "uniform",     "unstructured"},
+        {"mesh_rectilinear_to_structured",   "rectilinear", "structured"},
+        {"mesh_rectilinear_to_unstructured", "rectilinear", "unstructured"},
+        {"mesh_structured_to_unstructured",  "structured",  "unstructured"},
+    });
 }
 
 //-----------------------------------------------------------------------------
-TEST(blueprint_mesh_transform_benchmark, unstructured_generate_transforms)
+TEST(blueprint_mesh_transform_benchmark, generate_transforms)
+// Benchmarks that measure the performance of mesh generation transforms
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-
-    // Exercise fixed-shape and mixed-shape 2D and 3D unstructured cell
-    // meshes.
-    const std::vector<std::string> source_types = {
-        "tris",
+    
+    const std::vector<std::string> shapes = {
         "quads",
-        // "mixed_2d", // segfaults
-        "tets",
         "hexs",
-        "wedges",
-        "pyramids",
-        // "mixed" // segfaults
+        "pyramids", // particularly slow pre-device execution
+        // "mixed_2d", // TODO: investigate why this segfaults
+        // "mixed" // TODO: investigate why this segfaults
     };
 
-    for (const std::string &src_type : source_types)
+    // Building this list programatically makes it easy to benchmark with
+    // different shape types.
+    std::vector<ConvertConfig> configs;
+    for (const auto &shape : shapes)
     {
-        benchmark_mesh_convert("unstructured_to_polytopal_" + src_type,
-                               src_type,
-                               "polytopal");
-        benchmark_mesh_convert("unstructured_generate_points_" + src_type,
-                               src_type,
-                               "generate_points");
-        benchmark_mesh_convert("unstructured_generate_lines_" + src_type,
-                               src_type,
-                               "generate_lines");
-        benchmark_mesh_convert("unstructured_generate_faces_" + src_type,
-                               src_type,
-                               "generate_faces");
-        benchmark_mesh_convert("unstructured_generate_centroids_" + src_type,
-                               src_type,
-                               "generate_centroids");
-        benchmark_mesh_convert("unstructured_generate_sides_" + src_type,
-                               src_type,
-                               "generate_sides");
-        benchmark_mesh_convert("unstructured_generate_corners_" + src_type,
-                               src_type,
-                               "generate_corners");
-        benchmark_topology_generate_offsets(
-            "unstructured_generate_offsets_" + src_type,
-            src_type);
-        benchmark_topology_generate_offsets_inline(
-            "unstructured_generate_offsets_inline_" + src_type,
-            src_type);
+        configs.push_back({"to_polytopal_" + shape,       shape, "polytopal"});
+        configs.push_back({"generate_points_" + shape,    shape, "generate_points"});
+        configs.push_back({"generate_lines_" + shape,     shape, "generate_lines"});
+        configs.push_back({"generate_faces_" + shape,     shape, "generate_faces"});
+        configs.push_back({"generate_centroids_" + shape, shape, "generate_centroids"});
+        configs.push_back({"generate_sides_" + shape,     shape, "generate_sides"});
+        configs.push_back({"generate_corners_" + shape,   shape, "generate_corners"});
     }
+
+    run_benchmarks(configs);
 }
 
 //-----------------------------------------------------------------------------
@@ -250,14 +204,12 @@ main(int argc, char *argv[])
 
     if (argc >= 2)
     {
-        BENCHMARK_NUM_WARMUP_ITERATIONS =
-            static_cast<index_t>(std::atoll(argv[1]));
+        BENCHMARK_NUM_WARMUP_ITERATIONS = static_cast<index_t>(std::atoll(argv[1]));
     }
 
     if (argc >= 3)
     {
-        BENCHMARK_NUM_ITERATIONS =
-            static_cast<index_t>(std::atoll(argv[2]));
+        BENCHMARK_NUM_ITERATIONS = static_cast<index_t>(std::atoll(argv[2]));
     }
 
     if (argc >= 4)
@@ -266,8 +218,7 @@ main(int argc, char *argv[])
 
         for (int i = 3; i < argc; i++)
         {
-            BENCHMARK_DIM_SIZES.push_back(
-                static_cast<index_t>(std::atoll(argv[i])));
+            BENCHMARK_DIM_SIZES.push_back(static_cast<index_t>(std::atoll(argv[i])));
         }
     }
 
@@ -275,26 +226,27 @@ main(int argc, char *argv[])
     {
         if (dim_size <= 1)
         {
-            std::cerr
-                << "ERROR: braid benchmark dimensions must be greater than "
-                   "1; received "
-                << dim_size << "."
-                << std::endl;
-
-            return EXIT_FAILURE;
+            // Braid will error if this is the case, so we may
+            // as well not go any further.
+            CONDUIT_ERROR("Mesh transform benchmark dimensions must be "
+                          "greater than 1; received " << dim_size << ".");
         }
     }
 
     // TODO: Look at Caliper options related to OpenMP/GPU profiling.
     const std::string timestamp = benchmark::get_timestamp();
 
+    // Caliper options can be configured here
     Node cali_opts;
     cali_opts["config"] = "hatchet-region-profile(output=" + timestamp + ".cali)";
 
+    // Begin timing
     annotations::initialize(cali_opts);
 
+    // Run all benchmarks
     const int result = RUN_ALL_TESTS();
 
+    // Finalize timing
     annotations::finalize();
 
     return result;

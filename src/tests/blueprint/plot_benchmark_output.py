@@ -2,15 +2,13 @@
 # Project developers. See top-level LICENSE AND COPYRIGHT files for dates and
 # other details. No copyright assignment is required to contribute to Conduit.
 
-import argparse
-import csv
+# Plots .cali output from t_blueprint_mesh_transform_benchmark. Run with no
+# arguments to plot the most recently written .cali file in the current
+# directory, or pass a path to a specific one.
+
 import math
-import re
 import sys
-from copy import copy
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 import matplotlib
 
@@ -19,1394 +17,467 @@ import matplotlib.pyplot as plt
 import numpy as np
 import thicket as th
 from caliperreader.readererror import ReaderError
-from matplotlib.colors import LogNorm
-from matplotlib.ticker import FuncFormatter
+
+REQUIRED_FIELDS = ("dim", "inverts", "inelems", "outverts", "outelems", "iter")
 
 
-MESH_BENCHMARKS = [
-    ("mesh_uniform_to_rectilinear", "uniform → rectilinear"),
-    ("mesh_uniform_to_structured", "uniform → structured"),
-    ("mesh_uniform_to_unstructured", "uniform → unstructured"),
-    ("mesh_rectilinear_to_structured", "rectilinear → structured"),
-    ("mesh_rectilinear_to_unstructured", "rectilinear → unstructured"),
-    ("mesh_structured_to_unstructured", "structured → unstructured"),
-]
+def parse_scope_name(raw):
+    tokens = raw.split("_")
 
-MESH_LABELS = dict(MESH_BENCHMARKS)
-
-UNSTRUCTURED_OPERATIONS = [
-    ("to_polytopal", "to polytopal"),
-    ("generate_points", "generate points"),
-    ("generate_lines", "generate lines"),
-    ("generate_faces", "generate faces"),
-    ("generate_centroids", "generate centroids"),
-    ("generate_sides", "generate sides"),
-    ("generate_corners", "generate corners"),
-    ("generate_offsets", "generate offsets"),
-    ("generate_offsets_inline", "generate offsets inline"),
-]
-
-OPERATION_LABELS = dict(UNSTRUCTURED_OPERATIONS)
-OPERATION_ORDER = {
-    operation: index
-    for index, (operation, _) in enumerate(UNSTRUCTURED_OPERATIONS)
-}
-
-PREFERRED_ELEMENT_TYPE_ORDER = [
-    "tris",
-    "quads",
-    "tets",
-    "hexs",
-    "wedges",
-    "pyramids",
-    "mixed_2d",
-    "mixed",
-]
-
-ELEMENT_TYPE_NDIMS = {
-    "tris": 2,
-    "quads": 2,
-    "polygonal": 2,
-    "mixed_2d": 2,
-    "tets": 3,
-    "hexs": 3,
-    "wedges": 3,
-    "pyramids": 3,
-    "polyhedral": 3,
-    "mixed": 3,
-}
-
-MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
-
-CONFIG_NAME_RE = re.compile(
-    r"^(?P<benchmark>(?:mesh|unstructured)_.+?)"
-    r"_dim-(?P<dim>\d+)"
-    r"_(?P<metadata>.+)$"
-)
-
-TIMESTAMP_RE = re.compile(r"^\d{8}_\d{6}$")
-
-REQUIRED_METADATA_FIELDS = {"src", "exec", "out", "iter"}
-OPTIONAL_METADATA_FIELDS = {"backend", "sync", "threads"}
-ALLOWED_METADATA_FIELDS = (
-    REQUIRED_METADATA_FIELDS | OPTIONAL_METADATA_FIELDS
-)
-
-
-@dataclass(frozen=True)
-class Config:
-    backend: Optional[str]
-    src: str
-    execution: str
-    out: str
-    sync: Optional[str]
-    threads: Optional[int]
-
-
-@dataclass(frozen=True)
-class BenchmarkInfo:
-    name: str
-    family: str
-    label: str
-    operation: Optional[str]
-    element_type: Optional[str]
-    ndims: Optional[int]
-
-
-@dataclass(frozen=True)
-class BenchmarkResult:
-    benchmark: str
-    config: Config
-    dim: int
-    iterations: int
-    total_seconds: float
-    seconds_per_iteration: float
-
-
-def parse_config_name(name):
-    match = CONFIG_NAME_RE.match(name)
-    if match is None:
+    i = 0
+    while i < len(tokens) and "-" not in tokens[i]:
+        i += 1
+    name = "_".join(tokens[:i])
+    is_generate = any(name.startswith(op + "_") for op in OPERATIONS)
+    if not (name.startswith("mesh_") or is_generate):
         return None
 
-    benchmark = match.group("benchmark")
-    dim = int(match.group("dim"))
-
-    values = {}
-    for field in match.group("metadata").split("_"):
-        if "-" not in field:
+    fields = {}
+    for token in tokens[i:]:
+        if "-" not in token:
             return None
+        key, value = token.split("-", 1)
+        fields[key] = value
 
-        key, value = field.split("-", 1)
-        if not key or not value or key in values:
-            return None
-
-        values[key] = value
-
-    if not REQUIRED_METADATA_FIELDS <= values.keys():
+    if not all(fields.get(key, "").isdigit() for key in REQUIRED_FIELDS):
         return None
 
-    if values.keys() - ALLOWED_METADATA_FIELDS:
-        return None
-
-    if values["src"] not in {"host", "device"}:
-        return None
-
-    if values["exec"] not in {"host", "device"}:
-        return None
-
-    if values["out"] not in {"host", "device"}:
-        return None
-
-    if not values["iter"].isdigit():
-        return None
-
-    iterations = int(values["iter"])
-    if dim <= 1 or iterations <= 0:
-        return None
-
-    threads = None
-    if "threads" in values:
-        if not values["threads"].isdigit():
-            return None
-
-        threads = int(values["threads"])
-        if threads <= 0:
-            return None
-
-    config = Config(
-        backend=values.get("backend"),
-        src=values["src"],
-        execution=values["exec"],
-        out=values["out"],
-        sync=values.get("sync"),
-        threads=threads,
-    )
-
-    return benchmark, config, dim, iterations
+    parsed = {"name": name}
+    parsed.update((key, int(fields[key])) for key in REQUIRED_FIELDS)
+    return parsed
 
 
-def parse_unstructured_benchmark(name):
-    # Longer operation names must be checked first so generate_offsets_inline
-    # is not interpreted as generate_offsets plus an inline element type.
-    operations = sorted(
-        OPERATION_LABELS,
-        key=len,
-        reverse=True,
-    )
-
-    for operation in operations:
-        prefix = f"unstructured_{operation}_"
-        if name.startswith(prefix):
-            element_type = name[len(prefix):]
-            if element_type:
-                return operation, element_type
-
+def split_mesh_convert(name):
+    tokens = name.split("_")
+    if len(tokens) == 4 and tokens[0] == "mesh" and tokens[2] == "to":
+        return tokens[1], tokens[3]
     return None
 
+OPERATIONS = [
+    "generate_centroids",
+    "generate_points",
+    "generate_faces",
+    "generate_lines",
+    "generate_corners",
+    "generate_sides",
+    "to_polytopal",
+]
+MESH_SRC_ORDER = ["structured", "rectilinear", "uniform"]
+SHAPE_ORDER = ["quads", "hexs", "pyramids"]
+MESH_SERIES_LABEL = "serial - before device support"
 
-def classify_benchmark(name):
-    if name.startswith("mesh_"):
-        return BenchmarkInfo(
-            name=name,
-            family="mesh",
-            label=MESH_LABELS.get(name, name.replace("_", " ")),
-            operation=name.removeprefix("mesh_"),
-            element_type=None,
-            ndims=3,
-        )
-
-    parsed = parse_unstructured_benchmark(name)
-    if parsed is not None:
-        operation, element_type = parsed
-        return BenchmarkInfo(
-            name=name,
-            family="unstructured",
-            label=OPERATION_LABELS[operation],
-            operation=operation,
-            element_type=element_type,
-            ndims=ELEMENT_TYPE_NDIMS.get(element_type),
-        )
-
-    return BenchmarkInfo(
-        name=name,
-        family="other",
-        label=name.replace("_", " "),
-        operation=None,
-        element_type=None,
-        ndims=None,
-    )
+INDIVIDUAL_FIGSIZE = (6.4, 3.6)
+MAX_STACKED_ROWS = 4
 
 
-def config_sort_key(config):
-    return (
-        config.backend or "",
-        config.src,
-        config.execution,
-        config.out,
-        config.sync or "",
-        config.threads if config.threads is not None else -1,
-    )
+def ordered(values, preferred_order):
+    values = set(values)
+    return [v for v in preferred_order if v in values] + \
+        sorted(values - set(preferred_order))
 
 
-def format_config(config):
-    parts = []
-
-    if config.backend:
-        parts.append(config.backend)
-
-    parts.append(
-        f"{config.src} → {config.execution} → {config.out}"
-    )
-
-    if config.sync:
-        parts.append(f"sync={config.sync}")
-
-    if config.threads is not None:
-        parts.append(f"threads={config.threads}")
-
-    return ", ".join(parts)
-
-
-def config_slug(config):
-    parts = []
-
-    if config.backend:
-        parts.append(config.backend)
-
-    parts.extend([
-        config.src,
-        config.execution,
-        config.out,
-    ])
-
-    if config.sync:
-        parts.append(config.sync)
-
-    if config.threads is not None:
-        parts.append(f"threads-{config.threads}")
-
-    return safe_file_part("_".join(parts))
-
-
-def safe_file_part(value):
-    return re.sub(r"[^A-Za-z0-9_.-]+", "_", value)
-
-
-def ordered_element_types(infos):
-    discovered = {
-        info.element_type
-        for info in infos.values()
-        if info.element_type is not None
-    }
-
-    ordered = [
-        element_type
-        for element_type in PREFERRED_ELEMENT_TYPE_ORDER
-        if element_type in discovered
-    ]
-
-    ordered.extend(
-        sorted(discovered - set(PREFERRED_ELEMENT_TYPE_ORDER))
-    )
-
-    return ordered
+def split_generate_name(name):
+    for operation in OPERATIONS:
+        if name.startswith(operation + "_"):
+            return operation, name[len(operation) + 1:]
+    return name, ""
 
 
 def find_cali_file():
-    candidates = [
-        path
-        for path in Path.cwd().glob("*.cali")
-        if TIMESTAMP_RE.match(path.stem)
-    ]
-    candidates.sort(reverse=True)
-
-    if not candidates:
-        sys.exit(
-            "no timestamped .cali files "
-            f"(YYYYMMDD_HHMMSS.cali) found in {Path.cwd()}"
-        )
-
-    print(f"using most recent Caliper file: {candidates[0]}")
-    return candidates[0]
+    files = list(Path.cwd().glob("*.cali"))
+    if not files:
+        sys.exit("no .cali files found in current directory")
+    return max(files, key=lambda path: path.stat().st_mtime)
 
 
 def find_time_column(dataframe):
-    preferred = (
-        "time",
-        "sum#sum#time.duration",
-        "sum#time.duration",
-        "time.duration",
-    )
-
-    for candidate in preferred:
-        if candidate in dataframe.columns:
-            return candidate
-
+    for name in ("time", "sum#sum#time.duration", "sum#time.duration"):
+        if name in dataframe.columns:
+            return name
     for column in dataframe.columns:
         if str(column).endswith("time.duration"):
             return column
-
-    raise RuntimeError(
-        "unable to find a Caliper time column; available columns are: "
-        + ", ".join(str(column) for column in dataframe.columns)
-    )
+    sys.exit(f"no time column found; columns were {list(dataframe.columns)}")
 
 
-def iter_graph_nodes(graph):
-    stack = list(graph.roots)
-    visited = set()
-
-    while stack:
-        node = stack.pop()
-        node_id = id(node)
-
-        if node_id in visited:
-            continue
-
-        visited.add(node_id)
-        yield node
-        stack.extend(node.children)
-
-
-def node_time(thicket, profile_id, node, time_column):
-    try:
-        value = thicket.dataframe.loc[
-            (node, profile_id),
-            time_column,
-        ]
-    except KeyError:
-        return float("nan")
-
-    try:
-        return float(np.asarray(value).reshape(-1)[0])
-    except (TypeError, ValueError, IndexError):
-        return float("nan")
-
-
-def inclusive_time(
-    thicket,
-    profile_id,
-    node,
-    time_column,
-    cache,
-):
-    node_id = id(node)
-    if node_id in cache:
-        return cache[node_id]
-
-    value = node_time(
-        thicket,
-        profile_id,
-        node,
-        time_column,
-    )
-    total = 0.0 if np.isnan(value) else value
-
-    for child in node.children:
-        total += inclusive_time(
-            thicket,
-            profile_id,
-            child,
-            time_column,
-            cache,
-        )
-
-    cache[node_id] = total
-    return total
-
-
-def collect_results(thicket):
-    profile_ids = list(
-        thicket.dataframe.index
-        .get_level_values("profile")
-        .unique()
-    )
-
-    if len(profile_ids) != 1:
-        raise RuntimeError(
-            "expected exactly one profile in the Caliper file, "
-            f"found {len(profile_ids)}"
-        )
-
-    profile_id = profile_ids[0]
+def collect(thicket):
+    profile_id = thicket.dataframe.index.get_level_values("profile")[0]
     time_column = find_time_column(thicket.dataframe)
-    time_cache = {}
 
-    results = []
-    seen = set()
-    malformed_names = []
+    def node_time(node):
+        try:
+            total = float(thicket.dataframe.loc[(node, profile_id), time_column])
+        except (KeyError, TypeError):
+            total = 0.0
+        for child in node.children:
+            total += node_time(child)
+        return total
 
-    for node in iter_graph_nodes(thicket.graph):
-        name = node.frame.get("name", "")
-        parsed = parse_config_name(name)
+    def all_nodes(node):
+        yield node
+        for child in node.children:
+            yield from all_nodes(child)
 
-        if parsed is None:
-            if (
-                isinstance(name, str)
-                and name.startswith(("mesh_", "unstructured_"))
-                and "_dim-" in name
-            ):
-                malformed_names.append(name)
+    records = []
+    for root in thicket.graph.roots:
+        for node in all_nodes(root):
+            parsed = parse_scope_name(str(node.frame.get("name", "")))
+            if parsed is None:
+                continue
+            parsed["avg_time"] = node_time(node) / parsed["iter"]
+            parsed["node"] = node
+            records.append(parsed)
+    return records
+
+
+def per_element_value(record):
+    if record["outelems"] <= 0:
+        return None
+    return record["avg_time"] / record["outelems"]
+
+
+def growth_value(record):
+    if record["inelems"] <= 0:
+        return None
+    return record["outelems"] / record["inelems"]
+
+
+def build_line_panels(records, group_series_fn, value_fn):
+    panels = {}
+    for record in records:
+        grouped = group_series_fn(record)
+        if grouped is None:
             continue
-
-        benchmark, config, dim, iterations = parsed
-        key = (benchmark, config, dim)
-
-        if key in seen:
-            raise RuntimeError(
-                "duplicate benchmark configuration encountered: "
-                f"{name}"
-            )
-
-        seen.add(key)
-
-        total = inclusive_time(
-            thicket,
-            profile_id,
-            node,
-            time_column,
-            time_cache,
-        )
-
-        results.append(
-            BenchmarkResult(
-                benchmark=benchmark,
-                config=config,
-                dim=dim,
-                iterations=iterations,
-                total_seconds=total,
-                seconds_per_iteration=total / iterations,
-            )
-        )
-
-    if malformed_names:
-        print(
-            "warning: ignored benchmark-like regions with unsupported "
-            "names:"
-        )
-        for name in sorted(set(malformed_names)):
-            print(f"  {name}")
-
-    return results, time_column
+        value = value_fn(record)
+        if value is None:
+            continue
+        panel_title, series_label = grouped
+        panels.setdefault(panel_title, {}).setdefault(series_label, []) \
+              .append((record["dim"], value))
+    return panels
 
 
-def base_grid_points(info, dim):
-    if info.ndims is None:
-        return None
-    return dim ** info.ndims
+def render_series(ax, series, title, y_scale, y_log, series_order=None,
+                  show_legend=True):
+    labels = ordered(series, series_order) if series_order else sorted(series)
+    for label in labels:
+        points = sorted(series[label])
+        dims = [str(dim) for dim, _ in points]
+        ys = [value * y_scale for _, value in points]
+        ax.plot(dims, ys, marker="o", label=label)
+
+    ax.set_title(title.replace("_", " "), fontsize=10)
+    ax.tick_params(labelsize=8)
+    if y_log:
+        ax.set_yscale("log")
+    else:
+        ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+    if show_legend:
+        ax.legend(fontsize=7)
 
 
-def base_grid_cells(info, dim):
-    if info.ndims is None:
-        return None
-    return (dim - 1) ** info.ndims
+def plot_group(panels, path, suptitle, ylabel, y_scale=1.0, y_log=False,
+              series_order=None, stack_vertical=False, legend_label=None):
+    titles = sorted(panels)
+    n = len(titles)
 
+    if stack_vertical:
+        rows = min(MAX_STACKED_ROWS, n)
+        columns = math.ceil(n / rows)
+        panel_width = 6.5
+    else:
+        columns = min(4, n)
+        rows = math.ceil(n / columns)
+        panel_width = 4.2
 
-def format_duration(seconds):
-    if not np.isfinite(seconds):
-        return "n/a"
-
-    seconds = abs(seconds)
-
-    if seconds == 0:
-        return "0"
-
-    if seconds < 1.0e-6:
-        return f"{seconds * 1.0e9:.3g} ns"
-
-    if seconds < 1.0e-3:
-        return f"{seconds * 1.0e6:.3g} µs"
-
-    if seconds < 1.0:
-        return f"{seconds * 1.0e3:.3g} ms"
-
-    return f"{seconds:.3g} s"
-
-
-def format_rate(rate):
-    if not np.isfinite(rate):
-        return "n/a"
-    return f"{rate:.3g}"
-
-
-def iteration_summary(results):
-    values = sorted({result.iterations for result in results})
-
-    if len(values) == 1:
-        return f"{values[0]} measured iterations"
-
-    return (
-        f"{values[0]}-{values[-1]} measured iterations"
+    fig, axes = plt.subplots(
+        rows, columns, figsize=(panel_width * columns, 3.2 * rows), squeeze=False
     )
+    if stack_vertical:
+        axes = [axes[row, col] for col in range(columns) for row in range(rows)]
+    else:
+        axes = list(axes.flatten())
 
+    show_axis_legend = legend_label is None
+    for ax, title in zip(axes, titles):
+        render_series(ax, panels[title], title, y_scale, y_log, series_order,
+                      show_legend=show_axis_legend)
+    for ax in axes[n:]:
+        ax.set_visible(False)
 
-def setup_x_axis(ax, values):
-    values = sorted(set(values))
-    if not values:
-        return
+    fig.suptitle(suptitle, fontsize=13, fontweight="bold", wrap=True)
+    fig.supxlabel("dim (points per axis)")
+    fig.supylabel(ylabel)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
 
-    if (
-        len(values) > 1
-        and values[0] > 0
-        and values[-1] / values[0] >= 4
-    ):
-        ax.set_xscale("log", base=2)
-
-    ax.set_xticks(values)
-    ax.set_xticklabels([f"{value:,}" for value in values])
-
-
-def make_styles(items, cmap_name):
-    cmap = plt.get_cmap(cmap_name)
-
-    return {
-        item: (
-            cmap(index % cmap.N),
-            MARKERS[index % len(MARKERS)],
-        )
-        for index, item in enumerate(items)
-    }
-
-
-def save_figure(fig, path, dpi):
-    fig.savefig(
-        path,
-        dpi=dpi,
-        bbox_inches="tight",
-    )
+    if legend_label is not None:
+        handles, labels = axes[0].get_legend_handles_labels()
+        fig.legend(handles, labels, loc="center left",
+                  bbox_to_anchor=(1.0, 0.5), fontsize=9)
+        fig.savefig(path, dpi=150, bbox_inches="tight")
+    else:
+        fig.savefig(path, dpi=150)
     plt.close(fig)
     print(f"saved {path}")
 
+    individual_dir = path.parent / "individual" / path.stem
+    individual_dir.mkdir(parents=True, exist_ok=True)
+    for title in titles:
+        fig, ax = plt.subplots(figsize=INDIVIDUAL_FIGSIZE)
+        render_series(ax, panels[title], title, y_scale, y_log, series_order)
+        ax.set_title(f"{suptitle}\n{title.replace('_', ' ')}", fontsize=11)
+        ax.set_xlabel("dim (points per axis)")
+        ax.set_ylabel(ylabel)
+        fig.tight_layout()
+        fig.savefig(individual_dir / f"{title}.png", dpi=150)
+        plt.close(fig)
+    print(f"saved {len(titles)} individual plot(s) to {individual_dir}/")
 
-def plot_benchmark_grid(
-    results,
-    infos,
-    benchmark_names,
-    configs,
-    config_styles,
-    title,
-    path,
-    dpi,
-    x_mode,
-    log_y=False,
-    throughput=False,
-):
-    if not benchmark_names:
+
+def format_plain(value, sig_figs=3):
+    if value == 0:
+        return f"{0:.{sig_figs - 1}f}"
+    magnitude = math.floor(math.log10(abs(value)))
+    decimals = max(0, sig_figs - magnitude - 1)
+    return f"{value:.{decimals}f}"
+
+
+def format_ms_cell(value):
+    return format_plain(value, sig_figs=3)
+
+
+def format_ns_cell(value):
+    if value >= 1:
+        return f"{value:,.0f}"
+    return f"{value:.2f}"
+
+
+def format_growth_cell(value):
+    return f"{format_plain(value, sig_figs=2)}x"
+
+
+def render_heatmap(ax, matrix, rows, cols, title, cell_fmt=format_ms_cell):
+    im = ax.imshow(matrix, cmap="viridis", aspect="auto")
+    ax.set_xticks(range(len(cols)))
+    ax.set_xticklabels(cols, rotation=45, ha="right", fontsize=8)
+    ax.set_yticks(range(len(rows)))
+    ax.set_yticklabels(rows, fontsize=8)
+    ax.set_title(title, fontsize=10)
+
+    midpoint = np.nanmin(matrix) + (np.nanmax(matrix) - np.nanmin(matrix)) / 2 \
+        if np.any(~np.isnan(matrix)) else 0.0
+    for i in range(matrix.shape[0]):
+        for j in range(matrix.shape[1]):
+            value = matrix[i, j]
+            if np.isnan(value):
+                continue
+            color = "white" if value > midpoint else "black"
+            ax.text(j, i, cell_fmt(value), ha="center", va="center",
+                    fontsize=7, color=color)
+    return im
+
+
+def plot_heatmaps(lookup, rows, cols, dims, value_fn, out_dir, filename_prefix,
+                  suptitle, row_label, col_label, cbar_label,
+                  cell_fmt=format_ms_cell):
+    if not rows or not cols or not dims:
         return
 
-    columns = min(3, len(benchmark_names))
-    rows = math.ceil(len(benchmark_names) / columns)
+    width = 4.0 + 0.9 * len(cols)
+    height = 2.0 + 0.3 * len(rows)
 
-    fig, axes = plt.subplots(
-        rows,
-        columns,
-        figsize=(5.2 * columns, 3.8 * rows),
-        squeeze=False,
-    )
-    axes = axes.flatten()
+    for dim in dims:
+        matrix = np.full((len(rows), len(cols)), np.nan)
+        for i, row in enumerate(rows):
+            for j, col in enumerate(cols):
+                record = lookup.get((row, col, dim))
+                value = value_fn(record) if record is not None else None
+                if value is not None:
+                    matrix[i, j] = value
 
-    legend_entries = {}
-
-    for axis_index, benchmark in enumerate(benchmark_names):
-        ax = axes[axis_index]
-        info = infos[benchmark]
-
-        panel_results = [
-            result
-            for result in results
-            if result.benchmark == benchmark
-        ]
-
-        all_x_values = []
-        all_y_values = []
-
-        for config in configs:
-            config_results = sorted(
-                (
-                    result
-                    for result in panel_results
-                    if result.config == config
-                ),
-                key=lambda result: result.dim,
-            )
-
-            if not config_results:
-                continue
-
-            x_values = []
-            y_values = []
-
-            for result in config_results:
-                if x_mode == "points":
-                    x_value = base_grid_points(info, result.dim)
-                elif x_mode == "cells":
-                    x_value = base_grid_cells(info, result.dim)
-                else:
-                    x_value = result.dim
-
-                if x_value is None:
-                    continue
-
-                if throughput:
-                    cell_count = base_grid_cells(info, result.dim)
-                    if (
-                        cell_count is None
-                        or result.seconds_per_iteration <= 0
-                    ):
-                        continue
-
-                    y_value = (
-                        cell_count
-                        / result.seconds_per_iteration
-                        / 1.0e6
-                    )
-                else:
-                    y_value = result.seconds_per_iteration
-
-                x_values.append(x_value)
-                y_values.append(y_value)
-
-            if not x_values:
-                continue
-
-            color, marker = config_styles[config]
-            label = format_config(config)
-
-            line, = ax.plot(
-                x_values,
-                y_values,
-                color=color,
-                marker=marker,
-                linewidth=2,
-                markersize=6,
-                label=label,
-            )
-
-            legend_entries.setdefault(label, line)
-            all_x_values.extend(x_values)
-            all_y_values.extend(y_values)
-
-        setup_x_axis(ax, all_x_values)
-
-        if log_y and all(value > 0 for value in all_y_values):
-            ax.set_yscale("log")
-        else:
-            ax.set_ylim(bottom=0)
-
-        if throughput:
-            ax.yaxis.set_major_formatter(
-                FuncFormatter(
-                    lambda value, _: format_rate(value)
-                )
-            )
-        else:
-            ax.yaxis.set_major_formatter(
-                FuncFormatter(
-                    lambda value, _: format_duration(value)
-                )
-            )
-
-        ax.set_title(info.label, fontsize=12)
-        ax.grid(True, which="both", linestyle=":", alpha=0.45)
-
-    for axis_index in range(len(benchmark_names), len(axes)):
-        axes[axis_index].set_visible(False)
-
-    if x_mode == "points":
-        x_label = "input grid points"
-    elif x_mode == "cells":
-        x_label = "base-grid logical cells"
-    else:
-        x_label = "points per active axis"
-
-    y_label = (
-        "million base-grid logical cells / second"
-        if throughput
-        else "average time / iteration"
-    )
-
-    fig.suptitle(
-        f"{title} ({iteration_summary(results)})",
-        fontsize=17,
-        fontweight="bold",
-    )
-    fig.supxlabel(x_label, fontsize=13)
-    fig.supylabel(y_label, fontsize=13)
-
-    if legend_entries:
-        fig.legend(
-            legend_entries.values(),
-            legend_entries.keys(),
-            loc="center left",
-            bbox_to_anchor=(0.84, 0.5),
-            fontsize=10,
-        )
-        right = 0.82
-    else:
-        right = 0.97
-
-    fig.tight_layout(rect=(0.03, 0.03, right, 0.93))
-    save_figure(fig, path, dpi)
+        fig, ax = plt.subplots(figsize=(width, height))
+        im = render_heatmap(ax, matrix, rows, cols, f"{suptitle}\ndim={dim}",
+                            cell_fmt=cell_fmt)
+        cbar = fig.colorbar(im, ax=ax, label=cbar_label)
+        cbar.ax.ticklabel_format(style="plain", useOffset=False)
+        ax.set_xlabel(col_label)
+        ax.set_ylabel(row_label)
+        fig.tight_layout()
+        path = out_dir / f"{filename_prefix}_dim-{dim}.png"
+        fig.savefig(path, dpi=150)
+        plt.close(fig)
+        print(f"saved {path}")
 
 
-def plot_cross_type_comparison(
-    results,
-    infos,
-    config,
-    element_types,
-    element_styles,
-    out_dir,
-    dpi,
-    log_y,
-):
-    operations = [
-        operation
-        for operation, _ in UNSTRUCTURED_OPERATIONS
-        if any(
-            info.operation == operation
-            and info.element_type in element_types
-            and info.ndims is not None
-            for info in infos.values()
-        )
-    ]
-
-    if not operations:
+def plot_thicket_views(thicket, records, time_column, out_dir):
+    if not hasattr(th.stats, "display_heatmap"):
+        print("seaborn not installed; skipping thicket plots")
         return
 
-    columns = 3
-    rows = math.ceil(len(operations) / columns)
+    mean_column = th.stats.mean(thicket, columns=[time_column])[0]
+    full_statsframe = thicket.statsframe.dataframe
 
-    fig, axes = plt.subplots(
-        rows,
-        columns,
-        figsize=(5.2 * columns, 3.8 * rows),
-        squeeze=False,
-    )
-    axes = axes.flatten()
-
-    legend_entries = {}
-
-    for axis_index, operation in enumerate(operations):
-        ax = axes[axis_index]
-        all_x_values = []
-        all_y_values = []
-
-        for element_type in element_types:
-            matching_infos = [
-                info
-                for info in infos.values()
-                if info.operation == operation
-                and info.element_type == element_type
-                and info.ndims is not None
-            ]
-
-            if not matching_infos:
-                continue
-
-            benchmark = matching_infos[0].name
-            info = matching_infos[0]
-
-            matching_results = sorted(
-                (
-                    result
-                    for result in results
-                    if result.benchmark == benchmark
-                    and result.config == config
-                ),
-                key=lambda result: result.dim,
-            )
-
-            if not matching_results:
-                continue
-
-            x_values = [
-                base_grid_cells(info, result.dim)
-                for result in matching_results
-            ]
-            y_values = [
-                result.seconds_per_iteration
-                for result in matching_results
-            ]
-
-            color, marker = element_styles[element_type]
-
-            line, = ax.plot(
-                x_values,
-                y_values,
-                color=color,
-                marker=marker,
-                linewidth=2,
-                markersize=6,
-                label=element_type,
-            )
-
-            legend_entries.setdefault(element_type, line)
-            all_x_values.extend(x_values)
-            all_y_values.extend(y_values)
-
-        setup_x_axis(ax, all_x_values)
-
-        if log_y and all(value > 0 for value in all_y_values):
-            ax.set_yscale("log")
-        else:
-            ax.set_ylim(bottom=0)
-
-        ax.yaxis.set_major_formatter(
-            FuncFormatter(
-                lambda value, _: format_duration(value)
-            )
-        )
-        ax.set_title(OPERATION_LABELS[operation], fontsize=12)
-        ax.grid(True, which="both", linestyle=":", alpha=0.45)
-
-    for axis_index in range(len(operations), len(axes)):
-        axes[axis_index].set_visible(False)
-
-    fig.suptitle(
-        "Unstructured element-type comparison\n"
-        f"{format_config(config)}",
-        fontsize=17,
-        fontweight="bold",
-    )
-    fig.supxlabel("base-grid logical cells", fontsize=13)
-    fig.supylabel("average time / iteration", fontsize=13)
-
-    if legend_entries:
-        fig.legend(
-            legend_entries.values(),
-            legend_entries.keys(),
-            loc="center left",
-            bbox_to_anchor=(0.84, 0.5),
-            fontsize=10,
-        )
-
-    fig.tight_layout(rect=(0.03, 0.03, 0.82, 0.91))
-
-    path = (
-        out_dir
-        / f"unstructured_cross_type_{config_slug(config)}.png"
-    )
-    save_figure(fig, path, dpi)
-
-
-def plot_heatmaps(
-    results,
-    infos,
-    configs,
-    element_types,
-    out_dir,
-    dpi,
-    all_dimensions,
-):
-    benchmark_by_operation_and_type = {
-        (info.operation, info.element_type): info.name
-        for info in infos.values()
-        if info.family == "unstructured"
-    }
-
-    operations = [
-        operation
-        for operation, _ in UNSTRUCTURED_OPERATIONS
-        if any(
-            (operation, element_type)
-            in benchmark_by_operation_and_type
-            for element_type in element_types
-        )
-    ]
-
-    lookup = {
-        (result.benchmark, result.config, result.dim): result
-        for result in results
-    }
-
-    for config in configs:
-        dimensions = sorted({
-            result.dim
-            for result in results
-            if result.config == config
-            and infos[result.benchmark].family == "unstructured"
-        })
-
-        if not dimensions:
+    for group, nodes in (
+        ("mesh", [r["node"] for r in records if r["name"].startswith("mesh_")]),
+        ("generate", [r["node"] for r in records if not r["name"].startswith("mesh_")]),
+    ):
+        if not nodes:
             continue
+        thicket.statsframe.dataframe = full_statsframe.loc[nodes]
+        plt.figure(figsize=(8, 1.5 + 0.25 * len(nodes)))
+        ax = th.stats.display_heatmap(thicket, columns=[mean_column], annot=True, fmt=".6f")
+        ax.tick_params(axis="y", labelsize=7)
+        if ax.collections and ax.collections[0].colorbar:
+            ax.collections[0].colorbar.ax.ticklabel_format(style="plain", useOffset=False)
+        path = out_dir / f"thicket_{group}_heatmap.png"
+        ax.get_figure().savefig(path, dpi=150, bbox_inches="tight")
+        plt.close(ax.get_figure())
+        print(f"saved {path}")
+    thicket.statsframe.dataframe = full_statsframe
 
-        if not all_dimensions:
-            dimensions = [dimensions[-1]]
-
-        for dim in dimensions:
-            matrix = np.full(
-                (len(operations), len(element_types)),
-                np.nan,
-            )
-
-            for row, operation in enumerate(operations):
-                for column, element_type in enumerate(element_types):
-                    benchmark = benchmark_by_operation_and_type.get(
-                        (operation, element_type)
-                    )
-
-                    if benchmark is None:
-                        continue
-
-                    result = lookup.get(
-                        (benchmark, config, dim)
-                    )
-
-                    if result is not None:
-                        matrix[row, column] = (
-                            result.seconds_per_iteration
-                        )
-
-            positive_values = matrix[
-                np.isfinite(matrix) & (matrix > 0)
-            ]
-
-            if positive_values.size == 0:
-                continue
-
-            minimum = float(np.min(positive_values))
-            maximum = float(np.max(positive_values))
-
-            if minimum == maximum:
-                minimum *= 0.5
-                maximum *= 2.0
-
-            norm = LogNorm(vmin=minimum, vmax=maximum)
-            masked = np.ma.masked_invalid(matrix)
-            masked = np.ma.masked_less_equal(masked, 0)
-
-            cmap = copy(plt.get_cmap("viridis"))
-            cmap.set_bad("#dddddd")
-
-            fig, ax = plt.subplots(
-                figsize=(
-                    max(9, 1.4 * len(element_types)),
-                    max(6, 0.75 * len(operations)),
-                )
-            )
-
-            image = ax.imshow(
-                masked,
-                cmap=cmap,
-                norm=norm,
-                aspect="auto",
-            )
-
-            ax.set_xticks(range(len(element_types)))
-            ax.set_xticklabels(
-                element_types,
-                rotation=35,
-                ha="right",
-            )
-            ax.set_yticks(range(len(operations)))
-            ax.set_yticklabels([
-                OPERATION_LABELS[operation]
-                for operation in operations
-            ])
-
-            for row in range(len(operations)):
-                for column in range(len(element_types)):
-                    value = matrix[row, column]
-
-                    if not np.isfinite(value) or value <= 0:
-                        text = "n/a"
-                        color = "#666666"
-                    else:
-                        text = format_duration(value)
-                        color = (
-                            "white"
-                            if norm(value) > 0.55
-                            else "black"
-                        )
-
-                    ax.text(
-                        column,
-                        row,
-                        text,
-                        ha="center",
-                        va="center",
-                        fontsize=8,
-                        color=color,
-                    )
-
-            colorbar = fig.colorbar(image, ax=ax)
-            colorbar.set_label("average time / iteration")
-            colorbar.ax.yaxis.set_major_formatter(
-                FuncFormatter(
-                    lambda value, _: format_duration(value)
-                )
-            )
-
-            ax.set_title(
-                "Unstructured benchmark summary\n"
-                f"N={dim}, {format_config(config)}",
-                fontsize=15,
-                fontweight="bold",
-            )
-
-            fig.tight_layout()
-
-            path = (
-                out_dir
-                / (
-                    "unstructured_heatmap_"
-                    f"{config_slug(config)}_dim-{dim}.png"
-                )
-            )
-            save_figure(fig, path, dpi)
-
-
-def write_csv(results, infos, path):
-    fields = [
-        "benchmark",
-        "family",
-        "operation",
-        "element_type",
-        "topological_dimensions",
-        "dim",
-        "grid_points",
-        "base_grid_logical_cells",
-        "backend",
-        "source_location",
-        "execution_location",
-        "output_location",
-        "sync_strategy",
-        "threads",
-        "iterations",
-        "total_measured_seconds",
-        "seconds_per_iteration",
-        "base_grid_logical_cells_per_second",
-    ]
-
-    with path.open("w", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=fields)
-        writer.writeheader()
-
-        for result in sorted(
-            results,
-            key=lambda item: (
-                item.benchmark,
-                config_sort_key(item.config),
-                item.dim,
-            ),
-        ):
-            info = infos[result.benchmark]
-            points = base_grid_points(info, result.dim)
-            cells = base_grid_cells(info, result.dim)
-
-            throughput = ""
-            if (
-                cells is not None
-                and result.seconds_per_iteration > 0
-            ):
-                throughput = (
-                    cells / result.seconds_per_iteration
-                )
-
-            writer.writerow({
-                "benchmark": result.benchmark,
-                "family": info.family,
-                "operation": info.operation or "",
-                "element_type": info.element_type or "",
-                "topological_dimensions": (
-                    info.ndims if info.ndims is not None else ""
-                ),
-                "dim": result.dim,
-                "grid_points": points if points is not None else "",
-                "base_grid_logical_cells": (
-                    cells if cells is not None else ""
-                ),
-                "backend": result.config.backend or "",
-                "source_location": result.config.src,
-                "execution_location": result.config.execution,
-                "output_location": result.config.out,
-                "sync_strategy": result.config.sync or "",
-                "threads": (
-                    result.config.threads
-                    if result.config.threads is not None
-                    else ""
-                ),
-                "iterations": result.iterations,
-                "total_measured_seconds": result.total_seconds,
-                "seconds_per_iteration": (
-                    result.seconds_per_iteration
-                ),
-                "base_grid_logical_cells_per_second": throughput,
-            })
-
-    print(f"saved {path}")
+    sample_nodes = [r["node"] for r in records if r["name"].startswith("mesh_")]
+    if sample_nodes:
+        ax = th.stats.display_boxplot(thicket, nodes=sample_nodes, columns=[time_column])
+        ax.tick_params(axis="x", rotation=90, labelsize=6)
+        ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+        path = out_dir / "thicket_boxplot.png"
+        ax.get_figure().savefig(path, dpi=150, bbox_inches="tight")
+        plt.close(ax.get_figure())
+        print(f"saved {path}")
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description=(
-            "Plot current Conduit mesh transform benchmark results."
-        )
-    )
-    parser.add_argument(
-        "cali_file",
-        nargs="?",
-        help="path to a current benchmark .cali file",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        help="output directory, defaults to the Caliper filename stem",
-    )
-    parser.add_argument(
-        "--dpi",
-        type=int,
-        default=160,
-        help="PNG resolution, default: 160",
-    )
-    parser.add_argument(
-        "--log-y",
-        action="store_true",
-        help="use logarithmic scaling for runtime plots",
-    )
-    parser.add_argument(
-        "--throughput",
-        action="store_true",
-        help=(
-            "also generate base-grid logical-cell throughput plots"
-        ),
-    )
-    parser.add_argument(
-        "--no-cross-type",
-        action="store_true",
-        help="skip cross-element-type comparison figures",
-    )
-    parser.add_argument(
-        "--no-heatmaps",
-        action="store_true",
-        help="skip unstructured summary heatmaps",
-    )
-    parser.add_argument(
-        "--all-heatmaps",
-        action="store_true",
-        help=(
-            "generate heatmaps for every dimension instead of only "
-            "the largest"
-        ),
-    )
-
-    args = parser.parse_args()
-
-    cali_file = (
-        Path(args.cali_file)
-        if args.cali_file
-        else find_cali_file()
-    )
-
+    cali_file = Path(sys.argv[1]) if len(sys.argv) > 1 else find_cali_file()
     if not cali_file.exists():
         sys.exit(f"no such file: {cali_file}")
 
     try:
-        thicket = th.Thicket.from_caliperreader(
-            str(cali_file)
-        )
-        results, time_column = collect_results(thicket)
+        thicket = th.Thicket.from_caliperreader(str(cali_file))
     except ReaderError as error:
         sys.exit(f"failed to read {cali_file}: {error}")
-    except RuntimeError as error:
-        sys.exit(str(error))
 
-    if not results:
-        sys.exit(
-            f"no current mesh benchmark regions found in {cali_file}"
-        )
+    records = collect(thicket)
+    if not records:
+        sys.exit(f"no benchmark regions found in {cali_file}")
 
-    benchmark_names = sorted({
-        result.benchmark for result in results
-    })
-    infos = {
-        name: classify_benchmark(name)
-        for name in benchmark_names
-    }
+    iters = sorted({r["iter"] for r in records})
+    iters_label = f"n={iters[0]}" if len(iters) == 1 else f"n={iters[0]}-{iters[-1]}"
 
-    configs = sorted(
-        {result.config for result in results},
-        key=config_sort_key,
+    out_dir = cali_file.with_suffix("")
+    out_dir.mkdir(exist_ok=True)
+
+    mesh_records = [r for r in records if r["name"].startswith("mesh_")]
+    generate_records = [r for r in records if not r["name"].startswith("mesh_")]
+
+    def generate_group(record):
+        operation, shape = split_generate_name(record["name"])
+        return (operation, shape) if shape else None
+
+    mesh_time_panels = build_line_panels(
+        mesh_records, lambda r: (r["name"], MESH_SERIES_LABEL), lambda r: r["avg_time"]
     )
-    dimensions = sorted({result.dim for result in results})
-    element_types = ordered_element_types(infos)
-
-    out_dir = (
-        args.output_dir
-        if args.output_dir is not None
-        else cali_file.with_suffix("")
+    generate_time_panels = build_line_panels(
+        generate_records, generate_group, lambda r: r["avg_time"]
     )
-    out_dir.mkdir(parents=True, exist_ok=True)
+    if mesh_time_panels:
+        plot_group(
+            mesh_time_panels, out_dir / "mesh_scaling.png",
+            suptitle=f"Mesh conversion benchmark: avg time per iteration ({iters_label})",
+            ylabel="avg time / iteration (ms)", y_scale=1e3,
+            legend_label=MESH_SERIES_LABEL,
+        )
+    if generate_time_panels:
+        plot_group(
+            generate_time_panels, out_dir / "generate_scaling.png",
+            suptitle=f"Generate-function benchmark: avg time per iteration ({iters_label})",
+            ylabel="avg time / iteration (ms)", y_scale=1e3,
+            series_order=SHAPE_ORDER,
+        )
 
-    print(f"time column: {time_column}")
-    print(f"benchmark names: {len(benchmark_names)}")
-    print(f"configurations: {len(configs)}")
-    print(f"dimension sizes: {dimensions}")
-    print(
-        "element types: "
-        + (", ".join(element_types) if element_types else "none")
+    mesh_per_elem_panels = build_line_panels(
+        mesh_records, lambda r: (r["name"], MESH_SERIES_LABEL), per_element_value
     )
-
-    if max(dimensions) <= 4:
-        print(
-            "warning: all dimensions are <= 4; these runs are useful "
-            "for CI validation but are likely dominated by fixed overhead"
-        )
-
-    write_csv(
-        results,
-        infos,
-        out_dir / "benchmark_results.csv",
+    generate_per_elem_panels = build_line_panels(
+        generate_records, generate_group, per_element_value
     )
-
-    config_styles = make_styles(configs, "tab20")
-    element_styles = make_styles(element_types, "tab10")
-
-    plotted = set()
-
-    mesh_names = [
-        name
-        for name, _ in MESH_BENCHMARKS
-        if name in infos
-    ]
-    mesh_names.extend(sorted(
-        name
-        for name, info in infos.items()
-        if info.family == "mesh"
-        and name not in mesh_names
-    ))
-
-    if mesh_names:
-        plot_benchmark_grid(
-            results,
-            infos,
-            mesh_names,
-            configs,
-            config_styles,
-            "Whole-mesh conversions",
-            out_dir / "mesh_scaling.png",
-            args.dpi,
-            x_mode="points",
-            log_y=args.log_y,
+    if mesh_per_elem_panels:
+        plot_group(
+            mesh_per_elem_panels, out_dir / "mesh_scaling_per_element.png",
+            suptitle=f"Mesh conversion benchmark: avg time per element ({iters_label})",
+            ylabel="avg time / element (ns)", y_scale=1e9, y_log=True,
+            stack_vertical=True, legend_label=MESH_SERIES_LABEL,
         )
-        plotted.update(mesh_names)
-
-    for element_type in element_types:
-        type_names = [
-            info.name
-            for info in infos.values()
-            if info.family == "unstructured"
-            and info.element_type == element_type
-        ]
-        type_names.sort(
-            key=lambda name: (
-                OPERATION_ORDER.get(
-                    infos[name].operation,
-                    len(OPERATION_ORDER),
-                ),
-                name,
-            )
+    if generate_per_elem_panels:
+        plot_group(
+            generate_per_elem_panels, out_dir / "generate_scaling_per_element.png",
+            suptitle=f"Generate-function benchmark: avg time per element ({iters_label})",
+            ylabel="avg time / element (ns)", y_scale=1e9, y_log=True,
+            series_order=SHAPE_ORDER, stack_vertical=True,
         )
 
-        if not type_names:
-            continue
-
-        use_logical_cells = all(
-            infos[name].ndims is not None
-            for name in type_names
-        )
-        x_mode = "cells" if use_logical_cells else "dim"
-
-        plot_benchmark_grid(
-            results,
-            infos,
-            type_names,
-            configs,
-            config_styles,
-            f"Unstructured {element_type} transforms",
-            out_dir
-            / f"unstructured_{safe_file_part(element_type)}_scaling.png",
-            args.dpi,
-            x_mode=x_mode,
-            log_y=args.log_y,
-        )
-
-        if args.throughput and use_logical_cells:
-            plot_benchmark_grid(
-                results,
-                infos,
-                type_names,
-                configs,
-                config_styles,
-                f"Unstructured {element_type} throughput",
-                out_dir
-                / (
-                    "unstructured_"
-                    f"{safe_file_part(element_type)}_throughput.png"
-                ),
-                args.dpi,
-                x_mode="cells",
-                log_y=args.log_y,
-                throughput=True,
-            )
-
-        plotted.update(type_names)
-
-    other_names = sorted(set(benchmark_names) - plotted)
-    if other_names:
-        print(
-            "warning: plotting unclassified benchmarks in "
-            "other_scaling.png:"
-        )
-        for name in other_names:
-            print(f"  {name}")
-
-        plot_benchmark_grid(
-            results,
-            infos,
-            other_names,
-            configs,
-            config_styles,
-            "Other discovered benchmarks",
-            out_dir / "other_scaling.png",
-            args.dpi,
-            x_mode="dim",
-            log_y=args.log_y,
-        )
-        plotted.update(other_names)
-
-    if set(benchmark_names) != plotted:
-        missing = sorted(set(benchmark_names) - plotted)
-        sys.exit(
-            "internal error: benchmarks were not plotted: "
-            + ", ".join(missing)
-        )
-
-    if not args.no_cross_type:
-        for config in configs:
-            plot_cross_type_comparison(
-                results,
-                infos,
-                config,
-                element_types,
-                element_styles,
-                out_dir,
-                args.dpi,
-                args.log_y,
-            )
-
-    if not args.no_heatmaps:
+    mesh_lookup = {}
+    for r in mesh_records:
+        convert = split_mesh_convert(r["name"])
+        if convert:
+            mesh_lookup[(convert[0], convert[1], r["dim"])] = r
+    if mesh_lookup:
+        srcs = ordered({k[0] for k in mesh_lookup}, MESH_SRC_ORDER)
+        dsts = sorted({k[1] for k in mesh_lookup})
+        dims = sorted({k[2] for k in mesh_lookup})
         plot_heatmaps(
-            results,
-            infos,
-            configs,
-            element_types,
-            out_dir,
-            args.dpi,
-            args.all_heatmaps,
+            mesh_lookup, srcs, dsts, dims,
+            value_fn=lambda r: r["avg_time"] * 1e3,
+            out_dir=out_dir, filename_prefix="mesh_conversion_heatmap",
+            suptitle=f"Mesh conversion avg time per iteration, ms ({iters_label})",
+            row_label="source representation", col_label="target representation",
+            cbar_label="avg time / iteration (ms)",
+        )
+        plot_heatmaps(
+            mesh_lookup, srcs, dsts, dims,
+            value_fn=lambda r: per_element_value(r) * 1e9 if per_element_value(r) else None,
+            out_dir=out_dir, filename_prefix="mesh_conversion_heatmap_per_element",
+            suptitle=f"Mesh conversion avg time per element, ns ({iters_label})",
+            row_label="source representation", col_label="target representation",
+            cbar_label="avg time / element (ns)", cell_fmt=format_ns_cell,
         )
 
-    print(f"wrote results to {out_dir}/")
+    shape_lookup = {}
+    for r in generate_records:
+        operation, shape = split_generate_name(r["name"])
+        if shape:
+            shape_lookup[(operation, shape, r["dim"])] = r
+    if shape_lookup:
+        operations = ordered({k[0] for k in shape_lookup}, OPERATIONS)
+        shapes = ordered({k[1] for k in shape_lookup}, SHAPE_ORDER)
+        dims = sorted({k[2] for k in shape_lookup})
+        plot_heatmaps(
+            shape_lookup, operations, shapes, dims,
+            value_fn=lambda r: r["avg_time"] * 1e3,
+            out_dir=out_dir, filename_prefix="generate_heatmap",
+            suptitle=f"Generate-function avg time per iteration, ms ({iters_label})",
+            row_label="operation", col_label="element shape",
+            cbar_label="avg time / iteration (ms)",
+        )
+        plot_heatmaps(
+            shape_lookup, operations, shapes, dims,
+            value_fn=lambda r: per_element_value(r) * 1e9 if per_element_value(r) else None,
+            out_dir=out_dir, filename_prefix="generate_heatmap_per_element",
+            suptitle=f"Generate-function avg time per element, ns ({iters_label})",
+            row_label="operation", col_label="element shape",
+            cbar_label="avg time / element (ns)", cell_fmt=format_ns_cell,
+        )
+        plot_heatmaps(
+            shape_lookup, operations, shapes, dims,
+            value_fn=growth_value,
+            out_dir=out_dir, filename_prefix="generate_growth_heatmap",
+            suptitle=f"Generate-function output/input element ratio ({iters_label})",
+            row_label="operation", col_label="element shape",
+            cbar_label="output elements / input elements", cell_fmt=format_growth_cell,
+        )
+
+    plot_thicket_views(thicket, records, find_time_column(thicket.dataframe), out_dir)
+
+    print(f"wrote plots to {out_dir}/")
 
 
 if __name__ == "__main__":
