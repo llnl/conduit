@@ -212,8 +212,8 @@ def plot_group(panels, path, suptitle, ylabel, y_scale=1.0, y_log=False,
 
     if legend_label is not None:
         handles, labels = axes[0].get_legend_handles_labels()
-        fig.legend(handles, labels, loc="center left",
-                  bbox_to_anchor=(1.0, 0.5), fontsize=9)
+        fig.legend(handles, labels, loc="lower left",
+                  bbox_to_anchor=(1.0, 0.0), fontsize=9)
         fig.savefig(path, dpi=150, bbox_inches="tight")
     else:
         fig.savefig(path, dpi=150)
@@ -384,14 +384,14 @@ def main():
             mesh_time_panels, out_dir / "mesh_scaling.png",
             suptitle=f"Mesh conversion benchmark: avg time per iteration ({iters_label})",
             ylabel="avg time / iteration (ms)", y_scale=1e3,
-            legend_label=MESH_SERIES_LABEL,
+            stack_vertical=True, legend_label=MESH_SERIES_LABEL,
         )
     if generate_time_panels:
         plot_group(
             generate_time_panels, out_dir / "generate_scaling.png",
             suptitle=f"Generate-function benchmark: avg time per iteration ({iters_label})",
             ylabel="avg time / iteration (ms)", y_scale=1e3,
-            series_order=SHAPE_ORDER,
+            series_order=SHAPE_ORDER, stack_vertical=True,
         )
 
     mesh_per_elem_panels = build_line_panels(
@@ -440,7 +440,6 @@ def main():
             row_label="source representation", col_label="target representation",
             cbar_label="avg time / element (ns)", cell_fmt=format_ns_cell,
         )
-
     shape_lookup = {}
     for r in generate_records:
         operation, shape = split_generate_name(r["name"])
