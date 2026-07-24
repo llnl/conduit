@@ -2,7 +2,11 @@
 # Project developers. See top-level LICENSE AND COPYRIGHT files for dates and
 # other details. No copyright assignment is required to contribute to Conduit.
 
-import argparse
+# Plots .cali output from t_blueprint_mesh_transform_benchmark. Run with no
+# arguments to plot the most recently written .cali file in the current
+# directory, or pass a path to a specific one.
+
+import math
 import sys
 from pathlib import Path
 
@@ -13,431 +17,467 @@ import matplotlib.pyplot as plt
 import numpy as np
 import thicket as th
 from caliperreader.readererror import ReaderError
-from matplotlib.ticker import FormatStrFormatter
 
-COORDSET_CONVERSIONS = [
-    "coordset_rectilinear_to_explicit",
-    "coordset_uniform_to_explicit",
-    "coordset_uniform_to_rectilinear",
-]
-
-TOPOLOGY_CONVERSIONS = [
-    "topology_uniform_to_unstructured",
-    "topology_rectilinear_to_unstructured",
-    "topology_structured_to_unstructured",
-]
-
-CONVERSIONS = COORDSET_CONVERSIONS + TOPOLOGY_CONVERSIONS
-
-CONVERSION_LABELS = {
-    "coordset_rectilinear_to_explicit": "rect→explicit",
-    "coordset_uniform_to_explicit": "uniform→explicit",
-    "coordset_uniform_to_rectilinear": "uniform→rect",
-    "topology_uniform_to_unstructured": "uniform→unstruct",
-    "topology_rectilinear_to_unstructured": "rect→unstruct",
-    "topology_structured_to_unstructured": "struct→unstruct",
-}
-
-CONVERSION_GROUPS = [
-    ("coordset", COORDSET_CONVERSIONS),
-    ("topology", TOPOLOGY_CONVERSIONS),
-]
-
-END_TO_END_GROUP_PANELS = [
-    (group_name, [(CONVERSION_LABELS[c], c, "end_to_end") for c in group_conversions])
-    for group_name, group_conversions in CONVERSION_GROUPS
-]
-
-COMPONENT_METRICS = [
-    ("use_with", "use_with"),
-    ("forall", "forall"),
-    ("data movement", "data_movement"),
-    ("other processing", "other_processing"),
-]
-
-CMAP = plt.get_cmap("tab10")
-MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
-
-CFG_ABBREVIATIONS = {
-    "openmp": "omp",
-    "device": "dev",
-}
+REQUIRED_FIELDS = ("dim", "inverts", "inelems", "outverts", "outelems", "iter")
 
 
-def format_cfg_label(cfg):
-    backend, src, exec_, out = cfg
+def parse_scope_name(raw):
+    tokens = raw.split("_")
 
-    if backend is None:
-        return "serial - before device support"
-
-    backend = CFG_ABBREVIATIONS.get(backend, backend)
-    src = CFG_ABBREVIATIONS.get(src, src)
-    exec_ = CFG_ABBREVIATIONS.get(exec_, exec_)
-    out = CFG_ABBREVIATIONS.get(out, out)
-    return f"{backend}: {src}→{exec_}→{out}"
-
-
-def format_range_label(prefix, values):
-    values = sorted(values)
-    if len(values) == 1:
-        return f"{prefix}={values[0]}"
-    return f"{prefix}={values[0]}-{values[-1]}"
-
-
-def parse_config_name(name):
-    conv_name = None
-    for c in CONVERSIONS:
-        if name.startswith(c + "_"):
-            conv_name = c
-            break
-    if conv_name is None:
+    i = 0
+    while i < len(tokens) and "-" not in tokens[i]:
+        i += 1
+    name = "_".join(tokens[:i])
+    is_generate = any(name.startswith(op + "_") for op in OPERATIONS)
+    if not (name.startswith("mesh_") or is_generate):
         return None
 
-    rest = name[len(conv_name) + 1 :]
-    parts = rest.split("_")
-
-    if len(parts) not in (6, 7, 8):
-        return None
-
-    values = {}
-    backend = None
-
-    # If the first token has no dash, treat it as backend
-    start_idx = 0
-    if "-" not in parts[0]:
-        backend = parts[0]
-        start_idx = 1
-
-    for field in parts[start_idx:]:
-        if "-" not in field:
+    fields = {}
+    for token in tokens[i:]:
+        if "-" not in token:
             return None
-        key, value = field.split("-", 1)
-        values[key] = value
+        key, value = token.split("-", 1)
+        fields[key] = value
 
-    required = {"dim", "src", "exec", "out", "sync", "iter"}
-    if set(values) not in (required, required | {"threads"}):
+    if not all(fields.get(key, "").isdigit() for key in REQUIRED_FIELDS):
         return None
-    if values["src"] not in ("host", "device"):
-        return None
-    if values["exec"] not in ("host", "device"):
-        return None
-    if values["out"] not in ("host", "device"):
-        return None
-    if values["sync"] not in ("sync", "assume"):
-        return None
-    if not values["dim"].isdigit() or not values["iter"].isdigit():
-        return None
-    threads = None
-    if "threads" in values:
-        if not values["threads"].isdigit():
-            return None
-        threads = int(values["threads"])
 
-    cfg = (backend, values["src"], values["exec"], values["out"])
-    return conv_name, cfg, int(values["dim"]), int(values["iter"]), threads, values["sync"]
+    parsed = {"name": name}
+    parsed.update((key, int(fields[key])) for key in REQUIRED_FIELDS)
+    return parsed
 
 
-def parse_timestamp(cali_file):
-    stem = Path(cali_file).stem
-    if len(stem) == 15 and stem[:8].isdigit() and stem[8] == "_" and stem[9:].isdigit():
-        return f"{stem[0:4]}-{stem[4:6]}-{stem[6:8]} {stem[9:11]}:{stem[11:13]}:{stem[13:15]}"
+def split_mesh_convert(name):
+    tokens = name.split("_")
+    if len(tokens) == 4 and tokens[0] == "mesh" and tokens[2] == "to":
+        return tokens[1], tokens[3]
     return None
+
+OPERATIONS = [
+    "generate_centroids",
+    "generate_points",
+    "generate_faces",
+    "generate_lines",
+    "generate_corners",
+    "generate_sides",
+    "to_polytopal",
+]
+MESH_SRC_ORDER = ["structured", "rectilinear", "uniform"]
+SHAPE_ORDER = ["quads", "hexs", "pyramids"]
+MESH_SERIES_LABEL = "serial - before device support"
+
+INDIVIDUAL_FIGSIZE = (6.4, 3.6)
+MAX_STACKED_ROWS = 4
+
+
+def ordered(values, preferred_order):
+    values = set(values)
+    return [v for v in preferred_order if v in values] + \
+        sorted(values - set(preferred_order))
+
+
+def split_generate_name(name):
+    for operation in OPERATIONS:
+        if name.startswith(operation + "_"):
+            return operation, name[len(operation) + 1:]
+    return name, ""
 
 
 def find_cali_file():
-    all_cali = list(Path.cwd().glob("*.cali"))
-    cali_files = []
-    for f in all_cali:
-        if parse_timestamp(f) is not None:
-            cali_files.append(f)
-    cali_files.sort(reverse=True)
-
-    if not cali_files:
-        sys.exit(f"no timestamped .cali files (YYYYMMDD_HHMMSS.cali) found in {Path.cwd()}")
-
-    skipped = len(all_cali) - len(cali_files)
-    print(
-        f"found {len(cali_files)} timestamped .cali file(s) in {Path.cwd()}"
-        + (f" ({skipped} other .cali file(s) skipped)" if skipped else "")
-        + ":"
-    )
-    return cali_files[0]
+    files = list(Path.cwd().glob("*.cali"))
+    if not files:
+        sys.exit("no .cali files found in current directory")
+    return max(files, key=lambda path: path.stat().st_mtime)
 
 
-def node_time(thicket, profile_id, node):
-    try:
-        return thicket.dataframe.loc[(node, profile_id), "time"]
-    except KeyError:
-        return float("nan")
+def find_time_column(dataframe):
+    for name in ("time", "sum#sum#time.duration", "sum#time.duration"):
+        if name in dataframe.columns:
+            return name
+    for column in dataframe.columns:
+        if str(column).endswith("time.duration"):
+            return column
+    sys.exit(f"no time column found; columns were {list(dataframe.columns)}")
 
 
-def subtree_time(thicket, profile_id, node):
-    # Caliper measures exclusive time, so a region's inclusive time is its
-    # own exclusive time plus the summed exclusive time of its subtree.
-    total = node_time(thicket, profile_id, node)
-    total = 0.0 if np.isnan(total) else total
-    for child in node.children:
-        total += subtree_time(thicket, profile_id, child)
-    return total
-
-LEAF_METRIC_NAMES = ("use_with", "forall", "sync", "assume")
-
-def accumulate_leaf_metrics(thicket, profile_id, node, totals):
-    name = node.frame["name"]
-    if name in LEAF_METRIC_NAMES:
-        val = node_time(thicket, profile_id, node)
-        totals[name] += 0.0 if np.isnan(val) else val
-    for child in node.children:
-        accumulate_leaf_metrics(thicket, profile_id, child, totals)
-
-
-def collect_data(thicket):
+def collect(thicket):
     profile_id = thicket.dataframe.index.get_level_values("profile")[0]
-    data = {}
-    dims_seen = set()
-    backends_seen = set()
-    syncs_seen = set()
+    time_column = find_time_column(thicket.dataframe)
 
-    root = list(thicket.graph.roots)[0]
-    for cfg_node in root.children:
-        parsed = parse_config_name(cfg_node.frame["name"])
-        if parsed is None:
+    def node_time(node):
+        try:
+            total = float(thicket.dataframe.loc[(node, profile_id), time_column])
+        except (KeyError, TypeError):
+            total = 0.0
+        for child in node.children:
+            total += node_time(child)
+        return total
+
+    def all_nodes(node):
+        yield node
+        for child in node.children:
+            yield from all_nodes(child)
+
+    records = []
+    for root in thicket.graph.roots:
+        for node in all_nodes(root):
+            parsed = parse_scope_name(str(node.frame.get("name", "")))
+            if parsed is None:
+                continue
+            parsed["avg_time"] = node_time(node) / parsed["iter"]
+            parsed["node"] = node
+            records.append(parsed)
+    return records
+
+
+def per_element_value(record):
+    if record["outelems"] <= 0:
+        return None
+    return record["avg_time"] / record["outelems"]
+
+
+def growth_value(record):
+    if record["inelems"] <= 0:
+        return None
+    return record["outelems"] / record["inelems"]
+
+
+def build_line_panels(records, group_series_fn, value_fn):
+    panels = {}
+    for record in records:
+        grouped = group_series_fn(record)
+        if grouped is None:
             continue
-        conv_name, cfg, dim, iters, threads, sync_strategy = parsed
-        backend, _, _, _ = cfg
-
-        dims_seen.add(dim)
-        syncs_seen.add(sync_strategy)
-        if backend is not None:
-            backends_seen.add(backend)
-
-        totals = {name: 0.0 for name in LEAF_METRIC_NAMES}
-        accumulate_leaf_metrics(thicket, profile_id, cfg_node, totals)
-
-        end_to_end = subtree_time(thicket, profile_id, cfg_node) / iters
-        use_with = totals["use_with"] / iters
-        forall = totals["forall"] / iters
-        data_movement = (totals["sync"] + totals["assume"]) / iters
-
-        data[(cfg, conv_name, dim, sync_strategy)] = {
-            "end_to_end": end_to_end,
-            "use_with": use_with,
-            "forall": forall,
-            "data_movement": data_movement,
-            "other_processing": max(0.0, end_to_end - (use_with + forall + data_movement)),
-            "iters": iters,
-            "threads": threads,
-        }
-
-    return data, sorted(dims_seen), backends_seen, syncs_seen
+        value = value_fn(record)
+        if value is None:
+            continue
+        panel_title, series_label = grouped
+        panels.setdefault(panel_title, {}).setdefault(series_label, []) \
+              .append((record["dim"], value))
+    return panels
 
 
-def plot_panels(data, dims, cfg_keys, panels, suptitle, path, ylabel, iters_label, per_element=False):
-    n = len(panels)
-    fig_width = 10
+def render_series(ax, series, title, y_scale, y_log, series_order=None,
+                  show_legend=True):
+    labels = ordered(series, series_order) if series_order else sorted(series)
+    for label in labels:
+        points = sorted(series[label])
+        dims = [str(dim) for dim, _ in points]
+        ys = [value * y_scale for _, value in points]
+        ax.plot(dims, ys, marker="o", label=label)
 
-    # ms is the only unit
-    scale = 1e3
+    ax.set_title(title.replace("_", " "), fontsize=10)
+    ax.tick_params(labelsize=8)
+    if y_log:
+        ax.set_yscale("log")
+    else:
+        ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+    if show_legend:
+        ax.legend(fontsize=7)
 
-    panel_data = []
-    for _, conv_name, metric in panels:
-        raw_ys_by_cfg = []
-        panel_values = []
-        for cfg in cfg_keys:
-            ys = []
-            for d in dims:
-                v = data.get((cfg, conv_name, d), {}).get(metric, np.nan)
-                if not np.isnan(v):
-                    if per_element:
-                        v = v / (d ** 3)  # dim is per axis, so the mesh has d**3 elements
-                    v = v * scale
-                ys.append(v)
-            raw_ys_by_cfg.append(ys)
-            panel_values.extend(v for v in ys if not np.isnan(v))
-        panel_data.append((raw_ys_by_cfg, panel_values))
 
-    fig, axes = plt.subplots(n, 1, figsize=(fig_width, 4.2 * n), squeeze=False)
-    axes = axes[:, 0]
-    suptitle_text = fig.suptitle(f"{suptitle} ({iters_label})", fontsize=20, fontweight="bold")
+def plot_group(panels, path, suptitle, ylabel, y_scale=1.0, y_log=False,
+              series_order=None, stack_vertical=False, legend_label=None):
+    titles = sorted(panels)
+    n = len(titles)
 
-    for i in range(n):
-        ax = axes[i]
-        title, conv_name, metric = panels[i]
-        raw_ys_by_cfg, panel_values = panel_data[i]
+    if stack_vertical:
+        rows = min(MAX_STACKED_ROWS, n)
+        columns = math.ceil(n / rows)
+        panel_width = 6.5
+    else:
+        columns = min(4, n)
+        rows = math.ceil(n / columns)
+        panel_width = 4.2
 
-        for j, cfg in enumerate(cfg_keys):
-            ys = raw_ys_by_cfg[j]
-            ax.plot(
-                dims, ys,
-                label=format_cfg_label(cfg),
-                color=CMAP(j % 10), marker=MARKERS[j % len(MARKERS)],
-                linestyle="-" if cfg[2] == "device" else "--",
-                markersize=7, linewidth=2.2, alpha=0.9,
-            )
+    fig, axes = plt.subplots(
+        rows, columns, figsize=(panel_width * columns, 3.2 * rows), squeeze=False
+    )
+    if stack_vertical:
+        axes = [axes[row, col] for col in range(columns) for row in range(rows)]
+    else:
+        axes = list(axes.flatten())
 
-        ax.set_xscale("log", base=2)
-        ax.set_xticks(dims)
-        ax.set_xticklabels([str(d) for d in dims])
-        ax.grid(True, which="both", linestyle=":", alpha=0.4)
-        ax.set_title(title, fontsize=17)
-        ax.tick_params(axis="both", which="major", labelsize=13)
+    show_axis_legend = legend_label is None
+    for ax, title in zip(axes, titles):
+        render_series(ax, panels[title], title, y_scale, y_log, series_order,
+                      show_legend=show_axis_legend)
+    for ax in axes[n:]:
+        ax.set_visible(False)
 
-        positive_values = [v for v in panel_values if v > 0]
-        if per_element and positive_values:
-            # Per-element cost spans many orders of magnitude, so use
-            # a log-scale y-axis
-            ax.set_yscale("log")
-        else:
-            # Fixed precision so tick labels are comparable across panels
-            ax.yaxis.set_major_formatter(FormatStrFormatter("%.3f"))
-            local_max = max(panel_values) if panel_values else 0.0
-            scaled_max = local_max * 1.05 if panel_values else 1.0
-            ax.set_ylim(bottom=-0.04 * scaled_max, top=scaled_max)
+    fig.suptitle(suptitle, fontsize=13, fontweight="bold", wrap=True)
+    fig.supxlabel("dim (points per axis)")
+    fig.supylabel(ylabel)
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
 
-    # One shared x/y title instead of repeating it on every panel
-    fig.supxlabel("dim size per axis (mesh is N³)", fontsize=15)
-    fig.supylabel(f"{ylabel} (ms)", fontsize=15)
-
-    fig.tight_layout(rect=(0, 0, 1, 0.96))
-
-    # Legend to the right of the subplots, one entry per row.
-    handles, labels = axes[0].get_legend_handles_labels()
-    legend = fig.legend(handles, labels, loc="center left", bbox_to_anchor=(1.0, 0.5), fontsize=13)
-
-    fig.canvas.draw()
-    legend_bbox_fig = legend.get_window_extent().transformed(fig.transFigure.inverted())
-    suptitle_text.set_x(legend_bbox_fig.x1 / 2)
-
-    fig.savefig(path, dpi=150, bbox_inches="tight")
+    if legend_label is not None:
+        handles, labels = axes[0].get_legend_handles_labels()
+        fig.legend(handles, labels, loc="lower left",
+                  bbox_to_anchor=(1.0, 0.0), fontsize=9)
+        fig.savefig(path, dpi=150, bbox_inches="tight")
+    else:
+        fig.savefig(path, dpi=150)
     plt.close(fig)
     print(f"saved {path}")
 
-
-def generate_plots(data, dims, cfg_keys, iters_label, out_dir, suffix="", include_components=True):
-    ylabel = "avg time / iter"
-
-    for group_name, group_panels in END_TO_END_GROUP_PANELS:
-        plot_panels(
-            data, dims, cfg_keys,
-            group_panels,
-            f"avg {group_name} conversion time vs data size",
-            out_dir / f"end_to_end_combined_{group_name}{suffix}.png",
-            ylabel,
-            iters_label,
-        )
-
-    for conv in CONVERSIONS:
-        plot_panels(
-            data, dims, cfg_keys,
-            [(CONVERSION_LABELS[conv], conv, "end_to_end")],
-            f"{CONVERSION_LABELS[conv]} avg end-to-end conversion time vs data size",
-            out_dir / f"end_to_end_{conv}{suffix}.png",
-            ylabel,
-            iters_label,
-        )
-
-        if include_components:
-            component_panels = [(title, conv, metric) for title, metric in COMPONENT_METRICS]
-            plot_panels(
-                data, dims, cfg_keys,
-                component_panels,
-                f"{CONVERSION_LABELS[conv]} components vs data size",
-                out_dir / f"components_{conv}{suffix}.png",
-                ylabel,
-                iters_label,
-            )
+    individual_dir = path.parent / "individual" / path.stem
+    individual_dir.mkdir(parents=True, exist_ok=True)
+    for title in titles:
+        fig, ax = plt.subplots(figsize=INDIVIDUAL_FIGSIZE)
+        render_series(ax, panels[title], title, y_scale, y_log, series_order)
+        ax.set_title(f"{suptitle}\n{title.replace('_', ' ')}", fontsize=11)
+        ax.set_xlabel("dim (points per axis)")
+        ax.set_ylabel(ylabel)
+        fig.tight_layout()
+        fig.savefig(individual_dir / f"{title}.png", dpi=150)
+        plt.close(fig)
+    print(f"saved {len(titles)} individual plot(s) to {individual_dir}/")
 
 
-def generate_per_element_plots(data, dims, cfg_keys, iters_label, out_dir, suffix=""):
-    ylabel = "avg time / element"
+def format_plain(value, sig_figs=3):
+    if value == 0:
+        return f"{0:.{sig_figs - 1}f}"
+    magnitude = math.floor(math.log10(abs(value)))
+    decimals = max(0, sig_figs - magnitude - 1)
+    return f"{value:.{decimals}f}"
 
-    for group_name, group_panels in END_TO_END_GROUP_PANELS:
-        plot_panels(
-            data, dims, cfg_keys,
-            group_panels,
-            f"avg {group_name} time per element vs data size",
-            out_dir / f"end_to_end_combined_{group_name}_per_element{suffix}.png",
-            ylabel,
-            iters_label,
-            per_element=True,
-        )
 
-    for conv in CONVERSIONS:
-        plot_panels(
-            data, dims, cfg_keys,
-            [(CONVERSION_LABELS[conv], conv, "end_to_end")],
-            f"{CONVERSION_LABELS[conv]} avg end-to-end time per element vs data size",
-            out_dir / f"end_to_end_{conv}_per_element{suffix}.png",
-            ylabel,
-            iters_label,
-            per_element=True,
-        )
+def format_ms_cell(value):
+    return format_plain(value, sig_figs=3)
+
+
+def format_ns_cell(value):
+    if value >= 1:
+        return f"{value:,.0f}"
+    return f"{value:.2f}"
+
+
+def format_growth_cell(value):
+    return f"{format_plain(value, sig_figs=2)}x"
+
+
+def render_heatmap(ax, matrix, rows, cols, title, cell_fmt=format_ms_cell):
+    im = ax.imshow(matrix, cmap="viridis", aspect="auto")
+    ax.set_xticks(range(len(cols)))
+    ax.set_xticklabels(cols, rotation=45, ha="right", fontsize=8)
+    ax.set_yticks(range(len(rows)))
+    ax.set_yticklabels(rows, fontsize=8)
+    ax.set_title(title, fontsize=10)
+
+    midpoint = np.nanmin(matrix) + (np.nanmax(matrix) - np.nanmin(matrix)) / 2 \
+        if np.any(~np.isnan(matrix)) else 0.0
+    for i in range(matrix.shape[0]):
+        for j in range(matrix.shape[1]):
+            value = matrix[i, j]
+            if np.isnan(value):
+                continue
+            color = "white" if value > midpoint else "black"
+            ax.text(j, i, cell_fmt(value), ha="center", va="center",
+                    fontsize=7, color=color)
+    return im
+
+
+def plot_heatmaps(lookup, rows, cols, dims, value_fn, out_dir, filename_prefix,
+                  suptitle, row_label, col_label, cbar_label,
+                  cell_fmt=format_ms_cell):
+    if not rows or not cols or not dims:
+        return
+
+    width = 4.0 + 0.9 * len(cols)
+    height = 2.0 + 0.3 * len(rows)
+
+    for dim in dims:
+        matrix = np.full((len(rows), len(cols)), np.nan)
+        for i, row in enumerate(rows):
+            for j, col in enumerate(cols):
+                record = lookup.get((row, col, dim))
+                value = value_fn(record) if record is not None else None
+                if value is not None:
+                    matrix[i, j] = value
+
+        fig, ax = plt.subplots(figsize=(width, height))
+        im = render_heatmap(ax, matrix, rows, cols, f"{suptitle}\ndim={dim}",
+                            cell_fmt=cell_fmt)
+        cbar = fig.colorbar(im, ax=ax, label=cbar_label)
+        cbar.ax.ticklabel_format(style="plain", useOffset=False)
+        ax.set_xlabel(col_label)
+        ax.set_ylabel(row_label)
+        fig.tight_layout()
+        path = out_dir / f"{filename_prefix}_dim-{dim}.png"
+        fig.savefig(path, dpi=150)
+        plt.close(fig)
+        print(f"saved {path}")
+
+
+def plot_thicket_views(thicket, records, time_column, out_dir):
+    if not hasattr(th.stats, "display_heatmap"):
+        print("seaborn not installed; skipping thicket plots")
+        return
+
+    mean_column = th.stats.mean(thicket, columns=[time_column])[0]
+    full_statsframe = thicket.statsframe.dataframe
+
+    for group, nodes in (
+        ("mesh", [r["node"] for r in records if r["name"].startswith("mesh_")]),
+        ("generate", [r["node"] for r in records if not r["name"].startswith("mesh_")]),
+    ):
+        if not nodes:
+            continue
+        thicket.statsframe.dataframe = full_statsframe.loc[nodes]
+        plt.figure(figsize=(8, 1.5 + 0.25 * len(nodes)))
+        ax = th.stats.display_heatmap(thicket, columns=[mean_column], annot=True, fmt=".6f")
+        ax.tick_params(axis="y", labelsize=7)
+        if ax.collections and ax.collections[0].colorbar:
+            ax.collections[0].colorbar.ax.ticklabel_format(style="plain", useOffset=False)
+        path = out_dir / f"thicket_{group}_heatmap.png"
+        ax.get_figure().savefig(path, dpi=150, bbox_inches="tight")
+        plt.close(ax.get_figure())
+        print(f"saved {path}")
+    thicket.statsframe.dataframe = full_statsframe
+
+    sample_nodes = [r["node"] for r in records if r["name"].startswith("mesh_")]
+    if sample_nodes:
+        ax = th.stats.display_boxplot(thicket, nodes=sample_nodes, columns=[time_column])
+        ax.tick_params(axis="x", rotation=90, labelsize=6)
+        ax.ticklabel_format(axis="y", style="plain", useOffset=False)
+        path = out_dir / "thicket_boxplot.png"
+        ax.get_figure().savefig(path, dpi=150, bbox_inches="tight")
+        plt.close(ax.get_figure())
+        print(f"saved {path}")
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "cali_file", nargs="?",
-        help="path to a .cali file",
-    )
-    args = parser.parse_args()
-
-    cali_file = Path(args.cali_file) if args.cali_file else find_cali_file()
+    cali_file = Path(sys.argv[1]) if len(sys.argv) > 1 else find_cali_file()
     if not cali_file.exists():
         sys.exit(f"no such file: {cali_file}")
 
     try:
         thicket = th.Thicket.from_caliperreader(str(cali_file))
-    except ReaderError as e:
-        sys.exit(f"failed to read {cali_file}: {e}")
+    except ReaderError as error:
+        sys.exit(f"failed to read {cali_file}: {error}")
 
-    data, dims, backends_seen, syncs_seen = collect_data(thicket)
-    if not data:
-        sys.exit(f"no benchmark config nodes found in {cali_file}")
+    records = collect(thicket)
+    if not records:
+        sys.exit(f"no benchmark regions found in {cali_file}")
 
-    iters_label = format_range_label("n", {entry["iters"] for entry in data.values()})
-    threads_seen = {entry["threads"] for entry in data.values() if entry["threads"] is not None}
-    if threads_seen:
-        iters_label = f"{iters_label}, {format_range_label('threads', threads_seen)}"
+    iters = sorted({r["iter"] for r in records})
+    iters_label = f"n={iters[0]}" if len(iters) == 1 else f"n={iters[0]}-{iters[-1]}"
 
-    out_dir = Path(cali_file.stem)
+    out_dir = cali_file.with_suffix("")
     out_dir.mkdir(exist_ok=True)
 
-    serial_only = not backends_seen
-    if serial_only:
-        print("no backend field found, treating runs as serial-only")
+    mesh_records = [r for r in records if r["name"].startswith("mesh_")]
+    generate_records = [r for r in records if not r["name"].startswith("mesh_")]
 
-    multi_sync = len(syncs_seen) > 1
-    for sync_strategy in sorted(syncs_seen):
-        sync_data = {
-            (cfg, conv_name, dim): entry
-            for (cfg, conv_name, dim, s), entry in data.items()
-            if s == sync_strategy
-        }
-        cfg_keys = sorted({cfg for cfg, _, _ in sync_data})
-        sync_suffix = f"_{sync_strategy}" if multi_sync else ""
+    def generate_group(record):
+        operation, shape = split_generate_name(record["name"])
+        return (operation, shape) if shape else None
 
-        generate_plots(
-            sync_data, dims, cfg_keys, iters_label, out_dir,
-            suffix=sync_suffix,
-            include_components=not serial_only,
+    mesh_time_panels = build_line_panels(
+        mesh_records, lambda r: (r["name"], MESH_SERIES_LABEL), lambda r: r["avg_time"]
+    )
+    generate_time_panels = build_line_panels(
+        generate_records, generate_group, lambda r: r["avg_time"]
+    )
+    if mesh_time_panels:
+        plot_group(
+            mesh_time_panels, out_dir / "mesh_scaling.png",
+            suptitle=f"Mesh conversion benchmark: avg time per iteration ({iters_label})",
+            ylabel="avg time / iteration (ms)", y_scale=1e3,
+            stack_vertical=True, legend_label=MESH_SERIES_LABEL,
         )
-        generate_per_element_plots(
-            sync_data, dims, cfg_keys, iters_label, out_dir,
-            suffix=sync_suffix,
+    if generate_time_panels:
+        plot_group(
+            generate_time_panels, out_dir / "generate_scaling.png",
+            suptitle=f"Generate-function benchmark: avg time per iteration ({iters_label})",
+            ylabel="avg time / iteration (ms)", y_scale=1e3,
+            series_order=SHAPE_ORDER, stack_vertical=True,
         )
 
-        if not serial_only:
-            for backend in sorted(backends_seen):
-                backend_keys = [cfg for cfg in cfg_keys if cfg[0] == backend]
-                if backend_keys:
-                    generate_plots(
-                        sync_data, dims, backend_keys, iters_label, out_dir,
-                        suffix=f"{sync_suffix}_{backend}",
-                        include_components=True,
-                    )
+    mesh_per_elem_panels = build_line_panels(
+        mesh_records, lambda r: (r["name"], MESH_SERIES_LABEL), per_element_value
+    )
+    generate_per_elem_panels = build_line_panels(
+        generate_records, generate_group, per_element_value
+    )
+    if mesh_per_elem_panels:
+        plot_group(
+            mesh_per_elem_panels, out_dir / "mesh_scaling_per_element.png",
+            suptitle=f"Mesh conversion benchmark: avg time per element ({iters_label})",
+            ylabel="avg time / element (ns)", y_scale=1e9, y_log=True,
+            stack_vertical=True, legend_label=MESH_SERIES_LABEL,
+        )
+    if generate_per_elem_panels:
+        plot_group(
+            generate_per_elem_panels, out_dir / "generate_scaling_per_element.png",
+            suptitle=f"Generate-function benchmark: avg time per element ({iters_label})",
+            ylabel="avg time / element (ns)", y_scale=1e9, y_log=True,
+            series_order=SHAPE_ORDER, stack_vertical=True,
+        )
+
+    mesh_lookup = {}
+    for r in mesh_records:
+        convert = split_mesh_convert(r["name"])
+        if convert:
+            mesh_lookup[(convert[0], convert[1], r["dim"])] = r
+    if mesh_lookup:
+        srcs = ordered({k[0] for k in mesh_lookup}, MESH_SRC_ORDER)
+        dsts = sorted({k[1] for k in mesh_lookup})
+        dims = sorted({k[2] for k in mesh_lookup})
+        plot_heatmaps(
+            mesh_lookup, srcs, dsts, dims,
+            value_fn=lambda r: r["avg_time"] * 1e3,
+            out_dir=out_dir, filename_prefix="mesh_conversion_heatmap",
+            suptitle=f"Mesh conversion avg time per iteration, ms ({iters_label})",
+            row_label="source representation", col_label="target representation",
+            cbar_label="avg time / iteration (ms)",
+        )
+        plot_heatmaps(
+            mesh_lookup, srcs, dsts, dims,
+            value_fn=lambda r: per_element_value(r) * 1e9 if per_element_value(r) else None,
+            out_dir=out_dir, filename_prefix="mesh_conversion_heatmap_per_element",
+            suptitle=f"Mesh conversion avg time per element, ns ({iters_label})",
+            row_label="source representation", col_label="target representation",
+            cbar_label="avg time / element (ns)", cell_fmt=format_ns_cell,
+        )
+    shape_lookup = {}
+    for r in generate_records:
+        operation, shape = split_generate_name(r["name"])
+        if shape:
+            shape_lookup[(operation, shape, r["dim"])] = r
+    if shape_lookup:
+        operations = ordered({k[0] for k in shape_lookup}, OPERATIONS)
+        shapes = ordered({k[1] for k in shape_lookup}, SHAPE_ORDER)
+        dims = sorted({k[2] for k in shape_lookup})
+        plot_heatmaps(
+            shape_lookup, operations, shapes, dims,
+            value_fn=lambda r: r["avg_time"] * 1e3,
+            out_dir=out_dir, filename_prefix="generate_heatmap",
+            suptitle=f"Generate-function avg time per iteration, ms ({iters_label})",
+            row_label="operation", col_label="element shape",
+            cbar_label="avg time / iteration (ms)",
+        )
+        plot_heatmaps(
+            shape_lookup, operations, shapes, dims,
+            value_fn=lambda r: per_element_value(r) * 1e9 if per_element_value(r) else None,
+            out_dir=out_dir, filename_prefix="generate_heatmap_per_element",
+            suptitle=f"Generate-function avg time per element, ns ({iters_label})",
+            row_label="operation", col_label="element shape",
+            cbar_label="avg time / element (ns)", cell_fmt=format_ns_cell,
+        )
+        plot_heatmaps(
+            shape_lookup, operations, shapes, dims,
+            value_fn=growth_value,
+            out_dir=out_dir, filename_prefix="generate_growth_heatmap",
+            suptitle=f"Generate-function output/input element ratio ({iters_label})",
+            row_label="operation", col_label="element shape",
+            cbar_label="output elements / input elements", cell_fmt=format_growth_cell,
+        )
+
+    plot_thicket_views(thicket, records, find_time_column(thicket.dataframe), out_dir)
 
     print(f"wrote plots to {out_dir}/")
+
 
 if __name__ == "__main__":
     main()

@@ -52,8 +52,6 @@ struct ExecConfig
     std::string src_location;
     std::string exec_location;
     std::string output_location;
-    std::string sync_strategy;
-    index_t dim_size = 1;
 };
 
 //-----------------------------------------------------------------------------
@@ -117,75 +115,56 @@ get_exec_configs()
 }
 
 //-----------------------------------------------------------------------------
-template <typename SetupFn, typename RunFn>
+template <typename RunFn, typename SizeFn>
 void
-exec(const char *name,
-     SetupFn &&setup,
+exec(const std::string &name,
+     const Node &input,
+     Node &output,
      RunFn &&run,
+     SizeFn &&size_info,
+     const ExecConfig &config,
+     const index_t npts,
      const index_t warmup,
-     const index_t iterations,
-     const std::vector<index_t> &dim_sizes)
+     const index_t iterations)
 {
-    // Setup
-    execution::init_device_memory_handlers();
+    // Capture input/output data sizes to include in the scope name below.
+    // This is a function of (name, npts) and never changes between
+    // iterations.
+    run(input, output);
+    const std::string sizes = size_info(input, output);
+    output.reset();
 
-    // Benchmark each data size
-    for (const auto &dim_size : dim_sizes)
+    // Execute `run` `warmup` times
     {
-        // Benchmark each possible configuration
-        for (auto &config : get_exec_configs())
+        // Scope this separately to make it easier to disregard warmup
+        // iterations in the timing output.
+        CONDUIT_ANNOTATE_MARK_SCOPE("warmup");
+        for (index_t i = 0; i < warmup; i++)
         {
-            config.dim_size = dim_size;
+            run(input, output);
+            output.reset();
+        }
+    }
 
-            // Set all execution options for this configuration
-            Node exec_opts;
-            exec_opts["execution_location"].set(config.exec_location);
-            exec_opts["output_location"].set(config.output_location);
-            exec_opts["sync_strategy"].set(config.sync_strategy);
-            execution::execution_set_options(exec_opts);
-
-            // Build the input once, outside the timed regions
-            Node input;
-            setup(config, input);
-
-            // Execute `run` `warmup` times
-            {
-                // Scope this separately to make it easier to disregard
-                // warmup iterations in the timing output
-                CONDUIT_ANNOTATE_MARK_SCOPE("warmup");
-                for (index_t i = 0; i < warmup; i++)
-                {
-                    run(input);
-                }
-            }
-
-            // Execute `run` `iterations` times
-            {
-                // This scope name is used to identify specific benchmarks in
-                // the Caliper output and identify their attributes
-                // (dim size, policy, etc.)
-                const std::string scope_name = std::string(name)
-                    + "_" + execution::get_execution_policy().policy_name()
-                    + "_dim-"  + std::to_string(dim_size)
-                    + "_src-"  + config.src_location
-                    + "_exec-" + config.exec_location
-                    + "_out-"  + config.output_location
-                    + "_sync-" + config.sync_strategy
+    // Execute `run` `iterations` times
+    {
+        // This scope name is used to identify specific benchmarks in the
+        // Caliper output and identify their attributes.
+        const std::string scope_name = name
+            + "_dim-"  + std::to_string(npts)
+            + "_" + sizes
+            + "_src-"  + config.src_location
+            + "_exec-" + config.exec_location
+            + "_out-"  + config.output_location
 #if defined(CONDUIT_USE_OPENMP)
-                    + "_threads-" + std::to_string(omp_get_max_threads())
+            + "_threads-" + std::to_string(omp_get_max_threads())
 #endif
-                    + "_iter-" + std::to_string(iterations);
-                CONDUIT_ANNOTATE_MARK_SCOPE(scope_name.c_str());
-                for (index_t i = 0; i < iterations; i++)
-                {
-                    run(input);
-                }
-            }
-
-            execution::reset_execution_options();
-
-            // TODO: Investigate manually releasing device memory here once
-            // a config's runs are done
+            + "_iter-" + std::to_string(iterations);
+        CONDUIT_ANNOTATE_MARK_SCOPE(scope_name.c_str());
+        for (index_t i = 0; i < iterations; i++)
+        {
+            run(input, output);
+            output.reset();
         }
     }
 }
