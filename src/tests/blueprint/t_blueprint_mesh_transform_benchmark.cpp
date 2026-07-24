@@ -23,9 +23,7 @@
 
 using namespace conduit;
 
-// Number of vertices per axis, braid requires at least two. Larger sizes
-// (e.g. 8) can be passed on the command line for deeper, one-off runs; some
-// shapes (e.g. pyramids) scale much worse than others at that size.
+// Number of vertices per axis, braid requires at least two
 std::vector<index_t> BENCHMARK_DIM_SIZES = {2};
 
 // Small by default, to minimize CI time spent benchmarking
@@ -35,7 +33,7 @@ index_t BENCHMARK_NUM_ITERATIONS = 20;
 //-----------------------------------------------------------------------------
 // Reports vertex/element counts for the input and output meshes. Some
 // operations (e.g. generate_corners) produce far more elements than they
-// started with, so it's worth recording both sides.
+// started with, so it's worth recording both.
 std::string
 mesh_size_info(const Node &input, const Node &output)
 {
