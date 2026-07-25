@@ -19,6 +19,12 @@
 #include <vector>
 #include "gtest/gtest.h"
 
+#if defined(CONDUIT_USE_CUDA)
+#include <cuda_runtime.h>
+#elif defined(CONDUIT_USE_HIP)
+#include <hip/hip_runtime.h>
+#endif // defined(CONDUIT_USE_HIP)
+
 using namespace conduit;
 using conduit::execution::ExecutionPolicy;
 
@@ -1420,6 +1426,101 @@ TEST(conduit_execution, strawman_data_array)
         }
     }
 }
+
+#if defined(CONDUIT_USE_DEVICE)
+//-----------------------------------------------------------------------------
+static size_t
+used_device_bytes()
+{
+#if defined(CONDUIT_USE_CUDA)
+    size_t free_b = 0;
+    size_t total_b = 0;
+    cudaMemGetInfo(&free_b, &total_b);
+    return total_b - free_b;
+#elif defined(CONDUIT_USE_HIP)
+    size_t free_b = 0;
+    size_t total_b = 0;
+    hipMemGetInfo(&free_b, &total_b);
+    return total_b - free_b;
+#else // !defined(CONDUIT_USE_DEVICE)
+    return 0;
+#endif // !defined(CONDUIT_USE_DEVICE)
+}
+
+//-----------------------------------------------------------------------------
+static void
+expect_no_leak(void (*run_fn)(Node &, ExecutionPolicy),
+              const char *label)
+{
+    // The allocator pool reserves ~1GB on first use and never releases it.
+    // To check for a memory leak, we can do many small allocations in excess
+    // of 1GB and expect the allocator pool to never grow beyond 1GB. If it does,
+    // we are probably leaking memory.
+
+    // 2MB = 250 * 1000 float64 values
+    const index_t n = 250 * 1000;
+    const std::vector<float64> src_vals(n, 1.0);
+    const std::vector<float64> dst_vals(n, 0.0);
+    const ExecutionPolicy policy = ExecutionPolicy::device();
+
+    auto test_case = [&]()
+    {
+        Node node;
+        node["src"].set(src_vals);
+        node["des"].set(dst_vals);
+
+        // Calls sync or assume
+        run_fn(node, policy);
+
+        // This should free the device memory allocated
+        // by sync/assume.
+        node.reset();
+    };
+
+    // Warm up run to ensure that the initial pool of memory is allocated.
+    test_case();
+
+    const size_t baseline = used_device_bytes();
+
+    // 600 iterations * 2MB = ~1.2GB
+    const int iterations = 600;
+    for (int i = 0; i < iterations; i++)
+    {
+        test_case();
+    }
+
+    const size_t after = used_device_bytes();
+
+    size_t growth = 0;
+    if (after > baseline)
+    {
+        growth = after - baseline;
+    }
+
+    // All of the allocations were in 2MB increments. Despite allocating
+    // ~1.2GB in total, as long as we were deallocating correctly, we should
+    // expect growth to be zero.
+    EXPECT_LE(growth, 0);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, no_memory_leak_on_sync_and_assume)
+{
+    conduit_device_prepare();
+
+    // Data accessor tests
+    expect_no_leak(run_data_accessor_policy_and_sync,
+                   "DataAccessor::sync()");
+    expect_no_leak(run_data_accessor_policy_and_assume,
+                   "DataAccessor::assume()");
+
+    // Data array tests
+    expect_no_leak(run_data_array_policy_and_sync,
+                   "DataArray::sync()");
+    expect_no_leak(run_data_array_policy_and_assume,
+                   "DataArray::assume()");
+}
+#endif // defined(CONDUIT_USE_DEVICE)
 
 //-----------------------------------------------------------------------------
 void

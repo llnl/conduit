@@ -17595,6 +17595,19 @@ Node::set_data_ptr(void *data)
     m_data    = data;
 }
 
+//---------------------------------------------------------------------------//
+void
+Node::take_data_ptr(void *data_ptr,
+                    index_t data_size,
+                    index_t allocator_id)
+{
+    m_data         = data_ptr;
+    m_data_size    = data_size;
+    m_allocator_id = allocator_id;
+    m_alloced      = true;
+    m_mmaped       = false;
+}
+
 //-----------------------------------------------------------------------------
 //
 // -- end definition of Interface Warts --
