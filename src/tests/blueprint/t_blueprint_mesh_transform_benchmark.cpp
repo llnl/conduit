@@ -236,7 +236,7 @@ TEST(blueprint_mesh_transform_benchmark, generate_transforms)
 // this benchmark only works on host.
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    
+
     const std::vector<std::string> shapes = {
         "quads",
         "hexs",
