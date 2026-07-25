@@ -158,19 +158,14 @@ TEST(blueprint_mesh_transform_benchmark, coordset_transforms)
 //-----------------------------------------------------------------------------
 TEST(blueprint_mesh_transform_benchmark, topology_transforms)
 {
+    // This is not an exhaustive benchmark of the topology transforms;
+    // it only includes 'to_unstructured' since that is the only transform
+    // that made sense to port to the device execution model.
+
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    benchmark_topology_transform("topology_uniform_to_rectilinear",
-                                 "uniform",
-                                 blueprint::mesh::topology::uniform::to_rectilinear);
-    benchmark_topology_transform("topology_uniform_to_structured",
-                                 "uniform",
-                                 blueprint::mesh::topology::uniform::to_structured);
     benchmark_topology_transform("topology_uniform_to_unstructured",
                                  "uniform",
                                  blueprint::mesh::topology::uniform::to_unstructured);
-    benchmark_topology_transform("topology_rectilinear_to_structured",
-                                 "rectilinear",
-                                 blueprint::mesh::topology::rectilinear::to_structured);
     benchmark_topology_transform("topology_rectilinear_to_unstructured",
                                  "rectilinear",
                                  blueprint::mesh::topology::rectilinear::to_unstructured);
