@@ -29,7 +29,7 @@ std::vector<index_t> BENCHMARK_DIM_SIZES = {2};
 
 // Small by default, to minimize CI time spent benchmarking
 index_t BENCHMARK_NUM_WARMUP_ITERATIONS = 2;
-index_t BENCHMARK_NUM_ITERATIONS = 20;
+index_t BENCHMARK_NUM_ITERATIONS = 2;
 
 //-----------------------------------------------------------------------------
 // Reports vertex/element counts for the input and output meshes. Some
@@ -100,13 +100,16 @@ make_braid_dataset(const benchmark::ExecConfig &config,
 
     const index_t npts_z = is_2d ? 0 : npts;
 
-    // Braid will reset `host_src` for us internally 
     Node host_src;
     blueprint::mesh::examples::braid(src_type,
                                      npts,
                                      npts,
                                      npts_z,
                                      host_src);
+
+    // We manually reset `src` here to keep memory
+    // utilization as low as possible.
+    src.reset();
 
     if (config.src_location == "device")
     {
