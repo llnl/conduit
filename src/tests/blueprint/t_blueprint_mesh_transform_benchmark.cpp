@@ -28,7 +28,7 @@ std::vector<index_t> BENCHMARK_DIM_SIZES = {2};
 
 // Small by default, to minimize CI time spent benchmarking
 index_t BENCHMARK_NUM_WARMUP_ITERATIONS = 2;
-index_t BENCHMARK_NUM_ITERATIONS = 20;
+index_t BENCHMARK_NUM_ITERATIONS = 2;
 
 //-----------------------------------------------------------------------------
 // Reports vertex/element counts for the input and output meshes. Some
