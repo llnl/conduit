@@ -19,11 +19,9 @@
 #include <vector>
 #include "gtest/gtest.h"
 
-#if defined(CONDUIT_USE_CUDA)
-#include <cuda_runtime.h>
-#elif defined(CONDUIT_USE_HIP)
-#include <hip/hip_runtime.h>
-#endif // defined(CONDUIT_USE_HIP)
+#if defined(CONDUIT_USE_DEVICE)
+#include <umpire/ResourceManager.hpp>
+#endif // defined(CONDUIT_USE_DEVICE)
 
 using namespace conduit;
 using conduit::execution::ExecutionPolicy;
@@ -1430,95 +1428,127 @@ TEST(conduit_execution, strawman_data_array)
 #if defined(CONDUIT_USE_DEVICE)
 //-----------------------------------------------------------------------------
 static size_t
-used_device_bytes()
+umpire_bytes_allocated(const char *pool_name)
 {
-#if defined(CONDUIT_USE_CUDA)
-    size_t free_b = 0;
-    size_t total_b = 0;
-    cudaMemGetInfo(&free_b, &total_b);
-    return total_b - free_b;
-#elif defined(CONDUIT_USE_HIP)
-    size_t free_b = 0;
-    size_t total_b = 0;
-    hipMemGetInfo(&free_b, &total_b);
-    return total_b - free_b;
-#else // !defined(CONDUIT_USE_DEVICE)
-    return 0;
-#endif // !defined(CONDUIT_USE_DEVICE)
+    return umpire::ResourceManager::getInstance()
+               .getAllocator(pool_name)
+               .getCurrentSize();
 }
 
 //-----------------------------------------------------------------------------
 static void
 expect_no_leak(void (*run_fn)(Node &, ExecutionPolicy),
-              const char *label)
+               index_t node_alloc_id,
+               ExecutionPolicy policy)
 {
-    // The allocator pool reserves ~1GB on first use and never releases it.
-    // To check for a memory leak, we can do many small allocations in excess
-    // of 1GB and expect the allocator pool to never grow beyond 1GB. If it does,
-    // we are probably leaking memory.
-
-    // 2MB = 250 * 1000 float64 values
-    const index_t n = 250 * 1000;
+    const index_t n = 1024;
     const std::vector<float64> src_vals(n, 1.0);
-    const std::vector<float64> dst_vals(n, 0.0);
-    const ExecutionPolicy policy = ExecutionPolicy::device();
+    const std::vector<float64> des_vals(n, 0.0);
 
-    auto test_case = [&]()
+    // Warm up run to make sure that both the host/device memory pools are
+    // created before we query their baseline sizes.
     {
         Node node;
+        node["src"].set_allocator(node_alloc_id);
+        node["des"].set_allocator(node_alloc_id);
         node["src"].set(src_vals);
-        node["des"].set(dst_vals);
+        node["des"].set(des_vals);
 
-        // Calls sync or assume
+        // Calls sync/assume for us
         run_fn(node, policy);
 
-        // This should free the device memory allocated
-        // by sync/assume.
+        // This should free the memory allocated by sync/assume
         node.reset();
-    };
+    }
 
-    // Warm up run to ensure that the initial pool of memory is allocated.
-    test_case();
+    // Record the baseline sizes of both the host/device memory pools
+    const size_t host_baseline = umpire_bytes_allocated("CONDUIT_HOST_POOL");
+    const size_t device_baseline = umpire_bytes_allocated("CONDUIT_DEVICE_POOL");
 
-    const size_t baseline = used_device_bytes();
-
-    // 600 iterations * 2MB = ~1.2GB
-    const int iterations = 600;
+    const int iterations = 4;
     for (int i = 0; i < iterations; i++)
     {
-        test_case();
+        Node node;
+        node["src"].set_allocator(node_alloc_id);
+        node["des"].set_allocator(node_alloc_id);
+        node["src"].set(src_vals);
+        node["des"].set(des_vals);
+
+        // Calls sync/assume for us
+        run_fn(node, policy);
+
+        // This should free the memory allocated by sync/assume
+        node.reset();
     }
 
-    const size_t after = used_device_bytes();
-
-    size_t growth = 0;
-    if (after > baseline)
-    {
-        growth = after - baseline;
-    }
-
-    // All of the allocations were in 2MB increments. Despite allocating
-    // ~1.2GB in total, as long as we were deallocating correctly, we should
-    // expect growth to be zero.
-    EXPECT_LE(growth, 0);
+    // The memory allocated above should have been freed, so we expect both
+    // the host/device memory pools to be back to where they started.
+    EXPECT_EQ(umpire_bytes_allocated("CONDUIT_HOST_POOL"), host_baseline);
+    EXPECT_EQ(umpire_bytes_allocated("CONDUIT_DEVICE_POOL"), device_baseline);
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_execution, no_memory_leak_on_sync_and_assume)
+TEST(conduit_execution, no_memory_leak_on_data_accessor_sync)
 {
     conduit_device_prepare();
 
-    // Data accessor tests
+    // Data originates on the host but is executed on the device
     expect_no_leak(run_data_accessor_policy_and_sync,
-                   "DataAccessor::sync()");
-    expect_no_leak(run_data_accessor_policy_and_assume,
-                   "DataAccessor::assume()");
+                   conduit::execution::get_host_allocator_id(),
+                   ExecutionPolicy::device());
 
-    // Data array tests
+    // Data originates on the device but is executed on the host
+    expect_no_leak(run_data_accessor_policy_and_sync,
+                   conduit::execution::get_device_allocator_id(),
+                   ExecutionPolicy::host());
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, no_memory_leak_on_data_accessor_assume)
+{
+    conduit_device_prepare();
+
+    // Data originates on the host but is executed on the device
+    expect_no_leak(run_data_accessor_policy_and_assume,
+                   conduit::execution::get_host_allocator_id(),
+                   ExecutionPolicy::device());
+
+    // Data originates on the device but is executed on the host
+    expect_no_leak(run_data_accessor_policy_and_assume,
+                   conduit::execution::get_device_allocator_id(),
+                   ExecutionPolicy::host());
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, no_memory_leak_on_data_array_sync)
+{
+    conduit_device_prepare();
+
+    // Data originates on the host but is executed on the device
     expect_no_leak(run_data_array_policy_and_sync,
-                   "DataArray::sync()");
+                   conduit::execution::get_host_allocator_id(),
+                   ExecutionPolicy::device());
+
+    // Data originates on the device but is executed on the host
+    expect_no_leak(run_data_array_policy_and_sync,
+                   conduit::execution::get_device_allocator_id(),
+                   ExecutionPolicy::host());
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, no_memory_leak_on_data_array_assume)
+{
+    conduit_device_prepare();
+
+    // Data originates on the host but is executed on the device
     expect_no_leak(run_data_array_policy_and_assume,
-                   "DataArray::assume()");
+                   conduit::execution::get_host_allocator_id(),
+                   ExecutionPolicy::device());
+
+    // Data originates on the device but is executed on the host
+    expect_no_leak(run_data_array_policy_and_assume,
+                   conduit::execution::get_device_allocator_id(),
+                   ExecutionPolicy::host());
 }
 #endif // defined(CONDUIT_USE_DEVICE)
 
