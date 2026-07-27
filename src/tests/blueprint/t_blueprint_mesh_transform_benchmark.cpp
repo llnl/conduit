@@ -138,22 +138,21 @@ struct ConvertConfig
     std::string name;
     std::string src_type;
     std::string target;
+    bool host_only;
 };
 
 //-----------------------------------------------------------------------------
-// Pass `host_only = true` for convert_configs whose targets have not been
-// ported to the device execution model. Otherwise, you'll get a segfault
-// when executing on device.
 void
-run_benchmarks(const std::vector<ConvertConfig> &convert_configs,
-               const bool host_only = false)
+run_benchmarks(const std::vector<ConvertConfig> &convert_configs)
 {
     // Setup
     execution::init_device_memory_handlers();
 
     // The available execution configurations (host/device) based
-    // on what Conduit was compiled with.
-    const auto exec_configs = benchmark::get_exec_configs(host_only);
+    // on what Conduit was compiled with. We build both variants up front
+    // so each benchmark can select the one it supports.
+    const auto all_configs       = benchmark::get_exec_configs(/*host_only=*/false);
+    const auto host_only_configs = benchmark::get_exec_configs(/*host_only=*/true);
 
     // We create src and dst nodes once and reuse them across all benchmarks
     Node src;
@@ -171,7 +170,7 @@ run_benchmarks(const std::vector<ConvertConfig> &convert_configs,
 
         // Benchmarking one location at a time lets us build `src`
         // once per (src_location, src_type, npts) combination.
-        for (const std::string src_location : {"host", "device"})
+        for (const auto src_location : {"host", "device"})
         {
             std::string built_src_type;
 
@@ -179,6 +178,11 @@ run_benchmarks(const std::vector<ConvertConfig> &convert_configs,
             // themselves (i.e., which source and target types to use).
             for (const auto &convert_config : convert_configs)
             {
+                // Only benchmark the configurations this transform supports.
+                const auto &exec_configs = convert_config.host_only
+                                               ? host_only_configs
+                                               : all_configs;
+
                 for (const auto &exec_config : exec_configs)
                 {
                     // `src` holds `src_location` data, so skip the
@@ -252,12 +256,12 @@ TEST(blueprint_mesh_transform_benchmark, mesh_transforms)
     CONDUIT_ANNOTATE_MARK_FUNCTION;
 
     run_benchmarks({
-        {"mesh_uniform_to_rectilinear",      "uniform",     "rectilinear"},
-        {"mesh_uniform_to_structured",       "uniform",     "structured"},
-        {"mesh_uniform_to_unstructured",     "uniform",     "unstructured"},
-        {"mesh_rectilinear_to_structured",   "rectilinear", "structured"},
-        {"mesh_rectilinear_to_unstructured", "rectilinear", "unstructured"},
-        {"mesh_structured_to_unstructured",  "structured",  "unstructured"},
+        {"mesh_uniform_to_rectilinear",      "uniform",     "rectilinear",  false},
+        {"mesh_uniform_to_structured",       "uniform",     "structured",   false},
+        {"mesh_uniform_to_unstructured",     "uniform",     "unstructured", false},
+        {"mesh_rectilinear_to_structured",   "rectilinear", "structured",   false},
+        {"mesh_rectilinear_to_unstructured", "rectilinear", "unstructured", false},
+        {"mesh_structured_to_unstructured",  "structured",  "unstructured", false},
     });
 }
 
@@ -265,7 +269,8 @@ TEST(blueprint_mesh_transform_benchmark, mesh_transforms)
 TEST(blueprint_mesh_transform_benchmark, generate_transforms)
 // Benchmarks that measure the performance of mesh generation transforms.
 // Since these APIs have not been ported to the device execution model yet,
-// this benchmark only works on host.
+// they are all marked `host_only = true`. Flip an entry's flag to false as
+// its transform gains device support.
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
 
@@ -282,16 +287,16 @@ TEST(blueprint_mesh_transform_benchmark, generate_transforms)
     std::vector<ConvertConfig> configs;
     for (const auto &shape : shapes)
     {
-        configs.push_back({"to_polytopal_" + shape,       shape, "polytopal"});
-        configs.push_back({"generate_points_" + shape,    shape, "generate_points"});
-        configs.push_back({"generate_lines_" + shape,     shape, "generate_lines"});
-        configs.push_back({"generate_faces_" + shape,     shape, "generate_faces"});
-        configs.push_back({"generate_centroids_" + shape, shape, "generate_centroids"});
-        configs.push_back({"generate_sides_" + shape,     shape, "generate_sides"});
-        configs.push_back({"generate_corners_" + shape,   shape, "generate_corners"});
+        configs.push_back({"to_polytopal_" + shape,       shape, "polytopal",          true});
+        configs.push_back({"generate_points_" + shape,    shape, "generate_points",    true});
+        configs.push_back({"generate_lines_" + shape,     shape, "generate_lines",     true});
+        configs.push_back({"generate_faces_" + shape,     shape, "generate_faces",     true});
+        configs.push_back({"generate_centroids_" + shape, shape, "generate_centroids", true});
+        configs.push_back({"generate_sides_" + shape,     shape, "generate_sides",     true});
+        configs.push_back({"generate_corners_" + shape,   shape, "generate_corners",   true});
     }
 
-    run_benchmarks(configs, /*host_only=*/true);
+    run_benchmarks(configs);
 }
 
 //-----------------------------------------------------------------------------
