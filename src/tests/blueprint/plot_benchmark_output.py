@@ -19,7 +19,8 @@ import thicket as th
 from caliperreader.readererror import ReaderError
 
 REQUIRED_NUMERIC_FIELDS = ("dim", "inverts", "inelems", "outverts", "outelems", "iter")
-CFG_FIELDS = ("src", "exec", "out")
+LOCATION_FIELDS = ("src", "exec", "out")
+SYNC_STRATEGIES = ("sync", "assume")
 
 
 def parse_scope_name(raw):
@@ -42,10 +43,14 @@ def parse_scope_name(raw):
 
     if not all(fields.get(key, "").isdigit() for key in REQUIRED_NUMERIC_FIELDS):
         return None
-    if any(fields.get(key) not in ("host", "device") for key in CFG_FIELDS):
+    if any(fields.get(key) not in ("host", "device") for key in LOCATION_FIELDS):
         return None
 
-    parsed = {"name": name, "cfg": tuple(fields[key] for key in CFG_FIELDS)}
+    if fields.get("sync") not in SYNC_STRATEGIES:
+        return None
+
+    cfg = tuple(fields[key] for key in LOCATION_FIELDS) + (fields["sync"],)
+    parsed = {"name": name, "cfg": cfg, "backend": fields.get("backend")}
     parsed.update((key, int(fields[key])) for key in REQUIRED_NUMERIC_FIELDS)
     threads = fields.get("threads")
     parsed["threads"] = int(threads) if threads is not None and threads.isdigit() else None
@@ -70,20 +75,26 @@ OPERATIONS = [
 MESH_SRC_ORDER = ["structured", "rectilinear", "uniform"]
 SHAPE_ORDER = ["quads", "hexs", "pyramids"]
 
-BASELINE_CFG = ("host", "host", "host")
-DEVICE_BASELINE_CFG = ("device", "device", "device")
+BASELINE_CFG = ("host", "host", "host", "sync")
+DEVICE_BASELINE_CFG = ("device", "device", "device", "sync")
 
 CFG_ORDER = [
-    ("host", "host", "host"),
-    ("host", "host", "device"),
-    ("host", "device", "host"),
-    ("host", "device", "device"),
-    ("device", "host", "host"),
-    ("device", "host", "device"),
-    ("device", "device", "host"),
-    ("device", "device", "device"),
+    ("host", "host", "host", "sync"),
+    ("host", "host", "device", "sync"),
+    ("host", "host", "device", "assume"),
+    ("host", "device", "host", "sync"),
+    ("host", "device", "host", "assume"),
+    ("host", "device", "device", "sync"),
+    ("device", "host", "host", "sync"),
+    ("device", "host", "device", "sync"),
+    ("device", "host", "device", "assume"),
+    ("device", "device", "host", "sync"),
+    ("device", "device", "host", "assume"),
+    ("device", "device", "device", "sync"),
 ]
 CFG_ABBREVIATIONS = {"device": "dev"}
+
+COMBINED_LABEL = "combined"
 
 INDIVIDUAL_FIGSIZE = (6.4, 3.6)
 MAX_STACKED_ROWS = 4
@@ -91,8 +102,9 @@ MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
 
 
 def format_cfg_label(cfg):
-    src, exec_, out = cfg
-    return "→".join(CFG_ABBREVIATIONS.get(part, part) for part in (src, exec_, out))
+    src, exec_, out, sync = cfg
+    path = "→".join(CFG_ABBREVIATIONS.get(part, part) for part in (src, exec_, out))
+    return path if exec_ == out else f"{path} [{sync}]"
 
 
 def ordered(values, preferred_order):
@@ -371,41 +383,21 @@ def plot_thicket_views(thicket, records, time_column, out_dir):
         print(f"saved {path}")
 
 
-def main():
-    cali_file = Path(sys.argv[1]) if len(sys.argv) > 1 else find_cali_file()
-    if not cali_file.exists():
-        sys.exit(f"no such file: {cali_file}")
-
-    try:
-        thicket = th.Thicket.from_caliperreader(str(cali_file))
-    except ReaderError as error:
-        sys.exit(f"failed to read {cali_file}: {error}")
-
-    records = collect(thicket)
-    if not records:
-        sys.exit(f"no benchmark regions found in {cali_file}")
-
-    iters = sorted({r["iter"] for r in records})
-    iters_label = f"n={iters[0]}" if len(iters) == 1 else f"n={iters[0]}-{iters[-1]}"
-    threads_seen = {r["threads"] for r in records if r["threads"] is not None}
-    if threads_seen:
-        threads_label = f"threads={min(threads_seen)}" if len(threads_seen) == 1 \
-            else f"threads={min(threads_seen)}-{max(threads_seen)}"
-        iters_label = f"{iters_label}, {threads_label}"
+def render_plot_set(records, out_dir, iters_label):
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     cfgs_seen = {r["cfg"] for r in records}
     multi_cfg = len(cfgs_seen) > 1
     if multi_cfg:
         cfg_list = ", ".join(format_cfg_label(c) for c in ordered(cfgs_seen, CFG_ORDER))
-        print(f"found {len(cfgs_seen)} execution configs: {cfg_list}")
+        print(f"  {len(cfgs_seen)} execution configs: {cfg_list}")
     else:
-        print(f"single execution config ({format_cfg_label(next(iter(cfgs_seen)))}); "
+        print(f"  single execution config ({format_cfg_label(next(iter(cfgs_seen)))}); "
               "config-comparison plots skipped")
 
-    out_dir = cali_file.with_suffix("")
-    out_dir.mkdir(exist_ok=True)
-
-    baseline_records = [r for r in records if r["cfg"] == BASELINE_CFG]
+    baseline_cfg = BASELINE_CFG if BASELINE_CFG in cfgs_seen \
+        else ordered(cfgs_seen, CFG_ORDER)[0]
+    baseline_records = [r for r in records if r["cfg"] == baseline_cfg]
     mesh_records = [r for r in records if r["name"].startswith("mesh_")]
     generate_records = [r for r in records if not r["name"].startswith("mesh_")]
     baseline_generate_records = [r for r in baseline_records if not r["name"].startswith("mesh_")]
@@ -434,7 +426,7 @@ def main():
             stack_vertical=True, legend_label="config",
         )
     if generate_time_panels:
-        baseline_note = " (host→host→host)" if multi_cfg else ""
+        baseline_note = f" ({format_cfg_label(baseline_cfg)})" if multi_cfg else ""
         plot_group(
             generate_time_panels, out_dir / "generate_scaling.png",
             suptitle=f"Generate-function benchmark: avg time per iteration{baseline_note} ({iters_label})",
@@ -456,7 +448,7 @@ def main():
             stack_vertical=True, legend_label="config",
         )
     if generate_per_elem_panels:
-        baseline_note = " (host→host→host)" if multi_cfg else ""
+        baseline_note = f" ({format_cfg_label(baseline_cfg)})" if multi_cfg else ""
         plot_group(
             generate_per_elem_panels, out_dir / "generate_scaling_per_element.png",
             suptitle=f"Generate-function benchmark: avg time per element{baseline_note} ({iters_label})",
@@ -487,13 +479,13 @@ def main():
                 series_order=cfg_order_labels, stack_vertical=True, legend_label="config",
             )
 
-    heatmap_cfgs = [BASELINE_CFG]
-    if DEVICE_BASELINE_CFG in cfgs_seen:
-        heatmap_cfgs.append(DEVICE_BASELINE_CFG)
+    heatmap_cfgs = [c for c in (BASELINE_CFG, DEVICE_BASELINE_CFG) if c in cfgs_seen]
+    if not heatmap_cfgs:
+        heatmap_cfgs = ordered(cfgs_seen, CFG_ORDER)[:1]
     suffix_heatmaps = len(heatmap_cfgs) > 1
 
     for cfg in heatmap_cfgs:
-        suffix = f"_{cfg[0]}-{cfg[1]}-{cfg[2]}" if suffix_heatmaps else ""
+        suffix = "_" + "-".join(cfg) if suffix_heatmaps else ""
         cfg_note = f" [{format_cfg_label(cfg)}]" if suffix_heatmaps else ""
         cfg_mesh_records = [r for r in mesh_records if r["cfg"] == cfg]
         cfg_generate_records = [r for r in generate_records if r["cfg"] == cfg]
@@ -549,7 +541,8 @@ def main():
                 row_label="operation", col_label="element shape",
                 cbar_label="avg time / element (ns)", cell_fmt=format_ns_cell,
             )
-            if cfg == BASELINE_CFG:
+
+            if cfg == heatmap_cfgs[0]:
                 plot_heatmaps(
                     shape_lookup, operations, shapes, dims,
                     value_fn=growth_value,
@@ -558,6 +551,53 @@ def main():
                     row_label="operation", col_label="element shape",
                     cbar_label="output elements / input elements", cell_fmt=format_growth_cell,
                 )
+
+    return baseline_records
+
+
+def main():
+    cali_file = Path(sys.argv[1]) if len(sys.argv) > 1 else find_cali_file()
+    if not cali_file.exists():
+        sys.exit(f"no such file: {cali_file}")
+
+    try:
+        thicket = th.Thicket.from_caliperreader(str(cali_file))
+    except ReaderError as error:
+        sys.exit(f"failed to read {cali_file}: {error}")
+
+    records = collect(thicket)
+    if not records:
+        sys.exit(f"no benchmark regions found in {cali_file}")
+
+    iters = sorted({r["iter"] for r in records})
+    iters_label = f"n={iters[0]}" if len(iters) == 1 else f"n={iters[0]}-{iters[-1]}"
+    threads_seen = {r["threads"] for r in records if r["threads"] is not None}
+    if threads_seen:
+        threads_label = f"threads={min(threads_seen)}" if len(threads_seen) == 1 \
+            else f"threads={min(threads_seen)}-{max(threads_seen)}"
+        iters_label = f"{iters_label}, {threads_label}"
+
+    out_dir = cali_file.with_suffix("")
+    out_dir.mkdir(exist_ok=True)
+
+    backends = sorted({r["backend"] for r in records if r["backend"]})
+    if len(backends) > 1:
+        groups = [(b, [r for r in records if r["backend"] == b]) for b in backends]
+        groups.append((COMBINED_LABEL, records))
+    elif backends:
+        groups = [(backends[0], records)]
+    else:
+        print("no backend field found; plotting all records together")
+        groups = [(COMBINED_LABEL, records)]
+
+    baseline_records = records
+    for label, group_records in groups:
+        print(f"{label}: {len(group_records)} records")
+        group_baseline = render_plot_set(
+            group_records, out_dir / label, f"{iters_label}, {label}"
+        )
+        if label == COMBINED_LABEL or len(groups) == 1:
+            baseline_records = group_baseline
 
     plot_thicket_views(thicket, baseline_records, find_time_column(thicket.dataframe), out_dir)
 

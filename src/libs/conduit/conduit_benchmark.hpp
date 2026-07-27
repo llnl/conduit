@@ -147,6 +147,16 @@ exec(const std::string &name,
         }
     }
 
+    std::string backend_name;
+    if (config.exec_location == "host")
+    {
+        backend_name = execution::ExecutionPolicy::host().policy_name();
+    }
+    else // if (config.exec_location == "device")
+    {
+        backend_name = execution::ExecutionPolicy::device().policy_name();
+    }
+
     // Execute `run` `iterations` times
     {
         // This scope name is used to identify specific benchmarks in the
@@ -157,6 +167,8 @@ exec(const std::string &name,
             + "_src-"  + config.src_location
             + "_exec-" + config.exec_location
             + "_out-"  + config.output_location
+            + "_sync-" + config.sync_strategy
+            + "_backend-" + backend_name
 #if defined(CONDUIT_USE_OPENMP)
             + "_threads-" + std::to_string(omp_get_max_threads())
 #endif
