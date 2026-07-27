@@ -173,10 +173,12 @@ exec(const std::string &name,
             + "_threads-" + std::to_string(omp_get_max_threads())
 #endif
             + "_iter-" + std::to_string(iterations);
-        CONDUIT_ANNOTATE_MARK_SCOPE(scope_name.c_str());
+
         for (index_t i = 0; i < iterations; i++)
         {
+            CONDUIT_ANNOTATE_MARK_BEGIN(scope_name.c_str());
             run(input, output);
+            CONDUIT_ANNOTATE_MARK_END(scope_name.c_str());
             output.reset();
         }
     }
