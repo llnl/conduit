@@ -4449,9 +4449,9 @@ private:
     /// Unlike set_data_ptr(), this lets the node take ownership of data_ptr, so
     /// that a later release()/reset() will free it.
     ///
-    void             take_data_ptr(void *data_ptr,
-                                   index_t data_size,
-                                   index_t allocator_id);
+    void             assume_data_ptr(void *data_ptr,
+                                     index_t data_size,
+                                     index_t allocator_id);
     ///
     /// Note: set_schema_ptr is *only* used in the case were we have
     /// a schema pointer that is owned by a parent schema. Using it to set a

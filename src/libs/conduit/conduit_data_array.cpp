@@ -771,9 +771,9 @@ DataArray<T>::assume()
             execution::DeviceMemory::is_device_ptr(m_data)
                 ? execution::get_device_allocator_id()
                 : execution::get_host_allocator_id();
-        m_node_ptr->take_data_ptr(m_data,
-                                  dtype().element_bytes() * number_of_elements(),
-                                  owning_allocator_id);
+        m_node_ptr->assume_data_ptr(m_data,
+                                    dtype().element_bytes() * number_of_elements(),
+                                    owning_allocator_id);
 
         // the assumed data is now the array's new original backing storage
         m_orig_data_ptr = m_data;
