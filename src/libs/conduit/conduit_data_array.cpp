@@ -739,29 +739,6 @@ DataArray<T>::sync()
                                                m_node_ptr->dtype().stride(),
                                                m_data,
                                                m_stride);
-
-        // By this point, m_data has been copied into m_node_ptr->data_ptr().
-        // We need to free our local copy of m_data, lest we leak memory.
-        if (m_do_i_own_it)
-        {
-            if (execution::DeviceMemory::is_device_ptr(m_data))
-            {
-                execution::DeviceMemory::deallocate(m_data);
-            }
-            else // if (!execution::DeviceMemory::is_device_ptr(m_data))
-            {
-                execution::HostMemory::deallocate(m_data);
-            }
-
-            m_do_i_own_it = false;
-            m_other_ptr = nullptr;
-            m_other_dtype = DataType::empty();
-        }
-
-        // Set m_data to the node's data and update offset and stride
-        m_data = m_node_ptr->data_ptr();
-        m_offset = dtype().offset();
-        m_stride = dtype().stride();
     }
 }
 
