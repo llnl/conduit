@@ -19,6 +19,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -89,7 +90,7 @@ copy_numeric_arrays_to_device(const Node &src,
 
 //-----------------------------------------------------------------------------
 void
-make_braid_dataset(const benchmark::ExecConfig &config,
+make_braid_dataset(const std::string &src_location,
                    const std::string &src_type,
                    const index_t npts,
                    Node &src)
@@ -100,26 +101,33 @@ make_braid_dataset(const benchmark::ExecConfig &config,
 
     const index_t npts_z = is_2d ? 0 : npts;
 
-    Node host_src;
-    blueprint::mesh::examples::braid(src_type,
-                                     npts,
-                                     npts,
-                                     npts_z,
-                                     host_src);
-
-    // We manually reset `src` here to keep memory
+    // Free the previous mesh before building the next one to keep memory
     // utilization as low as possible.
     src.reset();
 
-    if (config.src_location == "device")
+    if (src_location == "device")
     {
+        // Braid only builds host meshes, so we first build it on the host
+        // and then copy the result to device memory.
+        Node host_src;
+        blueprint::mesh::examples::braid(src_type,
+                                         npts,
+                                         npts,
+                                         npts_z,
+                                         host_src);
+
         copy_numeric_arrays_to_device(host_src,
                                       src,
                                       execution::get_device_allocator_id());
     }
-    else // if (config.src_location == "host")
+    else // if (src_location == "host")
     {
-        src.set(host_src);
+        // Build directly into `src` to avoid a full copy
+        blueprint::mesh::examples::braid(src_type,
+                                         npts,
+                                         npts,
+                                         npts_z,
+                                         src);
     }
 }
 
@@ -156,59 +164,83 @@ run_benchmarks(const std::vector<ConvertConfig> &convert_configs,
     // overall runtime and memory usage.
     for (const auto npts : BENCHMARK_DIM_SIZES)
     {
-        // Iterating over `exec_configs` second will allow us to reuse `src`
-        // across all configurations of a particular `src_location`. This
-        // allows us to create `src` once for host and once for device,
-        // per `src_type` and `npts` combination.
-        std::string built_src_type;
-        for (const auto &exec_config : exec_configs)
+        // Input/output sizes depend on the benchmark and `npts`, so we
+        // record them once per benchmark and reuse them across every
+        // configuration of this `npts`.
+        std::map<std::string, std::string> sizes;
+
+        // Benchmarking one location at a time lets us build `src`
+        // once per (src_location, src_type, npts) combination.
+        for (const std::string src_location : {"host", "device"})
         {
-            // Set all execution options for this configuration
-            Node exec_opts;
-            exec_opts["execution_location"].set(exec_config.exec_location);
-            exec_opts["output_location"].set(exec_config.output_location);
-            exec_opts["sync_strategy"].set(exec_config.sync_strategy);
-            execution::execution_set_options(exec_opts);
+            std::string built_src_type;
 
             // This iterates over all of the benchmark configurations
             // themselves (i.e., which source and target types to use).
             for (const auto &convert_config : convert_configs)
             {
-                // Since multiple benchmarks will use the same
-                // src_type and npts, we can improve performance and
-                // limit memory utilization by only rebuilding `src`
-                // when the next entry's (src_type, npts) differs.
-                if (convert_config.src_type != built_src_type)
+                for (const auto &exec_config : exec_configs)
                 {
-                    make_braid_dataset(exec_config,
-                                       convert_config.src_type,
-                                       npts,
-                                       src);
-                    built_src_type = convert_config.src_type;
+                    // `src` holds `src_location` data, so skip the
+                    // configurations that expect it somewhere else.
+                    if (exec_config.src_location != src_location)
+                    {
+                        continue;
+                    }
+
+                    // Benchmarks that share a `src_type` are grouped
+                    // together, such that this will only rebuild `src`
+                    // once per `src_type`.
+                    if (convert_config.src_type != built_src_type)
+                    {
+                        make_braid_dataset(src_location,
+                                           convert_config.src_type,
+                                           npts,
+                                           src);
+                        built_src_type = convert_config.src_type;
+                    }
+
+                    // Set all execution options for this configuration
+                    Node exec_opts;
+                    exec_opts["execution_location"].set(exec_config.exec_location);
+                    exec_opts["output_location"].set(exec_config.output_location);
+                    exec_opts["sync_strategy"].set(exec_config.sync_strategy);
+                    execution::execution_set_options(exec_opts);
+
+                    // TODO: There may be other interesting options to
+                    // set here.
+                    Node options;
+                    options["target"] = convert_config.target;
+
+                    // This lambda defines the code to be benchmarked
+                    auto run = [&](const Node &input, Node &output) {
+                        blueprint::mesh::convert(input, options, output);
+                    };
+
+                    // Get the data sizes the first time we run this
+                    // benchmark, then we can reuse them for similar
+                    // configurations.
+                    if (sizes.find(convert_config.name) == sizes.end())
+                    {
+                        run(src, dst);
+                        sizes[convert_config.name] = mesh_size_info(src, dst);
+                        dst.reset();
+                    }
+
+                    // This executes a benchmark of the current configuration
+                    benchmark::exec(convert_config.name,
+                                    src,
+                                    dst,
+                                    run,
+                                    sizes[convert_config.name],
+                                    exec_config,
+                                    npts,
+                                    BENCHMARK_NUM_WARMUP_ITERATIONS,
+                                    BENCHMARK_NUM_ITERATIONS);
+
+                    execution::reset_execution_options();
                 }
-
-                // TODO: There may be other interesting options
-                Node options;
-                options["target"] = convert_config.target;
-
-                // This lambda defines the code to be benchmarked
-                auto run = [&](const Node &input, Node &output) {
-                    blueprint::mesh::convert(input, options, output);
-                };
-
-                // This executes a benchmark of the current configuration
-                benchmark::exec(convert_config.name,
-                                src,
-                                dst,
-                                run,
-                                mesh_size_info,
-                                exec_config,
-                                npts,
-                                BENCHMARK_NUM_WARMUP_ITERATIONS,
-                                BENCHMARK_NUM_ITERATIONS);
             }
-
-            execution::reset_execution_options();
         }
     }
 }

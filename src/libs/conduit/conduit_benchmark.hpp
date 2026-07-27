@@ -33,8 +33,6 @@ namespace conduit
 namespace benchmark
 {
 
-using EP = execution::ExecutionPolicy;
-
 //-----------------------------------------------------------------------------
 inline
 std::string
@@ -119,31 +117,24 @@ get_exec_configs(const bool host_only = false)
         {"device",         "device",           "host",          "sync"},
         {"device",         "device",           "host",          "assume"},
         {"device",         "device",           "device",        "sync"},
-#endif
+#endif // defined(CONDUIT_USE_DEVICE)
     };
     return configs;
 }
 
 //-----------------------------------------------------------------------------
-template <typename RunFn, typename SizeFn>
+template <typename RunFn>
 void
 exec(const std::string &name,
      const Node &input,
      Node &output,
      RunFn &&run,
-     SizeFn &&size_info,
+     const std::string &sizes,
      const ExecConfig &config,
      const index_t npts,
      const index_t warmup,
      const index_t iterations)
 {
-    // Capture input/output data sizes to include in the scope name below.
-    // This is a function of (name, npts) and never changes between
-    // iterations.
-    run(input, output);
-    const std::string sizes = size_info(input, output);
-    output.reset();
-
     // Execute `run` `warmup` times
     {
         // Scope this separately to make it easier to disregard warmup
