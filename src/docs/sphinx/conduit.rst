@@ -12,5 +12,6 @@ Conduit
    tutorial_cpp
    tutorial_python
    tutorial_cpp_fort_and_py
+   device_execution_mode
 
 ..    conduit_api
