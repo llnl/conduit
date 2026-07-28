@@ -13,7 +13,7 @@ Device Execution Model
 
 Conduit is a library that provides an intuitive model for describing hierarchical scientific data. Conduit Blueprint is a set of methods for building, verifying, and transforming scientific datasets according to known conventions called protocols. In practice, this frequently involves representing 2D and 3D meshes along with corresponding topologies, coordsets, and field data.
 
-Previously, these APIs only executed on the CPU. The Device Execution Model (DEM) is an API layer that provides accelerator-agnostic implementations of these operations. It leverages `RAJA <https://github.com/LLNL/RAJA>`_ when Conduit is built with RAJA support and provides built-in host fallbacks otherwise. This allows Conduit to preserve existing CPU behavior while enabling new GPU-accelerated workflows through the same code paths.
+Previously, these APIs only executed on the CPU. The Device Execution Model (DEM) is an API layer that provides tools for building accelerator-agnostic implementations of these operations. It leverages `RAJA <https://github.com/LLNL/RAJA>`_ when Conduit is built with RAJA support and provides CPU-based fallback implementations otherwise. This allows Conduit to preserve existing behavior while enabling new GPU-accelerated workflows through existing APIs.
 
 The DEM lives in the ``conduit::execution`` namespace and is declared in ``conduit_execution.hpp`` and ``conduit_execution_policy.hpp``.
 
@@ -22,14 +22,14 @@ Goals
 
 Modern high-performance computers are heterogeneous, meaning they include multiple types of processors within a single node. The most common pairing is one or two CPUs alongside several GPUs. Simulation codes are increasingly GPU-accelerated, which means Conduit Blueprint data may originate in device memory. Previously, this data always had to be copied to host memory before Blueprint APIs could operate on it. The goal of the DEM is to give users flexibility in where these Blueprint operations execute. Porting existing APIs to the DEM generally involves better parallelization, and in some cases the introduction of parallelization where none existed previously. This has led to performance improvements in both CPU- and GPU-accelerated workloads.
 
-Building with Device Support
+Building with Support for Different Backends
 ----------------------------
 
-The DEM compiles into every Conduit build, but the available execution backends depend on build options and third-party libraries:
+The DEM compiles into every Conduit build, but the available execution backends depend on build options and third-party libraries. For the best performance, we recommend building Conduit with RAJA, OpenMP, and a GPU backend (CUDA or HIP depending on architecture):
 
-* **CUDA** (``ENABLE_CUDA=ON``) or **HIP** (``ENABLE_HIP=ON``) enable the GPU execution backends. Device execution and device memory allocation also require `Umpire <https://github.com/LLNL/Umpire>`_ (``UMPIRE_DIR``).
 * **RAJA** (``RAJA_DIR``) provides the kernel dispatch, sorting, and reduction backends used for device execution. Without RAJA, DEM operations use built-in serial and OpenMP implementations on the host.
-* **OpenMP** (``ENABLE_OPENMP=ON``) enables a multithreaded host backend.
+* **OpenMP** (``ENABLE_OPENMP=ON``) enables a multithreaded host backend. This can be beneficial even if a GPU backend is enabled.
+* **CUDA** (``ENABLE_CUDA=ON``) or **HIP** (``ENABLE_HIP=ON``) enable the GPU execution backends (only select one or the other, depending on architecture). Device execution and device memory allocation also require `Umpire <https://github.com/LLNL/Umpire>`_ (``UMPIRE_DIR``).
 
 With none of these, all DEM APIs still compile and run using a serial host fallback. At runtime, use the ``ExecutionPolicy::is_*_enabled()`` static methods described below to query what a given build supports. For general build option details, see :doc:`building`.
 
@@ -38,7 +38,7 @@ Getting Started
 
 Conduit Nodes can hold data that lives in host or device memory. The DEM provides the fundamental tools for writing accelerator-agnostic transformations on this data.
 
-When Conduit is built with CUDA or HIP, call ``init_device_memory_handlers()`` once during setup. It installs memory-space-aware copy and set handlers so that Node operations (``set()``, assignment, and copies between Nodes) work transparently across host and device memory:
+When Conduit is built with CUDA or HIP, call ``init_device_memory_handlers()`` once during setup. It initializes memory-space-aware copy and set handlers so that Node operations (``set()``, assignment, and copies between Nodes) work transparently across host and device memory:
 
 .. code:: cpp
 
@@ -82,7 +82,8 @@ A minimal example that doubles the values of an array using device execution:
     acc_src.use_with(policy);
     acc_des.use_with(policy);
 
-    // launch the kernel; CONDUIT_EXEC marks it for host and device
+    // launch the kernel; CONDUIT_EXEC tells the compiler that
+    // this lambda is executable on both host and device
     index_t size = acc_src.number_of_elements();
     conduit::execution::forall(policy, 0, size,
         [acc_src, acc_des] CONDUIT_EXEC(index_t idx)
@@ -316,4 +317,4 @@ The allocator ids returned by ``get_host_allocator_id()`` and ``get_device_alloc
 Blueprint Port Status
 ---------------------
 
-The DEM execution options are honored by the :ref:`Mesh Blueprint <mesh_blueprint>` coordset conversions (``coordset::uniform::to_rectilinear``, ``coordset::uniform::to_explicit``, and ``coordset::rectilinear::to_explicit``) and by the topology conversions that build on them (for example, ``topology::uniform::to_rectilinear`` and ``topology::rectilinear::to_structured``). Other Blueprint components use DEM kernels internally on the host, and additional transforms are being ported over time. Until a transform is ported, it continues to execute on the host exactly as before.
+The :ref:`Mesh Blueprint <mesh_blueprint>` `mesh::convert` API is in the process of being ported to the DEM. Currently, mesh-to-mesh conversions (coordset and topology conversions) are supported. Additional transforms and internal operations are being ported over time. Until a transform is ported, it will continue to execute on the host exactly as before.

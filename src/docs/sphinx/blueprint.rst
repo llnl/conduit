@@ -35,7 +35,7 @@ For now, Blueprint is focused on conventions for two important types of data:
     A collection of data represented as columns with the same number of rows.
     Generally used to serialize data in a flattened form, specifically to and from CSV files.
 
-Select Blueprint mesh transforms can also execute on GPUs using Conduit's :ref:`Device Execution Model <device_execution_model>`, which provides accelerator-agnostic execution for Conduit and Blueprint APIs.
+Blueprint mesh transforms are being ported to Conduit's :ref:`Device Execution Model <device_execution_model>`, which provides accelerator-agnostic execution. The documentation contains information about which APIs have been ported or are in the process of being ported. 
 
 .. toctree::
     blueprint_mesh
