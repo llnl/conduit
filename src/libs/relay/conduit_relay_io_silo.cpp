@@ -5025,8 +5025,6 @@ read_mesh(const std::string &root_file_path,
     global_collected_fields_material_status.append().set_external(local_fields_material_status);
 #endif
 
-    global_collected_fields_material_status.print();
-
     // after the communication, we have a structure like this:
     // 
     // - 
