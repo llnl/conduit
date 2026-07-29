@@ -5097,64 +5097,21 @@ read_mesh(const std::string &root_file_path,
     // now for the fun part - we must ensure that all of the fields that are globally
     // material dependent have matset_values.
 
-    if (any_matdep_fields)
+    for (int domain_id = domain_start; domain_id < domain_end; domain_id ++)
     {
-        for (int domain_id = domain_start; domain_id < domain_end; domain_id ++)
+        // fetch the domain path for this domain_id
+        const std::string domain_path = conduit_fmt::format("domain_{:06d}", domain_id);
+
+        // ensure we have fields on this domain
+        if (! mesh.has_path(domain_path + "/fields"))
         {
-            const std::string domain_path = conduit_fmt::format("domain_{:06d}", domain_id);
-            
-            if (! mesh.has_path(domain_path + "/fields"))
-            {
-                continue;
-            }
+            continue;
+        }
 
-            // are there any material dependent fields on this domain?
-            const bool any_matdep_fields = [fields_material_status]()
-            {
-                bool are_there_any_matdep_fields = false;
-
-                Node &mesh_fields = mesh[domain_path]["fields"];
-                auto field_itr = mesh_fields.children();
-                while (field_itr.has_next())
-                {
-                    field_itr.next();
-                    const std::string fieldname = field_itr.name();
-                    if (fields_material_status[fieldname].as_string() == "yes")
-                    {
-                        are_there_any_matdep_fields = true;
-                    }
-                }
-            };
-
-            // if there are not any material dependent fields on this domain, we can skip
-            if (! any_matdep_fields)
-            {
-                continue;
-            }
-
-            // we have at least one material dependent field on this domain, so we must
-            // find its matset
-
-            if (! mesh.has_path(domain_path + "/matsets"))
-            {
-                CONDUIT_ERROR("TODO");
-                // TODO parallel error checking
-            }
-
-            const Node &mesh_matsets = mesh[domain_path]["matsets"];
-            const std::vector<std::string> matset_names = mesh_matsets.child_names();
-            if (matset_names.size() != 1)
-            {
-                CONDUIT_ERROR("TODO");
-                // TODO parallel error checking
-            }
-
-            const Node &matset = mesh_matsets[matset_names[0]];
-
-            // TODO JUSTIN
-            // we only need to check if matsets are clean if we have a 
-            // globally material dependent field while the local field
-            // is material-independent - but ideally we could only do this once for all fields
+        // are there any material dependent fields requiring changes on this domain?
+        const bool any_matdep_fields_requiring_changes = [&]() -> bool
+        {
+            bool changes_needed = false;
 
             Node &mesh_fields = mesh[domain_path]["fields"];
             auto field_itr = mesh_fields.children();
@@ -5166,12 +5123,94 @@ read_mesh(const std::string &root_file_path,
                 const bool globally_matdep = fields_material_status[fieldname].as_string() == "yes";
                 const bool locally_matdep  = field.has_child("matset");
 
-                if (globally_matdep && ! locally_matdep)
+                if (globally_matdep && locally_matdep)
                 {
-                    // TODO JUSTIN
-                    // I wrote a new helper just for you: has_mixed_elements
-                    // but I want to cache the result
+                    // nothing to do
                 }
+                else if (globally_matdep && ! locally_matdep)
+                {
+                    changes_needed = true;
+                }
+                else if (! globally_matdep && locally_matdep)
+                {
+                    CONDUIT_ERROR("TODO");
+                    // TODO parallel error checking
+                }
+                else // (! globally_matdep && ! locally_matdep)
+                {
+                    // nothing to do
+                }
+            }
+
+            return changes_needed;
+        };
+
+        // If there are not any material dependent fields on this domain, we can skip
+        if (! any_matdep_fields_requiring_changes)
+        {
+            continue;
+        }
+
+        //
+        // If we have made it this far, we have at least one material dependent field
+        // on this domain, so we must now find its matset
+        //
+
+        // check for the existence of matsets
+        if (! mesh.has_path(domain_path + "/matsets"))
+        {
+            CONDUIT_ERROR("TODO");
+            // TODO parallel error checking
+        }
+
+        // make sure there is only one matset
+        const Node &mesh_matsets = mesh[domain_path]["matsets"];
+        if (mesh_matsets.number_of_children() != 1)
+        {
+            CONDUIT_ERROR("TODO");
+            // TODO parallel error checking
+        }
+
+        // fetch the matset
+        const Node &matset = mesh_matsets.child(0);
+
+        // In order for this to work, the matset must have no mixed elements
+        // on this domain. Otherwise we cannot infer the field values from
+        // the volume fractions.
+        const bool matset_has_mixed_elems = blueprint::mesh::matset::has_mixed_elements(matset);
+        if (matset_has_mixed_elems)
+        {
+            CONDUIT_ERROR("TODO");
+            // TODO parallel error checking
+        }
+
+        // finally we can fetch the fields and iterate over them
+        Node &mesh_fields = mesh[domain_path]["fields"];
+        auto field_itr = mesh_fields.children();
+        while (field_itr.has_next())
+        {
+            Node &field = field_itr.next();
+            const std::string fieldname = field_itr.name();
+
+            const bool globally_matdep = fields_material_status[fieldname].as_string() == "yes";
+            const bool locally_matdep  = field.has_child("matset");
+
+            if (globally_matdep && ! locally_matdep)
+            {
+                field["matset"].set(matset.name());
+
+                blueprint::mesh::field::create_field_matset_values_from_unmixed_matset(matset, field);
+            }
+            else
+            {
+                // We have already handled the other cases earlier:
+                //
+                // For both
+                //   (globally_matdep && locally_matdep)
+                //   (! globally_matdep && ! locally_matdep)
+                // there is nothing to do, and for
+                //   (! globally_matdep && locally_matdep)
+                // we have already errored.
             }
         }
     }

@@ -996,6 +996,12 @@ namespace field
                                               std::map<std::string, std::string>& matset_names);
 
     //-------------------------------------------------------------------------
+    void CONDUIT_BLUEPRINT_API create_field_matset_values_from_unmixed_matset(
+                                    const conduit::Node &matset,
+                                    conduit::Node &field,
+                                    const float64 epsilon = CONDUIT_EPSILON);
+
+    //-------------------------------------------------------------------------
     // creates a multi-buffer non-sparse case
     void CONDUIT_BLUEPRINT_API to_multi_buffer_by_element(const conduit::Node &src_matset,
                                                           const conduit::Node &src_field,
