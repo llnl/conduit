@@ -2598,8 +2598,7 @@ get_material_names(const conduit::Node &matset,
 
 //-----------------------------------------------------------------------------
 bool
-has_mixed_elements(const conduit::Node &matset,
-                   const float64 epsilon = CONDUIT_EPSILON)
+has_mixed_elements(const conduit::Node &matset, const float64 epsilon)
 {
     // extra seat belt here
     if (! matset.dtype().is_object())
@@ -3544,7 +3543,7 @@ to_uni_buffer_by_material(const conduit::Node &src_matset,
 void
 create_field_matset_values_from_unmixed_matset(const conduit::Node &matset,
                                                conduit::Node &field,
-                                               const float64 epsilon = CONDUIT_EPSILON)
+                                               const float64 epsilon)
 {
     // extra seat belt here
     if (! matset.dtype().is_object())
@@ -3555,9 +3554,9 @@ create_field_matset_values_from_unmixed_matset(const conduit::Node &matset,
 
     MatsetAccessor m_acc = MatsetAccessor(matset);
 
-    if (is_uni_buffer(matset))
+    if (matset::is_uni_buffer(matset))
     {
-        if (is_element_dominant(matset))
+        if (matset::is_element_dominant(matset))
         {
             // sparse by element
 
@@ -3569,16 +3568,15 @@ create_field_matset_values_from_unmixed_matset(const conduit::Node &matset,
             // unsupported uni-buffer by material
             CONDUIT_ERROR("conduit::blueprint::mesh::matset::create_field_matset_values_from_unmixed_matset() "
                           "material-dominant uni-buffer material set is unsupported.");
-            return false;
         }
     }
     else // multi-buffer
     {
-        if (is_element_dominant(matset))
+        if (matset::is_element_dominant(matset))
         {
             // full
             
-            const index_t num_elems = field["values"].number_of_elements();
+            const index_t num_elems = field["values"].dtype().number_of_elements();
             float64_accessor field_values = field["values"].value();
             const Node &vol_fracs = matset["volume_fractions"];
             const std::vector<std::string> matnames = vol_fracs.child_names();
@@ -3594,7 +3592,7 @@ create_field_matset_values_from_unmixed_matset(const conduit::Node &matset,
                     const float64 vol_frac = vol_fracs_for_mat[elem_id];
                     if (1.0 - epsilon < vol_frac && vol_frac < 1.0 + epsilon)
                     {
-                        mset_vals_for_mat[elem_id].set(field_values[elem_id]);
+                        mset_vals_for_mat.set(elem_id, field_values[elem_id]);
                     }
                 }
             }
@@ -3619,7 +3617,7 @@ create_field_matset_values_from_unmixed_matset(const conduit::Node &matset,
                      index_of_elem_id ++)
                 {
                     const index_t elem_id = mat_elem_ids_vals[index_of_elem_id];
-                    mset_vals_for_mat[index_of_elem_id].set(field_values[elem_id]);
+                    mset_vals_for_mat.set(index_of_elem_id, field_values[elem_id]);
                 }
             }
         }

@@ -5143,7 +5143,7 @@ read_mesh(const std::string &root_file_path,
             }
 
             return changes_needed;
-        };
+        }();
 
         // If there are not any material dependent fields on this domain, we can skip
         if (! any_matdep_fields_requiring_changes)
@@ -5177,7 +5177,7 @@ read_mesh(const std::string &root_file_path,
         // In order for this to work, the matset must have no mixed elements
         // on this domain. Otherwise we cannot infer the field values from
         // the volume fractions.
-        const bool matset_has_mixed_elems = blueprint::mesh::matset::has_mixed_elements(matset);
+        const bool matset_has_mixed_elems = conduit::blueprint::mesh::matset::has_mixed_elements(matset);
         if (matset_has_mixed_elems)
         {
             CONDUIT_ERROR("TODO");
@@ -5199,7 +5199,7 @@ read_mesh(const std::string &root_file_path,
             {
                 field["matset"].set(matset.name());
 
-                blueprint::mesh::field::create_field_matset_values_from_unmixed_matset(matset, field);
+                conduit::blueprint::mesh::field::create_field_matset_values_from_unmixed_matset(matset, field);
             }
             else
             {
