@@ -3468,7 +3468,6 @@ TEST(conduit_relay_io_silo, mixed_var_special_case)
         blueprint::mesh::examples::venn(matset_style, nx, ny, radius, venn_mesh);
 
         // remove unwanted fields
-        venn_mesh["fields"].remove_child("circle_a");
         venn_mesh["fields"].remove_child("circle_b");
         venn_mesh["fields"].remove_child("circle_c");
         venn_mesh["fields"].remove_child("radius_a");
