@@ -2734,3 +2734,45 @@ TEST(conduit_blueprint_mesh_verify, empty_mesh_vs_gen_index)
     
 }
 
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_verify, shape_map_int64_entries)
+{
+    Node mesh, info;
+    blueprint::mesh::examples::braid("mixed_2d", 2, 2, 0, mesh);
+
+    // state: 
+    //   ...
+    // coordsets: 
+    //   ...
+    // topologies: 
+    //   mesh: 
+    //     type: "unstructured"
+    //     coordset: "coords"
+    //     elements: 
+    //       shape: "mixed"
+    //       shape_map: 
+    //         quad: 9
+    //         tri: 5
+    //       shapes: [5, 5]
+    //       sizes: [3, 3]
+    //       offsets: [0, 3]
+    //       connectivity: [0, 1, 3, ..., 3, 2]
+    // fields: 
+    //   ...
+
+    EXPECT_EQ(mesh["topologies/mesh/elements/shape_map/quad"].dtype().id(), CONDUIT_INT32_ID);
+    EXPECT_EQ(mesh["topologies/mesh/elements/shape_map/tri"].dtype().id(), CONDUIT_INT32_ID);
+
+    EXPECT_TRUE(blueprint::mesh::verify(mesh, info));
+
+    mesh["topologies/mesh/elements/shape_map"].remove_child("quad");
+    mesh["topologies/mesh/elements/shape_map"].remove_child("tri");
+
+    mesh["topologies/mesh/elements/shape_map/quad"].set(static_cast<int64>(9));
+    EXPECT_EQ(mesh["topologies/mesh/elements/shape_map/quad"].dtype().id(), CONDUIT_INT64_ID);
+    mesh["topologies/mesh/elements/shape_map/tri"].set(static_cast<int64>(5));
+    EXPECT_EQ(mesh["topologies/mesh/elements/shape_map/tri"].dtype().id(), CONDUIT_INT64_ID);
+
+    EXPECT_TRUE(blueprint::mesh::verify(mesh, info));
+}
+
