@@ -4121,6 +4121,9 @@ honor_material_dependent_fields(const int domain_start,
     // mesh_radius_b: "no"
     // mesh_radius_c: "no"
 
+    int error = 0;
+    std::ostringstream error_oss;
+
     for (int domain_id = domain_start; domain_id < domain_end; domain_id ++)
     {
         const std::string domain_path = conduit_fmt::format("domain_{:06d}", domain_id);
@@ -4161,20 +4164,53 @@ honor_material_dependent_fields(const int domain_start,
             }
             else
             {
-                // TODO parallel error checking
-                CONDUIT_ERROR("field " << fieldname << " was not read correctly "
-                              "from Silo.");
+                error = 1;
+                error_oss << "Field " << fieldname << " on domain " << domain_id << 
+                             " was not read correctly from Silo.";
+                break;
             }
+        }
+
+        // break out of the domain loop if an error was encountered
+        if (error == 1)
+        {
+            break;
         }
     }
 
+    // parallel error handling & collect global data
     Node global_collected_fields_material_status;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    relay::mpi::all_gather_using_schema(local_fields_material_status,
-                                        global_collected_fields_material_status,
-                                        mpi_comm);
+    Node n_local, n_global;
+    n_local.set((int)error);
+    relay::mpi::sum_all_reduce(n_local, n_global, mpi_comm);
+    error = n_global.as_int();
+
+    if (1 == error)
+    {
+        // we have a problem, broadcast string messages
+        // to all ranks so they can throw
+        n_local.set(error_oss.str());
+        relay::mpi::all_gather_using_schema(n_local, n_global, mpi_comm);
+        CONDUIT_ERROR(n_global.as_string());
+    }
+    else
+    {
+        relay::mpi::all_gather_using_schema(local_fields_material_status,
+                                            global_collected_fields_material_status,
+                                            mpi_comm);
+    }
+
 #else
-    global_collected_fields_material_status.append().set_external(local_fields_material_status);
+    // non MPI case, throw error
+    if (1 == error)
+    {
+        CONDUIT_ERROR(error_oss.str());
+    }
+    else
+    {
+        global_collected_fields_material_status.append().set_external(local_fields_material_status);
+    }
 #endif
 
     // after the communication, we have a structure like this:
@@ -4247,6 +4283,7 @@ honor_material_dependent_fields(const int domain_start,
     // now for the fun part - we must ensure that all of the fields that are globally
     // material dependent have matset_values.
 
+
     for (int domain_id = domain_start; domain_id < domain_end; domain_id ++)
     {
         // fetch the domain path for this domain_id
@@ -4283,9 +4320,10 @@ honor_material_dependent_fields(const int domain_start,
                 }
                 else if (! globally_matdep && locally_matdep)
                 {
-                    // TODO parallel error checking
-                    CONDUIT_ERROR("Material dependence could not be established for field "
-                                  << fieldname);
+                    error = 1;
+                    error_oss << "Material dependence could not be established for field "
+                                  << fieldname << " on domain " << domain_id;
+                    return false;
                 }
                 else // (! globally_matdep && ! locally_matdep)
                 {
@@ -4295,6 +4333,12 @@ honor_material_dependent_fields(const int domain_start,
 
             return changes_needed;
         }();
+
+        // break out of the domain loop if an error was encountered
+        if (error == 1)
+        {
+            break;
+        }
 
         // If there are not any material dependent fields on this domain, we can skip
         if (! any_matdep_fields_requiring_changes)
@@ -4310,16 +4354,18 @@ honor_material_dependent_fields(const int domain_start,
         // check for the existence of matsets
         if (! mesh.has_path(domain_path + "/matsets"))
         {
-            // TODO parallel error checking
-            CONDUIT_ERROR("Missing matsets for domain " << domain_path);
+            error = 1;
+            error_oss << "Missing matsets for domain " << domain_path;
+            break; // break out of the domain loop if an error was encountered
         }
 
         // make sure there is only one matset
         const Node &mesh_matsets = mesh[domain_path]["matsets"];
         if (mesh_matsets.number_of_children() != 1)
         {
-            // TODO parallel error checking
-            CONDUIT_ERROR("Ambiguous matsets for domain " << domain_path);
+            error = 1;
+            error_oss << "Ambiguous matsets for domain " << domain_path;
+            break; // break out of the domain loop if an error was encountered
         }
 
         // fetch the matset
@@ -4331,10 +4377,11 @@ honor_material_dependent_fields(const int domain_start,
         const bool matset_has_mixed_elems = conduit::blueprint::mesh::matset::has_mixed_elements(matset);
         if (matset_has_mixed_elems)
         {
-            // TODO parallel error checking
-            CONDUIT_ERROR("Matset has mixed elements so we cannot infer "
-                          "field matset values for material dependent "
-                          "fields on domain " << domain_path);
+            error = 1;
+            error_oss << "Matset has mixed elements so we cannot infer "
+                         "field matset values for material dependent "
+                         "fields on domain " << domain_path;
+            break; // break out of the domain loop if an error was encountered
         }
 
         // finally we can fetch the fields and iterate over them
@@ -4366,7 +4413,29 @@ honor_material_dependent_fields(const int domain_start,
                 // we have already errored.
             }
         }
+    } // end loop over domains
+
+    // parallel error handling
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    n_local.set((int)error);
+    relay::mpi::sum_all_reduce(n_local, n_global, mpi_comm);
+    error = n_global.as_int();
+
+    if (1 == error)
+    {
+        // we have a problem, broadcast string messages
+        // to all ranks so they can throw
+        n_local.set(error_oss.str());
+        relay::mpi::all_gather_using_schema(n_local, n_global, mpi_comm);
+        CONDUIT_ERROR(n_global.as_string());
     }
+#else
+    // non MPI case, throw error
+    if (1 == error)
+    {
+        CONDUIT_ERROR(error_oss.str());
+    }
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -5218,7 +5287,7 @@ read_mesh(const std::string &root_file_path,
                 file_map_itr ++;
             }
         }
-    }
+    } // end loop over domains
 
     //
     // Post-processing
