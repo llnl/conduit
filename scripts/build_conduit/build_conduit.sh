@@ -26,7 +26,7 @@ enable_cuda="${enable_cuda:=OFF}"
 enable_hip="${enable_hip:=OFF}"
 # TODO: sycl
 enable_fortran="${enable_fortran:=OFF}"
-enable_python="${enable_python:=OFF}"
+enable_python="${enable_python:=ON}"
 enable_openmp="${enable_openmp:=OFF}"
 enable_mpi="${enable_mpi:=OFF}"
 enable_mpicc="${enable_mpicc:=OFF}"
