@@ -226,6 +226,7 @@ run_benchmarks(const std::vector<ConvertConfig> &convert_configs)
                     // configurations.
                     if (sizes.find(convert_config.name) == sizes.end())
                     {
+                        CONDUIT_ANNOTATE_MARK_SCOPE("size_probe");
                         run(src, dst);
                         sizes[convert_config.name] = mesh_size_info(src, dst);
                         dst.reset();
