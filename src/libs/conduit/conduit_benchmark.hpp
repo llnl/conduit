@@ -86,9 +86,13 @@ exec(const std::string &name,
     // Capture input/output data sizes to include in the scope name below.
     // This is a function of (name, npts) and never changes between
     // iterations.
-    run(input, output);
-    const std::string sizes = size_info(input, output);
-    output.reset();
+    std::string sizes;
+    {
+        CONDUIT_ANNOTATE_MARK_SCOPE("size_probe");
+        run(input, output);
+        sizes = size_info(input, output);
+        output.reset();
+    }
 
     // Execute `run` `warmup` times
     {

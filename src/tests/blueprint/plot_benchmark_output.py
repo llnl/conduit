@@ -100,6 +100,35 @@ def find_time_column(dataframe):
     sys.exit(f"no time column found; columns were {list(dataframe.columns)}")
 
 
+INCLUSIVE_COLUMN = "inclusive#time.duration"
+
+
+def add_inclusive_column(thicket):
+    profile_id = thicket.dataframe.index.get_level_values("profile")[0]
+    time_column = find_time_column(thicket.dataframe)
+
+    def own_time(node):
+        try:
+            return float(thicket.dataframe.loc[(node, profile_id), time_column])
+        except (KeyError, TypeError):
+            return 0.0
+
+    def node_time(node):
+        return own_time(node) + sum(node_time(child) for child in node.children)
+
+    def all_nodes(node):
+        yield node
+        for child in node.children:
+            yield from all_nodes(child)
+
+    totals = {node: node_time(node)
+              for root in thicket.graph.roots for node in all_nodes(root)}
+    thicket.dataframe[INCLUSIVE_COLUMN] = [
+        totals.get(index[0], float("nan")) for index in thicket.dataframe.index
+    ]
+    return INCLUSIVE_COLUMN
+
+
 def collect(thicket):
     profile_id = thicket.dataframe.index.get_level_values("profile")[0]
     time_column = find_time_column(thicket.dataframe)
@@ -118,6 +147,9 @@ def collect(thicket):
         for child in node.children:
             yield from all_nodes(child)
 
+    # A region's reported time is the total spent inside it: its own time plus
+    # every nested region beneath it. Caliper stores only the own time, so the
+    # children have to be added back in.
     records = []
     for root in thicket.graph.roots:
         for node in all_nodes(root):
@@ -474,7 +506,7 @@ def main():
             cbar_label="output elements / input elements", cell_fmt=format_growth_cell,
         )
 
-    plot_thicket_views(thicket, records, find_time_column(thicket.dataframe), out_dir)
+    plot_thicket_views(thicket, records, add_inclusive_column(thicket), out_dir)
 
     print(f"wrote plots to {out_dir}/")
 
