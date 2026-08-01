@@ -215,6 +215,7 @@ run_benchmarks(const std::vector<ConvertConfig> &convert_configs)
                     // set here.
                     Node options;
                     options["target"] = convert_config.target;
+                    options["copy"]   = 0;
 
                     // This lambda defines the code to be benchmarked
                     auto run = [&](const Node &input, Node &output) {
