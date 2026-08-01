@@ -963,6 +963,43 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
 }
 
 //-------------------------------------------------------------------------
+template <typename SrcVals, typename DstVals>
+void
+coordset_explicit_fill_kernel(conduit::execution::ExecutionPolicy &policy,
+                              const bool is_base_rectilinear,
+                              const bool is_base_uniform,
+                              const float64 dim_origin,
+                              const float64 dim_spacing,
+                              const index_t dim_len,
+                              const index_t dim_block_size,
+                              const index_t dim_block_count,
+                              const SrcVals src_cvals,
+                              const DstVals dst_cvals)
+{
+    conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
+    {
+        index_t doffset = d * dim_block_size;
+        for(index_t b = 0; b < dim_block_count; b++)
+        {
+            index_t boffset = b * dim_block_size * dim_len;
+            for(index_t bi = 0; bi < dim_block_size; bi++)
+            {
+                index_t ioffset = doffset + boffset + bi;
+                if(is_base_rectilinear)
+                {
+                    dst_cvals.set(ioffset, src_cvals[d]);
+                }
+                else if(is_base_uniform)
+                {
+                    dst_cvals.set(ioffset, dim_origin + d * dim_spacing);
+                }
+            }
+        }
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-------------------------------------------------------------------------
 void
 convert_coordset_to_explicit(const std::string &base_type,
                              const conduit::Node &coordset,
@@ -1034,27 +1071,25 @@ convert_coordset_to_explicit(const std::string &base_type,
             src_cvals_acc.use_with(policy);
         }
 
-        conduit::execution::forall(policy, 0, dim_lens[i], [=] CONDUIT_EXEC(index_t d)
+        // Read and write through raw pointers to avoid the accessor's
+        // per-element dtype dispatch.
+        const index_t dim_len = dim_lens[i];
+        conduit::execution::dispatch_array_read_and_write(src_cvals_acc,
+                                                          dst_cvals_acc,
+                                                          [&](auto src_vals,
+                                                              auto dst_vals)
         {
-            index_t doffset = d * dim_block_size;
-            for(index_t b = 0; b < dim_block_count; b++)
-            {
-                index_t boffset = b * dim_block_size * dim_lens[i];
-                for(index_t bi = 0; bi < dim_block_size; bi++)
-                {
-                    index_t ioffset = doffset + boffset + bi;
-                    if(is_base_rectilinear)
-                    {
-                        dst_cvals_acc.set(ioffset, src_cvals_acc[d]);
-                    }
-                    else if(is_base_uniform)
-                    {
-                        dst_cvals_acc.set(ioffset, dim_origin + d * dim_spacing);
-                    }
-                }
-            }
+            coordset_explicit_fill_kernel(policy,
+                                          is_base_rectilinear,
+                                          is_base_uniform,
+                                          dim_origin,
+                                          dim_spacing,
+                                          dim_len,
+                                          dim_block_size,
+                                          dim_block_count,
+                                          src_vals,
+                                          dst_vals);
         });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
 
         dst_cvals_acc.data_movement(sync_strategy);
     }
@@ -1178,6 +1213,102 @@ convert_topology_to_structured(const std::string &base_type,
 }
 
 //-------------------------------------------------------------------------
+template <typename ConnOut>
+void
+to_unstructured_connectivity_kernel(conduit::execution::ExecutionPolicy &policy,
+                                    const index_t num_axes,
+                                    const index_t indices_per_elem,
+                                    const index_t num_elems,
+                                    const index_t (&edims)[3],
+                                    const index_t (&vdims)[3],
+                                    const ConnOut conn_out)
+{
+    index_t edims_axes[3] = {edims[0], edims[1], edims[2]};
+    index_t vdims_axes[3] = {vdims[0], vdims[1], vdims[2]};
+
+    // This parallel loop builds the connectivity array
+    conduit::execution::forall(policy, 0, num_elems, [=] CONDUIT_EXEC(index_t e)
+    {
+        index_t curr_elem[3];
+        index_t curr_vert[3];
+
+        // Convert the grid ID to IJK coordinates for the current element
+        grid_id_to_ijk(e, &edims_axes[0], &curr_elem[0]);
+
+        // In order to build the connectivity array from a list of
+        // elements, we loop over each element's vertices and use the bitwise
+        // interpretation of each index (per vertex) to inform the connectivity
+        // direction. For example, if i = 5, the binary representation for 5
+        // would be 0b101. Each bit in 0b101 tells you whether the vertex is
+        // offset along a particular direction, in this case 0b101 would be
+        // interpreted as: (z: +1, y: +0, x: +1)).
+        for (index_t i = 0; i < indices_per_elem; i++)
+        {
+            curr_vert[0] = curr_elem[0];
+            curr_vert[1] = curr_elem[1];
+            curr_vert[2] = curr_elem[2];
+
+            // This inner loop visits each element's corner vertices in
+            // "binary counting" order as explained above. For a quad face,
+            // that means that the corners are visited in the order:
+            // i = 0,     i = 1,     i = 2,     i = 3
+            // 0b000,     0b001,     0b010,     0b011
+            // (0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0)
+            //
+            // However, the connectivity array expects that the corners
+            // will be visited in counter-clockwise order, which
+            // requires that we swap the order in which we visit the
+            // 2nd and 3rd indices:
+            //
+            //                         <- swapped ->
+            // i = 0,     i = 1,     i = 3,     i = 2
+            // 0b000,     0b001,     0b011,     0b010
+            // (0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)
+            //
+            // This swap applies to the faces of a hexahedron
+            // also.
+            for (index_t dim = 0; dim < num_axes; dim++)
+            {
+                curr_vert[dim] += (i & (index_t(1) << dim)) >> dim;
+            }
+
+            // Convert the IJK coordinates to a grid ID for the current vertex
+            index_t v;
+            grid_ijk_to_id(&curr_vert[0], &vdims_axes[0], v);
+
+            // TODO(JRC): Once the ordering transforms are introduced,
+            // this remapping should be removed and replaced with
+            // initializing the ordering label value.
+
+            // Continuing from the above comment, the vertices that need to be
+            // swapped are always the ones with their y-axis bit set,
+            // i.e. i == 2 (0b010), i == 3 (0b011), i == 6 (0b110), and i == 7 (0b111).
+
+            // Swapping the order of these vertices can be done by flipping
+            // the x-axis bit (bit 0) of i whenever the y-axis bit (bit 1) is set.
+
+            // If the y-axis bit (bit 1) is not set, then i is already correct
+            index_t out_i = i;
+
+            // Check if the y-axis bit (bit 1) is set to 1
+            if (i & 0x2)
+            {
+                // XOR with 0x1 to flip the x-axis bit (bit 0)
+                out_i ^= 0x1;
+            }
+
+            // The purpose of the above is so that we can directly write the vertex
+            // IDs into the connectivity array in counter-clockwise order. Previously,
+            // we would write the IDs in the wrong order first and then have to
+            // swap the IDs around to fix ordering afterwards. It's less work to
+            // simply put the IDs into their correct positions in the first place.
+            conn_out.set(e * indices_per_elem + out_i, v);
+        }
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-------------------------------------------------------------------------
 void
 convert_topology_to_unstructured(const std::string &base_type,
                                  const conduit::Node &topo,
@@ -1295,86 +1426,18 @@ convert_topology_to_unstructured(const std::string &base_type,
     int64_accessor conn_node_vals(conn_node);
     conn_node_vals.use_with(policy);
 
-    // This parallel loop builds the connectivity array
-    conduit::execution::forall(policy, 0, num_elems, [=] CONDUIT_EXEC(index_t e)
+    // Write through a raw pointer to avoid the accessor's per-element dtype
+    // dispatch.
+    conduit::execution::dispatch_array_write(conn_node_vals, [&](auto conn_out)
     {
-        index_t curr_elem[3];
-        index_t curr_vert[3];
-
-        // Convert the grid ID to IJK coordinates for the current element
-        grid_id_to_ijk(e, &edims_axes[0], &curr_elem[0]);
-
-        // In order to build the connectivity array from a list of
-        // elements, we loop over each element's vertices and use the bitwise
-        // interpretation of each index (per vertex) to inform the connectivity
-        // direction. For example, if i = 5, the binary representation for 5
-        // would be 0b101. Each bit in 0b101 tells you whether the vertex is
-        // offset along a particular direction, in this case 0b101 would be
-        // interpreted as: (z: +1, y: +0, x: +1)).
-        for (index_t i = 0; i < indices_per_elem; i++)
-        {
-            curr_vert[0] = curr_elem[0];
-            curr_vert[1] = curr_elem[1];
-            curr_vert[2] = curr_elem[2];
-
-            // This inner loop visits each element's corner vertices in
-            // "binary counting" order as explained above. For a quad face,
-            // that means that the corners are visited in the order:
-            // i = 0,     i = 1,     i = 2,     i = 3
-            // 0b000,     0b001,     0b010,     0b011
-            // (0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0)
-            //
-            // However, the connectivity array expects that the corners
-            // will be visited in counter-clockwise order, which
-            // requires that we swap the order in which we visit the
-            // 2nd and 3rd indices:
-            //
-            //                         <- swapped ->
-            // i = 0,     i = 1,     i = 3,     i = 2
-            // 0b000,     0b001,     0b011,     0b010
-            // (0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)
-            //
-            // This swap applies to the faces of a hexahedron
-            // also.
-            for (index_t dim = 0; dim < num_axes; dim++)
-            {
-                curr_vert[dim] += (i & (index_t(1) << dim)) >> dim;
-            }
-
-            // Convert the IJK coordinates to a grid ID for the current vertex
-            index_t v;
-            grid_ijk_to_id(&curr_vert[0], &vdims_axes[0], v);
-
-            // TODO(JRC): Once the ordering transforms are introduced,
-            // this remapping should be removed and replaced with
-            // initializing the ordering label value.
-
-            // Continuing from the above comment, the vertices that need to be
-            // swapped are always the ones with their y-axis bit set,
-            // i.e. i == 2 (0b010), i == 3 (0b011), i == 6 (0b110), and i == 7 (0b111).
-
-            // Swapping the order of these vertices can be done by flipping
-            // the x-axis bit (bit 0) of i whenever the y-axis bit (bit 1) is set.
-
-            // If the y-axis bit (bit 1) is not set, then i is already correct
-            index_t out_i = i;
-
-            // Check if the y-axis bit (bit 1) is set to 1
-            if (i & 0x2)
-            {
-                // XOR with 0x1 to flip the x-axis bit (bit 0)
-                out_i ^= 0x1;
-            }
-
-            // The purpose of the above is so that we can directly write the vertex
-            // IDs into the connectivity array in counter-clockwise order. Previously,
-            // we would write the IDs in the wrong order first and then have to
-            // swap the IDs around to fix ordering afterwards. It's less work to
-            // simply put the IDs into their correct positions in the first place.
-            conn_node_vals.set(e * indices_per_elem + out_i, v);
-        }
+        to_unstructured_connectivity_kernel(policy,
+                                            num_axes,
+                                            indices_per_elem,
+                                            num_elems,
+                                            edims_axes,
+                                            vdims_axes,
+                                            conn_out);
     });
-    CONDUIT_DEVICE_ERROR_CHECK(policy);
     conn_node_vals.data_movement(sync_strategy);
 
     CONDUIT_ANNOTATE_MARK_END("to_unstructured_connectivity_gen");
@@ -8291,6 +8354,7 @@ copy_nodes_with_topology(const conduit::Node &n_mesh,
                          bool copy,
                          const std::set<std::string> &selection = std::set<std::string>())
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     if(n_mesh.has_path(rootName))
     {
         const conduit::Node &n_objs = n_mesh.fetch_existing(rootName);
@@ -8338,6 +8402,7 @@ copy_nodes_with_topology(const conduit::Node &n_mesh,
  */
 static void copy_node(const conduit::Node &n_src, conduit::Node &n_dest, bool copy)
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     if(copy)
     {
         n_dest.set(n_src);
