@@ -35,7 +35,7 @@ For now, Blueprint is focused on conventions for two important types of data:
     A collection of data represented as columns with the same number of rows.
     Generally used to serialize data in a flattened form, specifically to and from CSV files.
 
-Blueprint mesh transforms are being ported to Conduit's :ref:`Device Execution Model <device_execution_model>`, which provides accelerator-agnostic execution. The documentation contains information about which APIs have been ported or are in the process of being ported. 
+Blueprint mesh transforms are being ported to Conduit's :ref:`Data-Parallel Execution Model <data_parallel_execution_model>`, which allows them to execute on both host and device. The documentation contains information about which APIs have been ported or are in the process of being ported. 
 
 .. toctree::
     blueprint_mesh
@@ -82,7 +82,3 @@ Methods for specific protocols are grouped in namespaces:
 .. literalinclude:: t_conduit_docs_blueprint_examples_out.txt
    :start-after: BEGIN_EXAMPLE("blueprint_example_2")
    :end-before:  END_EXAMPLE("blueprint_example_2")
-
-
-
-
