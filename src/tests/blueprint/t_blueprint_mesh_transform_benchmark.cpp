@@ -170,7 +170,7 @@ TEST(blueprint_mesh_transform_benchmark, generate_transforms)
         // "mixed"     // TODO: investigate why this segfaults
     };
 
-    // Building this list programatically makes it easy to benchmark with
+    // Building this list programmatically makes it easy to benchmark with
     // different shape types.
     std::vector<ConvertConfig> configs;
     for (const auto &shape : shapes)
