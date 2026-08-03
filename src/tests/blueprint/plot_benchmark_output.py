@@ -2,9 +2,46 @@
 # Project developers. See top-level LICENSE AND COPYRIGHT files for dates and
 # other details. No copyright assignment is required to contribute to Conduit.
 
-# Plots .cali output from t_blueprint_mesh_transform_benchmark. Run with no
-# arguments to plot the most recently written .cali file in the current
-# directory, or pass a path to a specific one.
+# Plots .cali output from t_blueprint_mesh_transform_benchmark.
+#
+# Usage:
+#     python3 plot_benchmark_output.py [path/to/file.cali]
+#
+#     With no arguments, the most recently modified .cali file in the current
+#     working directory is used. With one argument, a specific .cali file is
+#     used. There are no flags or other options.
+#
+# Examples:
+#     # Run the benchmark, which writes <YYYYmmdd_HHMMSS>.cali
+#     # into its own working directory, so run the plotting script from that
+#     # same directory.
+#     ./t_blueprint_mesh_transform_benchmark
+#     python3 plot_benchmark_output.py
+#
+#     # Plot a specific run, from anywhere.
+#     python3 plot_benchmark_output.py /path/to/20260803_120000.cali
+#
+# Input:
+#     A Caliper .cali file produced by t_blueprint_mesh_transform_benchmark.
+#     Note that the benchmark only writes a .cali file if Conduit was built
+#     with Caliper support; otherwise it prints
+#     a warning and produces no timing output.
+#
+# Output:
+#     A directory next to the .cali file, named after it with the extension
+#     stripped (e.g. 20260803_120000.cali -> 20260803_120000/), containing:
+#       - mesh_scaling.png, mesh_scaling_per_element.png
+#       - generate_scaling.png, generate_scaling_per_element.png
+#       - mesh_conversion_heatmap_dim-<N>.png (and _per_element variant)
+#       - generate_heatmap_dim-<N>.png (and _per_element variant)
+#       - generate_growth_heatmap_dim-<N>.png
+#       - thicket_mesh_heatmap.png, thicket_generate_heatmap.png,
+#         thicket_boxplot.png (skipped if seaborn is not installed)
+#       - individual/<figure name>/<panel>.png, one single-panel image per
+#         panel of each multi-panel figure above
+#
+# Requirements:
+#     pip install thicket caliper-reader matplotlib numpy seaborn
 
 import math
 import sys
