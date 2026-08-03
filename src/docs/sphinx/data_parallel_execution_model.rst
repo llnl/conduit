@@ -27,7 +27,7 @@ The goal of the execution model is to give users flexibility in where these Blue
 Building with Support for Different Backends
 --------------------------------------------
 
-The execution model compiles into every Conduit build, but the available execution backends depend on build options and third-party libraries. For the best performance, we recommend building Conduit with RAJA, OpenMP, and a GPU backend (CUDA or HIP depending on architecture). The options below are environment variables understood by the ``scripts/build_conduit/build_conduit.sh`` helper script, which builds Conduit along with the needed third-party libraries; when configuring CMake directly, the corresponding options are ``RAJA_DIR``, ``ENABLE_OPENMP``, ``ENABLE_CUDA``, ``ENABLE_HIP``, and ``UMPIRE_DIR``.
+The execution model compiles into every Conduit build, but the available execution backends depend on build options and third-party libraries. For the best performance, we recommend building Conduit with RAJA, OpenMP, and a GPU backend (CUDA or HIP depending on architecture). The options below are environment variables understood by the ``scripts/build_conduit/build_conduit.sh`` helper script, which builds Conduit along with the needed third-party libraries. When configuring CMake directly, the corresponding options are ``RAJA_DIR``, ``ENABLE_OPENMP``, ``ENABLE_CUDA``, ``ENABLE_HIP``, and ``UMPIRE_DIR``.
 
 * **RAJA** (``build_raja=true``) provides the kernel dispatch, sorting, and reduction backends used for device execution. Without RAJA, execution model operations use built-in serial and OpenMP implementations on the host.
 * **OpenMP** (``enable_openmp=ON``) enables a multithreaded host backend. This is beneficial with or without RAJA, even if a GPU backend is enabled.
@@ -313,7 +313,7 @@ Moving Data Between Memory Spaces
 
     acc_des.sync();
 
-The ``sync_strategy`` execution option described in `Execution Options`_ selects between ``sync()`` and ``assume()`` for the ported Blueprint transforms.
+Note that a policy passed explicitly to ``use_with()`` or ``forall()`` takes effect regardless of the global execution options; the options are only consulted by the ``get_*`` helpers and by the ported Blueprint transforms. The ``sync_strategy`` execution option described in `Execution Options`_ selects between ``sync()`` and ``assume()`` for the ported Blueprint transforms.
 
 Host and Device Memory Managers
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -322,7 +322,7 @@ The ``conduit::execution`` namespace also provides low-level allocation interfac
 
 * ``HostMemory``: host allocation and deallocation (Umpire-backed when Umpire is available, ``malloc``/``free`` otherwise).
 * ``DeviceMemory``: device allocation and deallocation (requires Umpire), plus ``is_device_ptr()`` to test whether a pointer refers to device memory.
-* ``MagicMemory``: ``copy()`` and ``set()`` methods that work across host and device memory spaces; these back the handlers installed by ``init_device_memory_handlers()``.
+* ``MagicMemory``: ``copy()`` and ``set()`` methods that work across host and device memory spaces. These are backed by the handlers initialized by ``init_device_memory_handlers()``.
 
 The allocator ids returned by ``get_host_allocator_id()`` and ``get_device_allocator_id()`` can be passed to ``Node::set_allocator()`` so that node leaf data is allocated directly in the desired memory space.
 
