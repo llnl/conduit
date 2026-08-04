@@ -4099,7 +4099,7 @@ read_var_attributes(DBfile *dbfile,
 // material mixing for a particular domain. To keep Blueprint happy,
 // it is necessary to perform post-processing for fields to ensure that
 // material dependence is consistent across all domains.
-void
+void CONDUIT_RELAY_API
 honor_material_dependent_fields(const int domain_start,
                                 const int domain_end,
                                 Node &mesh
@@ -4132,7 +4132,7 @@ honor_material_dependent_fields(const int domain_start,
         {
             continue;
         }
-        Node &mesh_fields = mesh[domain_path]["fields"];
+        const Node &mesh_fields = mesh[domain_path]["fields"];
 
         auto field_itr = mesh_fields.children();
         while (field_itr.has_next())
@@ -4300,7 +4300,7 @@ honor_material_dependent_fields(const int domain_start,
         {
             bool changes_needed = false;
 
-            Node &mesh_fields = mesh[domain_path]["fields"];
+            const Node &mesh_fields = mesh[domain_path]["fields"];
             auto field_itr = mesh_fields.children();
             while (field_itr.has_next())
             {

@@ -152,6 +152,17 @@ void CONDUIT_RELAY_API read_mesh(const std::string &root_file_path,
                                  conduit::Node &mesh,
                                  MPI_Comm comm);
 
+//-----------------------------------------------------------------------------
+///
+/// Added to header for testing purposes; not meant to be used publicly
+///
+//-----------------------------------------------------------------------------
+void CONDUIT_RELAY_API
+honor_material_dependent_fields(const int domain_start,
+                                const int domain_end,
+                                Node &mesh,
+                                MPI_Comm mpi_comm);
+
 
 }
 //-----------------------------------------------------------------------------
