@@ -44,6 +44,7 @@ set(BASIC_TESTS t_conduit_smoke
                 t_conduit_schema
                 t_conduit_error
                 t_conduit_execution
+                t_conduit_execution_array_views
                 t_conduit_log
                 t_conduit_utils
                 t_conduit_annotations
@@ -66,7 +67,8 @@ foreach(TEST ${BASIC_TESTS})
 endforeach()
 
 set(conduit_device_test_sources
-    t_conduit_execution.cpp)
+    t_conduit_execution.cpp
+    t_conduit_execution_array_views.cpp)
 
 conduit_set_source_device_properties("${conduit_device_test_sources}")
 

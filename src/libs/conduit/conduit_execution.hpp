@@ -997,48 +997,6 @@ sort_descending(ExecutionPolicy &policy,
     }
 }
 
-//-----------------------------------------------------------------------------
-// Typed raw-pointer reader that mirrors the read side of the DataAccessor
-// interface (operator[]). Kernels templated over "some array-like thing"
-// accept either a DataAccessor<T> or a DirectArrayReader<T>, so when an
-// array's dtype is known up front to match its accessor type, the kernel
-// runs over a raw pointer with no per-element dtype dispatch.
-//
-// These are meant to be paired with DataAccessor<T>::packed_ptr(), which
-// returns a non-null T* only when the accessor's data is densely packed
-// elements of T. See conduit::execution::dispatch_array_read() /
-// dispatch_array_write() (conduit_data_accessor.hpp), which encapsulate that
-// choice.
-template <typename T>
-struct DirectArrayReader
-{
-    const T *ptr;
-    CONDUIT_EXEC T operator[](index_t idx) const { return ptr[idx]; }
-};
-
-//-----------------------------------------------------------------------------
-// Typed raw-pointer writer that mirrors the write side of the DataAccessor
-// interface (set(idx,val)). See DirectArrayReader above for details.
-template <typename T>
-struct DirectArrayWriter
-{
-    T *ptr;
-    CONDUIT_EXEC void set(index_t idx, T value) const { ptr[idx] = value; }
-};
-
-//-----------------------------------------------------------------------------
-// Typed raw-pointer read + writer that mirrors both the read and write sides
-// of the DataAccessor interface (operator[] and set(idx,val)), for in-place
-// kernels over a single array. See DirectArrayReader above for details, and
-// conduit::execution::dispatch_array_read_write() (conduit_data_accessor.hpp).
-template <typename T>
-struct DirectArrayReadWriter
-{
-    T *ptr;
-    CONDUIT_EXEC T operator[](index_t idx) const { return ptr[idx]; }
-    CONDUIT_EXEC void set(index_t idx, T value) const { ptr[idx] = value; }
-};
-
 }
 //-----------------------------------------------------------------------------
 // -- end conduit::execution --

@@ -211,25 +211,18 @@ public:
 
     ///
     /// Returns a typed pointer to the accessor's data when the active dtype
-    /// stores densely packed elements of T, nullptr otherwise.
-    /// The pointer targets the accessor's current memory space, so when the
-    /// accessor is staged for execution call this after use_with().
+    /// holds compact elements of T, nullptr otherwise. The pointer targets the
+    /// accessor's current memory space, so call this after use_with().
+    /// Writable even for a const accessor, matching set()'s const semantics.
+    /// Prefer the conduit::execution::with_*_values() helpers in
+    /// conduit_execution_array_views.hpp, which also handle converting and
+    /// strided data.
     ///
-    /// This is the low-level primitive behind the
-    /// conduit::execution::dispatch_array_*() helpers (declared at the bottom
-    /// of this header), which pair it with DirectArrayReader / DirectArrayWriter
-    /// / DirectArrayReadWriter to select the fast path for a kernel
-    /// automatically. Prefer those helpers over calling this directly.
-    ///
-    /// Note that the returned pointer is writable even when the accessor was
-    /// constructed from const data, mirroring the accessor's existing const
-    /// set() semantics. Respecting the constness of the underlying data is the
-    /// caller's responsibility.
-    ///
-    T *packed_ptr() const
+    T *compact_ptr() const
     {
-        return packed_layout()
-            ? static_cast<T*>(static_cast<void*>(static_cast<char*>(m_data) + dtype().offset()))
+        const DataType &dt = dtype();
+        return (dt.id() == native_type_id() && compact_layout())
+            ? static_cast<T*>(static_cast<void*>(static_cast<char*>(m_data) + dt.offset()))
             : nullptr;
     }
 
@@ -390,13 +383,23 @@ public:
 private:
 
 //-----------------------------------------------------------------------------
-// Packed layout helpers
+// Compact layout helpers
 //-----------------------------------------------------------------------------
     ///
-    /// The Conduit bitwidth-style type id that matches T exactly, or
-    /// EMPTY_ID when T has no bitwidth-style equivalent.
+    /// True when the dtype's elements are contiguous.
     ///
-    CONDUIT_EXEC static constexpr index_t packed_type_id()
+    CONDUIT_EXEC bool compact_layout() const
+    {
+        const DataType &dt = dtype();
+        return dt.stride() == dt.element_bytes();
+    }
+
+    ///
+    /// The Conduit bitwidth-style type id that matches T exactly, or
+    /// EMPTY_ID when T has no bitwidth-style equivalent. Using constexpr
+    /// allows the type id to be evaluated at compile-time when possible.
+    ///
+    CONDUIT_EXEC static constexpr index_t native_type_id()
     {
         return std::is_floating_point<T>::value
             ? (sizeof(T) == 4 ? (index_t)DataType::FLOAT32_ID :
@@ -413,18 +416,6 @@ private:
                sizeof(T) == 4 ? (index_t)DataType::UINT32_ID :
                sizeof(T) == 8 ? (index_t)DataType::UINT64_ID :
                                 (index_t)DataType::EMPTY_ID);
-    }
-
-    ///
-    /// True when the active dtype stores densely packed elements of T, so
-    /// element(idx) / set(idx) can go through a typed pointer instead of the
-    /// dtype dispatch switch.
-    ///
-    CONDUIT_EXEC bool packed_layout() const
-    {
-        const DataType &dt = dtype();
-        return dt.id() == packed_type_id() &&
-               dt.stride() == (index_t)sizeof(T);
     }
 
 //-----------------------------------------------------------------------------
@@ -591,98 +582,6 @@ typedef DataAccessor<double>  double_accessor;
 #ifdef CONDUIT_USE_LONG_DOUBLE
 typedef DataAccessor<long double>  long_double_accessor;
 #endif
-
-//-----------------------------------------------------------------------------
-// -- begin conduit::execution --
-//-----------------------------------------------------------------------------
-namespace execution
-{
-
-//-----------------------------------------------------------------------------
-// dispatch_array_read selects between a raw-pointer wrapper
-// (DirectArrayReader<T>, conduit_execution.hpp) and the accessor itself, then
-// invokes the given kernel functor with that selection. This avoids repeating
-// the accessor's per-element dtype dispatch whenever the data is densely
-// packed elements of T.
-//-----------------------------------------------------------------------------
-template <typename T, typename Kernel>
-void
-dispatch_array_read(const DataAccessor<T> &acc, Kernel &&kernel)
-{
-    const T *ptr = acc.packed_ptr();
-    if (ptr != nullptr)
-    {
-        kernel(DirectArrayReader<T>{ptr});
-    }
-    else // if (ptr == nullptr)
-    {
-        kernel(acc);
-    }
-}
-
-//-----------------------------------------------------------------------------
-// Write-side counterpart of dispatch_array_read().
-//-----------------------------------------------------------------------------
-template <typename T, typename Kernel>
-void
-dispatch_array_write(const DataAccessor<T> &acc, Kernel &&kernel)
-{
-    T *ptr = acc.packed_ptr();
-    if (ptr != nullptr)
-    {
-        kernel(DirectArrayWriter<T>{ptr});
-    }
-    else // if (ptr == nullptr)
-    {
-        kernel(acc);
-    }
-}
-
-//-----------------------------------------------------------------------------
-// In-place counterpart of dispatch_array_read(), for kernels that both read
-// and write the *same* array (e.g. vals.set(i, f(vals[i]))).
-//-----------------------------------------------------------------------------
-template <typename T, typename Kernel>
-void
-dispatch_array_read_write(const DataAccessor<T> &acc, Kernel &&kernel)
-{
-    T *ptr = acc.packed_ptr();
-    if (ptr != nullptr)
-    {
-        kernel(DirectArrayReadWriter<T>{ptr});
-    }
-    else // if (ptr == nullptr)
-    {
-        kernel(acc);
-    }
-}
-
-//-----------------------------------------------------------------------------
-// Combined array read + write dispatch over two *different* arrays. It simply
-// nests dispatch_array_read() inside dispatch_array_write() and invokes
-// kernel(src_vals, dst_vals), which is a common pattern for kernels with one
-// input and one output. For an in-place kernel over a single array, use
-// dispatch_array_read_write() instead.
-//-----------------------------------------------------------------------------
-template <typename SrcT, typename DstT, typename Kernel>
-void
-dispatch_array_read_and_write(const DataAccessor<SrcT> &src_acc,
-                              const DataAccessor<DstT> &dst_acc,
-                              Kernel &&kernel)
-{
-    dispatch_array_write(dst_acc, [&](auto dst_vals)
-    {
-        dispatch_array_read(src_acc, [&](auto src_vals)
-        {
-            kernel(src_vals, dst_vals);
-        });
-    });
-}
-
-}
-//-----------------------------------------------------------------------------
-// -- end conduit::execution --
-//-----------------------------------------------------------------------------
 
 }
 //-----------------------------------------------------------------------------

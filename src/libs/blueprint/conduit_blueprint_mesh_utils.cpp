@@ -32,6 +32,7 @@
 #include "conduit_blueprint_mesh_utils.hpp"
 #include "conduit_blueprint_mesh_utils_iterate_elements.hpp"
 #include "conduit_execution.hpp"
+#include "conduit_execution_array_views.hpp"
 #include "conduit_annotations.hpp"
 #include "conduit_utils.hpp"
 #include "conduit_blueprint_mesh_kdtree.hpp"
@@ -4695,72 +4696,81 @@ PointQuery::normalSearch(int ndims,
     if(ndims == 3)
     {
         conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy::host();
-        conduit::execution::forall(policy, 0, numInputPts, [&](conduit::index_t i)
+        conduit::execution::with_read_values(coords[0]->as_double_accessor(),
+                                             coords[1]->as_double_accessor(),
+                                             coords[2]->as_double_accessor(),
+                                             [&](auto x, auto y, auto z)
         {
-            const double *searchPt = &input_ptr[i * 3];
-            int found = NotFound;
-            const auto x = coords[0]->as_double_accessor();
-            const auto y = coords[1]->as_double_accessor();
-            const auto z = coords[2]->as_double_accessor();
-            for(conduit::index_t ptid = 0; ptid < numCoordsetPts; ptid++)
+            conduit::execution::forall(policy, 0, numInputPts, [&](conduit::index_t i)
             {
-                double dx = x[ptid] - searchPt[0];
-                double dy = y[ptid] - searchPt[1];
-                double dz = z[ptid] - searchPt[2];
-                double dSquared = dx * dx + dy * dy + dz * dz;
-                if(dSquared < EPS_SQ)
+                const double *searchPt = &input_ptr[i * 3];
+                int found = NotFound;
+                for(conduit::index_t ptid = 0; ptid < numCoordsetPts; ptid++)
                 {
-                    found = static_cast<int>(ptid);
-                    break;
+                    double dx = x[ptid] - searchPt[0];
+                    double dy = y[ptid] - searchPt[1];
+                    double dz = z[ptid] - searchPt[2];
+                    double dSquared = dx * dx + dy * dy + dz * dz;
+                    if(dSquared < EPS_SQ)
+                    {
+                        found = static_cast<int>(ptid);
+                        break;
+                    }
                 }
-            }
-            result_ptr[i] = found;
+                result_ptr[i] = found;
+            });
         });
         handled = true;
     }
     else if(ndims == 2)
     {
         conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy::host();
-        conduit::execution::forall(policy, 0, numInputPts, [&](conduit::index_t i)
+        conduit::execution::with_read_values(coords[0]->as_double_accessor(),
+                                             coords[1]->as_double_accessor(),
+                                             [&](auto x, auto y)
         {
-            const double *searchPt = &input_ptr[i * 3];
-            int found = NotFound;
-            const auto x = coords[0]->as_double_accessor();
-            const auto y = coords[1]->as_double_accessor();
-            for(conduit::index_t ptid = 0; ptid < numCoordsetPts; ptid++)
+            conduit::execution::forall(policy, 0, numInputPts, [&](conduit::index_t i)
             {
-                double dx = x[ptid] - searchPt[0];
-                double dy = y[ptid] - searchPt[1];
-                double dSquared = dx * dx + dy * dy;
-                if(dSquared < EPS_SQ)
+                const double *searchPt = &input_ptr[i * 3];
+                int found = NotFound;
+                for(conduit::index_t ptid = 0; ptid < numCoordsetPts; ptid++)
                 {
-                    found = static_cast<int>(ptid);
-                    break;
+                    double dx = x[ptid] - searchPt[0];
+                    double dy = y[ptid] - searchPt[1];
+                    double dSquared = dx * dx + dy * dy;
+                    if(dSquared < EPS_SQ)
+                    {
+                        found = static_cast<int>(ptid);
+                        break;
+                    }
                 }
-            }
-            result_ptr[i] = found;
+                result_ptr[i] = found;
+            });
         });
         handled = true;
     }
     else if(ndims == 1)
     {
         conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy::host();
-        conduit::execution::forall(policy, 0, numInputPts, [&](conduit::index_t i)
+        conduit::execution::with_read_values(coords[0]->as_double_accessor(),
+                                             [&](auto x)
         {
-            const double *searchPt = &input_ptr[i * 3];
-            int found = NotFound;
-            const auto x = coords[0]->as_double_accessor();
-            for(conduit::index_t ptid = 0; ptid < numCoordsetPts; ptid++)
+            conduit::execution::forall(policy, 0, numInputPts, [&](conduit::index_t i)
             {
-                double dx = x[ptid] - searchPt[0];
-                double dSquared = dx * dx;
-                if(dSquared < EPS_SQ)
+                const double *searchPt = &input_ptr[i * 3];
+                int found = NotFound;
+                for(conduit::index_t ptid = 0; ptid < numCoordsetPts; ptid++)
                 {
-                    found = static_cast<int>(ptid);
-                    break;
+                    double dx = x[ptid] - searchPt[0];
+                    double dSquared = dx * dx;
+                    if(dSquared < EPS_SQ)
+                    {
+                        found = static_cast<int>(ptid);
+                        break;
+                    }
                 }
-            }
-            result_ptr[i] = found;
+                result_ptr[i] = found;
+            });
         });
         handled = true;
     }
@@ -5114,4 +5124,3 @@ void CONDUIT_BLUEPRINT_API lerp(const Node& As,
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-

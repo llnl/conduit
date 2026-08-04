@@ -34,6 +34,7 @@
 //-----------------------------------------------------------------------------
 #include "conduit_fmt/conduit_fmt.h"
 #include "conduit_execution.hpp"
+#include "conduit_execution_array_views.hpp"
 #include "conduit_fixed_size_map.hpp"
 #include "conduit_fixed_size_vector.hpp"
 #include "conduit_geometry_vector.hpp"
@@ -912,6 +913,25 @@ verify_multi_domain(const Node &n,
 //-----------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------
+// This is a separate function because nvcc does not allow device lambdas
+// to be defined inside generic lambdas.
+template <typename DstVals>
+void
+coordset_uniform_fill_kernel(conduit::execution::ExecutionPolicy &policy,
+                             const float64 dim_origin,
+                             const float64 dim_spacing,
+                             const index_t dim_len,
+                             const DstVals dst_values)
+{
+    conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
+    {
+        const float64 val = dim_origin + d * dim_spacing;
+        dst_values.set(d, val);
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-------------------------------------------------------------------------
 void
 convert_coordset_to_rectilinear(const std::string &/*base_type*/,
                                 const conduit::Node &coordset,
@@ -951,18 +971,26 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
 
         float64_accessor dst_values(dest["values"][csys_axis]);
         dst_values.use_with(policy);
-        conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
+
+        // Write through a typed raw pointer to avoid the accessor's
+        // per-element dtype dispatch.
+        conduit::execution::with_write_values(dst_values,
+                                              [&](auto vals)
         {
-            const float64 val = dim_origin + d * dim_spacing;
-            dst_values.set(d, val);
+            coordset_uniform_fill_kernel(policy,
+                                         dim_origin,
+                                         dim_spacing,
+                                         dim_len,
+                                         vals);
         });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
 
         dst_values.data_movement(sync_strategy);
     }
 }
 
 //-------------------------------------------------------------------------
+// This is a separate function because nvcc does not allow device lambdas
+// to be defined inside generic lambdas.
 template <typename SrcVals, typename DstVals>
 void
 coordset_explicit_fill_kernel(conduit::execution::ExecutionPolicy &policy,
@@ -1071,13 +1099,12 @@ convert_coordset_to_explicit(const std::string &base_type,
             src_cvals_acc.use_with(policy);
         }
 
-        // Read and write through raw pointers to avoid the accessor's
+        // Read and write through typed raw pointers to avoid the accessor's
         // per-element dtype dispatch.
         const index_t dim_len = dim_lens[i];
-        conduit::execution::dispatch_array_read_and_write(src_cvals_acc,
-                                                          dst_cvals_acc,
-                                                          [&](auto src_vals,
-                                                              auto dst_vals)
+        conduit::execution::with_values(src_cvals_acc,
+                                        dst_cvals_acc,
+                                        [&](auto src_vals, auto dst_vals)
         {
             coordset_explicit_fill_kernel(policy,
                                           is_base_rectilinear,
@@ -1213,6 +1240,8 @@ convert_topology_to_structured(const std::string &base_type,
 }
 
 //-------------------------------------------------------------------------
+// This is a separate function because nvcc does not allow device lambdas
+// to be defined inside generic lambdas.
 template <typename ConnOut>
 void
 to_unstructured_connectivity_kernel(conduit::execution::ExecutionPolicy &policy,
@@ -1426,9 +1455,10 @@ convert_topology_to_unstructured(const std::string &base_type,
     int64_accessor conn_node_vals(conn_node);
     conn_node_vals.use_with(policy);
 
-    // Write through a raw pointer to avoid the accessor's per-element dtype
-    // dispatch.
-    conduit::execution::dispatch_array_write(conn_node_vals, [&](auto conn_out)
+    // Write through a typed raw pointer to avoid the accessor's per-element
+    // dtype dispatch.
+    conduit::execution::with_write_values(conn_node_vals,
+                                          [&](auto conn_out)
     {
         to_unstructured_connectivity_kernel(policy,
                                             num_axes,
