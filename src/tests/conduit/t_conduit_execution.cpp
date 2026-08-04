@@ -1421,6 +1421,72 @@ TEST(conduit_execution, strawman_data_array)
     }
 }
 
+#if defined(CONDUIT_USE_DEVICE)
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, no_memory_leak_on_data_accessor_sync)
+{
+    conduit_device_prepare();
+
+    // Data originates on the host but is executed on the device
+    expect_no_leak(run_data_accessor_policy_and_sync,
+                   conduit::execution::get_host_allocator_id(),
+                   ExecutionPolicy::device());
+
+    // Data originates on the device but is executed on the host
+    expect_no_leak(run_data_accessor_policy_and_sync,
+                   conduit::execution::get_device_allocator_id(),
+                   ExecutionPolicy::host());
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, no_memory_leak_on_data_accessor_assume)
+{
+    conduit_device_prepare();
+
+    // Data originates on the host but is executed on the device
+    expect_no_leak(run_data_accessor_policy_and_assume,
+                   conduit::execution::get_host_allocator_id(),
+                   ExecutionPolicy::device());
+
+    // Data originates on the device but is executed on the host
+    expect_no_leak(run_data_accessor_policy_and_assume,
+                   conduit::execution::get_device_allocator_id(),
+                   ExecutionPolicy::host());
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, no_memory_leak_on_data_array_sync)
+{
+    conduit_device_prepare();
+
+    // Data originates on the host but is executed on the device
+    expect_no_leak(run_data_array_policy_and_sync,
+                   conduit::execution::get_host_allocator_id(),
+                   ExecutionPolicy::device());
+
+    // Data originates on the device but is executed on the host
+    expect_no_leak(run_data_array_policy_and_sync,
+                   conduit::execution::get_device_allocator_id(),
+                   ExecutionPolicy::host());
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, no_memory_leak_on_data_array_assume)
+{
+    conduit_device_prepare();
+
+    // Data originates on the host but is executed on the device
+    expect_no_leak(run_data_array_policy_and_assume,
+                   conduit::execution::get_host_allocator_id(),
+                   ExecutionPolicy::device());
+
+    // Data originates on the device but is executed on the host
+    expect_no_leak(run_data_array_policy_and_assume,
+                   conduit::execution::get_device_allocator_id(),
+                   ExecutionPolicy::host());
+}
+#endif // defined(CONDUIT_USE_DEVICE)
+
 //-----------------------------------------------------------------------------
 void
 run_test_sort_ascending()
