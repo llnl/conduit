@@ -13,6 +13,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 #### Relay
 - The `conduit::relay::mpi::safe_tag` function and its underlying logic to probe the maximum allowable MPI tag were modified to avoid `MPI_Waitall`. Tag values now use modulo above the upper limit as opposed to clamping.
+- Fixed a bug with the Silo reader where material-dependent fields failed to read correctly on domains that had no mixed material elements.
 
 ## [0.9.7] - Released 2026-05-27
 
