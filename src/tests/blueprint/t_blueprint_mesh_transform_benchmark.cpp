@@ -266,7 +266,8 @@ main(int argc, char *argv[])
 
     // Caliper options can be configured here
     Node cali_opts;
-    cali_opts["config"] = "runtime-report, hatchet-region-profile";
+    // TODO: Investigate spot vs hatchet-region-profile
+    cali_opts["config"] = "runtime-report,hatchet-region-profile(output=" + timestamp + ".cali)";
 
     // Begin timing
     annotations::initialize(cali_opts);

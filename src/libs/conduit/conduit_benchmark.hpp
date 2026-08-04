@@ -38,6 +38,17 @@ namespace benchmark
 {
 
 //-----------------------------------------------------------------------------
+inline
+std::string
+get_timestamp()
+{
+    std::time_t t = std::time(nullptr);
+    std::ostringstream oss;
+    oss << std::put_time(std::localtime(&t), "%Y%m%d_%H%M%S");
+    return oss.str();
+}
+
+//-----------------------------------------------------------------------------
 struct ExecConfig
 {
     std::string src_location;
