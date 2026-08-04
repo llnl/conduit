@@ -110,6 +110,7 @@ for_each_enabled_policy(Func &&func)
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
+// _run_data_accessor_policy_and_sync_start
 void
 run_data_accessor_policy_and_sync(Node &node, ExecutionPolicy policy)
 {
@@ -141,6 +142,7 @@ run_data_accessor_policy_and_sync(Node &node, ExecutionPolicy policy)
     // space as the requested execution policy.
     acc_des.sync();
 }
+// _run_data_accessor_policy_and_sync_end
 
 //-----------------------------------------------------------------------------
 void
