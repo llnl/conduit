@@ -46,7 +46,7 @@ When Conduit is built with CUDA or HIP, call ``init_device_memory_handlers()`` o
 
     conduit::execution::init_device_memory_handlers();
 
-A minimal example that doubles the values of an array on the device, starting from data that lives on the host. First we initialize the memory handlers, select device execution, and allocate the input and output leaf data with the host allocator, which is also the default:
+Below is a minimal example that doubles the values of an array on the device, starting from data that lives on the host. First we initialize the memory handlers, select device execution, and allocate the input and output leaf data with the host allocator, which is also the default:
 
 .. code:: cpp
 
