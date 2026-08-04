@@ -2734,3 +2734,76 @@ TEST(conduit_blueprint_mesh_verify, empty_mesh_vs_gen_index)
     
 }
 
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_verify, shape_map_int_64_entries)
+{
+    Node mesh;
+    blueprint::mesh::examples::braid("mixed_2d", 2, 2, 0, mesh);
+
+    // state: 
+    //   time: 3.1415
+    //   cycle: 100
+    // coordsets: 
+    //   coords: 
+    //     type: "explicit"
+    //     values: 
+    //       x: [-10.0, 10.0, -10.0, 10.0]
+    //       y: [-10.0, -10.0, 10.0, 10.0]
+    // topologies: 
+    //   mesh: 
+    //     type: "unstructured"
+    //     coordset: "coords"
+    //     elements: 
+    //       shape: "mixed"
+    //       shape_map: 
+    //         quad: 9
+    //         tri: 5
+    //       shapes: [5, 5]
+    //       sizes: [3, 3]
+    //       offsets: [0, 3]
+    //       connectivity: [0, 1, 3, ..., 3, 2]
+    // fields: 
+    //   braid: 
+    //     association: "vertex"
+    //     topology: "mesh"
+    //     values: [2.00961335163232, -0.814560002066095, 2.00961402595266, -0.814562706228405]
+    //   vel: 
+    //     association: "vertex"
+    //     topology: "mesh"
+    //     values: 
+    //       u: [-10.0, 10.0, -10.0, 10.0]
+    //       v: [-10.0, -10.0, 10.0, 10.0]
+
+
+    EXPECT_EQ(mesh["topologies/mesh/elements/shape_map/quad"].dtype().id(), CONDUIT_INT32_ID);
+    EXPECT_EQ(mesh["topologies/mesh/elements/shape_map/tri"].dtype().id(), CONDUIT_INT32_ID);
+
+    Node info;
+    EXPECT_TRUE(blueprint::mesh::verify(mesh, info));
+
+    mesh["topologies/mesh/elements/shape_map"].remove_child("quad");
+    mesh["topologies/mesh/elements/shape_map"].remove_child("tri");
+
+    mesh["topologies/mesh/elements/shape_map/quad"].set(static_cast<int64>(9));
+    std::cout << mesh["topologies/mesh/elements/shape_map/quad"].dtype().name() << std::endl;
+    // mesh["topologies/mesh/elements/shape_map/quad"].set((int64)9);
+
+    // std::cout << mesh["topologies/mesh/elements/shape_map/quad"].dtype().name() << std::endl;
+
+    EXPECT_EQ(mesh["topologies/mesh/elements/shape_map/quad"].dtype().id(), CONDUIT_INT64_ID);
+    mesh["topologies/mesh/elements/shape_map/tri"].set(static_cast<int64>(5));
+    EXPECT_EQ(mesh["topologies/mesh/elements/shape_map/tri"].dtype().id(), CONDUIT_INT64_ID);
+
+    EXPECT_TRUE(blueprint::mesh::verify(mesh, info));
+
+    // info.print();
+
+    // conduit.blueprint.mesh.verify(mesh, info)
+    // terminate called after throwing an instance of 'conduit::Error'
+    //   what():  
+    // file: /usr/workspace/justin/visit_builds/3.5.0_toss4_release/conduit-v0.9.4/src/libs/conduit/conduit_node.cpp
+    // line: 15121
+    // message: 
+    // Node::as_int32() const -- DataType int64 at path topologies/mesh/elements/shape_map/quad does not equal expected DataType int32
+}
+
