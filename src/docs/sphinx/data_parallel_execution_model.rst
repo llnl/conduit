@@ -64,6 +64,8 @@ Below is a minimal example that doubles the values of an array on the device, st
     exec_opts["execution_location"] = "device";
     execution::execution_set_options(exec_opts);
 
+    // this will be a device policy because we requested the
+    // execution location to be the device
     ExecutionPolicy policy = execution::get_execution_policy();
 
     // allocate our node leaf data on the host
@@ -187,6 +189,8 @@ Query a policy with ``is_serial()``, ``is_cuda()``, ``is_hip()``, ``is_openmp()`
 
 Query what a build supports with the static methods ``is_serial_enabled()``, ``is_cuda_enabled()``, ``is_hip_enabled()``, ``is_openmp_enabled()``, ``is_host_enabled()``, ``is_device_enabled()``, and ``is_parallel_enabled()``. The device backends are enabled only when Conduit is built with both CUDA/HIP and Umpire.
 
+Requesting a backend that Conduit was not built with (for example, a CUDA policy without CUDA support) raises a ``conduit::Error``.
+
 Launching Kernels
 -----------------
 
@@ -205,8 +209,6 @@ Two macros make kernels portable:
 
 * ``CONDUIT_EXEC`` marks a function or lambda so it compiles for both host and device in CUDA/HIP translation units. In host-only builds it expands to nothing.
 * ``CONDUIT_DEVICE_ERROR_CHECK(policy)`` reports CUDA/HIP errors from the last kernel launch by printing to ``stderr``. It does not raise a ``conduit::Error`` or abort. It is a no-op for host policies.
-
-Requesting a backend that Conduit was not built with (for example, a CUDA policy without CUDA support) raises a ``conduit::Error``.
 
 Reductions
 ~~~~~~~~~~
