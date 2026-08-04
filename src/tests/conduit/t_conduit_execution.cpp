@@ -19,10 +19,6 @@
 #include <vector>
 #include "gtest/gtest.h"
 
-#if defined(CONDUIT_USE_DEVICE)
-#include <umpire/ResourceManager.hpp>
-#endif // defined(CONDUIT_USE_DEVICE)
-
 using namespace conduit;
 using conduit::execution::ExecutionPolicy;
 
@@ -1426,67 +1422,6 @@ TEST(conduit_execution, strawman_data_array)
 }
 
 #if defined(CONDUIT_USE_DEVICE)
-//-----------------------------------------------------------------------------
-static size_t
-umpire_bytes_allocated(const char *pool_name)
-{
-    return umpire::ResourceManager::getInstance()
-               .getAllocator(pool_name)
-               .getCurrentSize();
-}
-
-//-----------------------------------------------------------------------------
-static void
-expect_no_leak(void (*run_fn)(Node &, ExecutionPolicy),
-               index_t node_alloc_id,
-               ExecutionPolicy policy)
-{
-    const index_t n = 1024;
-    const std::vector<float64> src_vals(n, 1.0);
-    const std::vector<float64> des_vals(n, 0.0);
-
-    // Warm up run to make sure that both the host/device memory pools are
-    // created before we query their baseline sizes.
-    {
-        Node node;
-        node["src"].set_allocator(node_alloc_id);
-        node["des"].set_allocator(node_alloc_id);
-        node["src"].set(src_vals);
-        node["des"].set(des_vals);
-
-        // Calls sync/assume for us
-        run_fn(node, policy);
-
-        // This should free the memory allocated by sync/assume
-        node.reset();
-    }
-
-    // Record the baseline sizes of both the host/device memory pools
-    const size_t host_baseline = umpire_bytes_allocated("CONDUIT_HOST_POOL");
-    const size_t device_baseline = umpire_bytes_allocated("CONDUIT_DEVICE_POOL");
-
-    const int iterations = 4;
-    for (int i = 0; i < iterations; i++)
-    {
-        Node node;
-        node["src"].set_allocator(node_alloc_id);
-        node["des"].set_allocator(node_alloc_id);
-        node["src"].set(src_vals);
-        node["des"].set(des_vals);
-
-        // Calls sync/assume for us
-        run_fn(node, policy);
-
-        // This should free the memory allocated by sync/assume
-        node.reset();
-    }
-
-    // The memory allocated above should have been freed, so we expect both
-    // the host/device memory pools to be back to where they started.
-    EXPECT_EQ(umpire_bytes_allocated("CONDUIT_HOST_POOL"), host_baseline);
-    EXPECT_EQ(umpire_bytes_allocated("CONDUIT_DEVICE_POOL"), device_baseline);
-}
-
 //-----------------------------------------------------------------------------
 TEST(conduit_execution, no_memory_leak_on_data_accessor_sync)
 {
