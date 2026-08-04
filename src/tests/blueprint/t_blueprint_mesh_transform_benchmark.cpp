@@ -8,6 +8,35 @@
 ///
 //-----------------------------------------------------------------------------
 
+/*
+Usage:
+    t_blueprint_mesh_transform_benchmark [num_warmup_iterations]
+                                         [num_iterations]
+                                         [dim_size ...]
+
+    All arguments are optional and positional:
+      num_warmup_iterations  untimed iterations per benchmark (default: 2)
+      num_iterations         timed iterations per benchmark (default: 2)
+      dim_size ...           one or more mesh sizes, given as the number of
+                             vertices per axis. Each must be > 1 and every
+                             benchmark is run at every size (default: [2])
+
+Examples:
+    # Defaults: 2 warmups, 2 timed iterations, dim size 2
+    ./t_blueprint_mesh_transform_benchmark
+
+    # 5 warmups, 20 timed iterations, dim size 2
+    ./t_blueprint_mesh_transform_benchmark 5 20
+
+    # 5 warmups, 20 timed iterations, at dim sizes 10, 20, and 40
+    ./t_blueprint_mesh_transform_benchmark 5 20 10 20 40
+
+If conduit was built with Caliper support, timing results are written to
+<YYYYmmdd_HHMMSS>.cali in the current directory, which can be plotted
+with src/tests/blueprint/plot_benchmark_output.py (cmake automatically
+copies it to the tests/blueprint folder for convenience).
+*/
+
 #include "conduit.hpp"
 #include "conduit_annotations.hpp"
 #include "conduit_benchmark.hpp"
@@ -284,7 +313,7 @@ TEST(blueprint_mesh_transform_benchmark, generate_transforms)
         // "mixed"     // TODO: investigate why this segfaults
     };
 
-    // Building this list programatically makes it easy to benchmark with
+    // Building this list programmatically makes it easy to benchmark with
     // different shape types.
     std::vector<ConvertConfig> configs;
     for (const auto &shape : shapes)

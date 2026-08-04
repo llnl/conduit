@@ -17597,9 +17597,9 @@ Node::set_data_ptr(void *data)
 
 //---------------------------------------------------------------------------//
 void
-Node::take_data_ptr(void *data_ptr,
-                    index_t data_size,
-                    index_t allocator_id)
+Node::assume_data_ptr(void *data_ptr,
+                      index_t data_size,
+                      index_t allocator_id)
 {
     m_data         = data_ptr;
     m_data_size    = data_size;
