@@ -105,6 +105,7 @@ APIs that are aware of the execution model (for example, the ported :ref:`Mesh B
 
     Node cur_opts;
     conduit::execution::execution_options(cur_opts);
+    cur_opts.print();
 
     conduit::execution::reset_execution_options();
 
