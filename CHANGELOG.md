@@ -6,6 +6,11 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 ## Unreleased
 
+### Changed
+
+#### General
+- Turned python on by default in `build_conduit`.
+
 ### Fixed
 
 #### Blueprint
