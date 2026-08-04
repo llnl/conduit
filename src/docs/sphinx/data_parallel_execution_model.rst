@@ -83,36 +83,10 @@ A minimal example that doubles the values of an array on the device, starting fr
 
 The work itself happens in ``run_data_accessor_policy_and_sync()``, borrowed from Conduit's execution tests. It wraps the node leaf data in accessors, moves that data to the memory space of the policy, doubles each value, and copies the results back to where ``node["des"]`` started:
 
-.. code:: cpp
-
-    void
-    run_data_accessor_policy_and_sync(Node &node, ExecutionPolicy policy)
-    {
-        // DataAccessors wrap node leaf data.
-        float64_accessor acc_src(node["src"]);
-        float64_accessor acc_des(node["des"]);
-
-        // Ask the accessors to move their data to the memory space occupied
-        // by the requested execution policy if their data is not already
-        // there.
-        acc_src.use_with(policy);
-        acc_des.use_with(policy);
-
-        // Our forall will execute in the memory space selected by the
-        // requested ExecutionPolicy.
-        index_t size = acc_src.number_of_elements();
-        conduit::execution::forall(policy, 0, size, [acc_src, acc_des] CONDUIT_EXEC(index_t idx)
-        {
-            const float64 val = 2.0 * acc_src[idx];
-            acc_des.set(idx, val);
-        });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
-
-        // Sync values to node["des"].
-        // This is a no op if node["des"] was originally in the same memory
-        // space as the requested execution policy.
-        acc_des.sync();
-    }
+.. literalinclude:: ../../tests/conduit/execution_test_utils.hpp
+   :start-after: _run_data_accessor_policy_and_sync_start
+   :end-before:  _run_data_accessor_policy_and_sync_end
+   :language: cpp
 
 Because ``node["src"]`` and ``node["des"]`` start on the host and ``policy`` is a device policy, ``use_with(policy)`` moves the data: each accessor allocates a device-side working buffer and copies the leaf data into it. The kernel then reads and writes those device buffers, and ``acc_des.sync()`` copies the results back into the host buffer still owned by ``node["des"]``. If the node data had already been in the device memory space, both calls would have been no-ops. See `Moving Data Between Memory Spaces`_ for the full semantics.
 
