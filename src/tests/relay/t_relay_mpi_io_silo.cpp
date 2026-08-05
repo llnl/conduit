@@ -1826,7 +1826,7 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case)
             {
                 EXPECT_FALSE(conduit::blueprint::mesh::matset::has_mixed_elements(matset));
             }
-            else
+            else // (1 == dom_id || 3 == dom_id)
             {
                 EXPECT_TRUE(conduit::blueprint::mesh::matset::has_mixed_elements(matset));
             }
@@ -1854,18 +1854,6 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case)
         }
 
         MPI_Barrier(comm);
-
-        // if (par_rank == 0)
-        // {
-        //     std::cout << "rank 0" << std::endl;
-        //     part_mesh.print();
-        // }
-        // MPI_Barrier(comm);
-        // if (par_rank == 1)
-        // {
-        //     std::cout << "rank 1" << std::endl;
-        //     part_mesh.print();
-        // }
 
         // save mesh to silo
         const std::string basename = "silo_mixed_and_clean_vars";
@@ -1954,10 +1942,10 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case)
                     n_matset["element_ids"].remove_child("circle_a");
                     n_matset["element_ids"].remove_child("circle_b");
                 }
-                else // if (par_rank == 1 && child == 0) // original domain 3
-                {
+                // else // if (par_rank == 1 && child == 0) // original domain 3
+                // {
                     // nothing to do for child == 3
-                }
+                // }
             }
 
             silo_name_changer("mesh", part_mesh[child]);
@@ -2020,28 +2008,6 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case)
             }
 
             EXPECT_FALSE(l_curr.diff(s_curr, info, CONDUIT_EPSILON, true));
-
-            // if (par_rank == 0)
-            // {
-            //     std::cout << "rank 0" << std::endl;
-            //     if (l_curr.diff(s_curr, info, CONDUIT_EPSILON, true))
-            //     {
-            //         l_curr.print();
-            //         s_curr.print();
-            //         info.print();
-            //     }
-            // }
-            // MPI_Barrier(comm);
-            // if (par_rank == 1)
-            // {
-            //     std::cout << "rank 1" << std::endl;
-            //     if (l_curr.diff(s_curr, info, CONDUIT_EPSILON, true))
-            //     {
-            //         l_curr.print();
-            //         s_curr.print();
-            //         info.print();
-            //     }
-            // }
 
             dom_id ++;
         }
@@ -2111,7 +2077,7 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case_errors)
             fields["area"].remove_child("matset");
             fields["area"].remove_child("matset_values");
         }
-        else
+        else // (1 == dom_id || 3 == dom_id)
         {
             EXPECT_TRUE(conduit::blueprint::mesh::matset::has_mixed_elements(matset));
         }

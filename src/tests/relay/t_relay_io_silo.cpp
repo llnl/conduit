@@ -1295,6 +1295,9 @@ TEST(conduit_relay_io_silo, mixed_var_special_case)
         opts["target"] = 4;
         conduit::blueprint::mesh::partition(venn_mesh, opts, part_mesh);
 
+        // domain 0 and 2 are unmixed
+        // domain 1 and 3 are mixed
+
         // verify that our setup yields domains with clean elements
         // and remove extra fields
         index_t dom_id = 0;
@@ -1308,7 +1311,7 @@ TEST(conduit_relay_io_silo, mixed_var_special_case)
             {
                 EXPECT_FALSE(conduit::blueprint::mesh::matset::has_mixed_elements(matset));
             }
-            else
+            else // 1 == dom_id || 3 == dom_id
             {
                 EXPECT_TRUE(conduit::blueprint::mesh::matset::has_mixed_elements(matset));
             }
@@ -1426,7 +1429,7 @@ TEST(conduit_relay_io_silo, mixed_var_special_case)
                     EXPECT_FALSE(imp_field_vals.diff(imp_mset_vals, info, CONDUIT_EPSILON, true));
                     EXPECT_FALSE(area_field_vals.diff(area_mset_vals, info, CONDUIT_EPSILON, true));
                 }
-                else
+                else // (1 == dom_id || 3 == dom_id)
                 {
                     EXPECT_TRUE(imp_field_vals.diff(imp_mset_vals, info, CONDUIT_EPSILON, true));
                     EXPECT_TRUE(area_field_vals.diff(area_mset_vals, info, CONDUIT_EPSILON, true));
@@ -1486,7 +1489,7 @@ TEST(conduit_relay_io_silo, mixed_var_special_case_errors)
             fields["area"].remove_child("matset");
             fields["area"].remove_child("matset_values");
         }
-        else
+        else // (1 == dom_id || 3 == dom_id)
         {
             EXPECT_TRUE(conduit::blueprint::mesh::matset::has_mixed_elements(matset));
         }
