@@ -1837,12 +1837,12 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case)
             dom_id ++;
         }
 
-        if (par_rank == 0)
+        if (0 == par_rank)
         {
             part_mesh.remove(3);
             part_mesh.remove(1);
         }
-        else if (par_rank == 1)
+        else if (1 == par_rank)
         {
             part_mesh.remove(2);
             part_mesh.remove(0);
@@ -1872,28 +1872,28 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case)
         //
 
         Node load_mesh, read_opts, info;
-        if (matset_style == "full")
+        if ("full" == matset_style)
         {
             read_opts["matset_style"] = "multi_buffer_full";
         }
-        else if (matset_style == "sparse_by_material")
+        else if ("sparse_by_material" == matset_style)
         {
             read_opts["matset_style"] = "multi_buffer_by_material";
         }
-        else // if (matset_style == "sparse_by_element")
+        else // if ("sparse_by_element" == matset_style)
         {
             read_opts["matset_style"] = "sparse_by_element";
         }
         relay::mpi::io::silo::load_mesh(filename, read_opts, load_mesh, comm);
         EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
 
-        if (par_rank == 0)
+        if (0 == par_rank)
         {
             std::cout << "rank 0" << std::endl;
             load_mesh.print();
         }
         MPI_Barrier(comm);
-        if (par_rank == 1)
+        if (1 == par_rank)
         {
             std::cout << "rank 1" << std::endl;
             load_mesh.print();
@@ -1902,7 +1902,7 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case)
         // make changes to part_mesh so the diff will pass
         for (index_t child = 0; child < part_mesh.number_of_children(); child ++)
         {
-            if (matset_style == "sparse_by_element" && par_rank == 0)
+            if ("sparse_by_element" == matset_style && 0 == par_rank)
             {
                 // get the matset for this domain
                 Node &n_matset = part_mesh[child]["matsets"]["matset"];
@@ -1914,7 +1914,7 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case)
 
             // TODO remove when https://github.com/llnl/conduit/issues/1600
             // is addressed
-            if (matset_style == "sparse_by_material")
+            if ("sparse_by_material" == matset_style)
             {
                 // get the matset for this domain
                 Node &n_matset = part_mesh[child]["matsets"]["matset"];
@@ -1923,19 +1923,19 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case)
                 conduit::blueprint::mesh::matset::create_or_reuse_material_map(n_matset, material_map);
                 n_matset["material_map"].set(material_map);
 
-                if (par_rank == 0 && child == 0) // original domain 0
+                if (0 == par_rank && 0 == child) // original domain 0
                 {
                     n_matset["volume_fractions"].remove_child("circle_a");
                     n_matset["volume_fractions"].remove_child("circle_b");
                     n_matset["element_ids"].remove_child("circle_a");
                     n_matset["element_ids"].remove_child("circle_b");
                 }
-                else if (par_rank == 1 && child == 0) // original domain 1
+                else if (1 == par_rank && 0 == child) // original domain 1
                 {
                     n_matset["volume_fractions"].remove_child("circle_b");
                     n_matset["element_ids"].remove_child("circle_b");
                 }
-                else if (par_rank == 0 && child == 1) // original domain 2
+                else if (0 == par_rank && 1 == child) // original domain 2
                 {
                     n_matset["volume_fractions"].remove_child("circle_a");
                     n_matset["volume_fractions"].remove_child("circle_b");
@@ -1957,12 +1957,12 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case)
         // 2 (rank 0) => 1 (rank 0)
         // 1 (rank 1) => 2 (rank 1)
         // 3 (rank 1) => 3 (rank 1)
-        if (par_rank == 0)
+        if (0 == par_rank)
         {
             // old domain 2
             part_mesh[1]["state"]["domain_id"].set(1);
         }
-        else // (par_rank == 1)
+        else // (1 == par_rank)
         {
             // old domain 1
             part_mesh[0]["state"]["domain_id"].set(2);
@@ -1986,14 +1986,14 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case)
 
             // we can only do these checks in the SBE case
             // the other cases will need to rely on the diff
-            if (matset_style == "sparse_by_element")
+            if ("sparse_by_element" == matset_style)
             {
                 // check that mset vals are field vals copied for the clean domains
                 const Node &imp_mset_vals = l_curr["fields"]["mesh_importance"]["matset_values"];
                 const Node &imp_field_vals = l_curr["fields"]["mesh_importance"]["values"];
                 const Node &area_mset_vals = l_curr["fields"]["mesh_area"]["matset_values"];
                 const Node &area_field_vals = l_curr["fields"]["mesh_area"]["values"];
-                if (par_rank == 0)
+                if (0 == par_rank)
                 {
                     // rank 0 has original domains 0 and 2
                     EXPECT_FALSE(imp_field_vals.diff(imp_mset_vals, info, CONDUIT_EPSILON, true));
@@ -2091,12 +2091,12 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case_errors)
         dom_id ++;
     }
 
-    if (par_rank == 0)
+    if (0 == par_rank)
     {
         test_mesh.remove(3);
         test_mesh.remove(1);
     }
-    else if (par_rank == 1)
+    else if (1 == par_rank)
     {
         test_mesh.remove(2);
         test_mesh.remove(0);
@@ -2113,7 +2113,7 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case_errors)
     // rank 1 has original domains 1 and 3.
 
     // test missing matset assoc
-    if (par_rank == 1)
+    if (1 == par_rank)
     {
         // domain 1
         test_mesh.child(0)["fields"]["importance"].remove_child("matset");
@@ -2121,7 +2121,7 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case_errors)
     MPI_Barrier(comm);
     EXPECT_THROW(relay::mpi::io::silo::honor_material_dependent_fields(0, 4, test_mesh, comm), conduit::Error);
     // restore matset name
-    if (par_rank == 1)
+    if (1 == par_rank)
     {
         test_mesh.child(0)["fields"]["importance"]["matset"].set("matset");
     }
@@ -2129,7 +2129,7 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case_errors)
     // test missing matsets
     // cache matset for use later
     Node dom_2_matset;
-    if (par_rank == 0)
+    if (0 == par_rank)
     {
         // domain 2
         dom_2_matset.set(test_mesh.child(1)["matsets"]["matset"]);
@@ -2138,13 +2138,13 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case_errors)
     MPI_Barrier(comm);
     EXPECT_THROW(relay::mpi::io::silo::honor_material_dependent_fields(0, 4, test_mesh, comm), conduit::Error);
     // now restore missing matset
-    if (par_rank == 0)
+    if (0 == par_rank)
     {
         test_mesh.child(1)["matsets"]["matset"].set(dom_2_matset);
     }
 
     // test ambiguous matsets
-    if (par_rank == 0)
+    if (0 == par_rank)
     {
         // domain 2
         test_mesh.child(1)["matsets"]["matset2"].set(dom_2_matset);

@@ -2598,7 +2598,8 @@ get_material_names(const conduit::Node &matset,
 
 //-----------------------------------------------------------------------------
 bool
-has_mixed_elements(const conduit::Node &matset, const float64 epsilon)
+has_mixed_elements(const conduit::Node &matset,
+                   const float64 epsilon)
 {
     // extra seat belt here
     if (! matset.dtype().is_object())

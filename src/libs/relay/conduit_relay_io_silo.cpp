@@ -4139,8 +4139,8 @@ honor_material_dependent_fields(const int domain_start,
         {
             const Node &field = field_itr.next();
             const std::string fieldname = field_itr.name();
-            const bool has_matset      = field.has_child("matset");
-            const bool has_matset_vals = field.has_child("matset_values");
+            const bool has_matset       = field.has_child("matset");
+            const bool has_matset_vals  = field.has_child("matset_values");
 
             if (has_matset && has_matset_vals)
             {
@@ -4172,7 +4172,7 @@ honor_material_dependent_fields(const int domain_start,
         }
 
         // break out of the domain loop if an error was encountered
-        if (error == 1)
+        if (1 == error)
         {
             break;
         }
@@ -4182,7 +4182,7 @@ honor_material_dependent_fields(const int domain_start,
     Node global_collected_fields_material_status;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
     Node n_local, n_global;
-    n_local.set((int)error);
+    n_local.set(std::static_cast<int>(error));
     relay::mpi::sum_all_reduce(n_local, n_global, mpi_comm);
     error = n_global.as_int();
 
@@ -4249,8 +4249,8 @@ honor_material_dependent_fields(const int domain_start,
             if (fields_material_status.has_child(fieldname))
             {
                 // then we choose "yes" over "no"
-                if (field_status.as_string() == "yes" &&
-                    fields_material_status[fieldname].as_string() == "no")
+                if ("yes" == field_status.as_string() &&
+                    "no" == fields_material_status[fieldname].as_string())
                 {
                     fields_material_status[fieldname].set(field_status);
                 }
@@ -4307,7 +4307,7 @@ honor_material_dependent_fields(const int domain_start,
                 const Node &field = field_itr.next();
                 const std::string fieldname = field_itr.name();
 
-                const bool globally_matdep = fields_material_status[fieldname].as_string() == "yes";
+                const bool globally_matdep = "yes" == fields_material_status[fieldname].as_string()";
                 const bool locally_matdep  = field.has_child("matset");
 
                 if (globally_matdep && locally_matdep)
@@ -4335,7 +4335,7 @@ honor_material_dependent_fields(const int domain_start,
         }();
 
         // break out of the domain loop if an error was encountered
-        if (error == 1)
+        if (1 == error)
         {
             break;
         }
@@ -4361,7 +4361,7 @@ honor_material_dependent_fields(const int domain_start,
 
         // make sure there is only one matset
         const Node &mesh_matsets = mesh[domain_path]["matsets"];
-        if (mesh_matsets.number_of_children() != 1)
+        if (1 != mesh_matsets.number_of_children())
         {
             error = 1;
             error_oss << "Ambiguous matsets for domain " << domain_path;
@@ -4417,7 +4417,7 @@ honor_material_dependent_fields(const int domain_start,
 
     // parallel error handling
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    n_local.set((int)error);
+    n_local.set(std::static_cast<int>(error));
     relay::mpi::sum_all_reduce(n_local, n_global, mpi_comm);
     error = n_global.as_int();
 
