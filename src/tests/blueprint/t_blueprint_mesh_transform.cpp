@@ -390,6 +390,8 @@ TEST(conduit_blueprint_mesh_transform, topology_transform_dtypes)
                     // seem to propagate the source's dtype into new fields. Fixing
                     // that is probably a big job, so I've disabled the
                     // 'verify_node_data' calls for now.
+    
+                    // This issue is tracked here: https://github.com/llnl/conduit/issues/1654
                     Node jmesh;
                     Node &jtopology = jmesh["topologies"][itopology.name()];
                     Node &jcoordset = jmesh["coordsets"][icoordset.name()];
