@@ -33,8 +33,6 @@ namespace conduit
 namespace benchmark
 {
 
-using EP = execution::ExecutionPolicy;
-
 //-----------------------------------------------------------------------------
 inline
 std::string
@@ -52,46 +50,91 @@ struct ExecConfig
     std::string src_location;
     std::string exec_location;
     std::string output_location;
+    std::string sync_strategy;
 };
 
 //-----------------------------------------------------------------------------
 inline
 std::vector<ExecConfig>
-get_exec_configs()
+get_exec_configs(const bool host_only = false)
 {
-    // In the pre-device execution model world, we don't have the concept of
-    // host vs device execution.
+    /*
+    The device execution model includes the concept of an execution and
+    output location, which determines whether host or device memory gets
+    used for computing and storing a result respectively. This implies
+    that data must sometimes be copied to/from memory spaces so that it
+    is in the correct location at the correct time.
+
+    It does not include the concept of source location, which can be
+    thought of as the memory space in which data originates before
+    execution. We have that concept here to help us determine which
+    memory space the initial data should live in before starting the
+    benchmark.
+
+    For example: a host->device->host configuration implies that the
+    input data lives in host memory to start off, which is its source
+    location. The execution location is device memory but the input
+    data is on the host, so the input must be copied to device memory
+    before we can execute there. The output location is host memory,
+    requiring that we perform a final data transfer.
+
+    Data transfer overhead is non-existent in the host->host->host and
+    device->device->device configurations.
+
+    The sync strategy determines how the result of that final data
+    transfer gets moved from the accessor's working buffer into the
+    destination Node: "sync" copies the data back, preserving the
+    destination's original allocation/location, while "assume" instead
+    hands the working buffer to the destination Node directly, avoiding
+    a copy but potentially leaving the result in a different memory
+    space than requested. The two strategies only behave differently
+    when the execution location differs from the output location
+    (otherwise there is no working buffer to move, and "assume" would be
+    a redundant no-op identical to "sync"), so we only benchmark both
+    strategies for the configurations where they can diverge.
+    */
+
+    // Useful for benchmarks that exercise code which has not yet been
+    // ported to the device execution model. Attempting to run a device
+    // config with them will result in a segfault.
+    if (host_only)
+    {
+        return {{"host", "host", "host", "sync"}};
+    }
+
     std::vector<ExecConfig> configs{
-        //source location, execution location, output location
-        {"host",           "host",             "host"},
+        //source location, execution location, output location, sync strategy
+        {"host",           "host",             "host",          "sync"},
+#if defined(CONDUIT_USE_DEVICE)
+        {"host",           "host",             "device",        "sync"},
+        {"host",           "host",             "device",        "assume"},
+        {"host",           "device",           "host",          "sync"},
+        {"host",           "device",           "host",          "assume"},
+        {"host",           "device",           "device",        "sync"},
+        {"device",         "host",             "host",          "sync"},
+        {"device",         "host",             "device",        "sync"},
+        {"device",         "host",             "device",        "assume"},
+        {"device",         "device",           "host",          "sync"},
+        {"device",         "device",           "host",          "assume"},
+        {"device",         "device",           "device",        "sync"},
+#endif // defined(CONDUIT_USE_DEVICE)
     };
     return configs;
 }
 
 //-----------------------------------------------------------------------------
-template <typename RunFn, typename SizeFn>
+template <typename RunFn>
 void
 exec(const std::string &name,
      const Node &input,
      Node &output,
      RunFn &&run,
-     SizeFn &&size_info,
+     const std::string &sizes,
      const ExecConfig &config,
      const index_t npts,
      const index_t warmup,
      const index_t iterations)
 {
-    // Capture input/output data sizes to include in the scope name below.
-    // This is a function of (name, npts) and never changes between
-    // iterations.
-    std::string sizes;
-    {
-        CONDUIT_ANNOTATE_MARK_SCOPE("size_probe");
-        run(input, output);
-        sizes = size_info(input, output);
-        output.reset();
-    }
-
     // Execute `run` `warmup` times
     {
         // Scope this separately to make it easier to disregard warmup
@@ -104,6 +147,16 @@ exec(const std::string &name,
         }
     }
 
+    std::string backend_name;
+    if (config.exec_location == "host")
+    {
+        backend_name = execution::ExecutionPolicy::host().policy_name();
+    }
+    else // if (config.exec_location == "device")
+    {
+        backend_name = execution::ExecutionPolicy::device().policy_name();
+    }
+
     // Execute `run` `iterations` times
     {
         // This scope name is used to identify specific benchmarks in the
@@ -114,6 +167,8 @@ exec(const std::string &name,
             + "_src-"  + config.src_location
             + "_exec-" + config.exec_location
             + "_out-"  + config.output_location
+            + "_sync-" + config.sync_strategy
+            + "_backend-" + backend_name
 #if defined(CONDUIT_USE_OPENMP)
             + "_threads-" + std::to_string(omp_get_max_threads())
 #endif

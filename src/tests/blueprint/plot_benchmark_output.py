@@ -30,15 +30,24 @@
 # Output:
 #     A directory next to the .cali file, named after it with the extension
 #     stripped (e.g. 20260803_120000.cali -> 20260803_120000/), containing:
-#       - mesh_scaling.png, mesh_scaling_per_element.png
-#       - generate_scaling.png, generate_scaling_per_element.png
-#       - mesh_conversion_heatmap_dim-<N>.png (and _per_element variant)
-#       - generate_heatmap_dim-<N>.png (and _per_element variant)
-#       - generate_growth_heatmap_dim-<N>.png
 #       - thicket_mesh_heatmap.png, thicket_generate_heatmap.png,
 #         thicket_boxplot.png (skipped if seaborn is not installed)
-#       - individual/<figure name>/<panel>.png, one single-panel image per
-#         panel of each multi-panel figure above
+#       - one subdirectory per execution backend found in the file (plus a
+#         "combined" subdirectory when more than one backend is present),
+#         each containing:
+#           - mesh_scaling.png, mesh_scaling_per_element.png
+#           - generate_scaling.png, generate_scaling_per_element.png
+#           - generate_scaling_by_config.png and
+#             generate_scaling_per_element_by_config.png (only when more
+#             than one src/exec/out/sync configuration is present)
+#           - mesh_conversion_heatmap_dim-<N>.png (and _per_element variant)
+#           - generate_heatmap_dim-<N>.png (and _per_element variant)
+#           - generate_growth_heatmap_dim-<N>.png
+#           - the heatmap names above gain a _<src>-<exec>-<out>-<sync>
+#             suffix when both the all-host and all-device configurations
+#             are present
+#           - individual/<figure name>/<panel>.png, one single-panel image
+#             per panel of each multi-panel figure above
 #
 # Requirements:
 #     pip install thicket caliper-reader matplotlib numpy seaborn
@@ -55,7 +64,9 @@ import numpy as np
 import thicket as th
 from caliperreader.readererror import ReaderError
 
-REQUIRED_FIELDS = ("dim", "inverts", "inelems", "outverts", "outelems", "iter")
+REQUIRED_NUMERIC_FIELDS = ("dim", "inverts", "inelems", "outverts", "outelems", "iter")
+LOCATION_FIELDS = ("src", "exec", "out")
+SYNC_STRATEGIES = ("sync", "assume")
 
 
 def parse_scope_name(raw):
@@ -76,11 +87,19 @@ def parse_scope_name(raw):
         key, value = token.split("-", 1)
         fields[key] = value
 
-    if not all(fields.get(key, "").isdigit() for key in REQUIRED_FIELDS):
+    if not all(fields.get(key, "").isdigit() for key in REQUIRED_NUMERIC_FIELDS):
+        return None
+    if any(fields.get(key) not in ("host", "device") for key in LOCATION_FIELDS):
         return None
 
-    parsed = {"name": name}
-    parsed.update((key, int(fields[key])) for key in REQUIRED_FIELDS)
+    if fields.get("sync") not in SYNC_STRATEGIES:
+        return None
+
+    cfg = tuple(fields[key] for key in LOCATION_FIELDS) + (fields["sync"],)
+    parsed = {"name": name, "cfg": cfg, "backend": fields.get("backend")}
+    parsed.update((key, int(fields[key])) for key in REQUIRED_NUMERIC_FIELDS)
+    threads = fields.get("threads")
+    parsed["threads"] = int(threads) if threads is not None and threads.isdigit() else None
     return parsed
 
 
@@ -89,6 +108,62 @@ def split_mesh_convert(name):
     if len(tokens) == 4 and tokens[0] == "mesh" and tokens[2] == "to":
         return tokens[1], tokens[3]
     return None
+
+OPERATIONS = [
+    "generate_centroids",
+    "generate_points",
+    "generate_faces",
+    "generate_lines",
+    "generate_corners",
+    "generate_sides",
+    "to_polytopal",
+]
+MESH_SRC_ORDER = ["structured", "rectilinear", "uniform"]
+SHAPE_ORDER = ["quads", "hexs", "pyramids"]
+
+BASELINE_CFG = ("host", "host", "host", "sync")
+DEVICE_BASELINE_CFG = ("device", "device", "device", "sync")
+
+CFG_ORDER = [
+    ("host", "host", "host", "sync"),
+    ("host", "host", "device", "sync"),
+    ("host", "host", "device", "assume"),
+    ("host", "device", "host", "sync"),
+    ("host", "device", "host", "assume"),
+    ("host", "device", "device", "sync"),
+    ("device", "host", "host", "sync"),
+    ("device", "host", "device", "sync"),
+    ("device", "host", "device", "assume"),
+    ("device", "device", "host", "sync"),
+    ("device", "device", "host", "assume"),
+    ("device", "device", "device", "sync"),
+]
+CFG_ABBREVIATIONS = {"device": "dev"}
+
+COMBINED_LABEL = "combined"
+
+INDIVIDUAL_FIGSIZE = (6.4, 3.6)
+MAX_STACKED_ROWS = 4
+MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
+
+
+def format_cfg_label(cfg):
+    src, exec_, out, sync = cfg
+    path = "→".join(CFG_ABBREVIATIONS.get(part, part) for part in (src, exec_, out))
+    return path if exec_ == out else f"{path} [{sync}]"
+
+
+def ordered(values, preferred_order):
+    values = set(values)
+    return [v for v in preferred_order if v in values] + \
+        sorted(values - set(preferred_order))
+
+
+def split_generate_name(name):
+    for operation in OPERATIONS:
+        if name.startswith(operation + "_"):
+            return operation, name[len(operation) + 1:]
+    return name, ""
 
 OPERATIONS = [
     "generate_centroids",
@@ -229,11 +304,11 @@ def build_line_panels(records, group_series_fn, value_fn):
 def render_series(ax, series, title, y_scale, y_log, series_order=None,
                   show_legend=True):
     labels = ordered(series, series_order) if series_order else sorted(series)
-    for label in labels:
+    for idx, label in enumerate(labels):
         points = sorted(series[label])
         dims = [str(dim) for dim, _ in points]
         ys = [value * y_scale for _, value in points]
-        ax.plot(dims, ys, marker="o", label=label)
+        ax.plot(dims, ys, marker=MARKERS[idx % len(MARKERS)], label=label)
 
     ax.set_title(title.replace("_", " "), fontsize=10)
     ax.tick_params(labelsize=8)
@@ -379,6 +454,8 @@ def plot_heatmaps(lookup, rows, cols, dims, value_fn, out_dir, filename_prefix,
 
 
 def plot_thicket_views(thicket, records, time_column, out_dir):
+    # time_column must be the inclusive (subtree-total) column so these
+    # views agree with every other figure this script produces.
     if not hasattr(th.stats, "display_heatmap"):
         print("seaborn not installed; skipping thicket plots")
         return
@@ -415,6 +492,178 @@ def plot_thicket_views(thicket, records, time_column, out_dir):
         print(f"saved {path}")
 
 
+def render_plot_set(records, out_dir, iters_label):
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    cfgs_seen = {r["cfg"] for r in records}
+    multi_cfg = len(cfgs_seen) > 1
+    if multi_cfg:
+        cfg_list = ", ".join(format_cfg_label(c) for c in ordered(cfgs_seen, CFG_ORDER))
+        print(f"  {len(cfgs_seen)} execution configs: {cfg_list}")
+    else:
+        print(f"  single execution config ({format_cfg_label(next(iter(cfgs_seen)))}); "
+              "config-comparison plots skipped")
+
+    baseline_cfg = BASELINE_CFG if BASELINE_CFG in cfgs_seen \
+        else ordered(cfgs_seen, CFG_ORDER)[0]
+    baseline_records = [r for r in records if r["cfg"] == baseline_cfg]
+    mesh_records = [r for r in records if r["name"].startswith("mesh_")]
+    generate_records = [r for r in records if not r["name"].startswith("mesh_")]
+    baseline_generate_records = [r for r in baseline_records if not r["name"].startswith("mesh_")]
+
+    def generate_group(record):
+        operation, shape = split_generate_name(record["name"])
+        return (operation, shape) if shape else None
+
+    def generate_config_group(record):
+        operation, shape = split_generate_name(record["name"])
+        if not shape:
+            return None
+        return (f"{operation}_{shape}", format_cfg_label(record["cfg"]))
+
+    mesh_time_panels = build_line_panels(
+        mesh_records, lambda r: (r["name"], format_cfg_label(r["cfg"])), lambda r: r["avg_time"]
+    )
+    generate_time_panels = build_line_panels(
+        baseline_generate_records, generate_group, lambda r: r["avg_time"]
+    )
+    if mesh_time_panels:
+        plot_group(
+            mesh_time_panels, out_dir / "mesh_scaling.png",
+            suptitle=f"Mesh conversion benchmark: avg time per iteration ({iters_label})",
+            ylabel="avg time / iteration (ms)", y_scale=1e3,
+            stack_vertical=True, legend_label="config",
+        )
+    if generate_time_panels:
+        baseline_note = f" ({format_cfg_label(baseline_cfg)})" if multi_cfg else ""
+        plot_group(
+            generate_time_panels, out_dir / "generate_scaling.png",
+            suptitle=f"Generate-function benchmark: avg time per iteration{baseline_note} ({iters_label})",
+            ylabel="avg time / iteration (ms)", y_scale=1e3,
+            series_order=SHAPE_ORDER, stack_vertical=True,
+        )
+
+    mesh_per_elem_panels = build_line_panels(
+        mesh_records, lambda r: (r["name"], format_cfg_label(r["cfg"])), per_element_value
+    )
+    generate_per_elem_panels = build_line_panels(
+        baseline_generate_records, generate_group, per_element_value
+    )
+    if mesh_per_elem_panels:
+        plot_group(
+            mesh_per_elem_panels, out_dir / "mesh_scaling_per_element.png",
+            suptitle=f"Mesh conversion benchmark: avg time per element ({iters_label})",
+            ylabel="avg time / element (ns)", y_scale=1e9, y_log=True,
+            stack_vertical=True, legend_label="config",
+        )
+    if generate_per_elem_panels:
+        baseline_note = f" ({format_cfg_label(baseline_cfg)})" if multi_cfg else ""
+        plot_group(
+            generate_per_elem_panels, out_dir / "generate_scaling_per_element.png",
+            suptitle=f"Generate-function benchmark: avg time per element{baseline_note} ({iters_label})",
+            ylabel="avg time / element (ns)", y_scale=1e9, y_log=True,
+            series_order=SHAPE_ORDER, stack_vertical=True,
+        )
+
+    if multi_cfg:
+        generate_config_time_panels = build_line_panels(
+            generate_records, generate_config_group, lambda r: r["avg_time"]
+        )
+        generate_config_per_elem_panels = build_line_panels(
+            generate_records, generate_config_group, per_element_value
+        )
+        cfg_order_labels = [format_cfg_label(c) for c in CFG_ORDER]
+        if generate_config_time_panels:
+            plot_group(
+                generate_config_time_panels, out_dir / "generate_scaling_by_config.png",
+                suptitle=f"Generate-function benchmark: avg time per iteration across execution configs ({iters_label})",
+                ylabel="avg time / iteration (ms)", y_scale=1e3,
+                series_order=cfg_order_labels, stack_vertical=True, legend_label="config",
+            )
+        if generate_config_per_elem_panels:
+            plot_group(
+                generate_config_per_elem_panels, out_dir / "generate_scaling_per_element_by_config.png",
+                suptitle=f"Generate-function benchmark: avg time per element across execution configs ({iters_label})",
+                ylabel="avg time / element (ns)", y_scale=1e9, y_log=True,
+                series_order=cfg_order_labels, stack_vertical=True, legend_label="config",
+            )
+
+    heatmap_cfgs = [c for c in (BASELINE_CFG, DEVICE_BASELINE_CFG) if c in cfgs_seen]
+    if not heatmap_cfgs:
+        heatmap_cfgs = ordered(cfgs_seen, CFG_ORDER)[:1]
+    suffix_heatmaps = len(heatmap_cfgs) > 1
+
+    for cfg in heatmap_cfgs:
+        suffix = "_" + "-".join(cfg) if suffix_heatmaps else ""
+        cfg_note = f" [{format_cfg_label(cfg)}]" if suffix_heatmaps else ""
+        cfg_mesh_records = [r for r in mesh_records if r["cfg"] == cfg]
+        cfg_generate_records = [r for r in generate_records if r["cfg"] == cfg]
+
+        mesh_lookup = {}
+        for r in cfg_mesh_records:
+            convert = split_mesh_convert(r["name"])
+            if convert:
+                mesh_lookup[(convert[0], convert[1], r["dim"])] = r
+        if mesh_lookup:
+            srcs = ordered({k[0] for k in mesh_lookup}, MESH_SRC_ORDER)
+            dsts = sorted({k[1] for k in mesh_lookup})
+            dims = sorted({k[2] for k in mesh_lookup})
+            plot_heatmaps(
+                mesh_lookup, srcs, dsts, dims,
+                value_fn=lambda r: r["avg_time"] * 1e3,
+                out_dir=out_dir, filename_prefix=f"mesh_conversion_heatmap{suffix}",
+                suptitle=f"Mesh conversion avg time per iteration, ms{cfg_note} ({iters_label})",
+                row_label="source representation", col_label="target representation",
+                cbar_label="avg time / iteration (ms)",
+            )
+            plot_heatmaps(
+                mesh_lookup, srcs, dsts, dims,
+                value_fn=lambda r: per_element_value(r) * 1e9 if per_element_value(r) else None,
+                out_dir=out_dir, filename_prefix=f"mesh_conversion_heatmap_per_element{suffix}",
+                suptitle=f"Mesh conversion avg time per element, ns{cfg_note} ({iters_label})",
+                row_label="source representation", col_label="target representation",
+                cbar_label="avg time / element (ns)", cell_fmt=format_ns_cell,
+            )
+
+        shape_lookup = {}
+        for r in cfg_generate_records:
+            operation, shape = split_generate_name(r["name"])
+            if shape:
+                shape_lookup[(operation, shape, r["dim"])] = r
+        if shape_lookup:
+            operations = ordered({k[0] for k in shape_lookup}, OPERATIONS)
+            shapes = ordered({k[1] for k in shape_lookup}, SHAPE_ORDER)
+            dims = sorted({k[2] for k in shape_lookup})
+            plot_heatmaps(
+                shape_lookup, operations, shapes, dims,
+                value_fn=lambda r: r["avg_time"] * 1e3,
+                out_dir=out_dir, filename_prefix=f"generate_heatmap{suffix}",
+                suptitle=f"Generate-function avg time per iteration, ms{cfg_note} ({iters_label})",
+                row_label="operation", col_label="element shape",
+                cbar_label="avg time / iteration (ms)",
+            )
+            plot_heatmaps(
+                shape_lookup, operations, shapes, dims,
+                value_fn=lambda r: per_element_value(r) * 1e9 if per_element_value(r) else None,
+                out_dir=out_dir, filename_prefix=f"generate_heatmap_per_element{suffix}",
+                suptitle=f"Generate-function avg time per element, ns{cfg_note} ({iters_label})",
+                row_label="operation", col_label="element shape",
+                cbar_label="avg time / element (ns)", cell_fmt=format_ns_cell,
+            )
+
+            if cfg == heatmap_cfgs[0]:
+                plot_heatmaps(
+                    shape_lookup, operations, shapes, dims,
+                    value_fn=growth_value,
+                    out_dir=out_dir, filename_prefix="generate_growth_heatmap",
+                    suptitle=f"Generate-function output/input element ratio ({iters_label})",
+                    row_label="operation", col_label="element shape",
+                    cbar_label="output elements / input elements", cell_fmt=format_growth_cell,
+                )
+
+    return baseline_records
+
+
 def main():
     cali_file = Path(sys.argv[1]) if len(sys.argv) > 1 else find_cali_file()
     if not cali_file.exists():
@@ -431,119 +680,35 @@ def main():
 
     iters = sorted({r["iter"] for r in records})
     iters_label = f"n={iters[0]}" if len(iters) == 1 else f"n={iters[0]}-{iters[-1]}"
+    threads_seen = {r["threads"] for r in records if r["threads"] is not None}
+    if threads_seen:
+        threads_label = f"threads={min(threads_seen)}" if len(threads_seen) == 1 \
+            else f"threads={min(threads_seen)}-{max(threads_seen)}"
+        iters_label = f"{iters_label}, {threads_label}"
 
     out_dir = cali_file.with_suffix("")
     out_dir.mkdir(exist_ok=True)
 
-    mesh_records = [r for r in records if r["name"].startswith("mesh_")]
-    generate_records = [r for r in records if not r["name"].startswith("mesh_")]
+    backends = sorted({r["backend"] for r in records if r["backend"]})
+    if len(backends) > 1:
+        groups = [(b, [r for r in records if r["backend"] == b]) for b in backends]
+        groups.append((COMBINED_LABEL, records))
+    elif backends:
+        groups = [(backends[0], records)]
+    else:
+        print("no backend field found; plotting all records together")
+        groups = [(COMBINED_LABEL, records)]
 
-    def generate_group(record):
-        operation, shape = split_generate_name(record["name"])
-        return (operation, shape) if shape else None
+    baseline_records = records
+    for label, group_records in groups:
+        print(f"{label}: {len(group_records)} records")
+        group_baseline = render_plot_set(
+            group_records, out_dir / label, f"{iters_label}, {label}"
+        )
+        if label == COMBINED_LABEL or len(groups) == 1:
+            baseline_records = group_baseline
 
-    mesh_time_panels = build_line_panels(
-        mesh_records, lambda r: (r["name"], MESH_SERIES_LABEL), lambda r: r["avg_time"]
-    )
-    generate_time_panels = build_line_panels(
-        generate_records, generate_group, lambda r: r["avg_time"]
-    )
-    if mesh_time_panels:
-        plot_group(
-            mesh_time_panels, out_dir / "mesh_scaling.png",
-            suptitle=f"Mesh conversion benchmark: avg time per iteration ({iters_label})",
-            ylabel="avg time / iteration (ms)", y_scale=1e3,
-            stack_vertical=True, legend_label=MESH_SERIES_LABEL,
-        )
-    if generate_time_panels:
-        plot_group(
-            generate_time_panels, out_dir / "generate_scaling.png",
-            suptitle=f"Generate-function benchmark: avg time per iteration ({iters_label})",
-            ylabel="avg time / iteration (ms)", y_scale=1e3,
-            series_order=SHAPE_ORDER, stack_vertical=True,
-        )
-
-    mesh_per_elem_panels = build_line_panels(
-        mesh_records, lambda r: (r["name"], MESH_SERIES_LABEL), per_element_value
-    )
-    generate_per_elem_panels = build_line_panels(
-        generate_records, generate_group, per_element_value
-    )
-    if mesh_per_elem_panels:
-        plot_group(
-            mesh_per_elem_panels, out_dir / "mesh_scaling_per_element.png",
-            suptitle=f"Mesh conversion benchmark: avg time per element ({iters_label})",
-            ylabel="avg time / element (ns)", y_scale=1e9, y_log=True,
-            stack_vertical=True, legend_label=MESH_SERIES_LABEL,
-        )
-    if generate_per_elem_panels:
-        plot_group(
-            generate_per_elem_panels, out_dir / "generate_scaling_per_element.png",
-            suptitle=f"Generate-function benchmark: avg time per element ({iters_label})",
-            ylabel="avg time / element (ns)", y_scale=1e9, y_log=True,
-            series_order=SHAPE_ORDER, stack_vertical=True,
-        )
-
-    mesh_lookup = {}
-    for r in mesh_records:
-        convert = split_mesh_convert(r["name"])
-        if convert:
-            mesh_lookup[(convert[0], convert[1], r["dim"])] = r
-    if mesh_lookup:
-        srcs = ordered({k[0] for k in mesh_lookup}, MESH_SRC_ORDER)
-        dsts = sorted({k[1] for k in mesh_lookup})
-        dims = sorted({k[2] for k in mesh_lookup})
-        plot_heatmaps(
-            mesh_lookup, srcs, dsts, dims,
-            value_fn=lambda r: r["avg_time"] * 1e3,
-            out_dir=out_dir, filename_prefix="mesh_conversion_heatmap",
-            suptitle=f"Mesh conversion avg time per iteration, ms ({iters_label})",
-            row_label="source representation", col_label="target representation",
-            cbar_label="avg time / iteration (ms)",
-        )
-        plot_heatmaps(
-            mesh_lookup, srcs, dsts, dims,
-            value_fn=lambda r: per_element_value(r) * 1e9 if per_element_value(r) else None,
-            out_dir=out_dir, filename_prefix="mesh_conversion_heatmap_per_element",
-            suptitle=f"Mesh conversion avg time per element, ns ({iters_label})",
-            row_label="source representation", col_label="target representation",
-            cbar_label="avg time / element (ns)", cell_fmt=format_ns_cell,
-        )
-    shape_lookup = {}
-    for r in generate_records:
-        operation, shape = split_generate_name(r["name"])
-        if shape:
-            shape_lookup[(operation, shape, r["dim"])] = r
-    if shape_lookup:
-        operations = ordered({k[0] for k in shape_lookup}, OPERATIONS)
-        shapes = ordered({k[1] for k in shape_lookup}, SHAPE_ORDER)
-        dims = sorted({k[2] for k in shape_lookup})
-        plot_heatmaps(
-            shape_lookup, operations, shapes, dims,
-            value_fn=lambda r: r["avg_time"] * 1e3,
-            out_dir=out_dir, filename_prefix="generate_heatmap",
-            suptitle=f"Generate-function avg time per iteration, ms ({iters_label})",
-            row_label="operation", col_label="element shape",
-            cbar_label="avg time / iteration (ms)",
-        )
-        plot_heatmaps(
-            shape_lookup, operations, shapes, dims,
-            value_fn=lambda r: per_element_value(r) * 1e9 if per_element_value(r) else None,
-            out_dir=out_dir, filename_prefix="generate_heatmap_per_element",
-            suptitle=f"Generate-function avg time per element, ns ({iters_label})",
-            row_label="operation", col_label="element shape",
-            cbar_label="avg time / element (ns)", cell_fmt=format_ns_cell,
-        )
-        plot_heatmaps(
-            shape_lookup, operations, shapes, dims,
-            value_fn=growth_value,
-            out_dir=out_dir, filename_prefix="generate_growth_heatmap",
-            suptitle=f"Generate-function output/input element ratio ({iters_label})",
-            row_label="operation", col_label="element shape",
-            cbar_label="output elements / input elements", cell_fmt=format_growth_cell,
-        )
-
-    plot_thicket_views(thicket, records, add_inclusive_column(thicket), out_dir)
+    plot_thicket_views(thicket, baseline_records, add_inclusive_column(thicket), out_dir)
 
     print(f"wrote plots to {out_dir}/")
 
