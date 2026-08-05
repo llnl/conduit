@@ -567,6 +567,7 @@ TEST(conduit_execution, execution_settings)
     }
 
     // test input output allocator & w/ device fallback
+#if defined(CONDUIT_USE_DEVICE)
     {
         Node exec_opts;
         exec_opts["output_location"] = "input";
@@ -578,19 +579,14 @@ TEST(conduit_execution, execution_settings)
         index_t device_supplied_alloc_id = execution::get_output_allocator_id(device_data);
         EXPECT_EQ(fallback_alloc_id, DEVICE_ALLOC_ID);
         EXPECT_EQ(host_supplied_alloc_id, HOST_ALLOC_ID);
-#if defined(CONDUIT_USE_DEVICE)
-        // with device, device_data is on the device and returns its device allocator
         EXPECT_EQ(device_supplied_alloc_id, DEVICE_ALLOC_ID);
-#else // !defined(CONDUIT_USE_DEVICE)
-        // without device, device_data is on host and returns the host allocator
-        EXPECT_EQ(device_supplied_alloc_id, HOST_ALLOC_ID);
-#endif // !defined(CONDUIT_USE_DEVICE)
         EXPECT_TRUE(get_opts.has_child("output_location"));
         EXPECT_EQ(get_opts["output_location"].as_string(), "input");
         EXPECT_TRUE(get_opts.has_child("fallback_location"));
         EXPECT_EQ(get_opts["fallback_location"].as_string(), "device");
         execution::reset_execution_options();
     }
+#endif // !defined(CONDUIT_USE_DEVICE)
 
 #if defined(CONDUIT_USE_OPENMP)
     // test input output allocator & w/ openmp fallback

@@ -360,7 +360,9 @@ public:
     // "sync" or "assume"
     static SyncStrategy sync_strategy;
 
-    // fallback execution policy if input-based resolution has no input node
+    // fallback location for when execution_location is "input" or 
+    // output_location is "input" and there is no provided input Node that we
+    // can query.
     static std::string fallback_location;
     
     // allocator ids that are available
@@ -375,11 +377,13 @@ public:
     //                       |"parallel"|"input"
     //     # choose an explicit execution policy, or input (use `use_with` to
     //     # get a policy for the input data).
-    //     # default is "input"
+    //     # default is "input" (if no Node is provided then the 
+    //     # fallback_location is used.)
     //   output_location: "host"|"device"|"input"|##
     //     # choose host alloc, device alloc, input alloc (get the allocator 
     //     # from the input node), or an index_t that is the allocator id to use
-    //     # default is "input"
+    //     # default is "input" (if no Node is provided then the 
+    //     # fallback_location is used.)
     //   sync_strategy: "sync"|"assume"
     //     # choose to sync or assume (if we add a new option here we need to
     //     # update all the use sites).
