@@ -9,9 +9,11 @@
 //-----------------------------------------------------------------------------
 
 #include "conduit_relay_mpi.hpp"
+#include "conduit_relay_mpi_internal.hpp"
 #include <algorithm>
 #include <iostream>
 #include <limits>
+#include <map>
 
 //-----------------------------------------------------------------------------
 /// The CONDUIT_CHECK_MPI_ERROR macro is used to check return values for
@@ -365,14 +367,35 @@ public:
      *
      * @return The tag upper limit.
      *
-     * @note We probe to determine the value since query is not as reliable across MPI distributions.
+     * @note Prefer the standard MPI_TAG_UB query and only fall back to probing
+     *       if the communicator does not report a usable value.
      */
     static int upper_bound(MPI_Comm comm)
     {
-      return probe(comm);
+      const int queried = query(comm);
+      if(queried >= 0)
+      {
+          return queried;
+      }
+
+      const int probed = cached_probe(comm);
+      if(probed >= 0)
+      {
+          return probed;
+      }
+
+      // MPI guarantees support for tags at least this large.
+      return minimum_upper_bound();
     }
 
+    friend int detail::tag_upper_bound_probe(MPI_Comm comm);
+
 private:
+    static int minimum_upper_bound()
+    {
+        return 32767;
+    }
+
     /**
      * @brief Query MPI for the maximum tag value.
      *
@@ -380,24 +403,47 @@ private:
      *
      * @return The tag upper bound or -1 on error.
      *
-     * @note This is how we are supposed to be able to ask for the max tag value.
-     *       However, this method does not seem reliable across MPIs and it is
-     *       possible for the query to return values that still do not work in
-     *       Isend/Irecv sometimes.
+     * @note MPI returns MPI_TAG_UB as a pointer to an integer value.
      */
     static int query(MPI_Comm comm)
     {
-        bool ok = false;
-        int tag_ub = 0, flag = 0;
-        int mpi_error = MPI_Comm_get_attr(comm, MPI_TAG_UB, &tag_ub, &flag);
+        int flag = 0;
+        int *tag_ub_ptr = nullptr;
+        int mpi_error = MPI_Comm_get_attr(comm, MPI_TAG_UB, &tag_ub_ptr, &flag);
         if(mpi_error == MPI_SUCCESS && flag != 0)
         {
-            if(tag_ub > 0)
+            const int tag_ub = (tag_ub_ptr != nullptr) ? *tag_ub_ptr : -1;
+            if(tag_ub >= 0)
             {
-                ok = true;
+                return tag_ub;
             }
         }
-        return ok ? tag_ub : -1;
+        return -1;
+    }
+
+    /**
+     * @brief Cache probed fallback results for communicators that do not
+     *        report a usable MPI_TAG_UB value.
+     *
+     * @note This cache is only used on the probe fallback path so the normal
+     *       query path always reflects the communicator's current MPI_TAG_UB.
+     *       The fallback probe is only for communicators where MPI_TAG_UB is
+     *       unavailable or unusable, and probing performs MPI traffic on the
+     *       communicator while determining the limit.
+     */
+    static int cached_probe(MPI_Comm comm)
+    {
+        static std::map<MPI_Fint, int> probed_upper_bounds;
+        const MPI_Fint comm_id = MPI_Comm_c2f(comm);
+
+        std::map<MPI_Fint, int>::const_iterator it = probed_upper_bounds.find(comm_id);
+        if(it == probed_upper_bounds.end())
+        {
+            it = probed_upper_bounds.insert(std::make_pair(comm_id,
+                                                           probe(comm))).first;
+        }
+
+        return it->second;
     }
 
     /**
@@ -407,14 +453,27 @@ private:
      *
      * @note MPI error handlers are installed that ignore problems, preventing the
      *       program from dying if the default handler is set to abort on error. The
-     *       error handler is restored when leaving this function.
+     *       error handler is restored when leaving this function. This probe is
+     *       only used when MPI_TAG_UB cannot be queried successfully, and it
+     *       performs MPI traffic on the supplied communicator.
      */
     static int probe(MPI_Comm comm)
     {
         // Temporarily override MPI error handler with a more benign one.
         HandleMPICommError err(comm);
-        int tag = probeTagUpperBound(0, std::numeric_limits<int>::max(), comm);
-        return tag;
+        int valid_low = minimum_upper_bound();
+        if(!testTag(valid_low, comm))
+        {
+            return valid_low;
+        }
+
+        const int invalid_high = findInvalidHigh(valid_low, comm);
+        if(invalid_high < 0)
+        {
+            return valid_low;
+        }
+
+        return probeTagUpperBound(valid_low, invalid_high, comm);
     }
 
     /**
@@ -426,60 +485,110 @@ private:
      *
      * @return The max tag value.
      *
-     * @note The rank sends a message to itself using a tag value. The result of that
-     *       is used to narrow the range of tag values.
+     * @note The tag range is searched using a message exchange on the
+     *       communicator so we can narrow the valid range without relying on
+     *       MPI_Waitall completion semantics.
      */
     static int probeTagUpperBound(int low, int high, MPI_Comm comm)
     {
-        int tag;
-        if((high - low) < 2)
+        if(testTag(high, comm))
         {
-            tag = low;
+            return high;
         }
-        else
+
+        int valid_low = low;
+        int invalid_high = high;
+
+        while((invalid_high - valid_low) >= 2)
         {
-            int rank;
-            MPI_Comm_rank(comm, &rank);
-
-            tag = low + (high-low) / 2;
-
-            // Try sending with the current tag.
-            int srcBuff = 0;
-            MPI_Request requests[2];
-            int mpi_error = MPI_Isend(&srcBuff,
-                                      1,
-                                      MPI_INT,
-                                      rank,
-                                      tag,
-                                      comm,
-                                      &requests[0]);
-            if(mpi_error == MPI_SUCCESS)
+            const int tag = valid_low + (invalid_high - valid_low) / 2;
+            if(testTag(tag, comm))
             {
-                // It worked.
-                // Issue the recv.
-                int destBuff = 0;
-                MPI_Irecv(&destBuff,
-                          1,
-                          MPI_INT,
-                          rank,
-                          tag,
-                          comm,
-                          &requests[1]);
-
-                MPI_Status statuses[2];
-                MPI_Waitall(2, requests, statuses);
-                // good search, we are done.
-                return tag;
+                valid_low = tag;
             }
             else
             {
-                // keep looking for a lower tag limit
-                tag = probeTagUpperBound(low, tag, comm);
+                invalid_high = tag;
             }
         }
-        return tag;
+
+        return valid_low;
+    }
+
+    /**
+     * @brief Find an invalid tag above a known-valid lower bound.
+     *
+     * @param valid_low A tag value already known to be valid.
+     * @param comm The MPI communicator.
+     *
+     * @return An invalid tag above @p valid_low, or -1 if none was found.
+     *
+     * @note Grow the search range gradually instead of testing INT_MAX first.
+     *       Some MPI stacks handle wildly invalid tags poorly even with
+     *       non-aborting error handlers installed.
+     */
+    static int findInvalidHigh(int valid_low, MPI_Comm comm)
+    {
+        const int max_search_tag = std::numeric_limits<int>::max() - 1;
+        int candidate = valid_low;
+
+        while(candidate < max_search_tag)
+        {
+            const int next = (candidate <= (max_search_tag - 1) / 2)
+                ? (candidate * 2) + 1
+                : max_search_tag;
+
+            if(next <= candidate)
+            {
+                break;
+            }
+
+            if(!testTag(next, comm))
+            {
+                return next;
+            }
+
+            candidate = next;
+        }
+
+        return -1;
+    }
+
+    /**
+     * @brief Test whether a tag can be used safely on the communicator.
+     *
+     * @note Use a single MPI_Sendrecv to the local rank instead of
+     *       self-posted Isend/Irecv + MPI_Waitall. That avoids a problematic
+     *       completion path on some MPI stacks without introducing any
+     *       cross-rank coordination into safe_tag().
+     */
+    static bool testTag(int tag, MPI_Comm comm)
+    {
+        int rank = 0;
+        MPI_Comm_rank(comm, &rank);
+
+        int send_value = rank;
+        int recv_value = -1;
+        const int mpi_error = MPI_Sendrecv(&send_value,
+                                           1,
+                                           MPI_INT,
+                                           rank,
+                                           tag,
+                                           &recv_value,
+                                           1,
+                                           MPI_INT,
+                                           rank,
+                                           tag,
+                                           comm,
+                                           MPI_STATUS_IGNORE);
+        return mpi_error == MPI_SUCCESS;
     }
 };
+
+int detail::tag_upper_bound_probe(MPI_Comm comm)
+{
+    return TagLimits::probe(comm);
+}
 
 //---------------------------------------------------------------------------//
 /**
@@ -499,9 +608,11 @@ bool invalid_tag(int tag)
 
 //---------------------------------------------------------------------------//
 /**
- @brief Return a tag value that is safe to use with MPI functions. The tag is
-        determined dynamically the first time the function is called. If the
-        input tag is greater than the max tag then the value is clamped.
+ @brief Return an MPI-valid tag in the range [0,MPI_TAG_UB].
+
+ @note This function guarantees MPI validity, not uniqueness. If the input tag
+       exceeds the communicator's upper bound, the wrapped result may alias a
+       different logical tag.
 
  @param tag The input tag.
  @param comm The MPI communicator.
@@ -510,18 +621,14 @@ bool invalid_tag(int tag)
  */
 int safe_tag(int tag, MPI_Comm comm)
 {
-    static constexpr int UPPER_BOUND_NOT_SET = -1;
-    static int tag_upper_bound = UPPER_BOUND_NOT_SET;
-    if(tag_upper_bound == UPPER_BOUND_NOT_SET)
-    {
-        // The first time through, determine the upper bound.
-        tag_upper_bound = TagLimits::upper_bound(comm);
-    }
-
     int newtag = std::max(0, tag);
+    const int tag_upper_bound = TagLimits::upper_bound(comm);
     if(newtag > tag_upper_bound)
     {
-        newtag = tag_upper_bound;
+        if(tag_upper_bound < std::numeric_limits<int>::max())
+        {
+            newtag %= (tag_upper_bound + 1);
+        }
     }
 
     return newtag;
@@ -570,11 +677,12 @@ send_using_schema(const Node &node, int dest, int tag, MPI_Comm comm)
                      "(" << std::numeric_limits<int>::max() << ")")
     }
 
+    const int newtag = safe_tag(tag, comm);
     int mpi_error = MPI_Send(const_cast<void*>(n_msg.data_ptr()),
                              static_cast<int>(msg_data_size),
                              MPI_BYTE,
                              dest,
-                             tag,
+                             newtag,
                              comm);
 
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
@@ -589,7 +697,8 @@ recv_using_schema(Node &node, int src, int tag, MPI_Comm comm)
 {
     MPI_Status status;
 
-    int mpi_error = MPI_Probe(src, tag, comm, &status);
+    const int newtag = safe_tag(tag, comm);
+    int mpi_error = MPI_Probe(src, newtag, comm, &status);
 
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
 
@@ -707,11 +816,12 @@ send(const Node &node, int dest, int tag, MPI_Comm comm)
                      "(" << std::numeric_limits<int>::max() << ")")
     }
 
+    const int newtag = safe_tag(tag, comm);
     int mpi_error = MPI_Send(const_cast<void*>(snd_ptr),
                              static_cast<int>(snd_size),
                              MPI_BYTE,
                              dest,
-                             tag,
+                             newtag,
                              comm);
 
     CONDUIT_CHECK_MPI_ERROR(mpi_error);
@@ -751,11 +861,12 @@ recv(Node &node, int src, int tag, MPI_Comm comm)
     }
 
 
+    const int newtag = safe_tag(tag, comm);
     int mpi_error = MPI_Recv(const_cast<void*>(rcv_ptr),
                              static_cast<int>(rcv_size),
                              MPI_BYTE,
                              src,
-                             tag,
+                             newtag,
                              comm,
                              &status);
 
@@ -2378,5 +2489,3 @@ about(Node &n)
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-
-
