@@ -622,7 +622,16 @@ DataAccessor<T>::assume()
         // reset will deallocate the data the node points to
         m_node_ptr->reset();
         m_node_ptr->schema_ptr()->set(dtype());
-        m_node_ptr->set_data_ptr(m_data);
+
+        // Allow m_node_ptr to take ownership of m_data so that future
+        // release()/reset() calls will free it, lest we leak memory.
+        const index_t owning_allocator_id =
+            execution::DeviceMemory::is_device_ptr(m_data)
+                ? execution::get_device_allocator_id()
+                : execution::get_host_allocator_id();
+        m_node_ptr->assume_data_ptr(m_data,
+                                    dtype().element_bytes() * number_of_elements(),
+                                    owning_allocator_id);
 
         // the assumed data is now the accessor's new original backing storage
         m_orig_data_ptr = m_data;

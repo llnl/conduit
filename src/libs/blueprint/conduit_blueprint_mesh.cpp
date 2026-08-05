@@ -84,40 +84,35 @@ typedef std::vector<conduit::index_t> (*CalcDimDecomposedFun)(const bputils::Sha
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
+// Converts 3D grid coordinates (i, j, k) into a flat, linear index
+// into a structured grid.
+CONDUIT_EXEC
 void grid_ijk_to_id(const index_t *ijk,
                     const index_t *dims,
                     index_t &grid_id)
 {
-    grid_id = 0;
-    for(index_t d = 0; d < 3; d++)
-    {
-        index_t doffset = ijk[d];
-        for(index_t dd = 0; dd < d; dd++)
-        {
-            doffset *= dims[dd];
-        }
-
-        grid_id += doffset;
-    }
+    // This is the general N-dimensional stride formula, specialized for 3-D
+    grid_id = ijk[0] + dims[0] * (ijk[1] + dims[1] * ijk[2]);
 }
 
 //-----------------------------------------------------------------------------
+// Converts a flat, linear grid index back into 3D grid coordinates
+// (i, j, k). This is the exact inverse of grid_ijk_to_id, above.
+CONDUIT_EXEC
 void grid_id_to_ijk(const index_t id,
                     const index_t *dims,
                     index_t *grid_ijk)
 {
-    index_t dremain = id;
-    for(index_t d = 3; d-- > 0;)
-    {
-        index_t dstride = 1;
-        for(index_t dd = 0; dd < d; dd++)
-        {
-            dstride *= dims[dd];
-        }
+    // This is the inverse of grid_ijk_to_id, using the same stride formula
+    const index_t dim01 = dims[0] * dims[1];
+    grid_ijk[2] = id / dim01;
 
-        grid_ijk[d] = dremain / dstride;
-        dremain = dremain % dstride;
-    }
+    // We can avoid computing id % dim01 by reusing the quotient from the division above
+    const index_t rem = id - grid_ijk[2] * dim01;
+    grid_ijk[1] = rem / dims[0];
+
+    // Same trick as above: reuse the quotient instead of computing rem % dims[0]
+    grid_ijk[0] = rem - grid_ijk[1] * dims[0];
 }
 
 //-----------------------------------------------------------------------------
@@ -1190,125 +1185,199 @@ convert_topology_to_unstructured(const std::string &base_type,
                                  conduit::Node &cdest)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    bool is_base_structured = base_type == "structured";
-    bool is_base_rectilinear = base_type == "rectilinear";
-    bool is_base_uniform = base_type == "uniform";
+    const bool is_base_structured  = base_type == "structured";
+    const bool is_base_rectilinear = base_type == "rectilinear";
+    const bool is_base_uniform     = base_type == "uniform";
 
     dest.reset();
     cdest.reset();
 
     const Node *coordset = bputils::find_reference_node(topo, "coordset");
-    if(is_base_structured)
+    const std::vector<std::string> csys_axes = bputils::coordset::axes(*coordset);
+
+    const bool base_has_coordset_values = is_base_structured || is_base_rectilinear;
+
+    // Both the policy and allocator ID are derived from the same source
+    // node when one is available, so only fetch it once.
+    const Node *first_axis_values = base_has_coordset_values ?
+        &(*coordset)["values"][csys_axes[0]] : nullptr;
+
+    conduit::execution::ExecutionPolicy policy = first_axis_values ?
+        conduit::execution::get_execution_policy(*first_axis_values) :
+        conduit::execution::get_execution_policy();
+
+    const index_t allocator_id = first_axis_values ?
+        conduit::execution::get_output_allocator_id(*first_axis_values) :
+        conduit::execution::get_output_allocator_id();
+
+    const conduit::execution::SyncStrategy sync_strategy = conduit::execution::get_sync_strategy();
+
+    if (is_base_structured)
     {
-        cdest.set(*coordset);
+        cdest["type"].set((*coordset)["type"]);
+        // Setting the allocator on the parent "values" node is
+        // sufficient here because calling Node::set() copies each
+        // child using the destination's allocator.
+        cdest["values"].set_allocator(allocator_id);
+        cdest["values"].set((*coordset)["values"]);
     }
-    else if(is_base_rectilinear)
+    else if (is_base_rectilinear)
     {
         blueprint::mesh::coordset::rectilinear::to_explicit(*coordset, cdest);
     }
-    else if(is_base_uniform)
+    else if (is_base_uniform)
     {
         blueprint::mesh::coordset::uniform::to_explicit(*coordset, cdest);
     }
 
     dest["type"].set("unstructured");
     dest["coordset"].set(cdest.name());
-    if(topo.has_child("origin"))
+    if (topo.has_child("origin"))
     {
         dest["origin"].set(topo["origin"]);
     }
 
     // TODO(JRC): In this case, should we reach back into the coordset
     // and use its types to inform those of the topology?
-    DataType int_dtype = bputils::find_widest_dtype(topo, bputils::DEFAULT_INT_DTYPES);
+    const DataType int_dtype = bputils::find_widest_dtype(topo, bputils::DEFAULT_INT_DTYPES);
 
-    const std::vector<std::string> csys_axes = bputils::coordset::axes(*coordset);
+    const index_t num_axes = static_cast<index_t>(csys_axes.size());
     dest["elements/shape"].set(
-        (csys_axes.size() == 1) ? "line" : (
-        (csys_axes.size() == 2) ? "quad" : (
-        (csys_axes.size() == 3) ? "hex"  : "")));
+        (num_axes == 1) ? "line" : (
+        (num_axes == 2) ? "quad" : (
+        (num_axes == 3) ? "hex"  : "")));
+
     const std::vector<std::string> &logical_axes = bputils::LOGICAL_AXES;
 
     index_t edims_axes[3] = {1, 1, 1};
-    if(is_base_structured)
+    if (is_base_structured)
     {
         const conduit::Node &dim_node = topo["elements/dims"];
-        for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
+        for (index_t i = 0; i < num_axes; i++)
         {
             edims_axes[i] = dim_node[logical_axes[i]].to_int();
         }
     }
-    else if(is_base_rectilinear)
+    else if (is_base_rectilinear)
     {
         const conduit::Node &dim_node = (*coordset)["values"];
-        for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
+        for (index_t i = 0; i < num_axes; i++)
         {
             edims_axes[i] =
                 dim_node[csys_axes[i]].dtype().number_of_elements() - 1;
         }
     }
-    else if(is_base_uniform)
+    else if (is_base_uniform)
     {
         const conduit::Node &dim_node = (*coordset)["dims"];
-        for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
+        for (index_t i = 0; i < num_axes; i++)
         {
             edims_axes[i] = dim_node[logical_axes[i]].to_int() - 1;
         }
     }
 
-    index_t vdims_axes[3] = {1, 1, 1}, num_elems = 1;
-    for(index_t d = 0; d < 3; d++)
+    index_t vdims_axes[3] = {1, 1, 1};
+    index_t num_elems = 1;
+    for (index_t dim = 0; dim < 3; dim++)
     {
-        num_elems *= edims_axes[d];
-        vdims_axes[d] = edims_axes[d] + 1;
+        num_elems *= edims_axes[dim];
+        vdims_axes[dim] = edims_axes[dim] + 1;
     }
-    index_t indices_per_elem = (index_t) pow(2, csys_axes.size());
 
-    CONDUIT_ANNOTATE_MARK_BEGIN("to_unstructured_index_gen");
+    // indices_per_elem is 2^num_axes (2 for a line, 4 for a quad, 8 for a hex).
+    const index_t indices_per_elem = index_t(1) << num_axes;
+
+    CONDUIT_ANNOTATE_MARK_BEGIN("to_unstructured_connectivity_gen");
     conduit::Node &conn_node = dest["elements/connectivity"];
+    conn_node.set_allocator(allocator_id);
     conn_node.set(DataType(int_dtype.id(), num_elems * indices_per_elem));
 
-    int64_accessor conn_node_vals = conn_node.value();
-    Node src_idx_node, dst_idx_node;
-    index_t curr_elem[3], curr_vert[3];
-    index_t idx=0;
-    for(index_t e = 0; e < num_elems; e++)
+    int64_accessor conn_node_vals(conn_node);
+    conn_node_vals.use_with(policy);
+
+    // This parallel loop builds the connectivity array
+    conduit::execution::forall(policy, 0, num_elems, [=] CONDUIT_EXEC(index_t e)
     {
+        index_t curr_elem[3];
+        index_t curr_vert[3];
+
+        // Convert the grid ID to IJK coordinates for the current element
         grid_id_to_ijk(e, &edims_axes[0], &curr_elem[0]);
 
-        // NOTE(JRC): In order to get all adjacent vertices for the
-        // element, we use the bitwise interpretation of each index
-        // per element to inform the direction (e.g. 5, which is
-        // 101 bitwise, means (z+1, y+0, x+1)).
-        for(index_t i = 0, v = 0; i < indices_per_elem; i++)
+        // In order to build the connectivity array from a list of
+        // elements, we loop over each element's vertices and use the bitwise
+        // interpretation of each index (per vertex) to inform the connectivity
+        // direction. For example, if i = 5, the binary representation for 5
+        // would be 0b101. Each bit in 0b101 tells you whether the vertex is
+        // offset along a particular direction, in this case 0b101 would be
+        // interpreted as: (z: +1, y: +0, x: +1)).
+        for (index_t i = 0; i < indices_per_elem; i++)
         {
-            memcpy(&curr_vert[0], &curr_elem[0], 3 * sizeof(index_t));
-            for(index_t d = 0; d < (index_t)csys_axes.size(); d++)
+            curr_vert[0] = curr_elem[0];
+            curr_vert[1] = curr_elem[1];
+            curr_vert[2] = curr_elem[2];
+
+            // This inner loop visits each element's corner vertices in
+            // "binary counting" order as explained above. For a quad face,
+            // that means that the corners are visited in the order:
+            // i = 0,     i = 1,     i = 2,     i = 3
+            // 0b000,     0b001,     0b010,     0b011
+            // (0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0)
+            //
+            // However, the connectivity array expects that the corners
+            // will be visited in counter-clockwise order, which
+            // requires that we swap the order in which we visit the
+            // 2nd and 3rd indices:
+            //
+            //                         <- swapped ->
+            // i = 0,     i = 1,     i = 3,     i = 2
+            // 0b000,     0b001,     0b011,     0b010
+            // (0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)
+            //
+            // This swap applies to the faces of a hexahedron
+            // also.
+            for (index_t dim = 0; dim < num_axes; dim++)
             {
-                curr_vert[d] += (i & (index_t)pow(2, d)) >> d;
+                curr_vert[dim] += (i & (index_t(1) << dim)) >> dim;
             }
+
+            // Convert the IJK coordinates to a grid ID for the current vertex
+            index_t v;
             grid_ijk_to_id(&curr_vert[0], &vdims_axes[0], v);
 
-            conn_node_vals.set(idx,v);
-            idx++;
+            // TODO(JRC): Once the ordering transforms are introduced,
+            // this remapping should be removed and replaced with
+            // initializing the ordering label value.
+
+            // Continuing from the above comment, the vertices that need to be
+            // swapped are always the ones with their y-axis bit set,
+            // i.e. i == 2 (0b010), i == 3 (0b011), i == 6 (0b110), and i == 7 (0b111).
+
+            // Swapping the order of these vertices can be done by flipping
+            // the x-axis bit (bit 0) of i whenever the y-axis bit (bit 1) is set.
+
+            // If the y-axis bit (bit 1) is not set, then i is already correct
+            index_t out_i = i;
+
+            // Check if the y-axis bit (bit 1) is set to 1
+            if (i & 0x2)
+            {
+                // XOR with 0x1 to flip the x-axis bit (bit 0)
+                out_i ^= 0x1;
+            }
+
+            // The purpose of the above is so that we can directly write the vertex
+            // IDs into the connectivity array in counter-clockwise order. Previously,
+            // we would write the IDs in the wrong order first and then have to
+            // swap the IDs around to fix ordering afterwards. It's less work to
+            // simply put the IDs into their correct positions in the first place.
+            conn_node_vals.set(e * indices_per_elem + out_i, v);
         }
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    conn_node_vals.data_movement(sync_strategy);
 
-        // TODO(JRC): This loop inverts quads/hexes to conform to
-        // the default Blueprint ordering. Once the ordering transforms
-        // are introduced, this code should be removed and replaced
-        // with initializing the ordering label value.
-        for(index_t p = 2; p < indices_per_elem; p += 4)
-        {
-            index_t p1 = e * indices_per_elem + p;
-            index_t p2 = e * indices_per_elem + p + 1;
-
-            int64 value_swap = conn_node_vals[p1];
-            conn_node_vals.set(p1,conn_node_vals[p2]);
-            conn_node_vals.set(p2,value_swap);
-        }
-    }
-
-    CONDUIT_ANNOTATE_MARK_END("to_unstructured_index_gen");
+    CONDUIT_ANNOTATE_MARK_END("to_unstructured_connectivity_gen");
 }
 
 //-------------------------------------------------------------------------
