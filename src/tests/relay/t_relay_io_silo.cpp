@@ -1349,7 +1349,7 @@ TEST(conduit_relay_io_silo, mixed_var_special_case)
         // make changes to part_mesh so the diff will pass
         for (index_t child = 0; child < part_mesh.number_of_children(); child ++)
         {
-            if (matset_style == "sparse_by_element" && (0 == child || 2 == child))
+            if ("sparse_by_element" == matset_style && (0 == child || 2 == child))
             {
                 // get the matset for this domain
                 Node &n_matset = part_mesh[child]["matsets"]["matset"];
@@ -1361,7 +1361,7 @@ TEST(conduit_relay_io_silo, mixed_var_special_case)
 
             // TODO remove when https://github.com/llnl/conduit/issues/1600
             // is addressed
-            if (matset_style == "sparse_by_material")
+            if ("sparse_by_material" == matset_style)
             {
                 // get the matset for this domain
                 Node &n_matset = part_mesh[child]["matsets"]["matset"];
@@ -1370,26 +1370,26 @@ TEST(conduit_relay_io_silo, mixed_var_special_case)
                 conduit::blueprint::mesh::matset::create_or_reuse_material_map(n_matset, material_map);
                 n_matset["material_map"].set(material_map);
 
-                if (child == 0)
+                if (1 == child)
                 {
                     n_matset["volume_fractions"].remove_child("circle_a");
                     n_matset["volume_fractions"].remove_child("circle_b");
                     n_matset["element_ids"].remove_child("circle_a");
                     n_matset["element_ids"].remove_child("circle_b");
                 }
-                else if (child == 1)
+                else if (1 == child)
                 {
                     n_matset["volume_fractions"].remove_child("circle_b");
                     n_matset["element_ids"].remove_child("circle_b");
                 }
-                else if (child == 2)
+                else if (2 == child)
                 {
                     n_matset["volume_fractions"].remove_child("circle_a");
                     n_matset["volume_fractions"].remove_child("circle_b");
                     n_matset["element_ids"].remove_child("circle_a");
                     n_matset["element_ids"].remove_child("circle_b");
                 }
-                else // if (child == 3)
+                else // if (3 == child)
                 {
                     // nothing to do for child == 3
                 }
@@ -1414,7 +1414,7 @@ TEST(conduit_relay_io_silo, mixed_var_special_case)
 
             // we can only do these checks in the SBE case
             // the other cases will need to rely on the diff
-            if (matset_style == "sparse_by_element")
+            if ("sparse_by_element" == matset_style)
             {
                 // check that mset vals are field vals copied for the clean domains
                 const Node &imp_mset_vals = l_curr["fields"]["mesh_importance"]["matset_values"];
