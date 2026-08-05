@@ -2152,13 +2152,13 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case_errors)
     MPI_Barrier(comm);
     EXPECT_THROW(relay::mpi::io::silo::honor_material_dependent_fields(0, 4, test_mesh, comm), conduit::Error);
     // remove extra matset
-    if (par_rank == 0)
+    if (0 == par_rank)
     {
         test_mesh.child(1)["matsets"].remove_child("matset2");
     }
 
     // test mixed matset error
-    if (par_rank == 0)
+    if (0 == par_rank)
     {
         // domain 2
         test_mesh.child(1)["matsets"]["matset"].set(test_mesh.child(1)["matsets"]["matset"]);
