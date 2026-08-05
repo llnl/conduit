@@ -333,6 +333,104 @@ void test_polytopal_create_fine_domain_2d(Node& domain)
     group["windows/window_000000/ratio/j"] = 2;
 }
 
+void test_polytopal_create_fine_domain_2d_rotated(Node& domain)
+{
+    domain["state/domain_id"] = 1;
+    domain["state/level_id"] = 1;
+
+    std::vector<double> xcoords;
+    std::vector<double> ycoords;
+    // Domain 1 is rotated so +j moves in +x and +i moves in -y.
+    for (int j = 0; j < 9; ++j)
+    {
+        const double xval = 1.0 + 0.125 * j;
+        for (int i = 0; i < 9; ++i)
+        {
+            xcoords.push_back(xval);
+            ycoords.push_back(1.0 - 0.125 * i);
+        }
+    }
+
+    Node& coords = domain["coordsets/coords"];
+    coords["type"] = "explicit";
+    coords["values/x"].set(xcoords);
+    coords["values/y"].set(ycoords);
+
+    Node& topo = domain["topologies/topo"];
+    topo["coordset"] = "coords";
+    topo["type"] = "structured";
+
+    topo["elements/origin/i0"] = 8;
+    topo["elements/origin/j0"] = 0;
+    topo["elements/dims/i"] = 8;
+    topo["elements/dims/j"] = 8;
+
+    Node& elt_field = domain["fields/elt_field"];
+    elt_field["association"] = "element";
+    elt_field["topology"] = "topo";
+
+    std::vector<double> vals(64, 1.5);
+    elt_field["values"].set(vals);
+
+    Node& xpos = domain["fields/xpos"];
+    xpos["association"] = "vertex";
+    xpos["topology"] = "topo";
+    xpos["values"].set(xcoords);
+
+    Node& ypos = domain["fields/ypos"];
+    ypos["association"] = "vertex";
+    ypos["topology"] = "topo";
+    ypos["values"].set(ycoords);
+
+    Node& adjset = domain["adjsets/adjset"];
+    adjset["association"] =  "vertex";
+    adjset["topology"] =  "topo";
+
+    Node& group = adjset["groups/group_000000"];
+    std::vector<int> nbrs(2);
+    nbrs[0] = 1;
+    nbrs[1] = 0;
+    group["neighbors"].set(nbrs);
+    group["rank"] = 0;
+
+    std::vector<int> orientation(2);
+    orientation[0] = 2;
+    orientation[1] = -1;
+    group["orientation"].set(orientation);
+
+    group["windows/window_000001/level_id"] = 1;
+    group["windows/window_000001/origin/i"] = 8;
+    group["windows/window_000001/origin/j"] = 0;
+    group["windows/window_000001/dims/i"] = 9;
+    group["windows/window_000001/dims/j"] = 1;
+    group["windows/window_000001/ratio/i"] = 2;
+    group["windows/window_000001/ratio/j"] = 2;
+    group["windows/window_000000/level_id"] = 0;
+    group["windows/window_000000/origin/i"] = 4;
+    group["windows/window_000000/origin/j"] = 0;
+    group["windows/window_000000/dims/i"] = 1;
+    group["windows/window_000000/dims/j"] = 5;
+    group["windows/window_000000/ratio/i"] = 2;
+    group["windows/window_000000/ratio/j"] = 2;
+}
+
+void test_polytopal_rotate_domain_1_orientation_2d(Node& domain)
+{
+    Node& group = domain["adjsets/adjset/groups/group_000001"];
+
+    std::vector<int> orientation(2);
+    orientation[0] = -2;
+    orientation[1] = 1;
+    group["orientation"].set(orientation);
+
+    group["windows/window_000001/origin/i"] = 8;
+    group["windows/window_000001/origin/j"] = 0;
+    group["windows/window_000001/dims/i"] = 9;
+    group["windows/window_000001/dims/j"] = 1;
+    group["windows/window_000001/ratio/i"] = 2;
+    group["windows/window_000001/ratio/j"] = 2;
+}
+
 void test_polytopal_create_fine_domain_3d(Node& domain)
 {
     domain["state/domain_id"] = 1;
@@ -451,36 +549,53 @@ check_if_hdf5_enabled()
 }
 
 
-void test_verify_topologies_2d(Node& struct_topo, Node& poly_topo)
+void test_verify_topologies_2d(Node& mesh, Node& poly)
 {
+    Node& poly_topo = poly["topologies/topo"];
+
     Node info;
     EXPECT_TRUE(conduit::blueprint::mesh::topology::unstructured::verify(
         poly_topo,info));
     EXPECT_EQ(poly_topo["elements/shape"].as_string(), "polygonal");
 
-    int num_elems_structured =
-        struct_topo["elements/dims/i"].as_int() *
-        struct_topo["elements/dims/j"].as_int();
-    int num_sizes = poly_topo["elements/sizes"].dtype().number_of_elements();       
-    int num_offsets = poly_topo["elements/offsets"].dtype().number_of_elements();
+    index_t num_elems_structured = 0;
+    std::vector<Node *> domains = conduit::blueprint::mesh::domains(mesh);
+    for(Node *domain : domains)
+    {
+        Node& struct_topo = (*domain)["topologies/topo"];
+        num_elems_structured +=
+            struct_topo["elements/dims/i"].as_int() *
+            struct_topo["elements/dims/j"].as_int();
+    }
+
+    index_t num_sizes = poly_topo["elements/sizes"].dtype().number_of_elements();
+    index_t num_offsets = poly_topo["elements/offsets"].dtype().number_of_elements();
     EXPECT_EQ(num_elems_structured, num_sizes);
     EXPECT_EQ(num_elems_structured, num_offsets);
 }
 
-void test_verify_topologies_3d(Node& struct_topo, Node& poly_topo)
+void test_verify_topologies_3d(Node& mesh, Node& poly)
 {
+    Node& poly_topo = poly["topologies/topo"];
+
     Node info;
     EXPECT_TRUE(conduit::blueprint::mesh::topology::unstructured::verify(
         poly_topo,info));
     EXPECT_EQ(poly_topo["elements/shape"].as_string(), "polyhedral");
 
-    int num_elems_structured =
-        struct_topo["elements/dims/i"].as_int() *
-        struct_topo["elements/dims/j"].as_int() *
-        struct_topo["elements/dims/k"].as_int();
+    index_t num_elems_structured = 0;
+    std::vector<Node *> domains = conduit::blueprint::mesh::domains(mesh);
+    for(Node *domain : domains)
+    {
+        Node& struct_topo = (*domain)["topologies/topo"];
+        num_elems_structured +=
+            struct_topo["elements/dims/i"].as_int() *
+            struct_topo["elements/dims/j"].as_int() *
+            struct_topo["elements/dims/k"].as_int();
+    }
 
-    int num_sizes = poly_topo["elements/sizes"].dtype().number_of_elements();       
-    int num_offsets = poly_topo["elements/offsets"].dtype().number_of_elements();
+    index_t num_sizes = poly_topo["elements/sizes"].dtype().number_of_elements();
+    index_t num_offsets = poly_topo["elements/offsets"].dtype().number_of_elements();
     EXPECT_EQ(num_elems_structured, num_sizes);
     EXPECT_EQ(num_elems_structured, num_offsets);
 }
@@ -523,7 +638,7 @@ TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_serial)
 
     EXPECT_TRUE( conduit::blueprint::mpi::verify("mesh",mesh,info, MPI_COMM_WORLD));
 
-    std::string output_base = "tout_to_to_polygonal_amr_2d_transform_serial_";
+    std::string output_base = "tout_to_to_polytopal_amr_2d_transform_serial_";
 
     conduit::relay::mpi::io::blueprint::save_mesh(mesh,
                                                   output_base + "input",
@@ -532,9 +647,9 @@ TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_serial)
 
 
     Node poly;
-    conduit::blueprint::mpi::mesh::to_polygonal(mesh, poly, "topo", MPI_COMM_WORLD);
+    conduit::blueprint::mpi::mesh::to_polytopal(mesh, poly, "topo", MPI_COMM_WORLD);
 
-    EXPECT_TRUE( conduit::blueprint::mpi::verify("mesh",poly,info, MPI_COMM_WORLD));
+    EXPECT_TRUE(conduit::blueprint::mpi::verify("mesh",poly,info, MPI_COMM_WORLD));
 
     conduit::relay::mpi::io::blueprint::save_mesh(poly,
                                                   output_base + "result",
@@ -543,18 +658,62 @@ TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_serial)
 
     if (par_rank == 0)
     {
-        Node& mesh_topo = mesh["domain_000000/topologies/topo"];
-        Node& poly_topo = poly["domain_000000/topologies/topo"];
-        test_verify_topologies_2d(mesh_topo, poly_topo);
+        test_verify_topologies_2d(mesh, poly);
+        test_verify_fields_2d(poly);
+    }
+}
 
-        mesh_topo = mesh["domain_000001/topologies/topo"];
-        poly_topo = poly["domain_000001/topologies/topo"];
-        test_verify_topologies_2d(mesh_topo, poly_topo);
+//-----------------------------------------------------------------------------
+// This test rotates the axes of Domain 1 by 90 degrees to test
+// multi-block axis rotation
+//
+TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_serial_rotated_domain_1)
+{
+    int par_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &par_rank);
 
-        Node& domain_0 = poly["domain_000000"];
-        Node& domain_1 = poly["domain_000001"];
-        test_verify_fields_2d(domain_0);
-        test_verify_fields_2d(domain_1);
+    std::string protocol = "yaml";
+
+    if(check_if_hdf5_enabled())
+    {
+        protocol = "hdf5";
+    }
+
+    Node mesh, info;
+
+    if (par_rank == 0)
+    {
+        Node& domain_0 = mesh["domain_000000"];
+        Node& domain_1 = mesh["domain_000001"];
+        test_polytopal_create_coarse_domain_2d(domain_0);
+        test_polytopal_rotate_domain_1_orientation_2d(domain_0);
+        test_polytopal_create_fine_domain_2d_rotated(domain_1);
+    }
+
+    EXPECT_TRUE(conduit::blueprint::mpi::verify("mesh",mesh,info, MPI_COMM_WORLD));
+
+    std::string output_base =
+        "tout_to_to_polytopal_amr_2d_transform_serial_rotated_domain_1_";
+
+    conduit::relay::mpi::io::blueprint::save_mesh(mesh,
+                                                  output_base + "input",
+                                                  protocol,
+                                                  MPI_COMM_WORLD);
+
+    Node poly;
+    conduit::blueprint::mpi::mesh::to_polytopal(mesh, poly, "topo", MPI_COMM_WORLD);
+
+    EXPECT_TRUE(conduit::blueprint::mpi::verify("mesh",poly,info, MPI_COMM_WORLD));
+
+    conduit::relay::mpi::io::blueprint::save_mesh(poly,
+                                                  output_base + "result",
+                                                  protocol,
+                                                  MPI_COMM_WORLD);
+
+    if (par_rank == 0)
+    {
+        test_verify_topologies_2d(mesh, poly);
+        test_verify_fields_2d(poly);
     }
 }
 
@@ -584,7 +743,7 @@ TEST(conduit_blueprint_mesh_polytopal, amr_3d_transform_serial)
 
     EXPECT_TRUE( conduit::blueprint::mpi::verify("mesh",mesh,info, MPI_COMM_WORLD));
 
-    std::string output_base = "tout_to_to_polyhedral_amr_3d_transform_serial_";
+    std::string output_base = "tout_to_to_polytopal_amr_3d_transform_serial_";
 
     conduit::relay::mpi::io::blueprint::save_mesh(mesh,
                                                   output_base + "input",
@@ -593,7 +752,7 @@ TEST(conduit_blueprint_mesh_polytopal, amr_3d_transform_serial)
 
 
     Node poly;
-    conduit::blueprint::mpi::mesh::to_polyhedral(mesh, poly, "topo", MPI_COMM_WORLD);
+    conduit::blueprint::mpi::mesh::to_polytopal(mesh, poly, "topo", MPI_COMM_WORLD);
 
     EXPECT_TRUE( conduit::blueprint::mpi::verify("mesh",poly,info, MPI_COMM_WORLD));
 
@@ -604,13 +763,7 @@ TEST(conduit_blueprint_mesh_polytopal, amr_3d_transform_serial)
 
     if (par_rank == 0)
     {
-        Node& mesh_topo = mesh["domain_000000/topologies/topo"];
-        Node& poly_topo = poly["domain_000000/topologies/topo"];
-        test_verify_topologies_3d(mesh_topo, poly_topo);
-
-        mesh_topo = mesh["domain_000001/topologies/topo"];
-        poly_topo = poly["domain_000001/topologies/topo"];
-        test_verify_topologies_3d(mesh_topo, poly_topo);
+        test_verify_topologies_3d(mesh, poly);
     }
 }
 
@@ -648,7 +801,7 @@ TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_parallel)
 
     EXPECT_TRUE( conduit::blueprint::mpi::verify("mesh",mesh,info, MPI_COMM_WORLD));
 
-    std::string output_base = "tout_to_to_polygonal_amr_2d_transform_parallel_";
+    std::string output_base = "tout_to_to_polytopal_amr_2d_transform_parallel_";
 
     conduit::relay::mpi::io::blueprint::save_mesh(mesh,
                                                   output_base + "input",
@@ -657,7 +810,7 @@ TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_parallel)
 
     Node poly;
 
-    conduit::blueprint::mpi::mesh::to_polygonal(mesh, poly, "topo", MPI_COMM_WORLD);
+    conduit::blueprint::mpi::mesh::to_polytopal(mesh, poly, "topo", MPI_COMM_WORLD);
 
     EXPECT_TRUE( conduit::blueprint::mpi::verify("mesh",poly,info, MPI_COMM_WORLD));
 
@@ -668,21 +821,82 @@ TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_parallel)
 
     if (par_rank == 0)
     {
-        Node& mesh_topo = mesh["domain_000000/topologies/topo"];
-        Node& poly_topo = poly["domain_000000/topologies/topo"];
-        test_verify_topologies_2d(mesh_topo, poly_topo);
+        test_verify_topologies_2d(mesh, poly);
 
-        Node& domain_0 = poly["domain_000000"];
-        test_verify_fields_2d(domain_0);
+        test_verify_fields_2d(poly);
     }
     else if (par_rank == 1)
     {
-        Node& mesh_topo = mesh["domain_000001/topologies/topo"];
-        Node& poly_topo = poly["domain_000001/topologies/topo"];
-        test_verify_topologies_2d(mesh_topo, poly_topo);
+        test_verify_topologies_2d(mesh, poly);
 
-        Node& domain_1 = poly["domain_000001"];
-        test_verify_fields_2d(domain_1);
+        test_verify_fields_2d(poly);
+    }
+}
+
+//-----------------------------------------------------------------------------
+// This test rotates the axes of Domain 1 by 90 degrees to test
+// multi-block axis rotation
+//
+TEST(conduit_blueprint_mesh_polytopal, amr_2d_transform_parallel_rotated_domain_1)
+{
+    Node mesh, info;
+
+    int par_rank;
+    int par_size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &par_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &par_size);
+
+    std::string protocol = "yaml";
+
+    if(check_if_hdf5_enabled())
+    {
+        protocol = "hdf5";
+    }
+
+    if (par_size == 1) return;
+
+    if (par_rank == 0)
+    {
+        Node& domain_0 = mesh["domain_000000"];
+        test_polytopal_create_coarse_domain_2d(domain_0);
+        test_polytopal_rotate_domain_1_orientation_2d(domain_0);
+    }
+    else if (par_rank == 1)
+    {
+        Node& domain_1 = mesh["domain_000001"];
+        test_polytopal_create_fine_domain_2d_rotated(domain_1);
+    }
+
+    EXPECT_TRUE(conduit::blueprint::mpi::verify("mesh",mesh,info, MPI_COMM_WORLD));
+
+    std::string output_base =
+        "tout_to_to_polytopal_amr_2d_transform_parallel_rotated_domain_1_";
+
+    conduit::relay::mpi::io::blueprint::save_mesh(mesh,
+                                                  output_base + "input",
+                                                  protocol,
+                                                  MPI_COMM_WORLD);
+
+    Node poly;
+
+    conduit::blueprint::mpi::mesh::to_polytopal(mesh, poly, "topo", MPI_COMM_WORLD);
+
+    EXPECT_TRUE(conduit::blueprint::mpi::verify("mesh",poly,info, MPI_COMM_WORLD));
+
+    conduit::relay::mpi::io::blueprint::save_mesh(poly,
+                                                  output_base + "result",
+                                                  protocol,
+                                                  MPI_COMM_WORLD);
+
+    if (par_rank == 0)
+    {
+        test_verify_topologies_2d(mesh, poly);
+        test_verify_fields_2d(poly);
+    }
+    else if (par_rank == 1)
+    {
+        test_verify_topologies_2d(mesh, poly);
+        test_verify_fields_2d(poly);
     }
 }
 
@@ -720,7 +934,7 @@ TEST(conduit_blueprint_mesh_polytopal, amr_3d_transform_parallel)
 
     EXPECT_TRUE( conduit::blueprint::mpi::verify("mesh",mesh,info, MPI_COMM_WORLD));
 
-    std::string output_base = "tout_to_to_polyhedral_amr_3d_transform_parallel_";
+    std::string output_base = "tout_to_to_polytopal_amr_3d_transform_parallel_";
 
     conduit::relay::mpi::io::blueprint::save_mesh(mesh,
                                                   output_base + "input",
@@ -729,7 +943,7 @@ TEST(conduit_blueprint_mesh_polytopal, amr_3d_transform_parallel)
 
     Node poly;
 
-    conduit::blueprint::mpi::mesh::to_polyhedral(mesh, poly, "topo", MPI_COMM_WORLD);
+    conduit::blueprint::mpi::mesh::to_polytopal(mesh, poly, "topo", MPI_COMM_WORLD);
 
     EXPECT_TRUE( conduit::blueprint::mpi::verify("mesh",poly,info, MPI_COMM_WORLD));
 
@@ -740,15 +954,11 @@ TEST(conduit_blueprint_mesh_polytopal, amr_3d_transform_parallel)
 
     if (par_rank == 0)
     {
-        Node& mesh_topo = mesh["domain_000000/topologies/topo"];
-        Node& poly_topo = poly["domain_000000/topologies/topo"];
-        test_verify_topologies_3d(mesh_topo, poly_topo);
+        test_verify_topologies_3d(mesh, poly);
     }
     else if (par_rank == 1)
     {
-        Node& mesh_topo = mesh["domain_000001/topologies/topo"];
-        Node& poly_topo = poly["domain_000001/topologies/topo"];
-        test_verify_topologies_3d(mesh_topo, poly_topo);
+        test_verify_topologies_3d(mesh, poly);
     }
 }
 
@@ -803,15 +1013,11 @@ TEST(conduit_blueprint_mesh_polytopal, to_polytopal_amr_2d_transform_parallel)
                                                   MPI_COMM_WORLD);
     if (par_rank == 0)
     {
-        Node& mesh_topo = mesh["domain_000000/topologies/topo"];
-        Node& poly_topo = poly["domain_000000/topologies/topo"];
-        test_verify_topologies_2d(mesh_topo, poly_topo);
+        test_verify_topologies_2d(mesh, poly);
     }
     else if (par_rank == 1)
     {
-        Node& mesh_topo = mesh["domain_000001/topologies/topo"];
-        Node& poly_topo = poly["domain_000001/topologies/topo"];
-        test_verify_topologies_2d(mesh_topo, poly_topo);
+        test_verify_topologies_2d(mesh, poly);
     }
 }
 
@@ -867,15 +1073,11 @@ TEST(conduit_blueprint_mesh_polytopal, to_polytopal_amr_3d_transform_parallel)
                                                   MPI_COMM_WORLD);
     if (par_rank == 0)
     {
-        Node& mesh_topo = mesh["domain_000000/topologies/topo"];
-        Node& poly_topo = poly["domain_000000/topologies/topo"];
-        test_verify_topologies_3d(mesh_topo, poly_topo);
+        test_verify_topologies_3d(mesh, poly);
     }
     else if (par_rank == 1)
     {
-        Node& mesh_topo = mesh["domain_000001/topologies/topo"];
-        Node& poly_topo = poly["domain_000001/topologies/topo"];
-        test_verify_topologies_3d(mesh_topo, poly_topo);
+        test_verify_topologies_3d(mesh, poly);
     }
 }
 

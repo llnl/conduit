@@ -12,6 +12,9 @@
 // std lib includes
 //-----------------------------------------------------------------------------
 #include <algorithm>
+#include <array>
+#include <map>
+#include <set>
 #include <tuple>
 #include <vector>
 #include <cmath>
@@ -32,6 +35,7 @@
 #include <assert.h>
 #include <cmath>
 #include <limits>
+#include <unordered_set>
 #include <list>
 // access conduit blueprint mesh utilities
 namespace bputils = conduit::blueprint::mesh::utils;
@@ -60,13 +64,1045 @@ namespace mpi
 // -- begin conduit::blueprint::mesh --
 //-----------------------------------------------------------------------------
 
-namespace mesh 
+namespace mesh
 {
 //-----------------------------------------------------------------------------
 
-// TODO(JRC): Consider moving these structures somewhere else.
+//-----------------------------------------------------------------------------
+// detail namespace for internal helpers
+//-----------------------------------------------------------------------------
+namespace detail
+{
+
+// Sorted vertex-id pair for an edge in the local topology.
+using LocalEdge = std::pair<index_t, index_t>;
+
+// Sorted pair of positions into a neighbor adjset group's values array; this
+// lets two ranks compare the same shared edge without sharing global ids.
+using NeighborEdgeKey = std::array<index_t, 2>;
+
+// Sorted vertex-id list for a face in the local topology.
+using LocalFace = std::vector<index_t>;
+
+// Sorted list of positions into a neighbor adjset group's values array; this
+// is the variable-length face equivalent of NeighborEdgeKey.
+using NeighborFaceKey = std::vector<index_t>;
+
+// A confirmed or candidate edge match, keyed by neighbor domain and that
+// neighbor's local adjset-value positions.
+using MatchedEdge = std::pair<index_t, NeighborEdgeKey>;
+
+// A confirmed or candidate face match, keyed by neighbor domain and that
+// neighbor's local adjset-value positions.
+using MatchedFace = std::pair<index_t, NeighborFaceKey>;
+
+// The following Info structs are for bookkeeping during the boundary
+// topology generation. If an edge (2D) or face (3D) only exists on one
+// element of a local domain, it is either part of the boundary or shared
+// with a remote domain. The boundary generation figures out which ones
+// are shared, and the remaining ones form the boundary. These structs are
+// used in the functions to figure out which is which.
+
+// 2D boundary-generation scratch data. candidate_shared_edges maps each
+// singly-used local edge to possible neighbor-domain matches, while
+// shareable_edges_by_neighbor is the inverse form sent through MPI.
+struct EdgeSharingInfo
+{
+    std::map<LocalEdge, std::set<MatchedEdge>> candidate_shared_edges;
+    std::map<index_t, std::set<NeighborEdgeKey>> shareable_edges_by_neighbor;
+};
+
+// 3D face counting result. face_count detects locally interior faces, and
+// face_to_subelem_id preserves the original subelement id needed when emitting
+// a boundary topology.
+struct FaceCountInfo
+{
+    std::map<LocalFace, index_t> face_count;
+    std::map<LocalFace, index_t> face_to_subelem_id;
+};
+
+// 3D boundary-generation scratch data. candidate_shared_faces maps each
+// singly-used local face to possible neighbor-domain matches, while
+// shareable_faces_by_neighbor is the inverse form sent through MPI.
+struct FaceSharingInfo
+{
+    std::map<LocalFace, std::set<MatchedFace>> candidate_shared_faces;
+    std::map<index_t, std::set<NeighborFaceKey>> shareable_faces_by_neighbor;
+};
+
+// Pairwise vertex adjset lookups used by generate_boundary. vertex_neighbors
+// records which domains share each local vertex; neighbor_vertex_pos records
+// the position of each local vertex in each neighbor's adjset values list.
+struct PairwiseVertexAdjInfo
+{
+    std::map<index_t, std::set<index_t>> vertex_neighbors;
+    std::map<index_t, std::map<index_t, index_t>> neighbor_vertex_pos;
+};
+
+// Gather variable-length index_t payloads from all ranks into one concatenated
+// vector. The edge and face matching handshakes use this for request/response
+// records, so empty ranks can still participate in the collective.
+std::vector<index_t>
+allgather_index_vector(const std::vector<index_t> &local, MPI_Comm comm)
+{
+    int comm_size = 1;
+    MPI_Comm_size(comm, &comm_size);
+    const MPI_Datatype mpi_index_t =
+        conduit::relay::mpi::conduit_dtype_to_mpi_dtype(DataType::index_t(1));
+
+    int local_count = static_cast<int>(local.size());
+    std::vector<int> counts(static_cast<std::size_t>(comm_size), 0);
+    MPI_Allgather(&local_count, 1, MPI_INT,
+                  counts.data(), 1, MPI_INT, comm);
+
+    std::vector<int> offsets(static_cast<std::size_t>(comm_size), 0);
+    int total_count = 0;
+    for(int i = 0; i < comm_size; ++i)
+    {
+        offsets[static_cast<std::size_t>(i)] = total_count;
+        total_count += counts[static_cast<std::size_t>(i)];
+    }
+
+    std::vector<index_t> gathered(static_cast<std::size_t>(total_count));
+    MPI_Allgatherv(local.empty() ? nullptr : local.data(),
+                   local_count,
+                   mpi_index_t,
+                   gathered.empty() ? nullptr : gathered.data(),
+                   counts.data(),
+                   offsets.data(),
+                   mpi_index_t,
+                   comm);
+    return gathered;
+}
+
+// Create an orientation-independent edge key in neighbor-local adjset-value
+// coordinates for use in edge matching.
+NeighborEdgeKey
+make_neighbor_edge_key(index_t p0, index_t p1)
+{
+    return (p0 < p1) ? NeighborEdgeKey{{p0, p1}} : NeighborEdgeKey{{p1, p0}};
+}
+
+// Append one fixed-width edge match request/response record:
+// source domain, destination domain, and the neighbor-local edge key.
+void
+append_neighbor_edge_message(index_t src_domain,
+                             index_t dst_domain,
+                             const NeighborEdgeKey &edge,
+                             std::vector<index_t> &packed)
+{
+    packed.push_back(src_domain);
+    packed.push_back(dst_domain);
+    packed.push_back(edge[0]);
+    packed.push_back(edge[1]);
+}
+
+// Read the edge key portion of a fixed-width edge match record; callers read
+// the source and destination domains from the first two packed entries.
+NeighborEdgeKey
+read_neighbor_edge_message(const std::vector<index_t> &packed, std::size_t offset)
+{
+    return NeighborEdgeKey{{packed[offset + 2], packed[offset + 3]}};
+}
+
+// Append one variable-width face match request/response record:
+// source domain, destination domain, face vertex count, then the
+// neighbor-local face key.
+void
+append_neighbor_face_message(index_t src_domain,
+                             index_t dst_domain,
+                             const NeighborFaceKey &face,
+                             std::vector<index_t> &packed)
+{
+    packed.push_back(src_domain);
+    packed.push_back(dst_domain);
+    packed.push_back(static_cast<index_t>(face.size()));
+    packed.insert(packed.end(), face.begin(), face.end());
+}
+
+// Read the face key portion of a variable-width face match record and,
+// optionally, return the offset of the next packed record.
+NeighborFaceKey
+read_neighbor_face_message(const std::vector<index_t> &packed,
+                           std::size_t offset,
+                           std::size_t *next_offset = nullptr)
+{
+    const std::size_t nverts = static_cast<std::size_t>(packed[offset + 2]);
+    NeighborFaceKey face(nverts);
+    std::copy(packed.begin() + static_cast<std::ptrdiff_t>(offset + 3),
+              packed.begin() + static_cast<std::ptrdiff_t>(offset + 3 + nverts),
+              face.begin());
+    if(next_offset != nullptr)
+    {
+        *next_offset = offset + 3 + nverts;
+    }
+    return face;
+}
+
+// Build pairwise vertex-sharing lookup tables from vertex-associated adjset
+// groups for one topology. generate_boundary uses the result to translate
+// local edge/face vertices into neighbor-local adjset positions before the MPI
+// match handshake.
+PairwiseVertexAdjInfo
+build_pairwise_vertex_adj_info(const conduit::Node &mesh,
+                               const std::string &topo_name)
+{
+    PairwiseVertexAdjInfo info;
+    if(!mesh.has_path("adjsets"))
+    {
+        return info;
+    }
+
+    const conduit::Node &adjsets = mesh.fetch_existing("adjsets");
+    conduit::NodeConstIterator adjset_itr = adjsets.children();
+    while(adjset_itr.has_next())
+    {
+        const conduit::Node &adjset = adjset_itr.next();
+        if(!adjset.has_path("association") ||
+           !adjset.has_path("topology") ||
+           adjset.fetch_existing("association").as_string() != "vertex" ||
+           adjset.fetch_existing("topology").as_string() != topo_name ||
+           !adjset.has_path("groups"))
+        {
+            continue;
+        }
+
+        const conduit::Node &groups = adjset.fetch_existing("groups");
+        conduit::NodeConstIterator group_itr = groups.children();
+        while(group_itr.has_next())
+        {
+            const conduit::Node &group = group_itr.next();
+            if(!group.has_path("neighbors") || !group.has_path("values"))
+            {
+                continue;
+            }
+
+            const auto neighbors_acc = group.fetch_existing("neighbors").as_index_t_accessor();
+            if(neighbors_acc.number_of_elements() != 1)
+            {
+                continue;
+            }
+            const index_t neighbor = neighbors_acc[0];
+
+            const auto values = group.fetch_existing("values").as_index_t_accessor();
+            for(index_t vi = 0; vi < values.number_of_elements(); ++vi)
+            {
+                const index_t vertex = values[vi];
+                info.vertex_neighbors[vertex].insert(neighbor);
+                info.neighbor_vertex_pos[neighbor].emplace(vertex, vi);
+            }
+        }
+    }
+
+    return info;
+}
+
+// Return the intersection of two sorted neighbor-domain sets.
+std::set<index_t>
+intersect_neighbors(const std::set<index_t> &a,
+                    const std::set<index_t> &b)
+{
+    std::set<index_t> result;
+    std::set_intersection(a.begin(), a.end(),
+                          b.begin(), b.end(),
+                          std::inserter(result, result.begin()));
+    return result;
+}
+
+// Find which domains share ALL vertices of a face/edge by intersecting the
+// neighbor sets of each vertex. Returns empty if any vertex lacks adjacency
+// data or if no domain shares all vertices.
+std::set<index_t>
+intersect_neighbors_for_vertices(const PairwiseVertexAdjInfo &info,
+                                 const std::vector<index_t> &verts)
+{
+    std::set<index_t> result;
+    bool first = true;
+    for(const index_t v : verts)
+    {
+        auto it = info.vertex_neighbors.find(v);
+        if(it == info.vertex_neighbors.end())
+        {
+            return std::set<index_t>();
+        }
+        if(first)
+        {
+            result = it->second;
+            first = false;
+        }
+        else
+        {
+            result = intersect_neighbors(result, it->second);
+            if(result.empty())
+            {
+                return result;
+            }
+        }
+    }
+    return result;
+}
+
+//-----------------------------------------------------------------------------
+// Generate a stable adjset group name from the sorted local and neighbor domain
+// ids. normalize_adjset_groups uses this when rewriting list-format or
+// duplicated groups into object-format Blueprint groups.
+//-----------------------------------------------------------------------------
+std::string
+canonical_adjset_group_name(index_t domain_id,
+                            const std::set<index_t>& neighbors)
+{
+    std::set<index_t> domains;
+    domains.insert(domain_id);
+    domains.insert(neighbors.begin(), neighbors.end());
+
+    std::ostringstream oss;
+    oss << "group";
+    for(std::set<index_t>::const_iterator it = domains.begin();
+        it != domains.end(); ++it)
+    {
+        oss << "_" << (*it);
+    }
+    return oss.str();
+}
+
+//-----------------------------------------------------------------------------
+// Normalize adjset groups after to_polytopal repartitioning: merge duplicates,
+// sort spatially, and rewrite groups using canonical names. This keeps adjsets
+// produced from partitioned chunks in a consistent object-format layout.
+//-----------------------------------------------------------------------------
+void
+normalize_adjset_groups(conduit::Node& mesh_data)
+{
+    if(!mesh_data.has_path("adjsets"))
+    {
+        return;
+    }
+
+    const index_t domain_id =
+        mesh_data.has_path("state/domain_id")
+            ? mesh_data.fetch_existing("state/domain_id").to_index_t()
+            : 0;
+
+    conduit::Node& adjsets = mesh_data["adjsets"];
+    const std::vector<std::string> adjset_names = adjsets.child_names();
+
+    for(std::vector<std::string>::const_iterator adjset_it = adjset_names.begin();
+        adjset_it != adjset_names.end(); ++adjset_it)
+    {
+        conduit::Node& adjset = adjsets[*adjset_it];
+        if(!adjset.has_child("groups"))
+        {
+            continue;
+        }
+
+        conduit::Node& groups = adjset["groups"];
+        bool needs_merge = groups.dtype().is_list();
+
+        // Check if any group has src_chunk (indicates need for normalization)
+        if(!needs_merge)
+        {
+            const std::vector<std::string> group_names = groups.child_names();
+            for(std::vector<std::string>::const_iterator group_it = group_names.begin();
+                group_it != group_names.end(); ++group_it)
+            {
+                if(groups[*group_it].has_child("src_chunk"))
+                {
+                    needs_merge = true;
+                    break;
+                }
+            }
+        }
+
+        if(!needs_merge)
+        {
+            continue;
+        }
+
+        // Temporary accumulator for one canonical output group while duplicate
+        // or list-format input groups are being merged.
+        struct NormalizedAdjsetGroup
+        {
+            std::set<index_t> neighbors;
+            std::set<index_t> values_set;
+            std::vector<index_t> values_vec;
+        };
+
+        std::map<std::string, NormalizedAdjsetGroup> merged_groups;
+
+        // Lambda to merge a single group
+        auto merge_group = [&](const conduit::Node& group, const std::string& /*source_name*/)
+        {
+            if(!group.has_child("neighbors") || !group.has_child("values"))
+            {
+                return;
+            }
+
+            const auto neighbors_acc = group["neighbors"].as_index_t_accessor();
+            std::set<index_t> neighbors;
+            for(index_t i = 0; i < neighbors_acc.number_of_elements(); ++i)
+            {
+                neighbors.insert(neighbors_acc[i]);
+            }
+
+            const std::string group_name =
+                canonical_adjset_group_name(domain_id, neighbors);
+            NormalizedAdjsetGroup& merged = merged_groups[group_name];
+
+            // Insert neighbors (will be deduplicated by the set)
+            merged.neighbors.insert(neighbors.begin(), neighbors.end());
+
+            const auto values_acc = group["values"].as_index_t_accessor();
+
+            // Accumulate unique values
+            for(index_t i = 0; i < values_acc.number_of_elements(); ++i)
+            {
+                merged.values_set.insert(values_acc[i]);
+            }
+        };
+
+        // Process groups (handle both list and object format)
+        if(groups.dtype().is_list())
+        {
+            for(index_t i = 0; i < groups.number_of_children(); ++i)
+            {
+                std::ostringstream oss;
+                oss << "list_index_" << i;
+                merge_group(groups.child(i), oss.str());
+            }
+        }
+        else
+        {
+            const std::vector<std::string> group_names = groups.child_names();
+            for(std::vector<std::string>::const_iterator group_it = group_names.begin();
+                group_it != group_names.end(); ++group_it)
+            {
+                merge_group(groups[*group_it], *group_it);
+            }
+        }
+
+        // Get coordinate arrays for spatial sorting
+        const conduit::Node* xnode = nullptr;
+        const conduit::Node* ynode = nullptr;
+        const conduit::Node* znode = nullptr;
+
+        if(adjset.has_child("topology"))
+        {
+            const std::string topo_name = adjset["topology"].as_string();
+            if(mesh_data.has_path("topologies/" + topo_name))
+            {
+                const conduit::Node& topo = mesh_data["topologies/" + topo_name];
+                if(topo.has_child("coordset"))
+                {
+                    const std::string coordset_name = topo["coordset"].as_string();
+                    const std::string values_path =
+                        "coordsets/" + coordset_name + "/values";
+
+                    if(mesh_data.has_path(values_path + "/x"))
+                    {
+                        const conduit::Node* cand =
+                            mesh_data.fetch_ptr(values_path + "/x");
+                        if(cand != nullptr && !cand->dtype().is_empty())
+                        {
+                            xnode = cand;
+                        }
+                    }
+                    if(mesh_data.has_path(values_path + "/y"))
+                    {
+                        const conduit::Node* cand =
+                            mesh_data.fetch_ptr(values_path + "/y");
+                        if(cand != nullptr && !cand->dtype().is_empty())
+                        {
+                            ynode = cand;
+                        }
+                    }
+                    if(mesh_data.has_path(values_path + "/z"))
+                    {
+                        const conduit::Node* cand =
+                            mesh_data.fetch_ptr(values_path + "/z");
+                        if(cand != nullptr && !cand->dtype().is_empty())
+                        {
+                            znode = cand;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Convert sets to vectors and sort spatially if coordinates are available
+        for(std::map<std::string, NormalizedAdjsetGroup>::iterator group_it =
+                merged_groups.begin();
+            group_it != merged_groups.end(); ++group_it)
+        {
+            group_it->second.values_vec.assign(group_it->second.values_set.begin(),
+                                               group_it->second.values_set.end());
+
+            if(xnode != nullptr)
+            {
+                std::stable_sort(group_it->second.values_vec.begin(),
+                               group_it->second.values_vec.end(),
+                               [&](index_t a, index_t b)
+                {
+                    const auto x_acc = xnode->as_float64_accessor();
+                    const double ax = x_acc[a];
+                    const double bx = x_acc[b];
+                    if(ax != bx)
+                    {
+                        return ax < bx;
+                    }
+
+                    if(ynode != nullptr)
+                    {
+                        const auto y_acc = ynode->as_float64_accessor();
+                        const double ay = y_acc[a];
+                        const double by = y_acc[b];
+                        if(ay != by)
+                        {
+                            return ay < by;
+                        }
+                    }
+
+                    if(znode != nullptr)
+                    {
+                        const auto z_acc = znode->as_float64_accessor();
+                        const double az = z_acc[a];
+                        const double bz = z_acc[b];
+                        if(az != bz)
+                        {
+                            return az < bz;
+                        }
+                    }
+
+                    return a < b;
+                });
+            }
+        }
+
+        // Build normalized adjset with canonical group names
+        conduit::Node normalized_adjset;
+        normalized_adjset.set(adjset);
+        normalized_adjset.remove("groups");
+        normalized_adjset["groups"].set(conduit::DataType::object());
+
+        for(std::map<std::string, NormalizedAdjsetGroup>::const_iterator group_it =
+                merged_groups.begin();
+            group_it != merged_groups.end(); ++group_it)
+        {
+            conduit::Node& group = normalized_adjset["groups"][group_it->first];
+            std::vector<index_t> neighbors_vec(group_it->second.neighbors.begin(),
+                                               group_it->second.neighbors.end());
+            group["neighbors"].set(neighbors_vec);
+            group["values"].set(group_it->second.values_vec);
+        }
+
+        adjset.set(normalized_adjset);
+    }
+}
+
+// Initialize fields common to the generated boundary topologies. The 2D and 3D
+// emit helpers fill in the element connectivity after this.
+void
+initialize_boundary_topology(conduit::Node &boundary_topo,
+                             const std::string &coordset_name,
+                             const std::string &shape_name)
+{
+    boundary_topo["type"].set("unstructured");
+    boundary_topo["coordset"].set(coordset_name);
+    boundary_topo["elements/shape"].set(shape_name);
+}
+
+// Count orientation-independent local polygon edges. Edges with count one are
+// potential physical boundaries unless the MPI neighbor handshake proves they
+// are shared with another domain.
+std::map<LocalEdge, index_t>
+count_local_edges(const conduit::Node &elements)
+{
+    const auto conn_acc = elements.fetch_existing("connectivity").as_index_t_accessor();
+    const auto size_acc = elements.fetch_existing("sizes").as_index_t_accessor();
+    const auto offset_acc = elements.fetch_existing("offsets").as_index_t_accessor();
+
+    const index_t num_elems = size_acc.number_of_elements();
+    std::map<LocalEdge, index_t> edge_count;
+    for(index_t ei = 0; ei < num_elems; ++ei)
+    {
+        const index_t elem_size = size_acc[ei];
+        const index_t elem_offset = offset_acc[ei];
+        for(index_t vi = 0; vi < elem_size; ++vi)
+        {
+            const index_t v0 = conn_acc[elem_offset + vi];
+            const index_t v1 = conn_acc[elem_offset + ((vi + 1) % elem_size)];
+            const LocalEdge edge =
+                (v0 < v1) ? LocalEdge(v0, v1) : LocalEdge(v1, v0);
+            edge_count[edge]++;
+        }
+    }
+
+    return edge_count;
+}
+
+// For each locally singly-used edge, use vertex adjset information to find
+// neighbor domains that contain both vertices and encode the candidate edge in
+// that neighbor's adjset-value coordinates.
+EdgeSharingInfo
+find_candidate_shared_edges(const std::map<LocalEdge, index_t> &edge_count,
+                            const PairwiseVertexAdjInfo &pairwise_adj_info)
+{
+    EdgeSharingInfo info;
+    for(const auto &entry : edge_count)
+    {
+        // Only process edges used by exactly one local element. Edges with
+        // count == 2 are interior (shared by two local elements), so they
+        // cannot be domain boundaries. Edges with count == 1 are candidates
+        // for either physical boundaries or inter-domain boundaries.
+        if(entry.second != 1)
+        {
+            continue;
+        }
+
+        auto v0_it = pairwise_adj_info.vertex_neighbors.find(entry.first.first);
+        auto v1_it = pairwise_adj_info.vertex_neighbors.find(entry.first.second);
+        if(v0_it != pairwise_adj_info.vertex_neighbors.end() &&
+           v1_it != pairwise_adj_info.vertex_neighbors.end())
+        {
+            // Find neighbor domains that share both vertices of this edge.
+            // If a neighbor shares both vertices, the edge is the
+            // inter-domain boundary with that neighbor.
+            const std::set<index_t> common_neighbors =
+                intersect_neighbors(v0_it->second, v1_it->second);
+            for(const index_t nbr : common_neighbors)
+            {
+                auto pos_map_it = pairwise_adj_info.neighbor_vertex_pos.find(nbr);
+                if(pos_map_it == pairwise_adj_info.neighbor_vertex_pos.end())
+                {
+                    continue;
+                }
+
+                const auto p0_it = pos_map_it->second.find(entry.first.first);
+                const auto p1_it = pos_map_it->second.find(entry.first.second);
+                if(p0_it == pos_map_it->second.end() || p1_it == pos_map_it->second.end())
+                {
+                    continue;
+                }
+
+                const NeighborEdgeKey edge_key =
+                    make_neighbor_edge_key(p0_it->second, p1_it->second);
+                info.candidate_shared_edges[entry.first].insert(std::make_pair(nbr, edge_key));
+                info.shareable_edges_by_neighbor[nbr].insert(edge_key);
+            }
+        }
+    }
+
+    return info;
+}
+
+// Confirm 2D shared-edge candidates with a two-phase all-rank MPI handshake.
+// A rank sends edge keys to candidate neighbors; a candidate is accepted
+// only when the destination rank has the same key pointed back at the
+// requester.
+std::set<MatchedEdge>
+exchange_matched_edges(index_t local_domain,
+                       const std::map<index_t, std::set<NeighborEdgeKey>> &shareable_edges_by_neighbor,
+                       MPI_Comm comm)
+{
+    // Phase 1: Broadcast candidate edges to all ranks.
+    // Each rank sends: "I have edge X that might be shared with domain Y."
+    std::vector<index_t> requests;
+    for(const auto &entry : shareable_edges_by_neighbor)
+    {
+        for(const auto &edge_key : entry.second)
+        {
+            append_neighbor_edge_message(local_domain, entry.first, edge_key, requests);
+        }
+    }
+    const std::vector<index_t> all_requests = allgather_index_vector(requests, comm);
+
+    const std::size_t tuple_size = 4u;
+    if((all_requests.size() % tuple_size) != 0u)
+    {
+        CONDUIT_ERROR("MPI generate_boundary gathered malformed edge requests.");
+    }
+
+    // Phase 2: Process requests and send responses.
+    // Only respond if we also have the same edge as a boundary candidate.
+    // This ensures both domains agree the edge is shared.
+    std::vector<index_t> responses;
+    for(std::size_t offset = 0; offset < all_requests.size(); offset += tuple_size)
+    {
+        const index_t src_domain = all_requests[offset];
+        const index_t dst_domain = all_requests[offset + 1];
+        if(dst_domain != local_domain)
+        {
+            continue;
+        }
+
+        const NeighborEdgeKey edge_key = read_neighbor_edge_message(all_requests, offset);
+        auto it = shareable_edges_by_neighbor.find(src_domain);
+        if(it != shareable_edges_by_neighbor.end() &&
+           it->second.find(edge_key) != it->second.end())
+        {
+            // Confirm: we have the same edge as src_domain.
+            append_neighbor_edge_message(local_domain, src_domain, edge_key, responses);
+        }
+    }
+
+    const std::vector<index_t> all_responses = allgather_index_vector(responses, comm);
+    if((all_responses.size() % tuple_size) != 0u)
+    {
+        CONDUIT_ERROR("MPI generate_boundary gathered malformed edge responses.");
+    }
+
+    // Collect edges that were mutually confirmed.
+    std::set<MatchedEdge> matched_edges;
+    for(std::size_t offset = 0; offset < all_responses.size(); offset += tuple_size)
+    {
+        const index_t src_domain = all_responses[offset];
+        if(all_responses[offset + 1] == local_domain)
+        {
+            matched_edges.insert(std::make_pair(src_domain,
+                                                read_neighbor_edge_message(all_responses, offset)));
+        }
+    }
+
+    return matched_edges;
+}
+
+// Select the 2D edges to emit as the boundary: locally singly-used edges
+// whose candidate neighbor matches were not confirmed to be shared with
+// a neighbor domain.
+std::vector<LocalEdge>
+select_boundary_edges(const std::map<LocalEdge, index_t> &edge_count,
+                      const EdgeSharingInfo &sharing_info,
+                      const std::set<MatchedEdge> &matched_edges)
+{
+    std::vector<LocalEdge> boundary_edges;
+    for(const auto &entry : edge_count)
+    {
+        // Skip interior edges (count >= 2). Only edges used by exactly one
+        // local element can be part of a boundary.
+        if(entry.second != 1)
+        {
+            continue;
+        }
+
+        // Check if this edge was confirmed as shared with a neighbor via
+        // the MPI handshake. If confirmed, it's an inter-domain boundary,
+        // not a physical boundary.
+        auto shared_it = sharing_info.candidate_shared_edges.find(entry.first);
+        bool matched = false;
+        if(shared_it != sharing_info.candidate_shared_edges.end())
+        {
+            for(const auto &candidate : shared_it->second)
+            {
+                if(matched_edges.find(candidate) != matched_edges.end())
+                {
+                    matched = true;
+                    break;
+                }
+            }
+        }
+        // Edge with count == 1 that was NOT matched with
+        // a neighbor = physical boundary.
+        if(!matched)
+        {
+            boundary_edges.push_back(entry.first);
+        }
+    }
+
+    return boundary_edges;
+}
+
+// Emit a Mesh Blueprint line topology for selected 2D boundary edges, using
+// the integer dtype selected from the source topology.
+void
+emit_2d_boundary_topology(const std::vector<LocalEdge> &boundary_edges,
+                          const std::string &coordset_name,
+                          const DataType &int_dtype,
+                          conduit::Node &boundary_topo)
+{
+    if(boundary_edges.empty())
+    {
+        return;
+    }
+
+    initialize_boundary_topology(boundary_topo, coordset_name, "line");
+
+    std::vector<index_t> boundary_conn(boundary_edges.size() * 2u);
+    for(std::size_t i = 0; i < boundary_edges.size(); ++i)
+    {
+        boundary_conn[2u * i] = boundary_edges[i].first;
+        boundary_conn[2u * i + 1u] = boundary_edges[i].second;
+    }
+
+    conduit::Node temp;
+    temp.set(boundary_conn);
+    temp.to_data_type(int_dtype.id(), boundary_topo["elements/connectivity"]);
+}
+
+// Count orientation-independent polyhedral faces by their sorted vertex ids.
+// Faces with count one are potential physical boundaries; face_to_subelem_id
+// records the source subelement id needed to copy their original connectivity.
+FaceCountInfo
+count_local_faces(const conduit::Node &elements,
+                  const conduit::Node &subelements)
+{
+    const auto conn_acc = elements.fetch_existing("connectivity").as_index_t_accessor();
+    const auto size_acc = elements.fetch_existing("sizes").as_index_t_accessor();
+    const auto offset_acc = elements.fetch_existing("offsets").as_index_t_accessor();
+    const auto subconn_acc = subelements.fetch_existing("connectivity").as_index_t_accessor();
+    const auto subsize_acc = subelements.fetch_existing("sizes").as_index_t_accessor();
+    const auto suboffset_acc = subelements.fetch_existing("offsets").as_index_t_accessor();
+
+    const index_t num_elems = size_acc.number_of_elements();
+    FaceCountInfo info;
+    for(index_t ei = 0; ei < num_elems; ++ei)
+    {
+        const index_t elem_size = size_acc[ei];
+        const index_t elem_offset = offset_acc[ei];
+        for(index_t fi = 0; fi < elem_size; ++fi)
+        {
+            const index_t subelem_id = conn_acc[elem_offset + fi];
+            const index_t face_size = subsize_acc[subelem_id];
+            const index_t face_offset = suboffset_acc[subelem_id];
+
+            LocalFace sorted_face(static_cast<std::size_t>(face_size));
+            for(index_t vi = 0; vi < face_size; ++vi)
+            {
+                sorted_face[static_cast<std::size_t>(vi)] = subconn_acc[face_offset + vi];
+            }
+            std::sort(sorted_face.begin(), sorted_face.end());
+
+            info.face_count[sorted_face]++;
+            info.face_to_subelem_id[sorted_face] = subelem_id;
+        }
+    }
+
+    return info;
+}
+
+// For each locally singly-used face, use vertex adjset information to find
+// neighbor domains that contain every face vertex and encode the face in that
+// neighbor's adjset-value coordinates.
+FaceSharingInfo
+find_candidate_shared_faces(const std::map<LocalFace, index_t> &face_count,
+                            const PairwiseVertexAdjInfo &pairwise_adj_info)
+{
+    FaceSharingInfo info;
+    for(const auto &entry : face_count)
+    {
+        // Only process faces used by exactly one local element. Faces with
+        // count >= 2 are interior (shared by multiple local elements), so
+        // they cannot be domain boundaries. Faces with count == 1 are 
+        // candidates for either physical boundaries or inter-domain
+        // boundaries.
+        if(entry.second != 1)
+        {
+            continue;
+        }
+
+        // Find neighbor domains that share all vertices of this face.
+        const std::set<index_t> common_neighbors =
+            intersect_neighbors_for_vertices(pairwise_adj_info, entry.first);
+        for(const index_t nbr : common_neighbors)
+        {
+            auto pos_map_it = pairwise_adj_info.neighbor_vertex_pos.find(nbr);
+            if(pos_map_it == pairwise_adj_info.neighbor_vertex_pos.end())
+            {
+                continue;
+            }
+
+            NeighborFaceKey face_key;
+            face_key.reserve(entry.first.size());
+            bool missing_pos = false;
+            for(const index_t v : entry.first)
+            {
+                const auto p_it = pos_map_it->second.find(v);
+                if(p_it == pos_map_it->second.end())
+                {
+                    missing_pos = true;
+                    break;
+                }
+                face_key.push_back(p_it->second);
+            }
+            if(missing_pos)
+            {
+                continue;
+            }
+
+            std::sort(face_key.begin(), face_key.end());
+            info.candidate_shared_faces[entry.first].insert(std::make_pair(nbr, face_key));
+            info.shareable_faces_by_neighbor[nbr].insert(face_key);
+        }
+    }
+
+    return info;
+}
+
+// Confirm 3D shared-face candidates with a two-phase all-rank MPI handshake.
+// Face records are variable length, but the acceptance rule mirrors edge
+// matching: both domains must advertise the same neighbor-local key.
+std::set<MatchedFace>
+exchange_matched_faces(index_t local_domain,
+                       const std::map<index_t, std::set<NeighborFaceKey>> &shareable_faces_by_neighbor,
+                       MPI_Comm comm)
+{
+    // Phase 1: Broadcast candidate faces to all ranks.
+    // Each rank sends: "I have face X that might be shared with domain Y."
+    std::vector<index_t> requests;
+    for(const auto &entry : shareable_faces_by_neighbor)
+    {
+        for(const auto &face_key : entry.second)
+        {
+            append_neighbor_face_message(local_domain, entry.first, face_key, requests);
+        }
+    }
+    const std::vector<index_t> all_requests = allgather_index_vector(requests, comm);
+
+    // Phase 2: Process requests and send responses.
+    // Only respond if we have the same face as a boundary candidate.
+    // This ensures both domains agree the face is shared.
+    std::vector<index_t> responses;
+    for(std::size_t offset = 0; offset < all_requests.size();)
+    {
+        std::size_t next_offset = offset;
+        const index_t src_domain = all_requests[offset];
+        const index_t dst_domain = all_requests[offset + 1];
+        const NeighborFaceKey face_key =
+            read_neighbor_face_message(all_requests, offset, &next_offset);
+        offset = next_offset;
+        if(dst_domain != local_domain)
+        {
+            continue;
+        }
+
+        auto it = shareable_faces_by_neighbor.find(src_domain);
+        if(it != shareable_faces_by_neighbor.end() &&
+           it->second.find(face_key) != it->second.end())
+        {
+            // Confirm: we have the same face pointing back at src_domain.
+            append_neighbor_face_message(local_domain, src_domain, face_key, responses);
+        }
+    }
+
+    const std::vector<index_t> all_responses = allgather_index_vector(responses, comm);
+    // Collect faces that were mutually confirmed.
+    std::set<MatchedFace> matched_faces;
+    for(std::size_t offset = 0; offset < all_responses.size();)
+    {
+        std::size_t next_offset = offset;
+        const index_t src_domain = all_responses[offset];
+        const index_t dst_domain = all_responses[offset + 1];
+        const NeighborFaceKey face_key =
+            read_neighbor_face_message(all_responses, offset, &next_offset);
+        offset = next_offset;
+        if(dst_domain == local_domain)
+        {
+            matched_faces.insert(std::make_pair(src_domain, face_key));
+        }
+    }
+
+    return matched_faces;
+}
+
+// Select the 3D face subelement ids to emit as the boundary: locally
+// singly-used faces who were not confirmed to be shared with a neighbor.
+std::vector<index_t>
+select_boundary_face_ids(const FaceCountInfo &face_info,
+                         const FaceSharingInfo &sharing_info,
+                         const std::set<MatchedFace> &matched_faces)
+{
+    std::vector<index_t> boundary_face_ids;
+    for(const auto &entry : face_info.face_count)
+    {
+        // Skip interior faces (count >= 2). Only faces used by exactly one
+        // local element can be part of a boundary.
+        if(entry.second != 1)
+        {
+            continue;
+        }
+
+        // Check if this face was confirmed as shared with a neighbor via
+        // the MPI handshake. If confirmed, it's an inter-domain boundary,
+        // not a physical boundary.
+        auto shared_it = sharing_info.candidate_shared_faces.find(entry.first);
+        bool matched = false;
+        if(shared_it != sharing_info.candidate_shared_faces.end())
+        {
+            for(const auto &candidate : shared_it->second)
+            {
+                if(matched_faces.find(candidate) != matched_faces.end())
+                {
+                    matched = true;
+                    break;
+                }
+            }
+        }
+        // Face with count == 1 that was NOT matched with
+        // a neighbor = physical boundary.
+        if(!matched)
+        {
+            boundary_face_ids.push_back(face_info.face_to_subelem_id.at(entry.first));
+        }
+    }
+
+    return boundary_face_ids;
+}
+
+// Emit a Mesh Blueprint polygonal topology for selected 3D boundary faces,
+// copying each chosen subelement's original vertex order and sizes.
+void
+emit_3d_boundary_topology(const std::vector<index_t> &boundary_face_ids,
+                          const conduit::Node &subelements,
+                          const std::string &coordset_name,
+                          const DataType &int_dtype,
+                          conduit::Node &boundary_topo)
+{
+    if(boundary_face_ids.empty())
+    {
+        return;
+    }
+
+    const auto subconn_acc = subelements.fetch_existing("connectivity").as_index_t_accessor();
+    const auto subsize_acc = subelements.fetch_existing("sizes").as_index_t_accessor();
+    const auto suboffset_acc = subelements.fetch_existing("offsets").as_index_t_accessor();
+
+    initialize_boundary_topology(boundary_topo, coordset_name, "polygonal");
+
+    index_t total_boundary_verts = 0;
+    for(const index_t subelem_id : boundary_face_ids)
+    {
+        total_boundary_verts += subsize_acc[subelem_id];
+    }
+
+    std::vector<index_t> boundary_conn(static_cast<std::size_t>(total_boundary_verts));
+    std::vector<index_t> boundary_sizes(boundary_face_ids.size());
+    std::vector<index_t> boundary_offsets(boundary_face_ids.size());
+    index_t current_offset = 0;
+    for(std::size_t i = 0; i < boundary_face_ids.size(); ++i)
+    {
+        const index_t subelem_id = boundary_face_ids[i];
+        const index_t face_size = subsize_acc[subelem_id];
+        const index_t face_offset = suboffset_acc[subelem_id];
+        boundary_sizes[i] = face_size;
+        boundary_offsets[i] = current_offset;
+        for(index_t vi = 0; vi < face_size; ++vi)
+        {
+            boundary_conn[static_cast<std::size_t>(current_offset + vi)] =
+                subconn_acc[face_offset + vi];
+        }
+        current_offset += face_size;
+    }
+
+    conduit::Node temp;
+    temp.set(boundary_conn);
+    temp.to_data_type(int_dtype.id(), boundary_topo["elements/connectivity"]);
+    temp.set(boundary_sizes);
+    temp.to_data_type(int_dtype.id(), boundary_topo["elements/sizes"]);
+    temp.set(boundary_offsets);
+    temp.to_data_type(int_dtype.id(), boundary_topo["elements/offsets"]);
+}
 
 //-------------------------------------------------------------------------
+// Per fine-neighbor face data produced by match_nbr_elems. to_polytopal later
+// uses it to replace one coarse boundary face with the matching fine faces.
 struct SharedFace
 {
     index_t m_face_id;
@@ -74,21 +1110,27 @@ struct SharedFace
 };
 
 
+// Coarse/fine boundary bookkeeping for one coarse domain touching one finer
+// neighbor domain. The adjset-window scan initializes the coarse side and
+// coarse elements; match_nbr_elems fills the fine neighbor element and face maps
+// consumed when to_polytopal subdivides the coarse boundary face.
 struct PolyBndry
 {
-    index_t side; //which 3D side 0-5
+    index_t side; //which coarse/reference 3D side, 0-5
     index_t m_nbr_rank;
     index_t m_nbr_id;
-    size_t m_nbrs_per_face;
-    std::vector<index_t> m_elems; //elems of nbr domain that touch side
-    std::map<index_t, index_t> m_bface; //map from nbr elem to face of nbr elem
-    std::map<index_t, std::vector<index_t> > m_nbr_elems; //map from local
-                                                          //elem to all
+    size_t m_nbrs_per_face; //fine faces expected to cover a full coarse face
+    std::vector<index_t> m_elems; //coarse elems that touch this boundary side
+    std::map<index_t, index_t> m_bface; //map from coarse elem to coarse face id
+    std::map<index_t, std::vector<index_t> > m_nbr_elems; //map from coarse
+                                                          //elem to all fine
                                                           //nbr elems that
-                                                          //touch it 
+                                                          //touch it
     //outer map: local elem, inner map: nbr elem to face
     std::map<index_t, std::map<index_t, SharedFace> > m_nbr_faces;
 };
+
+} // end namespace detail
 
 //-----------------------------------------------------------------------------
 // blueprint::mesh::index protocol interface
@@ -114,6 +1156,139 @@ verify(const conduit::Node &n,
 
     relay::mpi::sum_all_reduce(n_snd, n_reduce, comm);
     return global_verify_ok == par_size;
+}
+
+//-------------------------------------------------------------------------
+void
+generate_boundary(conduit::Node &mesh,
+                  const std::string &topo_name,
+                  const std::string &boundary_topo_name,
+                  MPI_Comm comm)
+{
+    const std::string boundary_topo_path("topologies/" + boundary_topo_name);
+
+    auto install_boundary_topology = [&mesh, &boundary_topo_path](const conduit::Node &boundary_topo)
+    {
+        if(boundary_topo.dtype().is_empty())
+        {
+            if(mesh.has_path(boundary_topo_path))
+            {
+                mesh.remove(boundary_topo_path);
+            }
+        }
+        else
+        {
+            mesh[boundary_topo_path].set(boundary_topo);
+        }
+    };
+
+    // Check if mesh is completely empty (no state, no coordsets, no topologies)
+    // This is valid for ranks with no local domains - they still participate in collectives
+    const bool mesh_is_empty = mesh.dtype().is_empty();
+
+    const std::string topo_path("topologies/" + topo_name);
+
+    // Determine topology dimension via MPI collective
+    // Ranks with mesh data will have valid dim, empty ranks will have dim=-1
+    int local_dim = -1;
+    if(!mesh_is_empty)
+    {
+        if(mesh.has_path(topo_path))
+        {
+            const conduit::Node &topo = mesh.fetch_existing(topo_path);
+            const conduit::blueprint::mesh::utils::ShapeType topo_shape(topo);
+            local_dim = topo_shape.dim;
+        }
+    }
+
+    // Gather dimension from all ranks to determine if 2D or 3D
+    int global_dim = -1;
+    MPI_Allreduce(&local_dim, &global_dim, 1, MPI_INT, MPI_MAX, comm);
+
+    if(mesh_is_empty)
+    {
+        // Participate in the same MPI collectives that ranks with data will call
+        // The dimension determines whether to call edges (2D) or faces (3D)
+        if(global_dim == 2)
+        {
+            std::map<index_t, std::set<detail::NeighborEdgeKey>> empty_edges_map;
+            detail::exchange_matched_edges(0, empty_edges_map, comm);
+        }
+        else if(global_dim == 3)
+        {
+            std::map<index_t, std::set<detail::NeighborFaceKey>> empty_faces_map;
+            detail::exchange_matched_faces(0, empty_faces_map, comm);
+        }
+        // If global_dim is still -1, no rank has data, so no collectives to participate in
+        conduit::Node boundary_topo;
+        install_boundary_topology(boundary_topo);
+        return;
+    }
+
+    if(!mesh.has_path(topo_path))
+    {
+        CONDUIT_ERROR("generate_boundary requires topology " << topo_name << " in the input mesh.");
+    }
+
+    const conduit::Node &topo = mesh.fetch_existing(topo_path);
+    const conduit::blueprint::mesh::utils::ShapeType topo_shape(topo);
+    if(topo_shape.dim < 2 || topo_shape.dim > 3)
+    {
+        CONDUIT_ERROR("MPI generate_boundary requires a 2D or 3D topology.");
+    }
+
+    if(!mesh.has_path("state/domain_id"))
+    {
+        CONDUIT_ERROR("MPI generate_boundary requires state/domain_id on the local domain.");
+    }
+    const index_t local_domain = mesh.fetch_existing("state/domain_id").to_index_t();
+
+    const auto pairwise_adj_info =
+        detail::build_pairwise_vertex_adj_info(mesh, topo_name);
+    const DataType int_dtype = bputils::find_widest_dtype(topo, bputils::DEFAULT_INT_DTYPES);
+    const std::string coordset_name = topo.fetch_existing("coordset").as_string();
+
+    if(topo_shape.dim == 2)
+    {
+        const conduit::Node &elements = topo.fetch_existing("elements");
+        const auto edge_count = detail::count_local_edges(elements);
+        const auto sharing_info =
+            detail::find_candidate_shared_edges(edge_count, pairwise_adj_info);
+        const auto matched_edges =
+            detail::exchange_matched_edges(local_domain, sharing_info.shareable_edges_by_neighbor, comm);
+        const auto boundary_edges =
+            detail::select_boundary_edges(edge_count, sharing_info, matched_edges);
+
+        // If no local physical boundary edges are found, leave boundary_topo empty.
+        conduit::Node boundary_topo;
+        detail::emit_2d_boundary_topology(boundary_edges, coordset_name, int_dtype, boundary_topo);
+        install_boundary_topology(boundary_topo);
+        return;
+    }
+
+    const conduit::Node &elements = topo.fetch_existing("elements");
+    if(!topo.has_path("subelements"))
+    {
+        CONDUIT_ERROR("MPI generate_boundary requires subelements for 3D polyhedral topology.");
+    }
+
+    const conduit::Node &subelements = topo.fetch_existing("subelements");
+    const auto face_info = detail::count_local_faces(elements, subelements);
+    const auto sharing_info =
+        detail::find_candidate_shared_faces(face_info.face_count, pairwise_adj_info);
+    const auto matched_faces =
+        detail::exchange_matched_faces(local_domain, sharing_info.shareable_faces_by_neighbor, comm);
+    const std::vector<index_t> boundary_face_ids =
+        detail::select_boundary_face_ids(face_info, sharing_info, matched_faces);
+
+    // If no local physical boundary faces are found, leave boundary_topo empty.
+    conduit::Node boundary_topo;
+    detail::emit_3d_boundary_topology(boundary_face_ids,
+                                      subelements,
+                                      coordset_name,
+                                      int_dtype,
+                                      boundary_topo);
+    install_boundary_topology(boundary_topo);
 }
 
 //-------------------------------------------------------------------------
@@ -297,12 +1472,68 @@ time(const conduit::Node &mesh, MPI_Comm comm)
 }
 
 //-------------------------------------------------------------------------
+// Helper function for trivial case where a mesh is passed into
+// Partitioner::combine with a single domain.  Sets original_vertex_ids
+// field as 1-1 mapping of the vertex ids of the single domain.
+static void
+set_single_domain_original_vertex_ids(Node &mesh,
+                                      const std::string &topo_name)
+{
+    std::vector<Node*> domains = conduit::blueprint::mesh::domains(mesh);
+    if(domains.size() != 1)
+    {
+        return;
+    }
+
+    Node &dom = *domains.front();
+    if(dom.has_path("fields/original_vertex_ids"))
+    {
+        return;
+    }
+
+    std::string coordset_name = "coords";
+    if(dom.has_path("topologies") && dom["topologies"].number_of_children() > 0)
+    {
+        const Node &topo = dom["topologies"][0];
+        if(topo.has_child("coordset"))
+        {
+            coordset_name = topo["coordset"].as_string();
+        }
+    }
+
+    if(!dom.has_path("coordsets/" + coordset_name))
+    {
+        return;
+    }
+
+    const index_t nverts =
+        conduit::blueprint::mesh::coordset::length(dom["coordsets"][coordset_name]);
+    const index_t orig_domain_id =
+        dom.has_path("state/domain_id")
+            ? dom["state/domain_id"].to_index_t()
+            : 0;
+
+    std::vector<index_t> orig_domains(static_cast<std::size_t>(nverts),
+                                      orig_domain_id);
+    std::vector<index_t> orig_ids(static_cast<std::size_t>(nverts));
+    for(index_t i = 0; i < nverts; ++i)
+    {
+        orig_ids[static_cast<std::size_t>(i)] = i;
+    }
+
+    Node &out_field = dom["fields/original_vertex_ids"];
+    out_field["topology"].set(topo_name);
+    out_field["association"].set("vertex");
+    out_field["values/domains"].set(orig_domains);
+    out_field["values/ids"].set(orig_ids);
+}
+
+//-------------------------------------------------------------------------
 void to_polytopal(const Node &n,
                   Node &dest,
                   const std::string& name,
                   MPI_Comm comm)
 {
-
     const std::vector<const conduit::Node *> doms = ::conduit::blueprint::mesh::domains(n);
 
     // make sure all topos match
@@ -372,23 +1603,71 @@ void to_polytopal(const Node &n,
 
     if(ok == 1)
     {
-        if(dims == 2)
+        if(gather_dims == 2)
         {
             to_polygonal(n,dest,name,comm);
         }
-        else if(dims == 3)
+        else if(gather_dims == 3)
         {
             to_polyhedral(n,dest,name,comm);
         }
         else
         {
             CONDUIT_ERROR("to_polytopal only supports 2d or 3d structured toplogies"
-                          " (passed mesh has dims = " << dims  << ")");
+                          " (passed mesh has dims = " << gather_dims  << ")");
         }
     }
     else
     {
         CONDUIT_ERROR("to_polytopal only supports structured toplogies");
+    }
+
+    // Use conduit::blueprint::mesh::Partitioner::combine to combine
+    // polytopal domains into a single domain per rank.
+
+    std::vector<Node*> domains =
+        conduit::blueprint::mesh::domains(dest);
+    set_single_domain_original_vertex_ids(dest, name);
+    domains = conduit::blueprint::mesh::domains(dest);
+
+    // Get MPI rank to use as domain_id for the combined domain
+    int par_rank = 0;
+    MPI_Comm_rank(comm, &par_rank);
+
+    // Only combine if there are domains to combine
+    // Ranks with no local domains will have an empty domains vector
+    if(!domains.empty())
+    {
+        std::vector<const Node*> mesh_ptrs;
+        mesh_ptrs.reserve(domains.size());
+        for(Node *dom : domains)
+        {
+            mesh_ptrs.push_back(dom);
+        }
+        std::vector<index_t> chunk_ids(mesh_ptrs.size());
+        for(index_t i = 0; i < static_cast<index_t>(mesh_ptrs.size()); ++i)
+        {
+            chunk_ids[i] = i;
+        }
+        Node output_mesh;
+
+        conduit::blueprint::mesh::Partitioner partitioner;
+
+        // Use MPI rank as domain_id to ensure each rank has unique domain_id.
+        // This is required for normalize_adjset_groups to generate correct
+        // canonical group names.
+        partitioner.combine(par_rank, mesh_ptrs, chunk_ids, output_mesh);
+        dest.move(output_mesh);
+    }
+    // else: dest remains empty for ranks with no local domains
+
+    // Normalize adjset groups to ensure consistent format:
+    // - Merge duplicate groups with same neighbors
+    // - Sort boundary values spatially
+    // - Use canonical group names
+    if(!dest.dtype().is_empty())
+    {
+        detail::normalize_adjset_groups(dest);
     }
 }
 
@@ -399,13 +1678,6 @@ void to_polygonal(const Node &n,
                   MPI_Comm comm)
 {
     // Helper Functions //
-
-    const static auto gen_default_name = [] (const std::string &prefix, const index_t id)
-    {
-        std::ostringstream oss;
-        oss << prefix << "_" << std::setw(6) << std::setfill('0') << id;
-        return oss.str();
-    };
 
     const static auto is_domain_local = [] (const conduit::Node &root, const std::string &key)
     {
@@ -449,6 +1721,12 @@ void to_polygonal(const Node &n,
     // reference and neighbor domains.
     std::map<index_t, std::map<index_t, std::map< std::string, std::vector<double> > > > dom_to_nbr_to_vtxfields;
 
+    // dom_to_nbr_to_new_vids:
+    // Tracks new vertex ids appended to a *coarse* domain during stage 2
+    // (generate_polygons) for each neighbor *domain id*. These are the fine
+    // vertices inserted along coarse-fine boundaries, which need to be
+    // added to the output adjsets
+    std::map<index_t, std::map<index_t, std::vector<index_t>>> dom_to_nbr_to_new_vids;
 
     // 3-stage algorithm overview for loop of index_t si:
     // 0. Send vertex data from finer domains to coarser neighbors
@@ -530,7 +1808,7 @@ void to_polygonal(const Node &n,
 
             const index_t domain_id = dom["state/domain_id"].to_index_t();
             const index_t level_id = dom["state/level_id"].to_index_t();
-            const std::string ref_name = gen_default_name("window", domain_id);
+            const std::string ref_name = bputils::gen_default_name("window", domain_id);
 
             const index_t i_lo = in_topo["elements/origin/i0"].to_index_t();
             const index_t j_lo = in_topo["elements/origin/j0"].to_index_t();
@@ -584,10 +1862,10 @@ void to_polygonal(const Node &n,
                         temp.set_external(DataType(group["neighbors"].dtype().id(), 1),
                                           (void*)group["neighbors"].element_ptr(1));
                         const index_t nbr_id = temp.to_index_t();
-                        const std::string nbr_name = gen_default_name("domain", nbr_id);
+                        const std::string nbr_name = bputils::gen_default_name("domain", nbr_id);
 
                         const Node &in_windows = group["windows"];
-                        const std::string nbr_win_name = gen_default_name("window", nbr_id);
+                        const std::string nbr_win_name = bputils::gen_default_name("window", nbr_id);
 
                         const Node &ref_win = in_windows[ref_name];
                         const Node &nbr_win = in_windows[nbr_win_name];
@@ -640,12 +1918,18 @@ void to_polygonal(const Node &n,
                                 // are used to cause special handling where
                                 // placeholder data is placed into the buffers
                                 // for these cases.
-                                index_t part_lo =
-                                    ref_win.has_child("partial_lo") ?
-                                    ref_win["partial_lo"].to_index_t() : 0;
-                                index_t part_hi =
-                                    ref_win.has_child("partial_hi") ?
-                                    ref_win["partial_hi"].to_index_t() : 0;
+                                index_t part_lo = 0;
+                                index_t part_hi = 0;
+                                if(ref_size_i > 1)
+                                {
+                                    part_lo = ref_win.has_path("partial_lo/i") ? ref_win["partial_lo/i"].to_index_t() : 0;
+                                    part_hi = ref_win.has_path("partial_hi/i") ? ref_win["partial_hi/i"].to_index_t() : 0;
+                                }
+                                else if(ref_size_j > 1)
+                                {
+                                    part_lo = ref_win.has_path("partial_lo/j") ? ref_win["partial_lo/j"].to_index_t() : 0;
+                                    part_hi = ref_win.has_path("partial_hi/j") ? ref_win["partial_hi/j"].to_index_t() : 0;
+                                }
                                 const double dbl_max =
                                     std::numeric_limits<double>::max();
 
@@ -753,7 +2037,7 @@ void to_polygonal(const Node &n,
                                     }
                                 }
                                 // Add placeholder data at the back
-				// of the buffers
+                                // of the buffers
                                 if (part_hi)
                                 {
                                     xbuffer.insert(xbuffer.end(), part_hi, dbl_max);
@@ -845,8 +2129,8 @@ void to_polygonal(const Node &n,
                                 }
 
                                 // If neighbor is local, fill the buffers
-				// directly from the arrays on the neighbor
-				// domain.
+                                // directly from the arrays on the neighbor
+                                // domain.
                                 else
                                 {
                                     const Node& nbr_dom = n[nbr_name];
@@ -872,18 +2156,24 @@ void to_polygonal(const Node &n,
                                     index_t iend = istart + nbr_size_i;
                                     index_t jend = jstart + nbr_size_j;
 
-                                    index_t part_lo =
-                                        nbr_win.has_child("partial_lo") ?
-                                        nbr_win["partial_lo"].to_index_t() : 0;
-                                    index_t part_hi =
-                                        nbr_win.has_child("partial_hi") ?
-                                        nbr_win["partial_hi"].to_index_t() : 0;
+                                    index_t part_lo = 0;
+                                    index_t part_hi = 0;
+                                    if(nbr_size_i > 1)
+                                    {
+                                        part_lo = nbr_win.has_path("partial_lo/i") ? nbr_win["partial_lo/i"].to_index_t() : 0;
+                                        part_hi = nbr_win.has_path("partial_hi/i") ? nbr_win["partial_hi/i"].to_index_t() : 0;
+                                    }
+                                    else if(nbr_size_j > 1)
+                                    {
+                                        part_lo = nbr_win.has_path("partial_lo/j") ? nbr_win["partial_lo/j"].to_index_t() : 0;
+                                        part_hi = nbr_win.has_path("partial_hi/j") ? nbr_win["partial_hi/j"].to_index_t() : 0;
+                                    }
 
                                     const double dbl_max =
                                         std::numeric_limits<double>::max();
 
-				    // Add the placeholder values for
-				    // partial_lo case.
+                                    // Add the placeholder values for
+                                    // partial_lo case.
                                     if (part_lo)
                                     {
                                         if (nbr_size_i > 1)
@@ -916,8 +2206,8 @@ void to_polygonal(const Node &n,
                                         }
                                     }
 
-				    // Fill the buffers with vertex data
-				    // values.
+                                    // Fill the buffers with vertex data
+                                    // values.
                                     for (index_t jidx = jstart; jidx < jend; ++jidx)
                                     {
                                         index_t joffset = jidx*nbr_iwidth;
@@ -948,8 +2238,8 @@ void to_polygonal(const Node &n,
                                         }
                                     }
 
-				    // Add the placeholder values for the
-				    // partial_hi case.
+                                    // Add the placeholder values for the
+                                    // partial_hi case.
                                     if (part_hi)
                                     {
                                         xbuffer.insert(xbuffer.end(), part_hi, dbl_max);
@@ -963,11 +2253,11 @@ void to_polygonal(const Node &n,
                                 }
                             }
 
-			    // Stage 2:  Create the polygonal elements
+                            // Stage 2:  Create the polygonal elements
                             else if (si == 2 && ref_size < nbr_size)
                             {
                                 // Create the elements along the boundary
-				// as quads before they get extra vertex data
+                                // as quads before they get extra vertex data
                                 bputils::connectivity::create_elements_2d(ref_win,
                                                                           i_lo,
                                                                           j_lo,
@@ -1043,24 +2333,28 @@ void to_polygonal(const Node &n,
                                 }
 
 
-                                index_t part_lo =
-                                    ref_win.has_child("partial_lo") ?
-                                    ref_win["partial_lo"].to_index_t() : 0;
-                                index_t part_hi =
-                                    ref_win.has_child("partial_hi") ?
-                                    ref_win["partial_hi"].to_index_t() : 0;
+                                index_t part_lo = 0;
+                                index_t part_hi = 0;
+                                if(ref_size_i > 1)
+                                {
+                                    part_lo = nbr_win.has_path("partial_lo/i") ? nbr_win["partial_lo/i"].to_index_t() : 0;
+                                    part_hi = nbr_win.has_path("partial_hi/i") ? nbr_win["partial_hi/i"].to_index_t() : 0;
+                                }
+                                else if(ref_size_j > 1)
+                                {
+                                    part_lo = nbr_win.has_path("partial_lo/j") ? nbr_win["partial_lo/j"].to_index_t() : 0;
+                                    part_hi = nbr_win.has_path("partial_hi/j") ? nbr_win["partial_hi/j"].to_index_t() : 0;
+                                }
 
-				// Handle cases with differing axis
-				// orientations between the neighboring
-				// domains, for meshes with block rotations.
-				// flip is set to indicate that the buffers
-				// should be traversed in reverse order.
+                                // Handle cases with differing axis
+                                // orientations between the neighboring
+                                // domains, for meshes with block rotations.
+                                // flip is set to indicate that the buffers
+                                // should be traversed in reverse order.
                                 bool flip = false;
                                 if (group.has_child("orientation"))
                                 {
                                     auto& orientation = group["orientation"].as_int_array();
-                                    index_t ref_size_i = ref_win["dims/i"].to_index_t();
-                                    index_t ref_size_j = ref_win["dims/j"].to_index_t();
                                     if (ref_size_i == 1 && orientation[0] < 0)
                                     {
                                         flip = true;
@@ -1072,6 +2366,19 @@ void to_polygonal(const Node &n,
                                 }
 
                                 index_t buf_size = (index_t)xbuffer.size();
+
+                                // Build the list of fine-side vertices
+                                // that should actually become new
+                                // coordset points.
+                                //
+                                // For partial_lo/partial_hi cases,
+                                // connect_elements_2d() only consumes
+                                // the subset that lies in the true overlap.
+                                // Trim the vertex list here to match that
+                                // usage.
+                                std::vector<index_t> appended_idx;
+                                appended_idx.reserve(static_cast<size_t>(added));
+
                                 if (flip)
                                 {
                                     for (index_t ni = buf_size-1-part_hi;
@@ -1079,8 +2386,7 @@ void to_polygonal(const Node &n,
                                     {
                                         if (ni % use_ratio)
                                         {
-                                            new_x.push_back(xbuffer[ni]);
-                                            new_y.push_back(ybuffer[ni]);
+                                            appended_idx.push_back(ni);
                                         }
                                     }
                                 }
@@ -1090,10 +2396,49 @@ void to_polygonal(const Node &n,
                                     {
                                         if (ni % use_ratio)
                                         {
-                                            new_x.push_back(xbuffer[ni]);
-                                            new_y.push_back(ybuffer[ni]);
+                                            appended_idx.push_back(ni);
                                         }
                                     }
+                                }
+
+                                index_t trim_front = 0;
+                                index_t trim_back = 0;
+                                if (part_lo > 1)
+                                {
+                                    (flip ? trim_back : trim_front) += use_ratio - part_lo;
+                                }
+                                if (part_hi > 1)
+                                {
+                                    (flip ? trim_front : trim_back) += use_ratio - part_hi;
+                                }
+
+                                // Tie-breaker for ratio=2 partial corner
+                                // cases.  If a coarse element's hanging
+                                // vertex is at the location of the corners
+                                // of two adjacent fine domains, trim
+                                // the contribution of one of the neighbors
+                                // so that the vertex isn't contributed twice.
+                                //
+                                // Heuristic:  Trim the contribution 
+                                // from the neighbor with the high-end
+                                // corner.
+                                if(use_ratio == 2 && part_hi == 1)
+                                {
+                                    (flip ? trim_front : trim_back) += 1;
+                                }
+
+                                const size_t append_begin =
+                                    std::min(static_cast<size_t>(trim_front), appended_idx.size());
+                                const size_t append_end =
+                                    (trim_back >= static_cast<index_t>(appended_idx.size() - append_begin))
+                                        ? append_begin
+                                        : appended_idx.size() - static_cast<size_t>(trim_back);
+
+                                for (size_t ai = append_begin; ai < append_end; ++ai)
+                                {
+                                    const index_t ni = appended_idx[ai];
+                                    new_x.push_back(xbuffer[ni]);
+                                    new_y.push_back(ybuffer[ni]);
                                 }
 
                                 out_cset["values"]["x"].set(new_x);
@@ -1103,33 +2448,35 @@ void to_polygonal(const Node &n,
                                 {
                                     auto& vbuffer = vtxbuffer[vnode.first];
                                     auto& vfld = new_vfld[vnode.first];
-                                    if (flip)
+                                    for (size_t ai = append_begin; ai < append_end; ++ai)
                                     {
-                                        for (index_t ni = buf_size-1-part_hi;
-                                             ni >= part_lo; --ni)
-                                        {
-                                            if (ni % use_ratio)
-                                            {
-                                                vfld.push_back(vbuffer[ni]);
-                                            }
-                                        }
-                                    }
-                                    else
-                                    {
-                                        for (index_t ni = part_lo; ni < buf_size-part_hi; ++ni)
-                                        {
-                                            if (ni % use_ratio)
-                                            {
-                                                vfld.push_back(vbuffer[ni]);
-                                            }
-                                        }
+                                        const index_t ni = appended_idx[ai];
+                                        vfld.push_back(vbuffer[ni]);
                                     }
                                     (*vnode.second)["values"].set(vfld);
                                 }
 
-			        // Connect the elements by adding the fine
-				// vertices at the coarse-fine boundaries to
-				// the coarse polygonal lelements.
+                                // Record new vertex ids appended due to this
+                                // neighbor. These vertices are appended
+                                // contiguously starting at new_vertex.
+                                const index_t added_count =
+                                    static_cast<index_t>(append_end - append_begin);
+                                if(group.has_child("neighbors") &&
+                                   group["neighbors"].dtype().number_of_elements() >= 2)
+                                {
+                                    auto &new_vids =
+                                        dom_to_nbr_to_new_vids[domain_id][nbr_id];
+                                    new_vids.reserve(new_vids.size() +
+                                                     static_cast<size_t>(added_count));
+                                    for(index_t i = 0; i < added_count; ++i)
+                                    {
+                                        new_vids.push_back(new_vertex + i);
+                                    }
+                                }
+
+                                // Connect the elements by adding the fine
+                                // vertices at the coarse-fine boundaries to
+                                // the coarse polygonal lelements.
                                 bputils::connectivity::connect_elements_2d(ref_win,
                                                                            i_lo,
                                                                            j_lo,
@@ -1137,14 +2484,16 @@ void to_polygonal(const Node &n,
                                                                            use_ratio,
                                                                            new_vertex,
                                                                            poly_elems,
-                                                                           flip);
+                                                                           flip,
+                                                                           part_lo,
+                                                                           part_hi);
                             }
                         }
                     }
                 }
             }
 
-	    // Finalize the polygonal mesh 
+            // Finalize the polygonal mesh 
             if (si == 2)
             {
                 dest_dom["state"].set(dom["state"]);
@@ -1166,14 +2515,14 @@ void to_polygonal(const Node &n,
                     if (elem_itr == poly_elems.end())
                     {
                         // Add regular quad elements away from the
-			// coarse-fine boundaries.
+                        // coarse-fine boundaries.
                         bputils::connectivity::make_element_2d(connect, elem, iwidth);
                         num_vertices.push_back(4);
                     }
                     else
                     {
                         // Add the polygonal elements that have been
-			// created for the coarse-fine boundaries.
+                        // created for the coarse-fine boundaries.
                         std::vector<index_t>& poly_elem = elem_itr->second;
                         connect.insert(connect.end(), poly_elem.begin(), poly_elem.end());
                         num_vertices.push_back(poly_elem.size());
@@ -1187,6 +2536,223 @@ void to_polygonal(const Node &n,
                 out_topo["elements/sizes"].set(num_vertices);
                 out_topo["elements/offsets"].set(elem_offsets);
 
+                // Add vertex-based adjsets (maxshare-style) to this output domain,
+                // based on the input structured adjset windows.
+                if(dom.has_path("adjsets/adjset/groups"))
+                {
+                    const index_t my_rank = relay::mpi::rank(comm);
+                    const index_t niwidth = iwidth + 1;
+                    const index_t num_verts =
+                        out_cset["values"]["x"].dtype().number_of_elements();
+
+                    std::map<index_t, std::vector<index_t>> vids_by_rank;
+                    for(const Node &group : dom["adjsets/adjset/groups"].children())
+                    {
+                        if(!group.has_child("rank") || !group.has_child("windows"))
+                        {
+                            continue;
+                        }
+
+                        const index_t nbr_rank = group["rank"].to_index_t();
+                        if(nbr_rank == my_rank)
+                        {
+                            continue;
+                        }
+                        const Node &windows = group["windows"];
+                        if(!windows.has_child(ref_name))
+                        {
+                            continue;
+                        }
+
+                        const Node &ref_win = windows[ref_name];
+                        // Determine coarse/fine relationship using the
+                        // neighbor window's level.
+                        //
+                        // "partial_lo/partial_hi" pad the fine-side window of
+                        // a coarse-fine adjacency when fine window is not
+                        // an exact refinement of the coarse window.
+                        // 
+                        // The true overlap on the fine side is therefore:
+                        //   [partial_lo, dims - partial_hi)
+                        index_t nbr_id = -1;
+                        if(group.has_child("neighbors") &&
+                           group["neighbors"].dtype().number_of_elements() >= 2)
+                        {
+                            temp.reset();
+                            temp.set_external(DataType(group["neighbors"].dtype().id(), 1),
+                                              (void*)group["neighbors"].element_ptr(1));
+                            nbr_id = temp.to_index_t();
+                        }
+                        const std::string nbr_win_name =
+                            (nbr_id >= 0) ? bputils::gen_default_name("window", nbr_id) : std::string();
+                        const index_t ref_level =
+                            ref_win.has_child("level_id") ? ref_win["level_id"].to_index_t() : 0;
+                        const index_t nbr_level =
+                            (nbr_id >= 0 && windows[nbr_win_name].has_child("level_id"))
+                                ? windows[nbr_win_name]["level_id"].to_index_t()
+                                : ref_level;
+                        const index_t origin_i = ref_win["origin/i"].to_index_t();
+                        const index_t origin_j = ref_win["origin/j"].to_index_t();
+                        const index_t dims_i   = ref_win["dims/i"].to_index_t();
+                        const index_t dims_j   = ref_win["dims/j"].to_index_t();
+
+                        const bool coarse_side = ref_level < nbr_level;
+                        const bool fine_side = ref_level > nbr_level;
+
+                        // Helper to read partial_lo/partial_hi from a window for a given dimension
+                        auto read_partial = [](const Node &win, char dim) -> std::pair<index_t, index_t> {
+                            const std::string lo_path = std::string("partial_lo/") + dim;
+                            const std::string hi_path = std::string("partial_hi/") + dim;
+
+                            const index_t lo = win.has_path(lo_path) ? win[lo_path].to_index_t() : 0;
+                            const index_t hi = win.has_path(hi_path) ? win[hi_path].to_index_t() : 0;
+
+                            return {lo, hi};
+                        };
+
+                        index_t raw_part_lo = 0;
+                        index_t raw_part_hi = 0;
+                        if(fine_side && (dims_i > 1 || dims_j > 1))
+                        {
+                            const char dim = (dims_i > 1) ? 'i' : 'j';
+                            std::tie(raw_part_lo, raw_part_hi) = read_partial(ref_win, dim);
+                        }
+                        else if(coarse_side && nbr_id >= 0 && (dims_i > 1 || dims_j > 1))
+                        {
+                            const Node& nbr_win = windows[nbr_win_name];
+                            const char dim = (dims_i > 1) ? 'i' : 'j';
+                            std::tie(raw_part_lo, raw_part_hi) = read_partial(nbr_win, dim);
+                        }
+
+                        // partial_lo/partial_hi count padded fine-side samples.
+                        //
+                        // When this domain is the fine side, the structured boundary walk
+                        // honors the raw counts directly.
+                        //
+                        // When this domain is the coarse side, at most one coarse endpoint
+                        // can be trimmed away on each side (the rest of the overlap is
+                        // represented by appended hanging-node vertices).
+                        index_t structured_trim_lo = fine_side ? raw_part_lo : (coarse_side && raw_part_lo > 0 ? 1 : 0);
+                        index_t structured_trim_hi = fine_side ? raw_part_hi : (coarse_side && raw_part_hi > 0 ? 1 : 0);
+
+                        auto &vids = vids_by_rank[nbr_rank];
+
+                        // Use orientation hints to traverse the boundary in a way that
+                        // matches the neighbor's sense of direction.
+                        bool flip = false;
+                        if(group.has_child("orientation"))
+                        {
+                            const auto &orientation = group["orientation"].as_int_array();
+                            const index_t idx = (dims_i == 1) ? 0 : 1;
+                            flip = (orientation.number_of_elements() > idx && orientation[idx] < 0);
+                        }
+
+                        // Collect vertex IDs along the adjacency boundary
+                        if(dims_i == 1 && dims_j == 1)
+                        {
+                            if(structured_trim_lo + structured_trim_hi < 1)
+                            {
+                                const index_t vid = (origin_j - j_lo) * niwidth + (origin_i - i_lo);
+                                if(vid >= 0 && vid < num_verts)
+                                {
+                                    vids.push_back(vid);
+                                }
+                            }
+                        }
+                        else if(dims_i == 1 || dims_j == 1)
+                        {
+                            const bool walk_j = (dims_i == 1);
+                            const index_t start = walk_j ? origin_j + structured_trim_lo : origin_i + structured_trim_lo;
+                            const index_t end = walk_j ? origin_j + dims_j - structured_trim_hi : origin_i + dims_i - structured_trim_hi;
+                            const index_t fixed = walk_j ? origin_i : origin_j;
+
+                            if(flip)
+                            {
+                                for(index_t idx = end; idx-- > start;)
+                                {
+                                    const index_t vid = walk_j ? (idx - j_lo) * niwidth + (fixed - i_lo)
+                                                               : (fixed - j_lo) * niwidth + (idx - i_lo);
+                                    if(vid >= 0 && vid < num_verts)
+                                    {
+                                        vids.push_back(vid);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                for(index_t idx = start; idx < end; ++idx)
+                                {
+                                    const index_t vid = walk_j ? (idx - j_lo) * niwidth + (fixed - i_lo)
+                                                               : (fixed - j_lo) * niwidth + (idx - i_lo);
+                                    if(vid >= 0 && vid < num_verts)
+                                    {
+                                        vids.push_back(vid);
+                                    }
+                                }
+                            }
+                        }
+
+                        // If this domain is coarse relative to this neighbor,
+                        // include any new vertices that were appended during
+                        // coarse-fine processing.
+                        auto dom_it = dom_to_nbr_to_new_vids.find(domain_id);
+                        if(ref_level < nbr_level &&
+                           dom_it != dom_to_nbr_to_new_vids.end() &&
+                           nbr_id >= 0)
+                        {
+                            auto nbr_it = dom_it->second.find(nbr_id);
+                            if(nbr_it != dom_it->second.end())
+                            {
+                                vids.insert(vids.end(),
+                                            nbr_it->second.begin(),
+                                            nbr_it->second.end());
+                            }
+                        }
+                    }
+
+                    if(!vids_by_rank.empty())
+                    {
+                        const std::string adjset_name = name + "_adjset";
+                        Node &adjset = dest_dom["adjsets"][adjset_name];
+                        adjset["topology"] = name;
+                        adjset["association"] = "vertex";
+                        Node &groups = adjset["groups"];
+                        groups.reset();
+
+                        for(auto &kv : vids_by_rank)
+                        {
+                            const index_t nbr_rank = kv.first;
+                            std::vector<index_t> &vids = kv.second;
+                            if(vids.empty())
+                            {
+                                continue;
+                            }
+
+                            // De-duplicate while preserving order.
+                            std::unordered_set<index_t> seen;
+                            seen.reserve(static_cast<size_t>(vids.size()));
+                            std::vector<index_t> ordered_unique;
+                            ordered_unique.reserve(vids.size());
+                            for(const index_t v : vids)
+                            {
+                                if(v < 0 || v >= num_verts)
+                                {
+                                    continue;
+                                }
+                                if(seen.insert(v).second)
+                                {
+                                    ordered_unique.push_back(v);
+                                }
+                            }
+
+                            // Store groups as a list as expected by
+                            // Partitioner::combine() 
+                            Node &grp = groups.append();
+                            grp["neighbors"].set(nbr_rank);
+                            grp["values"].set(ordered_unique);
+                        }
+                    }
+                }
             }
         }
     }
@@ -1271,7 +2837,7 @@ find_delegate_domain(const conduit::Node &n,
 }
 
 //-----------------------------------------------------------------------------
-void match_nbr_elems(PolyBndry& pbnd,
+void match_nbr_elems(detail::PolyBndry& pbnd,
                      std::map<index_t, bputils::connectivity::ElemType>& nbr_elems,
                      std::map<index_t, bputils::connectivity::SubelemMap>& allfaces_map,
                      const Node& ref_topo,
@@ -1887,8 +3453,8 @@ void to_polyhedral(const Node &n,
         }
     }
 
-    //Outer map: domain_id, inner map: nbr_id to PolyBndry
-    std::map<index_t, std::map<index_t, PolyBndry> > poly_bndry_map;
+    //Outer map: domain_id, inner map: nbr_id to detail::PolyBndry
+    std::map<index_t, std::map<index_t, detail::PolyBndry> > poly_bndry_map;
 
     std::map<index_t, std::vector<index_t> > nbr_ratio;
 
@@ -1963,7 +3529,7 @@ void to_polyhedral(const Node &n,
                             index_t origin_j = ref_win["origin/j"].to_index_t();
                             index_t origin_k = ref_win["origin/k"].to_index_t();
 
-                            PolyBndry& pbnd = poly_bndry_map[domain_id][nbr_id];
+                            detail::PolyBndry& pbnd = poly_bndry_map[domain_id][nbr_id];
 
                             if (ref_size_i == 1 && ref_size_j != 1 &&
                                 ref_size_k != 1)
@@ -2191,7 +3757,7 @@ void to_polyhedral(const Node &n,
 
                             if (!in_parent->has_child(nbr_name))
                             {
-                                PolyBndry& pbnd = poly_bndry_map[domain_id][nbr_id];
+                                detail::PolyBndry& pbnd = poly_bndry_map[domain_id][nbr_id];
 
                                 if (pbnd.side >= 0)
                                 {
@@ -2420,12 +3986,12 @@ void to_polyhedral(const Node &n,
         {
             std::map<index_t, std::map<index_t, size_t> > elem_to_new_faces;
 
-            //std::map<index_t, PolyBndry> bndries
+            //std::map<index_t, detail::PolyBndry> bndries
             auto& bndries = poly_bndry_map[domain_id];
             for (auto bitr = bndries.begin(); bitr != bndries.end(); ++bitr)
             {
-                //One PolyBndry for each fine neighbor domain
-                PolyBndry& pbnd = bitr->second;
+                //One detail::PolyBndry for each fine neighbor domain
+                detail::PolyBndry& pbnd = bitr->second;
                 index_t nbr_id = pbnd.m_nbr_id; //domain id of nbr
 
                 auto& sharedmap = nbr_to_sharedmap[nbr_id];

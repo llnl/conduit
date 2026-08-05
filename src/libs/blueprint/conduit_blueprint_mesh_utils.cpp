@@ -14,6 +14,7 @@
 #include <cfenv>
 #include <cmath>
 #include <deque>
+#include <iomanip>
 #include <string>
 #include <limits>
 #include <map>
@@ -488,6 +489,15 @@ find_domain_id(const Node &node)
     }
 
     return domain_id;
+}
+
+//-----------------------------------------------------------------------------
+std::string
+gen_default_name(const std::string &prefix, index_t id)
+{
+    std::ostringstream oss;
+    oss << prefix << "_" << std::setw(6) << std::setfill('0') << id;
+    return oss.str();
 }
 
 //---------------------------------------------------------------------------
@@ -1154,19 +1164,15 @@ connectivity::connect_elements_2d(const Node& ref_win,
                                   index_t ratio,
                                   index_t& new_vertex,
                                   std::map<index_t, std::vector<index_t> >& elems,
-                                  bool flip)
+                                  bool flip,
+                                  index_t part_lo,
+                                  index_t part_hi)
 {
     index_t origin_iref = ref_win["origin/i"].to_index_t();
     index_t origin_jref = ref_win["origin/j"].to_index_t();
 
     index_t ref_size_i = ref_win["dims/i"].to_index_t();
     index_t ref_size_j = ref_win["dims/j"].to_index_t();
-
-    //NSE:  Use of these values may not be correct for ratio > 3.
-    index_t part_lo = ref_win.has_child("partial_lo") ? 
-        ref_win["partial_lo"].to_index_t() : 0;
-    index_t part_hi = ref_win.has_child("partial_hi") ? 
-        ref_win["partial_hi"].to_index_t() : 0;
 
     if (ref_size_i == 1)
     {
@@ -1182,7 +1188,6 @@ connectivity::connect_elements_2d(const Node& ref_win,
             else
             {
                 ++jstart;
-                new_vertex += ratio - part_lo; 
             }
         }
         if (part_hi > 1)
@@ -1190,7 +1195,6 @@ connectivity::connect_elements_2d(const Node& ref_win,
             if (flip)
             {
                 ++jstart;
-                new_vertex += ratio - part_hi;
             }
             else
             {
@@ -1265,7 +1269,6 @@ connectivity::connect_elements_2d(const Node& ref_win,
             else
             {
                 ++istart;
-                new_vertex += ratio - part_lo;
             }
         }
         if (part_hi > 1)
@@ -1273,7 +1276,6 @@ connectivity::connect_elements_2d(const Node& ref_win,
             if (flip)
             {
                 ++istart;
-                new_vertex += ratio - part_hi;
             }
             else
             {
@@ -5119,4 +5121,3 @@ void CONDUIT_BLUEPRINT_API lerp(const Node& As,
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-
