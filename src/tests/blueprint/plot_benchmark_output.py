@@ -165,6 +165,35 @@ def split_generate_name(name):
             return operation, name[len(operation) + 1:]
     return name, ""
 
+OPERATIONS = [
+    "generate_centroids",
+    "generate_points",
+    "generate_faces",
+    "generate_lines",
+    "generate_corners",
+    "generate_sides",
+    "to_polytopal",
+]
+MESH_SRC_ORDER = ["structured", "rectilinear", "uniform"]
+SHAPE_ORDER = ["quads", "hexs", "pyramids"]
+MESH_SERIES_LABEL = "serial - before device support"
+
+INDIVIDUAL_FIGSIZE = (6.4, 3.6)
+MAX_STACKED_ROWS = 4
+
+
+def ordered(values, preferred_order):
+    values = set(values)
+    return [v for v in preferred_order if v in values] + \
+        sorted(values - set(preferred_order))
+
+
+def split_generate_name(name):
+    for operation in OPERATIONS:
+        if name.startswith(operation + "_"):
+            return operation, name[len(operation) + 1:]
+    return name, ""
+
 
 def find_cali_file():
     files = list(Path.cwd().glob("*.cali"))
