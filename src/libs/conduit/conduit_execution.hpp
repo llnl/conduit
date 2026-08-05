@@ -62,9 +62,10 @@ CONDUIT_API SyncStrategy sync_strategy_from_string(const std::string &strategy);
 //-----------------------------------------------------------------------------
 /// Pass a Node to set execution options.
 // opts node:
-//   execution_location: "host"|"device"|"input"
-//     # choose host, device, or input (use `use_with` to get a 
-//     # policy for the input data).
+//   execution_location: "host"|"device"|"serial"|"cuda"|"hip"|"openmp"
+//                       |"parallel"|"input"
+//     # choose an explicit execution policy, or input (use `use_with` to get
+//     # a policy for the input data).
 //     # default is "input"
 //   output_location: "host"|"device"|"input"|##
 //     # choose host alloc, device alloc, input alloc (get the allocator 
@@ -74,10 +75,11 @@ CONDUIT_API SyncStrategy sync_strategy_from_string(const std::string &strategy);
 //     # choose to sync or assume (if we add a new option here we need to
 //     # update all the use sites).
 //     # default is "assume"
-//   fallback_location: "host"|"device"
-//     # choose a fallback in the case that "input" is chosen for either 
-//     # execution_location or output_location and there is no input to 
-//     # operate on/reason about.
+//   fallback_location: "host"|"device"|"serial"|"cuda"|"hip"|"openmp"
+//                      |"parallel"
+//     # choose a fallback execution policy in the case that "input" is chosen
+//     # for either execution_location or output_location and there is no input
+//     # to operate on/reason about.
 //     # default is "host"
 //-----------------------------------------------------------------------------
 CONDUIT_API void execution_set_options(const Node &opts);

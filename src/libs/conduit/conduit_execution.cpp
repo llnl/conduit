@@ -307,6 +307,40 @@ ExecutionPolicy::policy_id_to_name(const PolicyID policy_id)
 }
 
 //-----------------------------------------------------------------------------
+/// Helper to validate execution option policy names.
+//-----------------------------------------------------------------------------
+static bool
+is_valid_execution_option_policy_name(const std::string &policy_name)
+{
+    return policy_name == "host"     ||
+           policy_name == "device"   ||
+           policy_name == "serial"   ||
+           policy_name == "cuda"     ||
+           policy_name == "hip"      ||
+           policy_name == "openmp"   ||
+           policy_name == "parallel";
+}
+
+//-----------------------------------------------------------------------------
+/// Resolve an execution option policy name to a concrete ExecutionPolicy.
+//-----------------------------------------------------------------------------
+static ExecutionPolicy
+resolve_execution_option_policy(const std::string &policy_name)
+{
+    if      (policy_name == "host")     return ExecutionPolicy::host();
+    else if (policy_name == "device")   return ExecutionPolicy::device();
+    else if (policy_name == "serial")   return ExecutionPolicy::serial();
+    else if (policy_name == "cuda")     return ExecutionPolicy::cuda();
+    else if (policy_name == "hip")      return ExecutionPolicy::hip();
+    else if (policy_name == "openmp")   return ExecutionPolicy::openmp();
+    else if (policy_name == "parallel") return ExecutionPolicy::parallel();
+
+    CONDUIT_ERROR("ExecutionOptions: invalid execution policy option '"
+                  << policy_name << "'.");
+    return ExecutionPolicy::empty();
+}
+
+//-----------------------------------------------------------------------------
 // Private class used to hold options that control execution params.
 //
 // These values are read by about(), and are set by io::execution_set_options()
@@ -326,7 +360,9 @@ public:
     // "sync" or "assume"
     static SyncStrategy sync_strategy;
 
-    // "host" or "device"
+    // fallback location for when execution_location is "input" or 
+    // output_location is "input" and there is no provided input Node that we
+    // can query.
     static std::string fallback_location;
     
     // allocator ids that are available
@@ -337,22 +373,26 @@ public:
 public:
     //------------------------------------------------------------------------
     // opts node:
-    //   execution_location: "host"|"device"|"input"
-    //     # choose host, device, or input (use `use_with` to get a 
-    //     # policy for the input data).
-    //     # default is "input"
+    //   execution_location: "host"|"device"|"serial"|"cuda"|"hip"|"openmp"
+    //                       |"parallel"|"input"
+    //     # choose an explicit execution policy, or input (use `use_with` to
+    //     # get a policy for the input data).
+    //     # default is "input" (if no Node is provided then the 
+    //     # fallback_location is used.)
     //   output_location: "host"|"device"|"input"|##
     //     # choose host alloc, device alloc, input alloc (get the allocator 
     //     # from the input node), or an index_t that is the allocator id to use
-    //     # default is "input"
+    //     # default is "input" (if no Node is provided then the 
+    //     # fallback_location is used.)
     //   sync_strategy: "sync"|"assume"
     //     # choose to sync or assume (if we add a new option here we need to
     //     # update all the use sites).
     //     # default is "assume"
-    //   fallback_location: "host"|"device"
-    //     # choose a fallback in the case that "input" is chosen for either 
-    //     # execution_location or output_location and there is no input to 
-    //     # operate on/reason about.
+    //   fallback_location: "host"|"device"|"serial"|"cuda"|"hip"|"openmp"
+    //                      |"parallel"
+    //     # choose a fallback execution policy in the case that "input" is
+    //     # chosen for either execution_location or output_location and there
+    //     # is no input to operate on/reason about.
     //     # default is "host"
     static void set(const Node &opts)
     {
@@ -361,9 +401,8 @@ public:
             if (opts["execution_location"].dtype().is_string())
             {
                 const std::string policy = opts["execution_location"].as_string();
-                if (policy == "host" ||
-                    policy == "device" ||
-                    policy == "input")
+                if (policy == "input" ||
+                    is_valid_execution_option_policy_name(policy))
                 {
                     execution_location = policy;
                 }
@@ -423,8 +462,7 @@ public:
             if (opts["fallback_location"].dtype().is_string())
             {
                 const std::string fallback = opts["fallback_location"].as_string();
-                if (fallback == "host" ||
-                    fallback == "device")
+                if (is_valid_execution_option_policy_name(fallback))
                 {
                     fallback_location = fallback;
                 }
@@ -469,14 +507,6 @@ public:
     //------------------------------------------------------------------------
     static ExecutionPolicy get_execution_policy_helper(const Node *src_node)
     {
-        if ("host" == execution_location)
-        {
-            return ExecutionPolicy::host();
-        }
-        if ("device" == execution_location)
-        {
-            return ExecutionPolicy::device();
-        }
         if ("input" == execution_location)
         {
             if (nullptr != src_node)
@@ -492,22 +522,11 @@ public:
             }
             else
             {
-                if ("host" == fallback_location)
-                {
-                    return ExecutionPolicy::host();
-                }
-                if ("device" == fallback_location)
-                {
-                    return ExecutionPolicy::device();
-                }
-                CONDUIT_ERROR("ExecutionOptions::get_execution_policy() cannot resolve "
-                              "execution_location " << fallback_location << ".");
-                return ExecutionPolicy::empty();
+                return resolve_execution_option_policy(fallback_location);
             }
         }
-        CONDUIT_ERROR("ExecutionOptions::get_execution_policy() cannot resolve "
-                      "execution_location " << execution_location << ".");
-        return ExecutionPolicy::empty();
+
+        return resolve_execution_option_policy(execution_location);
     }
 
     //------------------------------------------------------------------------
@@ -545,17 +564,10 @@ public:
             }
             else
             {
-                if ("host" == fallback_location)
-                {
-                    return host_allocator;
-                }
-                if ("device" == fallback_location)
-                {
-                    return device_allocator;
-                }
-                CONDUIT_ERROR("ExecutionOptions::get_output_allocator_id() cannot resolve "
-                              "output_location " << fallback_location << ".");
-                return -1;
+                const ExecutionPolicy fallback_policy =
+                    resolve_execution_option_policy(fallback_location);
+                return fallback_policy.is_device_policy() ?
+                    device_allocator : host_allocator;
             }
         }
         CONDUIT_ERROR("ExecutionOptions::get_output_allocator_id() cannot resolve "
