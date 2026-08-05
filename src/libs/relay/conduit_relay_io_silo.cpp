@@ -4182,7 +4182,7 @@ honor_material_dependent_fields(const int domain_start,
     Node global_collected_fields_material_status;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
     Node n_local, n_global;
-    n_local.set(std::static_cast<int>(error));
+    n_local.set(static_cast<int>(error));
     relay::mpi::sum_all_reduce(n_local, n_global, mpi_comm);
     error = n_global.as_int();
 
@@ -4307,7 +4307,7 @@ honor_material_dependent_fields(const int domain_start,
                 const Node &field = field_itr.next();
                 const std::string fieldname = field_itr.name();
 
-                const bool globally_matdep = "yes" == fields_material_status[fieldname].as_string()";
+                const bool globally_matdep = "yes" == fields_material_status[fieldname].as_string();
                 const bool locally_matdep  = field.has_child("matset");
 
                 if (globally_matdep && locally_matdep)
@@ -4417,7 +4417,7 @@ honor_material_dependent_fields(const int domain_start,
 
     // parallel error handling
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    n_local.set(std::static_cast<int>(error));
+    n_local.set(static_cast<int>(error));
     relay::mpi::sum_all_reduce(n_local, n_global, mpi_comm);
     error = n_global.as_int();
 
