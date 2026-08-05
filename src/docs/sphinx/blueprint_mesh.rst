@@ -495,7 +495,7 @@ Mixed topologies with shapes/shape_map
 The schema for a **mixed** shapes topology is as follows:
 
   * topologies/topo/coordset: "coords"
-  * topologies/topo/coordset: “unstructured”
+  * topologies/topo/type: "unstructured"
   * topologies/topo/elements: (o2mrelation object)
   * topologies/topo/elements/shape: "mixed"
   * topologies/topo/elements/shape_map: (shape map node)
