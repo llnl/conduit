@@ -1373,7 +1373,7 @@ TEST(conduit_relay_io_silo, mixed_var_special_case)
                 conduit::blueprint::mesh::matset::create_or_reuse_material_map(n_matset, material_map);
                 n_matset["material_map"].set(material_map);
 
-                if (1 == child)
+                if (0 == child)
                 {
                     n_matset["volume_fractions"].remove_child("circle_a");
                     n_matset["volume_fractions"].remove_child("circle_b");
@@ -1437,6 +1437,14 @@ TEST(conduit_relay_io_silo, mixed_var_special_case)
             }
 
             EXPECT_FALSE(l_curr.diff(s_curr, info, CONDUIT_EPSILON, true));
+
+            if (l_curr.diff(s_curr, info, CONDUIT_EPSILON, true))
+            {
+                std::cout << dom_id << std::endl;
+                l_curr.print();
+                s_curr.print();
+                info.print();
+            }
 
             dom_id ++;
         }
