@@ -21,6 +21,8 @@ jobs:
         env build_conduit=false \
             enable_tests=OFF \
             enable_zfp=OFF \
+            enable_python=OFF \
+            build_pyvenv=false \
             ./scripts/build_conduit/build_conduit.sh
       shell: bash
     - name: Echo Host Config
@@ -52,6 +54,5 @@ jobs:
         echo "**** Installing Conduit"
         cmake --install build --config Release
       shell: bash
-
 
 
