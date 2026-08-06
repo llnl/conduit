@@ -2091,6 +2091,9 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case_errors)
         dom_id ++;
     }
 
+    Node dom3_mixed_matset;
+    dom3_mixed_matset.set(test_mesh.child(3)["matsets"]["matset"]);
+
     if (0 == par_rank)
     {
         test_mesh.remove(3);
@@ -2161,7 +2164,7 @@ TEST(conduit_relay_mpi_io_silo, mixed_var_special_case_errors)
     if (0 == par_rank)
     {
         // domain 2
-        test_mesh.child(1)["matsets"]["matset"].set(test_mesh.child(1)["matsets"]["matset"]);
+        test_mesh.child(1)["matsets"]["matset"].set(dom3_mixed_matset);
     }
     MPI_Barrier(comm);
     EXPECT_THROW(relay::mpi::io::silo::honor_material_dependent_fields(0, 4, test_mesh, comm), conduit::Error);
