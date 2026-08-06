@@ -1726,9 +1726,10 @@ calculate_unstructured_centroids(const conduit::Node &topo,
                                                           topo_offsets,
                                                           topo_suboffsets);
     }
-    else
+    else // if (!topo_shape.is_polyhedral())
     {
-        bputils::topology::unstructured::generate_offsets(topo, topo_offsets);
+        bputils::topology::unstructured::generate_offsets(topo,
+                                                          topo_offsets);
     }
 
     const index_t topo_num_elems = topo_offsets.dtype().number_of_elements();
@@ -1768,12 +1769,17 @@ calculate_unstructured_centroids(const conduit::Node &topo,
     const DataType suboffset_dtype(topo_suboffsets.dtype().id(), 1);
     const DataType subsize_dtype(topo_subsizes.dtype().id(), 1);
 
+    conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
+    const index_t allocator_id = conduit::execution::get_output_allocator_id();
+    const conduit::execution::SyncStrategy sync_strategy = conduit::execution::get_sync_strategy();
+
     // Allocate Data Templates for Outputs //
 
     dest.reset();
     dest["type"].set("unstructured");
     dest["coordset"].set(cdest.name());
     dest["elements/shape"].set(topo_cascade.get_shape(0).type());
+    dest["elements/connectivity"].set_allocator(allocator_id);
     dest["elements/connectivity"].set(DataType(int_dtype.id(), topo_num_elems));
 
     cdest.reset();
@@ -1785,139 +1791,71 @@ calculate_unstructured_centroids(const conduit::Node &topo,
 
     // Compute Data for Centroid Topology //
 
-    // Store the element ids into the connectivity - with some fast paths.
-    // Should we make a Node::iota() function?
-    Node &dest_elem_conn = dest["elements/connectivity"];
-    if(dest_elem_conn.dtype().is_int64())
+    int64_accessor conn_acc(dest["elements/connectivity"]);
+    conn_acc.use_with(policy);
+    conduit::execution::forall(policy, 0, topo_num_elems, [=] CONDUIT_EXEC(index_t i)
     {
-        auto conn = dest_elem_conn.as_int64_ptr();
-        auto n = static_cast<int64>(topo_num_elems);
-        for(int64 i = 0; i < n; i++)
-            conn[i] = i;
-    }
-    else if(dest_elem_conn.dtype().is_int32())
-    {
-        auto conn = dest_elem_conn.as_int32_ptr();
-        auto n = static_cast<int32>(topo_num_elems);
-        for(int32 i = 0; i < n; i++)
-            conn[i] = i;
-    }
-    else
-    {
-        // Store generally - but SLOW.
-        int64 ei_value;
-        Node data_node;
-        Node ei_data(DataType::int64(1), &ei_value, true);
-        auto n = static_cast<int64>(topo_num_elems);
-        for(ei_value = 0; ei_value < n; ei_value++)
-        {
-            // TODO: USE ACCESSORS
-            // Use data_node to wrap connectivity[ei].
-            data_node.set_external(int_dtype, dest_elem_conn.element_ptr(ei_value));
-            // Convert ei_data to int, store in data_node.
-            ei_data.to_data_type(int_dtype.id(), data_node);
-        }
-    }
+        conn_acc.set(i, i);
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    conn_acc.data_movement(sync_strategy);
 
     // Create some accessors to access the data.
     index_t csys_axes_size = csys_axes.size();
     std::vector<float64_accessor> axis_data_access;
-    for(index_t ai = 0; ai < csys_axes_size; ai++)
+    for (index_t i = 0; i < csys_axes_size; i++)
     {
-        axis_data_access.push_back(coordset["values"][csys_axes[ai]].as_float64_accessor());
+        axis_data_access.push_back(coordset["values"][csys_axes[i]].as_float64_accessor());
     }
 
-    const auto topo_sizes_access = topo_sizes.as_index_t_accessor();
+    const auto topo_conn_access    = topo_conn.as_index_t_accessor();
     const auto topo_offsets_access = topo_offsets.as_index_t_accessor();
-    const auto topo_conn_access = topo_conn.as_index_t_accessor();
+    const auto topo_sizes_access   = topo_sizes.as_index_t_accessor();
 
-    // Get the dest nodes to save on lookups later.
-    std::vector<Node *> dest_centroid;
-    for(index_t ai = 0; ai < csys_axes_size; ai++)
-        dest_centroid.push_back(cdest["values"].fetch_ptr(csys_axes[ai]));
-
-    // NOTE: We're primarily dispatching to different template functions that
-    //       let us pick how to store the centroid results. This was the latest
-    //       slow part. The functions are templated though in case we wanted to
-    //       pass raw index_t pointers (when appropriate) instead of using
-    //       accessors.
-    if(topo_shape.is_polyhedral())
+    // Wrap the dest coordinate arrays in accessors
+    std::vector<float64_accessor> dest_centroid_access;
+    for (index_t i = 0; i < csys_axes_size; i++)
     {
-        const auto topo_subconn_access = topo_subconn.as_index_t_accessor();
-        const auto topo_suboffsets_access = topo_suboffsets.as_index_t_accessor();
-        const auto topo_subsizes_access = topo_subsizes.as_index_t_accessor();
-
-        if(float_dtype.is_float64())
-        {
-            // Get pointers to where we'll write the centroid data directly.
-            float64 *typed_dest_centroid[3] = {nullptr, nullptr, nullptr};
-            for(index_t ai = 0; ai < csys_axes_size; ai++)
-                typed_dest_centroid[ai] = reinterpret_cast<float64 *>(dest_centroid[ai]->element_ptr(0));
-            
-            unstructured_centroid_polyhedral(topo_shape,
-                topo_conn_access, topo_offsets_access, topo_sizes_access, 
-                topo_subconn_access, topo_suboffsets_access, topo_subsizes_access,
-                topo_num_elems,
-                axis_data_access, csys_axes_size,
-                [&](index_t ei, const float64 centroid[3])
-            {
-                for(index_t ai = 0; ai < csys_axes_size; ai++)
-                    typed_dest_centroid[ai][ei] = centroid[ai];
-            });
-        }
-        else //if(float_dtype.is_float32())
-        {
-            // Get pointers to where we'll write the centroid data directly.
-            float32 *typed_dest_centroid[3] = {nullptr, nullptr, nullptr};
-            for(index_t ai = 0; ai < csys_axes_size; ai++)
-                typed_dest_centroid[ai] = reinterpret_cast<float32 *>(dest_centroid[ai]->element_ptr(0));
-
-            unstructured_centroid_polyhedral(topo_shape,
-                topo_conn_access, topo_offsets_access, topo_sizes_access,
-                topo_subconn_access, topo_suboffsets_access, topo_subsizes_access,
-                topo_num_elems,
-                axis_data_access, csys_axes_size,
-                [&](index_t ei, const float64 centroid[3])
-            {
-                for(index_t ai = 0; ai < csys_axes_size; ai++)
-                    typed_dest_centroid[ai][ei] = static_cast<float32>(centroid[ai]);
-            });
-        }
+        dest_centroid_access.push_back(cdest["values"][csys_axes[i]].as_float64_accessor());
     }
-    else // polygonal, other
-    {
-        if(float_dtype.is_float64())
-        {
-            // Get pointers to where we'll write the centroid data directly.
-            float64 *typed_dest_centroid[3] = {nullptr, nullptr, nullptr};
-            for(index_t ai = 0; ai < csys_axes_size; ai++)
-                typed_dest_centroid[ai] = reinterpret_cast<float64 *>(dest_centroid[ai]->element_ptr(0));
-            
-            unstructured_centroid(topo_shape,
-                topo_conn_access, topo_offsets_access, topo_sizes_access, topo_num_elems,
-                axis_data_access, csys_axes_size,
-                [&](index_t ei, const float64 centroid[3])
-            {
-                for(index_t ai = 0; ai < csys_axes_size; ai++)
-                    typed_dest_centroid[ai][ei] = centroid[ai];
-            });
-        }
-        else //if(float_dtype.is_float32())
-        {
-            // Get pointers to where we'll write the centroid data directly.
-            float32 *typed_dest_centroid[3] = {nullptr, nullptr, nullptr};
-            for(index_t ai = 0; ai < csys_axes_size; ai++)
-                typed_dest_centroid[ai] = reinterpret_cast<float32 *>(dest_centroid[ai]->element_ptr(0));
 
-            unstructured_centroid(topo_shape,
-                topo_conn_access, topo_offsets_access, topo_sizes_access, topo_num_elems,
-                axis_data_access, csys_axes_size,
-                [&](index_t ei, const float64 centroid[3])
-            {
-                for(index_t ai = 0; ai < csys_axes_size; ai++)
-                    typed_dest_centroid[ai][ei] = static_cast<float32>(centroid[ai]);
-            });
+    // Pretty sure this can become an execution::forall with some refactoring
+    auto store_centroid = [=] CONDUIT_EXEC(index_t ei, const float64 centroid[3])
+    {
+        for (index_t i = 0; i < csys_axes_size; i++)
+        {
+            dest_centroid_access[i].set(ei, centroid[i]);
         }
+    };
+
+    if (topo_shape.is_polyhedral())
+    {
+        const auto topo_subconn_access    = topo_subconn.as_index_t_accessor();
+        const auto topo_suboffsets_access = topo_suboffsets.as_index_t_accessor();
+        const auto topo_subsizes_access   = topo_subsizes.as_index_t_accessor();
+
+        unstructured_centroid_polyhedral(topo_shape,
+                                         topo_conn_access,
+                                         topo_offsets_access,
+                                         topo_sizes_access,
+                                         topo_subconn_access,
+                                         topo_suboffsets_access,
+                                         topo_subsizes_access,
+                                         topo_num_elems,
+                                         axis_data_access,
+                                         csys_axes_size,
+                                         store_centroid);
+    }
+    else // if (!topo_shape.is_polyhedral())
+    {
+        unstructured_centroid(topo_shape,
+                              topo_conn_access,
+                              topo_offsets_access,
+                              topo_sizes_access,
+                              topo_num_elems,
+                              axis_data_access,
+                              csys_axes_size,
+                              store_centroid);
     }
 }
 
@@ -5284,21 +5222,30 @@ mesh::topology::unstructured::generate_centroids(const Node &topo,
     const Node *coordset = bputils::find_reference_node(topo, "coordset");
     calculate_unstructured_centroids(topo, *coordset, topo_dest, coords_dest);
 
-    Node map_node;
-    std::vector<index_t> map_vec;
-    index_t n = bputils::topology::length(topo);
-    for(index_t ei = 0; ei < n; ei++)
-    {
-        map_vec.push_back(1);
-        map_vec.push_back(ei);
-    }
-    map_node.set(map_vec);
-
     DataType int_dtype = bputils::find_widest_dtype(bputils::link_nodes(topo, *coordset), bputils::DEFAULT_INT_DTYPES);
+    index_t n = bputils::topology::length(topo);
+
+    conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
+    const index_t allocator_id = conduit::execution::get_output_allocator_id();
+    const conduit::execution::SyncStrategy sync_strategy = conduit::execution::get_sync_strategy();
+    
     s2dmap.reset();
+    s2dmap.set_allocator(allocator_id);
+    s2dmap.set(DataType(int_dtype.id(), 2 * n));
+
+    int64_accessor map_acc(s2dmap);
+    map_acc.use_with(policy);
+    conduit::execution::forall(policy, 0, n, [=] CONDUIT_EXEC(index_t i)
+    {
+        map_acc.set(2 * i,     static_cast<int64>(1));
+        map_acc.set(2 * i + 1, static_cast<int64>(i));
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    map_acc.data_movement(sync_strategy);
+
     d2smap.reset();
-    map_node.to_data_type(int_dtype.id(), s2dmap);
-    map_node.to_data_type(int_dtype.id(), d2smap);
+    d2smap.set_allocator(allocator_id);
+    d2smap.set(s2dmap);
 }
 
 //-----------------------------------------------------------------------------
