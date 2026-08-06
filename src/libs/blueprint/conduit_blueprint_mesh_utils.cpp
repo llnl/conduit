@@ -462,7 +462,6 @@ find_reference_node(const Node &node, const std::string &ref_key)
     return res;
 }
 
-
 //-----------------------------------------------------------------------------
 // NOTE: 'node' can be any subtree of a Blueprint-compliant mesh
 index_t
@@ -1943,7 +1942,9 @@ topology::spatial_ordering(const conduit::Node &topo)
 {
     // Make a new centroid topo and coordset. The coordset will contain the
     // element centers. This ought to be an explicit coordset.
-    Node topo_dest, coords_dest, s2dmap, d2smap;
+    Node centroid_scratch, s2dmap, d2smap;
+    Node &topo_dest = centroid_scratch["topo"];
+    Node &coords_dest = centroid_scratch["coords"];
     mesh::topology::unstructured::generate_centroids(topo,
                                                      topo_dest,
                                                      coords_dest,
@@ -2144,7 +2145,9 @@ topology::hilbert_ordering(const conduit::Node &topo)
 {
     // Make a new centroid topo and coordset. The coordset will contain the
     // element centers. This ought to be an explicit coordset.
-    conduit::Node topo_dest, coords_dest, s2dmap, d2smap;
+    conduit::Node centroid_scratch, s2dmap, d2smap;
+    conduit::Node &topo_dest = centroid_scratch["topo"];
+    conduit::Node &coords_dest = centroid_scratch["coords"];
     conduit::blueprint::mesh::topology::unstructured::generate_centroids(topo,
                                                                          topo_dest,
                                                                          coords_dest,
