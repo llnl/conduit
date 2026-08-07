@@ -15,7 +15,7 @@ jobs:
           - '3.13'
     steps:
     - name: Setup Python
-    - uses: actions/setup-python@v2
+      uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
     - name: Setup MPI
@@ -45,7 +45,7 @@ jobs:
           - '3.13'
     steps:
     - name: Setup Python
-    - uses: actions/setup-python@v2
+      uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
     - name: Setup MPI
@@ -83,7 +83,7 @@ jobs:
              Start-Process -FilePath .\llvm.exe -ArgumentList "/S", "/D=C:\LLVM" -Wait
              echo "C:\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
     - name: Setup Python
-    - uses: actions/setup-python@v2
+      uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
     - name: Setup Python Env
