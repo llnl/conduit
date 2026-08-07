@@ -55,7 +55,8 @@ namespace examples
                                     index_t nx,
                                     index_t ny,
                                     float64 radius,
-                                    Node &res);
+                                    Node &res,
+                                    const float64 epsilon = CONDUIT_EPSILON);
 
     /// Generates a rectilinear grid with fields that
     /// are computed from 3 overlapping circles.

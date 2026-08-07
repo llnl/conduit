@@ -1432,6 +1432,43 @@ TEST(conduit_blueprint_mesh_examples, venn_sparse_by_element)
 }
 
 //-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_examples, venn_sbm_large_radius)
+{
+    const int nx = 2, ny = 2;
+    const double radius = 5;
+    Node res, info;
+
+    blueprint::mesh::examples::venn("sparse_by_material", nx, ny, radius, res);
+
+    EXPECT_TRUE(blueprint::mesh::verify(res, info));
+
+    EXPECT_TRUE(res["matsets"]["matset"]["volume_fractions"].has_child("circle_a"));
+    EXPECT_TRUE(res["matsets"]["matset"]["volume_fractions"].has_child("circle_b"));
+    EXPECT_TRUE(res["matsets"]["matset"]["volume_fractions"].has_child("circle_c"));
+    EXPECT_FALSE(res["matsets"]["matset"]["volume_fractions"].has_child("background"));
+
+    EXPECT_TRUE(res["matsets"]["matset"]["element_ids"].has_child("circle_a"));
+    EXPECT_TRUE(res["matsets"]["matset"]["element_ids"].has_child("circle_b"));
+    EXPECT_TRUE(res["matsets"]["matset"]["element_ids"].has_child("circle_c"));
+    EXPECT_FALSE(res["matsets"]["matset"]["element_ids"].has_child("background"));
+
+    EXPECT_TRUE(res["fields"]["importance"]["matset_values"].has_child("circle_a"));
+    EXPECT_TRUE(res["fields"]["importance"]["matset_values"].has_child("circle_b"));
+    EXPECT_TRUE(res["fields"]["importance"]["matset_values"].has_child("circle_c"));
+    EXPECT_FALSE(res["fields"]["importance"]["matset_values"].has_child("background"));
+
+    EXPECT_TRUE(res["fields"]["area"]["matset_values"].has_child("circle_a"));
+    EXPECT_TRUE(res["fields"]["area"]["matset_values"].has_child("circle_b"));
+    EXPECT_TRUE(res["fields"]["area"]["matset_values"].has_child("circle_c"));
+    EXPECT_FALSE(res["fields"]["area"]["matset_values"].has_child("background"));
+
+    EXPECT_TRUE(res["fields"]["mat_check"]["matset_values"].has_child("circle_a"));
+    EXPECT_TRUE(res["fields"]["mat_check"]["matset_values"].has_child("circle_b"));
+    EXPECT_TRUE(res["fields"]["mat_check"]["matset_values"].has_child("circle_c"));
+    EXPECT_FALSE(res["fields"]["mat_check"]["matset_values"].has_child("background"));
+}
+
+//-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_examples, mesh_julia_nestset_simple)
 {
 

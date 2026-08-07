@@ -213,13 +213,13 @@ void compute_material_sparse_matset_field(Node &res,
                                           index_t nx,
                                           index_t ny)
 {
-    index_t elements = nx * ny;
+    const index_t elements = nx * ny;
 
-    Node & n = res["fields/" + field_name + "/values"];
+    Node &n = res["fields/" + field_name + "/values"];
     n.set(DataType::float64(elements));
     float64_array n_val = n.value();
 
-    Node & matset_values = res["fields/" + field_name + "/matset_values"];
+    Node &matset_values = res["fields/" + field_name + "/matset_values"];
 
     NodeIterator itr = matset_values.children();
     while (itr.has_next())
@@ -245,7 +245,10 @@ void compute_material_sparse_matset_field(Node &res,
 }
 
 //---------------------------------------------------------------------------//
-void venn_sparse_by_material_matset(Node &res, index_t nx, index_t ny)
+void venn_sparse_by_material_matset(Node &res,
+                                    index_t nx,
+                                    index_t ny,
+                                    const float64 epsilon = CONDUIT_EPSILON)
 {    
     // create the materials
     
@@ -314,45 +317,64 @@ void venn_sparse_by_material_matset(Node &res, index_t nx, index_t ny)
         res["fields/importance/matset_values/circle_c"],
         res["matsets/matset"]);
 
+    const float64 one_minus_epsilon = 1.0 - epsilon;
+
     // The background material volume fraction depends on the other three
     // materials, so we deal with it in a custom loop.
-    index_t bgcount = 0;
-    for (index_t idx = 0; idx < elements; ++idx)
+    const index_t bgcount = [&]() -> float64
     {
-        if (cir_a[idx] + cir_b[idx] + cir_c[idx] < 1.) bgcount += 1;
-    }
-
-    res["matsets/matset/volume_fractions/background"].set(DataType::float64(bgcount));
-    res["matsets/matset/element_ids/background"].set(DataType::int32(bgcount));
-    float64_array bg_val = res["matsets/matset/volume_fractions/background"].value();
-    int32_array bg_idx = res["matsets/matset/element_ids/background"].value();
-
-    Node &matset_area_bg = res["fields/area/matset_values/background"];
-    matset_area_bg.set(DataType::float64(bgcount));
-    float64_array matset_area_bg_value = matset_area_bg.value();
-
-    Node &matset_importance_bg = res["fields/importance/matset_values/background"];
-    matset_importance_bg.set(DataType::float64(bgcount));
-    float64_array matset_importance_bg_value = matset_importance_bg.value();
-
-    index_t nidx = 0;
-    for (index_t idx = 0; idx < elements; ++idx)
-    {
-        float64 x_pos = ((float64)(idx % nx)) / nx;
-        float64 y_pos = ((float64)(idx / nx)) / ny;
-
-        float64 fgvf = cir_a[idx] + cir_b[idx] + cir_c[idx];
-        if (fgvf < 1.)
+        index_t count = 0;
+        for (index_t idx = 0; idx < elements; ++idx)
         {
-            bg_idx[nidx] = (int32)idx;
-
-            bg_val[nidx] = 1. - fgvf;
-
-            matset_area_bg_value[nidx] = element_area;
-            matset_importance_bg_value[nidx] = x_pos + y_pos;
-
-            nidx += 1;
+            const float64 circle_sum = cir_a[idx] + cir_b[idx] + cir_c[idx];
+            if (circle_sum < one_minus_epsilon)
+            {
+                count += 1;
+            }
         }
+        return count;
+    }();
+
+    const bool background_exists = bgcount != 0;
+    if (background_exists)
+    {
+        res["matsets/matset/volume_fractions/background"].set(DataType::float64(bgcount));
+        res["matsets/matset/element_ids/background"].set(DataType::int32(bgcount));
+        float64_array bg_val = res["matsets/matset/volume_fractions/background"].value();
+        int32_array bg_idx = res["matsets/matset/element_ids/background"].value();
+
+        Node &matset_area_bg = res["fields/area/matset_values/background"];
+        matset_area_bg.set(DataType::float64(bgcount));
+        float64_array matset_area_bg_value = matset_area_bg.value();
+
+        Node &matset_importance_bg = res["fields/importance/matset_values/background"];
+        matset_importance_bg.set(DataType::float64(bgcount));
+        float64_array matset_importance_bg_value = matset_importance_bg.value();
+
+        index_t nidx = 0;
+        for (index_t idx = 0; idx < elements; ++idx)
+        {
+            const float64 x_pos = static_cast<float64>(idx % nx) / nx;
+            const float64 y_pos = static_cast<float64>(idx / nx) / ny;
+
+            const float64 fgvf = cir_a[idx] + cir_b[idx] + cir_c[idx];
+            if (fgvf < one_minus_epsilon)
+            {
+                bg_idx[nidx] = (int32)idx;
+
+                bg_val[nidx] = 1. - fgvf;
+
+                matset_area_bg_value[nidx] = element_area;
+                matset_importance_bg_value[nidx] = x_pos + y_pos;
+
+                nidx += 1;
+            }
+        }
+    }
+    else
+    {
+        res["matsets/matset/volume_fractions"].remove_child("background");
+        res["matsets/matset/element_ids"].remove_child("background");
     }
 
     // --------- //
@@ -369,38 +391,30 @@ void venn_sparse_by_material_matset(Node &res, index_t nx, index_t ny)
     index_t cir_c_count = res["matsets/matset/element_ids/circle_c"].dtype().number_of_elements();
 
     // init our matset_values arrays
-    res["fields/mat_check/matset_values/background"].set(DataType::int64(bgcount));
+    if (background_exists)
+    {
+        res["fields/mat_check/matset_values/background"].set(DataType::int64(bgcount));
+    }
     res["fields/mat_check/matset_values/circle_a"].set(DataType::int64(cir_a_count));
     res["fields/mat_check/matset_values/circle_b"].set(DataType::int64(cir_b_count));
     res["fields/mat_check/matset_values/circle_c"].set(DataType::int64(cir_c_count));
 
     // set with unique values
 
-    // NOTE: this is good use case for adding DataArray.fill ...
-    int64_array m_chk_bg_vals = res["fields/mat_check/matset_values/background"].value();
-        
-    for(index_t idx=0;idx < bgcount; idx++)
+    if (background_exists)
     {
-        m_chk_bg_vals[idx] = 1;
+        int64_array m_chk_bg_vals = res["fields/mat_check/matset_values/background"].value();
+        m_chk_bg_vals.fill(1);
     }
 
     int64_array m_chk_cir_a_vals = res["fields/mat_check/matset_values/circle_a"].value();
-    for(index_t idx=0;idx < cir_a_count; idx++)
-    {
-        m_chk_cir_a_vals[idx] = 20;
-    }
+    m_chk_cir_a_vals.fill(20);
 
     int64_array m_chk_cir_b_vals = res["fields/mat_check/matset_values/circle_b"].value();
-    for(index_t idx=0;idx < cir_b_count; idx++)
-    {
-        m_chk_cir_b_vals[idx] = 300;
-    }
+    m_chk_cir_b_vals.fill(300);
 
     int64_array m_chk_cir_c_vals = res["fields/mat_check/matset_values/circle_c"].value();
-    for(index_t idx=0;idx < cir_c_count; idx++)
-    {
-        m_chk_cir_c_vals[idx] = 4000;
-    }
+    m_chk_cir_c_vals.fill(4000);
 
     // Now we've computed the matset values for the fields area and
     // importance, sum the product of the volume fraction and the matset
@@ -533,7 +547,8 @@ void venn(const std::string &matset_type,
           index_t nx,
           index_t ny,
           float64 radius, 
-          Node &res)
+          Node &res,
+          const float64 epsilon)
 {
     res.reset();
     // create a rectilinear coordset 
@@ -787,7 +802,7 @@ void venn(const std::string &matset_type,
     }
     else if (matset_type == "sparse_by_material")
     {
-        venn_sparse_by_material_matset(res, nx, ny);
+        venn_sparse_by_material_matset(res, nx, ny, epsilon);
     }
     else if (matset_type == "sparse_by_element")
     {
