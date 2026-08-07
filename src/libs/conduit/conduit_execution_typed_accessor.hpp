@@ -362,6 +362,9 @@ with_typed_accessor(const DataAccessor<T> &acc0,
     kernel(acc0, acc1, acc2);
 }
 
+// TODO: Investigate adding support for compact strided arrays, plus figure out
+// a way to benchmark the performance difference.
+
 }
 //-----------------------------------------------------------------------------
 // -- end conduit::execution --
