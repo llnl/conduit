@@ -28,6 +28,8 @@ jobs:
             enable_mpi=OFF \
             enable_fortran=OFF \
             enable_tests=OFF \
+            enable_python=OFF \
+            build_pyvenv=false \
             build_conduit=OFF \
             enable_verbose=OFF \
             build_jobs=2 \
