@@ -38,6 +38,7 @@ namespace detail
 {
 
 //-----------------------------------------------------------------------------
+// TODO: When the data is compact, investigate using a typed pointer
 template <typename T, typename U>
 void
 set_values_helper(const DataAccessor<T> &accessor, const U &values, index_t num_elements)
@@ -322,6 +323,7 @@ DataAccessor<T>::count(T val) const
 }
 
 //---------------------------------------------------------------------------//
+// TODO: When the data is compact, investigate using a typed pointer
 template <typename T>
 void
 DataAccessor<T>::fill(T value)
