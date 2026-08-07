@@ -8908,6 +8908,10 @@ void mesh::convert(const conduit::Node &n_mesh,
         topologyName = n_topologies[0].name();
         if(n_topologies.number_of_children() > 1)
         {
+            // TODO: Why not throw an error in this case? Seems that making the
+            // requirement stricter would only serve to help users do the right thing
+            // by making it more obvious that they're doing an ambiguous thing (even
+            // if it happens to be doing the right thing).
             CONDUIT_INFO(conduit_fmt::format(
                 "There is more than one possible topology in the mesh. The first one, \"{}\", will "
                 "be used. Consider passing a \"topology\" name in the options.",
@@ -8922,6 +8926,9 @@ void mesh::convert(const conduit::Node &n_mesh,
         copy = (n_options["copy"].to_int() != 0);
     }
 
+    // TODO: This appears to make unstructured the default conversion target.
+    // If there's truly not a target type passed, 
+
     // Get the target
     std::string target("unstructured");
     if(n_options.has_path("target"))
@@ -8929,7 +8936,7 @@ void mesh::convert(const conduit::Node &n_mesh,
         target = n_options["target"].as_string();
     }
 
-    const int FIELDS_MASK = 1;
+    const int FIELDS_MASK  = 1;
     const int MATSETS_MASK = 2;
     const int ADJSETS_MASK = 4;
     int copyMask = 0;
@@ -8945,8 +8952,7 @@ void mesh::convert(const conduit::Node &n_mesh,
     else
     {
         const conduit::Node &n_topo = n_mesh["topologies/" + topologyName];
-        const conduit::Node *n_coordset =
-            bputils::find_reference_node(n_topo, "coordset");
+        const conduit::Node *n_coordset = bputils::find_reference_node(n_topo, "coordset");
         if(n_coordset == nullptr)
         {
             CONDUIT_ERROR("Could not locate coordset.");
@@ -8963,10 +8969,16 @@ void mesh::convert(const conduit::Node &n_mesh,
                 const bool degrade_polytopes = n_options.has_path("degrade_polytopes")
                     ? (n_options["degrade_polytopes"].to_int() > 0)
                     : false;
-                const bool isPolygonal = shape == "polygonal" && degrade_polytopes;
-                const bool isPolyhedral = shape == "polyhedral" && degrade_polytopes;
+                const bool isPolygonal  = degrade_polytopes && shape == "polygonal";
+                const bool isPolyhedral = degrade_polytopes && shape == "polyhedral";
                 if(isPolygonal || isPolyhedral)
                 {
+                    // TODO: If we're in this block at all then don't we already have an
+                    // unstructured topology? Under what cirucumstances would we find
+                    // ourselves here? It seems to logically follow that we must not
+                    // actually have an unstructured topology, and that this should 
+                    // live under its own type == "polytopal" block instead?
+
                     // Convert polytopal BACK to unstructured.
                     conduit::blueprint::mesh::topology::unstructured::polytopal::to_unstructured(
                         n_mesh,
@@ -8980,7 +8992,7 @@ void mesh::convert(const conduit::Node &n_mesh,
                     copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
                 }
             }
-            else
+            else // we have a type other than unstructured
             {
                 conduit::Node &topo_dest = n_output["topologies/" + topologyName];
                 conduit::Node &coords_dest = n_output["coordsets/" + n_coordset->name()];
@@ -9005,7 +9017,7 @@ void mesh::convert(const conduit::Node &n_mesh,
                                                                                     coords_dest);
                     copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
                 }
-                else
+                else // we have a unsupported target type
                 {
                     CONDUIT_ERROR(conduit_fmt::format("No conversion for {} to {}.", type, target));
                 }
@@ -9106,6 +9118,7 @@ void mesh::convert(const conduit::Node &n_mesh,
         }
         else if(target.find("generate_") == 0)
         {
+            // NOTE: I wonder if there a reason that we don't just do a const conduit::Node&?
             const conduit::Node *n_input = &n_mesh;
             // If the input mesh to any of these "generate_" targets is not unstructured,
             // recurse and make it unstructured.
@@ -9115,10 +9128,18 @@ void mesh::convert(const conduit::Node &n_mesh,
                 conduit::Node options_copy(n_options);
                 options_copy["target"] = "unstructured";
                 options_copy["copy"] = 0;  // Use set_external when possible
+                // TODO: We should consider what the potential implications are with
+                // converting the topology to unstructured before going further, because
+                // sync/assume could have put the output into a different memory space than
+                // what the later un-ported generate_* APIs expect (probably that everything
+                // lives in host memory).
                 convert(n_mesh, options_copy, n_mesh_uns, tmp);
+                // NOTE: This explains why we're using a Node*, but lets see if this ever
+                // gets assigned again
                 n_input = &n_mesh_uns;
             }
 
+            // TODO: Look at what fetch_existing does
             const conduit::Node &n_input_topo = n_input->fetch_existing("topologies/" + topologyName);
             conduit::Node &n_output_topo = n_output["topologies/" + topologyName];
             if(target == "generate_points")
@@ -9163,6 +9184,7 @@ void mesh::convert(const conduit::Node &n_mesh,
             }
             else if(target == "generate_sides")
             {
+                // Justin called dibs on porting this
                 // NOTE: Use the same coordset name as the original mesh.
                 conduit::blueprint::mesh::topology::unstructured::generate_sides(
                     n_input_topo,
