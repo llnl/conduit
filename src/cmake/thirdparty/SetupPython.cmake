@@ -23,6 +23,10 @@ if(PYTHON_EXECUTABLE AND NOT Python3_EXECUTABLE)
     set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
 endif()
 
+if(Python3_EXECUTABLE)
+    message(STATUS "Python Executable: {Python3_EXECUTABLE}")
+endif()
+
 find_package(Python3
              REQUIRED
              COMPONENTS Interpreter Development NumPy)
