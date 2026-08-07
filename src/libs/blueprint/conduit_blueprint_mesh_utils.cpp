@@ -462,7 +462,6 @@ find_reference_node(const Node &node, const std::string &ref_key)
     return res;
 }
 
-
 //-----------------------------------------------------------------------------
 // NOTE: 'node' can be any subtree of a Blueprint-compliant mesh
 index_t
@@ -1943,7 +1942,9 @@ topology::spatial_ordering(const conduit::Node &topo)
 {
     // Make a new centroid topo and coordset. The coordset will contain the
     // element centers. This ought to be an explicit coordset.
-    Node topo_dest, coords_dest, s2dmap, d2smap;
+    Node centroid_scratch, s2dmap, d2smap;
+    Node &topo_dest = centroid_scratch["topo"];
+    Node &coords_dest = centroid_scratch["coords"];
     mesh::topology::unstructured::generate_centroids(topo,
                                                      topo_dest,
                                                      coords_dest,
@@ -2144,7 +2145,9 @@ topology::hilbert_ordering(const conduit::Node &topo)
 {
     // Make a new centroid topo and coordset. The coordset will contain the
     // element centers. This ought to be an explicit coordset.
-    conduit::Node topo_dest, coords_dest, s2dmap, d2smap;
+    conduit::Node centroid_scratch, s2dmap, d2smap;
+    conduit::Node &topo_dest = centroid_scratch["topo"];
+    conduit::Node &coords_dest = centroid_scratch["coords"];
     conduit::blueprint::mesh::topology::unstructured::generate_centroids(topo,
                                                                          topo_dest,
                                                                          coords_dest,
@@ -2830,10 +2833,49 @@ topology::MeshInfoCollection::merge(const topology::MeshInfo &a, const topology:
     info.maxExtents[0] = std::max(a.maxExtents[0], b.maxExtents[0]);
     info.maxExtents[1] = std::max(a.maxExtents[1], b.maxExtents[1]);
     info.maxExtents[2] = std::max(a.maxExtents[2], b.maxExtents[2]);
-    info.minEdgeLength = std::min(a.minEdgeLength, b.minEdgeLength);
-    info.maxEdgeLength = std::max(a.maxEdgeLength, b.maxEdgeLength);
-    info.minDiagonalLength = std::min(a.minDiagonalLength, b.minDiagonalLength);
-    info.maxDiagonalLength = std::max(a.maxDiagonalLength, b.maxDiagonalLength);
+
+    auto choosyMin = [](float64 a, float64 b, float64 eps)
+    {
+        float64 v = eps;
+        if(a > eps && b > eps)
+        {
+            v = std::min(a, b);
+        }
+        else if(a > eps)
+        {
+            v = a;
+        }
+        else if(b > eps)
+        {
+            v = b;
+        }
+        return v;
+    };
+    auto choosyMax = [](float64 a, float64 b, float64 eps)
+    {
+        float64 v = eps;
+        if(a > eps && b > eps)
+        {
+            v = std::max(a, b);
+        }
+        else if(a > eps)
+        {
+            v = a;
+        }
+        else if(b > eps)
+        {
+            v = b;
+        }
+        return v;
+    };
+    // Use the "choosy" functions so we do not try to replace length values with zeroes
+    // when we merge in case some domains had 0 length edges (spherical to cartesian
+    // transformations might do that).
+    info.minEdgeLength = choosyMin(a.minEdgeLength, b.minEdgeLength, CONDUIT_EPSILON);
+    info.maxEdgeLength = choosyMax(a.maxEdgeLength, b.maxEdgeLength, CONDUIT_EPSILON);
+    info.minDiagonalLength = choosyMin(a.minDiagonalLength, b.minDiagonalLength, CONDUIT_EPSILON);
+    info.maxDiagonalLength = choosyMax(a.maxDiagonalLength, b.maxDiagonalLength, CONDUIT_EPSILON);
+
     return info;
 }
 
@@ -2861,6 +2903,10 @@ topology::Quantizer::Quantizer(const topology::MeshInfo &info) : meshInfo(info)
 {
     // Take the smaller of the lengths.
     length = static_cast<FloatValue>(std::min(meshInfo.minDiagonalLength, meshInfo.minEdgeLength));
+    // If the length is REALLY small, clamp it.
+    constexpr FloatValue minLength = std::numeric_limits<FloatValue>::epsilon() * FloatValue{10.};
+    length = std::max(length, minLength);
+
     offset = length / 2.;
 
     // Set some values derived from the MeshInfo.

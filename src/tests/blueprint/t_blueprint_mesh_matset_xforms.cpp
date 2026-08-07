@@ -11,6 +11,7 @@
 #include "conduit.hpp"
 #include "conduit_blueprint.hpp"
 #include "conduit_log.hpp"
+#include "conduit_annotations.hpp"
 
 #include <algorithm>
 #include <vector>
@@ -18,20 +19,6 @@
 #include "gtest/gtest.h"
 
 using namespace conduit;
-
-//-----------------------------------------------------------------------------
-// Simply adds an "element_ids" field [0 1 2 ... N-1]
-static void
-convert_to_material_based(const Node &topo, Node &mset)
-{
-    const int nelem = static_cast<int>(blueprint::mesh::topology::length(topo));
-    mset["element_ids"].set_dtype(DataType::c_int(nelem));
-    DataArray<int> eids = mset["element_ids"].value();
-    for(int i = 0; i < nelem; i++)
-    {
-        eids[i] = i;
-    }
-}
 
 //-----------------------------------------------------------------------------
 // the venn_specsets("full", ...) example creates irrelevant species mass
@@ -60,7 +47,7 @@ modify_full_specset_to_clear_irrelevant_zone_mass_fractions(const Node &full_mat
             {
                 // if the material is not in the zone, the species mass fraction
                 // must be 0.
-                if (! blueprint::mesh::matset::is_material_in_zone(full_matset,
+                if (! blueprint::mesh::matset::is_material_in_element(full_matset,
                                                                    matname,
                                                                    zone_id,
                                                                    CONDUIT_EPSILON))
@@ -94,7 +81,7 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_create_reverse_matmap)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_count_zones_from_matset)
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_count_elements_from_matset)
 {
     const int nx = 4, ny = 4;
     const double radius = 0.25;
@@ -105,7 +92,7 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_count_zones_from_matset)
         blueprint::mesh::examples::venn("full", nx, ny, radius, mesh);
         const Node &mset = mesh["matsets/matset"];
 
-        EXPECT_EQ(16, blueprint::mesh::matset::count_zones_from_matset(mset));
+        EXPECT_EQ(16, blueprint::mesh::matset::count_elements_from_matset(mset));
     }
 
     CONDUIT_INFO("venn sparse_by_material count zones");
@@ -114,7 +101,7 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_count_zones_from_matset)
         blueprint::mesh::examples::venn("sparse_by_material", nx, ny, radius, mesh);
         const Node &mset = mesh["matsets/matset"];
 
-        EXPECT_EQ(16, blueprint::mesh::matset::count_zones_from_matset(mset));
+        EXPECT_EQ(16, blueprint::mesh::matset::count_elements_from_matset(mset));
     }
 
     CONDUIT_INFO("venn sparse_by_element count zones");
@@ -123,7 +110,7 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_count_zones_from_matset)
         blueprint::mesh::examples::venn("sparse_by_element", nx, ny, radius, mesh);
         const Node &mset = mesh["matsets/matset"];
 
-        EXPECT_EQ(16, blueprint::mesh::matset::count_zones_from_matset(mset));
+        EXPECT_EQ(16, blueprint::mesh::matset::count_elements_from_matset(mset));
     }
 }
 
@@ -196,7 +183,7 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_count_materials_from_specse
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_is_material_in_zone)
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_is_material_in_element)
 {
     const int nx = 2, ny = 2;
     const double radius = 0.25;
@@ -207,8 +194,8 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_is_material_in_zone)
         blueprint::mesh::examples::venn("full", nx, ny, radius, mesh);
         const Node &mset = mesh["matsets/matset"];
 
-        EXPECT_FALSE(blueprint::mesh::matset::is_material_in_zone(mset, "circle_c", 0));
-        EXPECT_TRUE(blueprint::mesh::matset::is_material_in_zone(mset, "circle_c", 3));
+        EXPECT_FALSE(blueprint::mesh::matset::is_material_in_element(mset, "circle_c", 0));
+        EXPECT_TRUE(blueprint::mesh::matset::is_material_in_element(mset, "circle_c", 3));
     }
 
     CONDUIT_INFO("venn sparse_by_material check mat in zone");
@@ -217,8 +204,8 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_is_material_in_zone)
         blueprint::mesh::examples::venn("sparse_by_material", nx, ny, radius, mesh);
         const Node &mset = mesh["matsets/matset"];
 
-        EXPECT_FALSE(blueprint::mesh::matset::is_material_in_zone(mset, "circle_c", 0));
-        EXPECT_TRUE(blueprint::mesh::matset::is_material_in_zone(mset, "circle_c", 3));
+        EXPECT_FALSE(blueprint::mesh::matset::is_material_in_element(mset, "circle_c", 0));
+        EXPECT_TRUE(blueprint::mesh::matset::is_material_in_element(mset, "circle_c", 3));
     }
 
     CONDUIT_INFO("venn sparse_by_element check mat in zone");
@@ -227,8 +214,8 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_is_material_in_zone)
         blueprint::mesh::examples::venn("sparse_by_element", nx, ny, radius, mesh);
         const Node &mset = mesh["matsets/matset"];
 
-        EXPECT_FALSE(blueprint::mesh::matset::is_material_in_zone(mset, "circle_c", 0));
-        EXPECT_TRUE(blueprint::mesh::matset::is_material_in_zone(mset, "circle_c", 3));
+        EXPECT_FALSE(blueprint::mesh::matset::is_material_in_element(mset, "circle_c", 0));
+        EXPECT_TRUE(blueprint::mesh::matset::is_material_in_element(mset, "circle_c", 3));
     }
 }
 
@@ -267,15 +254,14 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_basic)
         EXPECT_EQ(actual_topology, expected_topology);
     }
 
-    // { // Check 'matlist' Field //
-    //     // TODO(JRC): Need to make sure these are the same type.
-    //     int64 expected_matlist_vec[] = {1, -1, -3, 2};
-    //     Node expected_matlist(DataType::int64(4),
-    //         &expected_matlist_vec[0], true);
-    //     const Node &actual_matlist = silo["matlist"];
+    { // Check 'matlist' Field //
+        int64 expected_matlist_vec[] = {0, -1, -3, 1};
+        Node expected_matlist(DataType::int64(4),
+            &expected_matlist_vec[0], true);
+        const Node &actual_matlist = silo["matlist"];
 
-    //     EXPECT_FALSE(actual_matlist.diff(expected_matlist, info));
-    // }
+        EXPECT_FALSE(actual_matlist.diff(expected_matlist, info, CONDUIT_EPSILON, true));
+    }
 }
 
 
@@ -321,7 +307,7 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_venn_to_silo)
         mset_silo_baseline["buffer_style"] = "multi";
         mset_silo_baseline["dominance"] = "material";
 
-        EXPECT_FALSE(mset_silo.diff(mset_silo_baseline,info));
+        EXPECT_FALSE(mset_silo.diff(mset_silo_baseline,info, CONDUIT_EPSILON, true));
     }
 
     CONDUIT_INFO("venn sparse_by_element to silo");
@@ -339,28 +325,8 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_venn_to_silo)
         mset_silo_baseline["buffer_style"] = "uni";
         mset_silo_baseline["dominance"] = "element";
 
-        EXPECT_FALSE(mset_silo.diff(mset_silo_baseline,info));
+        EXPECT_FALSE(mset_silo.diff(mset_silo_baseline,info, CONDUIT_EPSILON, true));
     }
-
-    CONDUIT_INFO("venn sparse_by_element (converted to material based) to silo")
-    {
-        Node mesh, info;
-        blueprint::mesh::examples::venn("sparse_by_element", nx, ny, radius, mesh);
-        Node &mset = mesh["matsets/matset"];
-        convert_to_material_based(mesh["topologies/topo"], mset);
-
-        std::cout << mset.to_yaml() << std::endl;
-
-        Node mset_silo;
-        blueprint::mesh::matset::to_silo(mset, mset_silo);
-        std::cout << mset_silo.to_yaml() << std::endl;
-
-        mset_silo_baseline["buffer_style"] = "uni";
-        mset_silo_baseline["dominance"] = "material";
-
-        EXPECT_FALSE(mset_silo.diff(mset_silo_baseline,info));
-    }
-
 }
 
 
@@ -417,7 +383,7 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_venn_to_silo_matset_values)
         mset_silo_baseline["buffer_style"] = "multi";
         mset_silo_baseline["dominance"] = "material";
 
-        EXPECT_FALSE(mset_silo.diff(mset_silo_baseline,info));
+        EXPECT_FALSE(mset_silo.diff(mset_silo_baseline,info, CONDUIT_EPSILON, true));
     }
 
     CONDUIT_INFO("venn sparse_by_element to silo");
@@ -441,33 +407,8 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_venn_to_silo_matset_values)
         mset_silo_baseline["buffer_style"] = "uni";
         mset_silo_baseline["dominance"] = "element";
 
-        EXPECT_FALSE(mset_silo.diff(mset_silo_baseline,info));
+        EXPECT_FALSE(mset_silo.diff(mset_silo_baseline,info,CONDUIT_EPSILON, true));
     }
-
-    CONDUIT_INFO("venn sparse_by_element (converted to material based) to silo")
-    {
-        Node mesh, info;
-        blueprint::mesh::examples::venn("sparse_by_element", nx, ny, radius, mesh);
-        const Node &field = mesh["fields/mat_check"];
-        Node &mset = mesh["matsets/matset"];
-        convert_to_material_based(mesh["topologies/topo"], mset);
-
-        std::cout << mset.to_yaml() << std::endl;
-        std::cout << field.to_yaml() << std::endl;
-
-        Node mset_silo;
-        blueprint::mesh::field::to_silo(field,
-                                        mset,
-                                        mset_silo);
-
-        std::cout << mset_silo.to_yaml() << std::endl;
-
-        mset_silo_baseline["buffer_style"] = "uni";
-        mset_silo_baseline["dominance"] = "material";
-
-        EXPECT_FALSE(mset_silo.diff(mset_silo_baseline,info));
-    }
-
 }
 
 //-----------------------------------------------------------------------------
@@ -480,6 +421,9 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms)
     blueprint::mesh::examples::venn_specsets("full", nx, ny, radius, mesh_full);
     blueprint::mesh::examples::venn_specsets("sparse_by_element", nx, ny, radius, mesh_sbe);
     blueprint::mesh::examples::venn_specsets("sparse_by_material", nx, ny, radius, mesh_sbm);
+
+    Node material_map;
+    material_map.set(mesh_sbe["matsets/matset/material_map"]);
 
     CONDUIT_INFO("venn full -> full");
     {
@@ -499,15 +443,15 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms)
 
         Node converted_mset, converted_field, converted_sset;
         std::string converted_matset_name = "matset2";
-        blueprint::mesh::matset::to_multi_buffer_full(mset, converted_mset);
-        blueprint::mesh::field::to_multi_buffer_full(mset, 
-                                                     field, 
-                                                     converted_matset_name, 
-                                                     converted_field);
-        blueprint::mesh::specset::to_multi_buffer_full(mset, 
-                                                       sset, 
-                                                       converted_matset_name, 
-                                                       converted_sset);
+        blueprint::mesh::matset::to_multi_buffer_by_element(mset, converted_mset);
+        blueprint::mesh::field::to_multi_buffer_by_element(mset, 
+                                                           field, 
+                                                           converted_matset_name, 
+                                                           converted_field);
+        blueprint::mesh::specset::to_multi_buffer_by_element(mset, 
+                                                             sset, 
+                                                             converted_matset_name, 
+                                                             converted_sset);
         std::cout << converted_mset.to_yaml() << std::endl;
         std::cout << converted_field.to_yaml() << std::endl;
         std::cout << converted_sset.to_yaml() << std::endl;
@@ -590,6 +534,396 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms)
                                                               sset, 
                                                               converted_matset_name, 
                                                               converted_sset);
+        
+        std::cout << converted_mset.to_yaml() << std::endl;
+        std::cout << converted_field.to_yaml() << std::endl;
+        std::cout << converted_sset.to_yaml() << std::endl;
+
+        sbm_field_baseline["matset"].reset();
+        sbm_field_baseline["matset"] = "matset2";
+        sbm_sset_baseline["matset"].reset();
+        sbm_sset_baseline["matset"] = "matset2";
+
+        EXPECT_FALSE(converted_mset.diff(sbm_mset_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_field.diff(sbm_field_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_sset.diff(sbm_sset_baseline, info, CONDUIT_EPSILON, true));
+    }
+
+    CONDUIT_INFO("venn sparse_by_element -> full");
+    {
+        // diff sbe -> full with full
+
+        const Node &mset = mesh_sbe["matsets/matset"];
+        const Node &field = mesh_sbe["fields/importance"];
+        const Node &sset = mesh_sbe["specsets/specset"];
+        Node full_mset_baseline, full_field_baseline, full_sset_baseline;
+        full_mset_baseline.set(mesh_full["matsets/matset"]);
+        full_mset_baseline["material_map"].set(material_map);
+        full_field_baseline.set(mesh_full["fields/importance"]);
+        full_sset_baseline.set(mesh_full["specsets/specset"]);
+
+        // remove irrelevant zone mass fractions for a clean diff
+        modify_full_specset_to_clear_irrelevant_zone_mass_fractions(full_mset_baseline, full_sset_baseline);
+
+        std::cout << mset.to_yaml() << std::endl;
+        std::cout << field.to_yaml() << std::endl;
+        std::cout << sset.to_yaml() << std::endl;
+
+        Node converted_mset, converted_field, converted_sset;
+        std::string converted_matset_name = "matset2";
+        blueprint::mesh::matset::to_multi_buffer_by_element(mset, converted_mset);
+        blueprint::mesh::field::to_multi_buffer_by_element(mset, 
+                                                           field, 
+                                                           converted_matset_name, 
+                                                           converted_field);
+        blueprint::mesh::specset::to_multi_buffer_by_element(mset, 
+                                                             sset, 
+                                                             converted_matset_name, 
+                                                             converted_sset);
+        std::cout << converted_mset.to_yaml() << std::endl;
+        std::cout << converted_field.to_yaml() << std::endl;
+        std::cout << converted_sset.to_yaml() << std::endl;
+
+        full_field_baseline["matset"].reset();
+        full_field_baseline["matset"] = "matset2";
+        full_sset_baseline["matset"].reset();
+        full_sset_baseline["matset"] = "matset2";
+
+        EXPECT_FALSE(converted_mset.diff(full_mset_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_field.diff(full_field_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_sset.diff(full_sset_baseline, info, CONDUIT_EPSILON, true));
+    }
+
+    CONDUIT_INFO("venn sparse_by_element -> sparse_by_material");
+    {
+        // diff sbe -> sbm with sbm
+
+        const Node &mset = mesh_sbe["matsets/matset"];
+        const Node &field = mesh_sbe["fields/importance"];
+        const Node &sset = mesh_sbe["specsets/specset"];
+        Node sbm_mset_baseline, sbm_field_baseline, sbm_sset_baseline;
+        sbm_mset_baseline.set(mesh_sbm["matsets/matset"]);
+        sbm_mset_baseline["material_map"].set(material_map);
+        sbm_field_baseline.set(mesh_sbm["fields/importance"]);
+        sbm_sset_baseline.set(mesh_sbm["specsets/specset"]);
+
+        std::cout << mset.to_yaml() << std::endl;
+        std::cout << field.to_yaml() << std::endl;
+        std::cout << sset.to_yaml() << std::endl;
+
+        Node converted_mset, converted_field, converted_sset;
+        std::string converted_matset_name = "matset2";
+        blueprint::mesh::matset::to_multi_buffer_by_material(mset, converted_mset);
+        blueprint::mesh::field::to_multi_buffer_by_material(mset, 
+                                                            field, 
+                                                            converted_matset_name, 
+                                                            converted_field);
+        blueprint::mesh::specset::to_multi_buffer_by_material(mset, 
+                                                              sset, 
+                                                              converted_matset_name, 
+                                                              converted_sset);
+        std::cout << converted_mset.to_yaml() << std::endl;
+        std::cout << converted_field.to_yaml() << std::endl;
+        std::cout << converted_sset.to_yaml() << std::endl;
+
+        sbm_field_baseline["matset"].reset();
+        sbm_field_baseline["matset"] = "matset2";
+        sbm_sset_baseline["matset"].reset();
+        sbm_sset_baseline["matset"] = "matset2";
+
+        EXPECT_FALSE(converted_mset.diff(sbm_mset_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_field.diff(sbm_field_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_sset.diff(sbm_sset_baseline, info, CONDUIT_EPSILON, true));
+    }
+
+    CONDUIT_INFO("venn sparse_by_material -> full");
+    {
+        // diff sbm -> full with full
+
+        const Node &mset = mesh_sbm["matsets/matset"];
+        const Node &field = mesh_sbm["fields/importance"];
+        const Node &sset = mesh_sbm["specsets/specset"];
+        Node full_mset_baseline, full_field_baseline, full_sset_baseline;
+        full_mset_baseline.set(mesh_full["matsets/matset"]);
+        full_field_baseline.set(mesh_full["fields/importance"]);
+        full_sset_baseline.set(mesh_full["specsets/specset"]);
+
+        // remove irrelevant zone mass fractions for a clean diff
+        modify_full_specset_to_clear_irrelevant_zone_mass_fractions(full_mset_baseline, full_sset_baseline);
+
+        std::cout << mset.to_yaml() << std::endl;
+        std::cout << field.to_yaml() << std::endl;
+        std::cout << sset.to_yaml() << std::endl;
+
+        Node converted_mset, converted_field, converted_sset;
+        std::string converted_matset_name = "matset2";
+        blueprint::mesh::matset::to_multi_buffer_by_element(mset, converted_mset);
+        blueprint::mesh::field::to_multi_buffer_by_element(mset, 
+                                                           field, 
+                                                           converted_matset_name, 
+                                                           converted_field);
+        blueprint::mesh::specset::to_multi_buffer_by_element(mset, 
+                                                             sset, 
+                                                             converted_matset_name, 
+                                                             converted_sset);
+        std::cout << converted_mset.to_yaml() << std::endl;
+        std::cout << converted_field.to_yaml() << std::endl;
+        std::cout << converted_sset.to_yaml() << std::endl;
+
+        full_field_baseline["matset"].reset();
+        full_field_baseline["matset"] = "matset2";
+        full_sset_baseline["matset"].reset();
+        full_sset_baseline["matset"] = "matset2";
+
+        EXPECT_FALSE(converted_mset.diff(full_mset_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_field.diff(full_field_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_sset.diff(full_sset_baseline, info, CONDUIT_EPSILON, true));
+    }
+
+    CONDUIT_INFO("venn sparse_by_material -> sparse_by_element");
+    {
+        // diff sbm -> sbe with sbe
+
+        const Node &mset = mesh_sbm["matsets/matset"];
+        const Node &field = mesh_sbm["fields/importance"];
+        const Node &sset = mesh_sbm["specsets/specset"];
+        Node sbe_mset_baseline, sbe_field_baseline, sbe_sset_baseline;
+        sbe_mset_baseline.set(mesh_sbe["matsets/matset"]);
+        sbe_field_baseline.set(mesh_sbe["fields/importance"]);
+        sbe_sset_baseline.set(mesh_sbe["specsets/specset"]);
+
+        std::cout << mset.to_yaml() << std::endl;
+        std::cout << field.to_yaml() << std::endl;
+        std::cout << sset.to_yaml() << std::endl;
+
+        Node converted_mset, converted_field, converted_sset;
+        std::string converted_matset_name = "matset2";
+        blueprint::mesh::matset::to_uni_buffer_by_element(mset, converted_mset);
+        blueprint::mesh::field::to_uni_buffer_by_element(mset, 
+                                                         field, 
+                                                         converted_matset_name, 
+                                                         converted_field);
+        blueprint::mesh::specset::to_uni_buffer_by_element(mset, 
+                                                           sset, 
+                                                           converted_matset_name, 
+                                                           converted_sset);
+        std::cout << converted_mset.to_yaml() << std::endl;
+        std::cout << converted_field.to_yaml() << std::endl;
+        std::cout << converted_sset.to_yaml() << std::endl;
+
+        sbe_field_baseline["matset"].reset();
+        sbe_field_baseline["matset"] = "matset2";
+        sbe_sset_baseline["matset"].reset();
+        sbe_sset_baseline["matset"] = "matset2";
+
+        EXPECT_FALSE(converted_mset.diff(sbe_mset_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_field.diff(sbe_field_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_sset.diff(sbe_sset_baseline, info, CONDUIT_EPSILON, true));
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_unsupported_transforms)
+{
+    const int nx = 4, ny = 4;
+    const double radius = 0.25;
+
+    Node mesh_full, mesh_sbe, mesh_sbm, info;
+    blueprint::mesh::examples::venn_specsets("full", nx, ny, radius, mesh_full);
+    blueprint::mesh::examples::venn_specsets("sparse_by_element", nx, ny, radius, mesh_sbe);
+    blueprint::mesh::examples::venn_specsets("sparse_by_material", nx, ny, radius, mesh_sbm);
+
+    CONDUIT_INFO("venn full -> uni-buffer by material");
+    {
+        const Node &mset = mesh_full["matsets/matset"];
+        const Node &field = mesh_full["fields/importance"];
+        const Node &sset = mesh_full["specsets/specset"];
+
+        Node converted_mset, converted_field, converted_sset;
+        std::string converted_matset_name = "matset2";
+        EXPECT_THROW(blueprint::mesh::matset::to_uni_buffer_by_material(mset, converted_mset), conduit::Error);
+        EXPECT_THROW(blueprint::mesh::field::to_uni_buffer_by_material(mset, 
+                                                                       field, 
+                                                                       converted_matset_name, 
+                                                                       converted_field), conduit::Error);
+        EXPECT_THROW(blueprint::mesh::specset::to_uni_buffer_by_material(mset, 
+                                                                         sset, 
+                                                                         converted_matset_name, 
+                                                                         converted_sset), conduit::Error);
+    }
+
+    CONDUIT_INFO("venn sparse_by_element -> uni-buffer by material");
+    {
+        const Node &mset = mesh_sbe["matsets/matset"];
+        const Node &field = mesh_sbe["fields/importance"];
+        const Node &sset = mesh_sbe["specsets/specset"];
+
+        Node converted_mset, converted_field, converted_sset;
+        std::string converted_matset_name = "matset2";
+        EXPECT_THROW(blueprint::mesh::matset::to_uni_buffer_by_material(mset, converted_mset), conduit::Error);
+        EXPECT_THROW(blueprint::mesh::field::to_uni_buffer_by_material(mset, 
+                                                                       field, 
+                                                                       converted_matset_name, 
+                                                                       converted_field), conduit::Error);
+        EXPECT_THROW(blueprint::mesh::specset::to_uni_buffer_by_material(mset, 
+                                                                         sset, 
+                                                                         converted_matset_name, 
+                                                                         converted_sset), conduit::Error);
+    }
+
+    CONDUIT_INFO("venn sparse_by_material -> full");
+    {
+        const Node &mset = mesh_sbm["matsets/matset"];
+        const Node &field = mesh_sbm["fields/importance"];
+        const Node &sset = mesh_sbm["specsets/specset"];
+
+        Node converted_mset, converted_field, converted_sset;
+        std::string converted_matset_name = "matset2";
+        EXPECT_THROW(blueprint::mesh::matset::to_uni_buffer_by_material(mset, converted_mset), conduit::Error);
+        EXPECT_THROW(blueprint::mesh::field::to_uni_buffer_by_material(mset, 
+                                                                       field, 
+                                                                       converted_matset_name, 
+                                                                       converted_field), conduit::Error);
+        EXPECT_THROW(blueprint::mesh::specset::to_uni_buffer_by_material(mset, 
+                                                                         sset, 
+                                                                         converted_matset_name, 
+                                                                         converted_sset), conduit::Error);
+    }
+}
+
+
+//-----------------------------------------------------------------------------
+// test what happens when there is another material in the material map that
+// is unused everywhere
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms_missing_material)
+{
+    const int nx = 2, ny = 2;
+    const double radius = 0.25;
+
+    Node mesh_full, mesh_sbe, mesh_sbm, info;
+    blueprint::mesh::examples::venn_specsets("full", nx, ny, radius, mesh_full);
+    blueprint::mesh::examples::venn_specsets("sparse_by_element", nx, ny, radius, mesh_sbe);
+    blueprint::mesh::examples::venn_specsets("sparse_by_material", nx, ny, radius, mesh_sbm);
+
+    Node material_map;
+    material_map.set(mesh_sbe["matsets/matset/material_map"]);
+
+    material_map["circle_d"].set(4);
+
+    mesh_full["matsets"]["matset"]["material_map"].set(material_map);
+    mesh_sbe["matsets"]["matset"]["material_map"].set(material_map);
+    mesh_sbm["matsets"]["matset"]["material_map"].set(material_map);
+
+    CONDUIT_INFO("venn full -> full");
+    {
+        // diff full -> full with full
+
+        const Node &mset = mesh_full["matsets/matset"];
+        const Node &field = mesh_full["fields/importance"];
+        const Node &sset = mesh_full["specsets/specset"];
+        Node full_mset_baseline, full_field_baseline, full_sset_baseline;
+        full_mset_baseline.set(mesh_full["matsets/matset"]);
+        full_field_baseline.set(mesh_full["fields/importance"]);
+        full_sset_baseline.set(mesh_full["specsets/specset"]);
+
+        std::cout << mset.to_yaml() << std::endl;
+        std::cout << field.to_yaml() << std::endl;
+        std::cout << sset.to_yaml() << std::endl;
+
+        Node converted_mset, converted_field, converted_sset;
+        std::string converted_matset_name = "matset2";
+        blueprint::mesh::matset::to_multi_buffer_by_element(mset, converted_mset);
+        blueprint::mesh::field::to_multi_buffer_by_element(mset, 
+                                                           field, 
+                                                           converted_matset_name, 
+                                                           converted_field);
+        blueprint::mesh::specset::to_multi_buffer_by_element(mset, 
+                                                             sset, 
+                                                             converted_matset_name, 
+                                                             converted_sset);
+        std::cout << converted_mset.to_yaml() << std::endl;
+        std::cout << converted_field.to_yaml() << std::endl;
+        std::cout << converted_sset.to_yaml() << std::endl;
+
+        full_field_baseline["matset"].reset();
+        full_field_baseline["matset"] = "matset2";
+        full_sset_baseline["matset"].reset();
+        full_sset_baseline["matset"] = "matset2";
+
+        EXPECT_FALSE(converted_mset.diff(full_mset_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_field.diff(full_field_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_sset.diff(full_sset_baseline, info, CONDUIT_EPSILON, true));
+    }
+
+    CONDUIT_INFO("venn full -> sparse_by_element");
+    {
+        // diff full -> sbe with sbe
+
+        const Node &mset = mesh_full["matsets/matset"];
+        const Node &field = mesh_full["fields/importance"];
+        const Node &sset = mesh_full["specsets/specset"];
+        Node sbe_mset_baseline, sbe_field_baseline, sbe_sset_baseline;
+        sbe_mset_baseline.set(mesh_sbe["matsets/matset"]);
+        sbe_field_baseline.set(mesh_sbe["fields/importance"]);
+        sbe_sset_baseline.set(mesh_sbe["specsets/specset"]);
+
+        std::cout << mset.to_yaml() << std::endl;
+        std::cout << field.to_yaml() << std::endl;
+        std::cout << sset.to_yaml() << std::endl;
+
+        Node converted_mset, converted_field, converted_sset;
+        std::string converted_matset_name = "matset2";
+        blueprint::mesh::matset::to_uni_buffer_by_element(mset, converted_mset);
+        blueprint::mesh::field::to_uni_buffer_by_element(mset, 
+                                                         field, 
+                                                         converted_matset_name, 
+                                                         converted_field);
+        blueprint::mesh::specset::to_uni_buffer_by_element(mset, 
+                                                           sset, 
+                                                           converted_matset_name, 
+                                                           converted_sset);
+        std::cout << converted_mset.to_yaml() << std::endl;
+        std::cout << converted_field.to_yaml() << std::endl;
+        std::cout << converted_sset.to_yaml() << std::endl;
+
+        sbe_field_baseline["matset"].reset();
+        sbe_field_baseline["matset"] = "matset2";
+        sbe_sset_baseline["matset"].reset();
+        sbe_sset_baseline["matset"] = "matset2";
+
+        EXPECT_FALSE(converted_mset.diff(sbe_mset_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_field.diff(sbe_field_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_sset.diff(sbe_sset_baseline, info, CONDUIT_EPSILON, true));
+    }
+
+    CONDUIT_INFO("venn full -> sparse_by_material");
+    {
+        // diff full -> sbm with sbm
+
+        const Node &mset = mesh_full["matsets/matset"];
+        const Node &field = mesh_full["fields/importance"];
+        const Node &sset = mesh_full["specsets/specset"];
+        Node sbm_mset_baseline, sbm_field_baseline, sbm_sset_baseline;
+        sbm_mset_baseline.set(mesh_sbm["matsets/matset"]);
+        sbm_field_baseline.set(mesh_sbm["fields/importance"]);
+        sbm_sset_baseline.set(mesh_sbm["specsets/specset"]);
+
+        std::cout << mset.to_yaml() << std::endl;
+        std::cout << field.to_yaml() << std::endl;
+        std::cout << sset.to_yaml() << std::endl;
+
+        Node converted_mset, converted_field, converted_sset;
+        std::string converted_matset_name = "matset2";
+        blueprint::mesh::matset::to_multi_buffer_by_material(mset, converted_mset);
+        blueprint::mesh::field::to_multi_buffer_by_material(mset, 
+                                                            field, 
+                                                            converted_matset_name, 
+                                                            converted_field);
+        blueprint::mesh::specset::to_multi_buffer_by_material(mset, 
+                                                              sset, 
+                                                              converted_matset_name, 
+                                                              converted_sset);
+        
         std::cout << converted_mset.to_yaml() << std::endl;
         std::cout << converted_field.to_yaml() << std::endl;
         std::cout << converted_sset.to_yaml() << std::endl;
@@ -619,21 +953,26 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms)
         // remove irrelevant zone mass fractions for a clean diff
         modify_full_specset_to_clear_irrelevant_zone_mass_fractions(full_mset_baseline, full_sset_baseline);
 
+        // add data for circle_d
+        std::vector<float64> circle_d_data(4, 0.0f);
+        full_mset_baseline["volume_fractions"]["circle_d"].set(circle_d_data);
+        full_field_baseline["matset_values"]["circle_d"].set(circle_d_data);
+
         std::cout << mset.to_yaml() << std::endl;
         std::cout << field.to_yaml() << std::endl;
         std::cout << sset.to_yaml() << std::endl;
 
         Node converted_mset, converted_field, converted_sset;
         std::string converted_matset_name = "matset2";
-        blueprint::mesh::matset::to_multi_buffer_full(mset, converted_mset);
-        blueprint::mesh::field::to_multi_buffer_full(mset, 
-                                                     field, 
-                                                     converted_matset_name, 
-                                                     converted_field);
-        blueprint::mesh::specset::to_multi_buffer_full(mset, 
-                                                       sset, 
-                                                       converted_matset_name, 
-                                                       converted_sset);
+        blueprint::mesh::matset::to_multi_buffer_by_element(mset, converted_mset);
+        blueprint::mesh::field::to_multi_buffer_by_element(mset, 
+                                                           field, 
+                                                           converted_matset_name, 
+                                                           converted_field);
+        blueprint::mesh::specset::to_multi_buffer_by_element(mset, 
+                                                             sset, 
+                                                             converted_matset_name, 
+                                                             converted_sset);
         std::cout << converted_mset.to_yaml() << std::endl;
         std::cout << converted_field.to_yaml() << std::endl;
         std::cout << converted_sset.to_yaml() << std::endl;
@@ -704,21 +1043,26 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms)
         // remove irrelevant zone mass fractions for a clean diff
         modify_full_specset_to_clear_irrelevant_zone_mass_fractions(full_mset_baseline, full_sset_baseline);
 
+        // add data for circle_d
+        std::vector<float64> circle_d_data(4, 0.0f);
+        full_mset_baseline["volume_fractions"]["circle_d"].set(circle_d_data);
+        full_field_baseline["matset_values"]["circle_d"].set(circle_d_data);
+
         std::cout << mset.to_yaml() << std::endl;
         std::cout << field.to_yaml() << std::endl;
         std::cout << sset.to_yaml() << std::endl;
 
         Node converted_mset, converted_field, converted_sset;
         std::string converted_matset_name = "matset2";
-        blueprint::mesh::matset::to_multi_buffer_full(mset, converted_mset);
-        blueprint::mesh::field::to_multi_buffer_full(mset, 
-                                                     field, 
-                                                     converted_matset_name, 
-                                                     converted_field);
-        blueprint::mesh::specset::to_multi_buffer_full(mset, 
-                                                       sset, 
-                                                       converted_matset_name, 
-                                                       converted_sset);
+        blueprint::mesh::matset::to_multi_buffer_by_element(mset, converted_mset);
+        blueprint::mesh::field::to_multi_buffer_by_element(mset, 
+                                                           field, 
+                                                           converted_matset_name, 
+                                                           converted_field);
+        blueprint::mesh::specset::to_multi_buffer_by_element(mset, 
+                                                             sset, 
+                                                             converted_matset_name, 
+                                                             converted_sset);
         std::cout << converted_mset.to_yaml() << std::endl;
         std::cout << converted_field.to_yaml() << std::endl;
         std::cout << converted_sset.to_yaml() << std::endl;
@@ -727,6 +1071,9 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms)
         full_field_baseline["matset"] = "matset2";
         full_sset_baseline["matset"].reset();
         full_sset_baseline["matset"] = "matset2";
+
+        converted_mset.print();
+        full_mset_baseline.print();
 
         EXPECT_FALSE(converted_mset.diff(full_mset_baseline, info, CONDUIT_EPSILON, true));
         EXPECT_FALSE(converted_field.diff(full_field_baseline, info, CONDUIT_EPSILON, true));
@@ -775,6 +1122,345 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms)
     }
 }
 
+
+//-----------------------------------------------------------------------------
+// tests what happens when we have a material in the full rep that is always 0
+// we only need to test going from full to the other representations
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_matset_style_transforms_zero_material)
+{
+    const int nx = 2, ny = 2;
+    const double radius = 0.25;
+
+    Node mesh_full, mesh_sbe, mesh_sbm, info;
+    blueprint::mesh::examples::venn_specsets("full", nx, ny, radius, mesh_full);
+    blueprint::mesh::examples::venn_specsets("sparse_by_element", nx, ny, radius, mesh_sbe);
+    blueprint::mesh::examples::venn_specsets("sparse_by_material", nx, ny, radius, mesh_sbm);
+
+    Node material_map;
+    material_map.set(mesh_sbe["matsets/matset/material_map"]);
+
+    material_map["circle_d"].set(4);
+
+    mesh_full["matsets"]["matset"]["material_map"].set(material_map);
+    mesh_sbe["matsets"]["matset"]["material_map"].set(material_map);
+    mesh_sbm["matsets"]["matset"]["material_map"].set(material_map);
+
+    std::vector<float64> circle_d_data(4, 0.0);
+    mesh_full["matsets"]["matset"]["volume_fractions"]["circle_d"].set(circle_d_data);
+    mesh_full["fields"]["importance"]["matset_values"]["circle_d"].set(circle_d_data);
+    mesh_full["specsets"]["specset"]["matset_values"]["circle_d"]["d_spec1"].set(circle_d_data);
+
+    mesh_sbe["specsets"]["specset"]["species_names"]["circle_d"]["d_spec1"];
+
+    CONDUIT_INFO("venn full -> full");
+    {
+        // diff full -> full with full
+
+        const Node &mset = mesh_full["matsets/matset"];
+        const Node &field = mesh_full["fields/importance"];
+        const Node &sset = mesh_full["specsets/specset"];
+        Node full_mset_baseline, full_field_baseline, full_sset_baseline;
+        full_mset_baseline.set(mesh_full["matsets/matset"]);
+        full_field_baseline.set(mesh_full["fields/importance"]);
+        full_sset_baseline.set(mesh_full["specsets/specset"]);
+
+        std::cout << mset.to_yaml() << std::endl;
+        std::cout << field.to_yaml() << std::endl;
+        std::cout << sset.to_yaml() << std::endl;
+
+        Node converted_mset, converted_field, converted_sset;
+        std::string converted_matset_name = "matset2";
+        blueprint::mesh::matset::to_multi_buffer_by_element(mset, converted_mset);
+        blueprint::mesh::field::to_multi_buffer_by_element(mset, 
+                                                           field, 
+                                                           converted_matset_name, 
+                                                           converted_field);
+        blueprint::mesh::specset::to_multi_buffer_by_element(mset, 
+                                                             sset, 
+                                                             converted_matset_name, 
+                                                             converted_sset);
+        std::cout << converted_mset.to_yaml() << std::endl;
+        std::cout << converted_field.to_yaml() << std::endl;
+        std::cout << converted_sset.to_yaml() << std::endl;
+
+        full_field_baseline["matset"].reset();
+        full_field_baseline["matset"] = "matset2";
+        full_sset_baseline["matset"].reset();
+        full_sset_baseline["matset"] = "matset2";
+
+        EXPECT_FALSE(converted_mset.diff(full_mset_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_field.diff(full_field_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_sset.diff(full_sset_baseline, info, CONDUIT_EPSILON, true));
+    }
+
+    CONDUIT_INFO("venn full -> sparse_by_element");
+    {
+        // diff full -> sbe with sbe
+
+        const Node &mset = mesh_full["matsets/matset"];
+        const Node &field = mesh_full["fields/importance"];
+        const Node &sset = mesh_full["specsets/specset"];
+        Node sbe_mset_baseline, sbe_field_baseline, sbe_sset_baseline;
+        sbe_mset_baseline.set(mesh_sbe["matsets/matset"]);
+        sbe_field_baseline.set(mesh_sbe["fields/importance"]);
+        sbe_sset_baseline.set(mesh_sbe["specsets/specset"]);
+
+        std::cout << mset.to_yaml() << std::endl;
+        std::cout << field.to_yaml() << std::endl;
+        std::cout << sset.to_yaml() << std::endl;
+
+        Node converted_mset, converted_field, converted_sset;
+        std::string converted_matset_name = "matset2";
+        blueprint::mesh::matset::to_uni_buffer_by_element(mset, converted_mset);
+        blueprint::mesh::field::to_uni_buffer_by_element(mset, 
+                                                         field, 
+                                                         converted_matset_name, 
+                                                         converted_field);
+        blueprint::mesh::specset::to_uni_buffer_by_element(mset, 
+                                                           sset, 
+                                                           converted_matset_name, 
+                                                           converted_sset);
+        std::cout << converted_mset.to_yaml() << std::endl;
+        std::cout << converted_field.to_yaml() << std::endl;
+        std::cout << converted_sset.to_yaml() << std::endl;
+
+        sbe_field_baseline["matset"].reset();
+        sbe_field_baseline["matset"] = "matset2";
+        sbe_sset_baseline["matset"].reset();
+        sbe_sset_baseline["matset"] = "matset2";
+
+        converted_sset.print();
+        sbe_sset_baseline.print();
+
+        EXPECT_FALSE(converted_mset.diff(sbe_mset_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_field.diff(sbe_field_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_sset.diff(sbe_sset_baseline, info, CONDUIT_EPSILON, true));
+    }
+
+    CONDUIT_INFO("venn full -> sparse_by_material");
+    {
+        // diff full -> sbm with sbm
+
+        const Node &mset = mesh_full["matsets/matset"];
+        const Node &field = mesh_full["fields/importance"];
+        const Node &sset = mesh_full["specsets/specset"];
+        Node sbm_mset_baseline, sbm_field_baseline, sbm_sset_baseline;
+        sbm_mset_baseline.set(mesh_sbm["matsets/matset"]);
+        sbm_field_baseline.set(mesh_sbm["fields/importance"]);
+        sbm_sset_baseline.set(mesh_sbm["specsets/specset"]);
+
+        std::cout << mset.to_yaml() << std::endl;
+        std::cout << field.to_yaml() << std::endl;
+        std::cout << sset.to_yaml() << std::endl;
+
+        Node converted_mset, converted_field, converted_sset;
+        std::string converted_matset_name = "matset2";
+        blueprint::mesh::matset::to_multi_buffer_by_material(mset, converted_mset);
+        blueprint::mesh::field::to_multi_buffer_by_material(mset, 
+                                                            field, 
+                                                            converted_matset_name, 
+                                                            converted_field);
+        blueprint::mesh::specset::to_multi_buffer_by_material(mset, 
+                                                              sset, 
+                                                              converted_matset_name, 
+                                                              converted_sset);
+        
+        std::cout << converted_mset.to_yaml() << std::endl;
+        std::cout << converted_field.to_yaml() << std::endl;
+        std::cout << converted_sset.to_yaml() << std::endl;
+
+        sbm_field_baseline["matset"].reset();
+        sbm_field_baseline["matset"] = "matset2";
+        sbm_sset_baseline["matset"].reset();
+        sbm_sset_baseline["matset"] = "matset2";
+
+        EXPECT_FALSE(converted_mset.diff(sbm_mset_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_field.diff(sbm_field_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(converted_sset.diff(sbm_sset_baseline, info, CONDUIT_EPSILON, true));
+    }
+}
+
+//-----------------------------------------------------------------------------
+// test what happens when there is another material in the material map that
+// is unused everywhere
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_missing_material)
+{
+    const int nx = 2, ny = 2;
+    const double radius = 0.25;
+
+    Node mesh_full, mesh_sbe, mesh_sbm, info;
+    blueprint::mesh::examples::venn_specsets("full", nx, ny, radius, mesh_full);
+    blueprint::mesh::examples::venn_specsets("sparse_by_element", nx, ny, radius, mesh_sbe);
+    blueprint::mesh::examples::venn_specsets("sparse_by_material", nx, ny, radius, mesh_sbm);
+
+    Node material_map;
+    material_map.set(mesh_sbe["matsets/matset/material_map"]);
+
+    // add circle_d
+    material_map["circle_d"].set(4);
+    // re-add background after circle_d
+    material_map.remove_child("background");
+    material_map["background"].set(0);
+
+    mesh_full["matsets"]["matset"]["material_map"].set(material_map);
+    mesh_sbe["matsets"]["matset"]["material_map"].set(material_map);
+    mesh_sbm["matsets"]["matset"]["material_map"].set(material_map);
+
+    Node silo_mset_baseline, silo_field_baseline, silo_sset_baseline;
+    const std::string yaml_text1 = 
+        "topology: \"topo\"\n"
+        "material_map: \n"
+        "  circle_a: 1\n"
+        "  circle_b: 2\n"
+        "  circle_c: 3\n"
+        "  circle_d: 4\n"
+        "  background: 0\n"
+        "matlist: [0, 0, 0, -1]\n"
+        "mix_vf: [0.333333333333333, 0.333333333333333, 0.333333333333333]\n"
+        "mix_mat: [1, 2, 3]\n"
+        "mix_next: [2, 3, 0]\n";
+    silo_mset_baseline.parse(yaml_text1, "yaml");
+
+    const std::string yaml_text2 = 
+        "topology: \"topo\"\n"
+        "material_map: \n"
+        "  circle_a: 1\n"
+        "  circle_b: 2\n"
+        "  circle_c: 3\n"
+        "  circle_d: 4\n"
+        "  background: 0\n"
+        "field_values: [0.0, 0.5, 0.5, 0.300000009437402]\n"
+        "matlist: [0, 0, 0, -1]\n"
+        "mix_vf: [0.333333333333333, 0.333333333333333, 0.333333333333333]\n"
+        "mix_mat: [1, 2, 3]\n"
+        "mix_next: [2, 3, 0]\n"
+        "field_mixvar_values: [0.100000001490116, 0.200000002980232, 0.600000023841858]\n";
+    silo_field_baseline.parse(yaml_text2, "yaml");
+
+    const std::string yaml_text3 = 
+        "topology: \"topo\"\n"
+        "material_map: \n"
+        "  circle_a: 1\n"
+        "  circle_b: 2\n"
+        "  circle_c: 3\n"
+        "  circle_d: 4\n"
+        "  background: 0\n"
+        "nmat: 5\n"
+        "nmatspec: [2, 2, 3, 0, 1]\n"
+        "specnames: \n"
+        "  - \"a_spec1\"\n"
+        "  - \"a_spec2\"\n"
+        "  - \"b_spec1\"\n"
+        "  - \"b_spec2\"\n"
+        "  - \"c_spec1\"\n"
+        "  - \"c_spec2\"\n"
+        "  - \"c_spec3\"\n"
+        "  - \"bg_spec1\"\n"
+        "matlist: [0, 0, 0, -1]\n"
+        "speclist: [0, 0, 0, -1]\n"
+        "mix_vf: [0.333333333333333, 0.333333333333333, 0.333333333333333]\n"
+        "mix_mat: [1, 2, 3]\n"
+        "mix_next: [2, 3, 0]\n"
+        "nspecies_mf: 10\n"
+        "species_mf: [1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5, 0.5, 0.375, 0.125]\n"
+        "mix_spec: [4, 6, 8]\n"
+        "mixlen: 3\n";
+    silo_sset_baseline.parse(yaml_text3, "yaml");
+
+    CONDUIT_INFO("venn full -> to_silo");
+    {
+        const Node &mset = mesh_full["matsets/matset"];
+        const Node &field = mesh_full["fields/importance"];
+        const Node &sset = mesh_full["specsets/specset"];
+
+        silo_mset_baseline["buffer_style"].set("multi");
+        silo_mset_baseline["dominance"].set("element");
+        silo_field_baseline["buffer_style"].set("multi");
+        silo_field_baseline["dominance"].set("element");
+        silo_sset_baseline["buffer_style"].set("multi");
+        silo_sset_baseline["dominance"].set("element");
+
+        std::cout << mset.to_yaml() << std::endl;
+        std::cout << field.to_yaml() << std::endl;
+        std::cout << sset.to_yaml() << std::endl;
+
+        Node silo_mset, silo_field, silo_sset;
+        blueprint::mesh::matset::to_silo(mset, silo_mset);
+        blueprint::mesh::field::to_silo(field, mset, silo_field);
+        blueprint::mesh::specset::to_silo(sset, mset, silo_sset);
+
+        std::cout << silo_mset.to_yaml() << std::endl;
+        std::cout << silo_field.to_yaml() << std::endl;
+        std::cout << silo_sset.to_yaml() << std::endl;
+
+        EXPECT_FALSE(silo_mset.diff(silo_mset_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(silo_field.diff(silo_field_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(silo_sset.diff(silo_sset_baseline, info, CONDUIT_EPSILON, true));
+    }
+
+    CONDUIT_INFO("venn sparse_by_element -> to_silo");
+    {
+        const Node &mset = mesh_sbe["matsets/matset"];
+        const Node &field = mesh_sbe["fields/importance"];
+        const Node &sset = mesh_sbe["specsets/specset"];
+
+        silo_mset_baseline["buffer_style"].set("uni");
+        silo_mset_baseline["dominance"].set("element");
+        silo_field_baseline["buffer_style"].set("uni");
+        silo_field_baseline["dominance"].set("element");
+        silo_sset_baseline["buffer_style"].set("uni");
+        silo_sset_baseline["dominance"].set("element");
+
+        std::cout << mset.to_yaml() << std::endl;
+        std::cout << field.to_yaml() << std::endl;
+        std::cout << sset.to_yaml() << std::endl;
+
+        Node silo_mset, silo_field, silo_sset;
+        blueprint::mesh::matset::to_silo(mset, silo_mset);
+        blueprint::mesh::field::to_silo(field, mset, silo_field);
+        blueprint::mesh::specset::to_silo(sset, mset, silo_sset);
+
+        std::cout << silo_mset.to_yaml() << std::endl;
+        std::cout << silo_field.to_yaml() << std::endl;
+        std::cout << silo_sset.to_yaml() << std::endl;
+
+        EXPECT_FALSE(silo_mset.diff(silo_mset_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(silo_field.diff(silo_field_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(silo_sset.diff(silo_sset_baseline, info, CONDUIT_EPSILON, true));
+    }
+
+    CONDUIT_INFO("venn sparse_by_material -> to_silo");
+    {
+        const Node &mset = mesh_sbm["matsets/matset"];
+        const Node &field = mesh_sbm["fields/importance"];
+        const Node &sset = mesh_sbm["specsets/specset"];
+
+        silo_mset_baseline["buffer_style"].set("multi");
+        silo_mset_baseline["dominance"].set("material");
+        silo_field_baseline["buffer_style"].set("multi");
+        silo_field_baseline["dominance"].set("material");
+        silo_sset_baseline["buffer_style"].set("multi");
+        silo_sset_baseline["dominance"].set("material");
+
+        std::cout << mset.to_yaml() << std::endl;
+        std::cout << field.to_yaml() << std::endl;
+        std::cout << sset.to_yaml() << std::endl;
+
+        Node silo_mset, silo_field, silo_sset;
+        blueprint::mesh::matset::to_silo(mset, silo_mset);
+        blueprint::mesh::field::to_silo(field, mset, silo_field);
+        blueprint::mesh::specset::to_silo(sset, mset, silo_sset);
+
+        std::cout << silo_mset.to_yaml() << std::endl;
+        std::cout << silo_field.to_yaml() << std::endl;
+        std::cout << silo_sset.to_yaml() << std::endl;
+
+        EXPECT_FALSE(silo_mset.diff(silo_mset_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(silo_field.diff(silo_field_baseline, info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(silo_sset.diff(silo_sset_baseline, info, CONDUIT_EPSILON, true));
+    }
+}
+
 //-----------------------------------------------------------------------------
 TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_misc)
 {
@@ -783,35 +1469,40 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_misc)
     const Node &matset = mesh["matsets/mesh"];
     const Node &specset = mesh["specsets/mesh"];
 
-    Node silo_rep1, silo_rep2, silo_rep_matset, info;
+    matset.print();
+    specset.print();
+
+    Node silo_rep, silo_rep_matset, info;
 
     const std::string yaml_text = 
+        "topology: \"mesh\"\n"
+        "buffer_style: \"multi\"\n"
+        "dominance: \"element\"\n"
+        "material_map: \n"
+        "  mat1: 0\n"
+        "  mat2: 1\n"
+        "nmat: 2\n"
+        "nmatspec: [2, 2]\n"
         "specnames: \n"
         "  - \"spec1\"\n"
         "  - \"spec2\"\n"
         "  - \"spec1\"\n"
         "  - \"spec2\"\n"
-        "nmat: 2\n"
-        "nmatspec: [2, 2]\n"
-        "speclist: [3, -1, 9, 15, -3, 21, 27, -5, 33]\n"
-        "nspecies_mf: 36\n"
-        "species_mf: [0.0, 1.0, 0.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0, 0.0, 1.0, 0.0]\n"
-        "mix_spec: [5, 7, 17, 19, 29, 31]\n"
+        "matlist: [1, -1, 0, 1, -3, 0, 1, -5, 0]\n"
+        "speclist: [1, -1, 7, 9, -3, 15, 17, -5, 23]\n"
+        "mix_vf: [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]\n"
+        "mix_mat: [0, 1, 0, 1, 0, 1]\n"
+        "mix_next: [2, 0, 4, 0, 6, 0]\n"
+        "nspecies_mf: 24\n"
+        "species_mf: [0.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0, 0.0, 0.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0, 0.0, 0.0, 1.0, 0.5, 0.5, 0.5, 0.5, 1.0, 0.0]\n"
+        "mix_spec: [3, 5, 11, 13, 19, 21]\n"
         "mixlen: 6";
     Node baseline;
     baseline.parse(yaml_text, "yaml");
 
-
-    // first test transforming specset to silo rep with a regular matset
-    blueprint::mesh::specset::to_silo(specset, matset, silo_rep1);
-    std::cout << silo_rep1.to_yaml() << std::endl;
-    EXPECT_FALSE(silo_rep1.diff(baseline, info, CONDUIT_EPSILON, true));
-
-    // next we test transforming specset to silo rep with a silo rep matset
-    blueprint::mesh::matset::to_silo(matset, silo_rep_matset);
-    blueprint::mesh::specset::to_silo(specset, silo_rep_matset, silo_rep2);
-    std::cout << silo_rep2.to_yaml() << std::endl;
-    EXPECT_FALSE(silo_rep2.diff(baseline, info, CONDUIT_EPSILON, true));
+    blueprint::mesh::specset::to_silo(specset, matset, silo_rep);
+    std::cout << silo_rep.to_yaml() << std::endl;
+    EXPECT_FALSE(silo_rep.diff(baseline, info, CONDUIT_EPSILON, true));
 }
 
 //-----------------------------------------------------------------------------
@@ -842,22 +1533,35 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_specset_edge_cases)
 
         blueprint::mesh::specset::to_silo(specset, matset, silo_rep);
 
+        std::cout << matset.to_yaml() << std::endl;
         std::cout << specset.to_yaml() << std::endl;
         std::cout << silo_rep.to_yaml() << std::endl;
 
         const std::string yaml_text = 
+            "topology: \"topo\"\n"
+            "buffer_style: \"multi\"\n"
+            "dominance: \"element\"\n"
+            "material_map: \n"
+            "  background: 0\n"
+            "  circle_a: 1\n"
+            "  circle_b: 2\n"
+            "  circle_c: 3\n"
+            "nmat: 4\n"
             "nmatspec: [0, 2, 0, 3]\n"
             "specnames: \n"
-              "- \"a_spec1\"\n"
-              "- \"a_spec2\"\n"
-              "- \"c_spec1\"\n"
-              "- \"c_spec2\"\n"
-              "- \"c_spec3\"\n"
-            "speclist: [1, 6, 11, -1]\n"
-            "nmat: 4\n"
-            "nspecies_mf: 20\n"
-            "species_mf: [0.0, 1.0, 1.0, 0.0, 0.0, 0.5, 0.5, 0.75, 0.1875, 0.0625, 0.0, 1.0, 0.75, 0.1875, 0.0625, 0.5, 0.5, 0.5, 0.375, 0.125]\n"
-            "mix_spec: [16, 18, 18]\n"
+            "  - \"a_spec1\"\n"
+            "  - \"a_spec2\"\n"
+            "  - \"c_spec1\"\n"
+            "  - \"c_spec2\"\n"
+            "  - \"c_spec3\"\n"
+            "matlist: [0, 0, 0, -1]\n"
+            "speclist: [1, 1, 1, -1]\n"
+            "mix_vf: [0.333333333333333, 0.333333333333333, 0.333333333333333]\n"
+            "mix_mat: [1, 2, 3]\n"
+            "mix_next: [2, 3, 0]\n"
+            "nspecies_mf: 5\n"
+            "species_mf: [0.5, 0.5, 0.5, 0.375, 0.125]\n"
+            "mix_spec: [1, 3, 3]\n"
             "mixlen: 3\n";
         Node baseline;
         baseline.parse(yaml_text, "yaml");
@@ -895,6 +1599,15 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_specset_edge_cases)
         std::cout << silo_rep.to_yaml() << std::endl;
 
         const std::string yaml_text = 
+            "topology: \"topo\"\n"
+            "buffer_style: \"multi\"\n"
+            "dominance: \"element\"\n"
+            "material_map: \n"
+            "  background: 0\n"
+            "  circle_a: 1\n"
+            "  circle_b: 2\n"
+            "  circle_c: 3\n"
+            "nmat: 4\n"
             "nmatspec: [1, 2, 2, 3]\n"
             "specnames: \n"
             "  - \"bg_spec1\"\n"
@@ -905,11 +1618,14 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_specset_edge_cases)
             "  - \"c_spec1\"\n"
             "  - \"c_spec2\"\n"
             "  - \"c_spec3\"\n"
+            "matlist: [0, 0, 0, -1]\n"
             "speclist: [0, 0, 0, -1]\n"
-            "nmat: 4\n"
-            "nspecies_mf: 32\n"
-            "species_mf: [1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 0.5, 0.5, 0.0, 1.0, 0.75, 0.1875, 0.0625, 1.0, 0.0, 1.0, 0.5, 0.5, 0.75, 0.1875, 0.0625, 1.0, 0.5, 0.5, 0.5, 0.5, 0.5, 0.375, 0.125]\n"
-            "mix_spec: [26, 28, 30]\n"
+            "mix_vf: [0.333333333333333, 0.333333333333333, 0.333333333333333]\n"
+            "mix_mat: [1, 2, 3]\n"
+            "mix_next: [2, 3, 0]\n"
+            "nspecies_mf: 10\n"
+            "species_mf: [1.0, 1.0, 1.0, 0.5, 0.5, 0.5, 0.5, 0.5, 0.375, 0.125]\n"
+            "mix_spec: [4, 6, 8]\n"
             "mixlen: 3\n";
         Node baseline;
         baseline.parse(yaml_text, "yaml");
@@ -947,6 +1663,15 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_specset_edge_cases)
         std::cout << silo_rep.to_yaml() << std::endl;
 
         const std::string yaml_text = 
+            "topology: \"topo\"\n"
+            "buffer_style: \"multi\"\n"
+            "dominance: \"element\"\n"
+            "material_map: \n"
+            "  circle_c: 0\n"
+            "  background: 1\n"
+            "  circle_b: 2\n"
+            "  circle_a: 3\n"
+            "nmat: 4\n"
             "nmatspec: [3, 1, 2, 2]\n"
             "specnames: \n"
             "  - \"c_spec1\"\n"
@@ -957,11 +1682,14 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_specset_edge_cases)
             "  - \"b_spec2\"\n"
             "  - \"a_spec1\"\n"
             "  - \"a_spec2\"\n"
+            "matlist: [1, 1, 1, -1]\n"
             "speclist: [0, 0, 0, -1]\n"
-            "nmat: 4\n"
-            "nspecies_mf: 32\n"
-            "species_mf: [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.75, 0.1875, 0.0625, 1.0, 0.0, 1.0, 0.5, 0.5, 0.75, 0.1875, 0.0625, 1.0, 0.5, 0.5, 0.0, 1.0, 0.5, 0.375, 0.125, 1.0, 0.5, 0.5, 0.5, 0.5]\n"
-            "mix_spec: [25, 29, 31]\n"
+            "mix_vf: [0.333333333333333, 0.333333333333333, 0.333333333333333]\n"
+            "mix_mat: [0, 2, 3]\n"
+            "mix_next: [2, 3, 0]\n"
+            "nspecies_mf: 10\n"
+            "species_mf: [1.0, 1.0, 1.0, 0.5, 0.375, 0.125, 0.5, 0.5, 0.5, 0.5]\n"
+            "mix_spec: [4, 7, 9]\n"
             "mixlen: 3\n";
         Node baseline;
         baseline.parse(yaml_text, "yaml");
@@ -998,17 +1726,29 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_to_silo_specset_edge_cases)
         std::cout << silo_rep.to_yaml() << std::endl;
 
         const std::string yaml_text = 
+            "topology: \"topo\"\n"
+            "buffer_style: \"multi\"\n"
+            "dominance: \"element\"\n"
+            "material_map: \n"
+            "  background: 0\n"
+            "  circle_a: 1\n"
+            "  circle_b: 2\n"
+            "  circle_c: 3\n"
+            "nmat: 4\n"
             "nmatspec: [0, 2, 2, 0]\n"
             "specnames: \n"
             "  - \"a_spec1\"\n"
             "  - \"a_spec2\"\n"
             "  - \"b_spec1\"\n"
             "  - \"b_spec2\"\n"
-            "speclist: [1, 5, 9, -1]\n"
-            "nmat: 4\n"
-            "nspecies_mf: 16\n"
-            "species_mf: [0.0, 1.0, 0.0, 1.0, 0.5, 0.5, 0.0, 1.0, 0.0, 1.0, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]\n"
-            "mix_spec: [13, 15, 17]\n"
+            "matlist: [0, 0, 0, -1]\n"
+            "speclist: [1, 1, 1, -1]\n"
+            "mix_vf: [0.333333333333333, 0.333333333333333, 0.333333333333333]\n"
+            "mix_mat: [1, 2, 3]\n"
+            "mix_next: [2, 3, 0]\n"
+            "nspecies_mf: 4\n"
+            "species_mf: [0.5, 0.5, 0.5, 0.5]\n"
+            "mix_spec: [1, 3, 5]\n"
             "mixlen: 3\n";
         Node baseline;
         baseline.parse(yaml_text, "yaml");
@@ -1029,7 +1769,6 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_create_or_reuse_matmap)
     blueprint::mesh::examples::venn("sparse_by_element", nx, ny, radius, venn_examples[1]);
     blueprint::mesh::examples::venn("sparse_by_material", nx, ny, radius, venn_examples[2]);
 
-
     const std::string yaml_text = 
         "material_map: \n"
         "  circle_a: 1\n"
@@ -1049,6 +1788,48 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_create_or_reuse_matmap)
 
         EXPECT_FALSE(matmap.diff(baseline["material_map"], info, CONDUIT_EPSILON, true));
         EXPECT_FALSE(matmap_copy.diff(baseline["material_map"], info, CONDUIT_EPSILON, true));
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_create_or_reuse_species_names)
+{
+    const int nx = 4, ny = 4;
+    const double radius = 0.25;
+
+    Node info;
+    std::vector<Node> venn_examples(3);
+    blueprint::mesh::examples::venn_specsets("full", nx, ny, radius, venn_examples[0]);
+    blueprint::mesh::examples::venn_specsets("sparse_by_element", nx, ny, radius, venn_examples[1]);
+    blueprint::mesh::examples::venn_specsets("sparse_by_material", nx, ny, radius, venn_examples[2]);
+
+    const std::string yaml_text = 
+        "species_names: \n"
+        "  background: \n"
+        "     bg_spec1: \n"
+        "  circle_a: \n"
+        "     a_spec1: \n"
+        "     a_spec2: \n"
+        "  circle_b: \n"
+        "     b_spec1: \n"
+        "     b_spec2: \n"
+        "  circle_c: \n"
+        "     c_spec1: \n"
+        "     c_spec2: \n"
+        "     c_spec3: \n";
+    Node baseline;
+    baseline.parse(yaml_text, "yaml");
+
+    for (const Node &venn_example : venn_examples)
+    {
+        const Node &sset = venn_example["specsets/specset"];
+        Node species_names;
+        Node species_names_copy;
+        blueprint::mesh::specset::create_or_reuse_species_names(sset, species_names);
+        blueprint::mesh::specset::create_or_copy_species_names(sset, species_names_copy);
+
+        EXPECT_FALSE(species_names.diff(baseline["species_names"], info, CONDUIT_EPSILON, true));
+        EXPECT_FALSE(species_names_copy.diff(baseline["species_names"], info, CONDUIT_EPSILON, true));
     }
 }
 
@@ -1107,9 +1888,9 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_renumber_mat_ids)
             "  circle_a: 6\n"
             "  circle_b: 8\n"
             "  circle_c: 9\n"
-            "  background: 3\n"
+            "  background: 4\n"
             "volume_fractions: [1.0, 1.0, 1.0, 0.333333333333333, 0.333333333333333, 0.333333333333333]\n"
-            "material_ids: [3, 3, 3, 6, 8, 9]\n"
+            "material_ids: [4, 4, 4, 6, 8, 9]\n"
             "sizes: [1, 1, 1, 3]\n"
             "offsets: [0, 1, 2, 3]\n";
         Node matset;
@@ -1142,3 +1923,198 @@ TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_renumber_mat_ids)
     }
 }
 
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_matset_xforms, mixed_field_vector_error)
+{
+    // multi-buffer case
+    {
+        Node matset, field;
+        const std::string yaml_text1 = 
+            "topology: \"topo\"\n"
+            "volume_fractions: \n"
+            "  background: [1.0, 1.0, 1.0, 0.0]\n"
+            "  circle_a: [0.0, 0.0, 0.0, 0.333333333333333]\n"
+            "  circle_b: [0.0, 0.0, 0.0, 0.333333333333333]\n"
+            "  circle_c: [0.0, 0.0, 0.0, 0.333333333333333]\n";
+        matset.parse(yaml_text1, "yaml");
+
+        const std::string yaml_text2 = 
+            "association: \"element\"\n"
+            "topology: \"topo\"\n"
+            "matset: \"matset\"\n"
+            "values:\n"
+            "  a: [0.0, 0.5, 0.5, 0.300000009437402]\n"
+            "  b: [0.0, 0.5, 0.5, 0.300000009437402]\n"
+            "matset_values: \n"
+            "  a:\n"
+            "    background: [0.0, 0.5, 0.5, 0.0]\n"
+            "    circle_a: [0.0, 0.0, 0.0, 0.100000001490116]\n"
+            "    circle_b: [0.0, 0.0, 0.0, 0.200000002980232]\n"
+            "    circle_c: [0.0, 0.0, 0.0, 0.600000023841858]\n"
+            "  b:\n"
+            "    background: [0.0, 0.5, 0.5, 0.0]\n"
+            "    circle_a: [0.0, 0.0, 0.0, 0.100000001490116]\n"
+            "    circle_b: [0.0, 0.0, 0.0, 0.200000002980232]\n"
+            "    circle_c: [0.0, 0.0, 0.0, 0.600000023841858]\n";
+        field.parse(yaml_text2, "yaml");
+
+        Node converted_field, matset_silo;
+        const std::string converted_matset_name = "matset2";
+
+        EXPECT_THROW(blueprint::mesh::field::to_multi_buffer_by_element(matset, 
+                                                                        field, 
+                                                                        converted_matset_name, 
+                                                                        converted_field),
+                     conduit::Error);
+
+        EXPECT_THROW(blueprint::mesh::field::to_multi_buffer_by_material(matset, 
+                                                                         field, 
+                                                                         converted_matset_name, 
+                                                                         converted_field),
+                     conduit::Error);
+
+        EXPECT_THROW(blueprint::mesh::field::to_uni_buffer_by_element(matset, 
+                                                                      field, 
+                                                                      converted_matset_name, 
+                                                                      converted_field),
+                     conduit::Error);
+
+        EXPECT_THROW(blueprint::mesh::field::to_silo(field,
+                                                     matset,
+                                                     matset_silo),
+                     conduit::Error);
+    }
+
+    // uni-buffer case
+    {
+        Node matset, field;
+        const std::string yaml_text1 = 
+            "topology: \"topo\"\n"
+            "material_map: \n"
+            "  circle_a: 1\n"
+            "  circle_b: 2\n"
+            "  circle_c: 3\n"
+            "  background: 0\n"
+            "volume_fractions: [1.0, 1.0, 1.0, 0.333333333333333, 0.333333333333333, 0.333333333333333]\n"
+            "material_ids: [0, 0, 0, 1, 2, 3]\n"
+            "sizes: [1, 1, 1, 3]\n"
+            "offsets: [0, 1, 2, 3]\n";
+        matset.parse(yaml_text1, "yaml");
+
+        const std::string yaml_text2 = 
+            "association: \"element\"\n"
+            "topology: \"topo\"\n"
+            "matset: \"matset\"\n"
+            "values:\n"
+            "  a: [0.0, 0.5, 0.5, 0.300000009437402]\n"
+            "  b: [0.0, 0.5, 0.5, 0.300000009437402]\n"
+            "matset_values:\n"
+            "  a: [0.0, 0.5, 0.5, 0.100000001490116, 0.200000002980232, 0.600000023841858]\n"
+            "  b: [0.0, 0.5, 0.5, 0.100000001490116, 0.200000002980232, 0.600000023841858]\n";
+        field.parse(yaml_text2, "yaml");
+
+        Node converted_field, matset_silo;
+        const std::string converted_matset_name = "matset2";
+
+        EXPECT_THROW(blueprint::mesh::field::to_multi_buffer_by_element(matset, 
+                                                                        field, 
+                                                                        converted_matset_name, 
+                                                                        converted_field),
+                     conduit::Error);
+
+        EXPECT_THROW(blueprint::mesh::field::to_multi_buffer_by_material(matset, 
+                                                                         field, 
+                                                                         converted_matset_name, 
+                                                                         converted_field),
+                     conduit::Error);
+
+        EXPECT_THROW(blueprint::mesh::field::to_uni_buffer_by_element(matset, 
+                                                                      field, 
+                                                                      converted_matset_name, 
+                                                                      converted_field),
+                     conduit::Error);
+
+        EXPECT_THROW(blueprint::mesh::field::to_silo(field,
+                                                     matset,
+                                                     matset_silo),
+                     conduit::Error);
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_matset_xforms, mesh_util_venn_to_silo_speed_test)
+{
+    auto to_silo_timings = [](int nx, int ny)
+    {
+        Node full_mesh, sbe_mesh, sbm_mesh;
+        const double radius = 0.25;
+
+        blueprint::mesh::examples::venn("full", nx, ny, radius, full_mesh);
+        blueprint::mesh::examples::venn("sparse_by_element", nx, ny, radius, sbe_mesh);
+        blueprint::mesh::examples::venn("sparse_by_material", nx, ny, radius, sbm_mesh);
+        
+        const Node &full_mset = full_mesh["matsets/matset"];
+        const Node &full_field = full_mesh["fields/importance"];
+
+        Node cali_opts;
+        cali_opts["config"] = "runtime-report";
+
+        CONDUIT_INFO("full")
+        {
+            annotations::initialize(cali_opts);
+
+            Node mset_silo, mset_silo_field;
+            blueprint::mesh::matset::to_silo(full_mset, mset_silo);
+            blueprint::mesh::field::to_silo(full_field,
+                                            full_mset,
+                                            mset_silo_field);
+
+            annotations::flush();
+            annotations::finalize();
+        }
+
+        const Node &sbe_mset = sbe_mesh["matsets/matset"];
+        const Node &sbe_field = sbe_mesh["fields/importance"];
+
+        CONDUIT_INFO("sparse_by_element")
+        {
+            annotations::initialize(cali_opts);
+
+            Node mset_silo, mset_silo_field;
+            blueprint::mesh::matset::to_silo(sbe_mset, mset_silo);
+            blueprint::mesh::field::to_silo(sbe_field,
+                                            sbe_mset,
+                                            mset_silo_field);
+
+            annotations::flush();
+            annotations::finalize();
+        }
+
+        const Node &sbm_mset = sbm_mesh["matsets/matset"];
+        const Node &sbm_field = sbm_mesh["fields/importance"];
+
+        CONDUIT_INFO("sparse_by_material")
+        {
+            annotations::initialize(cali_opts);
+
+            Node mset_silo, mset_silo_field;
+            blueprint::mesh::matset::to_silo(sbm_mset, mset_silo);
+            blueprint::mesh::field::to_silo(sbm_field,
+                                            sbm_mset,
+                                            mset_silo_field);
+
+            annotations::flush();
+            annotations::finalize();
+        }
+    };
+
+
+    CONDUIT_INFO("venn to silo 10x10");
+    to_silo_timings(10, 10);
+
+    CONDUIT_INFO("venn to silo 100x100");
+    to_silo_timings(100, 100);
+
+    CONDUIT_INFO("venn to silo 1000x1000");
+    to_silo_timings(1000, 1000);
+}

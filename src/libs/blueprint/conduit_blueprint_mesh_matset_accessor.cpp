@@ -52,27 +52,30 @@ namespace matset
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor()
  : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
+   m_get_mat_order_id(&MatsetAccessor::get_error_mat_order_id),
    m_get_elem_id(&MatsetAccessor::get_error_elem_id),
    m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
    m_get_mset_val(&MatsetAccessor::get_error_mset_val),
    m_get_mass_frac(&MatsetAccessor::get_error_mass_frac),
    m_get_nmats_for_elem(&MatsetAccessor::get_error_nmats_for_elem),
    m_get_nelems_for_mat(&MatsetAccessor::get_error_nelems_for_mat),
-   m_get_nspec_for_mat(&MatsetAccessor::get_error_nspec_for_mat)
+   m_get_nspec_for_mat(&MatsetAccessor::get_error_nspec_for_mat),
+   m_is_uni_buffer(false),
+   m_is_element_dominant(false),
+   m_num_elems(0),
+   m_num_mats(0),
+   m_has_field(false),
+   m_has_specset(false),
+   m_src_matset(nullptr),
+   m_src_field(nullptr),
+   m_src_specset(nullptr)
 {
     // empty
 }
 
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor(const Node &matset)
- : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
-   m_get_elem_id(&MatsetAccessor::get_error_elem_id),
-   m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
-   m_get_mset_val(&MatsetAccessor::get_error_mset_val),
-   m_get_mass_frac(&MatsetAccessor::get_error_mass_frac),
-   m_get_nmats_for_elem(&MatsetAccessor::get_error_nmats_for_elem),
-   m_get_nelems_for_mat(&MatsetAccessor::get_error_nelems_for_mat),
-   m_get_nspec_for_mat(&MatsetAccessor::get_error_nspec_for_mat)
+ : MatsetAccessor()
 {
     init(matset, nullptr, nullptr);
 }
@@ -80,14 +83,7 @@ MatsetAccessor::MatsetAccessor(const Node &matset)
 //---------------------------------------------------------------------------//
 MatsetAccessor::MatsetAccessor(const Node &matset,
                                const Node &specset_or_field)
- : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
-   m_get_elem_id(&MatsetAccessor::get_error_elem_id),
-   m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
-   m_get_mset_val(&MatsetAccessor::get_error_mset_val),
-   m_get_mass_frac(&MatsetAccessor::get_error_mass_frac),
-   m_get_nmats_for_elem(&MatsetAccessor::get_error_nmats_for_elem),
-   m_get_nelems_for_mat(&MatsetAccessor::get_error_nelems_for_mat),
-   m_get_nspec_for_mat(&MatsetAccessor::get_error_nspec_for_mat)
+ : MatsetAccessor()
 {
     if (specset_or_field.has_child("topology"))
     {
@@ -107,88 +103,82 @@ MatsetAccessor::MatsetAccessor(const Node &matset,
 MatsetAccessor::MatsetAccessor(const Node &matset,
                                const Node &field,
                                const Node &specset)
- : m_get_mat_id(&MatsetAccessor::get_error_mat_id),
-   m_get_elem_id(&MatsetAccessor::get_error_elem_id),
-   m_get_vol_frac(&MatsetAccessor::get_error_vol_frac),
-   m_get_mset_val(&MatsetAccessor::get_error_mset_val),
-   m_get_mass_frac(&MatsetAccessor::get_error_mass_frac),
-   m_get_nmats_for_elem(&MatsetAccessor::get_error_nmats_for_elem),
-   m_get_nelems_for_mat(&MatsetAccessor::get_error_nelems_for_mat),
-   m_get_nspec_for_mat(&MatsetAccessor::get_error_nspec_for_mat)
+ : MatsetAccessor()
 {
     init(matset, &field, &specset);
 }   
 
 //---------------------------------------------------------------------------//
-MatsetAccessor::MatsetAccessor(const MatsetAccessor &m_acc)
-: m_get_mat_id(m_acc.m_get_mat_id),
-  m_get_elem_id(m_acc.m_get_elem_id),
-  m_get_vol_frac(m_acc.m_get_vol_frac),
-  m_get_mset_val(m_acc.m_get_mset_val),
-  m_get_mass_frac(m_acc.m_get_mass_frac),
-  m_get_nmats_for_elem(m_acc.m_get_nmats_for_elem),
-  m_get_nelems_for_mat(m_acc.m_get_nelems_for_mat),
-  m_get_nspec_for_mat(m_acc.m_get_nspec_for_mat),
-  m_is_uni_buffer(m_acc.m_is_uni_buffer),
-  m_is_element_dominant(m_acc.m_is_element_dominant),
-  m_num_elems(m_acc.m_num_elems),
-  m_num_mats(m_acc.m_num_mats),
-  m_has_field(m_acc.m_has_field),
-  m_has_specset(m_acc.m_has_specset),
-  m_nmatspec(m_acc.m_nmatspec),
-  m_nmatspec_acc(m_acc.m_nmatspec_acc),
-  m_nmatspec_offsets_acc(m_acc.m_nmatspec_offsets_acc),
-  m_multi_vol_fracs(m_acc.m_multi_vol_fracs),
-  m_multi_mset_vals(m_acc.m_multi_mset_vals),
-  m_multi_mat_idx_map(m_acc.m_multi_mat_idx_map),
-  m_multi_mat_idx_map_acc(m_acc.m_multi_mat_idx_map_acc),
-  m_multi_mass_fracs(m_acc.m_multi_mass_fracs),
-  m_sbm_elem_ids(m_acc.m_sbm_elem_ids),
-  m_sbe_material_ids(m_acc.m_sbe_material_ids),
-  m_sbe_vol_fracs(m_acc.m_sbe_vol_fracs),
-  m_sbe_mset_vals(m_acc.m_sbe_mset_vals),
-  m_sbe_o2m_idx(m_acc.m_sbe_o2m_idx),
-  m_sbe_mass_fracs(m_acc.m_sbe_mass_fracs),
-  m_sbe_specset_o2m_idx(m_acc.m_sbe_specset_o2m_idx)
-{ }
+MatsetAccessor::MatsetAccessor(const MatsetAccessor &other_matset_accessor)
+ : MatsetAccessor()
+{
+    if (other_matset_accessor.m_src_matset != nullptr)
+    {
+        init(*other_matset_accessor.m_src_matset,
+             other_matset_accessor.m_src_field,
+             other_matset_accessor.m_src_specset);
+    }
+}
 
 //---------------------------------------------------------------------------//
 MatsetAccessor &
-MatsetAccessor::operator=(const MatsetAccessor &m_acc)
+MatsetAccessor::operator=(const MatsetAccessor &other_matset_accessor)
 {
-    if (this != &m_acc)
+    if (this != &other_matset_accessor)
     {
-        m_get_mat_id = m_acc.m_get_mat_id;
-        m_get_elem_id = m_acc.m_get_elem_id;
-        m_get_vol_frac = m_acc.m_get_vol_frac;
-        m_get_mset_val = m_acc.m_get_mset_val;
-        m_get_mass_frac = m_acc.m_get_mass_frac;
-        m_get_nmats_for_elem = m_acc.m_get_nmats_for_elem;
-        m_get_nelems_for_mat = m_acc.m_get_nelems_for_mat;
-        m_get_nspec_for_mat = m_acc.m_get_nspec_for_mat;
-        m_is_uni_buffer = m_acc.m_is_uni_buffer;
-        m_is_element_dominant = m_acc.m_is_element_dominant;
-        m_num_elems = m_acc.m_num_elems;
-        m_num_mats = m_acc.m_num_mats;
-        m_has_field = m_acc.m_has_field;
-        m_has_specset = m_acc.m_has_specset;
-        m_nmatspec = m_acc.m_nmatspec;
-        m_nmatspec_acc = m_acc.m_nmatspec_acc;
-        m_nmatspec_offsets_acc = m_acc.m_nmatspec_offsets_acc;
-        m_multi_vol_fracs = m_acc.m_multi_vol_fracs;
-        m_multi_mset_vals = m_acc.m_multi_mset_vals;
-        m_multi_mat_idx_map = m_acc.m_multi_mat_idx_map;
-        m_multi_mat_idx_map_acc = m_acc.m_multi_mat_idx_map_acc;
-        m_multi_mass_fracs = m_acc.m_multi_mass_fracs;
-        m_sbm_elem_ids = m_acc.m_sbm_elem_ids;
-        m_sbe_material_ids = m_acc.m_sbe_material_ids;
-        m_sbe_vol_fracs = m_acc.m_sbe_vol_fracs;
-        m_sbe_mset_vals = m_acc.m_sbe_mset_vals;
-        m_sbe_o2m_idx = m_acc.m_sbe_o2m_idx;
-        m_sbe_mass_fracs = m_acc.m_sbe_mass_fracs;
-        m_sbe_specset_o2m_idx = m_acc.m_sbe_specset_o2m_idx;
+        if (other_matset_accessor.m_src_matset != nullptr)
+        {
+            init(*other_matset_accessor.m_src_matset,
+                 other_matset_accessor.m_src_field,
+                 other_matset_accessor.m_src_specset);
+        }
+        else
+        {
+            reset_state();
+        }
     }
     return *this;
+}
+
+//-----------------------------------------------------------------------------
+void
+MatsetAccessor::reset_state()
+{
+    m_get_mat_id = &MatsetAccessor::get_error_mat_id;
+    m_get_mat_order_id = &MatsetAccessor::get_error_mat_order_id;
+    m_get_elem_id = &MatsetAccessor::get_error_elem_id;
+    m_get_vol_frac = &MatsetAccessor::get_error_vol_frac;
+    m_get_mset_val = &MatsetAccessor::get_error_mset_val;
+    m_get_mass_frac = &MatsetAccessor::get_error_mass_frac;
+    m_get_nmats_for_elem = &MatsetAccessor::get_error_nmats_for_elem;
+    m_get_nelems_for_mat = &MatsetAccessor::get_error_nelems_for_mat;
+    m_get_nspec_for_mat = &MatsetAccessor::get_error_nspec_for_mat;
+
+    m_is_uni_buffer = false;
+    m_is_element_dominant = false;
+    m_num_elems = 0;
+    m_num_mats = 0;
+    m_has_field = false;
+    m_has_specset = false;
+    m_src_matset = nullptr;
+    m_src_field = nullptr;
+    m_src_specset = nullptr;
+
+    m_internal_data.reset();
+    m_internal_nmatspec = index_t_accessor();
+    m_internal_nmatspec_offsets = index_t_accessor();
+    m_multi_vol_fracs.clear();
+    m_multi_mset_vals.clear();
+    m_internal_multi_mat_idx_map = index_t_accessor();
+    m_multi_mass_fracs.clear();
+    m_sbm_elem_ids.clear();
+    m_sbe_material_ids = index_t_accessor();
+    m_internal_sbe_mat_order_ids = index_t_accessor();
+    m_sbe_vol_fracs = float64_accessor();
+    m_sbe_mset_vals = float64_accessor();
+    m_sbe_o2m_idx = o2mrelation::O2MIndex();
+    m_sbe_mass_fracs = float64_accessor();
+    m_sbe_specset_o2m_idx = o2mrelation::O2MIndex();
 }
 
 //-----------------------------------------------------------------------------
@@ -197,6 +187,8 @@ MatsetAccessor::init(const Node &matset,
                      const Node *field,
                      const Node *specset)
 {
+    reset_state();
+
     // extra seat belts here
     if (! matset.dtype().is_object())
     {
@@ -204,8 +196,10 @@ MatsetAccessor::init(const Node &matset,
                       " passed matset node must be a valid matset tree.");
     }
 
-    m_has_field = false;
-    m_has_specset = false;
+    // these are used for copy-safe reconstruction
+    m_src_matset = &matset;
+    m_src_field = field;
+    m_src_specset = specset;
 
     if (nullptr != field)
     {
@@ -227,10 +221,10 @@ MatsetAccessor::init(const Node &matset,
         m_has_specset = true;
     }
 
-    m_is_uni_buffer       = blueprint::mesh::matset::is_uni_buffer(matset);
-    m_is_element_dominant = blueprint::mesh::matset::is_element_dominant(matset);
+    m_is_uni_buffer       = matset::is_uni_buffer(matset);
+    m_is_element_dominant = matset::is_element_dominant(matset);
 
-    m_num_elems = count_zones_from_matset(matset);
+    m_num_elems = count_elements_from_matset(matset);
     m_num_mats  = count_materials_from_matset(matset);
 
     Node material_map;
@@ -245,6 +239,28 @@ MatsetAccessor::init(const Node &matset,
             m_sbe_material_ids = matset["material_ids"].value();
             m_sbe_vol_fracs = matset["volume_fractions"].value();
             m_sbe_o2m_idx = o2mrelation::O2MIndex(matset);
+
+            //
+            // save material order ids
+            //
+            const index_t num_vol_fracs = matset["volume_fractions"].dtype().number_of_elements();
+            m_internal_data["sbe_mat_order_ids"].set(DataType::index_t(num_vol_fracs));
+            m_internal_sbe_mat_order_ids = m_internal_data["sbe_mat_order_ids"].value();
+            // create a map from material id to material order id
+            std::map<index_t, index_t> mat_id_to_order_id;
+            for (index_t mat_idx = 0; mat_idx < m_num_mats; mat_idx ++)
+            {
+                const index_t mat_id = material_map.child(mat_idx).to_index_t();
+                mat_id_to_order_id[mat_id] = mat_idx;
+            }
+            // now we can fill the mat order id array using the information we've collected
+            for (index_t vf_elem = 0; vf_elem < num_vol_fracs; vf_elem ++)
+            {
+                const index_t mat_id = m_sbe_material_ids[vf_elem];
+                const index_t mat_order_id = mat_id_to_order_id.at(mat_id);
+                m_internal_sbe_mat_order_ids.set(vf_elem, mat_order_id);
+            }
+
             if (nullptr != field)
             {
                 m_sbe_mset_vals = (*field)["matset_values"].value();
@@ -256,7 +272,7 @@ MatsetAccessor::init(const Node &matset,
 
                 // For sparse by element material sets, the matset accessor uses the following
                 // ranges:
-                //     0 <= elem_idx < num elems
+                //     0 <= elem_idx < num elements
                 //     0 <= mat_idx < num mats for element elem_idx
                 //     0 <= spec_idx < num species for material mat_idx in element elem_idx
                 // To know which species mass fraction to fetch for a given (elem_idx, mat_idx, spec_idx),
@@ -423,11 +439,10 @@ MatsetAccessor::init(const Node &matset,
                 // We pay a price at the start when creating these arrays, but we enable quick
                 // access of species mass fraction data.
 
-                const index_t num_vol_fracs = matset["volume_fractions"].dtype().number_of_elements();
-                m_nmatspec["nmatspec"].set(DataType::index_t(num_vol_fracs));
-                m_nmatspec_acc = m_nmatspec["nmatspec"].value();
-                m_nmatspec["nmatspec_offsets"].set(DataType::index_t(num_vol_fracs));
-                m_nmatspec_offsets_acc = m_nmatspec["nmatspec_offsets"].value();
+                m_internal_data["nmatspec"].set(DataType::index_t(num_vol_fracs));
+                m_internal_nmatspec = m_internal_data["nmatspec"].value();
+                m_internal_data["nmatspec_offsets"].set(DataType::index_t(num_vol_fracs));
+                m_internal_nmatspec_offsets = m_internal_data["nmatspec_offsets"].value();
 
                 // create a map from material id to nmatspec
                 std::map<index_t, index_t> mat_id_to_nmatspec;
@@ -457,17 +472,18 @@ MatsetAccessor::init(const Node &matset,
                         const index_t mat_id = m_sbe_material_ids[data_index];
                         const index_t nmatspec_for_mat = mat_id_to_nmatspec.at(mat_id);
 
-                        m_nmatspec_acc.set(data_index, nmatspec_for_mat);
-                        m_nmatspec_offsets_acc.set(data_index, nmatspec_offset);
+                        m_internal_nmatspec.set(data_index, nmatspec_for_mat);
+                        m_internal_nmatspec_offsets.set(data_index, nmatspec_offset);
                         nmatspec_offset += nmatspec_for_mat;
                     }
                 }
             }
 
             // set our fetch methods
-            m_get_mat_id   = &MatsetAccessor::get_sbe_mat_id;
-            m_get_elem_id  = &MatsetAccessor::get_sbe_elem_id;
-            m_get_vol_frac = &MatsetAccessor::get_sbe_vol_frac;
+            m_get_mat_id       = &MatsetAccessor::get_sbe_mat_id;
+            m_get_mat_order_id = &MatsetAccessor::get_sbe_mat_order_id;
+            m_get_elem_id      = &MatsetAccessor::get_sbe_elem_id;
+            m_get_vol_frac     = &MatsetAccessor::get_sbe_vol_frac;
             if (nullptr != field)
             {
                 m_get_mset_val = &MatsetAccessor::get_sbe_mset_val;
@@ -489,20 +505,40 @@ MatsetAccessor::init(const Node &matset,
     }
     else // multi-buffer case
     {
+        // We need to have an array of zeroes we can use when we don't have
+        // data for something. We may have a matset with materials in the
+        // material_map that do not have corresponding volume_fractions. The
+        // correct answer when I ask what the volume fraction is for that material
+        // in any zone is "0.0". Having an array like this means we can have the
+        // correct answer on hand without needing any conditionals to check for this
+        // case inside of any loops.
+        if (m_is_element_dominant)
+        {
+            // multi-buffer by element (full)
+            m_internal_data["zeroes"].set(DataType::float64(m_num_elems));
+            float64_array zeroes_arr = m_internal_data["zeroes"].value();
+            zeroes_arr.fill(0.0);
+        }
+        else
+        {
+            // multi-buffer by material (sparse by material)
+            m_internal_data["zeroes"].set(DataType::float64(0));
+        }
+
         // multi-buffer material index map
         // we save an indirection array from material order id (the order materials appear
         // in the matset) to actual material id. Not all material sets are numbered from
         // 0 to N-1, so we must support this case.
-        m_multi_mat_idx_map.set(DataType::index_t(m_num_mats));
-        m_multi_mat_idx_map_acc = m_multi_mat_idx_map.value();
+        m_internal_data["multi_mat_idx_map"].set(DataType::index_t(m_num_mats));
+        m_internal_multi_mat_idx_map = m_internal_data["multi_mat_idx_map"].value();
 
         if (nullptr != specset)
         {
             // number of material species map
             // we save an array from the material order id (the order materials appear
             // in the matset) to the number of species for that material.
-            m_nmatspec["nmatspec"].set(DataType::index_t(m_num_mats));
-            m_nmatspec_acc = m_nmatspec["nmatspec"].value();
+            m_internal_data["nmatspec"].set(DataType::index_t(m_num_mats));
+            m_internal_nmatspec = m_internal_data["nmatspec"].value();
 
             // we save an additional offsets array so we can quickly get the index
             // of our desired species array since we are flattening:
@@ -520,8 +556,8 @@ MatsetAccessor::init(const Node &matset,
             //    [3, 2]
             // and the nmatspec offsets array is
             //    [0, 3]
-            m_nmatspec["nmatspec_offsets"].set(DataType::index_t(m_num_mats));
-            m_nmatspec_offsets_acc = m_nmatspec["nmatspec_offsets"].value();
+            m_internal_data["nmatspec_offsets"].set(DataType::index_t(m_num_mats));
+            m_internal_nmatspec_offsets = m_internal_data["nmatspec_offsets"].value();
         }
 
         index_t nmatspec_offset = 0;
@@ -536,15 +572,29 @@ MatsetAccessor::init(const Node &matset,
             const index_t mat_id = matmap_entry.to_index_t();
 
             // save material map entry
-            m_multi_mat_idx_map_acc.set(mat_idx, mat_id);
+            m_internal_multi_mat_idx_map.set(mat_idx, mat_id);
 
             // save volume fraction array
-            m_multi_vol_fracs.push_back(matset["volume_fractions"][matname].value());
+            if (matset["volume_fractions"].has_child(matname))
+            {
+                m_multi_vol_fracs.push_back(matset["volume_fractions"][matname].value());
+            }
+            else
+            {
+                m_multi_vol_fracs.push_back(m_internal_data["zeroes"].value());
+            }
 
             if (nullptr != field)
             {
                 // save matset values array
-                m_multi_mset_vals.push_back((*field)["matset_values"][matname].value());
+                if (field->fetch_existing("matset_values").has_child(matname))
+                {
+                    m_multi_mset_vals.push_back(field->fetch_existing("matset_values")[matname].value());
+                }
+                else
+                {
+                    m_multi_mset_vals.push_back(m_internal_data["zeroes"].value());
+                }
             }
 
             if (nullptr != specset)
@@ -555,15 +605,22 @@ MatsetAccessor::init(const Node &matset,
                 {
                     nmatspec = (*specset)["matset_values"][matname].number_of_children();
                 }
-                m_nmatspec_acc.set(mat_idx, nmatspec);
+                m_internal_nmatspec.set(mat_idx, nmatspec);
 
                 // save nmatspec offset value
-                m_nmatspec_offsets_acc.set(mat_idx, nmatspec_offset);
+                m_internal_nmatspec_offsets.set(mat_idx, nmatspec_offset);
                 nmatspec_offset += nmatspec;
 
                 for (index_t spec_idx = 0; spec_idx < nmatspec; spec_idx ++)
                 {
-                    m_multi_mass_fracs.push_back((*specset)["matset_values"][matname].child(spec_idx).value());
+                    if ((*specset)["matset_values"].has_child(matname))
+                    {
+                        m_multi_mass_fracs.push_back((*specset)["matset_values"][matname].child(spec_idx).value());
+                    }
+                    else
+                    {
+                        m_multi_mass_fracs.push_back(m_internal_data["zeroes"].value());
+                    }
                 }
             }
         }
@@ -571,9 +628,10 @@ MatsetAccessor::init(const Node &matset,
         // multi-buffer by element (full)
         if (m_is_element_dominant)
         {
-            m_get_mat_id   = &MatsetAccessor::get_full_mat_id;
-            m_get_elem_id  = &MatsetAccessor::get_full_elem_id;
-            m_get_vol_frac = &MatsetAccessor::get_full_vol_frac;
+            m_get_mat_id       = &MatsetAccessor::get_full_mat_id;
+            m_get_mat_order_id = &MatsetAccessor::get_full_mat_order_id;
+            m_get_elem_id      = &MatsetAccessor::get_full_elem_id;
+            m_get_vol_frac     = &MatsetAccessor::get_full_vol_frac;
             if (nullptr != field)
             {
                 m_get_mset_val = &MatsetAccessor::get_full_mset_val;
@@ -590,12 +648,20 @@ MatsetAccessor::init(const Node &matset,
             for (index_t mat_idx = 0; mat_idx < m_num_mats; mat_idx ++)
             {
                 const std::string matname = material_map.child(mat_idx).name();
-                m_sbm_elem_ids.push_back(matset["element_ids"][matname].value());
+                if (matset["element_ids"].has_child(matname))
+                {
+                    m_sbm_elem_ids.push_back(matset["element_ids"][matname].value());
+                }
+                else
+                {
+                    m_sbm_elem_ids.push_back(m_internal_data["zeroes"].value());
+                }
             }
 
-            m_get_mat_id   = &MatsetAccessor::get_sbm_mat_id;
-            m_get_elem_id  = &MatsetAccessor::get_sbm_elem_id;
-            m_get_vol_frac = &MatsetAccessor::get_sbm_vol_frac;
+            m_get_mat_id       = &MatsetAccessor::get_sbm_mat_id;
+            m_get_mat_order_id = &MatsetAccessor::get_sbm_mat_order_id;
+            m_get_elem_id      = &MatsetAccessor::get_sbm_elem_id;
+            m_get_vol_frac     = &MatsetAccessor::get_sbm_vol_frac;
             if (nullptr != field)
             {
                 m_get_mset_val = &MatsetAccessor::get_sbm_mset_val;
@@ -620,7 +686,15 @@ index_t
 MatsetAccessor::get_full_mat_id(const index_t elem_idx, const index_t mat_idx) const
 {
     (void) elem_idx;
-    return m_multi_mat_idx_map_acc[mat_idx];
+    return m_internal_multi_mat_idx_map[mat_idx];
+}
+
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_full_mat_order_id(const index_t elem_idx, const index_t mat_idx) const
+{
+    (void) elem_idx;
+    return mat_idx;
 }
 
 //-----------------------------------------------------------------------------
@@ -651,7 +725,7 @@ MatsetAccessor::get_full_mass_frac(const index_t elem_idx,
                                    const index_t mat_idx,
                                    const index_t spec_idx) const
 {
-    const index_t spec_data_index = m_nmatspec_offsets_acc[mat_idx] + spec_idx;
+    const index_t spec_data_index = m_internal_nmatspec_offsets[mat_idx] + spec_idx;
     return m_multi_mass_fracs[spec_data_index][elem_idx];
 }
 
@@ -660,7 +734,7 @@ index_t
 MatsetAccessor::get_full_nspec_for_mat(const index_t elem_idx, const index_t mat_idx) const
 {
     (void) elem_idx;
-    return m_nmatspec_acc[mat_idx];
+    return m_internal_nmatspec[mat_idx];
 }
 
 //-----------------------------------------------------------------------------
@@ -673,7 +747,15 @@ index_t
 MatsetAccessor::get_sbm_mat_id(const index_t elem_idx, const index_t mat_idx) const
 {
     (void) elem_idx;
-    return m_multi_mat_idx_map_acc[mat_idx];
+    return m_internal_multi_mat_idx_map[mat_idx];
+}
+
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_sbm_mat_order_id(const index_t elem_idx, const index_t mat_idx) const
+{
+    (void) elem_idx;
+    return mat_idx;
 }
 
 //-----------------------------------------------------------------------------
@@ -703,7 +785,7 @@ MatsetAccessor::get_sbm_mass_frac(const index_t elem_idx,
                                   const index_t mat_idx,
                                   const index_t spec_idx) const
 {
-    const index_t spec_data_index = m_nmatspec_offsets_acc[mat_idx] + spec_idx;
+    const index_t spec_data_index = m_internal_nmatspec_offsets[mat_idx] + spec_idx;
     return m_multi_mass_fracs[spec_data_index][elem_idx];
 }
 
@@ -719,7 +801,7 @@ index_t
 MatsetAccessor::get_sbm_nspec_for_mat(const index_t elem_idx, const index_t mat_idx) const
 {
     (void) elem_idx;
-    return m_nmatspec_acc[mat_idx];
+    return m_internal_nmatspec[mat_idx];
 }
 
 //-----------------------------------------------------------------------------
@@ -733,6 +815,14 @@ MatsetAccessor::get_sbe_mat_id(const index_t elem_idx, const index_t mat_idx) co
 {
     const index_t data_index = m_sbe_o2m_idx.index(elem_idx, mat_idx);
     return m_sbe_material_ids[data_index];
+}
+
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_sbe_mat_order_id(const index_t elem_idx, const index_t mat_idx) const
+{
+    const index_t data_index = m_sbe_o2m_idx.index(elem_idx, mat_idx);
+    return m_internal_sbe_mat_order_ids[data_index];
 }
 
 //-----------------------------------------------------------------------------
@@ -766,9 +856,9 @@ MatsetAccessor::get_sbe_mass_frac(const index_t elem_idx,
                                   const index_t spec_idx) const
 {
     const index_t data_index = m_sbe_o2m_idx.index(elem_idx, mat_idx);
-    const index_t nmatspec_offset = m_nmatspec_offsets_acc[data_index];
+    const index_t nmatspec_offset = m_internal_nmatspec_offsets[data_index];
 
-    // We need an index that is between 0 and the number of species in this elem.
+    // We need an index that is between 0 and the number of species in this element.
     // The way to calculate this is to add out num material species offset
     // with the current species value index, which ranges between 0 and the
     // number of species for this material.
@@ -796,7 +886,7 @@ index_t
 MatsetAccessor::get_sbe_nspec_for_mat(const index_t elem_idx, const index_t mat_idx) const
 {
     const index_t data_index = m_sbe_o2m_idx.index(elem_idx, mat_idx);
-    return m_nmatspec_acc[data_index];
+    return m_internal_nmatspec[data_index];
 }
 
 //-----------------------------------------------------------------------------
@@ -811,6 +901,16 @@ MatsetAccessor::get_error_mat_id(const index_t elem_idx, const index_t mat_idx) 
     (void) elem_idx;
     (void) mat_idx;
     CONDUIT_ERROR("Impossible to fetch mat_id from material set.");
+    return 0;
+}
+
+//-----------------------------------------------------------------------------
+index_t 
+MatsetAccessor::get_error_mat_order_id(const index_t elem_idx, const index_t mat_idx) const
+{
+    (void) elem_idx;
+    (void) mat_idx;
+    CONDUIT_ERROR("Impossible to fetch mat_order_id from material set.");
     return 0;
 }
 
@@ -862,7 +962,7 @@ index_t
 MatsetAccessor::get_error_nmats_for_elem(const index_t elem_idx) const
 {
     (void) elem_idx;
-    CONDUIT_ERROR("Impossible to fetch number of materials for elem from "
+    CONDUIT_ERROR("Impossible to fetch number of materials for element from "
                   "non-sparse by element material set.");
     return 0;
 }
@@ -872,7 +972,7 @@ index_t
 MatsetAccessor::get_error_nelems_for_mat(const index_t mat_idx) const
 {
     (void) mat_idx;
-    CONDUIT_ERROR("Impossible to fetch number of elems for a material from "
+    CONDUIT_ERROR("Impossible to fetch number of elements for a material from "
                   "non-sparse by material material set.");
     return 0;
 }
@@ -886,7 +986,7 @@ MatsetAccessor::get_error_nspec_for_mat(const index_t elem_idx, const index_t ma
     // CONDUIT_ERROR("Impossible to fetch number of species for a material from "
     //               "specset.");
     // no need to error in this case, as we wish to support looping over 
-    // elems/materials and then species in the case that species
+    // elements/materials and then species in the case that species
     // do not exist. Then loops can be more general with minimal performance
     // costs.
     return 0;
@@ -920,5 +1020,3 @@ MatsetAccessor::get_error_nspec_for_mat(const index_t elem_idx, const index_t ma
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-
-

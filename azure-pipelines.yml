@@ -522,7 +522,7 @@ stages:
           ####################
           # run docker build
           ####################
-          cd src/examples/docker/ubuntu/ && ./example_build.sh
+          cd src/examples/docker/ubuntu/ && ./build.sh
         displayName: 'Docker Build'
 
 

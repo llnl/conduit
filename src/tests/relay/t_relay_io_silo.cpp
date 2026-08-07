@@ -463,31 +463,6 @@ TEST(conduit_relay_io_silo, round_trip_venn_modded_matnos)
     save_mesh["fields"]["mat_check"]["values"].set_external(mat_check_new_values);
     save_mesh["fields"]["mat_check"]["matset_values"].set_external(mat_check_new_matset_values);
 
-    // to_silo is going to reorder mixed materials least to greatest
-    // so we must do the same
-    int_array mat_ids = save_mesh["matsets"]["matset"]["material_ids"].value();
-    const auto mat_id10 = mat_ids[10];
-    const auto mat_id11 = mat_ids[11];
-    const auto mat_id12 = mat_ids[12];
-    mat_ids[10] = mat_id12;
-    mat_ids[11] = mat_id10;
-    mat_ids[12] = mat_id11;
-    auto field_itr = save_mesh["fields"].children();
-    while (field_itr.has_next())
-    {
-        const Node &n_field = field_itr.next();
-        if (n_field.has_child("matset"))
-        {
-            double_array matset_vals = n_field["matset_values"].value();
-            const auto matset_val10 = matset_vals[10];
-            const auto matset_val11 = matset_vals[11];
-            const auto matset_val12 = matset_vals[12];
-            matset_vals[10] = matset_val12;
-            matset_vals[11] = matset_val10;
-            matset_vals[12] = matset_val11;
-        }
-    }
-
     silo_name_changer("mesh", save_mesh);
 
     // the loaded mesh will be in the multidomain format
@@ -1200,6 +1175,20 @@ TEST(conduit_relay_io_silo, unstructured_points)
 }
 
 //-----------------------------------------------------------------------------
+// tests missing material name
+TEST(conduit_relay_io_silo, missing_material_name)
+{
+    const std::string filepath = utils::join_file_path("overlink", "overlinkMatColorsNullMatnames.silo");
+    const std::string input_file = relay_test_silo_data_path(filepath);
+
+    Node load_mesh, write_opts;
+    io::silo::load_mesh(input_file, load_mesh);
+
+    EXPECT_TRUE(load_mesh.has_path("domain_000000/matsets/MMATERIAL/material_map/2"));
+    EXPECT_EQ(load_mesh["domain_000000/matsets/MMATERIAL/material_map/2"].as_int32(), 2);
+}
+
+//-----------------------------------------------------------------------------
 // Tests this Overlink rule: Number of species per material within a set must
 // agree across domains
 // This tests if we can find the error in the serial case.
@@ -1906,10 +1895,6 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
             EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, basename, "silo", write_opts));
 
             remove_path_if_exists(filename);
-            std::cout << "###########################" << std::endl;
-            std::cout << "Testing Write Options:" << std::endl;
-            std::cout << write_opts.to_yaml() << std::endl;
-            std::cout << "###########################" << std::endl;
             io::silo::save_mesh(save_mesh, basename, write_opts);
             io::silo::load_mesh(filename, load_mesh);
             EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
@@ -2008,9 +1993,8 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
                     {
                         for (int domid = 0; domid < ndomains; domid ++)
                         {
-                            const std::string meshname =
-                                conduit_fmt::format(
-                                    basename + conduit::utils::file_path_separator() +"domain{:d}.silo:MESH", domid);
+                            const std::string mesh_pattern = basename + conduit::utils::file_path_separator() +"domain{:d}.silo:MESH";
+                            const std::string meshname = conduit_fmt::format(conduit_fmt::runtime(mesh_pattern), domid);
                             EXPECT_EQ(meshnames[domid], meshname);
                         }
                     }
@@ -2018,9 +2002,8 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
                     {
                         for (int domid = 0; domid < ndomains; domid ++)
                         {
-                            const std::string meshname =
-                                conduit_fmt::format(
-                                    basename + ".cycle_000000" + conduit::utils::file_path_separator() + "domain_{:06d}.silo:mesh/topo", domid);
+                            const std::string mesh_pattern = basename + ".cycle_000000" + conduit::utils::file_path_separator() + "domain_{:06d}.silo:mesh/topo";
+                            const std::string meshname = conduit_fmt::format(conduit_fmt::runtime(mesh_pattern), domid);
                             EXPECT_EQ(meshnames[domid], meshname);
                         }
                     }
@@ -2077,9 +2060,8 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
                             }
                             else
                             {
-                                const std::string varname =
-                                    conduit_fmt::format(
-                                        basename + conduit::utils::file_path_separator() +"domain{:d}.silo:dist", domid);
+                                const std::string var_pattern = basename + conduit::utils::file_path_separator() +"domain{:d}.silo:dist";
+                                const std::string varname = conduit_fmt::format(conduit_fmt::runtime(var_pattern), domid);
                                 EXPECT_EQ(varnames[domid], varname);
                             }
                         }
@@ -2094,9 +2076,8 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
                             }
                             else
                             {
-                                const std::string varname =
-                                    conduit_fmt::format(
-                                        basename + ".cycle_000000" + conduit::utils::file_path_separator() + "domain_{:06d}.silo:mesh/dist", domid);
+                                const std::string var_pattern = basename + ".cycle_000000" + conduit::utils::file_path_separator() + "domain_{:06d}.silo:mesh/dist";
+                                const std::string varname = conduit_fmt::format(conduit_fmt::runtime(var_pattern), domid);
                                 EXPECT_EQ(varnames[domid], varname);
                             }
                         }
@@ -2148,9 +2129,8 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
                     {
                         for (int domid = 0; domid < ndomains; domid ++)
                         {
-                            const std::string matname =
-                                conduit_fmt::format(
-                                    basename + conduit::utils::file_path_separator() + "domain{:d}.silo:MATERIAL", domid);
+                            const std::string mat_pattern = basename + conduit::utils::file_path_separator() + "domain{:d}.silo:MATERIAL";
+                            const std::string matname = conduit_fmt::format(conduit_fmt::runtime(mat_pattern), domid);
                             EXPECT_EQ(matnames[domid], matname);
                         }
                     }
@@ -2164,9 +2144,8 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_n_files_n_domains
                             }
                             else
                             {
-                                const std::string matname =
-                                    conduit_fmt::format(
-                                        basename + ".cycle_000000" + conduit::utils::file_path_separator() +"domain_{:06d}.silo:mesh/matset", domid);
+                                const std::string mat_pattern = basename + ".cycle_000000" + conduit::utils::file_path_separator() +"domain_{:06d}.silo:mesh/matset";
+                                const std::string matname = conduit_fmt::format(conduit_fmt::runtime(mat_pattern), domid);
                                 EXPECT_EQ(matnames[domid], matname);
                             }
                         }
@@ -2337,11 +2316,10 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                     {
                         for (int domid = 0; domid < ndomains; domid ++)
                         {
-                            const std::string meshname =
-                                conduit_fmt::format(
-                                    basename + conduit::utils::file_path_separator() + "domfile{:d}.silo:domain{:d}/MESH",
-                                    dom2filemap.at(domid),
-                                    domid);
+                            const std::string mesh_pattern = basename + conduit::utils::file_path_separator() + "domfile{:d}.silo:domain{:d}/MESH";
+                            const std::string meshname = conduit_fmt::format(conduit_fmt::runtime(mesh_pattern),
+                                                                             dom2filemap.at(domid),
+                                                                             domid);
                             EXPECT_EQ(meshnames[domid], meshname);
                         }
                     }
@@ -2349,11 +2327,10 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                     {
                         for (int domid = 0; domid < ndomains; domid ++)
                         {
-                            const std::string meshname =
-                                conduit_fmt::format(
-                                    basename + ".cycle_000000" + conduit::utils::file_path_separator() + "file_{:06d}.silo:domain_{:06d}/mesh/topo",
-                                    dom2filemap.at(domid),
-                                    domid);
+                            const std::string mesh_pattern = basename + ".cycle_000000" + conduit::utils::file_path_separator() + "file_{:06d}.silo:domain_{:06d}/mesh/topo";
+                            const std::string meshname = conduit_fmt::format(conduit_fmt::runtime(mesh_pattern),
+                                                                             dom2filemap.at(domid),
+                                                                             domid);
                             EXPECT_EQ(meshnames[domid], meshname);
                         }
                     }
@@ -2410,11 +2387,10 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                             }
                             else
                             {
-                                const std::string varname =
-                                    conduit_fmt::format(
-                                        basename + conduit::utils::file_path_separator()  +"domfile{:d}.silo:domain{:d}/dist",
-                                        dom2filemap.at(domid),
-                                        domid);
+                                const std::string var_pattern = basename + conduit::utils::file_path_separator()  +"domfile{:d}.silo:domain{:d}/dist";
+                                const std::string varname = conduit_fmt::format(conduit_fmt::runtime(var_pattern),
+                                                                                dom2filemap.at(domid),
+                                                                                domid);
                                 EXPECT_EQ(varnames[domid], varname);
                             }
 
@@ -2430,11 +2406,10 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                             }
                             else
                             {
-                                const std::string varname =
-                                    conduit_fmt::format(
-                                        basename + ".cycle_000000" + conduit::utils::file_path_separator() + "file_{:06d}.silo:domain_{:06d}/mesh/dist",
-                                        dom2filemap.at(domid),
-                                        domid);
+                                const std::string var_pattern = basename + ".cycle_000000" + conduit::utils::file_path_separator() + "file_{:06d}.silo:domain_{:06d}/mesh/dist";
+                                const std::string varname = conduit_fmt::format(conduit_fmt::runtime(var_pattern),
+                                                                                dom2filemap.at(domid),
+                                                                                domid);
                                 EXPECT_EQ(varnames[domid], varname);
                             }
 
@@ -2487,11 +2462,10 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                     {
                         for (int domid = 0; domid < ndomains; domid ++)
                         {
-                            const std::string matname =
-                                conduit_fmt::format(
-                                    basename + conduit::utils::file_path_separator() + "domfile{:d}.silo:domain{:d}/MATERIAL",
-                                    dom2filemap.at(domid),
-                                    domid);
+                            const std::string mat_pattern = basename + conduit::utils::file_path_separator() + "domfile{:d}.silo:domain{:d}/MATERIAL";
+                            const std::string matname = conduit_fmt::format(conduit_fmt::runtime(mat_pattern),
+                                                                            dom2filemap.at(domid),
+                                                                            domid);
                             EXPECT_EQ(matnames[domid], matname);
                         }
                     }
@@ -2505,11 +2479,10 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
                             }
                             else
                             {
-                                const std::string matname =
-                                    conduit_fmt::format(
-                                        basename + ".cycle_000000" + conduit::utils::file_path_separator() +"file_{:06d}.silo:domain_{:06d}/mesh/matset",
-                                        dom2filemap.at(domid),
-                                        domid);
+                                const std::string mat_pattern = basename + ".cycle_000000" + conduit::utils::file_path_separator() +"file_{:06d}.silo:domain_{:06d}/mesh/matset";
+                                const std::string matname = conduit_fmt::format(conduit_fmt::runtime(mat_pattern),
+                                                                                dom2filemap.at(domid),
+                                                                                domid);
                                 EXPECT_EQ(matnames[domid], matname);
                             }
                         }

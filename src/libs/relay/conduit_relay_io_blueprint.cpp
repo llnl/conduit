@@ -217,7 +217,7 @@ public:
                 std::string res = pattern;
                 res.replace(pattern_idx,
                             4,
-                            conduit_fmt::format(pat,idx));
+                            conduit_fmt::format(conduit_fmt::runtime(pat),idx));
                 return res;
             }
         }

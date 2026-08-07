@@ -171,7 +171,7 @@ template <typename T> struct iterator_traits<conduit_fmt::basic_appender<T>> {
 
 #ifdef FMT_THROW
 // Use the provided definition.
-#elif FMT_USE_EXCEPTIONS
+#elif CONDUIT_FMT_USE_EXCEPTIONS
 #  define FMT_THROW(x) throw x
 #else
 #  define FMT_THROW(x) ::conduit_fmt::assert_fail(__FILE__, __LINE__, (x).what())
@@ -1182,7 +1182,7 @@ template <> inline auto decimal_point(locale_ref loc) -> wchar_t {
   return decimal_point_impl<wchar_t>(loc);
 }
 
-#ifndef FMT_HEADER_ONLY
+#ifndef CONDUIT_FMT_HEADER_ONLY
 FMT_BEGIN_EXPORT
 extern template FMT_API auto thousands_sep_impl<char>(locale_ref)
     -> thousands_sep_result<char>;
@@ -1191,7 +1191,7 @@ extern template FMT_API auto thousands_sep_impl<wchar_t>(locale_ref)
 extern template FMT_API auto decimal_point_impl(locale_ref) -> char;
 extern template FMT_API auto decimal_point_impl(locale_ref) -> wchar_t;
 FMT_END_EXPORT
-#endif  // FMT_HEADER_ONLY
+#endif  // CONDUIT_FMT_HEADER_ONLY
 
 // Compares two characters for equality.
 template <typename Char> auto equal2(const Char* lhs, const char* rhs) -> bool {
@@ -4382,7 +4382,7 @@ FMT_NODISCARD FMT_CONSTEXPR_STRING auto to_string(const T& value)
 FMT_END_EXPORT
 FMT_END_NAMESPACE
 
-#ifdef FMT_HEADER_ONLY
+#ifdef CONDUIT_FMT_HEADER_ONLY
 #  define FMT_FUNC inline
 #  include "format-inl.h"
 #endif

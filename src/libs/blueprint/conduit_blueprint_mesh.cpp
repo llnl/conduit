@@ -1100,7 +1100,16 @@ convert_topology_to_rectilinear(const std::string &/*base_type*/,
 
     dest.set(topo);
     dest["type"].set("rectilinear");
-    dest["coordset"].set(cdest.name());
+
+    if (!cdest.name().empty())
+    {
+        dest["coordset"].set(cdest.name());
+    }
+    else // if (cdest.name().empty())
+    {
+        CONDUIT_ERROR("The destination coordset Node has no name. Pass a named Node "
+                      "(e.g. output[\"coordsets/mycoordset\"]) instead of an anonymous Node.")
+    }
 }
 
 //-------------------------------------------------------------------------
@@ -1128,7 +1137,17 @@ convert_topology_to_structured(const std::string &base_type,
     }
 
     dest["type"].set("structured");
-    dest["coordset"].set(cdest.name());
+
+    if (!cdest.name().empty())
+    {
+        dest["coordset"].set(cdest.name());
+    }
+    else // if (cdest.name().empty())
+    {
+        CONDUIT_ERROR("The destination coordset Node has no name. Pass a named Node "
+                      "(e.g. output[\"coordsets/mycoordset\"]) instead of an anonymous Node.")
+    }
+
     if(topo.has_child("origin"))
     {
         dest["origin"].set(topo["origin"]);
@@ -1185,7 +1204,17 @@ convert_topology_to_unstructured(const std::string &base_type,
     }
 
     dest["type"].set("unstructured");
-    dest["coordset"].set(cdest.name());
+
+    if (!cdest.name().empty())
+    {
+        dest["coordset"].set(cdest.name());
+    }
+    else // if (cdest.name().empty())
+    {
+        CONDUIT_ERROR("The destination coordset Node has no name. Pass a named Node "
+                      "(e.g. output[\"coordsets/mycoordset\"]) instead of an anonymous Node.")
+    }
+
     if(topo.has_child("origin"))
     {
         dest["origin"].set(topo["origin"]);
@@ -1676,7 +1705,17 @@ calculate_unstructured_centroids(const conduit::Node &topo,
 
     dest.reset();
     dest["type"].set("unstructured");
-    dest["coordset"].set(cdest.name());
+
+    if (!cdest.name().empty())
+    {
+        dest["coordset"].set(cdest.name());
+    }
+    else // if (cdest.name().empty())
+    {
+        CONDUIT_ERROR("The destination coordset Node has no name. Pass a named Node "
+                      "(e.g. output[\"coordsets/mycoordset\"]) instead of an anonymous Node.")
+    }
+
     dest["elements/shape"].set(topo_cascade.get_shape(0).type());
     dest["elements/connectivity"].set(DataType(int_dtype.id(), topo_num_elems));
 
@@ -5244,18 +5283,18 @@ mesh::topology::unstructured::generate_sides(const Node &topo,
     const DataType &int_dtype = topo_data.get_int_dtype();
     const DataType &float_dtype = topo_data.get_float_dtype();
 
-    std::vector<conduit::Node> dim_cent_topos(topo_shape.dim + 1);
-    std::vector<conduit::Node> dim_cent_coords(topo_shape.dim + 1);
+    conduit::Node dim_cent_topos;
+    conduit::Node dim_cent_coords;
 
     for(index_t di = 0; di <= topo_shape.dim; di++)
     {
         // NOTE: No centroids are generate for the lines of the geometry
         // because they aren't included in the final sides topology.
         if(di == line_shape.dim) { continue; }
-
+        const std::string dim_key = "d" + std::to_string(di);
         calculate_unstructured_centroids(
             topo_data.get_topology(di), *coordset,
-            dim_cent_topos[di], dim_cent_coords[di]);
+            dim_cent_topos[dim_key], dim_cent_coords[dim_key]);
     }
 
     // Allocate Data Templates for Outputs //
@@ -5269,7 +5308,17 @@ mesh::topology::unstructured::generate_sides(const Node &topo,
 
     topo_dest.reset();
     topo_dest["type"].set("unstructured");
-    topo_dest["coordset"].set(coords_dest.name());
+
+    if (!coords_dest.name().empty())
+    {
+        topo_dest["coordset"].set(coords_dest.name());
+    }
+    else // if (coords_dest.name().empty())
+    {
+        CONDUIT_ERROR("The destination coordset Node has no name. Pass a named Node "
+                      "(e.g. output[\"coordsets/mycoordset\"]) instead of an anonymous Node.")
+    }
+
     topo_dest["elements/shape"].set(side_shape.type());
     topo_dest["elements/connectivity"].set(DataType(int_dtype.id(),
         side_shape.indices * sides_num_elems));
@@ -5301,7 +5350,8 @@ mesh::topology::unstructured::generate_sides(const Node &topo,
             // NOTE: The centroid ordering for the positions is different
             // from the base ordering, which messes up all subsequent indexing.
             // We must use the coordinate set associated with the base topology.
-            const Node &cset = (di != 0) ? dim_cent_coords[di] : *coordset;
+            const std::string dim_key = "d" + std::to_string(di);
+            const Node &cset = (di != 0) ? dim_cent_coords[dim_key] : *coordset;
             if(!cset.dtype().is_empty())
             {
                 const Node &cset_axis = cset["values"][csys_axes[ai]];
@@ -6102,13 +6152,14 @@ mesh::topology::unstructured::generate_corners(const Node &topo,
     const DataType &int_dtype = topo_data.get_int_dtype();
     const DataType &float_dtype = topo_data.get_float_dtype();
 
-    std::vector<conduit::Node> dim_cent_topos(topo_shape.dim + 1);
-    std::vector<conduit::Node> dim_cent_coords(topo_shape.dim + 1);
+    conduit::Node dim_cent_topos;
+    conduit::Node dim_cent_coords;
     for(index_t di = 0; di <= topo_shape.dim; di++)
     {
+        const std::string dim_key = "d" + std::to_string(di);
         calculate_unstructured_centroids(
             topo_data.get_topology(di), *coordset,
-            dim_cent_topos[di], dim_cent_coords[di]);
+            dim_cent_topos[dim_key], dim_cent_coords[dim_key]);
     }
 
     // Allocate Data Templates for Outputs //
@@ -6118,7 +6169,17 @@ mesh::topology::unstructured::generate_corners(const Node &topo,
 
     topo_dest.reset();
     topo_dest["type"].set("unstructured");
-    topo_dest["coordset"].set(coords_dest.name());
+
+    if (!coords_dest.name().empty())
+    {
+        topo_dest["coordset"].set(coords_dest.name());
+    }
+    else // if (coords_dest.name().empty())
+    {
+        CONDUIT_ERROR("The destination coordset Node has no name. Pass a named Node "
+                      "(e.g. output[\"coordsets/mycoordset\"]) instead of an anonymous Node.")
+    }
+
     topo_dest["elements/shape"].set(corner_shape.type());
     if (is_topo_3d)
     {
@@ -6157,7 +6218,8 @@ mesh::topology::unstructured::generate_corners(const Node &topo,
             // NOTE: The centroid ordering for the positions is different
             // from the base ordering, which messes up all subsequent indexing.
             // We must use the coordinate set associated with the base topology.
-            const Node &cset = (di != 0) ? dim_cent_coords[di] : *coordset;
+            const std::string dim_key = "d" + std::to_string(di);
+            const Node &cset = (di != 0) ? dim_cent_coords[dim_key] : *coordset;
             const Node &cset_axis = cset["values"][csys_axes[ai]];
             index_t cset_length = cset_axis.dtype().number_of_elements();
             // TODO: USE ACCESSORS?
@@ -6694,7 +6756,9 @@ mesh::matset::verify(const Node &matset,
 
                 if(mat.dtype().is_object())
                 {
-                    vfs_res &= verify_o2mrelation_field(protocol, vfs, vfs_info, mat_name);
+                    log::error(info, protocol,
+                        "material volume fractions must be a scalar array, not an object with children");
+                    res &= false;
                 }
                 else
                 {
@@ -6723,24 +6787,24 @@ mesh::matset::verify(const Node &matset,
 
         res &= verify_matset_material_map(protocol,matset,info);
 
-        // for cases where vfs are an object, we expect the material_map child
-        // names to be a subset of the volume_fractions child names
+        // for cases where vfs are an object, we expect the volume_fractions child
+        // names to be a subset of the material_map child names
         if(matset.has_child("volume_fractions") &&
            matset["volume_fractions"].dtype().is_object())
         {
-            NodeConstIterator itr =  matset["material_map"].children();
+            NodeConstIterator itr =  matset["volume_fractions"].children();
             while(itr.has_next())
             {
                 itr.next();
                 std::string curr_name = itr.name();
-                if(!matset["volume_fractions"].has_child(curr_name))
+                if(!matset["material_map"].has_child(curr_name))
                 {
                     std::ostringstream oss;
-                    oss << "'material_map' hierarchy must be a subset of "
-                           "'volume_fractions'. "
-                           " 'volume_fractions' is missing child '"
+                    oss << "'volume_fractions' material names must be a subset of "
+                           "'material_map'. "
+                           " 'material_map' is missing child '"
                            << curr_name
-                           <<"' which exists in 'material_map`" ;
+                           <<"' which exists in 'volume_fractions`" ;
                     log::error(info, protocol,oss.str());
                     res &= false;
                 }
@@ -9169,6 +9233,458 @@ void mesh::convert(const conduit::Node &n_mesh, const conduit::Node &n_options, 
     conduit::Node n_maps;
     mesh::convert(n_mesh, n_options, n_output, n_maps);
 }
+
+
+void mesh::remove(const conduit::Node &n_options,
+                  conduit::Node &n_mesh)
+{
+    conduit::Node n_opts_expanded;
+
+    // convert any options that are single string into a list
+    NodeConstIterator itr = n_options.children();
+
+    while(itr.has_next())
+    {
+        const Node &chld = itr.next();
+        const std::string chld_name = itr.name();
+        if(chld.dtype().is_list())
+        {
+            bool ok = chld.number_of_children() > 0;
+            // check that all list entries are string
+            NodeConstIterator lst_itr = chld.children();
+            while(lst_itr.has_next())
+            {
+                const Node &lst_chld = lst_itr.next();
+                if(!lst_chld.dtype().is_string())
+                {
+                    ok = false;
+                }
+                else
+                {
+                    n_opts_expanded[chld_name].append() = lst_chld;
+                }
+            }
+
+            if(!ok)
+            {
+                CONDUIT_ERROR(conduit_fmt::format(
+                              "mesh::remove option {} must contain a string or list of strings.\n Value provided: {}\n",
+                              chld_name,
+                              chld.to_yaml()));
+            }
+
+        }
+        else if(chld.dtype().is_string())
+        {
+            n_opts_expanded[chld_name].append() = chld;
+        }
+        else
+        {
+            CONDUIT_ERROR(conduit_fmt::format(
+                            "mesh::remove option {} must contain a string or list of strings.\n Value provided: {}\n",
+                            chld_name,
+                            chld.to_yaml()));
+        }
+    }
+
+    // helper to extract input strings into sets (used for uniqueness)
+    auto init_set_from_opts = [&](const conduit::Node &opts,
+                                  const std::string &comp_type,
+                                  std::set<std::string> &rset)
+    {
+        if(opts.has_child(comp_type))
+        {
+            NodeConstIterator opts_names_itr = opts[comp_type].children();
+            while(opts_names_itr.has_next())
+            {
+                rset.insert(opts_names_itr.next().as_string());
+            }
+        }
+    };
+
+    // set used for the final remove process
+    std::set<std::string> state;
+    std::set<std::string> coordsets;
+    std::set<std::string> topos;
+    std::set<std::string> fields;
+    std::set<std::string> matsets;
+    std::set<std::string> specsets;
+    std::set<std::string> adjsets;
+    std::set<std::string> nestsets;
+
+    init_set_from_opts(n_opts_expanded,"state",state);
+    init_set_from_opts(n_opts_expanded,"coordsets",coordsets);
+    init_set_from_opts(n_opts_expanded,"topologies",topos);
+    init_set_from_opts(n_opts_expanded,"fields",fields);
+    init_set_from_opts(n_opts_expanded,"matsets",matsets);
+    init_set_from_opts(n_opts_expanded,"specsets",specsets);
+    init_set_from_opts(n_opts_expanded,"adjsets",adjsets);
+    init_set_from_opts(n_opts_expanded,"nestsets",nestsets);
+
+    // note: this isn't const b/c we will alter the mesh
+    auto domains = conduit::blueprint::mesh::domains(n_mesh);
+    // removal cascade:
+    //    coordsets, topos, fields, matsets, specsets, adjsets, nestsets
+    //      this order ensures we don't remove a sub component before its parent
+    //      (which would be wasted effort)
+
+    // helper to record dependent components to a set that will be used
+    // in the final removal process
+    auto record_dependent_components = [&](const conduit::Node *dom,
+                                        const std::string &comp_type,
+                                        const std::string &ref_type,
+                                        const std::string &ref_pattern,
+                                        std::set<std::string> &rset)
+    {
+        if(dom->has_child(comp_type))
+        {
+            NodeConstIterator itr = dom->fetch_existing(comp_type).children();
+            while(itr.has_next())
+            {
+                const conduit::Node &curr = itr.next();
+                const std::string ref_name = curr[ref_type].as_string();
+                if(conduit::utils::glob_match(ref_name, ref_pattern))
+                {
+                    rset.insert(curr.name());
+                }
+
+            }
+        }
+    };
+
+    for (auto coords_name : coordsets)
+    {
+        // Loop over domains:
+        //  identify topos that depend on this coordset
+        for(size_t i = 0; i < domains.size(); i++)
+        {
+            record_dependent_components(domains[i], "topologies", "coordset", coords_name, topos);
+        }
+    }
+
+
+    for (auto topo_name : topos)
+    {
+        // Loop over domains:
+        //  identify fields, matsets, specsets, adjsets, and nestsets that depend on this topo
+        for(size_t i = 0; i < domains.size(); i++)
+        {
+            const conduit::Node *dom = domains[i];
+            record_dependent_components(dom, "fields", "topology", topo_name, fields);
+            record_dependent_components(dom, "matsets", "topology", topo_name, matsets);
+            record_dependent_components(dom, "adjsets", "topology", topo_name, adjsets);
+            record_dependent_components(dom, "nestsets", "topology", topo_name, nestsets);
+        }
+    }
+
+    for (auto matset_name : matsets)
+    {
+        // Loop over domains:
+        //  identify specsets this matset
+        for(size_t i = 0; i < domains.size(); i++)
+        {
+            const conduit::Node *dom = domains[i];
+            record_dependent_components(dom, "specsets", "matset", matset_name, specsets);
+        }
+    }
+
+    // adjsets and nestsets don't have downstream dependent relationships
+
+    // fields need special logic to remove matset values, that is handled after higher
+    // level tree pruning
+
+    // helper to remove dependent components to a set
+    auto remove_components = [&](conduit::Node *dom,
+                                 const std::string &comp_type,
+                                 const std::set<std::string> &comp_patterns)
+    {
+        if(dom->has_child(comp_type))
+        {
+            conduit::Node &n_comp = dom->fetch_existing(comp_type);
+            for (auto comp_pat : comp_patterns)
+            {
+                auto comp_names = n_comp.child_names();
+                for (auto comp_name : comp_names)
+                {
+                    if(conduit::utils::glob_match(comp_name, comp_pat))
+                    {
+                        n_comp.remove(comp_name);
+                    }
+                }
+            }
+
+            // check if we removed everything of the type, if so remove from parent
+            if(n_comp.number_of_children() == 0)
+            {
+                if(n_comp.parent() != nullptr)
+                {
+                    n_comp.parent()->remove(n_comp.name());
+                }
+            }
+        }
+    };
+
+    for(size_t i = 0; i < domains.size(); i++)
+    {
+        conduit::Node *dom = domains[i];
+        remove_components(dom, "state", state);
+        remove_components(dom, "coordsets", coordsets);
+        remove_components(dom, "topologies", topos);
+        remove_components(dom, "fields", fields);
+        remove_components(dom, "matsets", matsets);
+        remove_components(dom, "specsets", specsets);
+        remove_components(dom, "adjsets", adjsets);
+        remove_components(dom, "nestsets", nestsets);
+    }
+
+    // past to clean up matsets
+    // matsets: for any field that refs a matset,
+    //          remove that ref and any matset values
+
+    for(size_t i = 0; i < domains.size(); i++)
+    {
+        conduit::Node *dom = domains[i];
+        if(dom->has_child("fields"))
+        {
+            Node &n_fields =  dom->fetch_existing("fields");
+            std::vector<std::string> fields_to_rm;
+            NodeIterator itr = n_fields.children();
+            while(itr.has_next())
+            {
+                conduit::Node &curr = itr.next();
+                if(curr.has_child("matset"))
+                {
+                    const std::string field_mset = curr["matset"].as_string();
+                    for (auto matset_name : matsets)
+                    {
+
+                        if(matset_name == field_mset)
+                        {
+                            // check for truly material dependent field
+                            // (lacks separate `values` data)
+                            if(! curr.has_child("values"))
+                            {
+                                fields_to_rm.push_back(itr.name());
+                            }
+                            else
+                            {
+                                // if the matset matches, remove it
+                                // and any matset_values
+                                curr.remove("matset");
+                                if(curr.has_child("matset_values"))
+                                {
+                                    curr.remove("matset_values");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // remove any truly material dependent fields
+            for(auto field_name : fields_to_rm)
+            {
+                n_fields.remove(field_name);
+            }
+        }
+
+        // if this domain is fully empty, it should be removed from its parent
+        if(dom->number_of_children() == 0)
+        {
+            if(dom->parent() != nullptr)
+            {
+                dom->parent()->remove(dom->name());
+                // Note: dom ptr is now invalid
+                dom = nullptr;
+            }
+        }
+    }
+
+}
+
+
+void mesh::rename(const conduit::Node &n_options,
+                  conduit::Node &n_mesh)
+{
+    // check options, each top level entry should be
+    // a component type name (coordsets) node that is an object with
+    // children that encode old vs new name
+    //  current_name: new_name (coords: my_coords_new)
+
+    NodeConstIterator itr = n_options.children();
+    while(itr.has_next())
+    {
+        const Node &chld = itr.next();
+        const std::string chld_name = itr.name();
+
+        if(!chld.dtype().is_object())
+        {
+                    CONDUIT_ERROR(conduit_fmt::format(
+                                    "mesh::rename option must contain an object with children that are strings\n Value provided: {}\n",
+                                     n_options.to_yaml()));
+        }
+        else // we have a an object
+        {
+            // check that all object entries are strings
+            NodeConstIterator chld_itr = chld.children();
+            while(chld_itr.has_next())
+            {
+                if(!chld_itr.next().dtype().is_string())
+                {
+                    CONDUIT_ERROR(conduit_fmt::format(
+                                    "mesh::rename option must contain an object with children that are strings\n Value provided: {}\n",
+                                     n_options.to_yaml()));
+                }
+            }
+        }
+    }
+
+    // helper to rename a component
+    auto rename_component = [&](conduit::Node *dom,
+                                const std::string &comp_type,
+                                const std::string &comp_name_old,
+                                const std::string &comp_name_new)
+    {
+        if(dom->has_child(comp_type))
+        {
+            Node &comp_node = dom->fetch_existing(comp_type);
+            if(comp_node.has_child(comp_name_old))
+            {
+                comp_node.rename_child(comp_name_old,comp_name_new);
+            }
+        }
+    };
+
+    // helper to update references to a component that was renamed
+    auto rename_dependent_component_refs = [&](conduit::Node *dom,
+                                               const std::string &comp_type,
+                                               const std::string &ref_type,
+                                               const std::string &ref_name_old,
+                                               const std::string &ref_name_new)
+    {
+        if(dom->has_child(comp_type))
+        {
+            NodeIterator itr = dom->fetch_existing(comp_type).children();
+            while(itr.has_next())
+            {
+                conduit::Node &curr = itr.next();
+                if(curr.has_child(ref_type))
+                {
+                    const std::string ref_name = curr[ref_type].as_string();
+                    if(ref_name == ref_name_old)
+                    {
+                        curr[ref_type] = ref_name_new;
+                    }
+                }
+            }
+        }
+    };
+
+    // note: this isn't const b/c we will alter the mesh
+    auto domains = conduit::blueprint::mesh::domains(n_mesh);
+
+    // loop over all domains
+    for(size_t i = 0; i < domains.size(); i++)
+    {
+        conduit::Node *dom = domains[i];
+
+        if(n_options.has_child("coordsets"))
+        {
+            NodeConstIterator itr = n_options["coordsets"].children();
+            while(itr.has_next())
+            {
+                const Node &chld_node = itr.next();
+                std::string chld_name_old = itr.name();
+                std::string chld_name_new = chld_node.as_string();
+                rename_component(dom, "coordsets", chld_name_old, chld_name_new);
+                rename_dependent_component_refs(dom, "topologies", "coordset", chld_name_old, chld_name_new);
+            }
+        }
+
+        if(n_options.has_child("topologies"))
+        {
+            NodeConstIterator itr = n_options["topologies"].children();
+            while(itr.has_next())
+            {
+                const Node &chld_node = itr.next();
+                std::string chld_name_old = chld_node.name();
+                std::string chld_name_new = chld_node.as_string();
+                rename_component(dom, "topologies", chld_name_old, chld_name_new);
+                rename_dependent_component_refs(dom, "fields", "topology", chld_name_old, chld_name_new);
+                rename_dependent_component_refs(dom, "matsets", "topology", chld_name_old, chld_name_new);
+                rename_dependent_component_refs(dom, "adjsets", "topology", chld_name_old, chld_name_new);
+                rename_dependent_component_refs(dom, "nestsets", "topology", chld_name_old, chld_name_new);
+            }
+        }
+
+        if(n_options.has_child("fields"))
+        {
+            NodeConstIterator itr = n_options["fields"].children();
+            while(itr.has_next())
+            {
+                const Node &chld_node = itr.next();
+                std::string chld_name_old = chld_node.name();
+                std::string chld_name_new = chld_node.as_string();
+                conduit::Node *dom = domains[i];
+                rename_component(dom, "fields", chld_name_old, chld_name_new);
+            }
+        }
+
+        if(n_options.has_child("matsets"))
+        {
+            NodeConstIterator itr = n_options["matsets"].children();
+            while(itr.has_next())
+            {
+                const Node &chld_node = itr.next();
+                std::string chld_name_old = chld_node.name();
+                std::string chld_name_new = chld_node.as_string();
+                conduit::Node *dom = domains[i];
+                rename_component(dom, "matsets", chld_name_old, chld_name_new);
+                rename_dependent_component_refs(dom, "specsets", "matset", chld_name_old, chld_name_new);
+                rename_dependent_component_refs(dom, "fields", "matset", chld_name_old, chld_name_new);
+            }
+        }
+
+        if(n_options.has_child("specsets"))
+        {
+            NodeConstIterator itr = n_options["specsets"].children();
+            while(itr.has_next())
+            {
+                const Node &chld_node = itr.next();
+                std::string chld_name_old = chld_node.name();
+                std::string chld_name_new = chld_node.as_string();
+                conduit::Node *dom = domains[i];
+                rename_component(dom, "specsets", chld_name_old, chld_name_new);
+            }
+        }
+
+        if(n_options.has_child("adjsets"))
+        {
+            NodeConstIterator itr = n_options["adjsets"].children();
+            while(itr.has_next())
+            {
+                const Node &chld_node = itr.next();
+                std::string chld_name_old = chld_node.name();
+                std::string chld_name_new = chld_node.as_string();
+                conduit::Node *dom = domains[i];
+                rename_component(dom, "adjsets", chld_name_old, chld_name_new);
+            }
+        }
+
+        if(n_options.has_child("nestsets"))
+        {
+            NodeConstIterator itr = n_options["nestsets"].children();
+            while(itr.has_next())
+            {
+                const Node &chld_node = itr.next();
+                std::string chld_name_old = chld_node.name();
+                std::string chld_name_new = chld_node.as_string();
+                conduit::Node *dom = domains[i];
+                rename_component(dom, "nestsets", chld_name_old, chld_name_new);
+            }
+        }
+    }
+}
+
 
 }
 //-----------------------------------------------------------------------------

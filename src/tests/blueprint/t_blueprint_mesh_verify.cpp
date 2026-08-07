@@ -1107,27 +1107,13 @@ TEST(conduit_blueprint_mesh_verify, matset_general)
                 n.reset();
                 n["topology"].set("mesh");
 
-                n["volume_fractions"]["m1"]["values"].set(DataType::float64(8));
-                n["volume_fractions"]["m1"]["indices"].set(DataType::uint32(5));
+                n["volume_fractions"]["m1"].set(DataType::float64(8));
                 CHECK_MESH(verify_matset,n,info,true);
                 CHECK_MATSET(n,is_multi_buffer,is_element_dominant);
 
-                n["volume_fractions"]["m2"]["indices"].set(DataType::uint32(5));
-                CHECK_MESH(verify_matset,n,info,false);
-                n["volume_fractions"]["m2"]["values"].set(DataType::float64(10));
-                CHECK_MESH(verify_matset,n,info,true);
-                CHECK_MATSET(n,is_multi_buffer,is_element_dominant);
-
-                n["volume_fractions"]["m3"]["sizes"].set(DataType::uint32(3));
-                n["volume_fractions"]["m3"]["values"].set(DataType::float64(30));
-                CHECK_MESH(verify_matset,n,info,false);
-                n["volume_fractions"]["m3"]["offsets"].set(DataType::uint32(3));
-                CHECK_MESH(verify_matset,n,info,true);
-                CHECK_MATSET(n,is_multi_buffer,is_element_dominant);
-
-                n["volume_fractions"]["m4"]["test"]["values"].set(DataType::uint32(3));
-                CHECK_MESH(verify_matset,n,info,false);
                 n["volume_fractions"]["m4"]["indices"].set(DataType::uint32(5));
+                CHECK_MESH(verify_matset,n,info,false);
+                n["volume_fractions"]["m4"]["test"]["values"].set(DataType::uint32(3));
                 CHECK_MESH(verify_matset,n,info,false);
                 
                 // make sure we are in good shape for opt material_map checks
@@ -1143,6 +1129,7 @@ TEST(conduit_blueprint_mesh_verify, matset_general)
                 n["material_map/m1"] = 0;
                 n["material_map/m2"] = 1;
                 n["material_map/m3"] = 2;
+                n["material_map/m4"] = 4;
 
                 CHECK_MESH(verify_matset,n,info,true);
 
@@ -1162,23 +1149,6 @@ TEST(conduit_blueprint_mesh_verify, matset_general)
                 n["material_map/m2"] = "bananas";
                 n["material_map/m3"] = "mangoes";
                 CHECK_MESH(verify_matset,n,info,false);
-
-                // material_map ents don't match vfs
-                // (more mat map ents than vfs)
-                n["material_map"].reset();
-                n["material_map/m1"] = 0;
-                n["material_map/m2"] = 1;
-                n["material_map/m3"] = 2;
-                n["material_map/m4"] = 4;
-
-                CHECK_MESH(verify_matset,n,info,false);
-
-                // material_map ents are subset of vfs
-                // (should be true)
-                n["material_map"].reset();
-                n["material_map/m1"] = 0;
-                n["material_map/m3"] = 2;
-                CHECK_MESH(verify_matset,n,info,true);
             }
 
             { // Element ID Tests //

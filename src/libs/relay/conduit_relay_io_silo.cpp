@@ -1350,24 +1350,32 @@ generate_silo_mb_data(const Node &n_mesh_state,
                 {
                     if (global_num_domains == 1)
                     {
-                        generated_silo_name = conduit_fmt::format(silo_path, silo_name);
+                        generated_silo_name = conduit_fmt::format(conduit_fmt::runtime(silo_path),
+                                                                  silo_name);
                     }
                     else
                     {
-                        generated_silo_name = conduit_fmt::format(silo_path, domain_index, silo_name);
+                        generated_silo_name = conduit_fmt::format(conduit_fmt::runtime(silo_path),
+                                                                  domain_index,
+                                                                  silo_name);
                     }
                 }
                 // num domains == num files case
                 else if (global_num_domains == num_files)
                 {
-                    generated_silo_name = conduit_fmt::format(silo_path, domain_index, silo_name);
+                    generated_silo_name = conduit_fmt::format(conduit_fmt::runtime(silo_path),
+                                                              domain_index,
+                                                              silo_name);
                 }
                 // m to n case
                 else
                 {
                     // determine which file
                     const index_t f = determine_domain_or_file("file", global_domain_id);
-                    generated_silo_name = conduit_fmt::format(silo_path, f, domain_index, silo_name);
+                    generated_silo_name = conduit_fmt::format(conduit_fmt::runtime(silo_path),
+                                                              f,
+                                                              domain_index,
+                                                              silo_name);
                 }
 
                 name_strings.push_back(generated_silo_name);
@@ -1489,7 +1497,7 @@ read_dims_from_mesh_info(const Node &mesh_info_for_topo, int *dims)
     }
     else
     {
-        dims[0] = mesh_info_for_topo["num_elems"].to_value();
+        dims[0] = mesh_info_for_topo["num_elems"].to_int();
         return 1; // ndims == 1
     }
 }
@@ -1515,7 +1523,8 @@ handle_nameschemes_or_pathnames(const bool do_nameschemes,
 {
     if (do_nameschemes)
     {
-        block_namescheme = conduit_fmt::format(global_block_namescheme, silo_name);
+        block_namescheme = conduit_fmt::format(conduit_fmt::runtime(global_block_namescheme),
+                                               silo_name);
 
         if (! global_file_namescheme.empty())
         {
@@ -2398,10 +2407,10 @@ read_variable_domain(const int vartype,
         }
         else if (opts_matset_style == "multi_buffer_full")
         {
-            conduit::blueprint::mesh::field::to_multi_buffer_full(original_matset,
-                                                                  intermediate_field,
-                                                                  matset_name,
-                                                                  field_out);
+            conduit::blueprint::mesh::field::to_multi_buffer_by_element(original_matset,
+                                                                        intermediate_field,
+                                                                        matset_name,
+                                                                        field_out);
         }
         else // "multi_buffer_by_material"
         {
@@ -2799,7 +2808,7 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
     }
     else if (opts_matset_style == "multi_buffer_full")
     {
-        conduit::blueprint::mesh::matset::to_multi_buffer_full(intermediate_matset, matset_out);
+        conduit::blueprint::mesh::matset::to_multi_buffer_by_element(intermediate_matset, matset_out);
 
         // we only need to stash the matset for use in converters later if we need
         // a different flavor of matset
@@ -3825,7 +3834,14 @@ read_multimats(DBtoc *toc,
             {
                 for (int i = 0; i < nmatnos; i ++)
                 {
-                    material_map[matnames[i]] = matnos[i];
+                    if (nullptr != matnames[i])
+                    {
+                        material_map[matnames[i]] = matnos[i];
+                    }
+                    else
+                    {
+                        material_map[std::to_string(matnos[i])] = matnos[i];
+                    }
                 }
             }
             else
@@ -5445,13 +5461,13 @@ void silo_write_field(DBfile *dbfile,
         int dims[3] = {0, 0, 0};
         int num_dims = 2;
 
-        dims[0] = n_mesh_info[topo_name]["elements/i"].value();
-        dims[1] = n_mesh_info[topo_name]["elements/j"].value();
+        dims[0] = n_mesh_info[topo_name]["elements/i"].to_int();
+        dims[1] = n_mesh_info[topo_name]["elements/j"].to_int();
 
         if (n_mesh_info[topo_name]["elements"].has_path("k"))
         {
             num_dims = 3;
-            dims[2] = n_mesh_info[topo_name]["elements/k"].value();
+            dims[2] = n_mesh_info[topo_name]["elements/k"].to_int();
         }
 
         if (centering == DB_NODECENT)
@@ -5964,7 +5980,9 @@ void silo_write_ucd_zonelist(DBfile *dbfile,
     detail::conditional_compact(n_conn, n_conn_compact);
 
     const int conn_len = n_conn_compact.dtype().number_of_elements();
-    int *conn_ptr = n_conn_compact.value();
+
+    Node int_arrays;
+    detail::convert_to_c_int_array(n_conn_compact, int_arrays["conn_compact"]);
 
     n_mesh_info[topo_name]["num_elems"] = total_num_elems;
 
@@ -5974,20 +5992,20 @@ void silo_write_ucd_zonelist(DBfile *dbfile,
     const int ndims = n_mesh_info[topo_name]["ndims"].as_int();
 
     CONDUIT_CHECK_SILO_ERROR(
-        DBPutZonelist2(dbfile,             // silo file
-                       zlist_name.c_str(), // silo obj name
-                       total_num_elems,    // number of elements
-                       ndims,              // spatial dims
-                       conn_ptr,           // connectivity array
-                       conn_len,           // len of connectivity array
-                       0,                  // base offset
-                       0,                  // # ghosts low
-                       0,                  // # ghosts high
-                       shapetype.data(),   // list of shapes ids
-                       shapesize.data(),   // number of points per shape id
-                       shapecnt.data(),    // number of elements each shape id is used for
-                       num_shapes,         // number of shapes ids
-                       NULL),              // optlist
+        DBPutZonelist2(dbfile,                             // silo file
+                       zlist_name.c_str(),                 // silo obj name
+                       total_num_elems,                    // number of elements
+                       ndims,                              // spatial dims
+                       int_arrays["conn_compact"].value(), // connectivity array
+                       conn_len,                           // len of connectivity array
+                       0,                                  // base offset
+                       0,                                  // # ghosts low
+                       0,                                  // # ghosts high
+                       shapetype.data(),                   // list of shapes ids
+                       shapesize.data(),                   // number of points per shape id
+                       shapecnt.data(),                    // number of elements each shape id is used for
+                       num_shapes,                         // number of shapes ids
+                       NULL),                              // optlist
         "after saving ucd " + topo_shape + " topology");
 }
 
@@ -6533,10 +6551,9 @@ bool silo_write_matset(DBfile *dbfile,
     const std::string silo_meshname = write_overlink ? "MESH" : topo_name;
 
     // use to_silo utility to create the needed silo arrays
-    // cache all of these for later (in case we are writing specsets. If not, it doesn't hurt)
-    Node &silo_matset = n_mesh_info["matsets"][matset_name]["silo_matset"];
-    Node &silo_matset_compact = n_mesh_info["matsets"][matset_name]["silo_matset_compact"];
-    Node &silo_mix_vfs_final = n_mesh_info["matsets"][matset_name]["silo_mix_vfs_final"];
+    Node silo_matset;
+    Node silo_matset_compact;
+    Node silo_mix_vfs_final;
     conduit::blueprint::mesh::matset::to_silo(n_matset, silo_matset);
 
     // compact the arrays if necessary
@@ -6599,16 +6616,16 @@ bool silo_write_matset(DBfile *dbfile,
     detail::convert_to_c_int_array(silo_matset_compact["matlist"], int_arrays["matlist"]);
 
     CONDUIT_CHECK_SILO_ERROR(
-        DBPutMaterial(dbfile, // Database file pointer
-                      silo_matset_name.c_str(), // matset name
-                      silo_meshname.c_str(), // mesh name
-                      nmat, // number of materials
-                      matnos.data(), // material numbers
-                      int_arrays["matlist"].value(),
+        DBPutMaterial(dbfile,                         // Database file pointer
+                      silo_matset_name.c_str(),       // matset name
+                      silo_meshname.c_str(),          // mesh name
+                      nmat,                           // number of materials
+                      matnos.data(),                  // material numbers
+                      int_arrays["matlist"].value(),  // material list
                       dims,                           // number of elements in each dimension in matlist
                       ndims,                          // number of dimensions in dims
-                      int_arrays["mix_next"].value(),
-                      int_arrays["mix_mat"].value(),
+                      int_arrays["mix_next"].value(), // mix next list
+                      int_arrays["mix_mat"].value(),  // mix material id list
                       NULL,                           // mix zone is optional
                       silo_mix_vfs_final.data_ptr(),  // volume fractions
                       mixlen,                         // length of mixed data arrays
@@ -6636,6 +6653,7 @@ bool silo_write_matset(DBfile *dbfile,
 void silo_write_specset(DBfile *dbfile,
                         const std::string &specset_name,
                         const Node &n_specset,
+                        const Node &n_matset,
                         const std::string &matset_name,
                         const bool write_overlink,
                         const int local_num_domains,
@@ -6686,11 +6704,9 @@ void silo_write_specset(DBfile *dbfile,
         return;
     }
 
-    const Node &silo_matset = n_mesh_info["matsets"][matset_name]["silo_matset_compact"];
-
     // TODO remove this once we add support for all specset flavors to to_silo
-    if (silo_matset["buffer_style"].as_string() != "multi" ||
-        silo_matset["dominance"].as_string() != "element")
+    if (conduit::blueprint::mesh::matset::is_uni_buffer(n_matset) ||
+        conduit::blueprint::mesh::matset::is_material_dominant(n_matset))
     {
         CONDUIT_INFO("TODO Currently specsets can only be saved to silo if "
                      "they are multi_buffer + element_dominant.");
@@ -6698,7 +6714,7 @@ void silo_write_specset(DBfile *dbfile,
     }
 
     Node silo_specset;
-    conduit::blueprint::mesh::specset::to_silo(n_specset, silo_matset, silo_specset);
+    conduit::blueprint::mesh::specset::to_silo(n_specset, n_matset, silo_specset);
 
     // get the datatype of the species_mf
     const int datatype = DB_DOUBLE; // to_silo produces species_mf data using float64s
@@ -6938,12 +6954,14 @@ void silo_mesh_write(DBfile *dbfile,
                               << "/matset: " << matset_name);
                 continue;
             }
+            const Node &n_matset = mesh_domain["matsets"][matset_name];
             const std::string topo_name = n_mesh_info["matsets"][matset_name]["topo_name"].as_string();
             if (! write_overlink || topo_name == ovl_topo_name)
             {
                 silo_write_specset(dbfile,
                                    specset_name,
                                    n_specset,
+                                   n_matset,
                                    matset_name,
                                    write_overlink,
                                    local_num_domains,
@@ -7112,7 +7130,7 @@ void write_multimesh(DBfile *dbfile,
     }
     else
     {
-        mesh_types_ptr = const_cast<int *>(root["type_domain_info"]["meshes"][topo_name + "_types"].as_int32_ptr());
+        mesh_types_ptr = const_cast<int *>(root["type_domain_info"]["meshes"][topo_name + "_types"].as_int_ptr());
     }
 
     // need to create vars out here so they have lifetime thru the end of the function
@@ -7330,7 +7348,7 @@ write_multivars(DBfile *dbfile,
                     }
                     else
                     {
-                        var_types_ptr = const_cast<int *>(root["type_domain_info"]["vars"][var_name + "_types"].as_int32_ptr());
+                        var_types_ptr = const_cast<int *>(root["type_domain_info"]["vars"][var_name + "_types"].as_int_ptr());
                     }
 
                     // need to create vars out here so they have lifetime thru the end of the function
@@ -9442,8 +9460,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                             if (comp == "meshes" || comp == "vars")
                             {
                                 // for meshes and vars we additionally save an array containing the types
-                                root_type_domain_info_comp[read_comp_name + "_types"].set(DataType::int32(global_num_domains));
-                                int32_array root_comp_types = root_type_domain_info_comp[read_comp_name + "_types"].value();
+                                root_type_domain_info_comp[read_comp_name + "_types"].set(DataType::c_int(global_num_domains));
+                                int_array root_comp_types = root_type_domain_info_comp[read_comp_name + "_types"].value();
                                 // we fill this with our default value, which is DB_QUADMESH for meshes and 
                                 // DB_QUADVAR for vars.
                                 root_comp_types.fill(default_value);
@@ -9474,7 +9492,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
 
                         if (comp == "meshes" || comp == "vars")
                         {
-                            int32_array root_comp_types = root_type_domain_info_comp[read_comp_name + "_types"].value();
+                            int_array root_comp_types = root_type_domain_info_comp[read_comp_name + "_types"].value();
                             index_t_accessor read_comp_types = read_comp_type_domain_info["types"].value();
                             for (index_t local_domain_id = 0;
                                  local_domain_id < global_domain_ids.number_of_elements();

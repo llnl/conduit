@@ -4,6 +4,8 @@
 
 FROM ubuntu:24.04
 
+ARG TARGETARCH
+
 #####################
 # base deps
 #####################
@@ -57,30 +59,49 @@ RUN apt-get update && apt-get -y install \
 
 # manual mpich install
 # https://github.com/actions/runner-images/issues/13204
-RUN curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/28285882/+files/libmpich12_4.2.0-5.1_amd64.deb
-RUN curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/28285882/+files/mpich_4.2.0-5.1_amd64.deb
-RUN curl  -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/28285882/+files/libmpich-dev_4.2.0-5.1_amd64.deb
+#
+# amd64: curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/28285882/
+# arm64: curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/28285883/
 
-RUN apt install  -y ./libmpich12_4.2.0-5.1_amd64.deb
-RUN apt install  -y ./mpich_4.2.0-5.1_amd64.deb
-RUN apt install  -y ./libmpich-dev_4.2.0-5.1_amd64.deb
+RUN case "$TARGETARCH" in \
+      "amd64") BUILD_NUM="28285882" ;; \
+      "arm64") BUILD_NUM="28285883" ;; \
+    esac; \
+    curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/${BUILD_NUM}/+files/libmpich12_4.2.0-5.1_${TARGETARCH}.deb
+
+RUN case "$TARGETARCH" in \
+          "amd64") BUILD_NUM="28285882" ;; \
+          "arm64") BUILD_NUM="28285883" ;; \
+    esac; \
+    curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/${BUILD_NUM}/+files/mpich_4.2.0-5.1_${TARGETARCH}.deb
+
+RUN case "$TARGETARCH" in \
+          "amd64") BUILD_NUM="28285882" ;; \
+          "arm64") BUILD_NUM="28285883" ;; \
+    esac; \
+    curl -LO https://launchpad.net/ubuntu/+source/mpich/4.2.0-5.1/+build/${BUILD_NUM}/+files/libmpich-dev_4.2.0-5.1_${TARGETARCH}.deb
+
+
+RUN apt install  -y ./libmpich12_4.2.0-5.1_${TARGETARCH}.deb
+RUN apt install  -y ./mpich_4.2.0-5.1_${TARGETARCH}.deb
+RUN apt install  -y ./libmpich-dev_4.2.0-5.1_${TARGETARCH}.deb
 
 RUN rm -rf /var/lib/apt/lists/*
 
-# untar the current source  (created as part of example_build.sh)
+# untar the current source  (created as part of build.sh)
 COPY conduit.docker.src.tar /
 RUN tar -xf conduit.docker.src.tar
 
 # if you would like to clone conduit directly, you can use:
 #RUN git clone --depth 1 https://github.com/LLNL/conduit.git
 
-# at some sites ssl certs are intercepted, which cases issues fetching 
+# at some sites ssl certs are intercepted, which cases issues fetching
 # tpl sources via https
 
 # to resolve this, either:
-# 1) pass the "-k" option to uberenv (recommended), 
+# 1) pass the "-k" option to uberenv (recommended),
 # 2) install the proper certs into the image, or
-# 3) use  the following commands to disable ssl for git and 
+# 3) use  the following commands to disable ssl for git and
 #    curl (both are used by spack):
 #RUN git config --global http.sslVerify false
 #RUN echo insecure >> ~/.curlrc
@@ -88,21 +109,22 @@ RUN tar -xf conduit.docker.src.tar
 # bootstrap third party libs using spack and uberenv
 RUN cd conduit && python3 scripts/uberenv/uberenv.py \
     -k \
+    --prefix=/uberenv_libs \
     --spec "+mpi%gcc" \
     --spack-env-file=scripts/uberenv_configs/spack_configs/envs/ubuntu-24.04/spack.yaml
 
 # configure a debug build with cmake
 RUN cd conduit && \
-    uberenv_libs/spack/opt/spack/*/cmake-*/bin/cmake \
-    -DCMAKE_BUILD_TYPE=Debug \
-    -DCMAKE_INSTALL_PREFIX=/conduit/install-debug \
-    -C /conduit/uberenv_libs/*-patch.cmake \
-    -B build-debug -S src
+    /uberenv_libs/spack/opt/spack/*/cmake-*/bin/cmake \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/conduit/install \
+    -C /uberenv_libs/*-patch.cmake \
+    -B build -S src
 
 # build, test, and install conduit
-RUN cd conduit/build-debug && make
-RUN cd conduit/build-debug && env make test
-RUN cd conduit/build-debug && make install
+RUN cmake --build conduit/build --config Release
+RUN cmake -E env CTEST_OUTPUT_ON_FAILURE=1 cmake --build conduit/build
+RUN cmake --install conduit/build --config Release
 
 # open port 9000, for use by conduit relay
 EXPOSE 9000

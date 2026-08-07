@@ -87,14 +87,23 @@ PyBlueprint_mesh_verify(PyObject *, //self
     Node &info = *PyConduit_Node_Get_Node_Ptr(py_info);
     
     bool res = false;
-    
-    if(protocol != NULL)
+
+    try
     {
-        res = blueprint::mesh::verify(std::string(protocol), node,info);
+        if(protocol != NULL)
+        {
+            res = blueprint::mesh::verify(std::string(protocol), node,info);
+        }
+        else
+        {
+            res = blueprint::mesh::verify(node,info);
+        }
     }
-    else
+    catch(conduit::Error &e)
     {
-        res = blueprint::mesh::verify(node,info);
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
     }
 
     if(res)
@@ -167,16 +176,23 @@ PyBlueprint_mesh_generate_index(PyObject *, //self
                         "conduit.Node instance");
         return NULL;
     }
-    
 
-    Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
-    Node &dest = *PyConduit_Node_Get_Node_Ptr(py_dest);
-    
 
-    blueprint::mesh::generate_index(mesh,
-                                    std::string(ref_path),
-                                    num_domains,
-                                    dest);
+    try
+    {
+        Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
+        Node &dest = *PyConduit_Node_Get_Node_Ptr(py_dest);
+        blueprint::mesh::generate_index(mesh,
+                                        std::string(ref_path),
+                                        num_domains,
+                                        dest);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
@@ -265,24 +281,193 @@ PyBlueprint_mesh_convert(PyObject *, //self
         return NULL;
     }
 
-    Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
-    Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
-    Node &output = *PyConduit_Node_Get_Node_Ptr(py_output);
+    try
+    {
+        Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
+        Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
+        Node &output = *PyConduit_Node_Get_Node_Ptr(py_output);
 
-    if(py_maps == NULL)
-    {
-        blueprint::mesh::convert(mesh,
-                                 options,
-                                 output);
+        if(py_maps == NULL)
+        {
+            blueprint::mesh::convert(mesh,
+                                    options,
+                                    output);
+        }
+        else
+        {
+            Node &maps = *PyConduit_Node_Get_Node_Ptr(py_maps);
+            blueprint::mesh::convert(mesh,
+                                     options,
+                                     output,
+                                     maps);
+        }
     }
-    else
+    catch(conduit::Error &e)
     {
-        Node &maps = *PyConduit_Node_Get_Node_Ptr(py_maps);
-        blueprint::mesh::convert(mesh,
-                                 options,
-                                 output,
-                                 maps);
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
     }
+
+
+    Py_RETURN_NONE;
+}
+
+//---------------------------------------------------------------------------//
+// conduit::blueprint::mesh::remove
+//---------------------------------------------------------------------------//
+
+// doc str
+const char *PyBlueprint_mesh_remove_doc_str =
+"remove(options, mesh)\n"
+"\n"
+"Assumes mesh::verify() is True\n"
+"\n"
+"Removes subcomponents of a blueprint mesh tree\n"
+"\n"
+"Arguments:\n"
+"  options: options node (conduit.Node instance)\n"
+"  mesh: input node (conduit.Node instance)\n"
+"\n"
+"Example Options:\n"
+"topologies: [\"topo\"]\n"
+"\n"
+"fields: *\n";
+
+// py func
+static PyObject * 
+PyBlueprint_mesh_remove(PyObject *, //self
+                        PyObject *args,
+                        PyObject *kwargs)
+{
+
+    PyObject   *py_options  = NULL;
+    PyObject   *py_mesh     = NULL;
+
+    static const char *kwlist[] = {"options",
+                                   "mesh",
+                                   NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args,
+                                     kwargs,
+                                     "OO",
+                                     const_cast<char**>(kwlist),
+                                     &py_options,
+                                     &py_mesh))
+    {
+        return NULL;
+    }
+
+    if(!PyConduit_Node_Check(py_options))
+    {
+        PyErr_SetString(PyExc_TypeError,
+                        "'options' argument must be a "
+                        "conduit.Node instance");
+        return NULL;
+    }
+
+    if(!PyConduit_Node_Check(py_mesh))
+    {
+        PyErr_SetString(PyExc_TypeError,
+                        "'mesh' argument must be a "
+                        "conduit.Node instance");
+        return NULL;
+    }
+
+    try
+    {
+        Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
+        Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
+
+        blueprint::mesh::remove(options,mesh);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
+
+
+    Py_RETURN_NONE;
+}
+
+
+//---------------------------------------------------------------------------//
+// conduit::blueprint::mesh::rename
+//---------------------------------------------------------------------------//
+
+// doc str
+const char *PyBlueprint_mesh_rename_doc_str =
+"rename(options, mesh)\n"
+"\n"
+"Assumes mesh::verify() is True\n"
+"\n"
+"Renames subcomponents of a blueprint mesh tree\n"
+"\n"
+"Arguments:\n"
+"  options: options node (conduit.Node instance)\n"
+"  mesh: input node (conduit.Node instance)\n"
+"\n"
+"Example Options:\n"
+"topologies:\n"
+"  topo: mytopo\n"
+"\n";
+
+// py func
+static PyObject *
+PyBlueprint_mesh_rename(PyObject *, //self
+                        PyObject *args,
+                        PyObject *kwargs)
+{
+
+    PyObject   *py_options  = NULL;
+    PyObject   *py_mesh     = NULL;
+
+    static const char *kwlist[] = {"options",
+                                   "mesh",
+                                   NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args,
+                                     kwargs,
+                                     "OO",
+                                     const_cast<char**>(kwlist),
+                                     &py_options,
+                                     &py_mesh))
+    {
+        return NULL;
+    }
+
+    if(!PyConduit_Node_Check(py_options))
+    {
+        PyErr_SetString(PyExc_TypeError,
+                        "'options' argument must be a "
+                        "conduit.Node instance");
+        return NULL;
+    }
+
+    if(!PyConduit_Node_Check(py_mesh))
+    {
+        PyErr_SetString(PyExc_TypeError,
+                        "'mesh' argument must be a "
+                        "conduit.Node instance");
+        return NULL;
+    }
+
+    try
+    {
+        Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
+        Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
+
+        blueprint::mesh::rename(options,mesh);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
+
 
     Py_RETURN_NONE;
 }
@@ -357,15 +542,23 @@ PyBlueprint_mesh_partition(PyObject *, //self
                         "conduit.Node instance");
         return NULL;
     }
-    
 
-    Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
-    Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
-    Node &output = *PyConduit_Node_Get_Node_Ptr(py_output);
+    try
+    {
+        Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
+        Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
+        Node &output = *PyConduit_Node_Get_Node_Ptr(py_output);
 
-    blueprint::mesh::partition(mesh,
-                               options,
-                               output);
+        blueprint::mesh::partition(mesh,
+                                   options,
+                                   output);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
@@ -438,11 +631,20 @@ PyBlueprint_mesh_flatten(PyObject *, //self
         return NULL;
     }
 
-    const Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
-    const Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
-    Node &output = *PyConduit_Node_Get_Node_Ptr(py_output);
+    try
+    {
+        const Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
+        const Node &options = *PyConduit_Node_Get_Node_Ptr(py_options);
+        Node &output = *PyConduit_Node_Get_Node_Ptr(py_output);
 
-    blueprint::mesh::flatten(mesh, options, output);
+        blueprint::mesh::flatten(mesh, options, output);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
@@ -500,11 +702,20 @@ PyBlueprint_mesh_paint_adjset(PyObject *, //self
         return NULL;
     }
 
-    Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
+    try
+    {
+        Node &mesh = *PyConduit_Node_Get_Node_Ptr(py_mesh);
 
-    blueprint::mesh::paint_adjset(std::string(adjset_name),
-                                  std::string(field_prefix),
-                                  mesh);
+        blueprint::mesh::paint_adjset(std::string(adjset_name),
+                                      std::string(field_prefix),
+                                      mesh);
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 
     Py_RETURN_NONE;
 }
@@ -528,6 +739,14 @@ static PyMethodDef blueprint_mesh_python_funcs[] =
       _PyCFunction_CAST(PyBlueprint_mesh_convert),
       METH_VARARGS | METH_KEYWORDS,
       PyBlueprint_mesh_convert_doc_str},
+    {"remove",
+      _PyCFunction_CAST(PyBlueprint_mesh_remove),
+      METH_VARARGS | METH_KEYWORDS,
+      PyBlueprint_mesh_remove_doc_str},
+    {"rename",
+      _PyCFunction_CAST(PyBlueprint_mesh_rename),
+      METH_VARARGS | METH_KEYWORDS,
+      PyBlueprint_mesh_rename_doc_str},
     {"partition",
       _PyCFunction_CAST(PyBlueprint_mesh_partition),
       METH_VARARGS | METH_KEYWORDS,

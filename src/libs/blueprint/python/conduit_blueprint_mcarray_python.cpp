@@ -89,16 +89,25 @@ PyBlueprint_mcarray_verify(PyObject *, //self
     
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
     Node &info = *PyConduit_Node_Get_Node_Ptr(py_info);
-    
+
     bool res = false;
-    
-    if(protocol != NULL)
+
+    try
     {
-        res = blueprint::mcarray::verify(std::string(protocol), node,info);
+        if(protocol != NULL)
+        {
+            res = blueprint::mcarray::verify(std::string(protocol), node,info);
+        }
+        else
+        {
+            res = blueprint::mcarray::verify(node,info);
+        }
     }
-    else
+    catch(conduit::Error &e)
     {
-        res = blueprint::mcarray::verify(node,info);
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
     }
 
     if(res)
@@ -151,12 +160,20 @@ PyBlueprint_mcarray_is_interleaved(PyObject *, //self
     }
     
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
-    
 
-    if(blueprint::mcarray::is_interleaved(node))
-        Py_RETURN_TRUE;
-    else
-        Py_RETURN_FALSE;
+    try
+    {
+        if(blueprint::mcarray::is_interleaved(node))
+            Py_RETURN_TRUE;
+        else
+            Py_RETURN_FALSE;
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -213,13 +230,23 @@ PyBlueprint_mcarray_to_contiguous(PyObject *, //self
         return NULL;
     }
     
+    
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
     Node &dest = *PyConduit_Node_Get_Node_Ptr(py_dest);
 
-    if(blueprint::mcarray::to_contiguous(node,dest))
-        Py_RETURN_TRUE;
-    else
-        Py_RETURN_FALSE;
+    try
+    {
+        if(blueprint::mcarray::to_contiguous(node,dest))
+            Py_RETURN_TRUE;
+        else
+            Py_RETURN_FALSE;
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 }
 
 
@@ -277,10 +304,19 @@ PyBlueprint_mcarray_to_interleaved(PyObject *, //self
     Node &node = *PyConduit_Node_Get_Node_Ptr(py_node);
     Node &dest = *PyConduit_Node_Get_Node_Ptr(py_dest);
 
-    if(blueprint::mcarray::to_interleaved(node,dest))
-        Py_RETURN_TRUE;
-    else
-        Py_RETURN_FALSE;
+    try
+    {
+        if(blueprint::mcarray::to_interleaved(node,dest))
+            Py_RETURN_TRUE;
+        else
+            Py_RETURN_FALSE;
+    }
+    catch(conduit::Error &e)
+    {
+        PyErr_SetString(PyExc_IOError,
+                        e.message().c_str());
+        return NULL;
+    }
 }
 
 //---------------------------------------------------------------------------//
