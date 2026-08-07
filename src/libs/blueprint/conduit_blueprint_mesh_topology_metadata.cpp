@@ -25,7 +25,7 @@
 #include "conduit_blueprint_mesh_utils.hpp"
 #include "conduit_annotations.hpp"
 #include "conduit_execution.hpp"
-#include "conduit_execution_array_views.hpp"
+#include "conduit_execution_typed_accessor.hpp"
 #include "conduit_utils.hpp"
 
 //#define DEBUG_PRINT
@@ -2163,8 +2163,8 @@ TopologyMetadata::Implementation::build_edge_key_to_id(
 #else
     conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy::host();
 #endif
-    conduit::execution::with_read_values(conn1D,
-                                         [&](auto conn)
+    conduit::execution::with_typed_accessor(conn1D,
+                                            [&](auto conn)
     {
         conduit::execution::forall(policy, 0, nedges, [&](index_t edge_index)
         {
@@ -2188,11 +2188,9 @@ TopologyMetadata::Implementation::build_edge_key_to_id(
     std::cout << "}" << std::endl;
 #endif
 
-    // Sort the edges by the ids.
-    conduit::execution::ExecutionPolicy sort_policy = conduit::execution::ExecutionPolicy::host();
-    // std::vectors of std::pairs are sorted by their first element, so we
-    // don't need a custom comparator.
-    conduit::execution::sort_ascending(sort_policy, edge_key_to_id.begin(), edge_key_to_id.end());
+    // Sort the edges by the ids. std::vectors of std::pairs are sorted by
+    // their first element, so we don't need a custom comparator.
+    conduit::execution::sort_ascending(policy, edge_key_to_id.begin(), edge_key_to_id.end());
 }
 
 //---------------------------------------------------------------------------

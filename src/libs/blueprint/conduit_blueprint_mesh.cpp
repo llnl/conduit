@@ -34,7 +34,7 @@
 //-----------------------------------------------------------------------------
 #include "conduit_fmt/conduit_fmt.h"
 #include "conduit_execution.hpp"
-#include "conduit_execution_array_views.hpp"
+#include "conduit_execution_typed_accessor.hpp"
 #include "conduit_fixed_size_map.hpp"
 #include "conduit_fixed_size_vector.hpp"
 #include "conduit_geometry_vector.hpp"
@@ -972,10 +972,8 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
         float64_accessor dst_values(dest["values"][csys_axis]);
         dst_values.use_with(policy);
 
-        // Write through a typed raw pointer to avoid the accessor's
-        // per-element dtype dispatch.
-        conduit::execution::with_write_values(dst_values,
-                                              [&](auto vals)
+        conduit::execution::with_typed_accessor(dst_values,
+                                                [&](auto vals)
         {
             coordset_uniform_fill_kernel(policy,
                                          dim_origin,
@@ -1099,12 +1097,10 @@ convert_coordset_to_explicit(const std::string &base_type,
             src_cvals_acc.use_with(policy);
         }
 
-        // Read and write through typed raw pointers to avoid the accessor's
-        // per-element dtype dispatch.
         const index_t dim_len = dim_lens[i];
-        conduit::execution::with_values(src_cvals_acc,
-                                        dst_cvals_acc,
-                                        [&](auto src_vals, auto dst_vals)
+        conduit::execution::with_typed_accessor(src_cvals_acc,
+                                                dst_cvals_acc,
+                                                [&](auto src_vals, auto dst_vals)
         {
             coordset_explicit_fill_kernel(policy,
                                           is_base_rectilinear,
@@ -1455,10 +1451,8 @@ convert_topology_to_unstructured(const std::string &base_type,
     int64_accessor conn_node_vals(conn_node);
     conn_node_vals.use_with(policy);
 
-    // Write through a typed raw pointer to avoid the accessor's per-element
-    // dtype dispatch.
-    conduit::execution::with_write_values(conn_node_vals,
-                                          [&](auto conn_out)
+    conduit::execution::with_typed_accessor(conn_node_vals,
+                                            [&](auto conn_out)
     {
         to_unstructured_connectivity_kernel(policy,
                                             num_axes,
@@ -8579,52 +8573,24 @@ void polyhedral_face_centers_normals(conduit::execution::ExecutionPolicy exec_po
     const conduit::Node &n_x = n_coordset["values/x"];
     const conduit::Node &n_y = n_coordset["values/y"];
     const conduit::Node &n_z = n_coordset["values/z"];
-    bool handled = false;
-    // Dispatch to different instantiations of the function.
-    if(n_x.dtype().is_compact() && n_y.dtype().is_compact() && n_z.dtype().is_compact())
+
+    // Read the coordinates through typed raw pointers to avoid the accessors'
+    // per-element dtype dispatch.
+    conduit::execution::with_typed_accessor(n_x.as_double_accessor(),
+                                            n_y.as_double_accessor(),
+                                            n_z.as_double_accessor(),
+                                            [&](auto x, auto y, auto z)
     {
-        // Handle contiguous float64, float32. (fast paths)
-        if(n_x.dtype().is_float64() && n_y.dtype().is_float64() && n_z.dtype().is_float64())
-        {
-            polyhedral_face_centers_normals(exec_policy,
-                                            subelements_connectivity,
-                                            subelements_sizes,
-                                            subelements_offsets,
-                                            n_x.as_float64_ptr(),
-                                            n_y.as_float64_ptr(),
-                                            n_z.as_float64_ptr(),
-                                            allFaceCenters,
-                                            allFaceNormals);
-            handled = true;
-        }
-        if(n_x.dtype().is_float32() && n_y.dtype().is_float32() && n_z.dtype().is_float32())
-        {
-            polyhedral_face_centers_normals(exec_policy,
-                                            subelements_connectivity,
-                                            subelements_sizes,
-                                            subelements_offsets,
-                                            n_x.as_float32_ptr(),
-                                            n_y.as_float32_ptr(),
-                                            n_z.as_float32_ptr(),
-                                            allFaceCenters,
-                                            allFaceNormals);
-            handled = true;
-        }
-    }
-    if(!handled)
-    {
-        // The coordinates were not supported in the more direct modes above so
-        // use accessors instead.
         polyhedral_face_centers_normals(exec_policy,
                                         subelements_connectivity,
                                         subelements_sizes,
                                         subelements_offsets,
-                                        n_x.as_double_accessor(),
-                                        n_y.as_double_accessor(),
-                                        n_z.as_double_accessor(),
+                                        x,
+                                        y,
+                                        z,
                                         allFaceCenters,
                                         allFaceNormals);
-    }
+    });
 }
 
 /*!
@@ -8636,6 +8602,7 @@ void polyhedral_face_centers_normals(conduit::execution::ExecutionPolicy exec_po
  * @param elements_connectivity An accessor used for elements_connectivity
  * @param elements_sizes An accessor used for elements_sizes
  * @param elements_offsets An accessor used for elements_offsets
+ * @param totalNumElems The number of elements in the topology.
  * @param allFaceCenters The vector for all of the face centers.
  * @param[out] allElemCenters The output vector for the element centers.
  */
@@ -8644,10 +8611,10 @@ void polyhedral_elem_centers(conduit::execution::ExecutionPolicy exec_policy,
                              const IndexAccessor elements_connectivity,
                              const IndexAccessor elements_sizes,
                              const IndexAccessor elements_offsets,
+                             const index_t totalNumElems,
                              const std::vector<Vector> &allFaceCenters,
                              std::vector<Vector> &allElemCenters)
 {
-    const auto totalNumElems = elements_sizes.number_of_elements();
     allElemCenters.resize(totalNumElems);
     Vector *allElemCentersPtr = allElemCenters.data();
     const Vector *allFaceCentersPtr = allFaceCenters.data();
@@ -8776,12 +8743,19 @@ static void polyhedral_to_hexes(conduit::execution::ExecutionPolicy exec_policy,
 
     // Compute all elem centers for all elems.
     std::vector<Vector> allElemCenters;
-    polyhedral_elem_centers(exec_policy,
-                            elements_connectivity,
-                            elements_sizes,
-                            elements_offsets,
-                            allFaceCenters,
-                            allElemCenters);
+    conduit::execution::with_typed_accessor(elements_connectivity,
+                                            elements_sizes,
+                                            elements_offsets,
+                                            [&](auto conn, auto sizes, auto offsets)
+    {
+        polyhedral_elem_centers(exec_policy,
+                                conn,
+                                sizes,
+                                offsets,
+                                nElem,
+                                allFaceCenters,
+                                allElemCenters);
+    });
 
     // Fill in the output hex connectivity
     // NOTE: We're using value capture [=], mainly to avoid issues on Windows. This

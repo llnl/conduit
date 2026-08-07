@@ -50,7 +50,7 @@ set(conduit_headers
     conduit_data_type.hpp
     conduit_endianness.hpp
     conduit_execution.hpp
-    conduit_execution_array_views.hpp
+    conduit_execution_typed_accessor.hpp
     conduit_execution_macros.hpp
     conduit_execution_policy.hpp
     conduit_memory_manager.hpp

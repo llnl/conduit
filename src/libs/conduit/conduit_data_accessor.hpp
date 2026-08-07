@@ -209,23 +209,6 @@ public:
                                   dtype().element_index(idx);
                     }
 
-    ///
-    /// Returns a typed pointer to the accessor's data when the active dtype
-    /// holds compact elements of T, nullptr otherwise. The pointer targets the
-    /// accessor's current memory space, so call this after use_with().
-    /// Writable even for a const accessor, matching set()'s const semantics.
-    /// Prefer the conduit::execution::with_*_values() helpers in
-    /// conduit_execution_array_views.hpp, which also handle converting and
-    /// strided data.
-    ///
-    T *compact_ptr() const
-    {
-        const DataType &dt = dtype();
-        return (dt.id() == native_type_id() && compact_layout())
-            ? static_cast<T*>(static_cast<void*>(static_cast<char*>(m_data) + dt.offset()))
-            : nullptr;
-    }
-
     CONDUIT_EXEC index_t number_of_elements() const
                         {return dtype().number_of_elements();}
 
@@ -381,42 +364,6 @@ public:
                       {std::cout << to_summary_string() << std::endl;}
 
 private:
-
-//-----------------------------------------------------------------------------
-// Compact layout helpers
-//-----------------------------------------------------------------------------
-    ///
-    /// True when the dtype's elements are contiguous.
-    ///
-    CONDUIT_EXEC bool compact_layout() const
-    {
-        const DataType &dt = dtype();
-        return dt.stride() == dt.element_bytes();
-    }
-
-    ///
-    /// The Conduit bitwidth-style type id that matches T exactly, or
-    /// EMPTY_ID when T has no bitwidth-style equivalent. Using constexpr
-    /// allows the type id to be evaluated at compile-time when possible.
-    ///
-    CONDUIT_EXEC static constexpr index_t native_type_id()
-    {
-        return std::is_floating_point<T>::value
-            ? (sizeof(T) == 4 ? (index_t)DataType::FLOAT32_ID :
-               sizeof(T) == 8 ? (index_t)DataType::FLOAT64_ID :
-                                (index_t)DataType::EMPTY_ID)
-            : std::is_signed<T>::value
-            ? (sizeof(T) == 1 ? (index_t)DataType::INT8_ID  :
-               sizeof(T) == 2 ? (index_t)DataType::INT16_ID :
-               sizeof(T) == 4 ? (index_t)DataType::INT32_ID :
-               sizeof(T) == 8 ? (index_t)DataType::INT64_ID :
-                                (index_t)DataType::EMPTY_ID)
-            : (sizeof(T) == 1 ? (index_t)DataType::UINT8_ID  :
-               sizeof(T) == 2 ? (index_t)DataType::UINT16_ID :
-               sizeof(T) == 4 ? (index_t)DataType::UINT32_ID :
-               sizeof(T) == 8 ? (index_t)DataType::UINT64_ID :
-                                (index_t)DataType::EMPTY_ID);
-    }
 
 //-----------------------------------------------------------------------------
 // Scalar setter implementation
