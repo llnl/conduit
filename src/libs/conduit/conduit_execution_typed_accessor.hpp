@@ -130,8 +130,16 @@ template <typename U, typename T>
 RawDataAccessor<T, U>
 make_typed_accessor(const DataAccessor<T> &acc)
 {
+    // element_ptr(0) points at the first element with the dtype's byte offset
+    // already applied (base + offset + stride * 0). If we've made it this far,
+    // we will have already verified that the data is compact (stride == sizeof(U))
+    // and that the underlying dtype matches U. Therefore, indexing the result
+    // as a U array returns exactly what the DataAccessor does.
+    //
+    // The reason two casts are needed is because element_ptr() const-qualifies
+    // its return value even though the underlying buffer is not const. const_cast
+    // strips the const away and static_cast converts the resulting void* to U*.
     return RawDataAccessor<T, U>{
-        // Looks scary, but safe because we know the underlying dtype matches U
         static_cast<U*>(const_cast<void*>(acc.element_ptr(0)))
     };
 }
