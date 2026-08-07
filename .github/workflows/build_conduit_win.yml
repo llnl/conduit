@@ -32,9 +32,11 @@ jobs:
       run: |
         cmake --version
         echo "**** Configuring Conduit"
+        PY_EXE_LOC=`which python3`
         cmake -S src -B build \
               -C conduit-config.cmake \
               -DENABLE_TESTS=ON \
+              -DPYTHON_EXECUTABLE=${PY_EXE_LOC}
               -DCMAKE_INSTALL_PREFIX=install
       shell: bash
     - name: Build Conduit
