@@ -2597,6 +2597,96 @@ get_material_names(const conduit::Node &matset,
 }
 
 //-----------------------------------------------------------------------------
+bool
+has_mixed_elements(const conduit::Node &matset,
+                   const float64 epsilon)
+{
+    // extra seat belt here
+    if (! matset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::matset::has_mixed_elements"
+                      " passed matset node must be a valid matset tree.");
+    }
+
+    MatsetAccessor m_acc = MatsetAccessor(matset);
+
+    if (is_uni_buffer(matset))
+    {
+        if (is_element_dominant(matset))
+        {
+            // sparse by element
+
+            const index_t num_elems = m_acc.num_elems();
+            for (index_t elem_idx = 0; elem_idx < num_elems; elem_idx ++)
+            {
+                if (m_acc.num_mats_for_elem(elem_idx) != index_t{1})
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        else // material-dominant
+        {
+            // unsupported uni-buffer by material
+            CONDUIT_ERROR("conduit::blueprint::mesh::matset::has_mixed_elements() "
+                          "material-dominant uni-buffer material set is unsupported.");
+            return false;
+        }
+    }
+    else // multi-buffer
+    {
+        if (is_element_dominant(matset))
+        {
+            // full
+            const index_t num_elems = m_acc.num_elems();
+            const index_t num_mats  = m_acc.num_mats();
+
+            for (index_t elem_idx = 0; elem_idx < num_elems; elem_idx ++)
+            {
+                for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
+                {
+                    const float64 vol_frac = m_acc.get_vol_frac(elem_idx, mat_idx);
+                    const float64 diff = 1.0f - vol_frac;
+                    // volume fraction must be neither 1.0 nor 0.0 for this to 
+                    // be clean
+                    // if vol_frac is greater than 0 and
+                    // 1 - vol_frac is greater than 0 (1 is greater than vol_frac)
+                    if (vol_frac > epsilon && diff > epsilon)
+                    {
+                        // then we are mixed
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+        else // material-dominant
+        {
+            // sparse_by_material
+            const index_t num_elems = m_acc.num_elems();
+            const index_t num_mats  = m_acc.num_mats();
+
+            index_t running_sum = 0;
+            for (index_t mat_idx = 0; mat_idx < num_mats; mat_idx ++)
+            {
+                running_sum += m_acc.num_elems_for_mat(mat_idx);
+            }
+
+            // if any of the elements are double counted
+            if (running_sum > num_elems)
+            {
+                return true;
+            }
+
+            return false;
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
 void
 to_multi_buffer_by_element(const conduit::Node &src_matset,
                            conduit::Node &dest_matset)
@@ -3448,6 +3538,91 @@ to_uni_buffer_by_material(const conduit::Node &src_matset,
     (void) epsilon;
     CONDUIT_ERROR("blueprint::mesh::field::to_uni_buffer_by_material() "
                   "converting from a material-dominant uni-buffer material set/field is unsupported.");
+}
+
+//-----------------------------------------------------------------------------
+void
+create_field_matset_values_from_unmixed_matset(const conduit::Node &matset,
+                                               conduit::Node &field,
+                                               const float64 epsilon)
+{
+    // extra seat belt here
+    if (! matset.dtype().is_object())
+    {
+        CONDUIT_ERROR("blueprint::mesh::matset::create_field_matset_values_from_unmixed_matset"
+                      " passed matset node must be a valid matset tree.");
+    }
+
+    MatsetAccessor m_acc = MatsetAccessor(matset);
+
+    if (matset::is_uni_buffer(matset))
+    {
+        if (matset::is_element_dominant(matset))
+        {
+            // sparse by element
+
+            // all we need to do is copy
+            field["matset_values"].set(field["values"]);
+        }
+        else // material-dominant
+        {
+            // unsupported uni-buffer by material
+            CONDUIT_ERROR("conduit::blueprint::mesh::matset::create_field_matset_values_from_unmixed_matset() "
+                          "material-dominant uni-buffer material set is unsupported.");
+        }
+    }
+    else // multi-buffer
+    {
+        if (matset::is_element_dominant(matset))
+        {
+            // full
+            
+            const index_t num_elems = field["values"].dtype().number_of_elements();
+            float64_accessor field_values = field["values"].value();
+            const Node &vol_fracs = matset["volume_fractions"];
+            const std::vector<std::string> matnames = vol_fracs.child_names();
+            for (const std::string &matname : matnames)
+            {
+                float64_accessor vol_fracs_for_mat = vol_fracs[matname].value();
+                field["matset_values"][matname].set(DataType::float64(num_elems));
+                float64_array mset_vals_for_mat = field["matset_values"][matname].as_float64_array();
+                mset_vals_for_mat.fill(0.0);
+
+                for (index_t elem_id = 0; elem_id < num_elems; elem_id ++)
+                {
+                    const float64 vol_frac = vol_fracs_for_mat[elem_id];
+                    if (1.0 - epsilon < vol_frac && vol_frac < 1.0 + epsilon)
+                    {
+                        mset_vals_for_mat.set(elem_id, field_values[elem_id]);
+                    }
+                }
+            }
+        }
+        else // material-dominant
+        {
+            // sparse_by_material
+            
+            float64_accessor field_values = field["values"].value();
+            const Node &elem_ids = matset["element_ids"];
+            const std::vector<std::string> matnames = elem_ids.child_names();
+            for (const std::string &matname : matnames)
+            {
+                index_t_accessor mat_elem_ids_vals = elem_ids[matname].value();
+                const index_t num_elems_for_mat = mat_elem_ids_vals.number_of_elements();
+                field["matset_values"][matname].set(DataType::float64(num_elems_for_mat));
+                float64_array mset_vals_for_mat = field["matset_values"][matname].value();
+
+                // iterate over element ids
+                for (index_t index_of_elem_id = 0;
+                     index_of_elem_id < num_elems_for_mat;
+                     index_of_elem_id ++)
+                {
+                    const index_t elem_id = mat_elem_ids_vals[index_of_elem_id];
+                    mset_vals_for_mat.set(index_of_elem_id, field_values[elem_id]);
+                }
+            }
+        }
+    }
 }
 
 //-----------------------------------------------------------------------------
