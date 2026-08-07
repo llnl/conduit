@@ -132,8 +132,6 @@ make_typed_accessor(const DataAccessor<T> &acc)
 {
     return RawDataAccessor<T, U>{
         // Looks scary, but safe because we know the underlying dtype matches U
-        // TODO: I wonder if there's ever a case where we would need to use an
-        // offset here to avoid correctness problems.
         static_cast<U*>(const_cast<void*>(acc.element_ptr(0)))
     };
 }
