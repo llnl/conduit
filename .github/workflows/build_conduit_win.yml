@@ -16,7 +16,7 @@ jobs:
     - name: Setup MPI
       uses: mpi4py/setup-mpi@8ac56ec7ab12f2dffdcf55ffaf50f1920ebcc004 # v1
     - name: Setup Python Env
-      run: python3 -m pip install --upgrade pip numpy mpi4py wheel setuptools
+      run: python -m pip install --upgrade pip numpy mpi4py wheel setuptools
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4
       with:
         submodules: 'recursive'
@@ -25,8 +25,8 @@ jobs:
         env build_conduit=false \
             enable_tests=OFF \
             enable_zfp=OFF \
-            enable_python=ON \
-            build_pyvenv=true \
+            enable_python=OFF \
+            build_pyvenv=false \
             ./scripts/build_conduit/build_conduit.sh
       shell: bash
     - name: Echo Host Config
@@ -41,6 +41,8 @@ jobs:
         cmake -S src -B build \
               -C conduit-config.cmake \
               -DENABLE_TESTS=ON \
+              -DENABLE_PYTHON=ON \
+              -DPYTHON_EXECUTABLE="${{ env.pythonLocation }}/python" \
               -DCMAKE_INSTALL_PREFIX=install
       shell: bash
     - name: Build Conduit
