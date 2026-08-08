@@ -887,6 +887,7 @@ Several important details about Conduit Blueprint material sets are collected he
    There are no restrictions on them other than that they are unique.
  * In the case of **multi-buffer** material sets, where the ``volume_fractions`` node is an *Object* for which material names are the names of the children, if a ``material_map`` is included, the order of material names in the ``volume_fractions``  and in the ``material_map`` need not be the same.
    The ``volume_fractions`` may have less children than the ``material_map``, but the ``material_map`` may not have less children than the ``volume_fractions``.
+ * In the case of **multi-buffer** material sets, where the ``volume_fractions`` node is an *Object* for which material names are the names of the children, if a material is part of a material set but is not present on a particular domain, then that material must **not** appear as a child of the ``volume_fractions`` or ``element_ids``, and instead must appear under the ``material_map``. Therefore, it is recommended to include a ``material_map`` when working with multiple domains and using **multi-buffer** material sets, even though they are optional for that case, because not all materials may appear on all domains.
  * For **uni-buffer** material sets, the **o2mrelation** rules apply.
    Therefore, a valid **uni-buffer** material set may have
 

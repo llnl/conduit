@@ -1432,6 +1432,8 @@ TEST(conduit_blueprint_mesh_examples, venn_sparse_by_element)
 }
 
 //-----------------------------------------------------------------------------
+// with a large radius, there is no background, so we expect that the SBM rep
+// will not include background in vfs, elem ids, or mset vals.
 TEST(conduit_blueprint_mesh_examples, venn_sbm_large_radius)
 {
     const int nx = 2, ny = 2;

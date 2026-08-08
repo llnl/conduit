@@ -77,6 +77,27 @@ fetch_string(const Node &opts,
 }
 
 //---------------------------------------------------------------------------//
+std::string
+fetch_string(const Node &opts,
+             const std::string &example_name,
+             const std::string &child_name,
+             const std::string &def_value)
+{
+    if(!opts.has_child(child_name))
+    {
+        return def_value;
+    }
+
+    if(!opts[child_name].dtype().is_string())
+    {
+        CONDUIT_ERROR("example: `" << example_name
+                      << "` expects options to contain a `string` named `"
+                      << child_name << "`");
+    }
+    return opts[child_name].as_string();
+}
+
+//---------------------------------------------------------------------------//
 index_t
 fetch_index_t(const Node &opts,
               const std::string &example_name,
@@ -434,18 +455,23 @@ generate(const std::string &example_name,
     }
     else if(example_name == "venn")
     {
-        std::string      matset_type = detail::fetch_string(opts,example_name,"matset_type");
-        conduit::index_t nx          = detail::fetch_index_t(opts,example_name,"nx");
-        conduit::index_t ny          = detail::fetch_index_t(opts,example_name,"ny");
-        conduit::float64 radius      = detail::fetch_float64(opts,example_name,"radius");
+        std::string      matset_type           = detail::fetch_string(opts,example_name,"matset_type");
+        conduit::index_t nx                    = detail::fetch_index_t(opts,example_name,"nx");
+        conduit::index_t ny                    = detail::fetch_index_t(opts,example_name,"ny");
+        conduit::float64 radius                = detail::fetch_float64(opts,example_name,"radius");
+        std::string prefer_no_material_map_str = detail::fetch_string(opts,example_name,"prefer_no_material_map","yes");
+        bool prefer_no_material_map            = "yes" == prefer_no_material_map_str;
+        std::string specsets_on_str            = detail::fetch_string(opts,example_name,"specsets_on","no");
+        bool specsets_on                       = "yes" == specsets_on_str;
 
         // wrap
         // void venn(const std::string &matset_type,
-        //           index_t nx,
-        //           index_t ny,
-        //           float64 radius,
+        //           const index_t nx,
+        //           const index_t ny,
+        //           const float64 radius,
+        //           const bool prefer_no_material_map,
         //           Node &res);
-        venn(matset_type,nx,ny,radius,res);
+        venn(matset_type,nx,ny,radius,prefer_no_material_map,specsets_on,res);
     }
     else if (example_name == "bent_multi_grid")
     {
@@ -591,10 +617,12 @@ generate_default_options(const std::string &example_name,
     }
     else if(example_name == "venn")
     {
-        opts["matset_type"] = "full";
-        opts["nx"]          = 100;
-        opts["ny"]          = 100;
-        opts["radius"]      = 0.25;
+        opts["matset_type"]            = "full";
+        opts["nx"]                     = 100;
+        opts["ny"]                     = 100;
+        opts["radius"]                 = 0.25;
+        opts["prefer_no_material_map"] = "yes";
+        opts["specsets_on"]            = "no";
     }
     else if (example_name == "bent_multi_grid")
     {

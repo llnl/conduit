@@ -52,9 +52,28 @@ namespace examples
     ///   sparse_by_element  ->  sparse (element dominant)
     ///                          volume fractions and matset values
     void CONDUIT_BLUEPRINT_API venn(const std::string &matset_type,
-                                    index_t nx,
-                                    index_t ny,
-                                    float64 radius,
+                                    const index_t nx,
+                                    const index_t ny,
+                                    const float64 radius,
+                                    Node &res,
+                                    const float64 epsilon = CONDUIT_EPSILON);
+
+    // alternate
+    void CONDUIT_BLUEPRINT_API venn(const std::string &matset_type,
+                                    const index_t nx,
+                                    const index_t ny,
+                                    const float64 radius,
+                                    const bool prefer_no_material_map,
+                                    Node &res,
+                                    const float64 epsilon = CONDUIT_EPSILON);
+
+    // alternate
+    void CONDUIT_BLUEPRINT_API venn(const std::string &matset_type,
+                                    const index_t nx,
+                                    const index_t ny,
+                                    const float64 radius,
+                                    const bool prefer_no_material_map,
+                                    const bool specsets_on,
                                     Node &res,
                                     const float64 epsilon = CONDUIT_EPSILON);
 
