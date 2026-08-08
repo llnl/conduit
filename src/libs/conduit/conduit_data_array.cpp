@@ -46,8 +46,8 @@ namespace detail
 //-----------------------------------------------------------------------------
 template <typename T, typename U>
 void
-fill_helper(const DataArray<T> &array,
-            U value)
+fill_value_helper(const DataArray<T> &array,
+                  U value)
 {
     // element_ptr(0) points at the first element with the dtype's byte offset
     // already applied (base + offset + stride * 0). element_ptr() const-qualifies
@@ -1489,7 +1489,7 @@ template <typename T>
 void
 DataArray<T>::fill(int8 value)
 {
-    detail::fill_helper(*this, value);
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1497,7 +1497,7 @@ template <typename T>
 void
 DataArray<T>::fill(int16 value)
 {
-    detail::fill_helper(*this, value);
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1505,7 +1505,7 @@ template <typename T>
 void
 DataArray<T>::fill(int32 value)
 {
-    detail::fill_helper(*this, value);
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1513,7 +1513,7 @@ template <typename T>
 void
 DataArray<T>::fill(int64 value)
 {
-    detail::fill_helper(*this, value);
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1525,7 +1525,7 @@ template <typename T>
 void
 DataArray<T>::fill(uint8 value)
 {
-    detail::fill_helper(*this, value);
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1533,7 +1533,7 @@ template <typename T>
 void
 DataArray<T>::fill(uint16 value)
 {
-    detail::fill_helper(*this, value);
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1541,7 +1541,7 @@ template <typename T>
 void
 DataArray<T>::fill(uint32 value)
 {
-    detail::fill_helper(*this, value);
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1549,7 +1549,7 @@ template <typename T>
 void
 DataArray<T>::fill(uint64 value)
 {
-    detail::fill_helper(*this, value);
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1561,7 +1561,7 @@ template <typename T>
 void
 DataArray<T>::fill(float32 value)
 {
-    detail::fill_helper(*this, value);
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1569,7 +1569,7 @@ template <typename T>
 void
 DataArray<T>::fill(float64 value)
 {
-    detail::fill_helper(*this, value);
+    detail::fill_value_helper(*this, value);
 }
 
 //---------------------------------------------------------------------------//

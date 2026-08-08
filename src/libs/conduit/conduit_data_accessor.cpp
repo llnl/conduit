@@ -104,63 +104,6 @@ set_values_typed(void *data,
 }
 
 //-----------------------------------------------------------------------------
-template <typename T>
-void
-fill_helper(const DataAccessor<T> &accessor,
-            T value)
-{
-    // element_ptr(0) points at the first element with the dtype's byte offset
-    // already applied (base + offset + stride * 0). element_ptr() const-qualifies
-    // its return value even though the underlying buffer is not const. const_cast
-    // strips the constness away. We will later cast the void* to the appropriate
-    // destination dtype.
-    void *data = const_cast<void*>(accessor.element_ptr(0));
-    const DataType &dt = accessor.dtype();
-    const index_t stride = dt.stride();
-    const index_t num_elements = dt.number_of_elements();
-
-    switch(dt.id())
-    {
-        // ints
-        case DataType::INT8_ID:
-            fill_typed(data, stride, num_elements, static_cast<int8>(value));
-            break;
-        case DataType::INT16_ID:
-            fill_typed(data, stride, num_elements, static_cast<int16>(value));
-            break;
-        case DataType::INT32_ID:
-            fill_typed(data, stride, num_elements, static_cast<int32>(value));
-            break;
-        case DataType::INT64_ID:
-            fill_typed(data, stride, num_elements, static_cast<int64>(value));
-            break;
-        // uints
-        case DataType::UINT8_ID:
-            fill_typed(data, stride, num_elements, static_cast<uint8>(value));
-            break;
-        case DataType::UINT16_ID:
-            fill_typed(data, stride, num_elements, static_cast<uint16>(value));
-            break;
-        case DataType::UINT32_ID:
-            fill_typed(data, stride, num_elements, static_cast<uint32>(value));
-            break;
-        case DataType::UINT64_ID:
-            fill_typed(data, stride, num_elements, static_cast<uint64>(value));
-            break;
-        // floats
-        case DataType::FLOAT32_ID:
-            fill_typed(data, stride, num_elements, static_cast<float32>(value));
-            break;
-        case DataType::FLOAT64_ID:
-            fill_typed(data, stride, num_elements, static_cast<float64>(value));
-            break;
-        // error
-        default:
-            CONDUIT_ERROR("DataAccessor does not support dtype: " << dt.name());
-    }
-}
-
-//-----------------------------------------------------------------------------
 template <typename T, typename U>
 void
 set_values_helper(const DataAccessor<T> &accessor,
@@ -424,7 +367,55 @@ template <typename T>
 void
 DataAccessor<T>::fill(T value)
 {
-    detail::fill_helper(*this, value);
+    // element_ptr(0) points at the first element with the dtype's byte offset
+    // already applied (base + offset + stride * 0). element_ptr() const-qualifies
+    // its return value even though the underlying buffer is not const. const_cast
+    // strips the constness away. We will later cast the void* to the appropriate
+    // destination dtype.
+    void *data = const_cast<void*>(element_ptr(0));
+    const DataType &dt = dtype();
+    const index_t stride = dt.stride();
+    const index_t num_elements = dt.number_of_elements();
+
+    switch(dt.id())
+    {
+        // ints
+        case DataType::INT8_ID:
+            detail::fill_typed(data, stride, num_elements, static_cast<int8>(value));
+            break;
+        case DataType::INT16_ID:
+            detail::fill_typed(data, stride, num_elements, static_cast<int16>(value));
+            break;
+        case DataType::INT32_ID:
+            detail::fill_typed(data, stride, num_elements, static_cast<int32>(value));
+            break;
+        case DataType::INT64_ID:
+            detail::fill_typed(data, stride, num_elements, static_cast<int64>(value));
+            break;
+        // uints
+        case DataType::UINT8_ID:
+            detail::fill_typed(data, stride, num_elements, static_cast<uint8>(value));
+            break;
+        case DataType::UINT16_ID:
+            detail::fill_typed(data, stride, num_elements, static_cast<uint16>(value));
+            break;
+        case DataType::UINT32_ID:
+            detail::fill_typed(data, stride, num_elements, static_cast<uint32>(value));
+            break;
+        case DataType::UINT64_ID:
+            detail::fill_typed(data, stride, num_elements, static_cast<uint64>(value));
+            break;
+        // floats
+        case DataType::FLOAT32_ID:
+            detail::fill_typed(data, stride, num_elements, static_cast<float32>(value));
+            break;
+        case DataType::FLOAT64_ID:
+            detail::fill_typed(data, stride, num_elements, static_cast<float64>(value));
+            break;
+        // error
+        default:
+            CONDUIT_ERROR("DataAccessor does not support dtype: " << dt.name());
+    }
 }
 
 //---------------------------------------------------------------------------//
