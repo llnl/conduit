@@ -53,6 +53,8 @@ jobs:
             build_config=Debug \
             enable_fortran=OFF \
             enable_tests=OFF \
+            enable_python=OFF \
+            build_pyvenv=false \
             enable_verbose=OFF \
             build_silo=false \
             build_zfp=false \
