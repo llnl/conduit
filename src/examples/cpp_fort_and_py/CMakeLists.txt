@@ -43,14 +43,21 @@ project(conduit_cpp_fort_and_py C CXX Fortran)
 # Setup Conduit
 ######
 find_package(Conduit REQUIRED
+             COMPONENTS Python
              NO_DEFAULT_PATH 
              PATHS ${CONDUIT_DIR}/lib/cmake/conduit)
 
 ######
 # Setup Python
 ######
-include(SetupPython.cmake)
+# allow PYTHON_EXECUTABLE to init Python3_EXECUTABLE
+if(PYTHON_EXECUTABLE AND NOT Python3_EXECUTABLE)
+    set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
+endif()
 
+find_package(Python3
+             REQUIRED
+             COMPONENTS Interpreter Development NumPy)
 ######
 # Conduit requires c++17 support
 ######
