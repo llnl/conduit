@@ -6,9 +6,13 @@ on:
 
 jobs:
   build_windows_msvc_base:
-    name: MSVC Base Release
+    name: build_conduit MSVC Base Release
     runs-on: windows-2025
     steps:
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.13
     - name: Setup MPI
       uses: mpi4py/setup-mpi@8ac56ec7ab12f2dffdcf55ffaf50f1920ebcc004 # v1
     - name: Setup Python Env
@@ -21,6 +25,8 @@ jobs:
         env build_conduit=false \
             enable_tests=OFF \
             enable_zfp=OFF \
+            enable_python=ON \
+            build_pyvenv=true \
             ./scripts/build_conduit/build_conduit.sh
       shell: bash
     - name: Echo Host Config
@@ -32,11 +38,9 @@ jobs:
       run: |
         cmake --version
         echo "**** Configuring Conduit"
-        PY_EXE_LOC=`which python3`
         cmake -S src -B build \
               -C conduit-config.cmake \
               -DENABLE_TESTS=ON \
-              -DPYTHON_EXECUTABLE=${PY_EXE_LOC}
               -DCMAKE_INSTALL_PREFIX=install
       shell: bash
     - name: Build Conduit
