@@ -65,7 +65,6 @@
 //   compact triple, all sharing one dtype         | typed accessors (fast)
 //   compact triple, mixed dtypes*                 | DataAccessor    (slow)
 //   strided data**                                | DataAccessor    (slow)
-//   non-numeric (string)                          | DataAccessor    (slow)
 //
 // *  Possible, just unclear if it's worth doing.
 // ** Also possible for some special cases, but left as future work.
