@@ -509,7 +509,7 @@ TEST(conduit_data_accessor, fill)
 
     for(int i=0;i<10;i++)
     {
-        EXPECT_EQ(arr[0],-1);
+        EXPECT_EQ(arr[i],-1);
     }
 }
 
@@ -900,4 +900,193 @@ TEST(conduit_data_accessor, set_using_data_accessor)
         EXPECT_EQ(n_float64_ptr[i],v_float64[i]);
     }
 
+}
+//-----------------------------------------------------------------------------
+TEST(conduit_data_accessor, bulk_strided_and_offset)
+{
+    const index_t num_elements = 5;
+
+    // A 1-byte underlying dtype viewing the odd entries of an interleaved
+    // buffer.
+    {
+        std::vector<int8> buff(2 * num_elements, (int8)-7);
+
+        Node n;
+        n.set_external(DataType::int8(num_elements,
+                                      sizeof(int8),      // offset
+                                      2 * sizeof(int8)), // stride
+                       &buff[0]);
+
+        // An int64 accessor over the strided int8 data
+        int64_accessor acc = n.value();
+
+        acc.fill(42);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            EXPECT_EQ(buff[2 * i], (int8)-7);
+            EXPECT_EQ(buff[2 * i + 1], (int8)42);
+            EXPECT_EQ(acc[i], (int64)42);
+        }
+
+        // Bulk set from a pointer source with distinct per element values
+        std::vector<int32> v_src;
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            v_src.push_back((int32)(10 + i));
+        }
+
+        acc.set(&v_src[0], num_elements);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            EXPECT_EQ(buff[2 * i], (int8)-7);
+            EXPECT_EQ(buff[2 * i + 1], (int8)(10 + i));
+        }
+
+        // Bulk set from a DataArray source
+        std::vector<int64> v_arr_src;
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            v_arr_src.push_back((int64)(20 + i));
+        }
+        int64_array va_src(&v_arr_src[0], DataType::int64(num_elements));
+
+        acc.set(va_src);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            EXPECT_EQ(buff[2 * i], (int8)-7);
+            EXPECT_EQ(buff[2 * i + 1], (int8)(20 + i));
+        }
+
+        // Bulk set from a DataAccessor source
+        std::vector<float64> v_acc_src;
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            v_acc_src.push_back((float64)(30 + i));
+        }
+        float64_accessor vacc_src(&v_acc_src[0], DataType::float64(num_elements));
+
+        acc.set(vacc_src);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            EXPECT_EQ(buff[2 * i], (int8)-7);
+            EXPECT_EQ(buff[2 * i + 1], (int8)(30 + i));
+        }
+    }
+
+    // An 8-byte underlying dtype with a mismatched accessor type
+    {
+        std::vector<float64> buff(2 * num_elements, -7.5);
+
+        Node n;
+        n.set_external(DataType::float64(num_elements,
+                                         sizeof(float64),      // offset
+                                         2 * sizeof(float64)), // stride
+                       &buff[0]);
+
+        int32_accessor i32_acc = n.value();
+
+        i32_acc.fill(-11);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            EXPECT_EQ(buff[2 * i], -7.5);
+            EXPECT_EQ(buff[2 * i + 1], -11.0);
+        }
+
+        std::vector<int64> v_i64_src;
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            v_i64_src.push_back((int64)(500 + i));
+        }
+
+        i32_acc.set(&v_i64_src[0], num_elements);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            EXPECT_EQ(buff[2 * i], -7.5);
+            EXPECT_EQ(buff[2 * i + 1], (float64)(500 + i));
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_accessor, bulk_set_double_conversion)
+{
+    // Bulk set converts source -> T (the accessor type) -> underlying dtype,
+    // never source -> underlying directly. These cases produce different
+    // results if the conversion chain is wrong.
+
+    // A float64 source through an int64 accessor into float64 underlying
+    // data.
+    {
+        Node n;
+        n.set(DataType::float64(4));
+
+        int64_accessor acc = n.value();
+
+        std::vector<float64> v_src = {1.5, -2.75, 3.99, -0.5};
+        acc.set(&v_src[0], 4);
+
+        float64 *ptr = n.value();
+        EXPECT_EQ(ptr[0], 1.0);
+        EXPECT_EQ(ptr[1], -2.0);
+        EXPECT_EQ(ptr[2], 3.0);
+        EXPECT_EQ(ptr[3], 0.0);
+    }
+
+    // The same case, but on strided data
+    {
+        std::vector<float64> buff(8, -7.5);
+
+        Node n;
+        n.set_external(DataType::float64(4,
+                                         sizeof(float64),
+                                         2 * sizeof(float64)),
+                       &buff[0]);
+
+        int64_accessor acc = n.value();
+
+        std::vector<float64> v_src = {1.5, -2.75, 3.99, -0.5};
+        acc.set(&v_src[0], 4);
+
+        EXPECT_EQ(buff[1], 1.0);
+        EXPECT_EQ(buff[3], -2.0);
+        EXPECT_EQ(buff[5], 3.0);
+        EXPECT_EQ(buff[7], 0.0);
+
+        for (index_t i = 0; i < 4; i++)
+        {
+            EXPECT_EQ(buff[2 * i], -7.5);
+        }
+    }
+
+    // An int32 source through a uint8 accessor into int32 underlying data
+    {
+        Node n;
+        n.set(DataType::int32(4));
+
+        uint8_accessor acc = n.value();
+
+        std::vector<int32> v_src = {300, -1, 255, 256};
+        acc.set(&v_src[0], 4);
+
+        int32 *ptr = n.value();
+        EXPECT_EQ(ptr[0], (int32)44);  // 300 % 256
+        EXPECT_EQ(ptr[1], (int32)255); // (uint8)-1
+        EXPECT_EQ(ptr[2], (int32)255);
+        EXPECT_EQ(ptr[3], (int32)0);   // 256 % 256
+    }
+
+    // Fill an int64 accessor over float32 data
+    {
+        Node n;
+        n.set(DataType::float32(3));
+
+        int64_accessor acc = n.value();
+        acc.fill(-9);
+
+        float32 *ptr = n.value();
+        for (index_t i = 0; i < 3; i++)
+        {
+            EXPECT_EQ(ptr[i], (float32)-9.0);
+        }
+    }
 }

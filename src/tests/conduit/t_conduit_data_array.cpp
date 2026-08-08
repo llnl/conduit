@@ -2522,3 +2522,161 @@ TEST(conduit_data_array, cxx_11_init_lists_node_backed)
         EXPECT_EQ(va_float64[2],3.0);
     }
 }
+//-----------------------------------------------------------------------------
+TEST(conduit_data_array, bulk_strided_and_offset)
+{
+    // An int8 destination viewing the odd entries of an interleaved buffer
+    // (offset = 1 byte, stride = 2 bytes, 6 elements).
+    {
+        const index_t num_ele = 6;
+        std::vector<int8> buff(12);
+        for (index_t i = 0; i < 12; i++)
+        {
+            buff[(size_t)i] = (int8)(100 + i);
+        }
+
+        DataType dt = DataType::int8(num_ele,
+                                     sizeof(int8),      // offset
+                                     2 * sizeof(int8)); // stride
+
+        int8_array va(&buff[0], dt);
+
+        EXPECT_EQ(va[0], (int8)101);
+        EXPECT_EQ(va[5], (int8)111);
+
+        // Fill writes every viewed element and nothing else
+        va.fill((int8)-7);
+        for (index_t i = 0; i < num_ele; i++)
+        {
+            // The viewed element lives at buff[2 * i + 1], while the
+            // interleaved gap next to it must be untouched
+            EXPECT_EQ(buff[(size_t)(2 * i + 1)], (int8)-7);
+            EXPECT_EQ(buff[(size_t)(2 * i)], (int8)(100 + 2 * i));
+        }
+
+        // Bulk set from a pointer source
+        int8 src[6] = {-1, 2, -3, 4, -5, 6};
+        va.set(src, num_ele);
+        for (index_t i = 0; i < num_ele; i++)
+        {
+            EXPECT_EQ(buff[(size_t)(2 * i + 1)], src[i]);
+            EXPECT_EQ(buff[(size_t)(2 * i)], (int8)(100 + 2 * i));
+        }
+
+        // Bulk set from an init list source
+        va.set({10, -20, 30, -40, 50, -60});
+        int8 expected[6] = {10, -20, 30, -40, 50, -60};
+        for (index_t i = 0; i < num_ele; i++)
+        {
+            EXPECT_EQ(buff[(size_t)(2 * i + 1)], expected[i]);
+            EXPECT_EQ(buff[(size_t)(2 * i)], (int8)(100 + 2 * i));
+        }
+    }
+
+    // A float64 destination (8 byte elements), node backed via set_external
+    // (offset = 8 bytes, stride = 16 bytes, 6 elements)
+    {
+        const index_t num_ele = 6;
+        std::vector<float64> buff(12);
+        for (index_t i = 0; i < 12; i++)
+        {
+            buff[(size_t)i] = 1000.0 + (float64)i;
+        }
+
+        DataType dt = DataType::float64(num_ele,
+                                        sizeof(float64),      // offset
+                                        2 * sizeof(float64)); // stride
+
+        Node n;
+        n["vals"].set_external(dt, &buff[0]);
+        float64_array va = n["vals"].value();
+
+        va.fill((float64)-3.5);
+        for (index_t i = 0; i < num_ele; i++)
+        {
+            EXPECT_EQ(buff[(size_t)(2 * i + 1)], -3.5);
+            EXPECT_EQ(buff[(size_t)(2 * i)], 1000.0 + (float64)(2 * i));
+        }
+
+        float64 src[6] = {-1.25, 2.5, -3.75, 4.5, -5.25, 6.125};
+        va.set(src, num_ele);
+        for (index_t i = 0; i < num_ele; i++)
+        {
+            EXPECT_EQ(buff[(size_t)(2 * i + 1)], src[i]);
+            EXPECT_EQ(buff[(size_t)(2 * i)], 1000.0 + (float64)(2 * i));
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_array, set_cross_type_sources)
+{
+    const index_t num_ele = 5;
+
+    std::vector<int32> v_int32(5);
+    v_int32[0] = -1;
+    v_int32[1] =  2;
+    v_int32[2] = -300;
+    v_int32[3] =  4000;
+    v_int32[4] = -50000;
+    int32_array va_int32(&v_int32[0], DataType::int32(num_ele));
+
+    // The float64 sources include values that truncate when cast to an int
+    std::vector<float64> v_float64(5);
+    v_float64[0] =  1.5;
+    v_float64[1] = -2.5;
+    v_float64[2] =  3.99;
+    v_float64[3] = -4.01;
+    v_float64[4] =  1000.75;
+    float64_array    va_float64(&v_float64[0], DataType::float64(num_ele));
+    float64_accessor vacc_float64(&v_float64[0], DataType::float64(num_ele));
+
+    Node n;
+
+    // A float64 destination set from an int32 DataArray source (widening)
+    n["dest_f64"].set(DataType::float64(num_ele));
+    float64_array dest_f64 = n["dest_f64"].value();
+    dest_f64.set(va_int32);
+    for (index_t i = 0; i < num_ele; i++)
+    {
+        EXPECT_EQ(dest_f64[i], (float64)v_int32[(size_t)i]);
+    }
+
+    // An int32 destination set from a float64 DataArray source (truncating)
+    n["dest_i32"].set(DataType::int32(num_ele));
+    int32_array dest_i32 = n["dest_i32"].value();
+    dest_i32.set(va_float64);
+    int32 expected[5] = {1, -2, 3, -4, 1000};
+    for (index_t i = 0; i < num_ele; i++)
+    {
+        EXPECT_EQ(dest_i32[i], expected[i]);
+    }
+
+    // An int32 destination set from a float64 DataAccessor source (truncating)
+    dest_i32.fill((int32)0);
+    dest_i32.set(vacc_float64);
+    for (index_t i = 0; i < num_ele; i++)
+    {
+        EXPECT_EQ(dest_i32[i], expected[i]);
+    }
+
+    // A strided + offset int32 destination set from a float64 DataArray source
+    std::vector<int32> buff(10);
+    for (index_t i = 0; i < 10; i++)
+    {
+        buff[(size_t)i] = (int32)(1000 + i);
+    }
+
+    DataType dt = DataType::int32(num_ele,
+                                  sizeof(int32),      // offset
+                                  2 * sizeof(int32)); // stride
+    int32_array dest_strided(&buff[0], dt);
+
+    dest_strided.set(va_float64);
+    for (index_t i = 0; i < num_ele; i++)
+    {
+        EXPECT_EQ(buff[(size_t)(2 * i + 1)], expected[i]);
+        // The interleaved gaps must be untouched
+        EXPECT_EQ(buff[(size_t)(2 * i)], (int32)(1000 + 2 * i));
+    }
+}

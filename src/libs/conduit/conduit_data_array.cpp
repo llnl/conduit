@@ -38,6 +38,98 @@ namespace conduit
 
 
 //-----------------------------------------------------------------------------
+// -- begin conduit::detail --
+//-----------------------------------------------------------------------------
+namespace detail
+{
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+void
+fill_helper(const DataArray<T> &array,
+            U value)
+{
+    // element_ptr(0) points at the first element with the dtype's byte offset
+    // already applied (base + offset + stride * 0). element_ptr() const-qualifies
+    // its return value even though the underlying buffer is not const. const_cast
+    // strips the constness away. We will later cast the void* to the array's type.
+    void *data = const_cast<void*>(array.element_ptr(0));
+    const DataType &dt = array.dtype();
+    const index_t stride = dt.stride();
+    const index_t num_elements = dt.number_of_elements();
+
+    const T val = static_cast<T>(value);
+
+    if (stride == static_cast<index_t>(sizeof(T)))
+    {
+        // The stride matches the size of the destination type, so we can treat
+        // the data as a contiguous array of T and assign the fill value
+        // directly.
+        T *ptr = static_cast<T*>(data);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            ptr[i] = val;
+        }
+    }
+    else // stride does not match sizeof(T)
+    {
+        // The stride does not match the size of the destination type, so we need
+        // to manually iterate over the data considering the given stride and
+        // assign the fill value for each element.
+        char *ptr = static_cast<char*>(data);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            (*(T*)(ptr)) = val;
+            ptr += stride;
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+void
+set_values_helper(const DataArray<T> &array,
+                  const U &values,
+                  index_t num_elements)
+{
+    // element_ptr(0) points at the first element with the dtype's byte offset
+    // already applied (base + offset + stride * 0). element_ptr() const-qualifies
+    // its return value even though the underlying buffer is not const. const_cast
+    // strips the constness away. We will later cast the void* to the array's type.
+    void *data = const_cast<void*>(array.element_ptr(0));
+    const DataType &dt = array.dtype();
+    const index_t stride = dt.stride();
+
+    if (stride == static_cast<index_t>(sizeof(T)))
+    {
+        // The stride matches the size of the destination type, so we can treat
+        // the data as a contiguous array of T and perform a simple copy
+        // with type conversion.
+        T *ptr = static_cast<T*>(data);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            ptr[i] = static_cast<T>(values[i]);
+        }
+    }
+    else // stride does not match sizeof(T)
+    {
+        // The stride does not match the size of the destination type, so we need
+        // to manually iterate over the data considering the given stride and perform
+        // the type conversion for each element.
+        char *ptr = static_cast<char*>(data);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            (*(T*)(ptr)) = static_cast<T>(values[i]);
+            ptr += stride;
+        }
+    }
+}
+}
+//-----------------------------------------------------------------------------
+// -- end conduit::detail --
+//-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
 //
 // -- conduit::DataArray public methods --
 //
@@ -978,48 +1070,37 @@ DataArray<T>::to_yaml_stream(std::ostream &os) const
 // DataArray::set() signed integers single element
 //---------------------------------------------------------------------------//
 
+
 //---------------------------------------------------------------------------//
-template <typename T> 
+template <typename T>
 void
 DataArray<T>::set(const int8 *values, index_t num_elements) const
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 void
 DataArray<T>::set(const  int16 *values, index_t num_elements) const
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
 DataArray<T>::set(const int32 *values, index_t num_elements) const
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
 DataArray<T>::set(const  int64 *values, index_t num_elements) const
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
@@ -1030,44 +1111,32 @@ DataArray<T>::set(const  int64 *values, index_t num_elements) const
 template <typename T> 
 void            
 DataArray<T>::set(const  uint8 *values, index_t num_elements) const
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
 DataArray<T>::set(const  uint16 *values, index_t num_elements) const
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
 DataArray<T>::set(const uint32 *values, index_t num_elements) const
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
 DataArray<T>::set(const uint64 *values, index_t num_elements) const
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
@@ -1078,22 +1147,16 @@ DataArray<T>::set(const uint64 *values, index_t num_elements) const
 template <typename T> 
 void            
 DataArray<T>::set(const float32 *values, index_t num_elements) const
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
 DataArray<T>::set(const float64 *values, index_t num_elements) const
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
@@ -1105,16 +1168,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<int8> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<int8>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1122,16 +1179,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<int16> &values) const
 {
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<int16>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1139,16 +1190,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<int32> &values) const
 {
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<int32>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1156,16 +1201,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<int64> &values) const
 {
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<int64>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1173,16 +1212,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<uint8> &values) const
 {
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<uint8>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1190,16 +1223,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<uint16> &values) const
 {
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<uint16>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1207,16 +1234,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<uint32> &values) const
 {
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<uint32>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1224,16 +1245,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<uint64> &values) const
 {
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<uint64>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1241,16 +1256,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<float32> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<float32>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1258,16 +1267,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<float64> &values) const
 {
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<float64>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 
@@ -1280,16 +1283,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<char> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<char>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1301,16 +1298,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<signed char> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<signed char>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1318,16 +1309,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<unsigned char> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<unsigned char>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1343,16 +1328,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<short> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<short>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1360,16 +1339,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<unsigned short> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<unsigned short>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1385,16 +1358,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<int> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<int>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1402,16 +1369,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<unsigned int> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<unsigned int>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1427,16 +1388,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<long> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<long>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1444,16 +1399,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<unsigned long> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<unsigned long>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1470,16 +1419,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<long long> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<long long>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1487,16 +1430,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<unsigned long long> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<unsigned long long>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1510,16 +1447,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<float> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<float>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1533,16 +1464,10 @@ template <typename T>
 void
 DataArray<T>::set(const std::initializer_list<double> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = dtype().number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<double>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1563,44 +1488,32 @@ DataArray<T>::set(const std::initializer_list<double> &values) const
 template <typename T> 
 void
 DataArray<T>::fill(int8 value)
-{ 
-    for(index_t i=0;i < dtype().number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
 template <typename T> 
 void
 DataArray<T>::fill(int16 value)
-{ 
-    for(index_t i=0;i < dtype().number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
 template <typename T> 
 void
 DataArray<T>::fill(int32 value)
-{ 
-    for(index_t i=0;i < dtype().number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
 template <typename T> 
 void
 DataArray<T>::fill(int64 value)
-{ 
-    for(index_t i=0;i < dtype().number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1611,44 +1524,32 @@ DataArray<T>::fill(int64 value)
 template <typename T> 
 void
 DataArray<T>::fill(uint8 value)
-{ 
-    for(index_t i=0;i < dtype().number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
 template <typename T> 
 void
 DataArray<T>::fill(uint16 value)
-{ 
-    for(index_t i=0;i < dtype().number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
 template <typename T> 
 void
 DataArray<T>::fill(uint32 value)
-{ 
-    for(index_t i=0;i < dtype().number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
 template <typename T> 
 void
 DataArray<T>::fill(uint64 value)
-{ 
-    for(index_t i=0;i < dtype().number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1659,22 +1560,16 @@ DataArray<T>::fill(uint64 value)
 template <typename T> 
 void
 DataArray<T>::fill(float32 value)
-{ 
-    for(index_t i=0;i < dtype().number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
 template <typename T> 
 void
 DataArray<T>::fill(float64 value)
-{ 
-    for(index_t i=0;i < dtype().number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_helper(*this, value);
 }
 
 //---------------------------------------------------------------------------//
@@ -1975,47 +1870,31 @@ template <typename T>
 void
 DataArray<T>::set(const DataArray<int8> &values) const
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataArray<T>::set(const DataArray<int16> &values) const
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataArray<T>::set(const DataArray<int32> &values) const
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataArray<T>::set(const DataArray<int64> &values) const
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -2027,23 +1906,15 @@ template <typename T>
 void
 DataArray<T>::set(const DataArray<uint8> &values) const
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataArray<T>::set(const DataArray<uint16> &values) const
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -2051,11 +1922,7 @@ template <typename T>
 void
 DataArray<T>::set(const DataArray<uint32> &values) const
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -2063,11 +1930,7 @@ template <typename T>
 void
 DataArray<T>::set(const DataArray<uint64> &values) const
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -2079,11 +1942,7 @@ template <typename T>
 void
 DataArray<T>::set(const DataArray<float32> &values) const
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -2091,11 +1950,7 @@ template <typename T>
 void
 DataArray<T>::set(const DataArray<float64> &values) const
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -2113,47 +1968,31 @@ template <typename T>
 void
 DataArray<T>::set(const DataAccessor<int8> &values) const
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void            
 DataArray<T>::set(const DataAccessor<int16> &values) const
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void            
 DataArray<T>::set(const DataAccessor<int32> &values) const
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void            
 DataArray<T>::set(const DataAccessor<int64> &values) const
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -2165,23 +2004,15 @@ template <typename T>
 void
 DataArray<T>::set(const DataAccessor<uint8> &values) const
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
 DataArray<T>::set(const DataAccessor<uint16> &values) const
-{ 
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+{
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -2189,11 +2020,7 @@ template <typename T>
 void
 DataArray<T>::set(const DataAccessor<uint32> &values) const
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -2201,11 +2028,7 @@ template <typename T>
 void
 DataArray<T>::set(const DataAccessor<uint64> &values) const
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -2217,11 +2040,7 @@ template <typename T>
 void
 DataArray<T>::set(const DataAccessor<float32> &values) const
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -2229,11 +2048,7 @@ template <typename T>
 void
 DataArray<T>::set(const DataAccessor<float64> &values) const
 {
-    index_t num_elems = dtype().number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//

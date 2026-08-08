@@ -38,87 +38,185 @@ namespace detail
 {
 
 //-----------------------------------------------------------------------------
+template <typename DestType>
+void
+fill_typed(void *data,
+           index_t stride,
+           index_t num_elements,
+           DestType value)
+{
+    if (stride == static_cast<index_t>(sizeof(DestType)))
+    {
+        // The stride matches the size of the destination type, so we can treat
+        // the data as a contiguous array of DestType and assign the fill value
+        // directly.
+        DestType *ptr = static_cast<DestType*>(data);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            ptr[i] = value;
+        }
+    }
+    else // stride does not match sizeof(DestType)
+    {
+        // The stride does not match the size of the destination type, so we need
+        // to manually iterate over the data considering the given stride and
+        // assign the fill value for each element.
+        char *ptr = static_cast<char*>(data);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            (*(DestType*)(ptr)) = value;
+            ptr += stride;
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+template <typename DestType, typename T, typename U>
+void
+set_values_typed(void *data,
+                 index_t stride,
+                 const U &values,
+                 index_t num_elements)
+{
+    if (stride == static_cast<index_t>(sizeof(DestType)))
+    {
+        // The stride matches the size of the destination type, so we can treat
+        // the data as a contiguous array of DestType and perform a simple copy
+        // with type conversion.
+        DestType *ptr = static_cast<DestType*>(data);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            ptr[i] = static_cast<DestType>(static_cast<T>(values[i]));
+        }
+    }
+    else // stride does not match sizeof(DestType)
+    {
+        // The stride does not match the size of the destination type, so we need
+        // to manually iterate over the data considering the given stride and perform
+        // the type conversion for each element.
+        char *ptr = static_cast<char*>(data);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            (*(DestType*)(ptr)) = static_cast<DestType>(static_cast<T>(values[i]));
+            ptr += stride;
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+template <typename T>
+void
+fill_helper(const DataAccessor<T> &accessor,
+            T value)
+{
+    // element_ptr(0) points at the first element with the dtype's byte offset
+    // already applied (base + offset + stride * 0). element_ptr() const-qualifies
+    // its return value even though the underlying buffer is not const. const_cast
+    // strips the constness away. We will later cast the void* to the appropriate
+    // destination dtype.
+    void *data = const_cast<void*>(accessor.element_ptr(0));
+    const DataType &dt = accessor.dtype();
+    const index_t stride = dt.stride();
+    const index_t num_elements = dt.number_of_elements();
+
+    switch(dt.id())
+    {
+        // ints
+        case DataType::INT8_ID:
+            fill_typed(data, stride, num_elements, static_cast<int8>(value));
+            break;
+        case DataType::INT16_ID:
+            fill_typed(data, stride, num_elements, static_cast<int16>(value));
+            break;
+        case DataType::INT32_ID:
+            fill_typed(data, stride, num_elements, static_cast<int32>(value));
+            break;
+        case DataType::INT64_ID:
+            fill_typed(data, stride, num_elements, static_cast<int64>(value));
+            break;
+        // uints
+        case DataType::UINT8_ID:
+            fill_typed(data, stride, num_elements, static_cast<uint8>(value));
+            break;
+        case DataType::UINT16_ID:
+            fill_typed(data, stride, num_elements, static_cast<uint16>(value));
+            break;
+        case DataType::UINT32_ID:
+            fill_typed(data, stride, num_elements, static_cast<uint32>(value));
+            break;
+        case DataType::UINT64_ID:
+            fill_typed(data, stride, num_elements, static_cast<uint64>(value));
+            break;
+        // floats
+        case DataType::FLOAT32_ID:
+            fill_typed(data, stride, num_elements, static_cast<float32>(value));
+            break;
+        case DataType::FLOAT64_ID:
+            fill_typed(data, stride, num_elements, static_cast<float64>(value));
+            break;
+        // error
+        default:
+            CONDUIT_ERROR("DataAccessor does not support dtype: " << dt.name());
+    }
+}
+
+//-----------------------------------------------------------------------------
 template <typename T, typename U>
 void
-set_values_helper(const DataAccessor<T> &accessor, const U &values, index_t num_elements)
+set_values_helper(const DataAccessor<T> &accessor,
+                  const U &values,
+                  index_t num_elements)
 {
     // Preserve DataAccessor semantics by converting source values through the
     // accessor's logical type T before converting to the destination dtype.
-    switch(accessor.dtype().id())
+
+    // element_ptr(0) points at the first element with the dtype's byte offset
+    // already applied (base + offset + stride * 0). element_ptr() const-qualifies
+    // its return value even though the underlying buffer is not const. const_cast
+    // strips the constness away. We will later cast the void* to the appropriate
+    // destination dtype.
+    void *data = const_cast<void*>(accessor.element_ptr(0));
+    const DataType &dt = accessor.dtype();
+    const index_t stride = dt.stride();
+
+    switch(dt.id())
     {
+        // ints
         case DataType::INT8_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(int8*)(accessor.element_ptr(i))) =
-                    static_cast<int8>(static_cast<T>(values[i]));
-            }
+            set_values_typed<int8, T>(data, stride, values, num_elements);
             break;
         case DataType::INT16_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(int16*)(accessor.element_ptr(i))) =
-                    static_cast<int16>(static_cast<T>(values[i]));
-            }
+            set_values_typed<int16, T>(data, stride, values, num_elements);
             break;
         case DataType::INT32_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(int32*)(accessor.element_ptr(i))) =
-                    static_cast<int32>(static_cast<T>(values[i]));
-            }
+            set_values_typed<int32, T>(data, stride, values, num_elements);
             break;
         case DataType::INT64_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(int64*)(accessor.element_ptr(i))) =
-                    static_cast<int64>(static_cast<T>(values[i]));
-            }
+            set_values_typed<int64, T>(data, stride, values, num_elements);
             break;
+        // uints
         case DataType::UINT8_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(uint8*)(accessor.element_ptr(i))) =
-                    static_cast<uint8>(static_cast<T>(values[i]));
-            }
+            set_values_typed<uint8, T>(data, stride, values, num_elements);
             break;
         case DataType::UINT16_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(uint16*)(accessor.element_ptr(i))) =
-                    static_cast<uint16>(static_cast<T>(values[i]));
-            }
+            set_values_typed<uint16, T>(data, stride, values, num_elements);
             break;
         case DataType::UINT32_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(uint32*)(accessor.element_ptr(i))) =
-                    static_cast<uint32>(static_cast<T>(values[i]));
-            }
+            set_values_typed<uint32, T>(data, stride, values, num_elements);
             break;
         case DataType::UINT64_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(uint64*)(accessor.element_ptr(i))) =
-                    static_cast<uint64>(static_cast<T>(values[i]));
-            }
+            set_values_typed<uint64, T>(data, stride, values, num_elements);
             break;
+        // floats
         case DataType::FLOAT32_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(float32*)(accessor.element_ptr(i))) =
-                    static_cast<float32>(static_cast<T>(values[i]));
-            }
+            set_values_typed<float32, T>(data, stride, values, num_elements);
             break;
         case DataType::FLOAT64_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(float64*)(accessor.element_ptr(i))) =
-                    static_cast<float64>(static_cast<T>(values[i]));
-            }
+            set_values_typed<float64, T>(data, stride, values, num_elements);
             break;
+        // error
         default:
-            CONDUIT_ERROR("DataAccessor does not support dtype: "
-                          << accessor.dtype().name());
+            CONDUIT_ERROR("DataAccessor does not support dtype: " << dt.name());
     }
 }
 }
@@ -326,106 +424,7 @@ template <typename T>
 void
 DataAccessor<T>::fill(T value)
 {
-    switch(dtype().id())
-    {
-        // ints
-        case DataType::INT8_ID:
-        {
-            int8 v = static_cast<int8>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(int8*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        case DataType::INT16_ID:
-        {
-            int16 v = static_cast<int16>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(int16*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        case DataType::INT32_ID:
-        {
-            int32 v = static_cast<int32>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(int32*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        case DataType::INT64_ID:
-        {
-            int64 v = static_cast<int64>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(int64*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        // uints
-        case DataType::UINT8_ID:
-        {
-            uint8 v = static_cast<uint8>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(uint8*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        case DataType::UINT16_ID:
-        {
-            uint16 v = static_cast<uint16>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(uint16*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        case DataType::UINT32_ID:
-        {
-            uint32 v = static_cast<uint32>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(uint32*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        case DataType::UINT64_ID:
-        {
-            uint64 v = static_cast<uint64>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(uint64*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        // floats
-        case DataType::FLOAT32_ID:
-        {
-            float32 v = static_cast<float32>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(float32*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        case DataType::FLOAT64_ID:
-        {
-            float64 v = static_cast<float64>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(float64*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        default:
-            // error
-            CONDUIT_ERROR("DataAccessor does not support dtype: "
-                          << dtype().name());
-    }
+    detail::fill_helper(*this, value);
 }
 
 //---------------------------------------------------------------------------//
@@ -1273,7 +1272,7 @@ template class DataAccessor<double>;
 #endif
 
 #ifdef CONDUIT_USE_LONG_DOUBLE
-    ltemplate class DataAccessor<long double>;
+    template class DataAccessor<long double>;
 #endif
 
 
