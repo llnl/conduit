@@ -41,8 +41,6 @@ jobs:
         cmake -S src -B build \
               -C conduit-config.cmake \
               -DENABLE_TESTS=ON \
-              -DENABLE_PYTHON=ON \
-              -DPYTHON_EXECUTABLE="${{ env.pythonLocation }}\python" \
               -DCMAKE_INSTALL_PREFIX=install
       shell: bash
     - name: Build Conduit
