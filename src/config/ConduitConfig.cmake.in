@@ -71,6 +71,7 @@ set(CONDUIT_INSTALL_PREFIX "@CONDUIT_INSTALL_PREFIX@")
 
 set(CONDUIT_USE_PYTHON "@PYTHON_FOUND@")
 set(CONDUIT_PYTHON_ENABLED "@PYTHON_FOUND@")
+
 set(CONDUIT_PYTHON_EXECUTABLE "@PYTHON_EXECUTABLE@")
 set(CONDUIT_PYTHON_MODULE_DIR "@CONDUIT_INSTALL_PYTHON_MODULE_DIR@")
 set(CONDUIT_PYTHON_MODULE_CUSTOM_PREFIX "@CONDUIT_INSTALL_PYTHON_MODULE_CUSTOM_PREFIX@")
@@ -91,7 +92,7 @@ include(${CONDUIT_CMAKE_CONFIG_DIR}/conduit_setup_targets.cmake)
 set(Conduit_FOUND TRUE)
 
 set(_conduit_known_components
-  MPI)
+  MPI Python)
 foreach(_conduit_component IN LISTS Conduit_FIND_COMPONENTS)
   if (NOT _conduit_component IN_LIST _conduit_known_components)
     set("Conduit_${_conduit_component}_FOUND" 0)

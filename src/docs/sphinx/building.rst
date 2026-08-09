@@ -42,7 +42,7 @@ Configure a build
 ~~~~~~~~~~~~~~~~~~~~
 
 Conduit uses CMake for its build system. These instructions assume ``cmake`` is in your path.
-We recommend CMake 3.21 or newer, for more details see :ref:`Supported CMake Versions <supported_cmake>`.
+We require CMake 3.26 or newer, for more details see :ref:`Supported CMake Versions <supported_cmake>`.
 
 ``config-build.sh`` is a simple wrapper for the cmake call to configure conduit.
 This creates a new out-of-source build directory ``build-debug`` and a directory for the install ``install-debug``.
@@ -389,7 +389,7 @@ You can specify specific versions of a dependency using ``^``. For Example, to b
 
 Supported CMake Versions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-We recommend CMake 3.21 or newer. We test building Conduit with CMake 3.21 and newer 3.2x variants.
+We require CMake 3.26 or newer. We test building Conduit with newer 3.x variants.
 
 
 Using Conduit in Another Project

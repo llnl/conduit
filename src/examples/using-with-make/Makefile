@@ -26,8 +26,8 @@ CONDUIT_DIR ?= ../../..
 # See $(CONDUIT_DIR)/share/conduit/conduit_config.mk for detailed linking info
 include $(CONDUIT_DIR)/share/conduit/conduit_config.mk
 
-# Conduit requires c++14 support
-CXX_FLAGS = -std=c++14
+# Conduit requires c++17 support
+CXX_FLAGS = -std=c++17
 INC_FLAGS = $(CONDUIT_INCLUDE_FLAGS)
 LNK_FLAGS = $(CONDUIT_LINK_RPATH) $(CONDUIT_LIB_FLAGS)
 

@@ -43,18 +43,25 @@ project(conduit_cpp_fort_and_py C CXX Fortran)
 # Setup Conduit
 ######
 find_package(Conduit REQUIRED
+             COMPONENTS Python
              NO_DEFAULT_PATH 
              PATHS ${CONDUIT_DIR}/lib/cmake/conduit)
 
 ######
 # Setup Python
 ######
-include(SetupPython.cmake)
+# allow PYTHON_EXECUTABLE to init Python3_EXECUTABLE
+if(PYTHON_EXECUTABLE AND NOT Python3_EXECUTABLE)
+    set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
+endif()
 
+find_package(Python3
+             REQUIRED
+             COMPONENTS Interpreter Development NumPy)
 ######
-# Conduit requires c++14 support
+# Conduit requires c++17 support
 ######
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 ##############################################################################
@@ -67,15 +74,8 @@ add_executable(conduit_cpp_and_py_ex
 
 target_link_libraries(conduit_cpp_and_py_ex
                       conduit::conduit
-                      conduit::conduit_python)
-
-
-# extra includes and libs to support the embedded python interpreter
-target_include_directories(conduit_cpp_and_py_ex
-                           PUBLIC ${PYTHON_INCLUDE_DIR})
-
-target_link_libraries(conduit_cpp_and_py_ex
-                      ${PYTHON_LIBRARY})
+                      conduit::conduit_python
+                      Python3::Python)
 
 ##############################################################################
 # fortran to and from python example
@@ -91,12 +91,6 @@ add_executable(conduit_fort_and_py_ex
 
 target_link_libraries(conduit_fort_and_py_ex
                       conduit::conduit
-                      conduit::conduit_python)
-
-# extra includes and libs to support the embedded python interpreter
-target_include_directories(conduit_fort_and_py_ex
-                           PUBLIC ${PYTHON_INCLUDE_DIR})
-
-target_link_libraries(conduit_fort_and_py_ex
-                      ${PYTHON_LIBRARY})
+                      conduit::conduit_python
+                      Python3::Python)
 

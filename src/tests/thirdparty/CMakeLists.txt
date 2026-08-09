@@ -79,7 +79,7 @@ if(PYTHON_FOUND)
     foreach(TEST t_numpy_smoke)
         add_cpp_test(TEST t_numpy_smoke
                      FOLDER tests/thirdparty)
-        target_link_libraries(${TEST} PUBLIC ${PYTHON_LIBRARIES})
+        target_link_libraries(${TEST} PUBLIC Python3::NumPy)
     endforeach()
 else()
     message(STATUS "Python disabled: Skipping related tests")
