@@ -383,6 +383,7 @@ save(const Node &node,
     {
 #ifdef CONDUIT_RELAY_IO_HDF5_ENABLED
         // hdf5 is the only protocol that currently takes "options"
+        // TODO push / pop with exception protection
         Node prev_options;
         if(options.has_child("hdf5"))
         {
@@ -616,7 +617,21 @@ load(const std::string &path,
     else if( protocol == "hdf5")
     {
 #ifdef CONDUIT_RELAY_IO_HDF5_ENABLED
+        // hdf5 is the only protocol that currently takes "options"
+        // TODO push / pop with exception protection
+        Node prev_options;
+        if(options.has_child("hdf5"))
+        {
+            hdf5_options(prev_options);
+            hdf5_set_options(options["hdf5"]);
+        }
+
         hdf5_read(path,options,node);
+
+        if(!prev_options.dtype().is_empty())
+        {
+            hdf5_set_options(prev_options);
+        }
 #else
         CONDUIT_ERROR("conduit_relay lacks HDF5 support: " <<
                       "Failed to load conduit node from path " << path);
@@ -786,11 +801,24 @@ load_merged(const std::string &path,
     else if( protocol == "hdf5")
     {
 #ifdef CONDUIT_RELAY_IO_HDF5_ENABLED
+        // hdf5 is the only protocol that currently takes "options"
+        // TODO push / pop with exception protection
+        Node prev_options;
+        if(options.has_child("hdf5"))
+        {
+            hdf5_options(prev_options);
+            hdf5_set_options(options["hdf5"]);
+        }
+
         hdf5_read(path,options,node);
+
+        if(!prev_options.dtype().is_empty())
+        {
+            hdf5_set_options(prev_options);
+        }
 #else
-        CONDUIT_UNUSED(options);
-        CONDUIT_ERROR("relay lacks HDF5 support: " <<
-                      "Failed to read conduit node from path " << path);
+        CONDUIT_ERROR("conduit_relay lacks HDF5 support: " <<
+                      "Failed to load conduit node from path " << path);
 #endif
     }
     else if( protocol == "conduit_silo")
