@@ -6,6 +6,11 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 ## Unreleased
 
+### Added
+
+#### Relay
+- The optional support for reading and writing HDF5 attributes.
+
 ### Changed
 
 #### General
