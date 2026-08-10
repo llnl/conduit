@@ -9,7 +9,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Added
 
 #### Relay
-- The optional support for reading and writing HDF5 attributes.
+- Added optional support for reading and writing HDF5 attributes.
 
 ### Changed
 
