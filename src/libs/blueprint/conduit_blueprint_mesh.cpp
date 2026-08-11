@@ -1397,15 +1397,15 @@ convert_topology_to_unstructured(const std::string &base_type,
  @note This function could be useful in a few places. I might move it later.
 */
 template <typename Container>
-bool
+CONDUIT_EXEC bool
 unique_mask(const Container &values, index_t offset, index_t n, int *mask)
 {
 #define LUT
 #ifdef LUT
     // Look up tables for the comparisons we make for n<=8.
-    static const int ncaseslut[] = {0,0,1,3,6,10,15,21,28};
-    static const int offsets[]   = {0,0,0,1,4,10,20,35,56};
-    static const int leftlut[] = {
+    const int ncaseslut[] = {0,0,1,3,6,10,15,21,28};
+    const int offsets[]   = {0,0,0,1,4,10,20,35,56};
+    const int leftlut[] = {
         // 2 values
         0,
         // 3 values
@@ -1442,7 +1442,7 @@ unique_mask(const Container &values, index_t offset, index_t n, int *mask)
         5,5,
         6
       };
-    static const int rightlut[] = {
+    const int rightlut[] = {
         // 2 values
         1,
         // 3 values
@@ -1525,7 +1525,7 @@ unique_mask(const Container &values, index_t offset, index_t n, int *mask)
         {
             for(int row = 0; row < n; row++)
             {
-                for(int col = row + 1; col <= n; col++)
+                for(int col = row + 1; col < n; col++)
                 {
                     if(values[row] == values[col])
                     {
@@ -1539,7 +1539,7 @@ unique_mask(const Container &values, index_t offset, index_t n, int *mask)
         {
             for(int row = 0; row < n; row++)
             {
-                for(int col = row + 1; col <= n; col++)
+                for(int col = row + 1; col < n; col++)
                 {
                     if(values[offset + row] == values[offset + col])
                     {
@@ -1556,10 +1556,9 @@ unique_mask(const Container &values, index_t offset, index_t n, int *mask)
 }
 
 //-------------------------------------------------------------------------
-// NOTE: This function is templated to support passing raw pointers (as
-//       well as accessors) and for passing in a custom function to store
-//       the data.
-template <typename IndexType, typename CoordType, typename StorageFunc>
+// Computes the centroid of each element in an unstructured topology and
+// stores the result in dest_centroids.
+template <typename IndexType, typename CoordType>
 void
 unstructured_centroid(const ShapeType &topo_shape,
                       const IndexType &topo_conn,
@@ -1568,75 +1567,120 @@ unstructured_centroid(const ShapeType &topo_shape,
                       index_t topo_num_elems,
                       const CoordType &coords,
                       index_t ncoord_dims,
-                      StorageFunc &&store)
+                      const CoordType &dest_centroids)
 {
-    constexpr size_t max_size_guess = 12;
-    std::vector<index_t> eids;
-    std::vector<int> mask;
-    eids.reserve(max_size_guess);
-    mask.reserve(max_size_guess);
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
 
-    bool is_polygonal = topo_shape.is_polygonal();
-    for(index_t ei = 0; ei < topo_num_elems; ei++)
+    // Device kernels can't allocate memory dynamically, so we have to use
+    // a fixed-size array instead of the std::vector that was here before.
+    // max_stack_npts represents the maximum number of unique points per
+    // element that we can handle before falling back to a slower path.
+    // After looking at a variety of blueprint example meshes with different
+    // shape types, I found that the largest number of unique points per
+    // element that we see in practice is 16, so 32 gives us 2x headroom.
+    const index_t max_stack_npts = 32;
+
+    conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
+
+    // These are computed outside of the forall because ShapeType is host-only.
+    const bool is_polygonal = topo_shape.is_polygonal();
+    const index_t shape_indices = topo_shape.indices;
+
+    conduit::execution::forall(policy, 0, topo_num_elems, [=] CONDUIT_EXEC(index_t ei)
     {
         const index_t eoffset = topo_offsets[ei];
-        const index_t npts = is_polygonal
-            ? topo_sizes[ei] : topo_shape.indices;
+        const index_t npts = is_polygonal ? topo_sizes[ei] : shape_indices;
 
-        // Just in case for larger polygons
-        mask.resize(npts);
-        eids.resize(npts);
-
-        // Assuming topo_conn is an index_t accessor. We copy the data
-        // out to an actual index_t buffer first.
-        for(index_t ci = 0; ci < npts; ci++)
-            eids[ci] = topo_conn[eoffset + ci];
-
-        // Compute a mask that identifies the unique points. No sorting.
-        bool needmask = unique_mask(&eids[0], 0, npts, &mask[0]);
-
-        // Accumulate unique node values for centroid, using mask.
-        float64 centroid[3]={0.,0.,0.};
+        // Accumulate unique coordinate values for the centroid.
+        float64 centroid[3] = {0., 0., 0.};
         index_t npts_used = 0;
-        if(needmask)
+
+        if (npts <= max_stack_npts)
         {
-            for(index_t ci = 0; ci < npts; ci++)
+            // This is the fast path. We should always hit this in practice with
+            // our existing shape types.
+
+            // Computes a mask that identifies the unique points for a given element.
+            // Performs no sorting.
+            int mask[max_stack_npts];
+            const bool needmask = unique_mask(topo_conn, eoffset, npts, mask);
+
+            if (needmask)
             {
-                if(mask[ci])
+                for (index_t ci = 0; ci < npts; ci++)
                 {
-                    auto id = eids[ci];
-                    for(index_t ai = 0; ai < ncoord_dims; ai++)
+                    if (mask[ci])
+                    {
+                        const index_t id = topo_conn[eoffset + ci];
+                        for (index_t ai = 0; ai < ncoord_dims; ai++)
+                        {
+                            centroid[ai] += coords[ai][id];
+                        }
+                        npts_used++;
+                    }
+                }
+            }
+            else // if (!needmask)
+            {
+                // We don't need to use the mask we generated, so we duplicate the
+                // loop here to avoid having to branch on if (mask[ci]).
+                npts_used = npts;
+                for(index_t ci = 0; ci < npts; ci++)
+                {
+                    const index_t id = topo_conn[eoffset + ci];
+                    for (index_t ai = 0; ai < ncoord_dims; ai++)
+                    {
                         centroid[ai] += coords[ai][id];
+                    }
+                }
+            }
+        }
+        else // if (npts > max_stack_npts)
+        {
+            // This is the slow path. I don't think we expect to ever hit
+            // this in practice, but it exists as a fallback for correctness.
+
+            // We can't mask out the unique points like in the fast path, so
+            // we check that each point is unique compared to the points that
+            // came before it.
+            for (index_t ci = 0; ci < npts; ci++)
+            {
+                const index_t id = topo_conn[eoffset + ci];
+                bool duplicate = false;
+                for (index_t cj = 0; cj < ci && !duplicate; cj++)
+                {
+                    duplicate = topo_conn[eoffset + cj] == id;
+                }
+
+                if (!duplicate)
+                {
+                    for (index_t ai = 0; ai < ncoord_dims; ai++)
+                    {
+                        centroid[ai] += coords[ai][id];
+                    }
                     npts_used++;
                 }
             }
         }
-        else
-        {
-            // We don't need to use the mask - save some branches.
-            npts_used = npts;
-            for(index_t ci = 0; ci < npts; ci++)
-            {
-                auto id = eids[ci];
-                for(index_t ai = 0; ai < ncoord_dims; ai++)
-                    centroid[ai] += coords[ai][id];
-            }
-        }
-        // Average the values.
-        float64 one_over_npts = 1. / static_cast<float64>(npts_used);
-        for(index_t ai = 0; ai < ncoord_dims; ai++)
-            centroid[ai] *= one_over_npts;
 
-        // Store the centroid.
-        store(ei, centroid);
-    }
+        // Now that we know the number of unique points that the current
+        // element consists of, we compute the centroid by dividing each
+        // the accumulated coordinate values by the number of unique points.
+
+        // Compute and store the centroid.
+        const float64 one_over_npts = 1. / static_cast<float64>(npts_used);
+        for(index_t ai = 0; ai < ncoord_dims; ai++)
+        {
+            dest_centroids[ai].set(ei, centroid[ai] * one_over_npts);
+        }
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
 }
 
 //-------------------------------------------------------------------------
-// NOTE: This function is templated to support passing raw pointers (as
-//       well as accessors) and for passing in a custom function to store
-//       the data.
-template <typename IndexType, typename CoordType, typename StorageFunc>
+// Computes the centroid of each element in a polyhedral unstructured
+// topology and stores the result in dest_centroids.
+template <typename IndexType, typename CoordType>
 void
 unstructured_centroid_polyhedral(const ShapeType &/*topo_shape*/,
                                  const IndexType &topo_conn,
@@ -1648,51 +1692,136 @@ unstructured_centroid_polyhedral(const ShapeType &/*topo_shape*/,
                                  index_t topo_num_elems,
                                  const CoordType &coords,
                                  index_t ncoord_dims,
-                                 StorageFunc &&store)
+                                 const CoordType &dest_centroids)
 {
-    std::vector<index_t> elem_coord_indices;
-    elem_coord_indices.reserve(12);
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
 
-    for(index_t ei = 0; ei < topo_num_elems; ei++)
+    // Device kernels can't allocate memory dynamically, so we have to use
+    // a fixed-size array instead of the std::vector that was here before.
+    // max_stack_npts represents the maximum number of unique points per
+    // element that we can handle before falling back to a slower path.
+    // After looking at a variety of blueprint example meshes with different
+    // shape types, I found that the largest number of unique points per
+    // element that we see in practice is 16, so 32 gives us 2x headroom.
+    const index_t max_stack_npts = 32;
+
+    conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
+
+    conduit::execution::forall(policy, 0, topo_num_elems, [=] CONDUIT_EXEC(index_t ei)
     {
         const index_t eoffset = topo_offsets[ei];
-
-        // Determine the unique points in the element.
-        elem_coord_indices.clear();
         const index_t elem_num_faces = topo_sizes[ei];
-        for(index_t fi = 0, foffset = eoffset; fi < elem_num_faces; fi++)
-        {
-            index_t subelem_index = topo_conn[foffset];
-            index_t subelem_offset = topo_suboffsets[subelem_index];
-            index_t subelem_size = topo_subsizes[subelem_index];
 
-            const index_t face_num_coords = subelem_size;
-            for(index_t ci = 0; ci < face_num_coords; ci++)
+        // Determine the unique points in the element by walking the faces
+        // and collecting each point we haven't seen yet. This replaces the
+        // std::vector + std::find that was here before, as that can't be
+        // used in device kernels.
+        index_t elem_coord_indices[max_stack_npts];
+        index_t nunique = 0;
+        bool overflow = false;
+
+        for (index_t fi = 0, foffset = eoffset; fi < elem_num_faces && !overflow; fi++, foffset++)
+        {
+            const index_t subelem_index  = topo_conn[foffset];
+            const index_t subelem_offset = topo_suboffsets[subelem_index];
+            const index_t subelem_size   = topo_subsizes[subelem_index];
+
+            for (index_t ci = 0; ci < subelem_size; ci++)
             {
-                index_t id = topo_subconn[subelem_offset + ci];
-                if(std::find(elem_coord_indices.cbegin(),
-                             elem_coord_indices.cend(), id)
-                   == elem_coord_indices.cend())
+                const index_t id = topo_subconn[subelem_offset + ci];
+                bool duplicate = false;
+                for (index_t k = 0; k < nunique && !duplicate; k++)
                 {
-                    elem_coord_indices.push_back(id);
+                    duplicate = elem_coord_indices[k] == id;
+                }
+
+                if (!duplicate)
+                {
+                    if (nunique == max_stack_npts)
+                    {
+                        overflow = true;
+                        break;
+                    }
+                    elem_coord_indices[nunique++] = id;
                 }
             }
-            foffset++;
         }
 
-        // Compute the centroid.
+        // Accumulate unique coordinate values for the centroid.
         float64 centroid[3] = {0., 0., 0.};
-        float64 one_over_npts = 1. / static_cast<float64>(elem_coord_indices.size());
+        index_t npts_used = 0;
+
+        if (!overflow)
+        {
+            // This is the fast path. We should always hit this in practice with
+            // our existing shape types.
+            npts_used = nunique;
+            for (index_t k = 0; k < nunique; k++)
+            {
+                const index_t id = elem_coord_indices[k];
+                for (index_t ai = 0; ai < ncoord_dims; ai++)
+                {
+                    centroid[ai] += coords[ai][id];
+                }
+            }
+        }
+        else // if (overflow)
+        {
+            // This is the slow path. I don't think we expect to ever hit
+            // this in practice, but it exists as a fallback for correctness.
+
+            // The element has more unique points than the fixed-size array
+            // can hold, so we walk the faces again and check that each point
+            // is unique compared to the points that came before it.
+            for (index_t fi = 0, foffset = eoffset; fi < elem_num_faces; fi++, foffset++)
+            {
+                const index_t subelem_index  = topo_conn[foffset];
+                const index_t subelem_offset = topo_suboffsets[subelem_index];
+                const index_t subelem_size   = topo_subsizes[subelem_index];
+
+                for (index_t ci = 0; ci < subelem_size; ci++)
+                {
+                    const index_t id = topo_subconn[subelem_offset + ci];
+                    bool duplicate = false;
+                    for (index_t fj = 0; fj <= fi && !duplicate; fj++)
+                    {
+                        const index_t prev_index  = topo_conn[eoffset + fj];
+                        const index_t prev_offset = topo_suboffsets[prev_index];
+                        const index_t prev_size   = topo_subsizes[prev_index];
+
+                        // On the current face, only look at the points that
+                        // came before this one.
+                        const index_t climit = (fj == fi) ? ci : prev_size;
+                        for (index_t cj = 0; cj < climit && !duplicate; cj++)
+                        {
+                            duplicate = topo_subconn[prev_offset + cj] == id;
+                        }
+                    }
+
+                    if (!duplicate)
+                    {
+                        for (index_t ai = 0; ai < ncoord_dims; ai++)
+                        {
+                            centroid[ai] += coords[ai][id];
+                        }
+                        npts_used++;
+                    }
+                }
+            }
+        }
+
+        // Now that we know the number of unique points that the current
+        // element consists of, we compute the centroid by dividing each
+        // the accumulated coordinate values by the number of unique points.
+
+        // Compute and store the centroid.
+        const float64 one_over_npts = 1. / static_cast<float64>(npts_used);
         for(index_t ai = 0; ai < ncoord_dims; ai++)
         {
-            for(const auto ci : elem_coord_indices)
-                centroid[ai] += coords[ai][ci];
-            centroid[ai] *= one_over_npts;
+            dest_centroids[ai].set(ei, centroid[ai] * one_over_npts);
         }
-
-        // Store the centroid.
-        store(ei, centroid);
-    }
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
 }
 
 // NOTE(JRC): The following two functions need to be passed the coordinate set
@@ -1750,14 +1879,9 @@ calculate_unstructured_centroids(const conduit::Node &topo,
 
     // Discover Data Types //
 
-    DataType int_dtype, float_dtype;
-    {
-        conduit::Node src_node;
-        src_node["topology"].set_external(topo);
-        src_node["coordset"].set_external(coordset);
-        int_dtype = bputils::find_widest_dtype(src_node, bputils::DEFAULT_INT_DTYPES);
-        float_dtype = bputils::find_widest_dtype(src_node, bputils::DEFAULT_FLOAT_DTYPE);
-    }
+    const conduit::Node linked = bputils::link_nodes(topo, coordset);
+    const DataType int_dtype = bputils::find_widest_dtype(linked, bputils::DEFAULT_INT_DTYPES);
+    const DataType float_dtype = bputils::find_widest_dtype(linked, bputils::DEFAULT_FLOAT_DTYPE);
 
     const Node &topo_conn_const = topo["elements/connectivity"];
     Node topo_conn; topo_conn.set_external(topo_conn_const);
@@ -1765,12 +1889,13 @@ calculate_unstructured_centroids(const conduit::Node &topo,
     const DataType offset_dtype(topo_offsets.dtype().id(), 1);
     const DataType size_dtype(topo_sizes.dtype().id(), 1);
 
+    // These are only used for polyhedral topologies
     const DataType subconn_dtype(topo_subconn.dtype().id(), 1);
     const DataType suboffset_dtype(topo_suboffsets.dtype().id(), 1);
     const DataType subsize_dtype(topo_subsizes.dtype().id(), 1);
 
     conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
-    const index_t allocator_id = conduit::execution::get_output_allocator_id();
+    const index_t output_allocator_id = conduit::execution::get_output_allocator_id();
     const conduit::execution::SyncStrategy sync_strategy = conduit::execution::get_sync_strategy();
 
     // Allocate Data Templates for Outputs //
@@ -1779,12 +1904,15 @@ calculate_unstructured_centroids(const conduit::Node &topo,
     dest["type"].set("unstructured");
     dest["coordset"].set(cdest.name());
     dest["elements/shape"].set(topo_cascade.get_shape(0).type());
-    dest["elements/connectivity"].set_allocator(allocator_id);
+    dest["elements/connectivity"].set_allocator(output_allocator_id);
     dest["elements/connectivity"].set(DataType(int_dtype.id(), topo_num_elems));
 
     cdest.reset();
     cdest["type"].set("explicit");
-    for(index_t ai = 0; ai < (index_t)csys_axes.size(); ai++)
+    cdest["values"].set_allocator(output_allocator_id);
+
+    const index_t csys_axes_size = static_cast<index_t>(csys_axes.size());
+    for(index_t ai = 0; ai < csys_axes_size; ai++)
     {
         cdest["values"][csys_axes[ai]].set(DataType(float_dtype.id(), topo_num_elems));
     }
@@ -1800,39 +1928,42 @@ calculate_unstructured_centroids(const conduit::Node &topo,
     CONDUIT_DEVICE_ERROR_CHECK(policy);
     conn_acc.data_movement(sync_strategy);
 
-    // Create some accessors to access the data.
-    index_t csys_axes_size = csys_axes.size();
-    std::vector<float64_accessor> axis_data_access;
+    // Create accessors for the coordset values. These have to be plain arrays (not
+    // std::vector) so that they can be used inside device kernels.
+    // A coordinate system has at most 3 axes.
+    float64_accessor axis_data_access[3];
     for (index_t i = 0; i < csys_axes_size; i++)
     {
-        axis_data_access.push_back(coordset["values"][csys_axes[i]].as_float64_accessor());
+        axis_data_access[i] = float64_accessor(coordset["values"][csys_axes[i]]);
+        axis_data_access[i].use_with(policy);
     }
 
-    const auto topo_conn_access    = topo_conn.as_index_t_accessor();
-    const auto topo_offsets_access = topo_offsets.as_index_t_accessor();
-    const auto topo_sizes_access   = topo_sizes.as_index_t_accessor();
+    index_t_accessor topo_conn_access(topo_conn);
+    index_t_accessor topo_offsets_access(topo_offsets);
+    index_t_accessor topo_sizes_access(topo_sizes);
+    topo_conn_access.use_with(policy);
+    topo_offsets_access.use_with(policy);
+    if (topo_shape.is_poly())
+    {
+        topo_sizes_access.use_with(policy);
+    }
 
     // Wrap the dest coordinate arrays in accessors
-    std::vector<float64_accessor> dest_centroid_access;
+    float64_accessor dest_centroid_access[3];
     for (index_t i = 0; i < csys_axes_size; i++)
     {
-        dest_centroid_access.push_back(cdest["values"][csys_axes[i]].as_float64_accessor());
+        dest_centroid_access[i] = float64_accessor(cdest["values"][csys_axes[i]]);
+        dest_centroid_access[i].use_with(policy);
     }
-
-    // Pretty sure this can become an execution::forall with some refactoring
-    auto store_centroid = [=] CONDUIT_EXEC(index_t ei, const float64 centroid[3])
-    {
-        for (index_t i = 0; i < csys_axes_size; i++)
-        {
-            dest_centroid_access[i].set(ei, centroid[i]);
-        }
-    };
 
     if (topo_shape.is_polyhedral())
     {
-        const auto topo_subconn_access    = topo_subconn.as_index_t_accessor();
-        const auto topo_suboffsets_access = topo_suboffsets.as_index_t_accessor();
-        const auto topo_subsizes_access   = topo_subsizes.as_index_t_accessor();
+        index_t_accessor topo_subconn_access(topo_subconn);
+        index_t_accessor topo_suboffsets_access(topo_suboffsets);
+        index_t_accessor topo_subsizes_access(topo_subsizes);
+        topo_subconn_access.use_with(policy);
+        topo_suboffsets_access.use_with(policy);
+        topo_subsizes_access.use_with(policy);
 
         unstructured_centroid_polyhedral(topo_shape,
                                          topo_conn_access,
@@ -1844,7 +1975,7 @@ calculate_unstructured_centroids(const conduit::Node &topo,
                                          topo_num_elems,
                                          axis_data_access,
                                          csys_axes_size,
-                                         store_centroid);
+                                         dest_centroid_access);
     }
     else // if (!topo_shape.is_polyhedral())
     {
@@ -1855,7 +1986,13 @@ calculate_unstructured_centroids(const conduit::Node &topo,
                               topo_num_elems,
                               axis_data_access,
                               csys_axes_size,
-                              store_centroid);
+                              dest_centroid_access);
+    }
+
+    // Move the centroids to the output memory space
+    for (index_t i = 0; i < csys_axes_size; i++)
+    {
+        dest_centroid_access[i].data_movement(sync_strategy);
     }
 }
 
@@ -5226,11 +5363,11 @@ mesh::topology::unstructured::generate_centroids(const Node &topo,
     index_t n = bputils::topology::length(topo);
 
     conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
-    const index_t allocator_id = conduit::execution::get_output_allocator_id();
+    const index_t output_allocator_id = conduit::execution::get_output_allocator_id();
     const conduit::execution::SyncStrategy sync_strategy = conduit::execution::get_sync_strategy();
     
     s2dmap.reset();
-    s2dmap.set_allocator(allocator_id);
+    s2dmap.set_allocator(output_allocator_id);
     s2dmap.set(DataType(int_dtype.id(), 2 * n));
 
     int64_accessor map_acc(s2dmap);
@@ -5244,7 +5381,7 @@ mesh::topology::unstructured::generate_centroids(const Node &topo,
     map_acc.data_movement(sync_strategy);
 
     d2smap.reset();
-    d2smap.set_allocator(allocator_id);
+    d2smap.set_allocator(output_allocator_id);
     d2smap.set(s2dmap);
 }
 
@@ -8926,8 +9063,7 @@ void mesh::convert(const conduit::Node &n_mesh,
         copy = (n_options["copy"].to_int() != 0);
     }
 
-    // TODO: This appears to make unstructured the default conversion target.
-    // If there's truly not a target type passed, 
+    // If no target is passed in the options, we default to converting to unstructured.
 
     // Get the target
     std::string target("unstructured");
@@ -8973,12 +9109,6 @@ void mesh::convert(const conduit::Node &n_mesh,
                 const bool isPolyhedral = degrade_polytopes && shape == "polyhedral";
                 if(isPolygonal || isPolyhedral)
                 {
-                    // TODO: If we're in this block at all then don't we already have an
-                    // unstructured topology? Under what cirucumstances would we find
-                    // ourselves here? It seems to logically follow that we must not
-                    // actually have an unstructured topology, and that this should 
-                    // live under its own type == "polytopal" block instead?
-
                     // Convert polytopal BACK to unstructured.
                     conduit::blueprint::mesh::topology::unstructured::polytopal::to_unstructured(
                         n_mesh,
@@ -9118,7 +9248,6 @@ void mesh::convert(const conduit::Node &n_mesh,
         }
         else if(target.find("generate_") == 0)
         {
-            // NOTE: I wonder if there a reason that we don't just do a const conduit::Node&?
             const conduit::Node *n_input = &n_mesh;
             // If the input mesh to any of these "generate_" targets is not unstructured,
             // recurse and make it unstructured.
@@ -9128,18 +9257,21 @@ void mesh::convert(const conduit::Node &n_mesh,
                 conduit::Node options_copy(n_options);
                 options_copy["target"] = "unstructured";
                 options_copy["copy"] = 0;  // Use set_external when possible
-                // TODO: We should consider what the potential implications are with
-                // converting the topology to unstructured before going further, because
-                // sync/assume could have put the output into a different memory space than
-                // what the later un-ported generate_* APIs expect (probably that everything
-                // lives in host memory).
+
+                // TODO: It occurs to me that we may want to audit our usage of .use_with() and .sync()
+                // within all of the ::convert APIs given that they are so interconnected. It would be
+                // very easy to end up executing multiple APIs from one ::convert call, and each may
+                // defensively copy data to/from different memory spaces. Ideally we would want input
+                // data to be moved to the execution memory space as early in the conversion as possible,
+                // and moved to the output memory space as late as possible. Maybe it makes sense to overwrite
+                // the execution options at the very top of this function so that output location = execution
+                // location temporarily. Then we could restore the original execution options at the end of
+                // this function before doing a final .sync()?
+
                 convert(n_mesh, options_copy, n_mesh_uns, tmp);
-                // NOTE: This explains why we're using a Node*, but lets see if this ever
-                // gets assigned again
                 n_input = &n_mesh_uns;
             }
 
-            // TODO: Look at what fetch_existing does
             const conduit::Node &n_input_topo = n_input->fetch_existing("topologies/" + topologyName);
             conduit::Node &n_output_topo = n_output["topologies/" + topologyName];
             if(target == "generate_points")
