@@ -71,6 +71,47 @@ check_basic_protocol(const std::string &protocol)
     return false;
 }
 
+//---------------------------------------------------------------------------//
+#ifdef CONDUIT_RELAY_IO_HDF5_ENABLED
+// helper to reset hdf5 opts when exceptions occur
+class HDF5OptionsContext
+{
+public:
+        HDF5OptionsContext()
+        : prev_options()
+        {
+            // empty
+        }
+
+        void set_options(const conduit::Node &options)
+        {
+            if(options.has_child("hdf5"))
+            {
+                hdf5_options(prev_options);
+                hdf5_set_options(options["hdf5"]);
+            }
+            else
+            {
+                prev_options.reset();
+            }
+        }
+
+       ~HDF5OptionsContext()
+        {
+            if(!prev_options.dtype().is_empty())
+            {
+                hdf5_set_options(prev_options);
+                prev_options.reset();
+            }
+        }
+
+private:
+    conduit::Node prev_options;
+
+};
+#endif
+
+
 }// end detail namesapce
 
 
@@ -382,22 +423,12 @@ save(const Node &node,
     else if( protocol == "hdf5")
     {
 #ifdef CONDUIT_RELAY_IO_HDF5_ENABLED
-        // hdf5 is the only protocol that currently takes "options"
-        // TODO push / pop with exception protection
-        Node prev_options;
-        if(options.has_child("hdf5"))
         {
-            hdf5_options(prev_options);
-            hdf5_set_options(options["hdf5"]);
+            // context for exception restore
+            detail::HDF5OptionsContext opt_ctx;
+            opt_ctx.set_options(options);
+            hdf5_save(node,path,options);
         }
-
-        hdf5_save(node,path,options);
-
-        if(!prev_options.dtype().is_empty())
-        {
-            hdf5_set_options(prev_options);
-        }
-
 #else
         CONDUIT_ERROR("conduit_relay lacks HDF5 support: " <<
                       "Failed to save conduit node to path " << path);
@@ -506,19 +537,11 @@ save_merged(const Node &node,
     else if( protocol == "hdf5")
     {
 #ifdef CONDUIT_RELAY_IO_HDF5_ENABLED
-        // hdf5 is the only protocol that currently takes "options"
-        Node prev_options;
-        if(options.has_child("hdf5"))
         {
-            hdf5_options(prev_options);
-            hdf5_set_options(options["hdf5"]);
-        }
-
-        hdf5_append(node,path,options);
-
-        if(!prev_options.dtype().is_empty())
-        {
-            hdf5_set_options(prev_options);
+            // context for exception restore
+            detail::HDF5OptionsContext opt_ctx;
+            opt_ctx.set_options(options);
+            hdf5_append(node,path,options);
         }
 #else
         CONDUIT_ERROR("conduit_relay lacks HDF5 support: " <<
@@ -617,20 +640,11 @@ load(const std::string &path,
     else if( protocol == "hdf5")
     {
 #ifdef CONDUIT_RELAY_IO_HDF5_ENABLED
-        // hdf5 is the only protocol that currently takes "options"
-        // TODO push / pop with exception protection
-        Node prev_options;
-        if(options.has_child("hdf5"))
         {
-            hdf5_options(prev_options);
-            hdf5_set_options(options["hdf5"]);
-        }
-
-        hdf5_read(path,options,node);
-
-        if(!prev_options.dtype().is_empty())
-        {
-            hdf5_set_options(prev_options);
+            // context for exception restore
+            detail::HDF5OptionsContext opt_ctx;
+            opt_ctx.set_options(options);
+            hdf5_read(path,options,node);
         }
 #else
         CONDUIT_ERROR("conduit_relay lacks HDF5 support: " <<
@@ -801,20 +815,11 @@ load_merged(const std::string &path,
     else if( protocol == "hdf5")
     {
 #ifdef CONDUIT_RELAY_IO_HDF5_ENABLED
-        // hdf5 is the only protocol that currently takes "options"
-        // TODO push / pop with exception protection
-        Node prev_options;
-        if(options.has_child("hdf5"))
         {
-            hdf5_options(prev_options);
-            hdf5_set_options(options["hdf5"]);
-        }
-
-        hdf5_read(path,options,node);
-
-        if(!prev_options.dtype().is_empty())
-        {
-            hdf5_set_options(prev_options);
+            // context for exception restore
+            detail::HDF5OptionsContext opt_ctx;
+            opt_ctx.set_options(options);
+            hdf5_read(path,options,node);
         }
 #else
         CONDUIT_ERROR("conduit_relay lacks HDF5 support: " <<
