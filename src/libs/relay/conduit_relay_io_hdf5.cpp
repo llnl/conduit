@@ -471,6 +471,43 @@ public:
 #endif // zfp options
 //-----------------------------------------------------------------------------
     }
+
+    static void reset()
+    {
+        HDF5Options::libver             = "default";
+    // quiet (default) suppresses hdf5 diag warnings in outer relay API layers
+        HDF5Options::messages           = "quiet";
+
+        HDF5Options::compact_storage_enabled   = true;
+        HDF5Options::compact_storage_threshold = 1024;
+
+        HDF5Options::chunking_enabled   = true;
+        HDF5Options::chunk_size         = 1000000; // 1 mb
+        HDF5Options::chunk_threshold    = 2000000; // 2 mb
+
+        HDF5Options::attributes_enabled   = false;
+        HDF5Options::attributes_key       = "attributes";
+        HDF5Options::attributes_value_key = "value";
+
+        // TODO: ndarray chunk heuristics
+
+        HDF5Options::compression_method = "gzip";
+        HDF5Options::compression_level  = 5;
+
+    //-----------------------------------------------------------------------------
+    // zfp options
+    //-----------------------------------------------------------------------------
+    #if defined(CONDUIT_RELAY_IO_H5ZZFP_ENABLED)
+        HDF5Options::zfp_mode    = H5Z_ZFP_MODE_RATE;
+        HDF5Options::zfp_rate    = 4;  // default from h5z-zfp example
+        HDF5Options::zfp_acc     = 0;  // default from h5z-zfp example
+        HDF5Options::zfp_prec    = 11; // default from h5z-zfp example
+        HDF5Options::zfp_minbits = ZFP_MIN_BITS; // default from zfp
+        HDF5Options::zfp_maxbits = ZFP_MAX_BITS; // default from zfp
+        HDF5Options::zfp_maxprec = ZFP_MAX_PREC; // default from zfp
+        HDF5Options::zfp_minexp  = ZFP_MIN_EXP;  // default from zfp
+    #endif // zfp options
+    }
 };
 
 // default hdf5 i/o settings
@@ -523,6 +560,13 @@ void
 hdf5_options(Node &opts)
 {
     HDF5Options::about(opts);
+}
+
+//-----------------------------------------------------------------------------
+void
+hdf5_reset_options()
+{
+    HDF5Options::reset();
 }
 
 //-----------------------------------------------------------------------------
@@ -846,6 +890,13 @@ bool check_if_conduit_node_is_compatible_with_hdf5_tree(const Node &node,
 
 //-----------------------------------------------------------------------------
 bool check_if_conduit_list_is_compatible_with_hdf5_tree(const Node &node,
+                                                   const std::string &ref_path,
+                                                        hid_t hdf5_id,
+                                                        const Node &opts,
+                                                std::string &incompat_details);
+
+//-----------------------------------------------------------------------------
+bool check_if_attributes_are_compatible_with_hdf5_obj(const Node &node,
                                                    const std::string &ref_path,
                                                         hid_t hdf5_id,
                                                         const Node &opts,
@@ -1543,9 +1594,29 @@ check_if_conduit_object_is_compatible_with_hdf5_tree(const Node &node,
                                                      const Node &opts,
                                                      std::string &incompat_details)
 {
-    // TODO ATTS SUPPORT
-
     bool res = true;
+
+    // check if we have a dataset with attributes
+    if(check_if_conduit_node_is_hdf5_dataset(node))
+    {
+        const std::string &val_key = HDF5Options::attributes_value_key;
+        DataType dt = node[val_key].dtype();
+        std::string val_ref_path = join_ref_paths(ref_path, val_key);
+        res = check_if_conduit_leaf_is_compatible_with_hdf5_obj(dt,
+                                                                val_ref_path,
+                                                                hdf5_id,
+                                                                opts,
+                                                                incompat_details);
+
+        const std::string &atts_key = HDF5Options::attributes_key;
+        std::string atts_ref_path = join_ref_paths(ref_path, atts_key);
+        res = res &&  check_if_attributes_are_compatible_with_hdf5_obj(node[atts_key],
+                                                                       atts_ref_path,
+                                                                       hdf5_id,
+                                                                       opts,
+                                                                       incompat_details);
+        return res;
+    }
 
     // make sure we have a group ...
 
@@ -1568,28 +1639,46 @@ check_if_conduit_object_is_compatible_with_hdf5_tree(const Node &node,
         {
 
             const Node &child = itr.next();
-            // check if the HDF5 group has child with same name
-            // as the node's child
-
-            RelayH5OHandle h5_child_obj_hnd(H5Oopen(hdf5_id,
-                                                    itr.name().c_str(),
-                                                    H5P_DEFAULT),
-                                            ref_path);
-
-            std::string chld_ref_path = join_ref_paths(ref_path,itr.name());
-            if( CONDUIT_HDF5_VALID_ID(h5_child_obj_hnd.id()) )
+            std::string child_name = itr.name();
+            const std::string &atts_key = HDF5Options::attributes_key;
+            if(child_name == atts_key)
             {
-                // if a child does exist, we need to make sure the child is
-                // compatible with the conduit node
-                res = check_if_conduit_node_is_compatible_with_hdf5_tree(child,
-                                                                  chld_ref_path,
-                                                                  h5_child_obj_hnd.id(),
-                                                                  opts,
-                                                                  incompat_details);
-                h5_child_obj_hnd.close();
+
+                std::string atts_ref_path = join_ref_paths(ref_path, atts_key);
+                res = check_if_attributes_are_compatible_with_hdf5_obj(child[atts_key],
+                                                                       atts_ref_path,
+                                                                       hdf5_id,
+                                                                       opts,
+                                                                       incompat_details);
             }
-            // no child exists with this name,  we are ok (it can be created
-            // to match) check the next child
+
+            // check if we are still ok after possible acts compat check
+            if(res)
+            {
+
+                // check if the HDF5 group has child with same name
+                // as the node's child
+
+                RelayH5OHandle h5_child_obj_hnd(H5Oopen(hdf5_id,
+                                                        itr.name().c_str(),
+                                                        H5P_DEFAULT),
+                                                ref_path);
+
+                std::string chld_ref_path = join_ref_paths(ref_path,itr.name());
+                if( CONDUIT_HDF5_VALID_ID(h5_child_obj_hnd.id()) )
+                {
+                    // if a child does exist, we need to make sure the child is
+                    // compatible with the conduit node
+                    res = check_if_conduit_node_is_compatible_with_hdf5_tree(child,
+                                                                      chld_ref_path,
+                                                                      h5_child_obj_hnd.id(),
+                                                                      opts,
+                                                                      incompat_details);
+                    h5_child_obj_hnd.close();
+                }
+                // no child exists with this name,  we are ok (it can be created
+                // to match) check the next child
+            }
         }
     }
     else // bad id or not a group
@@ -1703,6 +1792,17 @@ check_if_conduit_list_is_compatible_with_hdf5_tree(const Node &node,
 }
 
 
+//-----------------------------------------------------------------------------
+bool check_if_attributes_are_compatible_with_hdf5_obj(const Node &node,
+                                                   const std::string &ref_path,
+                                                        hid_t hdf5_id,
+                                                        const Node &opts,
+                                                std::string &incompat_details)
+{
+   bool res = true;
+   // TODO
+   return res;
+}
 
 //---------------------------------------------------------------------------//
 bool
