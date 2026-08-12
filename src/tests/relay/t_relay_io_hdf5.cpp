@@ -2412,6 +2412,39 @@ TEST(conduit_relay_io_hdf5, conduit_hdf5_write_read_zfp_1d)
 }
 
 //-----------------------------------------------------------------------------
+TEST(conduit_relay_io_hdf5, empty_root_group_tests)
+{
+    // get objects in flight already
+    int DO_NO_HARM = check_h5_open_ids();
+
+    // create an empty hdf5 file directly using hdf5 api
+    hid_t file = H5Fcreate("tout_hdf5_empty_x1.hdf5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    H5Fclose(file);
+
+    // (reading hdf5 root group will return object with zero children)
+    Node n;
+    io::hdf5_read("tout_hdf5_empty_x1.hdf5",n);
+    std::cout << n.dtype().to_string() << std::endl;
+    EXPECT_TRUE(n.dtype().is_object());
+    EXPECT_EQ(n.number_of_children(),0);
+
+    // write "object" node to hdf5 file root group
+    // (reading hdf5 root group will return object with zero children)
+    n.reset();
+    n.set(DataType::object());
+    EXPECT_TRUE(n.dtype().is_object());
+    io::hdf5_write(n,"tout_hdf5_empty_x2.hdf5");
+    n.reset();
+    io::hdf5_read("tout_hdf5_empty_x2.hdf5",n);
+    std::cout << n.dtype().to_string() << std::endl;
+    EXPECT_TRUE(n.dtype().is_object());
+    EXPECT_EQ(n.number_of_children(),0);
+
+    // make sure we aren't leaking
+    EXPECT_EQ(check_h5_open_ids(),DO_NO_HARM);
+}
+
+//-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, conduit_hdf5_ZZZZ_final_handle_check)
 {
     // get objects in flight already
