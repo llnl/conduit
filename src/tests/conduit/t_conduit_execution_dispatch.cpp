@@ -4,12 +4,12 @@
 
 //-----------------------------------------------------------------------------
 ///
-/// file: t_conduit_execution_typed_accessor.cpp
+/// file: t_conduit_execution_dispatch.cpp
 ///
 //-----------------------------------------------------------------------------
 
 #include "conduit_execution.hpp"
-#include "conduit_execution_typed_accessor.hpp"
+#include "conduit_execution_dispatch.hpp"
 #include "execution_test_utils.hpp"
 
 #include <cstdlib>
@@ -26,7 +26,7 @@ index_t EXECUTION_TEST_ARRAY_SIZE = 4;
 //
 
 //-----------------------------------------------------------------------------
-// Verifies that the input is a typed accessor (not a DataAccessor)
+// Verifies that the input is a typed accessor (not a DataAccessor or DataArray)
 template <typename TypedAccessor>
 bool
 is_direct_array(const TypedAccessor &)
@@ -44,8 +44,17 @@ is_direct_array(const conduit::DataAccessor<T> &)
 }
 
 //-----------------------------------------------------------------------------
-// Generates a vector of float32 values that trigger roundoff errors when
-// converted to float64 (for the purpose of validating accessor results)
+// Verifies that the input is a DataArray (not a typed accessor)
+template <typename T>
+bool
+is_direct_array(const conduit::DataArray<T> &)
+{
+    return false;
+}
+
+//-----------------------------------------------------------------------------
+// Generates a vector of float32 values that trigger rounding errors when
+// converted to float64 (for the purpose of validating DataAccessor conversions)
 std::vector<float32>
 make_float32_roundoff_vals(index_t size)
 {
@@ -59,11 +68,23 @@ make_float32_roundoff_vals(index_t size)
 }
 
 //-----------------------------------------------------------------------------
-// Builds a float64 accessor over strided data. The buffer must already hold
-// 2 * size elements; every other element is overwritten with 1..size and the
-// rest keep their fill value.
+std::vector<float64>
+make_float64_vals(index_t size)
+{
+    std::vector<float64> vals(static_cast<size_t>(size));
+    for (index_t i = 0; i < size; i++)
+    {
+        vals[static_cast<size_t>(i)] = static_cast<float64>(0.1 * static_cast<float64>(i + 1));
+    }
+
+    return vals;
+}
+
+//-----------------------------------------------------------------------------
+// Builds a float64 DataAccessor over strided data. The input buffer must already
+// hold 2 * size elements. Overwrites every other element.
 float64_accessor
-make_strided_float64(std::vector<float64> &buf, index_t size)
+make_strided_float64_accessor(std::vector<float64> &buf, index_t size)
 {
     for (index_t i = 0; i < size; i++)
     {
@@ -76,8 +97,24 @@ make_strided_float64(std::vector<float64> &buf, index_t size)
 }
 
 //-----------------------------------------------------------------------------
-// Note that src and dst may be the same accessor, which covers the in-place
-// case.
+// Builds a float64 DataArray over strided data. The input buffer must already
+// hold 2 * size elements. Overwrites every other element.
+float64_array
+make_strided_float64_array(std::vector<float64> &buf, index_t size)
+{
+    for (index_t i = 0; i < size; i++)
+    {
+        buf[static_cast<size_t>(2 * i)] = static_cast<float64>(i + 1);
+    }
+
+    const index_t elem = static_cast<index_t>(sizeof(float64));
+
+    return float64_array(buf.data(), DataType::float64(size, 0, 2 * elem));
+}
+
+//-----------------------------------------------------------------------------
+// Note that src and dst may be the same accessor, or different accessors. This
+// kernel doubles the values in src and writes them to dst.
 template <typename Src, typename Dst>
 void
 run_scale_kernel(ExecutionPolicy &policy,
@@ -93,7 +130,10 @@ run_scale_kernel(ExecutionPolicy &policy,
 }
 
 //-----------------------------------------------------------------------------
-// All 3 accessors are assumed to have the same dtype
+// All 3 accessors are assumed to have the same dtype for this kernel (it's
+// possible to make this work with accessors of different dtypes if we find
+// a good reason to do so in the future). This kernel sums the values of the 3
+// accessors and writes them to dst.
 template <typename Accessor>
 void
 run_group_sum_kernel(ExecutionPolicy &policy,
@@ -101,11 +141,11 @@ run_group_sum_kernel(ExecutionPolicy &policy,
                      const Accessor x,
                      const Accessor y,
                      const Accessor z,
-                     float64 *out)
+                     float64 *dst)
 {
     conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t idx)
     {
-        out[idx] = x[idx] + y[idx] + z[idx];
+        dst[idx] = x[idx] + y[idx] + z[idx];
     });
     CONDUIT_DEVICE_ERROR_CHECK(policy);
 }
@@ -113,12 +153,13 @@ run_group_sum_kernel(ExecutionPolicy &policy,
 //-----------------------------------------------------------------------------
 // Doubles acc in place through the single accessor dispatch, returning whether
 // the dispatch upgraded it to a typed accessor.
+template <typename Accessor>
 bool
-run_inplace_scale(ExecutionPolicy &policy, const float64_accessor &acc)
+run_inplace_scale(ExecutionPolicy &policy, const Accessor &acc)
 {
     const index_t size = acc.number_of_elements();
     bool is_direct = false;
-    conduit::execution::with_typed_accessor(acc, [&](auto vals)
+    conduit::execution::dispatch(acc, [&](auto vals)
     {
         is_direct = is_direct_array(vals);
         run_scale_kernel(policy, size, vals, vals);
@@ -130,17 +171,18 @@ run_inplace_scale(ExecutionPolicy &policy, const float64_accessor &acc)
 //-----------------------------------------------------------------------------
 // Scales src into dst, reporting whether each side was upgraded to a typed
 // accessor.
+template <typename Src, typename Dst>
 void
 run_pair_scale(ExecutionPolicy &policy,
-               const float64_accessor &src_acc,
-               const float64_accessor &dst_acc,
+               const Src &src_acc,
+               const Dst &dst_acc,
                bool &src_is_direct,
                bool &dst_is_direct)
 {
     const index_t size = src_acc.number_of_elements();
-    conduit::execution::with_typed_accessor(src_acc,
-                                            dst_acc,
-                                            [&](auto src, auto dst)
+    conduit::execution::dispatch(src_acc,
+                                 dst_acc,
+                                 [&](auto src, auto dst)
     {
         src_is_direct = is_direct_array(src);
         dst_is_direct = is_direct_array(dst);
@@ -152,11 +194,12 @@ run_pair_scale(ExecutionPolicy &policy,
 // Sums the values of three accessors, checking that the group was or was not
 // upgraded as expected and that the same kernel run over plain DataAccessors
 // gives the same values.
+template <typename Accessor>
 void
 check_group_sum(ExecutionPolicy &policy,
-                const float64_accessor &x_acc,
-                const float64_accessor &y_acc,
-                const float64_accessor &z_acc,
+                const Accessor &x_acc,
+                const Accessor &y_acc,
+                const Accessor &z_acc,
                 bool expect_direct)
 {
     const index_t size = x_acc.number_of_elements();
@@ -164,10 +207,10 @@ check_group_sum(ExecutionPolicy &policy,
     std::vector<float64> typed_out(static_cast<size_t>(size), 0.0);
     float64 *out = typed_out.data();
     bool is_direct = false;
-    conduit::execution::with_typed_accessor(x_acc,
-                                            y_acc,
-                                            z_acc,
-                                            [&](auto x, auto y, auto z)
+    conduit::execution::dispatch(x_acc,
+                                 y_acc,
+                                 z_acc,
+                                 [&](auto x, auto y, auto z)
     {
         is_direct = is_direct_array(x);
         run_group_sum_kernel(policy, size, x, y, z, out);
@@ -186,7 +229,7 @@ check_group_sum(ExecutionPolicy &policy,
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_execution_typed_accessor, single_accessor)
+TEST(conduit_execution_dispatch, single_accessor)
 {
     conduit_device_prepare();
 
@@ -201,6 +244,24 @@ TEST(conduit_execution_typed_accessor, single_accessor)
         EXPECT_TRUE(run_inplace_scale(policy, acc));
 
         for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(buffer[static_cast<size_t>(i)], 3.0);
+        }
+    }
+
+    // A compact buffer with a nonzero offset
+    {
+        std::vector<float64> buffer(static_cast<size_t>(size) + 1, 1.5);
+        buffer[0] = -1.0;
+        float64_accessor acc(buffer.data(), DataType::float64(size, sizeof(float64)));
+
+        EXPECT_TRUE(run_inplace_scale(policy, acc));
+
+        // The first element was not part of the DataAccessor, so it should not
+        // have been modified.
+        EXPECT_EQ(buffer[0], -1.0);
+
+        for (index_t i = 1; i < size + 1; i++)
         {
             EXPECT_EQ(buffer[static_cast<size_t>(i)], 3.0);
         }
@@ -236,7 +297,7 @@ TEST(conduit_execution_typed_accessor, single_accessor)
     // typed accessor.
     {
         std::vector<float64> buffer(static_cast<size_t>(2 * size), -1.0);
-        float64_accessor acc = make_strided_float64(buffer, size);
+        float64_accessor acc = make_strided_float64_accessor(buffer, size);
 
         EXPECT_FALSE(run_inplace_scale(policy, acc));
 
@@ -249,7 +310,88 @@ TEST(conduit_execution_typed_accessor, single_accessor)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_execution_typed_accessor, accessor_pair)
+TEST(conduit_execution_dispatch, single_array)
+{
+    conduit_device_prepare();
+
+    const index_t size = EXECUTION_TEST_ARRAY_SIZE;
+    ExecutionPolicy policy = ExecutionPolicy::serial();
+
+    // A compact buffer whose dtype already matches the accessor type
+    {
+        std::vector<float64> buffer(static_cast<size_t>(size), 1.5);
+        float64_array acc(buffer.data(), DataType::float64(size));
+
+        EXPECT_TRUE(run_inplace_scale(policy, acc));
+
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(buffer[static_cast<size_t>(i)], 3.0);
+        }
+    }
+
+    // A compact buffer with a nonzero offset
+    {
+        std::vector<float64> buffer(static_cast<size_t>(size) + 1, 1.5);
+        buffer[0] = -1.0;
+        float64_array acc(buffer.data(), DataType::float64(size, sizeof(float64)));
+
+        EXPECT_TRUE(run_inplace_scale(policy, acc));
+
+        // The first element was not part of the DataArray, so it should not
+        // have been modified.
+        EXPECT_EQ(buffer[0], -1.0);
+
+        for (index_t i = 1; i < size + 1; i++)
+        {
+            EXPECT_EQ(buffer[static_cast<size_t>(i)], 3.0);
+        }
+    }
+
+    // A compact float32 buffer read through a float32_array. DataArray
+    // doesn't do type conversion, so using a float64_array here will
+    // essentially read garbage.
+    {
+        const std::vector<float32> src_vals = make_float32_roundoff_vals(size);
+
+        Node node;
+        node["typed"].set(src_vals);
+        node["acc"].set(src_vals);
+
+        float32_array typed_acc(node["typed"]);
+        float32_array acc(node["acc"]);
+
+        EXPECT_TRUE(run_inplace_scale(policy, typed_acc));
+        run_scale_kernel(policy, size, acc, acc);
+
+        float32_array typed_res(node["typed"]);
+        float32_array acc_res(node["acc"]);
+        for (index_t i = 0; i < size; i++)
+        {
+            const float64 src_val = src_vals[static_cast<size_t>(i)];
+            EXPECT_EQ(typed_res[i], acc_res[i]);
+            EXPECT_EQ(typed_res[i], static_cast<float32>(2.0 * src_val));
+        }
+    }
+
+    // A strided buffer keeps the DataArray, and is not upgraded to a
+    // typed accessor.
+    {
+        std::vector<float64> buffer(static_cast<size_t>(2 * size), -1.0);
+        float64_array acc = make_strided_float64_array(buffer, size);
+
+        EXPECT_FALSE(run_inplace_scale(policy, acc));
+
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(buffer[static_cast<size_t>(2 * i)], static_cast<float64>(2 * (i + 1)));
+            EXPECT_EQ(buffer[static_cast<size_t>(2 * i + 1)], -1.0);
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution_dispatch, accessor_pair)
 {
     conduit_device_prepare();
 
@@ -258,7 +400,7 @@ TEST(conduit_execution_typed_accessor, accessor_pair)
 
     const std::vector<float32> src_vals = make_float32_roundoff_vals(size);
 
-    // A float32 source and a float64 destination both get upgraded to a typed
+    // A float32 src and a float64 dst both get upgraded to a typed
     // accessor even though the dtypes differ.
     {
         Node node;
@@ -282,12 +424,13 @@ TEST(conduit_execution_typed_accessor, accessor_pair)
         }
     }
 
-    // A strided source does not get upgraded, while the compact destination
-    // does get upgraded.
+    // A strided src does not get upgraded, while the compact dst
+    // does get upgraded, because upgrading is per-accessor in the 2
+    // accessor case.
     {
         std::vector<float64> src_buffer(static_cast<size_t>(2 * size), -1.0);
         std::vector<float64> dst_buffer(static_cast<size_t>(size), 0.0);
-        float64_accessor src_acc = make_strided_float64(src_buffer, size);
+        float64_accessor src_acc = make_strided_float64_accessor(src_buffer, size);
         float64_accessor dst_acc(dst_buffer.data(), DataType::float64(size));
 
         bool src_is_direct = false;
@@ -305,7 +448,64 @@ TEST(conduit_execution_typed_accessor, accessor_pair)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_execution_typed_accessor, accessor_group)
+TEST(conduit_execution_dispatch, array_pair)
+{
+    conduit_device_prepare();
+
+    const index_t size = EXECUTION_TEST_ARRAY_SIZE;
+    ExecutionPolicy policy = ExecutionPolicy::serial();
+
+    const std::vector<float32> src_vals = make_float32_roundoff_vals(size);
+
+    // A float32 src and a float64 dst both get upgraded to a typed
+    // accessors even though the dtypes differ.
+    {
+        Node node;
+        node["src"].set(src_vals);
+        node["des"].set(make_execution_des_vals(size));
+
+        float32_array src_acc(node["src"]);
+        float64_array dst_acc(node["des"]);
+
+        bool src_is_direct = false;
+        bool dst_is_direct = false;
+        run_pair_scale(policy, src_acc, dst_acc, src_is_direct, dst_is_direct);
+
+        EXPECT_TRUE(src_is_direct);
+        EXPECT_TRUE(dst_is_direct);
+
+        float64_array res(node["des"]);
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(res[i], 2.0 * src_vals[static_cast<size_t>(i)]);
+        }
+    }
+
+    // A strided src does not get upgraded, while the compact dst
+    // does get upgraded, because upgrading is per-accessor in the 2
+    // accessor case.
+    {
+        std::vector<float64> src_buffer(static_cast<size_t>(2 * size), -1.0);
+        std::vector<float64> dst_buffer(static_cast<size_t>(size), 0.0);
+        float64_array src_acc = make_strided_float64_array(src_buffer, size);
+        float64_array dst_acc(dst_buffer.data(), DataType::float64(size));
+
+        bool src_is_direct = false;
+        bool dst_is_direct = false;
+        run_pair_scale(policy, src_acc, dst_acc, src_is_direct, dst_is_direct);
+
+        EXPECT_FALSE(src_is_direct);
+        EXPECT_TRUE(dst_is_direct);
+
+        for (index_t i = 0; i < size; i++)
+        {
+            EXPECT_EQ(dst_buffer[static_cast<size_t>(i)], static_cast<float64>(2 * (i + 1)));
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution_dispatch, accessor_group)
 {
     conduit_device_prepare();
 
@@ -318,17 +518,52 @@ TEST(conduit_execution_typed_accessor, accessor_group)
     node["x"].set(vals);
     node["y"].set(vals);
     node["z"].set(vals);
-    // Compact, but not the dtype the other members share
-    node["odd_y"].set(std::vector<float64>(vals.begin(), vals.end()));
+
 
     const float64_accessor x_acc(node["x"]);
+    const float64_accessor y_acc(node["y"]);
     const float64_accessor z_acc(node["z"]);
 
     // The group shares one compact dtype, so it is upgraded. Swapping in
     // a member of another dtype causes the whole group to use plain
     // DataAccessors.
-    check_group_sum(policy, x_acc, float64_accessor(node["y"]), z_acc, true);
+    check_group_sum(policy, x_acc, y_acc, z_acc, true);
+
+    // Compact, but not the dtype the other members share, so this doesn't
+    // get upgraded.
+    node["odd_y"].set(std::vector<float64>(vals.begin(), vals.end()));
     const float64_accessor odd_y_acc(node["odd_y"]);
+    check_group_sum(policy, x_acc, odd_y_acc, z_acc, false);
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution_dispatch, array_group)
+{
+    conduit_device_prepare();
+
+    const index_t size = EXECUTION_TEST_ARRAY_SIZE;
+    ExecutionPolicy policy = ExecutionPolicy::serial();
+
+    const std::vector<float64> vals = make_float64_vals(size);
+
+    Node node;
+    node["x"].set(vals);
+    node["y"].set(vals);
+    node["z"].set(vals);
+    
+    const float64_array x_acc(node["x"]);
+    const float64_array y_acc(node["y"]);
+    const float64_array z_acc(node["z"]);
+
+    // The group shares one compact dtype, so it is upgraded. Swapping in
+    // a member of another dtype causes the whole group to use plain
+    // DataAccessors.
+    check_group_sum(policy, x_acc, float64_array(node["y"]), z_acc, true);
+
+    // Compact, but not the dtype the other members share (strided), so this
+    // doesn't get upgraded.
+    std::vector<float64> buffer(static_cast<size_t>(2 * size), -1.0);
+    const float64_array odd_y_acc = make_strided_float64_array(buffer, size);
     check_group_sum(policy, x_acc, odd_y_acc, z_acc, false);
 }
 
@@ -348,7 +583,10 @@ run_test_policies()
         node["src"].set(std::vector<float32>(static_cast<size_t>(size), 1.0f));
         node["des"].set(std::vector<int32>(static_cast<size_t>(size), 0));
 
-        float64_accessor src_acc(node["src"]);
+        // Demonstrates that the dispatch can mix and match DataAccessor
+        // and DataArray, and that the dispatch upgrades both to typed accessors
+        // when possible.
+        float32_array src_acc(node["src"]);
         float64_accessor dst_acc(node["des"]);
 
         src_acc.use_with(policy);
@@ -372,9 +610,9 @@ run_test_policies()
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_execution_typed_accessor, policies)
+TEST(conduit_execution_dispatch, policies)
 {
-    // Because nvcc is a bad compiler and won't allow extended generic lambdas
+    // Because nvcc doesn't support extended generic lambdas
     run_test_policies();
 }
 

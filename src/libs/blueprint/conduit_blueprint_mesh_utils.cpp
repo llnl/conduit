@@ -32,7 +32,7 @@
 #include "conduit_blueprint_mesh_utils.hpp"
 #include "conduit_blueprint_mesh_utils_iterate_elements.hpp"
 #include "conduit_execution.hpp"
-#include "conduit_execution_typed_accessor.hpp"
+#include "conduit_execution_dispatch.hpp"
 #include "conduit_annotations.hpp"
 #include "conduit_utils.hpp"
 #include "conduit_blueprint_mesh_kdtree.hpp"
@@ -4696,10 +4696,10 @@ PointQuery::normalSearch(int ndims,
     if(ndims == 3)
     {
         conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy::host();
-        conduit::execution::with_typed_accessor(coords[0]->as_double_accessor(),
-                                                coords[1]->as_double_accessor(),
-                                                coords[2]->as_double_accessor(),
-                                                [&](auto x, auto y, auto z)
+        conduit::execution::dispatch(coords[0]->as_double_accessor(),
+                                     coords[1]->as_double_accessor(),
+                                     coords[2]->as_double_accessor(),
+                                     [&](auto x, auto y, auto z)
         {
             conduit::execution::forall(policy, 0, numInputPts, [&](conduit::index_t i)
             {
@@ -4725,9 +4725,9 @@ PointQuery::normalSearch(int ndims,
     else if(ndims == 2)
     {
         conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy::host();
-        conduit::execution::with_typed_accessor(coords[0]->as_double_accessor(),
-                                                coords[1]->as_double_accessor(),
-                                                [&](auto x, auto y)
+        conduit::execution::dispatch(coords[0]->as_double_accessor(),
+                                     coords[1]->as_double_accessor(),
+                                     [&](auto x, auto y)
         {
             conduit::execution::forall(policy, 0, numInputPts, [&](conduit::index_t i)
             {
@@ -4752,8 +4752,8 @@ PointQuery::normalSearch(int ndims,
     else if(ndims == 1)
     {
         conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy::host();
-        conduit::execution::with_typed_accessor(coords[0]->as_double_accessor(),
-                                                [&](auto x)
+        conduit::execution::dispatch(coords[0]->as_double_accessor(),
+                                     [&](auto x)
         {
             conduit::execution::forall(policy, 0, numInputPts, [&](conduit::index_t i)
             {

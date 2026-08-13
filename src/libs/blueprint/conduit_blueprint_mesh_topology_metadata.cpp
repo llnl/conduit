@@ -25,7 +25,7 @@
 #include "conduit_blueprint_mesh_utils.hpp"
 #include "conduit_annotations.hpp"
 #include "conduit_execution.hpp"
-#include "conduit_execution_typed_accessor.hpp"
+#include "conduit_execution_dispatch.hpp"
 #include "conduit_utils.hpp"
 
 //#define DEBUG_PRINT
@@ -2163,8 +2163,8 @@ TopologyMetadata::Implementation::build_edge_key_to_id(
 #else
     conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy::host();
 #endif
-    conduit::execution::with_typed_accessor(conn1D,
-                                            [&](auto conn)
+    conduit::execution::dispatch(conn1D,
+                                 [&](auto conn)
     {
         conduit::execution::forall(policy, 0, nedges, [&](index_t edge_index)
         {

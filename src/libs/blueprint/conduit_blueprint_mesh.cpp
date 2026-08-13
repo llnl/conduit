@@ -34,7 +34,7 @@
 //-----------------------------------------------------------------------------
 #include "conduit_fmt/conduit_fmt.h"
 #include "conduit_execution.hpp"
-#include "conduit_execution_typed_accessor.hpp"
+#include "conduit_execution_dispatch.hpp"
 #include "conduit_fixed_size_map.hpp"
 #include "conduit_fixed_size_vector.hpp"
 #include "conduit_geometry_vector.hpp"
@@ -972,8 +972,8 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
         float64_accessor dst_values(dest["values"][csys_axis]);
         dst_values.use_with(policy);
 
-        conduit::execution::with_typed_accessor(dst_values,
-                                                [&](auto vals)
+        conduit::execution::dispatch(dst_values,
+                                     [&](auto vals)
         {
             coordset_uniform_fill_kernel(policy,
                                          dim_origin,
@@ -1098,9 +1098,9 @@ convert_coordset_to_explicit(const std::string &base_type,
         }
 
         const index_t dim_len = dim_lens[i];
-        conduit::execution::with_typed_accessor(src_cvals_acc,
-                                                dst_cvals_acc,
-                                                [&](auto src_vals, auto dst_vals)
+        conduit::execution::dispatch(src_cvals_acc,
+                                     dst_cvals_acc,
+                                     [&](auto src_vals, auto dst_vals)
         {
             coordset_explicit_fill_kernel(policy,
                                           is_base_rectilinear,
@@ -1451,8 +1451,8 @@ convert_topology_to_unstructured(const std::string &base_type,
     int64_accessor conn_node_vals(conn_node);
     conn_node_vals.use_with(policy);
 
-    conduit::execution::with_typed_accessor(conn_node_vals,
-                                            [&](auto conn_out)
+    conduit::execution::dispatch(conn_node_vals,
+                                 [&](auto conn_out)
     {
         to_unstructured_connectivity_kernel(policy,
                                             num_axes,
@@ -8576,10 +8576,10 @@ void polyhedral_face_centers_normals(conduit::execution::ExecutionPolicy exec_po
 
     // Read the coordinates through typed raw pointers to avoid the accessors'
     // per-element dtype dispatch.
-    conduit::execution::with_typed_accessor(n_x.as_double_accessor(),
-                                            n_y.as_double_accessor(),
-                                            n_z.as_double_accessor(),
-                                            [&](auto x, auto y, auto z)
+    conduit::execution::dispatch(n_x.as_double_accessor(),
+                                 n_y.as_double_accessor(),
+                                 n_z.as_double_accessor(),
+                                 [&](auto x, auto y, auto z)
     {
         polyhedral_face_centers_normals(exec_policy,
                                         subelements_connectivity,
@@ -8743,10 +8743,10 @@ static void polyhedral_to_hexes(conduit::execution::ExecutionPolicy exec_policy,
 
     // Compute all elem centers for all elems.
     std::vector<Vector> allElemCenters;
-    conduit::execution::with_typed_accessor(elements_connectivity,
-                                            elements_sizes,
-                                            elements_offsets,
-                                            [&](auto conn, auto sizes, auto offsets)
+    conduit::execution::dispatch(elements_connectivity,
+                                 elements_sizes,
+                                 elements_offsets,
+                                 [&](auto conn, auto sizes, auto offsets)
     {
         polyhedral_elem_centers(exec_policy,
                                 conn,

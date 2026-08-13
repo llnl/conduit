@@ -4,56 +4,47 @@
 
 //-----------------------------------------------------------------------------
 ///
-/// file: conduit_execution_typed_accessor.hpp
+/// file: conduit_execution_dispatch.hpp
 ///
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
 //
-// TLDR: Trade longer compile times (11 instantiations per kernel) for faster
-// array accesses + compiler vectorization.
+// TLDR: Trade longer compile times (11 instantiations per kernel for DataAccessor
+// and 2 instantiations per kernel for DataArray) for faster array accesses +
+// compiler vectorization.
 //
-// DataAccessor<T> supports data allocated on host or device memory, and accepts
-// any leaf dtype and any stride. This is necessary for supporting the full menu
-// of choices that Conduit makes available to users. However, safely accessing
-// the underlying data requires us to compute offset + stride * idx and then
-// switch on the dtype id to cast the value to T. The switch is evaluated
-// per-element, even though the dtype will never change mid-kernel. Furthermore,
-// besides direct accesses being inherently faster, inserting a switch statement
-// inbetween each array access also prevents the compiler from vectorizing or
-// coalescing the loop.
+// DataAccessor<T> and DataArray<T> are designed to support data allocated on
+// host or device memory. However, safely accessing data of generic sizes and
+// strides requires these data structures to incur additional per-access overhead.
 //
-// The with_typed_accessor() helpers in this header exist to automatically avoid
-// the overhead of evaluating the dtype switch statement per-element when it is
-// possible to do so. The idea is that each DataAccessor's dtype switch statement
-// gets evaluated exactly once per kernel launch, after which the caller's kernel
-// is invoked with either:
+// The dispatch() helpers in this header exist to automatically avoid per-access
+// overhead by evaluating the dtype and compactness exactly once, after which the
+// caller's kernel is invoked with either:
 //
 //  - A typed accessor (a wrapper around a raw pointer) when the data is
 //    contiguous (not strided) and the dtype is numeric (not a string), or
-//  - The DataAccessor itself, unchanged, for everything else (strided or
-//    non-numeric data).
+//  - The original accessor itself, unchanged, for everything else (strided or
+//    non-compact data).
 //
-// This allows the kernel to be written once, templated over a DataAccessor-like
-// argument, and guarantees that it will behave identically on both paths,
-// since the typed accessors apply the same conversion to T that DataAccessor
-// does. This enables us to handle kernel dispatches with any dtype, any stride,
-// and any offset a user provides, while automatically upgrading to a typed
-// accessor (when possible). On the mesh transform benchmarks this significantly
-// improves performance depending on the transform and backend.
+// This enables us to handle kernel dispatches with generic accessors of any dtype,
+// any stride, and any offset a user provides, while automatically upgrading them
+// to a typed accessor (when possible). On the mesh transform benchmarks, this
+// optimization significantly improves performance across all of our backends.
 //
-// The downside of this approach is that it requires compilation of
-// additional kernel instantiations (i.e., we incur a bit of extra compile time
-// for each instantiation). Each kernel is instantiated for each possible dtype
-// that could be passed to it, so that users can enjoy improved accessor
-// performance without having to worry about using specific accessor dtypes.
+// The downside of this approach is that it requires compiling additional kernel
+// instantiations (i.e., we incur extra compile time for each instantiation).
+// Each kernel is instantiated for each possible dtype that could be passed to it,
+// so that users can enjoy improved accessor performance at runtime without having
+// to worry about using specific accessor dtypes at compile time.
 //
-// Each kernel is instantiated 11 times (10 possible dtypes plus once for the
-// DataAccessor fallback). The two-accessor overload dispatches each side
-// independently (any dtype mix, up to 11^2 = 121 instantiations), while the
-// three-accessor overload dispatches a group through one shared case (a
-// compromise between 11^2 = 121 and 11^3 = 1331 instantiations) and falls back
-// to the accessors when the members hold different dtypes.
+// Each kernel is instantiated 11 times for DataAccessor (10 possible dtypes and 1
+// fallback) and only 2 times for DataArray (DataArrays don't do type
+// conversion, so 1 typed accessor and 1 fallback). The two-accessor overload
+// dispatches each side independently (any accessor and dtype mix, up to 11^2 = 121
+// instantiations in the worst case), while the three-accessor overload dispatches
+// a group through one shared case (a compromise between 11 vs. 11^3 = 1331
+// instantiations) and falls back to the accessors if any have a different dtype.
 // 
 // Supported cases that can be upgraded:
 //
@@ -66,18 +57,19 @@
 //   compact triple, mixed dtypes*                 | DataAccessor    (slow)
 //   strided data**                                | DataAccessor    (slow)
 //
-// *  Possible, just unclear if it's worth doing.
+// *  Possible, but we should wait until we have a real use case for it.
 // ** Also possible for some special cases, but left as future work.
 //-----------------------------------------------------------------------------
 
-#ifndef CONDUIT_EXECUTION_TYPED_ACCESSOR_HPP
-#define CONDUIT_EXECUTION_TYPED_ACCESSOR_HPP
+#ifndef CONDUIT_EXECUTION_DISPATCH_HPP
+#define CONDUIT_EXECUTION_DISPATCH_HPP
 
 //-----------------------------------------------------------------------------
 // -- conduit  includes --
 //-----------------------------------------------------------------------------
-#include "conduit_data_accessor.hpp"
 #include "conduit_data_type.hpp"
+#include "conduit_data_accessor.hpp"
+#include "conduit_data_array.hpp"
 
 //-----------------------------------------------------------------------------
 // -- begin conduit:: --
@@ -98,11 +90,13 @@ namespace detail
 {
 
 //-----------------------------------------------------------------------------
-// A wrapper around a raw array ptr that implements the same access interface
-// as DataAccessor<T>. This allows kernels to be simultaneously templated over
-// either a DataAccessor<T> or a RawDataAccessor. T is the dtype that the kernel
-// consumes while U is the dtype of the underlying data, since Conduit allows
-// the dtype of the underlying data to differ from the dtype of the accessor.
+// A wrapper around a raw pointer that implements the same access interface
+// as DataAccessor<T> and DataArray<T>. This allows kernels to be templated over
+// any of the 3 accessor types. T is the dtype that the kernel consumes while U
+// is the dtype of the underlying data, since Conduit allows the dtype of the
+// underlying data to differ from the dtype of the accessor. Although in the
+// DataArray case, T and U are always the same because DataArrays don't do type
+// conversion.
 template <typename T, typename U>
 struct RawDataAccessor
 {
@@ -123,48 +117,59 @@ struct RawDataAccessor
 };
 
 //-----------------------------------------------------------------------------
-// Creates a RawDataAccessor from a DataAccessor after determining that it is
-// safe to use a typed accessor for the given dtype.
-template <typename U, typename T>
+// Creates a RawDataAccessor from an input Accessor after determining that it is
+// safe to use a typed accessor.
+template <typename U, template <typename> class Accessor, typename T>
 RawDataAccessor<T, U>
-make_typed_accessor(const DataAccessor<T> &acc)
+make_typed_accessor(const Accessor<T> &acc)
 {
     // element_ptr(0) points at the first element with the dtype's byte offset
     // already applied (base + offset + stride * 0). If we've made it this far,
-    // we will have already verified that the data is compact (stride == sizeof(U))
-    // and that the underlying dtype matches U. Therefore, indexing the result
-    // as a U array returns exactly what the DataAccessor does.
+    // we have already verified that the data is upgradeable (stride == sizeof(U)).
     //
     // The reason two casts are needed is because element_ptr() const-qualifies
     // its return value even though the underlying buffer is not const. const_cast
     // strips the const away and static_cast converts the resulting void* to U*.
+    //
+    // In the case of DataArray<T>, U is always T because DataArrays don't do type
+    // conversion.
     return RawDataAccessor<T, U>{
         static_cast<U*>(const_cast<void*>(acc.element_ptr(0)))
     };
 }
 
 //-----------------------------------------------------------------------------
-// A helper that returns true when the array's elements are contiguous, which
-// implies that a typed accessor can be used instead of the DataAccessor.
+// A helper that returns true when the array's elements can be walked with a
+// raw typed pointer, which implies a typed accessor can be used instead of
+// the input Accessor.
+//
+// "Upgradeable" means the elements are spaced by the dtype's width
+// (stride == sizeof(U) for the U that try_typed_accessor will select), starting
+// from wherever the data begins. A non-zero offset is fine because element_ptr(0)
+// folds it in on our behalf, and everything after that is a plain U array.
+// 
+// Note that this is deliberately NOT DataType::is_compact(), which includes
+// the offset in spanned_bytes() and would therefore cause us to fall back in
+// cases that can otherwise be upgraded.
 inline bool
-is_compact_layout(const DataType &dt)
+is_upgradeable_layout(const DataType &dt)
 {
-    return dt.stride() == dt.element_bytes();
+    return dt.stride() == DataType::default_bytes(dt.id());
 }
 
 //-----------------------------------------------------------------------------
-// Returns true when 1) every DataAccessor in a group is compact and 2) they
-// all share one dtype, implying that a single typed kernel instantiation can
+// Returns true when 1) every Accessor in a group is upgradeable and 2) they all
+// share one dtype, implying that a single typed kernel instantiation can
 // serve them all.
-template <typename T>
+template <template <typename> class Accessor, typename T>
 bool
-group_is_uniform(const DataAccessor<T> &acc0,
-                 const DataAccessor<T> &acc1,
-                 const DataAccessor<T> &acc2)
+group_is_uniform(const Accessor<T> &acc0,
+                 const Accessor<T> &acc1,
+                 const Accessor<T> &acc2)
 {
-    return is_compact_layout(acc0.dtype()) &&
-           is_compact_layout(acc1.dtype()) &&
-           is_compact_layout(acc2.dtype()) &&
+    return is_upgradeable_layout(acc0.dtype()) &&
+           is_upgradeable_layout(acc1.dtype()) &&
+           is_upgradeable_layout(acc2.dtype()) &&
            acc0.dtype().id() == acc1.dtype().id() &&
            acc0.dtype().id() == acc2.dtype().id();
 }
@@ -239,8 +244,28 @@ try_group_typed_accessor(const DataAccessor<T> &acc0,
 }
 
 //-----------------------------------------------------------------------------
-// Invokes the kernel with a typed accessor of the underlying data's dtype.
-// Returns false when the dtype is not supported (e.g., non-numeric), in which
+// Invokes the kernel with typed accessors for a group of DataArrays that
+// group_is_uniform() accepted. One dtype case serves the whole group, so the
+// number of kernel instantiations does not depend on the group size. Never
+// returns false because DataArrays don't do type conversion, so the only way
+// this can fail is if the input DataArray is strided, which is caught before
+// this function is called.
+template <typename T, typename Kernel>
+bool
+try_group_typed_accessor(const DataArray<T> &acc0,
+                         const DataArray<T> &acc1,
+                         const DataArray<T> &acc2,
+                         Kernel &&kernel)
+{
+    kernel(make_typed_accessor<T>(acc0),
+           make_typed_accessor<T>(acc1),
+           make_typed_accessor<T>(acc2));
+    return true;
+}
+
+//-----------------------------------------------------------------------------
+// Invokes the kernel with a typed accessor of the underlying dtype. Returns
+// false when the dtype is not supported (e.g., non-numeric), in which
 // case the caller falls back to invoking the kernel with the DataAccessor.
 template <typename T, typename Kernel>
 bool
@@ -284,61 +309,79 @@ try_typed_accessor(const DataAccessor<T> &acc, Kernel &&kernel)
     }
 }
 
+//-----------------------------------------------------------------------------
+// Invokes the kernel with a typed accessor of the underlying data's dtype.
+// Never returns false because DataArrays don't do type conversion, so the only
+// way this can fail is if the input DataArray is strided, which is caught before
+// this function is called.
+template <typename T, typename Kernel>
+bool
+try_typed_accessor(const DataArray<T> &acc, Kernel &&kernel)
+{
+    kernel(make_typed_accessor<T>(acc));
+    return true;
+}
+
 }
 //-----------------------------------------------------------------------------
 // -- end conduit::execution::detail --
 //-----------------------------------------------------------------------------
 
 //
-// The following helpers exist to accelerate existing use cases found
-// throughout the codebase. Additional overloads (e.g., larger group sizes)
-// could be added later if we find new use cases that aren't covered by the
-// existing overloads.
+// The following helpers exist to accelerate *existing use cases* found
+// throughout the codebase. Additional overloads (e.g., larger group sizes, or
+// mixed dtypes for groups of 3) could be added later if we find new use cases
+// that aren't covered by the existing overloads. The reason to avoid supporting
+// them now is to limit negative effects on compile time without first
+// demonstrating that we have a need for them.
 //
 
 //-----------------------------------------------------------------------------
-// with_typed_accessor works by trying to invoke the kernel functor with a raw,
+// dispatch works by trying to invoke the kernel functor with a raw,
 // typed accessor to the underlying data. If the necessary conditions are met,
 // the kernel is invoked with a typed accessor, which 1) avoids the per-access
-// overhead of DataAccessors and 2) gives the compiler an opportunity to
+// overhead of generic Accessors and 2) gives the compiler an opportunity to
 // vectorize. If the conditions are not met, the kernel is invoked with the
-// DataAccessor itself, which will function identically but incur per-access
-// overhead. Because both types of accessor provide the same interface for
+// Accessor itself, which will function identically but incur per-access
+// overhead. Because each type of accessor provides the same interface for
 // reading and writing data, existing kernel code can automatically be upgraded
-// to use the faster accessor when the conditions are met. The downside is that
-// each kernel has to be instantiated and compiled 11 times (once with the
-// DataAccessor and once for each supported dtype).
-template <typename T, typename Kernel>
+// to use the faster typed accessor when the conditions are met.
+template <template <typename> class Accessor, typename T, typename Kernel>
 void
-with_typed_accessor(const DataAccessor<T> &acc, Kernel &&kernel)
+dispatch(const Accessor<T> &acc, Kernel &&kernel)
 {
-    if (detail::is_compact_layout(acc.dtype()) &&
+    if (detail::is_upgradeable_layout(acc.dtype()) &&
         detail::try_typed_accessor(acc, kernel))
     {
         // The conditions were met to invoke the kernel with a typed accessor
         return;
     }
     // The conditions were not met to invoke the kernel with a typed accessor,
-    // so we directly invoke it with the provided DataAccessor instead.
+    // so we directly invoke it with the provided Accessor instead.
     kernel(acc);
 }
 
 //-----------------------------------------------------------------------------
-// A special case of with_typed_accessor that takes two DataAccessors. Each
-// side is dispatched independently, so the kernel can be upgraded to use typed
-// accessors even if the accessor types and underlying dtypes differ.
-template <typename T0, typename T1, typename Kernel>
+// A special case of dispatch that takes two Accessors. Each side is dispatched
+// independently, so the kernel can be upgraded to use typed accessors even if
+// the accessor types (e.g., a DataAccessor and DataArray) and underlying dtypes
+// differ.
+template <template <typename> class Accessor0,
+          template <typename> class Accessor1,
+          typename T0,
+          typename T1,
+          typename Kernel>
 void
-with_typed_accessor(const DataAccessor<T0> &acc0,
-                    const DataAccessor<T1> &acc1,
-                    Kernel &&kernel)
+dispatch(const Accessor0<T0> &acc0,
+         const Accessor1<T1> &acc1,
+         Kernel &&kernel)
 {
     // For future reference, one could nest these an arbitrary number of times
     // to support executing kernels with more than two accessors of different
     // dtypes.
-    with_typed_accessor(acc0, [&](auto vals0)
+    dispatch(acc0, [&](auto vals0)
     {
-        with_typed_accessor(acc1, [&](auto vals1)
+        dispatch(acc1, [&](auto vals1)
         {
             kernel(vals0, vals1);
         });
@@ -346,18 +389,18 @@ with_typed_accessor(const DataAccessor<T0> &acc0,
 }
 
 //-----------------------------------------------------------------------------
-// A special case of with_typed_accessor that takes three DataAccessors of the
-// same dtype. It is possible to template this for 3 different dtypes like in
-// the previous helper, but that would require 11^3 instantiations of the
-// kernel (one for each combination of dtypes and fallbacks). That decision
+// A special case of dispatch that takes three Accessors of the same dtype. It
+// is possible to template this for 3 different dtypes like in the previous
+// helper, but that would require 11^3 instantiations of the kernel in the worst
+// case (one for each combination of dtypes and fallbacks). That decision
 // could be revisited if we later find that kernel dispatches with 3 accessors
 // of mixed dtypes are more common than expected.
-template <typename T, typename Kernel>
+template <template <typename> class Accessor, typename T, typename Kernel>
 void
-with_typed_accessor(const DataAccessor<T> &acc0,
-                    const DataAccessor<T> &acc1,
-                    const DataAccessor<T> &acc2,
-                    Kernel &&kernel)
+dispatch(const Accessor<T> &acc0,
+         const Accessor<T> &acc1,
+         const Accessor<T> &acc2,
+         Kernel &&kernel)
 {
     if (detail::group_is_uniform(acc0, acc1, acc2) &&
         detail::try_group_typed_accessor(acc0, acc1, acc2, kernel))
@@ -366,7 +409,7 @@ with_typed_accessor(const DataAccessor<T> &acc0,
         return;
     }
     // The conditions were not met to invoke the kernel with typed accessors,
-    // so we directly invoke it with the provided DataAccessors instead.
+    // so we directly invoke it with the provided Accessors instead.
     kernel(acc0, acc1, acc2);
 }
 
@@ -383,4 +426,4 @@ with_typed_accessor(const DataAccessor<T> &acc0,
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
 
-#endif
+#endif // CONDUIT_EXECUTION_DISPATCH_HPP
