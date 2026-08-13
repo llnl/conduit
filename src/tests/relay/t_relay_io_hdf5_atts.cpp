@@ -157,7 +157,8 @@ TEST(conduit_relay_io_hdf5, hdf5_read_existing_atts)
     attspace = H5Screate(H5S_SCALAR);
     ASSERT_GE(attspace, 0) << "Failed to create dataspace";
     hid_t atype = H5Tcopy(H5T_C_S1);
-    H5Tset_size(atype, strlen(a_str_val));
+    // Note: we need to include null term
+    H5Tset_size(atype, strlen(a_str_val)+1);
     H5Tset_strpad(atype,H5T_STR_NULLTERM);
 
     att = H5Acreate2(dataset, "my_str_att", atype, attspace, H5P_DEFAULT, H5P_DEFAULT);
@@ -211,7 +212,8 @@ TEST(conduit_relay_io_hdf5, hdf5_read_existing_atts)
     attspace = H5Screate(H5S_SCALAR);
     ASSERT_GE(attspace, 0) << "Failed to create dataspace";
     atype = H5Tcopy(H5T_C_S1);
-    H5Tset_size(atype, strlen(a_str_val));
+    // Note: we need to include null term
+    H5Tset_size(atype, strlen(a_str_val)+1);
     H5Tset_strpad(atype,H5T_STR_NULLTERM);
 
     att = H5Acreate2(grp, "my_str_att", atype, attspace, H5P_DEFAULT, H5P_DEFAULT);
