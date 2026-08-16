@@ -34,6 +34,7 @@
 //-----------------------------------------------------------------------------
 #include "conduit_fmt/conduit_fmt.h"
 #include "conduit_execution.hpp"
+#include "conduit_execution_dispatch.hpp"
 #include "conduit_fixed_size_map.hpp"
 #include "conduit_fixed_size_vector.hpp"
 #include "conduit_geometry_vector.hpp"
@@ -912,6 +913,25 @@ verify_multi_domain(const Node &n,
 //-----------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------
+// This is a separate function because nvcc does not allow device lambdas
+// to be defined inside generic lambdas.
+template <typename DstVals>
+void
+coordset_uniform_fill_kernel(conduit::execution::ExecutionPolicy &policy,
+                             const float64 dim_origin,
+                             const float64 dim_spacing,
+                             const index_t dim_len,
+                             const DstVals dst_values)
+{
+    conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
+    {
+        const float64 val = dim_origin + d * dim_spacing;
+        dst_values.set(d, val);
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-------------------------------------------------------------------------
 void
 convert_coordset_to_rectilinear(const std::string &/*base_type*/,
                                 const conduit::Node &coordset,
@@ -951,15 +971,58 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
 
         float64_accessor dst_values(dest["values"][csys_axis]);
         dst_values.use_with(policy);
-        conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
+
+        conduit::execution::dispatch(dst_values,
+                                     [&](auto vals)
         {
-            const float64 val = dim_origin + d * dim_spacing;
-            dst_values.set(d, val);
+            coordset_uniform_fill_kernel(policy,
+                                         dim_origin,
+                                         dim_spacing,
+                                         dim_len,
+                                         vals);
         });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
 
         dst_values.data_movement(sync_strategy);
     }
+}
+
+//-------------------------------------------------------------------------
+// This is a separate function because nvcc does not allow device lambdas
+// to be defined inside generic lambdas.
+template <typename SrcVals, typename DstVals>
+void
+coordset_explicit_fill_kernel(conduit::execution::ExecutionPolicy &policy,
+                              const bool is_base_rectilinear,
+                              const bool is_base_uniform,
+                              const float64 dim_origin,
+                              const float64 dim_spacing,
+                              const index_t dim_len,
+                              const index_t dim_block_size,
+                              const index_t dim_block_count,
+                              const SrcVals src_cvals,
+                              const DstVals dst_cvals)
+{
+    conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
+    {
+        index_t doffset = d * dim_block_size;
+        for(index_t b = 0; b < dim_block_count; b++)
+        {
+            index_t boffset = b * dim_block_size * dim_len;
+            for(index_t bi = 0; bi < dim_block_size; bi++)
+            {
+                index_t ioffset = doffset + boffset + bi;
+                if(is_base_rectilinear)
+                {
+                    dst_cvals.set(ioffset, src_cvals[d]);
+                }
+                else if(is_base_uniform)
+                {
+                    dst_cvals.set(ioffset, dim_origin + d * dim_spacing);
+                }
+            }
+        }
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
 }
 
 //-------------------------------------------------------------------------
@@ -1034,27 +1097,22 @@ convert_coordset_to_explicit(const std::string &base_type,
             src_cvals_acc.use_with(policy);
         }
 
-        conduit::execution::forall(policy, 0, dim_lens[i], [=] CONDUIT_EXEC(index_t d)
+        const index_t dim_len = dim_lens[i];
+        conduit::execution::dispatch(src_cvals_acc,
+                                     dst_cvals_acc,
+                                     [&](auto src_vals, auto dst_vals)
         {
-            index_t doffset = d * dim_block_size;
-            for(index_t b = 0; b < dim_block_count; b++)
-            {
-                index_t boffset = b * dim_block_size * dim_lens[i];
-                for(index_t bi = 0; bi < dim_block_size; bi++)
-                {
-                    index_t ioffset = doffset + boffset + bi;
-                    if(is_base_rectilinear)
-                    {
-                        dst_cvals_acc.set(ioffset, src_cvals_acc[d]);
-                    }
-                    else if(is_base_uniform)
-                    {
-                        dst_cvals_acc.set(ioffset, dim_origin + d * dim_spacing);
-                    }
-                }
-            }
+            coordset_explicit_fill_kernel(policy,
+                                          is_base_rectilinear,
+                                          is_base_uniform,
+                                          dim_origin,
+                                          dim_spacing,
+                                          dim_len,
+                                          dim_block_size,
+                                          dim_block_count,
+                                          src_vals,
+                                          dst_vals);
         });
-        CONDUIT_DEVICE_ERROR_CHECK(policy);
 
         dst_cvals_acc.data_movement(sync_strategy);
     }
@@ -1178,6 +1236,104 @@ convert_topology_to_structured(const std::string &base_type,
 }
 
 //-------------------------------------------------------------------------
+// This is a separate function because nvcc does not allow device lambdas
+// to be defined inside generic lambdas.
+template <typename ConnOut>
+void
+to_unstructured_connectivity_kernel(conduit::execution::ExecutionPolicy &policy,
+                                    const index_t num_axes,
+                                    const index_t indices_per_elem,
+                                    const index_t num_elems,
+                                    const index_t (&edims)[3],
+                                    const index_t (&vdims)[3],
+                                    const ConnOut conn_out)
+{
+    index_t edims_axes[3] = {edims[0], edims[1], edims[2]};
+    index_t vdims_axes[3] = {vdims[0], vdims[1], vdims[2]};
+
+    // This parallel loop builds the connectivity array
+    conduit::execution::forall(policy, 0, num_elems, [=] CONDUIT_EXEC(index_t e)
+    {
+        index_t curr_elem[3];
+        index_t curr_vert[3];
+
+        // Convert the grid ID to IJK coordinates for the current element
+        grid_id_to_ijk(e, &edims_axes[0], &curr_elem[0]);
+
+        // In order to build the connectivity array from a list of
+        // elements, we loop over each element's vertices and use the bitwise
+        // interpretation of each index (per vertex) to inform the connectivity
+        // direction. For example, if i = 5, the binary representation for 5
+        // would be 0b101. Each bit in 0b101 tells you whether the vertex is
+        // offset along a particular direction, in this case 0b101 would be
+        // interpreted as: (z: +1, y: +0, x: +1)).
+        for (index_t i = 0; i < indices_per_elem; i++)
+        {
+            curr_vert[0] = curr_elem[0];
+            curr_vert[1] = curr_elem[1];
+            curr_vert[2] = curr_elem[2];
+
+            // This inner loop visits each element's corner vertices in
+            // "binary counting" order as explained above. For a quad face,
+            // that means that the corners are visited in the order:
+            // i = 0,     i = 1,     i = 2,     i = 3
+            // 0b000,     0b001,     0b010,     0b011
+            // (0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0)
+            //
+            // However, the connectivity array expects that the corners
+            // will be visited in counter-clockwise order, which
+            // requires that we swap the order in which we visit the
+            // 2nd and 3rd indices:
+            //
+            //                         <- swapped ->
+            // i = 0,     i = 1,     i = 3,     i = 2
+            // 0b000,     0b001,     0b011,     0b010
+            // (0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)
+            //
+            // This swap applies to the faces of a hexahedron
+            // also.
+            for (index_t dim = 0; dim < num_axes; dim++)
+            {
+                curr_vert[dim] += (i & (index_t(1) << dim)) >> dim;
+            }
+
+            // Convert the IJK coordinates to a grid ID for the current vertex
+            index_t v;
+            grid_ijk_to_id(&curr_vert[0], &vdims_axes[0], v);
+
+            // TODO(JRC): Once the ordering transforms are introduced,
+            // this remapping should be removed and replaced with
+            // initializing the ordering label value.
+
+            // Continuing from the above comment, the vertices that need to be
+            // swapped are always the ones with their y-axis bit set,
+            // i.e. i == 2 (0b010), i == 3 (0b011), i == 6 (0b110), and i == 7 (0b111).
+
+            // Swapping the order of these vertices can be done by flipping
+            // the x-axis bit (bit 0) of i whenever the y-axis bit (bit 1) is set.
+
+            // If the y-axis bit (bit 1) is not set, then i is already correct
+            index_t out_i = i;
+
+            // Check if the y-axis bit (bit 1) is set to 1
+            if (i & 0x2)
+            {
+                // XOR with 0x1 to flip the x-axis bit (bit 0)
+                out_i ^= 0x1;
+            }
+
+            // The purpose of the above is so that we can directly write the vertex
+            // IDs into the connectivity array in counter-clockwise order. Previously,
+            // we would write the IDs in the wrong order first and then have to
+            // swap the IDs around to fix ordering afterwards. It's less work to
+            // simply put the IDs into their correct positions in the first place.
+            conn_out.set(e * indices_per_elem + out_i, v);
+        }
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-------------------------------------------------------------------------
 void
 convert_topology_to_unstructured(const std::string &base_type,
                                  const conduit::Node &topo,
@@ -1295,86 +1451,17 @@ convert_topology_to_unstructured(const std::string &base_type,
     int64_accessor conn_node_vals(conn_node);
     conn_node_vals.use_with(policy);
 
-    // This parallel loop builds the connectivity array
-    conduit::execution::forall(policy, 0, num_elems, [=] CONDUIT_EXEC(index_t e)
+    conduit::execution::dispatch(conn_node_vals,
+                                 [&](auto conn_out)
     {
-        index_t curr_elem[3];
-        index_t curr_vert[3];
-
-        // Convert the grid ID to IJK coordinates for the current element
-        grid_id_to_ijk(e, &edims_axes[0], &curr_elem[0]);
-
-        // In order to build the connectivity array from a list of
-        // elements, we loop over each element's vertices and use the bitwise
-        // interpretation of each index (per vertex) to inform the connectivity
-        // direction. For example, if i = 5, the binary representation for 5
-        // would be 0b101. Each bit in 0b101 tells you whether the vertex is
-        // offset along a particular direction, in this case 0b101 would be
-        // interpreted as: (z: +1, y: +0, x: +1)).
-        for (index_t i = 0; i < indices_per_elem; i++)
-        {
-            curr_vert[0] = curr_elem[0];
-            curr_vert[1] = curr_elem[1];
-            curr_vert[2] = curr_elem[2];
-
-            // This inner loop visits each element's corner vertices in
-            // "binary counting" order as explained above. For a quad face,
-            // that means that the corners are visited in the order:
-            // i = 0,     i = 1,     i = 2,     i = 3
-            // 0b000,     0b001,     0b010,     0b011
-            // (0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0)
-            //
-            // However, the connectivity array expects that the corners
-            // will be visited in counter-clockwise order, which
-            // requires that we swap the order in which we visit the
-            // 2nd and 3rd indices:
-            //
-            //                         <- swapped ->
-            // i = 0,     i = 1,     i = 3,     i = 2
-            // 0b000,     0b001,     0b011,     0b010
-            // (0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)
-            //
-            // This swap applies to the faces of a hexahedron
-            // also.
-            for (index_t dim = 0; dim < num_axes; dim++)
-            {
-                curr_vert[dim] += (i & (index_t(1) << dim)) >> dim;
-            }
-
-            // Convert the IJK coordinates to a grid ID for the current vertex
-            index_t v;
-            grid_ijk_to_id(&curr_vert[0], &vdims_axes[0], v);
-
-            // TODO(JRC): Once the ordering transforms are introduced,
-            // this remapping should be removed and replaced with
-            // initializing the ordering label value.
-
-            // Continuing from the above comment, the vertices that need to be
-            // swapped are always the ones with their y-axis bit set,
-            // i.e. i == 2 (0b010), i == 3 (0b011), i == 6 (0b110), and i == 7 (0b111).
-
-            // Swapping the order of these vertices can be done by flipping
-            // the x-axis bit (bit 0) of i whenever the y-axis bit (bit 1) is set.
-
-            // If the y-axis bit (bit 1) is not set, then i is already correct
-            index_t out_i = i;
-
-            // Check if the y-axis bit (bit 1) is set to 1
-            if (i & 0x2)
-            {
-                // XOR with 0x1 to flip the x-axis bit (bit 0)
-                out_i ^= 0x1;
-            }
-
-            // The purpose of the above is so that we can directly write the vertex
-            // IDs into the connectivity array in counter-clockwise order. Previously,
-            // we would write the IDs in the wrong order first and then have to
-            // swap the IDs around to fix ordering afterwards. It's less work to
-            // simply put the IDs into their correct positions in the first place.
-            conn_node_vals.set(e * indices_per_elem + out_i, v);
-        }
+        to_unstructured_connectivity_kernel(policy,
+                                            num_axes,
+                                            indices_per_elem,
+                                            num_elems,
+                                            edims_axes,
+                                            vdims_axes,
+                                            conn_out);
     });
-    CONDUIT_DEVICE_ERROR_CHECK(policy);
     conn_node_vals.data_movement(sync_strategy);
 
     CONDUIT_ANNOTATE_MARK_END("to_unstructured_connectivity_gen");
@@ -8291,6 +8378,7 @@ copy_nodes_with_topology(const conduit::Node &n_mesh,
                          bool copy,
                          const std::set<std::string> &selection = std::set<std::string>())
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     if(n_mesh.has_path(rootName))
     {
         const conduit::Node &n_objs = n_mesh.fetch_existing(rootName);
@@ -8338,6 +8426,7 @@ copy_nodes_with_topology(const conduit::Node &n_mesh,
  */
 static void copy_node(const conduit::Node &n_src, conduit::Node &n_dest, bool copy)
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     if(copy)
     {
         n_dest.set(n_src);
@@ -8484,52 +8573,24 @@ void polyhedral_face_centers_normals(conduit::execution::ExecutionPolicy exec_po
     const conduit::Node &n_x = n_coordset["values/x"];
     const conduit::Node &n_y = n_coordset["values/y"];
     const conduit::Node &n_z = n_coordset["values/z"];
-    bool handled = false;
-    // Dispatch to different instantiations of the function.
-    if(n_x.dtype().is_compact() && n_y.dtype().is_compact() && n_z.dtype().is_compact())
+
+    // Read the coordinates through typed raw pointers to avoid the accessors'
+    // per-element dtype dispatch.
+    conduit::execution::dispatch(n_x.as_double_accessor(),
+                                 n_y.as_double_accessor(),
+                                 n_z.as_double_accessor(),
+                                 [&](auto x, auto y, auto z)
     {
-        // Handle contiguous float64, float32. (fast paths)
-        if(n_x.dtype().is_float64() && n_y.dtype().is_float64() && n_z.dtype().is_float64())
-        {
-            polyhedral_face_centers_normals(exec_policy,
-                                            subelements_connectivity,
-                                            subelements_sizes,
-                                            subelements_offsets,
-                                            n_x.as_float64_ptr(),
-                                            n_y.as_float64_ptr(),
-                                            n_z.as_float64_ptr(),
-                                            allFaceCenters,
-                                            allFaceNormals);
-            handled = true;
-        }
-        if(n_x.dtype().is_float32() && n_y.dtype().is_float32() && n_z.dtype().is_float32())
-        {
-            polyhedral_face_centers_normals(exec_policy,
-                                            subelements_connectivity,
-                                            subelements_sizes,
-                                            subelements_offsets,
-                                            n_x.as_float32_ptr(),
-                                            n_y.as_float32_ptr(),
-                                            n_z.as_float32_ptr(),
-                                            allFaceCenters,
-                                            allFaceNormals);
-            handled = true;
-        }
-    }
-    if(!handled)
-    {
-        // The coordinates were not supported in the more direct modes above so
-        // use accessors instead.
         polyhedral_face_centers_normals(exec_policy,
                                         subelements_connectivity,
                                         subelements_sizes,
                                         subelements_offsets,
-                                        n_x.as_double_accessor(),
-                                        n_y.as_double_accessor(),
-                                        n_z.as_double_accessor(),
+                                        x,
+                                        y,
+                                        z,
                                         allFaceCenters,
                                         allFaceNormals);
-    }
+    });
 }
 
 /*!
@@ -8541,6 +8602,7 @@ void polyhedral_face_centers_normals(conduit::execution::ExecutionPolicy exec_po
  * @param elements_connectivity An accessor used for elements_connectivity
  * @param elements_sizes An accessor used for elements_sizes
  * @param elements_offsets An accessor used for elements_offsets
+ * @param totalNumElems The number of elements in the topology.
  * @param allFaceCenters The vector for all of the face centers.
  * @param[out] allElemCenters The output vector for the element centers.
  */
@@ -8549,10 +8611,10 @@ void polyhedral_elem_centers(conduit::execution::ExecutionPolicy exec_policy,
                              const IndexAccessor elements_connectivity,
                              const IndexAccessor elements_sizes,
                              const IndexAccessor elements_offsets,
+                             const index_t totalNumElems,
                              const std::vector<Vector> &allFaceCenters,
                              std::vector<Vector> &allElemCenters)
 {
-    const auto totalNumElems = elements_sizes.number_of_elements();
     allElemCenters.resize(totalNumElems);
     Vector *allElemCentersPtr = allElemCenters.data();
     const Vector *allFaceCentersPtr = allFaceCenters.data();
@@ -8681,12 +8743,19 @@ static void polyhedral_to_hexes(conduit::execution::ExecutionPolicy exec_policy,
 
     // Compute all elem centers for all elems.
     std::vector<Vector> allElemCenters;
-    polyhedral_elem_centers(exec_policy,
-                            elements_connectivity,
-                            elements_sizes,
-                            elements_offsets,
-                            allFaceCenters,
-                            allElemCenters);
+    conduit::execution::dispatch(elements_connectivity,
+                                 elements_sizes,
+                                 elements_offsets,
+                                 [&](auto conn, auto sizes, auto offsets)
+    {
+        polyhedral_elem_centers(exec_policy,
+                                conn,
+                                sizes,
+                                offsets,
+                                nElem,
+                                allFaceCenters,
+                                allElemCenters);
+    });
 
     // Fill in the output hex connectivity
     // NOTE: We're using value capture [=], mainly to avoid issues on Windows. This
