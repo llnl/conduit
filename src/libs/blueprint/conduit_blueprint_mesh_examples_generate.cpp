@@ -455,23 +455,22 @@ generate(const std::string &example_name,
     }
     else if(example_name == "venn")
     {
-        std::string      matset_type           = detail::fetch_string(opts,example_name,"matset_type");
-        conduit::index_t nx                    = detail::fetch_index_t(opts,example_name,"nx");
-        conduit::index_t ny                    = detail::fetch_index_t(opts,example_name,"ny");
-        conduit::float64 radius                = detail::fetch_float64(opts,example_name,"radius");
-        std::string prefer_no_material_map_str = detail::fetch_string(opts,example_name,"prefer_no_material_map","yes");
-        bool prefer_no_material_map            = "yes" == prefer_no_material_map_str;
-        std::string specsets_on_str            = detail::fetch_string(opts,example_name,"specsets_on","no");
-        bool specsets_on                       = "yes" == specsets_on_str;
+        std::string      matset_type      = detail::fetch_string(opts,example_name,"matset_type");
+        conduit::index_t nx               = detail::fetch_index_t(opts,example_name,"nx");
+        conduit::index_t ny               = detail::fetch_index_t(opts,example_name,"ny");
+        conduit::float64 radius           = detail::fetch_float64(opts,example_name,"radius");
+        std::string generate_material_map = detail::fetch_string(opts,example_name,"generate_material_map","default");
+        std::string generate_specset      = detail::fetch_string(opts,example_name,"generate_specset","default");
 
         // wrap
         // void venn(const std::string &matset_type,
         //           const index_t nx,
         //           const index_t ny,
         //           const float64 radius,
-        //           const bool prefer_no_material_map,
+        //           const std::string &generate_material_map,
+        //           const std::string &generate_specset,
         //           Node &res);
-        venn(matset_type,nx,ny,radius,prefer_no_material_map,specsets_on,res);
+        venn(matset_type,nx,ny,radius,generate_material_map,generate_specset,res);
     }
     else if (example_name == "bent_multi_grid")
     {
@@ -617,12 +616,12 @@ generate_default_options(const std::string &example_name,
     }
     else if(example_name == "venn")
     {
-        opts["matset_type"]            = "full";
-        opts["nx"]                     = 100;
-        opts["ny"]                     = 100;
-        opts["radius"]                 = 0.25;
-        opts["prefer_no_material_map"] = "yes";
-        opts["specsets_on"]            = "no";
+        opts["matset_type"]           = "full";
+        opts["nx"]                    = 100;
+        opts["ny"]                    = 100;
+        opts["radius"]                = 0.25;
+        opts["generate_material_map"] = "default";
+        opts["generate_specset"]      = "default";
     }
     else if (example_name == "bent_multi_grid")
     {

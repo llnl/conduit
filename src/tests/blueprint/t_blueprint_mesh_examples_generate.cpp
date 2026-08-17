@@ -107,38 +107,50 @@ TEST(conduit_blueprint_mesh_examples_generate, generate_venn_choices)
     opts["radius"] = 0.25;
 
     // test full
-    opts["matset_type"]            = "full";
-    opts["prefer_no_material_map"] = "yes";
+    opts["matset_type"]           = "full";
+    opts["generate_material_map"] = "yes";
+    conduit::blueprint::mesh::examples::generate("venn", opts, res);
+    EXPECT_TRUE(res.has_path("matsets/matset/material_map"));
+
+    opts["generate_material_map"] = "no";
     conduit::blueprint::mesh::examples::generate("venn", opts, res);
     EXPECT_FALSE(res.has_path("matsets/matset/material_map"));
 
-    opts["prefer_no_material_map"] = "no";
+    opts["generate_material_map"] = "default";
     conduit::blueprint::mesh::examples::generate("venn", opts, res);
-    EXPECT_TRUE(res.has_path("matsets/matset/material_map"));
+    EXPECT_FALSE(res.has_path("matsets/matset/material_map"));
 
     // test sparse_by_element
-    opts["matset_type"]            = "sparse_by_element";
-    opts["prefer_no_material_map"] = "yes";
+    opts["matset_type"]           = "sparse_by_element";
+    opts["generate_material_map"] = "yes";
     conduit::blueprint::mesh::examples::generate("venn", opts, res);
     EXPECT_TRUE(res.has_path("matsets/matset/material_map"));
 
-    opts["prefer_no_material_map"] = "no";
+    opts["generate_material_map"] = "no";
+    conduit::blueprint::mesh::examples::generate("venn", opts, res);
+    EXPECT_THROW(res.has_path("matsets/matset/material_map"), conduit::Error);
+
+    opts["generate_material_map"] = "default";
     conduit::blueprint::mesh::examples::generate("venn", opts, res);
     EXPECT_TRUE(res.has_path("matsets/matset/material_map"));
 
     // test sparse_by_material
-    opts["matset_type"]            = "sparse_by_material";
-    opts["prefer_no_material_map"] = "yes";
-    conduit::blueprint::mesh::examples::generate("venn", opts, res);
-    EXPECT_FALSE(res.has_path("matsets/matset/material_map"));
-
-    opts["prefer_no_material_map"] = "no";
+    opts["matset_type"]           = "sparse_by_material";
+    opts["generate_material_map"] = "yes";
     conduit::blueprint::mesh::examples::generate("venn", opts, res);
     EXPECT_TRUE(res.has_path("matsets/matset/material_map"));
 
+    opts["generate_material_map"] = "no";
+    conduit::blueprint::mesh::examples::generate("venn", opts, res);
+    EXPECT_FALSE(res.has_path("matsets/matset/material_map"));
+
+    opts["generate_material_map"] = "default";
+    conduit::blueprint::mesh::examples::generate("venn", opts, res);
+    EXPECT_FALSE(res.has_path("matsets/matset/material_map"));
+
     opts["radius"] = 5; // large radius forces no background which
-    // forces material map
-    opts["prefer_no_material_map"] = "yes";
+    // forces material map in default case
+    opts["generate_material_map"] = "default";
     conduit::blueprint::mesh::examples::generate("venn", opts, res);
     EXPECT_TRUE(res.has_path("matsets/matset/material_map"));
 
@@ -151,7 +163,7 @@ TEST(conduit_blueprint_mesh_examples_generate, generate_venn_choices)
     opts["nx"]     = 100;
     opts["ny"]     = 100;
     opts["radius"] = 0.25;
-    opts["specsets_on"] = "yes";
+    opts["generate_specset"] = "yes";
     conduit::blueprint::mesh::examples::generate("venn", opts, res);
     EXPECT_TRUE(res.has_path("specsets"));
 }

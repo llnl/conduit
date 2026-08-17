@@ -66,7 +66,7 @@ namespace examples
 void venn_full_matset(Node &res,
                       const index_t nx,
                       const index_t ny,
-                      const bool prefer_no_material_map)
+                      const std::string &generate_material_map)
 {
     // create the material sets
 
@@ -77,13 +77,16 @@ void venn_full_matset(Node &res,
     float64 dy = 1.0 / float64(ny);
     float64 element_area = dx * dy;
 
-    // we want a material map
-    if (! prefer_no_material_map)
+    if (generate_material_map == "yes")
     {
         res["matsets/matset/material_map/background"] = 0;
         res["matsets/matset/material_map/circle_a"] = 1;
         res["matsets/matset/material_map/circle_b"] = 2;
         res["matsets/matset/material_map/circle_c"] = 3;
+    }
+    else if (generate_material_map != "no" || generate_material_map != "default")
+    {
+        CONDUIT_ERROR("Unknown option for generate_material_map: " << generate_material_map);
     }
 
     // create importance reference
@@ -260,7 +263,7 @@ void compute_material_sparse_matset_field(Node &res,
 void venn_sparse_by_material_matset(Node &res,
                                     const index_t nx,
                                     const index_t ny,
-                                    const bool prefer_no_material_map,
+                                    const std::string &generate_material_map,
                                     const float64 epsilon = CONDUIT_EPSILON)
 {    
     // create the materials
@@ -339,8 +342,8 @@ void venn_sparse_by_material_matset(Node &res,
 
     const bool background_exists = bgcount != 0;
 
-    // we want a material map
-    if (! prefer_no_material_map || ! background_exists)
+    if (generate_material_map == "yes" ||
+        (generate_material_map == "default" && ! background_exists))
     {
         // either we have asked for a material map
         // or we need to include one since background is
@@ -350,6 +353,10 @@ void venn_sparse_by_material_matset(Node &res,
         res["matsets/matset/material_map/circle_a"] = 1;
         res["matsets/matset/material_map/circle_b"] = 2;
         res["matsets/matset/material_map/circle_c"] = 3;
+    }
+    else if (generate_material_map != "no")
+    {
+        CONDUIT_ERROR("Unknown option for generate_material_map: " << generate_material_map);
     }
 
     if (background_exists)
@@ -440,7 +447,10 @@ void venn_sparse_by_material_matset(Node &res,
     compute_material_sparse_matset_field(res, "importance", nx, ny);
 }
 
-void venn_sparse_by_element_matset(Node &res, index_t nx, index_t ny)
+void venn_sparse_by_element_matset(Node &res,
+                                   const index_t nx,
+                                   const index_t ny,
+                                   const std::string &generate_material_map)
 {
     // create the materials
 
@@ -470,11 +480,23 @@ void venn_sparse_by_element_matset(Node &res, index_t nx, index_t ny)
 
     // Build the rest of the single-buffer matset
     res["matsets/matset/topology"] = "topo";
-    // This is the "key" that tells what material each volume fraction refers to
-    res["matsets/matset/material_map/circle_a"] = 1;
-    res["matsets/matset/material_map/circle_b"] = 2;
-    res["matsets/matset/material_map/circle_c"] = 3;
-    res["matsets/matset/material_map/background"] = 0;
+
+    if (generate_material_map == "yes" || generate_material_map == "default")
+    {
+        // This is the "key" that tells what material each volume fraction refers to
+        res["matsets/matset/material_map/circle_a"] = 1;
+        res["matsets/matset/material_map/circle_b"] = 2;
+        res["matsets/matset/material_map/circle_c"] = 3;
+        res["matsets/matset/material_map/background"] = 0;
+    }
+    else if (generate_material_map == "no")
+    {
+        CONDUIT_ERROR("Material map is required for sparse by element (uni-buffer by element) matsets.");
+    }
+    else
+    {
+        CONDUIT_ERROR("Unknown option for generate_material_map: " << generate_material_map);
+    }
 
     // All the volume fractions go here ("one big buffer")
     res["matsets/matset/volume_fractions"].set(DataType::float64(vfcount));
@@ -800,9 +822,9 @@ void venn(const std::string &matset_type,
           Node &res,
           const float64 epsilon)
 {
-    const bool prefer_no_material_map = true;
-    const bool specsets_on = false;
-    venn(matset_type, nx, ny, radius, prefer_no_material_map, specsets_on, res, epsilon);
+    const std::string generate_material_map = "default";
+    const std::string generate_specset = "default";
+    venn(matset_type, nx, ny, radius, generate_material_map, generate_specset, res, epsilon);
 }
 
 //-----------------------------------------------------------------------------
@@ -810,12 +832,12 @@ void venn(const std::string &matset_type,
           const index_t nx,
           const index_t ny,
           const float64 radius, 
-          const bool prefer_no_material_map,
+          const std::string &generate_material_map,
           Node &res,
           const float64 epsilon)
 {
-    const bool specsets_on = false;
-    venn(matset_type, nx, ny, radius, prefer_no_material_map, specsets_on, res, epsilon);
+    const std::string generate_specset = "default";
+    venn(matset_type, nx, ny, radius, generate_material_map, generate_specset, res, epsilon);
 }
 
 //-----------------------------------------------------------------------------
@@ -823,8 +845,8 @@ void venn(const std::string &matset_type,
           const index_t nx,
           const index_t ny,
           const float64 radius,
-          const bool prefer_no_material_map,
-          const bool specsets_on,
+          const std::string &generate_material_map,
+          const std::string &generate_specset,
           Node &res,
           const float64 epsilon)
 {
@@ -1076,17 +1098,15 @@ void venn(const std::string &matset_type,
 
     if (matset_type == "full")
     {
-        venn_full_matset(res, nx, ny, prefer_no_material_map);
+        venn_full_matset(res, nx, ny, generate_material_map);
     }
     else if (matset_type == "sparse_by_material")
     {
-        venn_sparse_by_material_matset(res, nx, ny, prefer_no_material_map, epsilon);
+        venn_sparse_by_material_matset(res, nx, ny, generate_material_map, epsilon);
     }
     else if (matset_type == "sparse_by_element")
     {
-        // material map is created unconditionally so `prefer_no_material_map`
-        // has no effect.
-        venn_sparse_by_element_matset(res, nx, ny);
+        venn_sparse_by_element_matset(res, nx, ny, generate_material_map);
     }
     else
     {
@@ -1096,7 +1116,7 @@ void venn(const std::string &matset_type,
     // remove temp tree used during construction
     res.remove("meta");
 
-    if (specsets_on)
+    if (generate_specset == "yes")
     {
         if (matset_type == "full")
         {
@@ -1115,6 +1135,10 @@ void venn(const std::string &matset_type,
             CONDUIT_ERROR("unknown matset_type = " << matset_type);
         }
     }
+    else if (generate_specset != "no" || generate_specset != "default")
+    {
+        CONDUIT_ERROR("unknown option for generate_specset: " << generate_specset)
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -1124,9 +1148,9 @@ void venn_specsets(const std::string &matset_type,
                    const float64 radius,
                    Node &res)
 {
-    const bool prefer_no_material_map = true;
-    const bool specsets_on = true;
-    venn(matset_type, nx, ny, radius, prefer_no_material_map, specsets_on, res);
+    const std::string generate_material_map = "default";
+    const std::string generate_specset = "default";
+    venn(matset_type, nx, ny, radius, generate_material_map, generate_specset, res);
 }
 
 }

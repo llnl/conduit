@@ -2230,9 +2230,24 @@ The ``venn()`` function creates meshes that use three overlapping circle regions
 .. code:: cpp
 
     conduit::blueprint::mesh::examples::venn(const std::string &matset_type,
-                                             index_t nx,
-                                             index_t ny,
-                                             float64 radius,
+                                             const index_t nx,
+                                             const index_t ny,
+                                             const float64 radius,
+                                             Node &res);
+
+    conduit::blueprint::mesh::examples::venn(const std::string &matset_type,
+                                             const index_t nx,
+                                             const index_t ny,
+                                             const float64 radius,
+                                             const std::string &generate_material_map,
+                                             Node &res);
+
+    conduit::blueprint::mesh::examples::venn(const std::string &matset_type,
+                                             const index_t nx,
+                                             const index_t ny,
+                                             const float64 radius,
+                                             const std::string &generate_material_map,
+                                             const std::string &generate_specset,
                                              Node &res);
 
 
@@ -2259,6 +2274,46 @@ Here is a list of valid strings for the ``matset_type`` argument:
 ``nx``, ``ny`` specify the number of elements in the x and y directions.
 
 ``radius`` specifies the radius of the three circles.
+
+``generate_material_map`` allows users to choose if they want a material map to be included.
+
+Here is a list of valid strings for the ``generate_material_map`` argument:
+
+.. list-table::
+   :widths: 10 15
+   :header-rows: 1
+
+   * - **Generate Material Map Option**
+     - **Description**
+
+   * - yes
+     - Include a material map.
+
+   * - no
+     - Do not include a material map. An error may be thrown if a material map is required.
+
+   * - default
+     - Include a material map where required or in the case that not including one would lead to ambiguity.
+
+``generate_specset`` allows users to choose if they want a species set to be included.
+
+Here is a list of valid strings for the ``generate_specset`` argument:
+
+.. list-table::
+   :widths: 10 15
+   :header-rows: 1
+
+   * - **Generate Species Set Option**
+     - **Description**
+
+   * - yes
+     - Include a species set.
+
+   * - no
+     - Do not include a species set.
+
+   * - default
+     - Do not include a species set.
 
 The resulting data is placed the Node ``res``, which is passed in via reference.
 
