@@ -1149,7 +1149,7 @@ void venn_specsets(const std::string &matset_type,
                    Node &res)
 {
     const std::string generate_material_map = "default";
-    const std::string generate_specset = "default";
+    const std::string generate_specset = "yes";
     venn(matset_type, nx, ny, radius, generate_material_map, generate_specset, res);
 }
 
