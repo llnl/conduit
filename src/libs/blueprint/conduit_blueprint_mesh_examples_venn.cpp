@@ -84,7 +84,7 @@ void venn_full_matset(Node &res,
         res["matsets/matset/material_map/circle_b"] = 2;
         res["matsets/matset/material_map/circle_c"] = 3;
     }
-    else if (generate_material_map != "no" || generate_material_map != "default")
+    else if (generate_material_map != "no" && generate_material_map != "default")
     {
         CONDUIT_ERROR("Unknown option for generate_material_map: " << generate_material_map);
     }
@@ -354,7 +354,7 @@ void venn_sparse_by_material_matset(Node &res,
         res["matsets/matset/material_map/circle_b"] = 2;
         res["matsets/matset/material_map/circle_c"] = 3;
     }
-    else if (generate_material_map != "no")
+    else if (generate_material_map != "no" && generate_material_map != "default")
     {
         CONDUIT_ERROR("Unknown option for generate_material_map: " << generate_material_map);
     }
@@ -1135,7 +1135,7 @@ void venn(const std::string &matset_type,
             CONDUIT_ERROR("unknown matset_type = " << matset_type);
         }
     }
-    else if (generate_specset != "no" || generate_specset != "default")
+    else if (generate_specset != "no" && generate_specset != "default")
     {
         CONDUIT_ERROR("unknown option for generate_specset: " << generate_specset)
     }

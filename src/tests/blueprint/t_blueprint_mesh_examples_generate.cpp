@@ -127,8 +127,7 @@ TEST(conduit_blueprint_mesh_examples_generate, generate_venn_choices)
     EXPECT_TRUE(res.has_path("matsets/matset/material_map"));
 
     opts["generate_material_map"] = "no";
-    conduit::blueprint::mesh::examples::generate("venn", opts, res);
-    EXPECT_THROW(res.has_path("matsets/matset/material_map"), conduit::Error);
+    EXPECT_THROW(conduit::blueprint::mesh::examples::generate("venn", opts, res), conduit::Error);
 
     opts["generate_material_map"] = "default";
     conduit::blueprint::mesh::examples::generate("venn", opts, res);
