@@ -102,7 +102,7 @@ namespace detail
 // DataArray case, T and U are always the same because DataArrays don't perform
 // type conversion.
 //
-// NOTE: We verified via Godbolt that the compiler optimizes the static_casts
+// NOTE: We verified via Godbolt (https://godbolt.org/) that the compiler optimizes the static_casts
 // away when T and U are the same, so there is no further performance to be
 // gained by specializing the RawDataAccessor for that case.
 template <typename T, typename U>
