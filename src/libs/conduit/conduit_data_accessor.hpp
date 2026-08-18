@@ -40,6 +40,9 @@ namespace execution
 {
     class ExecutionPolicy;
 }
+// Gives the kernels in conduit_data_kernels.hpp access to the private
+// set_value_helper()
+struct DataAccessorKernelAccess;
 
 //-----------------------------------------------------------------------------
 // -- begin conduit::DataArray --
@@ -252,7 +255,7 @@ public:
 
     void                                data_movement(const conduit::execution::SyncStrategy strategy);
 
-    conduit::execution::ExecutionPolicy active_space();
+    conduit::execution::ExecutionPolicy active_space() const;
 
 //-----------------------------------------------------------------------------
 // Setters
@@ -364,6 +367,14 @@ public:
                       {std::cout << to_summary_string() << std::endl;}
 
 private:
+
+//-----------------------------------------------------------------------------
+// Kernel friends
+//-----------------------------------------------------------------------------
+    // The kernels access set_value_helper() through this because the set()
+    // overloads are ambiguous for c-native types that don't alias a bitwidth
+    // type, e.g. long long.
+    friend struct conduit::DataAccessorKernelAccess;
 
 //-----------------------------------------------------------------------------
 // Scalar setter implementation

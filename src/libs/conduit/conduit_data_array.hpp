@@ -238,7 +238,7 @@ public:
 
     void                                data_movement(const conduit::execution::SyncStrategy strategy);
 
-    conduit::execution::ExecutionPolicy active_space();
+    conduit::execution::ExecutionPolicy active_space() const;
 
 //-----------------------------------------------------------------------------
 // Setters

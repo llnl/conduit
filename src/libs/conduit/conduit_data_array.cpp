@@ -25,10 +25,9 @@
 #include "conduit_log.hpp"
 #include "conduit_data_accessor.hpp"
 #include "conduit_execution.hpp"
+#include "conduit_execution_dispatch.hpp"
+#include "conduit_data_kernels.hpp"
 #include "conduit_annotations.hpp"
-
-// Easier access to the Conduit logging functions
-using namespace conduit::utils;
 
 //-----------------------------------------------------------------------------
 // -- begin conduit:: --
@@ -44,85 +43,116 @@ namespace detail
 {
 
 //-----------------------------------------------------------------------------
-template <typename T, typename U>
+template <typename U, typename T>
 void
 fill_value_helper(const DataArray<T> &array,
                   U value)
 {
-    // element_ptr(0) points at the first element with the dtype's byte offset
-    // already applied (base + offset + stride * 0). element_ptr() const-qualifies
-    // its return value even though the underlying buffer is not const. const_cast
-    // strips the constness away. We will later cast the void* to the array's type.
-    void *data = const_cast<void*>(array.element_ptr(0));
-    const DataType &dt = array.dtype();
-    const index_t stride = dt.stride();
-    const index_t num_elements = dt.number_of_elements();
-
+    const index_t num_elements = array.number_of_elements();
+    execution::ExecutionPolicy policy = detail::select_policy(array.active_space(),
+                                                              num_elements);
     const T val = static_cast<T>(value);
 
-    if (stride == static_cast<index_t>(sizeof(T)))
+    execution::dispatch(array, [&](auto vals)
     {
-        // The stride matches the size of the destination type, so we can treat
-        // the data as a contiguous array of T and assign the fill value
-        // directly.
-        T *ptr = static_cast<T*>(data);
-        for (index_t i = 0; i < num_elements; i++)
-        {
-            ptr[i] = val;
-        }
+        fill_kernel(policy, num_elements, vals, val);
+    });
+}
+
+//-----------------------------------------------------------------------------
+template <typename U, typename T>
+void
+set_values_helper(const DataArray<T> &array,
+                  const U *values,
+                  index_t num_elements)
+{
+    // Avoid performing unnecessary work for empty arrays
+    if (num_elements <= 0)
+    {
+        return;
     }
-    else // stride does not match sizeof(T)
+
+    execution::ExecutionPolicy policy = detail::select_policy(array.active_space(),
+                                                              num_elements);
+
+    const bool dst_on_device = execution::DeviceMemory::is_device_ptr(array.element_ptr(0));
+    const bool src_on_device = execution::DeviceMemory::is_device_ptr(values);
+
+    if (dst_on_device == src_on_device)
     {
-        // The stride does not match the size of the destination type, so we need
-        // to manually iterate over the data considering the given stride and
-        // assign the fill value for each element.
-        char *ptr = static_cast<char*>(data);
-        for (index_t i = 0; i < num_elements; i++)
+        execution::dispatch(array, [&](auto vals)
         {
-            (*(T*)(ptr)) = val;
-            ptr += stride;
-        }
+            copy_from_ptr_kernel(policy, num_elements, values, vals);
+        });
+    }
+    else // dst and src are in different memory spaces
+    {
+        // This could be implemented, but forcing the caller to decide where
+        // the data should live first keeps the cost of allocating and copying
+        // from becoming an unexpected side-effect of set().
+        CONDUIT_ERROR("DataArray::set() cannot copy data to and from "
+                      "different memory spaces. Use use_with() and sync() "
+                      "to ensure that the source and destination data live in "
+                      "the same memory space first.");
     }
 }
 
 //-----------------------------------------------------------------------------
-template <typename T, typename U>
+template <typename U, template <typename> class Accessor, typename T>
+void
+set_values_acc_helper(const DataArray<T> &array,
+                      const Accessor<U> &values,
+                      index_t num_elements)
+{
+    // Avoid performing unnecessary work for empty arrays
+    if (num_elements <= 0)
+    {
+        return;
+    }
+
+    execution::ExecutionPolicy policy = detail::select_policy(array.active_space(),
+                                                              num_elements);
+
+    const bool dst_on_device = execution::DeviceMemory::is_device_ptr(array.element_ptr(0));
+    const bool src_on_device = execution::DeviceMemory::is_device_ptr(values.element_ptr(0));
+
+    if (dst_on_device == src_on_device)
+    {
+        execution::dispatch(array, [&](auto vals)
+        {
+            copy_from_acc_kernel(policy, num_elements, values, vals);
+        });
+    }
+    else // dst and src are in different memory spaces
+    {
+        // This could be implemented, but forcing the caller to decide where
+        // the data should live first keeps the cost of allocating and copying
+        // from becoming an unexpected side-effect of set().
+        CONDUIT_ERROR("DataArray::set() cannot copy data to and from "
+                      "different memory spaces. Use use_with() and sync() "
+                      "to ensure that the source and destination data live in "
+                      "the same memory space first.");
+    }
+}
+
+//-----------------------------------------------------------------------------
+template <typename U, typename T>
 void
 set_values_helper(const DataArray<T> &array,
-                  const U &values,
+                  const DataArray<U> &values,
                   index_t num_elements)
 {
-    // element_ptr(0) points at the first element with the dtype's byte offset
-    // already applied (base + offset + stride * 0). element_ptr() const-qualifies
-    // its return value even though the underlying buffer is not const. const_cast
-    // strips the constness away. We will later cast the void* to the array's type.
-    void *data = const_cast<void*>(array.element_ptr(0));
-    const DataType &dt = array.dtype();
-    const index_t stride = dt.stride();
+    set_values_acc_helper(array, values, num_elements);
+}
 
-    if (stride == static_cast<index_t>(sizeof(T)))
-    {
-        // The stride matches the size of the destination type, so we can treat
-        // the data as a contiguous array of T and perform a simple copy
-        // with type conversion.
-        T *ptr = static_cast<T*>(data);
-        for (index_t i = 0; i < num_elements; i++)
-        {
-            ptr[i] = static_cast<T>(values[i]);
-        }
-    }
-    else // stride does not match sizeof(T)
-    {
-        // The stride does not match the size of the destination type, so we need
-        // to manually iterate over the data considering the given stride and perform
-        // the type conversion for each element.
-        char *ptr = static_cast<char*>(data);
-        for (index_t i = 0; i < num_elements; i++)
-        {
-            (*(T*)(ptr)) = static_cast<T>(values[i]);
-            ptr += stride;
-        }
-    }
+//-----------------------------------------------------------------------------
+template <typename U, typename T>
+void
+set_values_helper(const DataArray<T> &array,
+                  const DataAccessor<U> &values,
+                  index_t num_elements)
+{
+    set_values_acc_helper(array, values, num_elements);
 }
 }
 //-----------------------------------------------------------------------------
@@ -318,7 +348,7 @@ DataArray<T>::diff(const DataArray<T> &array, Node &info, const float64 epsilon)
                 << " vs "
                 << "\"" << o_data << "\""
                 << ")";
-            log::error(info, protocol, oss.str());
+            utils::log::error(info, protocol, oss.str());
             res = true;
         }
         // o_data is null, array is len 0
@@ -330,7 +360,7 @@ DataArray<T>::diff(const DataArray<T> &array, Node &info, const float64 epsilon)
                 << " vs "
                 << " [empty buffer] "
                 << ")";
-            log::error(info, protocol, oss.str());
+            utils::log::error(info, protocol, oss.str());
             res = true;
         }
         // all other cases use strcmp
@@ -342,7 +372,7 @@ DataArray<T>::diff(const DataArray<T> &array, Node &info, const float64 epsilon)
                 << " vs "
                 << "\"" << o_data << "\""
                 << ")";
-            log::error(info, protocol, oss.str());
+            utils::log::error(info, protocol, oss.str());
             res = true;
         }
 
@@ -364,7 +394,7 @@ DataArray<T>::diff(const DataArray<T> &array, Node &info, const float64 epsilon)
             << " vs "
             << o_nelems
             << ")";
-        log::error(info, protocol, oss.str());
+        utils::log::error(info, protocol, oss.str());
         res = true;
     }
     else
@@ -388,11 +418,11 @@ DataArray<T>::diff(const DataArray<T> &array, Node &info, const float64 epsilon)
 
         if(res)
         {
-            log::error(info, protocol, "data item(s) mismatch; see 'value' section");
+            utils::log::error(info, protocol, "data item(s) mismatch; see 'value' section");
         }
     }
 
-    log::validation(info, !res);
+    utils::log::validation(info, !res);
 
     return res;
 }
@@ -471,7 +501,7 @@ DataArray<T>::diff_compatible(const DataArray<T> &array, Node &info, const float
                 << " vs "
                 << "\"" << o_data << "\""
                 << ")";
-            log::error(info, protocol, oss.str());
+            utils::log::error(info, protocol, oss.str());
             res = true;
         }
         // o_data is null, array is len 0
@@ -483,7 +513,7 @@ DataArray<T>::diff_compatible(const DataArray<T> &array, Node &info, const float
                 << " vs "
                 << " [empty buffer] "
                 << ")";
-            log::error(info, protocol, oss.str());
+            utils::log::error(info, protocol, oss.str());
             res = true;
         }
         // standard compat size check
@@ -496,7 +526,7 @@ DataArray<T>::diff_compatible(const DataArray<T> &array, Node &info, const float
                 << " vs "
                 << o_nelems
                 << ")";
-            log::error(info, protocol, oss.str());
+            utils::log::error(info, protocol, oss.str());
             res = true;
         }
         // all other cases use strstr
@@ -516,7 +546,7 @@ DataArray<T>::diff_compatible(const DataArray<T> &array, Node &info, const float
                     << " vs "
                     << "\"" << o_data << "\""
                     << ")";
-                log::error(info, protocol, oss.str());
+                utils::log::error(info, protocol, oss.str());
                 res = true;
             }
         }
@@ -539,7 +569,7 @@ DataArray<T>::diff_compatible(const DataArray<T> &array, Node &info, const float
             << " vs "
             << o_nelems
             << ")";
-        log::error(info, protocol, oss.str());
+        utils::log::error(info, protocol, oss.str());
         res = true;
     }
     else
@@ -563,11 +593,11 @@ DataArray<T>::diff_compatible(const DataArray<T> &array, Node &info, const float
 
         if(res)
         {
-            log::error(info, protocol, "data item(s) mismatch; see diff below");
+            utils::log::error(info, protocol, "data item(s) mismatch; see diff below");
         }
     }
 
-    log::validation(info, !res);
+    utils::log::validation(info, !res);
 
     return res;
 }
@@ -583,15 +613,15 @@ template <typename T>
 T
 DataArray<T>::min()  const
 {
+    const index_t num_elements = number_of_elements();
+    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
+                                                              num_elements);
+
     T res = std::numeric_limits<T>::max();
-    for(index_t i = 0; i < number_of_elements(); i++)
+    execution::dispatch(*this, [&](auto vals)
     {
-        const T &val = element(i);
-        if(val < res)
-        {
-            res = val;
-        }
-    }
+        res = detail::min_kernel<T>(policy, num_elements, vals);
+    });
 
     return res;
 }
@@ -601,15 +631,15 @@ template <typename T>
 T
 DataArray<T>::max() const
 {
+    const index_t num_elements = number_of_elements();
+    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
+                                                              num_elements);
+
     T res = std::numeric_limits<T>::lowest();
-    for(index_t i = 0; i < number_of_elements(); i++)
+    execution::dispatch(*this, [&](auto vals)
     {
-        const T &val = element(i);
-        if(val > res)
-        {
-            res = val;
-        }
-    }
+        res = detail::max_kernel<T>(policy, num_elements, vals);
+    });
 
     return res;
 }
@@ -620,12 +650,15 @@ template <typename T>
 T
 DataArray<T>::sum() const
 {
-    T res =0;
-    for(index_t i = 0; i < number_of_elements(); i++)
+    const index_t num_elements = number_of_elements();
+    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
+                                                              num_elements);
+
+    T res = 0;
+    execution::dispatch(*this, [&](auto vals)
     {
-        const T &val = element(i);
-        res += val;
-    }
+        res = detail::sum_kernel<T>(policy, num_elements, vals);
+    });
 
     return res;
 }
@@ -635,15 +668,17 @@ template <typename T>
 float64
 DataArray<T>::mean() const
 {
-    float64 res =0;
-    for(index_t i = 0; i < number_of_elements(); i++)
-    {
-        const T &val = element(i);
-        res += val;
-    }
+    const index_t num_elements = number_of_elements();
+    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
+                                                              num_elements);
 
-    res = res / float64(number_of_elements());
-    return res;
+    float64 res = 0.0;
+    execution::dispatch(*this, [&](auto vals)
+    {
+        res = detail::mean_kernel<T>(policy, num_elements, vals);
+    });
+
+    return res / static_cast<float64>(num_elements);
 }
 
 //---------------------------------------------------------------------------// 
@@ -651,14 +686,16 @@ template <typename T>
 index_t
 DataArray<T>::count(T val) const
 {
-    index_t res= 0;
-    for(index_t i = 0; i < number_of_elements(); i++)
+    const index_t num_elements = number_of_elements();
+    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
+                                                              num_elements);
+
+    index_t res = 0;
+    execution::dispatch(*this, [&](auto vals)
     {
-        if(element(i) == val)
-        {
-            res++;
-        }
-    }
+        res = detail::count_kernel<T>(policy, num_elements, vals, val);
+    });
+
     return res;
 }
 
@@ -707,7 +744,7 @@ DataArray<T>::use_with(conduit::execution::ExecutionPolicy policy)
                                                        number_of_elements(),
                                                        dtype().element_bytes(),
                                                        m_other_dtype.stride(),
-                                                       m_data,
+                                                       element_ptr(0),
                                                        dtype().stride());
 
                 // change where our data pointer points and update offset and stride
@@ -771,7 +808,7 @@ DataArray<T>::use_with(conduit::execution::ExecutionPolicy policy)
                                                        number_of_elements(),
                                                        dtype().element_bytes(),
                                                        m_other_dtype.stride(),
-                                                       m_data,
+                                                       element_ptr(0),
                                                        dtype().stride());
 
                 // change where our data pointer points and update offset and stride
@@ -825,12 +862,15 @@ DataArray<T>::sync()
         {
             m_node_ptr->set(dtype());
         }
-        utils::conduit_memcpy_strided_elements(m_node_ptr->data_ptr(),
-                                               number_of_elements(),
-                                               m_node_ptr->dtype().element_bytes(),
-                                               m_node_ptr->dtype().stride(),
-                                               m_data,
-                                               m_stride);
+        // data_ptr() is the node's base pointer, so we add the node dtype's
+        // offset to write back to the correct elements
+        utils::conduit_memcpy_strided_elements(
+            static_cast<char*>(m_node_ptr->data_ptr()) + m_node_ptr->dtype().offset(),
+            number_of_elements(),
+            m_node_ptr->dtype().element_bytes(),
+            m_node_ptr->dtype().stride(),
+            element_ptr(0),
+            m_stride);
     }
 }
 
@@ -903,7 +943,7 @@ DataArray<T>::data_movement(const conduit::execution::SyncStrategy strategy)
 //---------------------------------------------------------------------------//
 template <typename T>
 conduit::execution::ExecutionPolicy
-DataArray<T>::active_space()
+DataArray<T>::active_space() const
 {
     if (execution::DeviceMemory::is_device_ptr(m_data))
     {

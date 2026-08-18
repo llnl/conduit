@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <limits>
 #include <type_traits>
+#include <vector>
 
 //-----------------------------------------------------------------------------
 // -- conduit  includes -- 
@@ -23,6 +24,8 @@
 #include "conduit_node.hpp"
 #include "conduit_data_array.hpp"
 #include "conduit_execution.hpp"
+#include "conduit_execution_dispatch.hpp"
+#include "conduit_data_kernels.hpp"
 #include "conduit_annotations.hpp"
 
 //-----------------------------------------------------------------------------
@@ -38,129 +41,122 @@ namespace detail
 {
 
 //-----------------------------------------------------------------------------
-template <typename DestType>
-void
-fill_typed(void *data,
-           index_t stride,
-           index_t num_elements,
-           DestType value)
-{
-    if (stride == static_cast<index_t>(sizeof(DestType)))
-    {
-        // The stride matches the size of the destination type, so we can treat
-        // the data as a contiguous array of DestType and assign the fill value
-        // directly.
-        DestType *ptr = static_cast<DestType*>(data);
-        for (index_t i = 0; i < num_elements; i++)
-        {
-            ptr[i] = value;
-        }
-    }
-    else // stride does not match sizeof(DestType)
-    {
-        // The stride does not match the size of the destination type, so we need
-        // to manually iterate over the data considering the given stride and
-        // assign the fill value for each element.
-        char *ptr = static_cast<char*>(data);
-        for (index_t i = 0; i < num_elements; i++)
-        {
-            (*(DestType*)(ptr)) = value;
-            ptr += stride;
-        }
-    }
-}
-
-//-----------------------------------------------------------------------------
-template <typename DestType, typename T, typename U>
-void
-set_values_typed(void *data,
-                 index_t stride,
-                 const U &values,
-                 index_t num_elements)
-{
-    if (stride == static_cast<index_t>(sizeof(DestType)))
-    {
-        // The stride matches the size of the destination type, so we can treat
-        // the data as a contiguous array of DestType and perform a simple copy
-        // with type conversion.
-        DestType *ptr = static_cast<DestType*>(data);
-        for (index_t i = 0; i < num_elements; i++)
-        {
-            ptr[i] = static_cast<DestType>(static_cast<T>(values[i]));
-        }
-    }
-    else // stride does not match sizeof(DestType)
-    {
-        // The stride does not match the size of the destination type, so we need
-        // to manually iterate over the data considering the given stride and perform
-        // the type conversion for each element.
-        char *ptr = static_cast<char*>(data);
-        for (index_t i = 0; i < num_elements; i++)
-        {
-            (*(DestType*)(ptr)) = static_cast<DestType>(static_cast<T>(values[i]));
-            ptr += stride;
-        }
-    }
-}
-
-//-----------------------------------------------------------------------------
-template <typename T, typename U>
+template <typename T>
 void
 set_values_helper(const DataAccessor<T> &accessor,
-                  const U &values,
+                  const T *values,
                   index_t num_elements)
 {
-    // Preserve DataAccessor semantics by converting source values through the
-    // accessor's logical type T before converting to the destination dtype.
-
-    // element_ptr(0) points at the first element with the dtype's byte offset
-    // already applied (base + offset + stride * 0). element_ptr() const-qualifies
-    // its return value even though the underlying buffer is not const. const_cast
-    // strips the constness away. We will later cast the void* to the appropriate
-    // destination dtype.
-    void *data = const_cast<void*>(accessor.element_ptr(0));
-    const DataType &dt = accessor.dtype();
-    const index_t stride = dt.stride();
-
-    switch(dt.id())
+    // Avoid performing unnecessary work for empty arrays
+    if (num_elements <= 0)
     {
-        // ints
-        case DataType::INT8_ID:
-            set_values_typed<int8, T>(data, stride, values, num_elements);
-            break;
-        case DataType::INT16_ID:
-            set_values_typed<int16, T>(data, stride, values, num_elements);
-            break;
-        case DataType::INT32_ID:
-            set_values_typed<int32, T>(data, stride, values, num_elements);
-            break;
-        case DataType::INT64_ID:
-            set_values_typed<int64, T>(data, stride, values, num_elements);
-            break;
-        // uints
-        case DataType::UINT8_ID:
-            set_values_typed<uint8, T>(data, stride, values, num_elements);
-            break;
-        case DataType::UINT16_ID:
-            set_values_typed<uint16, T>(data, stride, values, num_elements);
-            break;
-        case DataType::UINT32_ID:
-            set_values_typed<uint32, T>(data, stride, values, num_elements);
-            break;
-        case DataType::UINT64_ID:
-            set_values_typed<uint64, T>(data, stride, values, num_elements);
-            break;
-        // floats
-        case DataType::FLOAT32_ID:
-            set_values_typed<float32, T>(data, stride, values, num_elements);
-            break;
-        case DataType::FLOAT64_ID:
-            set_values_typed<float64, T>(data, stride, values, num_elements);
-            break;
-        // error
-        default:
-            CONDUIT_ERROR("DataAccessor does not support dtype: " << dt.name());
+        return;
     }
+
+    execution::ExecutionPolicy policy = detail::select_policy(accessor.active_space(),
+                                                              num_elements);
+
+    const bool dst_on_device = execution::DeviceMemory::is_device_ptr(accessor.element_ptr(0));
+    const bool src_on_device = execution::DeviceMemory::is_device_ptr(values);
+
+    if (dst_on_device == src_on_device)
+    {
+        execution::dispatch(accessor, [&](auto vals)
+        {
+            copy_from_ptr_kernel(policy, num_elements, values, vals);
+        });
+    }
+    else // dst and src are in different memory spaces
+    {
+        // This could be implemented, but forcing the caller to decide where
+        // the data should live first keeps the cost of allocating and copying
+        // from becoming an unexpected side-effect of set().
+        CONDUIT_ERROR("DataAccessor::set() cannot copy data to and from "
+                      "different memory spaces. Use use_with() and sync() "
+                      "to ensure that the source and destination data live in "
+                      "the same memory space first.");
+    }
+}
+
+//-----------------------------------------------------------------------------
+template <typename U, typename T>
+void
+set_values_helper(const DataAccessor<T> &accessor,
+                  const U *values,
+                  index_t num_elements)
+{
+    if (execution::DeviceMemory::is_device_ptr(values))
+    {
+        CONDUIT_ERROR("DataAccessor::set() cannot convert from a "
+                      "device-resident source of a different type. Use "
+                      "use_with() and sync() to ensure that the source and "
+                      "destination data live in the same memory space first.");
+    }
+
+    // Pre-convert to the accessor's logical type so the kernel only ever needs
+    // to be instantiated for a const T* source. The conversion loop below runs
+    // on the host, so a device-resident source must be rejected before it.
+    std::vector<T> converted(num_elements);
+    for (index_t i = 0; i < num_elements; i++)
+    {
+        converted[i] = static_cast<T>(values[i]);
+    }
+    set_values_helper(accessor, converted.data(), num_elements);
+}
+
+//-----------------------------------------------------------------------------
+template <typename U, template <typename> class Accessor, typename T>
+void
+set_values_acc_helper(const DataAccessor<T> &accessor,
+                      const Accessor<U> &values,
+                      index_t num_elements)
+{
+    // Avoid performing unnecessary work for empty arrays
+    if (num_elements <= 0)
+    {
+        return;
+    }
+
+    execution::ExecutionPolicy policy = detail::select_policy(accessor.active_space(),
+                                                              num_elements);
+
+    const bool dst_on_device = execution::DeviceMemory::is_device_ptr(accessor.element_ptr(0));
+    const bool src_on_device = execution::DeviceMemory::is_device_ptr(values.element_ptr(0));
+
+    if (dst_on_device == src_on_device)
+    {
+        copy_from_acc_kernel(policy, num_elements, values, accessor);
+    }
+    else // dst and src are in different memory spaces
+    {
+        // This could be implemented, but forcing the caller to decide where
+        // the data should live first keeps the cost of allocating and copying
+        // from becoming an unexpected side-effect of set().
+        CONDUIT_ERROR("DataAccessor::set() cannot copy data to and from "
+                      "different memory spaces. Use use_with() and sync() "
+                      "to ensure that the source and destination data live in "
+                      "the same memory space first.");
+    }
+}
+
+//-----------------------------------------------------------------------------
+template <typename U, typename T>
+void
+set_values_helper(const DataAccessor<T> &accessor,
+                  const DataAccessor<U> &values,
+                  index_t num_elements)
+{
+    set_values_acc_helper(accessor, values, num_elements);
+}
+
+//-----------------------------------------------------------------------------
+template <typename U, typename T>
+void
+set_values_helper(const DataAccessor<T> &accessor,
+                  const DataArray<U> &values,
+                  index_t num_elements)
+{
+    set_values_acc_helper(accessor, values, num_elements);
 }
 }
 //-----------------------------------------------------------------------------
@@ -283,17 +279,10 @@ template <typename T>
 T
 DataAccessor<T>::min()  const
 {
-    T res = std::numeric_limits<T>::max();
-    for(index_t i = 0; i < number_of_elements(); i++)
-    {
-        const T &val = element(i);
-        if(val < res)
-        {
-            res = val;
-        }
-    }
-
-    return res;
+    const index_t num_elements = number_of_elements();
+    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
+                                                              num_elements);
+    return detail::min_kernel<T>(policy, num_elements, *this);
 }
 
 //---------------------------------------------------------------------------// 
@@ -301,17 +290,10 @@ template <typename T>
 T
 DataAccessor<T>::max() const
 {
-    T res = std::numeric_limits<T>::lowest();
-    for(index_t i = 0; i < number_of_elements(); i++)
-    {
-        const T &val = element(i);
-        if(val > res)
-        {
-            res = val;
-        }
-    }
-
-    return res;
+    const index_t num_elements = number_of_elements();
+    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
+                                                              num_elements);
+    return detail::max_kernel<T>(policy, num_elements, *this);
 }
 
 
@@ -320,14 +302,10 @@ template <typename T>
 T
 DataAccessor<T>::sum() const
 {
-    T res =0;
-    for(index_t i = 0; i < number_of_elements(); i++)
-    {
-        const T &val = element(i);
-        res += val;
-    }
-
-    return res;
+    const index_t num_elements = number_of_elements();
+    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
+                                                              num_elements);
+    return detail::sum_kernel<T>(policy, num_elements, *this);
 }
 
 //---------------------------------------------------------------------------// 
@@ -335,15 +313,11 @@ template <typename T>
 float64
 DataAccessor<T>::mean() const
 {
-    float64 res =0;
-    for(index_t i = 0; i < number_of_elements(); i++)
-    {
-        const T &val = element(i);
-        res += val;
-    }
-
-    res = res / float64(number_of_elements());
-    return res;
+    const index_t num_elements = number_of_elements();
+    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
+                                                              num_elements);
+    return detail::mean_kernel<T>(policy, num_elements, *this) /
+           static_cast<float64>(num_elements);
 }
 
 //---------------------------------------------------------------------------// 
@@ -351,15 +325,10 @@ template <typename T>
 index_t
 DataAccessor<T>::count(T val) const
 {
-    index_t res= 0;
-    for(index_t i = 0; i < number_of_elements(); i++)
-    {
-        if(element(i) == val)
-        {
-            res++;
-        }
-    }
-    return res;
+    const index_t num_elements = number_of_elements();
+    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
+                                                              num_elements);
+    return detail::count_kernel<T>(policy, num_elements, *this, val);
 }
 
 //---------------------------------------------------------------------------//
@@ -367,55 +336,13 @@ template <typename T>
 void
 DataAccessor<T>::fill(T value)
 {
-    // element_ptr(0) points at the first element with the dtype's byte offset
-    // already applied (base + offset + stride * 0). element_ptr() const-qualifies
-    // its return value even though the underlying buffer is not const. const_cast
-    // strips the constness away. We will later cast the void* to the appropriate
-    // destination dtype.
-    void *data = const_cast<void*>(element_ptr(0));
-    const DataType &dt = dtype();
-    const index_t stride = dt.stride();
-    const index_t num_elements = dt.number_of_elements();
-
-    switch(dt.id())
+    const index_t num_elements = number_of_elements();
+    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
+                                                              num_elements);
+    execution::dispatch(*this, [&](auto vals)
     {
-        // ints
-        case DataType::INT8_ID:
-            detail::fill_typed(data, stride, num_elements, static_cast<int8>(value));
-            break;
-        case DataType::INT16_ID:
-            detail::fill_typed(data, stride, num_elements, static_cast<int16>(value));
-            break;
-        case DataType::INT32_ID:
-            detail::fill_typed(data, stride, num_elements, static_cast<int32>(value));
-            break;
-        case DataType::INT64_ID:
-            detail::fill_typed(data, stride, num_elements, static_cast<int64>(value));
-            break;
-        // uints
-        case DataType::UINT8_ID:
-            detail::fill_typed(data, stride, num_elements, static_cast<uint8>(value));
-            break;
-        case DataType::UINT16_ID:
-            detail::fill_typed(data, stride, num_elements, static_cast<uint16>(value));
-            break;
-        case DataType::UINT32_ID:
-            detail::fill_typed(data, stride, num_elements, static_cast<uint32>(value));
-            break;
-        case DataType::UINT64_ID:
-            detail::fill_typed(data, stride, num_elements, static_cast<uint64>(value));
-            break;
-        // floats
-        case DataType::FLOAT32_ID:
-            detail::fill_typed(data, stride, num_elements, static_cast<float32>(value));
-            break;
-        case DataType::FLOAT64_ID:
-            detail::fill_typed(data, stride, num_elements, static_cast<float64>(value));
-            break;
-        // error
-        default:
-            CONDUIT_ERROR("DataAccessor does not support dtype: " << dt.name());
-    }
+        detail::fill_kernel(policy, num_elements, vals, value);
+    });
 }
 
 //---------------------------------------------------------------------------//
@@ -463,7 +390,7 @@ DataAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
                                                        number_of_elements(),
                                                        dtype().element_bytes(),
                                                        m_other_dtype.stride(),
-                                                       m_data,
+                                                       element_ptr(0),
                                                        dtype().stride());
 
                 // change where our data pointer points and update offset and stride
@@ -527,7 +454,7 @@ DataAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
                                                        number_of_elements(),
                                                        dtype().element_bytes(),
                                                        m_other_dtype.stride(),
-                                                       m_data,
+                                                       element_ptr(0),
                                                        dtype().stride());
 
                 // change where our data pointer points and update offset and stride
@@ -581,12 +508,15 @@ DataAccessor<T>::sync()
         {
             m_node_ptr->set(dtype());
         }
-        utils::conduit_memcpy_strided_elements(m_node_ptr->data_ptr(),
-                                               number_of_elements(),
-                                               m_node_ptr->dtype().element_bytes(),
-                                               m_node_ptr->dtype().stride(),
-                                               m_data,
-                                               m_stride);
+        // data_ptr() is the node's base pointer, so we add the node dtype's
+        // offset to write back to the correct elements
+        utils::conduit_memcpy_strided_elements(
+            static_cast<char*>(m_node_ptr->data_ptr()) + m_node_ptr->dtype().offset(),
+            number_of_elements(),
+            m_node_ptr->dtype().element_bytes(),
+            m_node_ptr->dtype().stride(),
+            element_ptr(0),
+            m_stride);
     }
 }
 
@@ -658,7 +588,7 @@ DataAccessor<T>::data_movement(const conduit::execution::SyncStrategy strategy)
 //---------------------------------------------------------------------------//
 template <typename T>
 conduit::execution::ExecutionPolicy
-DataAccessor<T>::active_space()
+DataAccessor<T>::active_space() const
 {
     if (execution::DeviceMemory::is_device_ptr(m_data))
     {

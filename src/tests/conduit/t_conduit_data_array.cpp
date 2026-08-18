@@ -9,11 +9,16 @@
 //-----------------------------------------------------------------------------
 
 #include "conduit.hpp"
+#include "conduit_execution.hpp"
+#include "conduit_memory_manager.hpp"
+#include "execution_test_utils.hpp"
 
 #include <iostream>
+#include <vector>
 #include "gtest/gtest.h"
 
 using namespace conduit;
+using conduit::execution::ExecutionPolicy;
 
 //-----------------------------------------------------------------------------
 TEST(conduit_data_array, basic_construction)
@@ -2679,4 +2684,179 @@ TEST(conduit_data_array, set_cross_type_sources)
         // The interleaved gaps must be untouched
         EXPECT_EQ(buff[(size_t)(2 * i)], (int32)(1000 + 2 * i));
     }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_array, device_fill)
+{
+    conduit_device_prepare();
+
+    const index_t num_elements = 16;
+
+    for_each_enabled_policy([&](ExecutionPolicy &policy)
+    {
+        Node n;
+        n["vals"].set(DataType::float64(num_elements));
+
+        // Ask the array to move its data to the memory space occupied by the
+        // requested execution policy if its data is not already there.
+        float64_array va(n["vals"]);
+        va.use_with(policy);
+        EXPECT_EQ(va.active_space().is_device_policy(), policy.is_device_policy());
+
+        va.fill(static_cast<float64>(-3.5));
+
+        // Sync values to n["vals"].
+        va.sync();
+
+        float64 *vals_ptr = n["vals"].value();
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            EXPECT_EQ(vals_ptr[i], -3.5);
+        }
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_array, device_set_from_host_ptr)
+{
+    conduit_device_prepare();
+
+    const index_t num_elements = 16;
+
+    // Host-based source
+    std::vector<float64> src(num_elements);
+    for (index_t i = 0; i < num_elements; i++)
+    {
+        src[static_cast<size_t>(i)] = 1.5 * static_cast<float64>(i + 1);
+    }
+
+    for_each_enabled_policy([&](ExecutionPolicy &policy)
+    {
+        Node n;
+        n["vals"].set(DataType::float64(num_elements));
+
+        // Move the data if necessary
+        float64_array va(n["vals"]);
+        va.use_with(policy);
+
+        // set() requires the source and destination to share a memory space
+        if (policy.is_device_policy())
+        {
+            EXPECT_THROW(va.set(&src[0], num_elements), conduit::Error);
+            va.use_with(ExecutionPolicy::host());
+        }
+
+        va.set(&src[0], num_elements);
+
+        va.use_with(policy);
+        va.sync();
+
+        float64 *vals_ptr = n["vals"].value();
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            EXPECT_EQ(vals_ptr[i], src[static_cast<size_t>(i)]);
+        }
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_array, device_summary_stats)
+{
+    conduit_device_prepare();
+
+    const index_t num_elements = 16;
+
+    std::vector<float64> src(num_elements);
+    float64 expected_sum = 0.0;
+    for (index_t i = 0; i < num_elements; i++)
+    {
+        src[static_cast<size_t>(i)] = static_cast<float64>(i - num_elements / 2);
+        expected_sum += src[static_cast<size_t>(i)];
+    }
+
+    for_each_enabled_policy([&](ExecutionPolicy &policy)
+    {
+        Node n;
+        n["vals"].set(src);
+
+        float64_array va(n["vals"]);
+        va.use_with(policy);
+
+        EXPECT_EQ(va.min(), src[0]);
+        EXPECT_EQ(va.max(), src[static_cast<size_t>(num_elements - 1)]);
+        EXPECT_EQ(va.sum(), expected_sum);
+        EXPECT_EQ(va.mean(), expected_sum / static_cast<float64>(num_elements));
+        EXPECT_EQ(va.count(0.0), 1);
+        EXPECT_EQ(va.count(1000.0), 0);
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_array, device_strided)
+{
+    conduit_device_prepare();
+
+    // View the odd entries of an interleaved buffer
+    const index_t num_elements = 8;
+    const index_t num_buff = 2 * num_elements;
+
+    for_each_enabled_policy([&](ExecutionPolicy &policy)
+    {
+        Node n;
+        n["vals"].set(DataType::float64(num_elements,
+                                        sizeof(float64),        // offset
+                                        2 * sizeof(float64)));  // stride
+
+        float64 *buff = static_cast<float64*>(n["vals"].data_ptr());
+        for (index_t i = 0; i < num_buff; i++)
+        {
+            buff[i] = 1000.0 + static_cast<float64>(i);
+        }
+
+        float64_array va(n["vals"]);
+        va.use_with(policy);
+
+        va.fill(static_cast<float64>(-3.5));
+
+        va.sync();
+
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            EXPECT_EQ(buff[static_cast<size_t>(2 * i + 1)], -3.5);
+            // The interleaved gaps must not have changed
+            EXPECT_EQ(buff[static_cast<size_t>(2 * i)], 1000.0 + static_cast<float64>(2 * i));
+        }
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_array, mixed_space_set_errors)
+{
+    conduit_device_prepare();
+
+    const index_t num_ele = 8;
+
+    for_each_enabled_policy([&](ExecutionPolicy &policy)
+    {
+        // set() between different memory spaces throws an error
+        if (!policy.is_device_policy())
+        {
+            return;
+        }
+
+        Node n;
+        n["src"].set(DataType::float64(num_ele));
+        n["des"].set(DataType::float64(num_ele));
+
+        float64_array dev_src(n["src"]);
+        dev_src.use_with(policy);
+
+        float64_array host_des(n["des"]);
+
+        EXPECT_THROW(host_des.set(dev_src), conduit::Error);
+
+        float64_array host_src(n["des"]);
+        EXPECT_THROW(dev_src.set(host_src), conduit::Error);
+    });
 }

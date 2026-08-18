@@ -9,11 +9,16 @@
 //-----------------------------------------------------------------------------
 
 #include "conduit.hpp"
+#include "conduit_execution.hpp"
+#include "conduit_memory_manager.hpp"
+#include "execution_test_utils.hpp"
 
 #include <iostream>
+#include <vector>
 #include "gtest/gtest.h"
 
 using namespace conduit;
+using conduit::execution::ExecutionPolicy;
 
 //-----------------------------------------------------------------------------
 TEST(conduit_data_accessor, value)
@@ -1089,4 +1094,181 @@ TEST(conduit_data_accessor, bulk_set_double_conversion)
             EXPECT_EQ(ptr[i], (float32)-9.0);
         }
     }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_accessor, device_fill)
+{
+    conduit_device_prepare();
+
+    const index_t num_elements = 16;
+
+    for_each_enabled_policy([&](ExecutionPolicy &policy)
+    {
+        Node n;
+        n["vals"].set(DataType::int32(num_elements));
+
+        // Ask the accessor to move its data to the memory space occupied by
+        // the requested execution policy if its data is not already there.
+        // The accessor is a float64 view of int32 data.
+        float64_accessor acc(n["vals"]);
+        acc.use_with(policy);
+        EXPECT_EQ(acc.active_space().is_device_policy(), policy.is_device_policy());
+
+        acc.fill(static_cast<float64>(-7.0));
+
+        // Sync values to n["vals"].
+        acc.sync();
+
+        int32 *vals_ptr = n["vals"].value();
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            EXPECT_EQ(vals_ptr[i], static_cast<int32>(-7));
+        }
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_accessor, device_set_from_host_ptr)
+{
+    conduit_device_prepare();
+
+    const index_t num_elements = 16;
+
+    // Host-based source
+    std::vector<float64> src(num_elements);
+    for (index_t i = 0; i < num_elements; i++)
+    {
+        src[static_cast<size_t>(i)] = static_cast<float64>(i + 1);
+    }
+
+    for_each_enabled_policy([&](ExecutionPolicy &policy)
+    {
+        Node n;
+        n["vals"].set(DataType::int32(num_elements));
+
+        // Move the data if necessary
+        float64_accessor acc(n["vals"]);
+        acc.use_with(policy);
+
+        // set() requires the source and destination to share a memory space
+        if (policy.is_device_policy())
+        {
+            EXPECT_THROW(acc.set(&src[0], num_elements), conduit::Error);
+            acc.use_with(ExecutionPolicy::host());
+        }
+
+        acc.set(&src[0], num_elements);
+
+        acc.use_with(policy);
+        acc.sync();
+
+        int32 *vals_ptr = n["vals"].value();
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            EXPECT_EQ(vals_ptr[i], static_cast<int32>(i + 1));
+        }
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_accessor, device_summary_stats)
+{
+    conduit_device_prepare();
+
+    const index_t num_elements = 16;
+
+    std::vector<int32> src(num_elements);
+    float64 expected_sum = 0.0;
+    for (index_t i = 0; i < num_elements; i++)
+    {
+        src[static_cast<size_t>(i)] = static_cast<int32>(i - num_elements / 2);
+        expected_sum += static_cast<float64>(src[static_cast<size_t>(i)]);
+    }
+
+    for_each_enabled_policy([&](ExecutionPolicy &policy)
+    {
+        Node n;
+        n["vals"].set(src);
+
+        // The accessor is a float64 view of int32 data.
+        float64_accessor acc(n["vals"]);
+        acc.use_with(policy);
+
+        EXPECT_EQ(acc.min(), static_cast<float64>(src[0]));
+        EXPECT_EQ(acc.max(), static_cast<float64>(src[static_cast<size_t>(num_elements - 1)]));
+        EXPECT_EQ(acc.sum(), expected_sum);
+        EXPECT_EQ(acc.mean(), expected_sum / static_cast<float64>(num_elements));
+        EXPECT_EQ(acc.count(0.0), 1);
+        EXPECT_EQ(acc.count(1000.0), 0);
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_accessor, device_strided)
+{
+    conduit_device_prepare();
+
+    // View the odd entries of an interleaved buffer
+    const index_t num_elements = 8;
+    const index_t num_buff = 2 * num_elements;
+
+    for_each_enabled_policy([&](ExecutionPolicy &policy)
+    {
+        Node n;
+        n["vals"].set(DataType::int32(num_elements,
+                                      sizeof(int32),        // offset
+                                      2 * sizeof(int32)));  // stride
+
+        int32 *buff = static_cast<int32*>(n["vals"].data_ptr());
+        for (index_t i = 0; i < num_buff; i++)
+        {
+            buff[i] = static_cast<int32>(1000 + i);
+        }
+
+        float64_accessor acc(n["vals"]);
+        acc.use_with(policy);
+
+        acc.fill(static_cast<float64>(-7.0));
+
+        acc.sync();
+
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            EXPECT_EQ(buff[static_cast<size_t>(2 * i + 1)], static_cast<int32>(-7));
+            // The interleaved gaps must not have changed
+            EXPECT_EQ(buff[static_cast<size_t>(2 * i)], static_cast<int32>(1000 + 2 * i));
+        }
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_accessor, mixed_space_set_errors)
+{
+    conduit_device_prepare();
+
+    const index_t num_ele = 8;
+
+    for_each_enabled_policy([&](ExecutionPolicy &policy)
+    {
+        // set() between different memory spaces throws an error
+        if (!policy.is_device_policy())
+        {
+            return;
+        }
+
+        Node n;
+        n["src"].set(DataType::float64(num_ele));
+        n["des"].set(DataType::float64(num_ele));
+
+        float64_accessor dev_src(n["src"]);
+        dev_src.use_with(policy);
+
+        float64_accessor host_des(n["des"]);
+
+        EXPECT_THROW(host_des.set(dev_src), conduit::Error);
+
+        float64_accessor host_src(n["des"]);
+        EXPECT_THROW(dev_src.set(host_src), conduit::Error);
+    });
 }
