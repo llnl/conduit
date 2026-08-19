@@ -68,11 +68,6 @@
 #define CONDUIT_EXECUTION_DISPATCH_HPP
 
 //-----------------------------------------------------------------------------
-// -- standard lib includes --
-//-----------------------------------------------------------------------------
-#include <cstdint>
-
-//-----------------------------------------------------------------------------
 // -- conduit includes --
 //-----------------------------------------------------------------------------
 #include "conduit_data_type.hpp"
@@ -175,18 +170,23 @@ is_upgradeable(const DataView<T> &view)
 {
     const DataType &dt = view.dtype();
     const index_t width = DataType::default_bytes(dt.id());
+
+    // default_bytes() returns 0 for non-numeric dtypes
     if (width <= 0)
     {
-        // default_bytes() returns 0 for non-numeric dtypes
         return false;
     }
+
     // Native stride means that the elements are spaced by the dtype's width
-    const bool native_stride = dt.stride() == width;
-    // Aligned means that the address of the first element is a multiple of
-    // the dtype's width.
-    const bool aligned = reinterpret_cast<uintptr_t>(view.element_ptr(0)) %
-                         static_cast<uintptr_t>(width) == 0;
-    return native_stride && aligned;
+    if (dt.stride() != width)
+    {
+        return false;
+    }
+
+    // Aligned means that the memory address of the first element is a multiple
+    // of the dtype's width.
+    uintptr_t address = reinterpret_cast<uintptr_t>(view.element_ptr(0));
+    return address % static_cast<uintptr_t>(width) == 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -429,6 +429,13 @@ dispatch(const DataView<T> &view0,
 // upgrade the views using only 5 instantiations (4 dtype widths + 1 fallback)
 // instead of the 11 instantiations that are currently always required
 // (10 dtypes + 1 fallback).
+
+// TODO: It would be nice to provide a way to let users ask if a particular
+// dispatch call resulted in upgraded DataViews or not. The tests demonstrate a
+// way that users can get this information (with some effort). Given that the
+// performance difference of upgrading can be significant, I think users/devs
+// would appreciate a built-in API/utility to confirm that they're getting the
+// benefits.
 
 }
 //-----------------------------------------------------------------------------
