@@ -6760,6 +6760,12 @@ mesh::matset::verify(const Node &matset,
                         "material volume fractions must be a scalar array, not an object with children");
                     res &= false;
                 }
+                else if (vfs.dtype().is_number() && vfs.dtype().number_of_elements() == 0)
+                {
+                    log::error(info, protocol,
+                        "material volume fractions must be a scalar array with more than 0 elements");
+                    res &= false;
+                }
                 else
                 {
                     vfs_res &= verify_number_field(protocol, vfs, vfs_info, mat_name);
