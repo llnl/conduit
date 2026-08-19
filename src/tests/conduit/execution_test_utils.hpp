@@ -469,16 +469,16 @@ expect_no_leak(void (*run_fn)(Node &, ExecutionPolicy),
 //
 
 //-----------------------------------------------------------------------------
-// Verifies that the input is a typed accessor (not a DataAccessor or DataArray)
-template <typename TypedAccessor>
+// Verifies that the input is a typed view (not a DataAccessor or DataArray)
+template <typename TypedView>
 bool
-is_direct_array(const TypedAccessor &)
+is_direct_array(const TypedView &)
 {
     return true;
 }
 
 //-----------------------------------------------------------------------------
-// Verifies that the input is a DataAccessor (not a typed accessor)
+// Verifies that the input is a DataAccessor (not a typed view)
 template <typename T>
 bool
 is_direct_array(const conduit::DataAccessor<T> &)
@@ -487,7 +487,7 @@ is_direct_array(const conduit::DataAccessor<T> &)
 }
 
 //-----------------------------------------------------------------------------
-// Verifies that the input is a DataArray (not a typed accessor)
+// Verifies that the input is a DataArray (not a typed view)
 template <typename T>
 bool
 is_direct_array(const conduit::DataArray<T> &)
@@ -516,8 +516,8 @@ make_roundoff_vals(index_t size)
 //-----------------------------------------------------------------------------
 // Builds a float64 DataAccessor or DataArray over strided data. The input
 // buffer must already hold 2 * size elements. Overwrites every other element.
-template <typename Accessor>
-Accessor
+template <typename DataView>
+DataView
 make_strided_float64(std::vector<float64> &buf, index_t size)
 {
     for (index_t i = 0; i < size; i++)
@@ -527,12 +527,12 @@ make_strided_float64(std::vector<float64> &buf, index_t size)
 
     const index_t elem = static_cast<index_t>(sizeof(float64));
 
-    return Accessor(buf.data(), DataType::float64(size, 0, 2 * elem));
+    return DataView(buf.data(), DataType::float64(size, 0, 2 * elem));
 }
 
 //-----------------------------------------------------------------------------
-// Note that src and dst may be the same accessor, or different accessors. This
-// kernel doubles the values in src and writes them to dst.
+// Note that src and dst may be the same view, or different views. This kernel
+// doubles the values in src and writes them to dst.
 template <typename Src, typename Dst>
 void
 run_scale_kernel(ExecutionPolicy &policy,
@@ -548,17 +548,17 @@ run_scale_kernel(ExecutionPolicy &policy,
 }
 
 //-----------------------------------------------------------------------------
-// All 3 accessors are assumed to have the same dtype for this kernel (it's
-// possible to make this work with accessors of different dtypes if we find
-// a good reason to do so in the future). This kernel sums the values of the 3
-// accessors and writes them to dst.
-template <typename Accessor>
+// All 3 views are assumed to have the same dtype for this kernel (it's
+// possible to make this work with views of different dtypes if we find a good
+// reason to do so in the future). This kernel sums the values of the 3 views
+// and writes them to dst.
+template <typename DataView>
 void
 run_group_sum_kernel(ExecutionPolicy &policy,
                      index_t size,
-                     const Accessor x,
-                     const Accessor y,
-                     const Accessor z,
+                     const DataView x,
+                     const DataView y,
+                     const DataView z,
                      float64 *dst)
 {
     conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t idx)
@@ -569,15 +569,15 @@ run_group_sum_kernel(ExecutionPolicy &policy,
 }
 
 //-----------------------------------------------------------------------------
-// Doubles acc in place through the single accessor dispatch, returning whether
-// the dispatch upgraded it to a typed accessor.
-template <typename Accessor>
+// Doubles view in place through the single view dispatch, returning whether
+// the dispatch upgraded it to a typed view.
+template <typename DataView>
 bool
-run_inplace_scale(ExecutionPolicy &policy, const Accessor &acc)
+run_inplace_scale(ExecutionPolicy &policy, const DataView &view)
 {
-    const index_t size = acc.number_of_elements();
+    const index_t size = view.number_of_elements();
     bool is_direct = false;
-    conduit::execution::dispatch(acc, [&](auto vals)
+    conduit::execution::dispatch(view, [&](auto vals)
     {
         is_direct = is_direct_array(vals);
         run_scale_kernel(policy, size, vals, vals);
@@ -588,18 +588,18 @@ run_inplace_scale(ExecutionPolicy &policy, const Accessor &acc)
 
 //-----------------------------------------------------------------------------
 // Scales src into dst, reporting whether each side was upgraded to a typed
-// accessor.
+// view.
 template <typename Src, typename Dst>
 void
 run_pair_scale(ExecutionPolicy &policy,
-               const Src &src_acc,
-               const Dst &dst_acc,
+               const Src &src_view,
+               const Dst &dst_view,
                bool &src_is_direct,
                bool &dst_is_direct)
 {
-    const index_t size = src_acc.number_of_elements();
-    conduit::execution::dispatch(src_acc,
-                                 dst_acc,
+    const index_t size = src_view.number_of_elements();
+    conduit::execution::dispatch(src_view,
+                                 dst_view,
                                  [&](auto src, auto dst)
     {
         src_is_direct = is_direct_array(src);
@@ -609,25 +609,25 @@ run_pair_scale(ExecutionPolicy &policy,
 }
 
 //-----------------------------------------------------------------------------
-// Sums the values of three accessors, checking that the group was or was not
+// Sums the values of three views, checking that the group was or was not
 // upgraded as expected and that the same kernel run over plain DataAccessors
 // gives the same values.
-template <typename Accessor>
+template <typename DataView>
 void
 check_group_sum(ExecutionPolicy &policy,
-                const Accessor &x_acc,
-                const Accessor &y_acc,
-                const Accessor &z_acc,
+                const DataView &x_view,
+                const DataView &y_view,
+                const DataView &z_view,
                 bool expect_direct)
 {
-    const index_t size = x_acc.number_of_elements();
+    const index_t size = x_view.number_of_elements();
 
     std::vector<float64> typed_out(static_cast<size_t>(size), 0.0);
     float64 *out = typed_out.data();
     bool is_direct = false;
-    conduit::execution::dispatch(x_acc,
-                                 y_acc,
-                                 z_acc,
+    conduit::execution::dispatch(x_view,
+                                 y_view,
+                                 z_view,
                                  [&](auto x, auto y, auto z)
     {
         is_direct = is_direct_array(x);
@@ -635,25 +635,25 @@ check_group_sum(ExecutionPolicy &policy,
     });
     EXPECT_EQ(is_direct, expect_direct);
 
-    std::vector<float64> acc_out(static_cast<size_t>(size), 0.0);
-    run_group_sum_kernel(policy, size, x_acc, y_acc, z_acc, acc_out.data());
+    std::vector<float64> view_out(static_cast<size_t>(size), 0.0);
+    run_group_sum_kernel(policy, size, x_view, y_view, z_view, view_out.data());
 
     for (index_t i = 0; i < size; i++)
     {
         const size_t idx = static_cast<size_t>(i);
-        EXPECT_EQ(typed_out[idx], acc_out[idx]);
-        EXPECT_EQ(typed_out[idx], x_acc[i] + y_acc[i] + z_acc[i]);
+        EXPECT_EQ(typed_out[idx], view_out[idx]);
+        EXPECT_EQ(typed_out[idx], x_view[i] + y_view[i] + z_view[i]);
     }
 }
 
 //-----------------------------------------------------------------------------
-template <typename Accessor, typename Dst>
+template <typename DataView, typename Dst>
 void
 run_group_sum_to_dst_kernel(ExecutionPolicy &policy,
                             index_t size,
-                            const Accessor x,
-                            const Accessor y,
-                            const Accessor z,
+                            const DataView x,
+                            const DataView y,
+                            const DataView z,
                             const Dst dst)
 {
     conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t idx)
@@ -664,23 +664,23 @@ run_group_sum_to_dst_kernel(ExecutionPolicy &policy,
 }
 
 //-----------------------------------------------------------------------------
-template <typename Accessor, typename Dst>
+template <typename DataView, typename Dst>
 bool
 run_group_sum(ExecutionPolicy &policy,
-              const Accessor &x_acc,
-              const Accessor &y_acc,
-              const Accessor &z_acc,
-              const Dst &dst_acc)
+              const DataView &x_view,
+              const DataView &y_view,
+              const DataView &z_view,
+              const Dst &dst_view)
 {
-    const index_t size = x_acc.number_of_elements();
+    const index_t size = x_view.number_of_elements();
     bool is_direct = false;
-    conduit::execution::dispatch(x_acc,
-                                 y_acc,
-                                 z_acc,
+    conduit::execution::dispatch(x_view,
+                                 y_view,
+                                 z_view,
                                  [&](auto x, auto y, auto z)
     {
         is_direct = is_direct_array(x);
-        run_group_sum_to_dst_kernel(policy, size, x, y, z, dst_acc);
+        run_group_sum_to_dst_kernel(policy, size, x, y, z, dst_view);
     });
     return is_direct;
 }
@@ -701,13 +701,13 @@ run_copy_out_kernel(ExecutionPolicy &policy,
 }
 
 //-----------------------------------------------------------------------------
-template <typename Accessor>
+template <typename DataView>
 bool
-run_copy_out(ExecutionPolicy &policy, const Accessor &acc, float64 *dst)
+run_copy_out(ExecutionPolicy &policy, const DataView &view, float64 *dst)
 {
-    const index_t size = acc.number_of_elements();
+    const index_t size = view.number_of_elements();
     bool is_direct = false;
-    conduit::execution::dispatch(acc, [&](auto vals)
+    conduit::execution::dispatch(view, [&](auto vals)
     {
         is_direct = is_direct_array(vals);
         run_copy_out_kernel(policy, size, vals, dst);

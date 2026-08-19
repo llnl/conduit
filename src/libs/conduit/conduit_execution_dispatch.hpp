@@ -11,55 +11,54 @@
 //-----------------------------------------------------------------------------
 //
 // TLDR: Trade longer compile times (11 instantiations per kernel for
-// DataAccessor and 2 instantiations per kernel for DataArray) for faster array
-// accesses + better opportunity for the compiler to optimize accesses.
+// DataAccessor and 2 instantiations per kernel for DataArray) for faster data
+// accesses + allow the compiler to vectorize and coalesce certain operations.
 //
-// DataAccessor<T> and DataArray<T> are designed to support data allocated on
-// host or device memory. However, safely accessing data of generic sizes and
-// strides requires these data structures to incur additional per-access
-// overhead.
+// DataAccessor and DataArray (generically referred to as DataViews) are
+// designed to support data allocated on host or device memory. However, safely
+// accessing data of generic widths and strides requires these data structures
+// to incur additional per-access overhead.
 //
-// The dispatch() helpers in this header exist to automatically avoid
-// per-access overhead by evaluating the dtype and compactness exactly once,
-// after which the caller's kernel is invoked with either:
+// The dispatch() helpers in this header exist to automatically avoid the
+// per-access overhead of DataViews by evaluating their underlying dtype and
+// data layout exactly once, after which the caller's kernel is invoked with
+// either:
 //
-//  - A typed accessor (a wrapper around a raw pointer) when the data is
+//  - A typed view (a wrapper around a raw pointer) when the data is
 //    contiguous (not strided) and the dtype is numeric (not a string), or
-//  - The original accessor itself, unchanged, for everything else (strided or
-//    non-compact data).
+//  - The original DataView itself, unchanged, for everything else (e.g.,
+//    strided or non-compact data).
 //
-// This enables us to handle kernel dispatches with generic accessors of any
+// This enables us to handle kernel dispatches with generic DataViews of any
 // dtype, any stride, and any offset a user provides, while automatically
-// upgrading them to a typed accessor (when possible). On the mesh transform
-// benchmarks, this optimization significantly improves performance across all
-// of our backends.
+// upgrading them to a typed view (when possible). This optimization has been
+// shown to significantly improve performance across all of our backends.
 //
-// The downside of this approach is that it requires compiling additional
-// kernel instantiations (i.e., we incur extra compile time for each
+// The downside of this approach is that it requires us to compile additional
+// kernel instantiations (i.e., we incur extra compile time for each separate
 // instantiation). Each kernel is instantiated for each possible dtype that
-// could be passed to it, so that users can enjoy improved accessor performance
-// at runtime without having to worry about using specific accessor dtypes at
-// compile time.
+// can be passed to it, so that users can enjoy improved DataView performance
+// at runtime without having to worry about using specific dtypes.
 //
 // Each kernel is instantiated 11 times for DataAccessor (10 possible dtypes
 // and 1 fallback) and only 2 times for DataArray (DataArrays don't do type
-// conversion, so 1 typed accessor and 1 fallback). The two-accessor overload
-// dispatches each side independently (any accessor and dtype mix, up to
-// 11^2 = 121 instantiations in the worst case), while the three-accessor
-// overload dispatches a group through one shared case (a compromise between
-// 11 vs. 11^3 = 1331 instantiations) and falls back to the accessors if any
-// have a different dtype.
+// conversion, so 1 typed view and 1 fallback). The two-view overload
+// dispatches each side independently (any DataView and dtype mix, up to
+// 11^2 = 121 instantiations in the worst case), while the three-view overload
+// dispatches a group through one shared case (a compromise between
+// 11 vs. 11^3 = 1331 instantiations) and falls back to the original DataView
+// if any have a different dtype.
 // 
 // Supported cases that can be upgraded:
 //
 //   data passed to a kernel                       | result
 //   ----------------------------------------------|----------------------
-//   compact, dtype matches the accessor type      | typed accessor  (fast)
-//   compact, any other numeric dtype              | typed accessor  (fast)
-//   compact pair, dtypes differ between the two   | typed accessors (fast)
-//   compact triple, all sharing one dtype         | typed accessors (fast)
-//   compact triple, mixed dtypes*                 | DataAccessor    (slow)
-//   strided data**                                | DataAccessor    (slow)
+//   compact, dtype matches the view type          | typed view  (fast)
+//   compact, any other numeric dtype              | typed view  (fast)
+//   compact pair, dtypes differ between the two   | typed views (fast)
+//   compact triple, all sharing one dtype         | typed views (fast)
+//   compact triple, mixed dtypes*                 | DataView    (slow)
+//   strided data**                                | DataView    (slow)
 //
 // *  Possible, but we should wait until we have a real use case for it.
 // ** Also possible for some special cases, but left as future work.
@@ -69,7 +68,12 @@
 #define CONDUIT_EXECUTION_DISPATCH_HPP
 
 //-----------------------------------------------------------------------------
-// -- conduit  includes --
+// -- standard lib includes --
+//-----------------------------------------------------------------------------
+#include <cstdint>
+
+//-----------------------------------------------------------------------------
+// -- conduit includes --
 //-----------------------------------------------------------------------------
 #include "conduit_data_type.hpp"
 #include "conduit_data_accessor.hpp"
@@ -96,17 +100,17 @@ namespace detail
 //-----------------------------------------------------------------------------
 // A wrapper around a raw pointer that implements the same access interface as
 // DataAccessor<T> and DataArray<T>. This allows kernels to be templated over
-// any of the 3 accessor types. T is the dtype that the kernel consumes while U
+// any of the 3 view types. T is the dtype that the kernel consumes while U
 // is the dtype of the underlying data, since Conduit allows the dtype of the
-// underlying data to differ from the dtype of the accessor. Although in the
+// underlying data to differ from the dtype of the DataAccessor. Although in the
 // DataArray case, T and U are always the same because DataArrays don't perform
 // type conversion.
 //
-// NOTE: We verified via Godbolt (https://godbolt.org/) that the compiler optimizes the static_casts
-// away when T and U are the same, so there is no further performance to be
-// gained by specializing the RawDataAccessor for that case.
+// NOTE: We verified via Godbolt (https://godbolt.org/) that gcc and clang both
+// optimize the static_casts away when T and U are the same, so there is no
+// performance to be gained by specializing TypedDataView for that case.
 template <typename T, typename U>
-struct RawDataAccessor
+struct TypedDataView
 {
     // A raw pointer to the array data
     U *ptr;
@@ -125,13 +129,13 @@ struct RawDataAccessor
 };
 
 //-----------------------------------------------------------------------------
-// Creates a RawDataAccessor from an input Accessor after determining that it
-// is safe to substitute it with a typed accessor.
+// Creates a TypedDataView from an input DataView after determining that it is
+// safe to substitute it with a typed view.
 template <typename U,
-          template <typename> class Accessor,
+          template <typename> class DataView,
           typename T>
-RawDataAccessor<T, U>
-make_typed_accessor(const Accessor<T> &acc)
+TypedDataView<T, U>
+make_typed_view(const DataView<T> &view)
 {
     // element_ptr(0) points at the first element with the dtype's byte offset
     // already applied (base + offset + stride * 0). If we've made it this
@@ -140,51 +144,67 @@ make_typed_accessor(const Accessor<T> &acc)
     // The reason two casts are needed is because element_ptr()
     // const-qualifies its return value even though the underlying buffer is
     // not const. const_cast strips the const away and static_cast converts the
-    // resulting void* to U*.
+    // resulting void* into U*.
     //
     // In the case of DataArray<T>, U is always T because DataArrays don't
     // perform type conversion.
-    return RawDataAccessor<T, U>{
-        static_cast<U*>(const_cast<void*>(acc.element_ptr(0)))
+    return TypedDataView<T, U>{
+        static_cast<U*>(const_cast<void*>(view.element_ptr(0)))
     };
 }
 
 //-----------------------------------------------------------------------------
-// A helper that returns true when an array's elements can be walked with a raw
-// typed pointer, which implies a typed accessor can be used instead of the
-// input Accessor.
+// A helper that returns true when a view's data is safe to access through a
+// raw typed pointer, which implies a typed view can be used instead of the
+// input DataView.
 //
-// "Upgradeable" means the elements are spaced by the dtype's width
-// (stride == sizeof(U) for the U that try_typed_accessor will select),
-// starting from wherever the data begins. A non-zero offset is fine because
-// element_ptr accounts for it on our behalf, and so we can treat the resulting
-// pointer as a plain U array.
+// "Upgradeable" means that the elements are spaced by the dtype's width
+// (stride == sizeof(U) for the U that try_typed_view will select) and that the
+// first element's address is aligned to that width. element_ptr accounts for
+// the dtype's offset, but not for alignment: base + offset might not be a
+// multiple of the element width. Those cases must fall back to the original
+// DataView to avoid undefined behavior.
 // 
 // Note that this is deliberately NOT DataType::is_compact(), which includes
 // the offset in spanned_bytes() and would therefore cause us to fall back in
 // cases that can otherwise be upgraded.
-inline bool
-has_upgradeable_layout(const DataType &dt)
+template <template <typename> class DataView,
+          typename T>
+bool
+is_upgradeable(const DataView<T> &view)
 {
-    return dt.stride() == DataType::default_bytes(dt.id());
+    const DataType &dt = view.dtype();
+    const index_t width = DataType::default_bytes(dt.id());
+    if (width <= 0)
+    {
+        // default_bytes() returns 0 for non-numeric dtypes
+        return false;
+    }
+    // Native stride means that the elements are spaced by the dtype's width
+    const bool native_stride = dt.stride() == width;
+    // Aligned means that the address of the first element is a multiple of
+    // the dtype's width.
+    const bool aligned = reinterpret_cast<uintptr_t>(view.element_ptr(0)) %
+                         static_cast<uintptr_t>(width) == 0;
+    return native_stride && aligned;
 }
 
 //-----------------------------------------------------------------------------
-// Returns true when every Accessor in the group is upgradeable and has the
-// same dtype. When true, this implies that a single typed kernel
-// instantiation can serve them all.
-template <template <typename> class Accessor,
+// Returns true when every view in the group is upgradeable and has the same
+// dtype. When true, this implies that a single typed kernel instantiation can
+// serve them all.
+template <template <typename> class DataView,
           typename T>
 bool
-is_upgradeable_group(const Accessor<T> &acc0,
-                     const Accessor<T> &acc1,
-                     const Accessor<T> &acc2)
+is_upgradeable_group(const DataView<T> &view0,
+                     const DataView<T> &view1,
+                     const DataView<T> &view2)
 {
-    return has_upgradeable_layout(acc0.dtype()) &&
-           has_upgradeable_layout(acc1.dtype()) &&
-           has_upgradeable_layout(acc2.dtype()) &&
-           acc0.dtype().id() == acc1.dtype().id() &&
-           acc0.dtype().id() == acc2.dtype().id();
+    return is_upgradeable(view0) &&
+           is_upgradeable(view1) &&
+           is_upgradeable(view2) &&
+           view0.dtype().id() == view1.dtype().id() &&
+           view0.dtype().id() == view2.dtype().id();
 }
 
 //-----------------------------------------------------------------------------
@@ -195,7 +215,6 @@ template <typename Func>
 bool
 dispatch_dtype(index_t dtype_id, Func &&func)
 {
-    // Similar to the switch used by DataAccessor set() and element()
     switch(dtype_id)
     {
         case DataType::INT8_ID:
@@ -235,73 +254,73 @@ dispatch_dtype(index_t dtype_id, Func &&func)
 }
 
 //-----------------------------------------------------------------------------
-// Invokes the kernel with typed accessors for a group of DataAccessors of a
-// single dtype. This allows a single kernel instantiation to serve the group
-// of accessors.
+// Invokes the kernel with typed views for a group of DataAccessors with the
+// same dtype. This allows a single kernel instantiation to serve the group of
+// views.
 template <typename T, typename Kernel>
 bool
-try_typed_accessor(const DataAccessor<T> &acc0,
-                   const DataAccessor<T> &acc1,
-                   const DataAccessor<T> &acc2,
-                   Kernel &&kernel)
+try_typed_view(const DataAccessor<T> &view0,
+               const DataAccessor<T> &view1,
+               const DataAccessor<T> &view2,
+               Kernel &&kernel)
 {
-    const index_t dtype_id = acc0.dtype().id();
+    const index_t dtype_id = view0.dtype().id();
     return dispatch_dtype(dtype_id, [&](auto dtype)
     {
         // decltype deduces the underlying dtype for us
         using U = decltype(dtype);
-        kernel(make_typed_accessor<U>(acc0),
-               make_typed_accessor<U>(acc1),
-               make_typed_accessor<U>(acc2));
+        kernel(make_typed_view<U>(view0),
+               make_typed_view<U>(view1),
+               make_typed_view<U>(view2));
     });
 }
 
 //-----------------------------------------------------------------------------
-// Invokes the kernel with a typed accessor of the underlying dtype. Returns
-// false when the dtype is not supported (e.g., non-numeric), in which case the
+// Invokes the kernel with a typed view of the underlying dtype. Returns false
+// when the dtype is not supported (e.g., non-numeric), in which case the
 // caller falls back to invoking the kernel with the DataAccessor directly.
 template <typename T, typename Kernel>
 bool
-try_typed_accessor(const DataAccessor<T> &acc, Kernel &&kernel)
+try_typed_view(const DataAccessor<T> &view, Kernel &&kernel)
 {
-    const index_t dtype_id = acc.dtype().id();
+    const index_t dtype_id = view.dtype().id();
     return dispatch_dtype(dtype_id, [&](auto dtype)
     {
         // decltype deduces the underlying dtype for us
         using U = decltype(dtype);
-        kernel(make_typed_accessor<U>(acc));
+        kernel(make_typed_view<U>(view));
     });
 }
 
 //-----------------------------------------------------------------------------
-// Invokes the kernel with typed accessors for a group of DataArrays of a
-// single dtype. This allows a single kernel instantiation to serve the group
-// of accessors. This never returns false because DataArrays don't perform type
-// conversion, so the only way this can fail is if the input DataArray is
-// strided, which should be caught before this function is called.
+// Invokes the kernel with typed views for a group of DataArrays with the same
+// dtype. This allows a single kernel instantiation to serve the group of
+// views. Never returns false for this specialization because DataArray doesn't
+// do type conversion. The only way that this could fail is if one of the input
+// DataArrays is strided, which gets checked before this function is called.
 template <typename T, typename Kernel>
 bool
-try_typed_accessor(const DataArray<T> &acc0,
-                   const DataArray<T> &acc1,
-                   const DataArray<T> &acc2,
-                   Kernel &&kernel)
+try_typed_view(const DataArray<T> &view0,
+               const DataArray<T> &view1,
+               const DataArray<T> &view2,
+               Kernel &&kernel)
 {
-    kernel(make_typed_accessor<T>(acc0),
-           make_typed_accessor<T>(acc1),
-           make_typed_accessor<T>(acc2));
+    kernel(make_typed_view<T>(view0),
+           make_typed_view<T>(view1),
+           make_typed_view<T>(view2));
     return true;
 }
 
 //-----------------------------------------------------------------------------
-// Invokes the kernel with a typed accessor of the underlying data's dtype.
-// Never returns false because DataArrays don't do type conversion, so the only
-// way this can fail is if the input DataArray is strided, which is caught
-// before this function is called.
+// Invokes the kernel with a typed view of the underlying data's dtype. Never
+// returns false for this specialization because DataArray doesn't do type
+// conversion. The only way that this could fail is if the input DataArray is
+// strided, which gets checked before this function is called.
 template <typename T, typename Kernel>
 bool
-try_typed_accessor(const DataArray<T> &acc, Kernel &&kernel)
+try_typed_view(const DataArray<T> &view, Kernel &&kernel)
 {
-    kernel(make_typed_accessor<T>(acc));
+    kernel(make_typed_view<T>(view));
     return true;
 }
 
@@ -320,53 +339,54 @@ try_typed_accessor(const DataArray<T> &acc, Kernel &&kernel)
 //
 
 //-----------------------------------------------------------------------------
-// dispatch works by trying to invoke the kernel functor with a raw,
-// typed accessor to the underlying data. If the necessary conditions are met,
-// the kernel is invoked with a typed accessor, which 1) avoids the per-access
-// overhead of generic Accessors and 2) gives the compiler an opportunity to
-// vectorize. If the conditions are not met, the kernel is invoked with the
-// Accessor itself, which will function identically but incur per-access
-// overhead. Because each type of accessor provides the same interface for
-// reading and writing data, existing kernel code can automatically be upgraded
-// to use the faster typed accessor when the conditions are met.
-template <template <typename> class Accessor,
+// dispatch works by trying to invoke the kernel functor with a typed view of
+// the underlying data. If the necessary conditions are met, the kernel is invoked
+// with a typed view, which 1) avoids the per-access overhead of DataAccessor
+// and DataArray and 2) gives the compiler an opportunity to vectorize certain
+// operations. If the conditions are not met, the kernel is invoked with the
+// DataView itself, which will function identically but incur per-access
+// overhead and prevent vectorization. Because DataAccessor and DataArray
+// provide the same interface for reading and writing data, we can
+// automatically upgrade existing kernels to a typed view that also implements
+// the same access interface.
+template <template <typename> class DataView,
           typename T,
           typename Kernel>
 void
-dispatch(const Accessor<T> &acc, Kernel &&kernel)
+dispatch(const DataView<T> &view, Kernel &&kernel)
 {
-    if (detail::has_upgradeable_layout(acc.dtype()) &&
-        detail::try_typed_accessor(acc, kernel))
+    if (detail::is_upgradeable(view) &&
+        detail::try_typed_view(view, kernel))
     {
-        // The conditions were met to invoke the kernel with a typed accessor
+        // The conditions were met to invoke the kernel with a typed view
         return;
     }
-    // The conditions were not met to invoke the kernel with a typed accessor,
-    // so we directly invoke it with the provided Accessor instead.
-    kernel(acc);
+    // The conditions were not met to invoke the kernel with a typed view,
+    // so we directly invoke it with the provided DataView instead.
+    kernel(view);
 }
 
 //-----------------------------------------------------------------------------
-// A special case of dispatch that takes two Accessors. Each side is dispatched
-// independently, so the kernel can be upgraded to use typed accessors even if
-// the accessor types (e.g., a DataAccessor and DataArray) and underlying
-// dtypes differ.
-template <template <typename> class Accessor0,
-          template <typename> class Accessor1,
+// A special case of dispatch that takes two DataViews. Each side is dispatched
+// independently, so the kernel can be upgraded to use typed views even if the
+// view types (e.g., a DataAccessor and DataArray) and underlying dtypes
+// differ.
+template <template <typename> class DataView0,
+          template <typename> class DataView1,
           typename T0,
           typename T1,
           typename Kernel>
 void
-dispatch(const Accessor0<T0> &acc0,
-         const Accessor1<T1> &acc1,
+dispatch(const DataView0<T0> &view0,
+         const DataView1<T1> &view1,
          Kernel &&kernel)
 {
     // For future reference, one could nest these an arbitrary number of times
-    // to support executing kernels with more than two accessors of different
+    // to support executing kernels with more than two views of different
     // dtypes.
-    dispatch(acc0, [&](auto vals0)
+    dispatch(view0, [&](auto vals0)
     {
-        dispatch(acc1, [&](auto vals1)
+        dispatch(view1, [&](auto vals1)
         {
             kernel(vals0, vals1);
         });
@@ -374,34 +394,41 @@ dispatch(const Accessor0<T0> &acc0,
 }
 
 //-----------------------------------------------------------------------------
-// A special case of dispatch that takes three Accessors of the same dtype. It
+// A special case of dispatch that takes three DataViews of the same dtype. It
 // is possible to template this for 3 different dtypes like in the previous
 // helper, but that would require 11^3 instantiations of the kernel in the
 // worst case (one for each combination of dtypes and fallbacks). That decision
-// could be revisited if we later find that kernel dispatches with 3 accessors
+// could be revisited if we later find that kernel dispatches with 3 views
 // of mixed dtypes are more common than expected.
-template <template <typename> class Accessor,
+template <template <typename> class DataView,
           typename T,
           typename Kernel>
 void
-dispatch(const Accessor<T> &acc0,
-         const Accessor<T> &acc1,
-         const Accessor<T> &acc2,
+dispatch(const DataView<T> &view0,
+         const DataView<T> &view1,
+         const DataView<T> &view2,
          Kernel &&kernel)
 {
-    if (detail::is_upgradeable_group(acc0, acc1, acc2) &&
-        detail::try_typed_accessor(acc0, acc1, acc2, kernel))
+    if (detail::is_upgradeable_group(view0, view1, view2) &&
+        detail::try_typed_view(view0, view1, view2, kernel))
     {
-        // The conditions were met to invoke the kernel with typed accessors
+        // The conditions were met to invoke the kernel with typed views
         return;
     }
-    // The conditions were not met to invoke the kernel with typed accessors,
-    // so we directly invoke it with the provided Accessors instead.
-    kernel(acc0, acc1, acc2);
+    // The conditions were not met to invoke the kernel with typed views,
+    // so we directly invoke it with the provided DataViews instead.
+    kernel(view0, view1, view2);
 }
 
 // TODO: Investigate adding support for compact strided arrays, plus figure
 // out a way to benchmark with compact strided data.
+
+// TODO: Investigate adding an API that dispatches by dtype width and not dtype
+// itself, for cases where we don't intend to do any math within a kernel
+// (e.g., a bulk set only copies data). For supported kernels, it would let us
+// upgrade the views using only 5 instantiations (4 dtype widths + 1 fallback)
+// instead of the 11 instantiations that are currently always required
+// (10 dtypes + 1 fallback).
 
 }
 //-----------------------------------------------------------------------------
