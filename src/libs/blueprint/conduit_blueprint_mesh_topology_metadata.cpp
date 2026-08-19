@@ -25,6 +25,7 @@
 #include "conduit_blueprint_mesh_utils.hpp"
 #include "conduit_annotations.hpp"
 #include "conduit_execution.hpp"
+#include "conduit_execution_dispatch.hpp"
 #include "conduit_utils.hpp"
 
 //#define DEBUG_PRINT
@@ -2162,32 +2163,34 @@ TopologyMetadata::Implementation::build_edge_key_to_id(
 #else
     conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy::host();
 #endif
-    conduit::execution::forall(policy, 0, nedges, [&](index_t edge_index)
+    conduit::execution::dispatch(conn1D,
+                                 [&](auto conn)
     {
-        // Make a key for this edge.
-        index_t edge[2];
-        edge[0] = conn1D[edge_index * 2];
-        edge[1] = conn1D[edge_index * 2 + 1];
-        if(edge[1] > edge[0])
-            std::swap(edge[0], edge[1]);
-        uint64 key = conduit::utils::hash(edge, 2);
-        // Store the edge in the map.
-        edge_key_to_id[edge_index] = std::make_pair(key, edge_index);
+        conduit::execution::forall(policy, 0, nedges, [&](index_t edge_index)
+        {
+            // Make a key for this edge.
+            index_t edge[2];
+            edge[0] = conn[edge_index * 2];
+            edge[1] = conn[edge_index * 2 + 1];
+            if(edge[1] > edge[0])
+                std::swap(edge[0], edge[1]);
+            uint64 key = conduit::utils::hash(edge, 2);
+            // Store the edge in the map.
+            edge_key_to_id[edge_index] = std::make_pair(key, edge_index);
 #ifdef DEBUG_PRINT
-        std::cout << std::setw(4) << edge_index << ": key=" <<  std::setw(20) << key
-             << ", pts=" << std::setw(8) << edge[0] << ", "
-             << std::setw(8) << edge[1] << std::endl;
+            std::cout << std::setw(4) << edge_index << ": key=" <<  std::setw(20) << key
+                 << ", pts=" << std::setw(8) << edge[0] << ", "
+                 << std::setw(8) << edge[1] << std::endl;
 #endif
+        });
     });
 #ifdef DEBUG_PRINT
     std::cout << "}" << std::endl;
 #endif
 
-    // Sort the edges by the ids.
-    conduit::execution::ExecutionPolicy sort_policy = conduit::execution::ExecutionPolicy::host();
-    // std::vectors of std::pairs are sorted by their first element, so we
-    // don't need a custom comparator.
-    conduit::execution::sort_ascending(sort_policy, edge_key_to_id.begin(), edge_key_to_id.end());
+    // Sort the edges by the ids. std::vectors of std::pairs are sorted by
+    // their first element, so we don't need a custom comparator.
+    conduit::execution::sort_ascending(policy, edge_key_to_id.begin(), edge_key_to_id.end());
 }
 
 //---------------------------------------------------------------------------
