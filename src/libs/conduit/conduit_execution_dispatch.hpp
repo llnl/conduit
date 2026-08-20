@@ -383,6 +383,25 @@ is_upgradeable_group(const DataView<T> &view0,
            view0.dtype().id() == view2.dtype().id();
 }
 
+//-----------------------------------------------------------------------------
+// Same as above but for a group of 4 DataViews
+template <template <typename> class DataView,
+          typename T>
+bool
+is_upgradeable_group(const DataView<T> &view0,
+                     const DataView<T> &view1,
+                     const DataView<T> &view2,
+                     const DataView<T> &view3)
+{
+    return is_upgradeable(view0) &&
+           is_upgradeable(view1) &&
+           is_upgradeable(view2) &&
+           is_upgradeable(view3) &&
+           view0.dtype().id() == view1.dtype().id() &&
+           view0.dtype().id() == view2.dtype().id() &&
+           view0.dtype().id() == view3.dtype().id();
+}
+
 }
 //-----------------------------------------------------------------------------
 // -- end conduit::execution::detail --

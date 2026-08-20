@@ -1469,17 +1469,15 @@ convert_topology_to_unstructured(const std::string &base_type,
 
 //-------------------------------------------------------------------------
 /**
- @brief This function scans a list of values and stores a 1 for the first
-        occurance of each unique value. Subsequent occurances of repeated
-        values get a 0.
+ @brief Scans a sequence of values and stores 1 for the first occurrence
+        of each unique value. Subsequent occurrences are marked 0.
 
  @param values The sequence of values to be searched.
  @param offset An offset from the start of values.
  @param n The number of values in the sequence.
- @param mask A buffer in which to store the mask. It must have at least n
-             elements.
- 
- @return True if there were dups; False otherwise.
+ @param mask A buffer in which to store the mask. It must have at least n elements.
+
+ @return True if duplicates were found, false otherwise.
 
  @note This function could be useful in a few places. I might move it later.
 */
@@ -1487,12 +1485,52 @@ template <typename Container>
 CONDUIT_EXEC bool
 unique_mask(const Container &values, index_t offset, index_t n, int *mask)
 {
-#define LUT
-#ifdef LUT
-    // Look up tables for the comparisons we make for n<=8.
-    const int ncaseslut[] = {0,0,1,3,6,10,15,21,28};
-    const int offsets[]   = {0,0,0,1,4,10,20,35,56};
-    const int leftlut[] = {
+    // Look up tables (LUTs) for elements of size n <= 16
+
+    // Number of comparisons for each element size
+    constexpr int count_lut[] = {
+        0,   // 0
+        0,   // 1
+        1,   // 2
+        3,   // 3
+        6,   // 4
+        10,  // 5
+        15,  // 6
+        21,  // 7
+        28,  // 8
+        36,  // 9
+        45,  // 10
+        55,  // 11
+        66,  // 12
+        78,  // 13
+        91,  // 14
+        105, // 15
+        120  // 16
+    };
+
+    // Offsets into the index LUTs for each element size
+    constexpr int offset_lut[] = {
+        0,    // 0
+        0,    // 1
+        0,    // 2
+        1,    // 3
+        4,    // 4
+        10,   // 5
+        20,   // 6
+        35,   // 7
+        56,   // 8
+        84,   // 9
+        120,  // 10
+        165,  // 11
+        220,  // 12
+        286,  // 13
+        364,  // 14
+        455,  // 15
+        560   // 16
+    };
+
+    // Left comparison indices
+    constexpr int left_indices[] = {
         // 2 values
         0,
         // 3 values
@@ -1527,9 +1565,111 @@ unique_mask(const Container &values, index_t offset, index_t n, int *mask)
         3,3,3,3,
         4,4,4,
         5,5,
-        6
-      };
-    const int rightlut[] = {
+        6,
+        // 9 values
+        0,0,0,0,0,0,0,0,
+        1,1,1,1,1,1,1,
+        2,2,2,2,2,2,
+        3,3,3,3,3,
+        4,4,4,4,
+        5,5,5,
+        6,6,
+        7,
+        // 10 values
+        0,0,0,0,0,0,0,0,0,
+        1,1,1,1,1,1,1,1,
+        2,2,2,2,2,2,2,
+        3,3,3,3,3,3,
+        4,4,4,4,4,
+        5,5,5,5,
+        6,6,6,
+        7,7,
+        8,
+        // 11 values
+        0,0,0,0,0,0,0,0,0,0,
+        1,1,1,1,1,1,1,1,1,
+        2,2,2,2,2,2,2,2,
+        3,3,3,3,3,3,3,
+        4,4,4,4,4,4,
+        5,5,5,5,5,
+        6,6,6,6,
+        7,7,7,
+        8,8,
+        9,
+        // 12 values
+        0,0,0,0,0,0,0,0,0,0,0,
+        1,1,1,1,1,1,1,1,1,1,
+        2,2,2,2,2,2,2,2,2,
+        3,3,3,3,3,3,3,3,
+        4,4,4,4,4,4,4,
+        5,5,5,5,5,5,
+        6,6,6,6,6,
+        7,7,7,7,
+        8,8,8,
+        9,9,
+        10,
+        // 13 values
+        0,0,0,0,0,0,0,0,0,0,0,0,
+        1,1,1,1,1,1,1,1,1,1,1,
+        2,2,2,2,2,2,2,2,2,2,
+        3,3,3,3,3,3,3,3,3,
+        4,4,4,4,4,4,4,4,
+        5,5,5,5,5,5,5,
+        6,6,6,6,6,6,
+        7,7,7,7,7,
+        8,8,8,8,
+        9,9,9,
+        10,10,
+        11,
+        // 14 values
+        0,0,0,0,0,0,0,0,0,0,0,0,0,
+        1,1,1,1,1,1,1,1,1,1,1,1,
+        2,2,2,2,2,2,2,2,2,2,2,
+        3,3,3,3,3,3,3,3,3,3,
+        4,4,4,4,4,4,4,4,4,
+        5,5,5,5,5,5,5,5,
+        6,6,6,6,6,6,6,
+        7,7,7,7,7,7,
+        8,8,8,8,8,
+        9,9,9,9,
+        10,10,10,
+        11,11,
+        12,
+        // 15 values
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        1,1,1,1,1,1,1,1,1,1,1,1,1,
+        2,2,2,2,2,2,2,2,2,2,2,2,
+        3,3,3,3,3,3,3,3,3,3,3,
+        4,4,4,4,4,4,4,4,4,4,
+        5,5,5,5,5,5,5,5,5,
+        6,6,6,6,6,6,6,6,
+        7,7,7,7,7,7,7,
+        8,8,8,8,8,8,
+        9,9,9,9,9,
+        10,10,10,10,
+        11,11,11,
+        12,12,
+        13,
+        // 16 values
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+        2,2,2,2,2,2,2,2,2,2,2,2,2,
+        3,3,3,3,3,3,3,3,3,3,3,3,
+        4,4,4,4,4,4,4,4,4,4,4,
+        5,5,5,5,5,5,5,5,5,5,
+        6,6,6,6,6,6,6,6,6,
+        7,7,7,7,7,7,7,7,
+        8,8,8,8,8,8,8,
+        9,9,9,9,9,9,
+        10,10,10,10,10,
+        11,11,11,11,
+        12,12,12,
+        13,13,
+        14
+    };
+
+    // Right comparison indices
+    constexpr int right_indices[] = {
         // 2 values
         1,
         // 3 values
@@ -1564,82 +1704,151 @@ unique_mask(const Container &values, index_t offset, index_t n, int *mask)
         4,5,6,7,
         5,6,7,
         6,7,
-        7
+        7,
+        // 9 values
+        1,2,3,4,5,6,7,8,
+        2,3,4,5,6,7,8,
+        3,4,5,6,7,8,
+        4,5,6,7,8,
+        5,6,7,8,
+        6,7,8,
+        7,8,
+        8,
+        // 10 values
+        1,2,3,4,5,6,7,8,9,
+        2,3,4,5,6,7,8,9,
+        3,4,5,6,7,8,9,
+        4,5,6,7,8,9,
+        5,6,7,8,9,
+        6,7,8,9,
+        7,8,9,
+        8,9,
+        9,
+        // 11 values
+        1,2,3,4,5,6,7,8,9,10,
+        2,3,4,5,6,7,8,9,10,
+        3,4,5,6,7,8,9,10,
+        4,5,6,7,8,9,10,
+        5,6,7,8,9,10,
+        6,7,8,9,10,
+        7,8,9,10,
+        8,9,10,
+        9,10,
+        10,
+        // 12 values
+        1,2,3,4,5,6,7,8,9,10,11,
+        2,3,4,5,6,7,8,9,10,11,
+        3,4,5,6,7,8,9,10,11,
+        4,5,6,7,8,9,10,11,
+        5,6,7,8,9,10,11,
+        6,7,8,9,10,11,
+        7,8,9,10,11,
+        8,9,10,11,
+        9,10,11,
+        10,11,
+        11,
+        // 13 values
+        1,2,3,4,5,6,7,8,9,10,11,12,
+        2,3,4,5,6,7,8,9,10,11,12,
+        3,4,5,6,7,8,9,10,11,12,
+        4,5,6,7,8,9,10,11,12,
+        5,6,7,8,9,10,11,12,
+        6,7,8,9,10,11,12,
+        7,8,9,10,11,12,
+        8,9,10,11,12,
+        9,10,11,12,
+        10,11,12,
+        11,12,
+        12,
+        // 14 values
+        1,2,3,4,5,6,7,8,9,10,11,12,13,
+        2,3,4,5,6,7,8,9,10,11,12,13,
+        3,4,5,6,7,8,9,10,11,12,13,
+        4,5,6,7,8,9,10,11,12,13,
+        5,6,7,8,9,10,11,12,13,
+        6,7,8,9,10,11,12,13,
+        7,8,9,10,11,12,13,
+        8,9,10,11,12,13,
+        9,10,11,12,13,
+        10,11,12,13,
+        11,12,13,
+        12,13,
+        13,
+        // 15 values
+        1,2,3,4,5,6,7,8,9,10,11,12,13,14,
+        2,3,4,5,6,7,8,9,10,11,12,13,14,
+        3,4,5,6,7,8,9,10,11,12,13,14,
+        4,5,6,7,8,9,10,11,12,13,14,
+        5,6,7,8,9,10,11,12,13,14,
+        6,7,8,9,10,11,12,13,14,
+        7,8,9,10,11,12,13,14,
+        8,9,10,11,12,13,14,
+        9,10,11,12,13,14,
+        10,11,12,13,14,
+        11,12,13,14,
+        12,13,14,
+        13,14,
+        14,
+        // 16 values
+        1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,
+        2,3,4,5,6,7,8,9,10,11,12,13,14,15,
+        3,4,5,6,7,8,9,10,11,12,13,14,15,
+        4,5,6,7,8,9,10,11,12,13,14,15,
+        5,6,7,8,9,10,11,12,13,14,15,
+        6,7,8,9,10,11,12,13,14,15,
+        7,8,9,10,11,12,13,14,15,
+        8,9,10,11,12,13,14,15,
+        9,10,11,12,13,14,15,
+        10,11,12,13,14,15,
+        11,12,13,14,15,
+        12,13,14,15,
+        13,14,15,
+        14,15,
+        15
     };
-#endif
-    // The mask is the same size as the values vector.
-    constexpr index_t onemask = 1;
-    for(index_t i = 0; i < n; i++)
-        mask[i] = onemask;
-    bool needmask = false;
 
-    // LUTs faster are a bit faster than loops.
-#ifdef LUT
-    if(n <= 8)
+    // The mask has one entry for each value.
+    for (index_t i = 0; i < n; i++)
     {
-        // Make the mask using the LUT values.
-        int ncases = ncaseslut[n];
-        const int *left = &leftlut[offsets[n]];
-        const int *right = &rightlut[offsets[n]];
-        if(offset == 0)
+        mask[i] = 1;
+    }
+
+    bool has_duplicates = false;
+
+    // We can use a LUT
+    if (n <= 16)
+    {
+        // Make the mask using the LUT values
+        const int count = count_lut[n];
+        const int* left = &left_indices[offset_lut[n]];
+        const int* right = &right_indices[offset_lut[n]];
+
+        for (int i = 0; i < count; i++)
         {
-            for(int i = 0; i < ncases; i++)
+            if (values[left[i] + offset] == values[right[i] + offset])
             {
-                if(values[left[i]] == values[right[i]])
-                {
-                    mask[right[i]]--;
-                    needmask = true;
-                }
-            }
-        }
-        else
-        {
-            for(int i = 0; i < ncases; i++)
-            {
-                if(values[offset + left[i]] == values[offset + right[i]])
-                {
-                    mask[right[i]]--;
-                    needmask = true;
-                }
+                mask[right[i]] = 0;
+                has_duplicates = true;
             }
         }
     }
-    else
+    else // The element has too many points, we can't use a LUT
     {
-#endif
         // Make the mask using loops
-        if(offset == 0)
+        for (int row = 0; row < n; row++)
         {
-            for(int row = 0; row < n; row++)
+            for (int col = row + 1; col < n; col++)
             {
-                for(int col = row + 1; col < n; col++)
+                if (values[row + offset] == values[col + offset])
                 {
-                    if(values[row] == values[col])
-                    {
-                        mask[col]--;
-                        needmask = true;
-                    }
+                    mask[col] = 0;
+                    has_duplicates = true;
                 }
             }
         }
-        else
-        {
-            for(int row = 0; row < n; row++)
-            {
-                for(int col = row + 1; col < n; col++)
-                {
-                    if(values[offset + row] == values[offset + col])
-                    {
-                        mask[col]--;
-                        needmask = true;
-                    }
-                }
-            }
-        }
-#ifdef LUT
     }
-#endif
-    return needmask;
+
+    return has_duplicates;
 }
 
 //-------------------------------------------------------------------------
@@ -1719,12 +1928,11 @@ unstructured_centroid_kernel(const bool is_polygonal,
             // This is the fast path. We should always hit this in practice with
             // our existing shape types.
 
-            // Computes a mask that identifies the unique points for a given element.
-            // Performs no sorting.
+            // Computes a mask that identifies the unique points for a given element
             int mask[max_stack_npts];
-            const bool needmask = unique_mask(topo_conn, eoffset, npts, mask);
+            const bool has_duplicates = unique_mask(topo_conn, eoffset, npts, mask);
 
-            if (needmask)
+            if (has_duplicates)
             {
                 for (index_t ci = 0; ci < npts; ci++)
                 {
@@ -1739,10 +1947,11 @@ unstructured_centroid_kernel(const bool is_polygonal,
                     }
                 }
             }
-            else // if (!needmask)
+            else // if (!has_duplicates)
             {
-                // We don't need to use the mask we generated, so we duplicate the
-                // loop here to avoid having to branch on if (mask[ci]).
+                // All of the points are unique, so we don't need to use the mask we
+                // generated. Duplicating the loop here lets us avoid branching on
+                // if (mask[ci]).
                 npts_used = npts;
                 for(index_t ci = 0; ci < npts; ci++)
                 {
@@ -1765,13 +1974,13 @@ unstructured_centroid_kernel(const bool is_polygonal,
             for (index_t ci = 0; ci < npts; ci++)
             {
                 const index_t id = topo_conn[eoffset + ci];
-                bool duplicate = false;
-                for (index_t cj = 0; cj < ci && !duplicate; cj++)
+                bool is_duplicate = false;
+                for (index_t cj = 0; cj < ci && !is_duplicate; cj++)
                 {
-                    duplicate = topo_conn[eoffset + cj] == id;
+                    is_duplicate = topo_conn[eoffset + cj] == id;
                 }
 
-                if (!duplicate)
+                if (!is_duplicate)
                 {
                     for (index_t ai = 0; ai < ncoord_dims; ai++)
                     {
@@ -1818,9 +2027,6 @@ unstructured_centroid_polyhedral_kernel(const IndexType &topo_conn,
     // a fixed-size array instead of the std::vector that was here before.
     // max_stack_npts represents the maximum number of unique points per
     // element that we can handle before falling back to a slower path.
-    // After looking at a variety of blueprint example meshes with different
-    // shape types, I found that the largest number of unique points per
-    // element that we see in practice is 16, so 32 gives us 2x headroom.
     const index_t max_stack_npts = 32;
 
     conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
@@ -1847,13 +2053,13 @@ unstructured_centroid_polyhedral_kernel(const IndexType &topo_conn,
             for (index_t ci = 0; ci < subelem_size; ci++)
             {
                 const index_t id = topo_subconn[subelem_offset + ci];
-                bool duplicate = false;
-                for (index_t k = 0; k < nunique && !duplicate; k++)
+                bool has_duplicate = false;
+                for (index_t k = 0; k < nunique && !has_duplicate; k++)
                 {
-                    duplicate = elem_coord_indices[k] == id;
+                    has_duplicate = elem_coord_indices[k] == id;
                 }
 
-                if (!duplicate)
+                if (!has_duplicate)
                 {
                     if (nunique == max_stack_npts)
                     {
@@ -1871,8 +2077,7 @@ unstructured_centroid_polyhedral_kernel(const IndexType &topo_conn,
 
         if (!overflow)
         {
-            // This is the fast path. We should always hit this in practice with
-            // our existing shape types.
+            // This is the fast path.
             npts_used = nunique;
             for (index_t k = 0; k < nunique; k++)
             {
@@ -1885,8 +2090,7 @@ unstructured_centroid_polyhedral_kernel(const IndexType &topo_conn,
         }
         else // if (overflow)
         {
-            // This is the slow path. I don't think we expect to ever hit
-            // this in practice, but it exists as a fallback for correctness.
+            // This is the slow path.
 
             // The element has more unique points than the fixed-size array
             // can hold, so we walk the faces again and check that each point
@@ -1900,8 +2104,8 @@ unstructured_centroid_polyhedral_kernel(const IndexType &topo_conn,
                 for (index_t ci = 0; ci < subelem_size; ci++)
                 {
                     const index_t id = topo_subconn[subelem_offset + ci];
-                    bool duplicate = false;
-                    for (index_t fj = 0; fj <= fi && !duplicate; fj++)
+                    bool has_duplicate = false;
+                    for (index_t fj = 0; fj <= fi && !has_duplicate; fj++)
                     {
                         const index_t prev_index  = topo_conn[eoffset + fj];
                         const index_t prev_offset = topo_suboffsets[prev_index];
@@ -1910,13 +2114,13 @@ unstructured_centroid_polyhedral_kernel(const IndexType &topo_conn,
                         // On the current face, only look at the points that
                         // came before this one.
                         const index_t climit = (fj == fi) ? ci : prev_size;
-                        for (index_t cj = 0; cj < climit && !duplicate; cj++)
+                        for (index_t cj = 0; cj < climit && !has_duplicate; cj++)
                         {
-                            duplicate = topo_subconn[prev_offset + cj] == id;
+                            has_duplicate = topo_subconn[prev_offset + cj] == id;
                         }
                     }
 
-                    if (!duplicate)
+                    if (!has_duplicate)
                     {
                         for (index_t ai = 0; ai < ncoord_dims; ai++)
                         {
