@@ -1643,18 +1643,51 @@ unique_mask(const Container &values, index_t offset, index_t n, int *mask)
 }
 
 //-------------------------------------------------------------------------
+// This is a separate function because nvcc does not allow device lambdas
+// to be defined inside generic lambdas.
+template <typename ConnVals>
+void
+centroid_conn_fill_kernel(conduit::execution::ExecutionPolicy &policy,
+                          const index_t topo_num_elems,
+                          const ConnVals conn_vals)
+{
+    conduit::execution::forall(policy, 0, topo_num_elems, [=] CONDUIT_EXEC(index_t i)
+    {
+        conn_vals.set(i, i);
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-------------------------------------------------------------------------
+// This is a separate function because nvcc does not allow device lambdas
+// to be defined inside generic lambdas.
+template <typename MapVals>
+void
+centroid_map_fill_kernel(conduit::execution::ExecutionPolicy &policy,
+                         const index_t n,
+                         const MapVals map_vals)
+{
+    conduit::execution::forall(policy, 0, n, [=] CONDUIT_EXEC(index_t i)
+    {
+        map_vals.set(2 * i,     static_cast<int64>(1));
+        map_vals.set(2 * i + 1, static_cast<int64>(i));
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-------------------------------------------------------------------------
 // Computes the centroid of each element in an unstructured topology and
 // stores the result in dest_centroids.
 template <typename IndexType, typename CoordType>
 void
-unstructured_centroid(const ShapeType &topo_shape,
-                      const IndexType &topo_conn,
-                      const IndexType &topo_offsets,
-                      const IndexType &topo_sizes,
-                      index_t topo_num_elems,
-                      const CoordType &coords,
-                      index_t ncoord_dims,
-                      const CoordType &dest_centroids)
+unstructured_centroid_kernel(const ShapeType &topo_shape,
+                             const IndexType &topo_conn,
+                             const IndexType &topo_offsets,
+                             const IndexType &topo_sizes,
+                             const index_t topo_num_elems,
+                             const CoordType &coords,
+                             const index_t ncoord_dims,
+                             const CoordType &dest_centroids)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
 
@@ -1767,19 +1800,18 @@ unstructured_centroid(const ShapeType &topo_shape,
 //-------------------------------------------------------------------------
 // Computes the centroid of each element in a polyhedral unstructured
 // topology and stores the result in dest_centroids.
-template <typename IndexType, typename CoordType>
+template <typename IndexType, typename OffsetsType, typename CoordType>
 void
-unstructured_centroid_polyhedral(const ShapeType &/*topo_shape*/,
-                                 const IndexType &topo_conn,
-                                 const IndexType &topo_offsets,
-                                 const IndexType &topo_sizes,
-                                 const IndexType &topo_subconn,
-                                 const IndexType &topo_suboffsets,
-                                 const IndexType &topo_subsizes,
-                                 index_t topo_num_elems,
-                                 const CoordType &coords,
-                                 index_t ncoord_dims,
-                                 const CoordType &dest_centroids)
+unstructured_centroid_polyhedral_kernel(const IndexType &topo_conn,
+                                        const OffsetsType &topo_offsets,
+                                        const IndexType &topo_sizes,
+                                        const IndexType &topo_subconn,
+                                        const OffsetsType &topo_suboffsets,
+                                        const IndexType &topo_subsizes,
+                                        const index_t topo_num_elems,
+                                        const CoordType &coords,
+                                        const index_t ncoord_dims,
+                                        const CoordType &dest_centroids)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
 
@@ -1953,7 +1985,17 @@ calculate_unstructured_centroids(const conduit::Node &topo,
     Node topo_sizes;
     if (topo_shape.is_poly())
     {
-      topo_sizes = topo["elements/sizes"];
+      topo_sizes.set_external(topo["elements/sizes"]);
+    }
+    else // if (!topo_shape.is_poly())
+    {
+      // Fixed-shape topologies don't store sizes and the centroid kernel
+      // never reads them, but leaving topo_sizes as an empty node prevents
+      // dispatch from upgrading the accessors (due to them having different
+      // dtypes). As a workaround, we can simply give topo_sizes the same
+      // dtype as topo_conn. Maybe dispatch can be extended to ignore empty
+      // nodes that get passed to it?
+      topo_sizes.set(DataType(topo["elements/connectivity"].dtype().id(), 1));
     }
 
     Node topo_subconn;
@@ -1972,14 +2014,6 @@ calculate_unstructured_centroids(const conduit::Node &topo,
 
     const Node &topo_conn_const = topo["elements/connectivity"];
     Node topo_conn; topo_conn.set_external(topo_conn_const);
-    const DataType conn_dtype(topo_conn.dtype().id(), 1);
-    const DataType offset_dtype(topo_offsets.dtype().id(), 1);
-    const DataType size_dtype(topo_sizes.dtype().id(), 1);
-
-    // These are only used for polyhedral topologies
-    const DataType subconn_dtype(topo_subconn.dtype().id(), 1);
-    const DataType suboffset_dtype(topo_suboffsets.dtype().id(), 1);
-    const DataType subsize_dtype(topo_subsizes.dtype().id(), 1);
 
     conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
     const index_t output_allocator_id = conduit::execution::get_output_allocator_id();
@@ -2008,11 +2042,10 @@ calculate_unstructured_centroids(const conduit::Node &topo,
 
     int64_accessor conn_acc(dest["elements/connectivity"]);
     conn_acc.use_with(policy);
-    conduit::execution::forall(policy, 0, topo_num_elems, [=] CONDUIT_EXEC(index_t i)
+    conduit::execution::dispatch(conn_acc, [&](auto conn_vals)
     {
-        conn_acc.set(i, i);
+        centroid_conn_fill_kernel(policy, topo_num_elems, conn_vals);
     });
-    CONDUIT_DEVICE_ERROR_CHECK(policy);
     conn_acc.data_movement(sync_strategy);
 
     // Create accessors for the coordset values. These have to be plain arrays (not
@@ -2030,10 +2063,7 @@ calculate_unstructured_centroids(const conduit::Node &topo,
     index_t_accessor topo_sizes_access(topo_sizes);
     topo_conn_access.use_with(policy);
     topo_offsets_access.use_with(policy);
-    if (topo_shape.is_poly())
-    {
-        topo_sizes_access.use_with(policy);
-    }
+    topo_sizes_access.use_with(policy);
 
     // Wrap the dest coordinate arrays in accessors
     float64_accessor dest_centroid_access[3];
@@ -2052,28 +2082,48 @@ calculate_unstructured_centroids(const conduit::Node &topo,
         topo_suboffsets_access.use_with(policy);
         topo_subsizes_access.use_with(policy);
 
-        unstructured_centroid_polyhedral(topo_shape,
-                                         topo_conn_access,
-                                         topo_offsets_access,
-                                         topo_sizes_access,
-                                         topo_subconn_access,
-                                         topo_suboffsets_access,
-                                         topo_subsizes_access,
+        // We only dispatch on the non-offset accessors here,
+        // because the offsets won't be of the same dtype in the
+        // polyhedral case specifically (we should look into whether
+        // it is feasible to change this within generate_offsets).
+        // This isn't so bad however, since they are only accessed
+        // once per element anyways, but this still a compromise that
+        // does technically leave a little performance on the table.
+        conduit::execution::dispatch(topo_conn_access,
+                                     topo_sizes_access,
+                                     topo_subconn_access,
+                                     topo_subsizes_access,
+                                     [&](auto conn, auto sizes,
+                                         auto subconn, auto subsizes)
+        {
+            unstructured_centroid_polyhedral_kernel(conn,
+                                                    topo_offsets_access,
+                                                    sizes,
+                                                    subconn,
+                                                    topo_suboffsets_access,
+                                                    subsizes,
+                                                    topo_num_elems,
+                                                    axis_data_access,
+                                                    csys_axes_size,
+                                                    dest_centroid_access);
+        });
+    }
+    else // if (!topo_shape.is_polyhedral())
+    {
+        conduit::execution::dispatch(topo_conn_access,
+                                     topo_offsets_access,
+                                     topo_sizes_access,
+                                     [&](auto conn, auto offsets, auto sizes)
+        {
+            unstructured_centroid_kernel(topo_shape,
+                                         conn,
+                                         offsets,
+                                         sizes,
                                          topo_num_elems,
                                          axis_data_access,
                                          csys_axes_size,
                                          dest_centroid_access);
-    }
-    else // if (!topo_shape.is_polyhedral())
-    {
-        unstructured_centroid(topo_shape,
-                              topo_conn_access,
-                              topo_offsets_access,
-                              topo_sizes_access,
-                              topo_num_elems,
-                              axis_data_access,
-                              csys_axes_size,
-                              dest_centroid_access);
+        });
     }
 
     // Move the centroids to the output memory space
@@ -5459,12 +5509,10 @@ mesh::topology::unstructured::generate_centroids(const Node &topo,
 
     int64_accessor map_acc(s2dmap);
     map_acc.use_with(policy);
-    conduit::execution::forall(policy, 0, n, [=] CONDUIT_EXEC(index_t i)
+    conduit::execution::dispatch(map_acc, [&](auto map_vals)
     {
-        map_acc.set(2 * i,     static_cast<int64>(1));
-        map_acc.set(2 * i + 1, static_cast<int64>(i));
+        centroid_map_fill_kernel(policy, n, map_vals);
     });
-    CONDUIT_DEVICE_ERROR_CHECK(policy);
     map_acc.data_movement(sync_strategy);
 
     d2smap.reset();
