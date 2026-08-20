@@ -64,6 +64,23 @@
 // ** Also possible for some special cases, but left as future work.
 //-----------------------------------------------------------------------------
 
+// TODO: Investigate adding support for compact strided arrays, plus figure
+// out a way to benchmark with compact strided data.
+
+// TODO: Investigate adding an API that dispatches by dtype width and not dtype
+// itself, for cases where we don't intend to do any math within a kernel
+// (e.g., a bulk set only copies data). For supported kernels, it would let us
+// upgrade the views using only 5 instantiations (4 dtype widths + 1 fallback)
+// instead of the 11 instantiations that are currently always required
+// (10 dtypes + 1 fallback).
+
+// TODO: It would be nice to provide a way to let users ask if a particular
+// dispatch call resulted in upgraded DataViews or not. The tests demonstrate a
+// way that users can get this information (with some effort). Given that the
+// performance difference of upgrading can be significant, I think users/devs
+// would appreciate a built-in API/utility to confirm that they're getting the
+// benefits.
+
 #ifndef CONDUIT_EXECUTION_DISPATCH_HPP
 #define CONDUIT_EXECUTION_DISPATCH_HPP
 
@@ -149,6 +166,125 @@ make_typed_view(const DataView<T> &view)
 }
 
 //-----------------------------------------------------------------------------
+// A helper for dispatching a kernel based on the underlying dtype of a
+// DataAccessor, so that we can avoid having to reproduce this switch statement
+// in multiple places.
+template <typename Func>
+bool
+dispatch_dtype(index_t dtype_id, Func &&func)
+{
+    switch(dtype_id)
+    {
+        case DataType::INT8_ID:
+            func(int8{});
+            return true;
+        case DataType::INT16_ID:
+            func(int16{});
+            return true;
+        case DataType::INT32_ID:
+            func(int32{});
+            return true;
+        case DataType::INT64_ID:
+            func(int64{});
+            return true;
+        case DataType::UINT8_ID:
+            func(uint8{});
+            return true;
+        case DataType::UINT16_ID:
+            func(uint16{});
+            return true;
+        case DataType::UINT32_ID:
+            func(uint32{});
+            return true;
+        case DataType::UINT64_ID:
+            func(uint64{});
+            return true;
+        case DataType::FLOAT32_ID:
+            func(float32{});
+            return true;
+        case DataType::FLOAT64_ID:
+            func(float64{});
+            return true;
+        default:
+            // A non-numeric dtype
+            return false;
+    }
+}
+
+//
+// DataAccessor Specializations
+//
+
+//-----------------------------------------------------------------------------
+// Invokes the kernel with a typed view of the underlying dtype. Returns false
+// when the dtype is not supported (e.g., non-numeric), in which case the
+// caller falls back to invoking the kernel with the DataAccessor directly.
+template <typename T, typename Kernel>
+bool
+try_typed_view(const DataAccessor<T> &view, Kernel &&kernel)
+{
+    const index_t dtype_id = view.dtype().id();
+    return dispatch_dtype(dtype_id, [&](auto dtype)
+    {
+        // decltype deduces the underlying dtype for us
+        using U = decltype(dtype);
+        kernel(make_typed_view<U>(view));
+    });
+}
+
+//-----------------------------------------------------------------------------
+// Same as above but for a group of 3 DataAccessors with the same dtype.
+template <typename T, typename Kernel>
+bool
+try_typed_view(const DataAccessor<T> &view0,
+               const DataAccessor<T> &view1,
+               const DataAccessor<T> &view2,
+               Kernel &&kernel)
+{
+    const index_t dtype_id = view0.dtype().id();
+    return dispatch_dtype(dtype_id, [&](auto dtype)
+    {
+        // decltype deduces the underlying dtype for us
+        using U = decltype(dtype);
+        kernel(make_typed_view<U>(view0),
+               make_typed_view<U>(view1),
+               make_typed_view<U>(view2));
+    });
+}
+
+//
+// DataArray Specializations
+//
+
+//-----------------------------------------------------------------------------
+// Invokes the kernel with a typed view of the underlying data's dtype. Never
+// returns false for this specialization because DataArray doesn't do type
+// conversion. The only way that this could fail is if the input DataArray is
+// strided, which gets checked before this function is called.
+template <typename T, typename Kernel>
+bool
+try_typed_view(const DataArray<T> &view, Kernel &&kernel)
+{
+    kernel(make_typed_view<T>(view));
+    return true;
+}
+
+//-----------------------------------------------------------------------------
+// Same as above but for a group of 3 DataArrays with the same dtype.
+template <typename T, typename Kernel>
+bool
+try_typed_view(const DataArray<T> &view0,
+               const DataArray<T> &view1,
+               const DataArray<T> &view2,
+               Kernel &&kernel)
+{
+    kernel(make_typed_view<T>(view0),
+           make_typed_view<T>(view1),
+           make_typed_view<T>(view2));
+    return true;
+}
+
+//-----------------------------------------------------------------------------
 // A helper that returns true when a view's data is safe to access through a
 // raw typed pointer, which implies a typed view can be used instead of the
 // input DataView.
@@ -159,7 +295,7 @@ make_typed_view(const DataView<T> &view)
 // the dtype's offset, but not for alignment: base + offset might not be a
 // multiple of the element width. Those cases must fall back to the original
 // DataView to avoid undefined behavior.
-// 
+//
 // Note that this is deliberately NOT DataType::is_compact(), which includes
 // the offset in spanned_bytes() and would therefore cause us to fall back in
 // cases that can otherwise be upgraded.
@@ -207,123 +343,6 @@ is_upgradeable_group(const DataView<T> &view0,
            view0.dtype().id() == view2.dtype().id();
 }
 
-//-----------------------------------------------------------------------------
-// A helper for dispatching a kernel based on the underlying dtype of a
-// DataAccessor, so that we can avoid having to reproduce this switch statement
-// in multiple places.
-template <typename Func>
-bool
-dispatch_dtype(index_t dtype_id, Func &&func)
-{
-    switch(dtype_id)
-    {
-        case DataType::INT8_ID:
-            func(int8{});
-            return true;
-        case DataType::INT16_ID:
-            func(int16{});
-            return true;
-        case DataType::INT32_ID:
-            func(int32{});
-            return true;
-        case DataType::INT64_ID:
-            func(int64{});
-            return true;
-        case DataType::UINT8_ID:
-            func(uint8{});
-            return true;
-        case DataType::UINT16_ID:
-            func(uint16{});
-            return true;
-        case DataType::UINT32_ID:
-            func(uint32{});
-            return true;
-        case DataType::UINT64_ID:
-            func(uint64{});
-            return true;
-        case DataType::FLOAT32_ID:
-            func(float32{});
-            return true;
-        case DataType::FLOAT64_ID:
-            func(float64{});
-            return true;
-        default:
-            // A non-numeric dtype
-            return false;
-    }
-}
-
-//-----------------------------------------------------------------------------
-// Invokes the kernel with typed views for a group of DataAccessors with the
-// same dtype. This allows a single kernel instantiation to serve the group of
-// views.
-template <typename T, typename Kernel>
-bool
-try_typed_view(const DataAccessor<T> &view0,
-               const DataAccessor<T> &view1,
-               const DataAccessor<T> &view2,
-               Kernel &&kernel)
-{
-    const index_t dtype_id = view0.dtype().id();
-    return dispatch_dtype(dtype_id, [&](auto dtype)
-    {
-        // decltype deduces the underlying dtype for us
-        using U = decltype(dtype);
-        kernel(make_typed_view<U>(view0),
-               make_typed_view<U>(view1),
-               make_typed_view<U>(view2));
-    });
-}
-
-//-----------------------------------------------------------------------------
-// Invokes the kernel with a typed view of the underlying dtype. Returns false
-// when the dtype is not supported (e.g., non-numeric), in which case the
-// caller falls back to invoking the kernel with the DataAccessor directly.
-template <typename T, typename Kernel>
-bool
-try_typed_view(const DataAccessor<T> &view, Kernel &&kernel)
-{
-    const index_t dtype_id = view.dtype().id();
-    return dispatch_dtype(dtype_id, [&](auto dtype)
-    {
-        // decltype deduces the underlying dtype for us
-        using U = decltype(dtype);
-        kernel(make_typed_view<U>(view));
-    });
-}
-
-//-----------------------------------------------------------------------------
-// Invokes the kernel with typed views for a group of DataArrays with the same
-// dtype. This allows a single kernel instantiation to serve the group of
-// views. Never returns false for this specialization because DataArray doesn't
-// do type conversion. The only way that this could fail is if one of the input
-// DataArrays is strided, which gets checked before this function is called.
-template <typename T, typename Kernel>
-bool
-try_typed_view(const DataArray<T> &view0,
-               const DataArray<T> &view1,
-               const DataArray<T> &view2,
-               Kernel &&kernel)
-{
-    kernel(make_typed_view<T>(view0),
-           make_typed_view<T>(view1),
-           make_typed_view<T>(view2));
-    return true;
-}
-
-//-----------------------------------------------------------------------------
-// Invokes the kernel with a typed view of the underlying data's dtype. Never
-// returns false for this specialization because DataArray doesn't do type
-// conversion. The only way that this could fail is if the input DataArray is
-// strided, which gets checked before this function is called.
-template <typename T, typename Kernel>
-bool
-try_typed_view(const DataArray<T> &view, Kernel &&kernel)
-{
-    kernel(make_typed_view<T>(view));
-    return true;
-}
-
 }
 //-----------------------------------------------------------------------------
 // -- end conduit::execution::detail --
@@ -331,11 +350,10 @@ try_typed_view(const DataArray<T> &view, Kernel &&kernel)
 
 //
 // The following helpers exist to accelerate *existing use cases* found
-// throughout the codebase. Additional overloads (e.g., larger group sizes, or
-// mixed dtypes for groups of 3) could be added later if we find new use cases
-// that aren't covered by the existing overloads. The reason to avoid
-// supporting them now is to limit negative effects on compile time without
-// first demonstrating that we have a need for them.
+// throughout the codebase. Additional overloads can be added later as we find
+// new use cases that aren't covered by the existing overloads. The reason to
+// avoid supporting them now is to limit negative effects on compile time
+// without first demonstrating that we have a need for a new overload.
 //
 
 //-----------------------------------------------------------------------------
@@ -367,10 +385,7 @@ dispatch(const DataView<T> &view, Kernel &&kernel)
 }
 
 //-----------------------------------------------------------------------------
-// A special case of dispatch that takes two DataViews. Each side is dispatched
-// independently, so the kernel can be upgraded to use typed views even if the
-// view types (e.g., a DataAccessor and DataArray) and underlying dtypes
-// differ.
+// A special case of dispatch that takes two DataViews of *different* dtypes.
 template <template <typename> class DataView0,
           template <typename> class DataView1,
           typename T0,
@@ -394,12 +409,7 @@ dispatch(const DataView0<T0> &view0,
 }
 
 //-----------------------------------------------------------------------------
-// A special case of dispatch that takes three DataViews of the same dtype. It
-// is possible to template this for 3 different dtypes like in the previous
-// helper, but that would require 11^3 instantiations of the kernel in the
-// worst case (one for each combination of dtypes and fallbacks). That decision
-// could be revisited if we later find that kernel dispatches with 3 views
-// of mixed dtypes are more common than expected.
+// A special case of dispatch that takes three DataViews of the *same* dtype.
 template <template <typename> class DataView,
           typename T,
           typename Kernel>
@@ -419,23 +429,6 @@ dispatch(const DataView<T> &view0,
     // so we directly invoke it with the provided DataViews instead.
     kernel(view0, view1, view2);
 }
-
-// TODO: Investigate adding support for compact strided arrays, plus figure
-// out a way to benchmark with compact strided data.
-
-// TODO: Investigate adding an API that dispatches by dtype width and not dtype
-// itself, for cases where we don't intend to do any math within a kernel
-// (e.g., a bulk set only copies data). For supported kernels, it would let us
-// upgrade the views using only 5 instantiations (4 dtype widths + 1 fallback)
-// instead of the 11 instantiations that are currently always required
-// (10 dtypes + 1 fallback).
-
-// TODO: It would be nice to provide a way to let users ask if a particular
-// dispatch call resulted in upgraded DataViews or not. The tests demonstrate a
-// way that users can get this information (with some effort). Given that the
-// performance difference of upgrading can be significant, I think users/devs
-// would appreciate a built-in API/utility to confirm that they're getting the
-// benefits.
 
 }
 //-----------------------------------------------------------------------------
