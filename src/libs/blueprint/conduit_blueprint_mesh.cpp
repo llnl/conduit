@@ -1677,13 +1677,16 @@ centroid_map_fill_kernel(conduit::execution::ExecutionPolicy &policy,
 
 //-------------------------------------------------------------------------
 // Computes the centroid of each element in an unstructured topology and
-// stores the result in dest_centroids.
-template <typename IndexType, typename CoordType>
+// stores the result in dest_centroids. is_polygonal and shape_indices are
+// passed as scalars (instead of the ShapeType they come from) because
+// ShapeType is host-only.
+template <typename ConnType, typename OffsetsType, typename SizesType, typename CoordType>
 void
-unstructured_centroid_kernel(const ShapeType &topo_shape,
-                             const IndexType &topo_conn,
-                             const IndexType &topo_offsets,
-                             const IndexType &topo_sizes,
+unstructured_centroid_kernel(const bool is_polygonal,
+                             const index_t shape_indices,
+                             const ConnType &topo_conn,
+                             const OffsetsType &topo_offsets,
+                             const SizesType &topo_sizes,
                              const index_t topo_num_elems,
                              const CoordType &coords,
                              const index_t ncoord_dims,
@@ -1701,10 +1704,6 @@ unstructured_centroid_kernel(const ShapeType &topo_shape,
     const index_t max_stack_npts = 32;
 
     conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
-
-    // These are computed outside of the forall because ShapeType is host-only.
-    const bool is_polygonal = topo_shape.is_polygonal();
-    const index_t shape_indices = topo_shape.indices;
 
     conduit::execution::forall(policy, 0, topo_num_elems, [=] CONDUIT_EXEC(index_t ei)
     {
@@ -1987,16 +1986,6 @@ calculate_unstructured_centroids(const conduit::Node &topo,
     {
       topo_sizes.set_external(topo["elements/sizes"]);
     }
-    else // if (!topo_shape.is_poly())
-    {
-      // Fixed-shape topologies don't store sizes and the centroid kernel
-      // never reads them, but leaving topo_sizes as an empty node prevents
-      // dispatch from upgrading the accessors (due to them having different
-      // dtypes). As a workaround, we can simply give topo_sizes the same
-      // dtype as topo_conn. Maybe dispatch can be extended to ignore empty
-      // nodes that get passed to it?
-      topo_sizes.set(DataType(topo["elements/connectivity"].dtype().id(), 1));
-    }
 
     Node topo_subconn;
     Node topo_subsizes;
@@ -2063,7 +2052,10 @@ calculate_unstructured_centroids(const conduit::Node &topo,
     index_t_accessor topo_sizes_access(topo_sizes);
     topo_conn_access.use_with(policy);
     topo_offsets_access.use_with(policy);
-    topo_sizes_access.use_with(policy);
+    if (topo_shape.is_poly())
+    {
+        topo_sizes_access.use_with(policy);
+    }
 
     // Wrap the dest coordinate arrays in accessors
     float64_accessor dest_centroid_access[3];
@@ -2112,13 +2104,13 @@ calculate_unstructured_centroids(const conduit::Node &topo,
     {
         conduit::execution::dispatch(topo_conn_access,
                                      topo_offsets_access,
-                                     topo_sizes_access,
-                                     [&](auto conn, auto offsets, auto sizes)
+                                     [&](auto conn, auto offsets)
         {
-            unstructured_centroid_kernel(topo_shape,
+            unstructured_centroid_kernel(topo_shape.is_polygonal(),
+                                         topo_shape.indices,
                                          conn,
                                          offsets,
-                                         sizes,
+                                         topo_sizes_access,
                                          topo_num_elems,
                                          axis_data_access,
                                          csys_axes_size,
