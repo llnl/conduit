@@ -184,7 +184,7 @@ Conduit's build system provides an **install** target that installs the Conduit 
 Additional Build Notes
 ^^^^^^^^^^^^^^^^^^^^^^
 
-* **Python** - The Conduit Python module builds for both Python 2 and Python 3. To select a specific Python, set the CMake variable PYTHON_EXECUTABLE to path of the desired python binary. When ``PYTHON_MODULE_INSTALL_PREFIX`` is set and ``ENABLE_PYTHON=ON``, Conduit's Python modules will be installed to ``${PYTHON_MODULE_INSTALL_PREFIX}`` directory instead of ``${CMAKE_INSTALL_PREFIX}/python-modules``.
+* **Python** - The Conduit Python module builds for both Python 2 and Python 3. To select a specific Python, set the CMake variable PYTHON_EXECUTABLE to path of the desired python binary. When ``PYTHON_MODULE_INSTALL_PREFIX`` is set and ``ENABLE_PYTHON=ON``, Conduit's Python modules will be installed to ``${PYTHON_MODULE_INSTALL_PREFIX}`` directory instead of ``${CMAKE_INSTALL_PREFIX}/python-modules``. Either way, projects that find Conduit with CMake can use ``CONDUIT_PYTHONPATH`` to locate the installed module, for example to add it to ``PYTHONPATH``.
 
 * **MPI** - We use CMake's standard FindMPI logic. To select a specific MPI set the CMake variables ``MPI_C_COMPILER`` and ``MPI_CXX_COMPILER``, or the other FindMPI options for MPI include paths and MPI libraries. To run the mpi unit tests, you may also need change the CMake variables ``MPIEXEC_EXECUTABLE`` and ``MPIEXEC_NUMPROC_FLAG``, so you can use a different launcher, such as srun and set number of MPI tasks used.
 
