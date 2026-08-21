@@ -51,16 +51,15 @@
 //
 // Supported cases that can be upgraded:
 //
-//   data passed to a kernel                       | result
+//   DataViews passed to a kernel                  | result
 //   ----------------------------------------------|----------------------
-//   compact single,     numeric dtypes            | typed view  (fast)
-//   compact pair,       *different* dtypes        | typed views (fast)
-//   compact triple,     *same* dtype              | typed views (fast)
-//   compact quadruple,  *same* dtype              | typed views (fast)
-//   compact group (>2), *different* dtypes        | DataView    (slow)
-//   strided data*                                 | DataView    (slow)
+//   compact single,     any numeric dtype         | TypedDataView (fast)
+//   compact pair,       *different* dtypes        | TypedDataView (fast)
+//   compact triple,     *same* dtype              | TypedDataView (fast)
+//   compact quadruple,  *same* dtype              | TypedDataView (fast)
+//   compact group (>2), *different* dtypes        | DataView      (slow)
+//   any combination with strided data             | DataView      (slow)
 //
-//   * Possible for some special cases, but left as future work.
 //-----------------------------------------------------------------------------
 
 // TODO: Investigate adding support for compact strided arrays, plus figure
@@ -113,9 +112,9 @@ namespace detail
 // DataAccessor<T> and DataArray<T>. This allows kernels to be templated over
 // any of the 3 view types. T is the dtype that the kernel consumes while U
 // is the dtype of the underlying data, since Conduit allows the dtype of the
-// underlying data to differ from the dtype of the DataAccessor. Although in the
-// DataArray case, T and U are always the same because DataArrays don't perform
-// type conversion.
+// underlying data to differ from the dtype of the DataAccessor. Although in
+// the DataArray case, T and U are always the same because DataArrays don't
+// perform type conversion.
 //
 // NOTE: We verified via Godbolt (https://godbolt.org/) that gcc and clang both
 // optimize the static_casts away when T and U are the same, so there is no
@@ -376,11 +375,12 @@ is_upgradeable_group(const DataView<T> &view0,
                      const DataView<T> &view1,
                      const DataView<T> &view2)
 {
-    return is_upgradeable(view0) &&
+    const index_t view0_dtype_id = view0.dtype().id();
+    return view0_dtype_id == view1.dtype().id() &&
+           view0_dtype_id == view2.dtype().id() &&
+           is_upgradeable(view0) &&
            is_upgradeable(view1) &&
-           is_upgradeable(view2) &&
-           view0.dtype().id() == view1.dtype().id() &&
-           view0.dtype().id() == view2.dtype().id();
+           is_upgradeable(view2);
 }
 
 //-----------------------------------------------------------------------------
@@ -393,13 +393,14 @@ is_upgradeable_group(const DataView<T> &view0,
                      const DataView<T> &view2,
                      const DataView<T> &view3)
 {
-    return is_upgradeable(view0) &&
+    const index_t view0_dtype_id = view0.dtype().id();
+    return view0_dtype_id == view1.dtype().id() &&
+           view0_dtype_id == view2.dtype().id() &&
+           view0_dtype_id == view3.dtype().id() &&
+           is_upgradeable(view0) &&
            is_upgradeable(view1) &&
            is_upgradeable(view2) &&
-           is_upgradeable(view3) &&
-           view0.dtype().id() == view1.dtype().id() &&
-           view0.dtype().id() == view2.dtype().id() &&
-           view0.dtype().id() == view3.dtype().id();
+           is_upgradeable(view3);
 }
 
 }
@@ -417,13 +418,13 @@ is_upgradeable_group(const DataView<T> &view0,
 
 //-----------------------------------------------------------------------------
 // dispatch works by trying to invoke the kernel functor with a typed view of
-// the underlying data. If the necessary conditions are met, the kernel is invoked
-// with a typed view, which 1) avoids the per-access overhead of DataAccessor
-// and DataArray and 2) gives the compiler an opportunity to vectorize certain
-// operations. If the conditions are not met, the kernel is invoked with the
-// DataView itself, which will function identically but incur per-access
-// overhead and prevent vectorization. Because DataAccessor and DataArray
-// provide the same interface for reading and writing data, we can
+// the underlying data. If the necessary conditions are met, the kernel is
+// invoked with a typed view, which 1) avoids the per-access overhead of
+// DataAccessor and DataArray and 2) gives the compiler an opportunity to
+// vectorize certain operations. If the conditions are not met, the kernel is
+// invoked with the DataView itself, which will function identically but incur
+// per-access overhead and prevent vectorization. Because DataAccessor and
+// DataArray provide the same interface for reading and writing data, we can
 // automatically upgrade existing kernels to a typed view that also implements
 // the same access interface.
 template <template <typename> class DataView,
