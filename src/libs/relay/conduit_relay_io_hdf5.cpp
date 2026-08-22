@@ -2785,12 +2785,11 @@ bool
 check_if_conduit_node_is_hdf5_dataset(const Node &node)
 {
     DataType dt = node.dtype();
-    return ( dt.is_number() || dt.is_string() ) // basic case
-           ||
-           ( HDF5Options::attributes_enabled &&
-             dt.is_object() &&
-             check_if_conduit_object_is_hdf5_dataset_with_attributes(node)
-           );
+    bool is_node_leaf_with_attributes = HDF5Options::attributes_enabled &&
+                                        dt.is_object() &&
+                                        check_if_conduit_object_is_hdf5_dataset_with_attributes(node);
+
+    return is_node_leaf_with_attributes || dt.is_number() || dt.is_string();
 }
 
 
@@ -2799,10 +2798,9 @@ bool
 check_if_conduit_node_is_hdf5_group(const Node &node)
 {
     DataType dt = node.dtype();
-    return ( dt.is_object() &&
-             !check_if_conduit_node_is_hdf5_dataset(node) )
-           ||
-           ( dt.is_list() );
+    bool is_node_object = dt.is_object() &&
+                          !check_if_conduit_node_is_hdf5_dataset(node);
+    return is_node_object || dt.is_list();
 }
 
 
