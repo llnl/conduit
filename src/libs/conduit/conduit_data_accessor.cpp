@@ -15,7 +15,6 @@
 #include <algorithm>
 #include <limits>
 #include <type_traits>
-#include <vector>
 
 //-----------------------------------------------------------------------------
 // -- conduit  includes -- 
@@ -25,7 +24,6 @@
 #include "conduit_data_array.hpp"
 #include "conduit_execution.hpp"
 #include "conduit_execution_dispatch.hpp"
-#include "conduit_data_kernels.hpp"
 #include "conduit_annotations.hpp"
 
 //-----------------------------------------------------------------------------
@@ -40,6 +38,304 @@ namespace conduit
 namespace detail
 {
 
+//
+// Kernels
+//
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Fill
+{
+    U vals;
+    T value;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        vals.set(i, value);
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+void
+accessor_fill_kernel(execution::ExecutionPolicy &policy,
+                     index_t num_elements,
+                     const U vals,
+                     const T value)
+{
+    // Small host arrays are faster to fill without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        Fill<T, U> kernel{vals, value};
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            kernel(i);
+        }
+        return;
+    }
+
+    execution::forall(policy, 0, num_elements, Fill<T, U>{vals, value});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename T>
+struct FillAccessor
+{
+    DataAccessor<T> vals;
+    T value;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        vals.set_value_helper(i, value);
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T>
+void
+accessor_fill_kernel(execution::ExecutionPolicy &policy,
+                     index_t num_elements,
+                     const DataAccessor<T> vals,
+                     const T value)
+{
+    // Small host arrays are faster to fill without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        FillAccessor<T> kernel{vals, value};
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            kernel(i);
+        }
+        return;
+    }
+
+    execution::forall(policy, 0, num_elements, FillAccessor<T>{vals, value});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct CopyFromView
+{
+    T vals;
+    U src;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        vals.set(i, src[i]);
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+void
+accessor_copy_from_view_kernel(execution::ExecutionPolicy &policy,
+                               index_t num_elements,
+                               const U src,
+                               const T vals)
+{
+    // Small host arrays are faster to copy without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        CopyFromView<T, U> kernel{vals, src};
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            kernel(i);
+        }
+        return;
+    }
+
+    execution::forall(policy, 0, num_elements, CopyFromView<T, U>{vals, src});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct CopyFromViewAccessor
+{
+    DataAccessor<T> vals;
+    U src;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        vals.set_value_helper(i, static_cast<T>(src[i]));
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+void
+accessor_copy_from_view_kernel(execution::ExecutionPolicy &policy,
+                               index_t num_elements,
+                               const U src,
+                               const DataAccessor<T> vals)
+{
+    // Small host arrays are faster to copy without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        CopyFromViewAccessor<T, U> kernel{vals, src};
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            kernel(i);
+        }
+        return;
+    }
+
+    execution::forall(policy, 0, num_elements, CopyFromViewAccessor<T, U>{vals, src});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Min
+{
+    execution::ReduceMin<T> reducer;
+    U vals;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        reducer.min(static_cast<T>(vals[i]));
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+T
+accessor_min_kernel(execution::ExecutionPolicy &policy,
+                    index_t num_elements,
+                    const U vals)
+{
+    // Small host arrays are faster to compute min without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        T res = std::numeric_limits<T>::max();
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            res = std::min(res, static_cast<T>(vals[i]));
+        }
+        return res;
+    }
+
+    execution::ReduceMin<T> reducer(std::numeric_limits<T>::max());
+    execution::forall(policy, 0, num_elements, Min<T, U>{reducer, vals});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    return reducer.get();
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Max
+{
+    execution::ReduceMax<T> reducer;
+    U vals;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        reducer.max(static_cast<T>(vals[i]));
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+T
+accessor_max_kernel(execution::ExecutionPolicy &policy,
+                    index_t num_elements,
+                    const U vals)
+{
+    // Small host arrays are faster to compute max without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        T res = std::numeric_limits<T>::lowest();
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            res = std::max(res, static_cast<T>(vals[i]));
+        }
+        return res;
+    }
+
+    execution::ReduceMax<T> reducer(std::numeric_limits<T>::lowest());
+    execution::forall(policy, 0, num_elements, Max<T, U>{reducer, vals});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    return reducer.get();
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Sum
+{
+    execution::ReduceSum<T> reducer;
+    U vals;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        reducer += static_cast<T>(vals[i]);
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+T
+accessor_sum_kernel(execution::ExecutionPolicy &policy,
+                    index_t num_elements,
+                    const U vals)
+{
+    // Small host arrays are faster to sum without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        T res = static_cast<T>(0);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            res += static_cast<T>(vals[i]);
+        }
+        return res;
+    }
+
+    execution::ReduceSum<T> reducer(static_cast<T>(0));
+    execution::forall(policy, 0, num_elements, Sum<T, U>{reducer, vals});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    return reducer.get();
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Count
+{
+    execution::ReduceSum<index_t> reducer;
+    U vals;
+    T value;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        reducer += (static_cast<T>(vals[i]) == value) ? 1 : 0;
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+index_t
+accessor_count_kernel(execution::ExecutionPolicy &policy,
+                      index_t num_elements,
+                      const U vals,
+                      const T value)
+{
+    // Small host arrays are faster to count without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        index_t res = 0;
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            res += (static_cast<T>(vals[i]) == value) ? 1 : 0;
+        }
+        return res;
+    }
+
+    execution::ReduceSum<index_t> reducer(0);
+    execution::forall(policy, 0, num_elements, Count<T, U>{reducer, vals, value});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    return reducer.get();
+}
+
 //-----------------------------------------------------------------------------
 template <typename T>
 void
@@ -53,8 +349,7 @@ set_values_helper(const DataAccessor<T> &accessor,
         return;
     }
 
-    execution::ExecutionPolicy policy = detail::select_policy(accessor.active_space(),
-                                                              num_elements);
+    execution::ExecutionPolicy policy = accessor.active_space();
 
     const bool dst_on_device = execution::DeviceMemory::is_device_ptr(accessor.element_ptr(0));
     const bool src_on_device = execution::DeviceMemory::is_device_ptr(values);
@@ -63,18 +358,42 @@ set_values_helper(const DataAccessor<T> &accessor,
     {
         execution::dispatch(accessor, [&](auto vals)
         {
-            copy_from_ptr_kernel(policy, num_elements, values, vals);
+            accessor_copy_from_view_kernel(policy, num_elements, values, vals);
         });
     }
     else // dst and src are in different memory spaces
     {
-        // This could be implemented, but forcing the caller to decide where
-        // the data should live first keeps the cost of allocating and copying
-        // from becoming an unexpected side-effect of set().
-        CONDUIT_ERROR("DataAccessor::set() cannot copy data to and from "
-                      "different memory spaces. Use use_with() and sync() "
-                      "to ensure that the source and destination data live in "
-                      "the same memory space first.");
+        CONDUIT_ERROR("DataAccessor::set() requires the source and destination to "
+                      "share a memory space. Use use_with() and sync() first.");
+    }
+}
+
+//-----------------------------------------------------------------------------
+template <typename U, template <typename> class View, typename T>
+void
+set_values_view_helper(const DataAccessor<T> &accessor,
+                       const View<U> &values,
+                       index_t num_elements)
+{
+    // Avoid performing unnecessary work for empty arrays
+    if (num_elements <= 0)
+    {
+        return;
+    }
+
+    execution::ExecutionPolicy policy = accessor.active_space();
+
+    const bool dst_on_device = execution::DeviceMemory::is_device_ptr(accessor.element_ptr(0));
+    const bool src_on_device = execution::DeviceMemory::is_device_ptr(values.element_ptr(0));
+
+    if (dst_on_device == src_on_device)
+    {
+        accessor_copy_from_view_kernel(policy, num_elements, values, accessor);
+    }
+    else // dst and src are in different memory spaces
+    {
+        CONDUIT_ERROR("DataAccessor::set() requires the source and destination to "
+                      "share a memory space. Use use_with() and sync() first.");
     }
 }
 
@@ -85,57 +404,26 @@ set_values_helper(const DataAccessor<T> &accessor,
                   const U *values,
                   index_t num_elements)
 {
-    if (execution::DeviceMemory::is_device_ptr(values))
-    {
-        CONDUIT_ERROR("DataAccessor::set() cannot convert from a "
-                      "device-resident source of a different type. Use "
-                      "use_with() and sync() to ensure that the source and "
-                      "destination data live in the same memory space first.");
-    }
-
-    // Pre-convert to the accessor's logical type so the kernel only ever needs
-    // to be instantiated for a const T* source. The conversion loop below runs
-    // on the host, so a device-resident source must be rejected before it.
-    std::vector<T> converted(num_elements);
-    for (index_t i = 0; i < num_elements; i++)
-    {
-        converted[i] = static_cast<T>(values[i]);
-    }
-    set_values_helper(accessor, converted.data(), num_elements);
-}
-
-//-----------------------------------------------------------------------------
-template <typename U, template <typename> class Accessor, typename T>
-void
-set_values_acc_helper(const DataAccessor<T> &accessor,
-                      const Accessor<U> &values,
-                      index_t num_elements)
-{
     // Avoid performing unnecessary work for empty arrays
     if (num_elements <= 0)
     {
         return;
     }
 
-    execution::ExecutionPolicy policy = detail::select_policy(accessor.active_space(),
-                                                              num_elements);
+    execution::ExecutionPolicy policy = accessor.active_space();
 
     const bool dst_on_device = execution::DeviceMemory::is_device_ptr(accessor.element_ptr(0));
-    const bool src_on_device = execution::DeviceMemory::is_device_ptr(values.element_ptr(0));
+    const bool src_on_device = execution::DeviceMemory::is_device_ptr(values);
 
     if (dst_on_device == src_on_device)
     {
-        copy_from_acc_kernel(policy, num_elements, values, accessor);
+        // The kernel converts U to T per element
+        accessor_copy_from_view_kernel(policy, num_elements, values, accessor);
     }
     else // dst and src are in different memory spaces
     {
-        // This could be implemented, but forcing the caller to decide where
-        // the data should live first keeps the cost of allocating and copying
-        // from becoming an unexpected side-effect of set().
-        CONDUIT_ERROR("DataAccessor::set() cannot copy data to and from "
-                      "different memory spaces. Use use_with() and sync() "
-                      "to ensure that the source and destination data live in "
-                      "the same memory space first.");
+        CONDUIT_ERROR("DataAccessor::set() requires the source and destination to "
+                      "share a memory space. Use use_with() and sync() first.");
     }
 }
 
@@ -146,7 +434,7 @@ set_values_helper(const DataAccessor<T> &accessor,
                   const DataAccessor<U> &values,
                   index_t num_elements)
 {
-    set_values_acc_helper(accessor, values, num_elements);
+    set_values_view_helper(accessor, values, num_elements);
 }
 
 //-----------------------------------------------------------------------------
@@ -156,7 +444,7 @@ set_values_helper(const DataAccessor<T> &accessor,
                   const DataArray<U> &values,
                   index_t num_elements)
 {
-    set_values_acc_helper(accessor, values, num_elements);
+    set_values_view_helper(accessor, values, num_elements);
 }
 }
 //-----------------------------------------------------------------------------
@@ -280,9 +568,15 @@ T
 DataAccessor<T>::min()  const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
-                                                              num_elements);
-    return detail::min_kernel<T>(policy, num_elements, *this);
+    execution::ExecutionPolicy policy = active_space();
+
+    T res = std::numeric_limits<T>::max();
+    execution::dispatch(*this, [&](auto vals)
+    {
+        res = detail::accessor_min_kernel<T>(policy, num_elements, vals);
+    });
+
+    return res;
 }
 
 //---------------------------------------------------------------------------// 
@@ -291,9 +585,15 @@ T
 DataAccessor<T>::max() const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
-                                                              num_elements);
-    return detail::max_kernel<T>(policy, num_elements, *this);
+    execution::ExecutionPolicy policy = active_space();
+
+    T res = std::numeric_limits<T>::lowest();
+    execution::dispatch(*this, [&](auto vals)
+    {
+        res = detail::accessor_max_kernel<T>(policy, num_elements, vals);
+    });
+
+    return res;
 }
 
 
@@ -303,9 +603,15 @@ T
 DataAccessor<T>::sum() const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
-                                                              num_elements);
-    return detail::sum_kernel<T>(policy, num_elements, *this);
+    execution::ExecutionPolicy policy = active_space();
+
+    T res = 0;
+    execution::dispatch(*this, [&](auto vals)
+    {
+        res = detail::accessor_sum_kernel<T>(policy, num_elements, vals);
+    });
+
+    return res;
 }
 
 //---------------------------------------------------------------------------// 
@@ -314,10 +620,16 @@ float64
 DataAccessor<T>::mean() const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
-                                                              num_elements);
-    return detail::mean_kernel<T>(policy, num_elements, *this) /
-           static_cast<float64>(num_elements);
+    execution::ExecutionPolicy policy = active_space();
+
+    float64 res = 0.0;
+    execution::dispatch(*this, [&](auto vals)
+    {
+        // Accumulate in float64 for accuracy
+        res = detail::accessor_sum_kernel<float64>(policy, num_elements, vals);
+    });
+
+    return res / static_cast<float64>(num_elements);
 }
 
 //---------------------------------------------------------------------------// 
@@ -326,9 +638,15 @@ index_t
 DataAccessor<T>::count(T val) const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
-                                                              num_elements);
-    return detail::count_kernel<T>(policy, num_elements, *this, val);
+    execution::ExecutionPolicy policy = active_space();
+
+    index_t res = 0;
+    execution::dispatch(*this, [&](auto vals)
+    {
+        res = detail::accessor_count_kernel<T>(policy, num_elements, vals, val);
+    });
+
+    return res;
 }
 
 //---------------------------------------------------------------------------//
@@ -337,11 +655,11 @@ void
 DataAccessor<T>::fill(T value)
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
-                                                              num_elements);
+    execution::ExecutionPolicy policy = active_space();
+
     execution::dispatch(*this, [&](auto vals)
     {
-        detail::fill_kernel(policy, num_elements, vals, value);
+        detail::accessor_fill_kernel(policy, num_elements, vals, value);
     });
 }
 
@@ -508,15 +826,12 @@ DataAccessor<T>::sync()
         {
             m_node_ptr->set(dtype());
         }
-        // data_ptr() is the node's base pointer, so we add the node dtype's
-        // offset to write back to the correct elements
-        utils::conduit_memcpy_strided_elements(
-            static_cast<char*>(m_node_ptr->data_ptr()) + m_node_ptr->dtype().offset(),
-            number_of_elements(),
-            m_node_ptr->dtype().element_bytes(),
-            m_node_ptr->dtype().stride(),
-            element_ptr(0),
-            m_stride);
+        utils::conduit_memcpy_strided_elements(m_node_ptr->element_ptr(0),
+                                               number_of_elements(),
+                                               m_node_ptr->dtype().element_bytes(),
+                                               m_node_ptr->dtype().stride(),
+                                               element_ptr(0),
+                                               m_stride);
     }
 }
 

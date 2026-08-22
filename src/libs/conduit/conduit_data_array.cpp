@@ -26,7 +26,6 @@
 #include "conduit_data_accessor.hpp"
 #include "conduit_execution.hpp"
 #include "conduit_execution_dispatch.hpp"
-#include "conduit_data_kernels.hpp"
 #include "conduit_annotations.hpp"
 
 //-----------------------------------------------------------------------------
@@ -42,6 +41,304 @@ namespace conduit
 namespace detail
 {
 
+//
+// Kernels
+//
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Fill
+{
+    U vals;
+    T value;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        vals.set(i, value);
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+void
+array_fill_kernel(execution::ExecutionPolicy &policy,
+                  index_t num_elements,
+                  const U vals,
+                  const T value)
+{
+    // Small host arrays are faster to fill without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        Fill<T, U> kernel{vals, value};
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            kernel(i);
+        }
+        return;
+    }
+
+    execution::forall(policy, 0, num_elements, Fill<T, U>{vals, value});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename T>
+struct FillArray
+{
+    DataArray<T> vals;
+    T value;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        vals.element(i) = value;
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T>
+void
+array_fill_kernel(execution::ExecutionPolicy &policy,
+                  index_t num_elements,
+                  const DataArray<T> vals,
+                  const T value)
+{
+    // Small host arrays are faster to fill without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        FillArray<T> kernel{vals, value};
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            kernel(i);
+        }
+        return;
+    }
+
+    execution::forall(policy, 0, num_elements, FillArray<T>{vals, value});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct CopyFromView
+{
+    T vals;
+    U src;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        vals.set(i, src[i]);
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+void
+array_copy_from_view_kernel(execution::ExecutionPolicy &policy,
+                            index_t num_elements,
+                            const U src,
+                            const T vals)
+{
+    // Small host arrays are faster to copy without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        CopyFromView<T, U> kernel{vals, src};
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            kernel(i);
+        }
+        return;
+    }
+
+    execution::forall(policy, 0, num_elements, CopyFromView<T, U>{vals, src});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct CopyFromViewArray
+{
+    DataArray<T> vals;
+    U src;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        vals.element(i) = static_cast<T>(src[i]);
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+void
+array_copy_from_view_kernel(execution::ExecutionPolicy &policy,
+                            index_t num_elements,
+                            const U src,
+                            const DataArray<T> vals)
+{
+    // Small host arrays are faster to copy without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        CopyFromViewArray<T, U> kernel{vals, src};
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            kernel(i);
+        }
+        return;
+    }
+
+    execution::forall(policy, 0, num_elements, CopyFromViewArray<T, U>{vals, src});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Min
+{
+    execution::ReduceMin<T> reducer;
+    U vals;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        reducer.min(static_cast<T>(vals[i]));
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+T
+array_min_kernel(execution::ExecutionPolicy &policy,
+                 index_t num_elements,
+                 const U vals)
+{
+    // Small host arrays are faster to compute min without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        T res = std::numeric_limits<T>::max();
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            res = std::min(res, static_cast<T>(vals[i]));
+        }
+        return res;
+    }
+
+    execution::ReduceMin<T> reducer(std::numeric_limits<T>::max());
+    execution::forall(policy, 0, num_elements, Min<T, U>{reducer, vals});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    return reducer.get();
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Max
+{
+    execution::ReduceMax<T> reducer;
+    U vals;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        reducer.max(static_cast<T>(vals[i]));
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+T
+array_max_kernel(execution::ExecutionPolicy &policy,
+                 index_t num_elements,
+                 const U vals)
+{
+    // Small host arrays are faster to compute max without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        T res = std::numeric_limits<T>::lowest();
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            res = std::max(res, static_cast<T>(vals[i]));
+        }
+        return res;
+    }
+
+    execution::ReduceMax<T> reducer(std::numeric_limits<T>::lowest());
+    execution::forall(policy, 0, num_elements, Max<T, U>{reducer, vals});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    return reducer.get();
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Sum
+{
+    execution::ReduceSum<T> reducer;
+    U vals;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        reducer += static_cast<T>(vals[i]);
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+T
+array_sum_kernel(execution::ExecutionPolicy &policy,
+                 index_t num_elements,
+                 const U vals)
+{
+    // Small host arrays are faster to sum without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        T res = static_cast<T>(0);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            res += static_cast<T>(vals[i]);
+        }
+        return res;
+    }
+
+    execution::ReduceSum<T> reducer(static_cast<T>(0));
+    execution::forall(policy, 0, num_elements, Sum<T, U>{reducer, vals});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    return reducer.get();
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Count
+{
+    execution::ReduceSum<index_t> reducer;
+    U vals;
+    T value;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        reducer += (static_cast<T>(vals[i]) == value) ? 1 : 0;
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+index_t
+array_count_kernel(execution::ExecutionPolicy &policy,
+                   index_t num_elements,
+                   const U vals,
+                   const T value)
+{
+    // Small host arrays are faster to count without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        index_t res = 0;
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            res += (static_cast<T>(vals[i]) == value) ? 1 : 0;
+        }
+        return res;
+    }
+
+    execution::ReduceSum<index_t> reducer(0);
+    execution::forall(policy, 0, num_elements, Count<T, U>{reducer, vals, value});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    return reducer.get();
+}
+
 //-----------------------------------------------------------------------------
 template <typename U, typename T>
 void
@@ -49,13 +346,12 @@ fill_value_helper(const DataArray<T> &array,
                   U value)
 {
     const index_t num_elements = array.number_of_elements();
-    execution::ExecutionPolicy policy = detail::select_policy(array.active_space(),
-                                                              num_elements);
+    execution::ExecutionPolicy policy = array.active_space();
     const T val = static_cast<T>(value);
 
     execution::dispatch(array, [&](auto vals)
     {
-        fill_kernel(policy, num_elements, vals, val);
+        array_fill_kernel(policy, num_elements, vals, val);
     });
 }
 
@@ -72,8 +368,7 @@ set_values_helper(const DataArray<T> &array,
         return;
     }
 
-    execution::ExecutionPolicy policy = detail::select_policy(array.active_space(),
-                                                              num_elements);
+    execution::ExecutionPolicy policy = array.active_space();
 
     const bool dst_on_device = execution::DeviceMemory::is_device_ptr(array.element_ptr(0));
     const bool src_on_device = execution::DeviceMemory::is_device_ptr(values);
@@ -82,27 +377,22 @@ set_values_helper(const DataArray<T> &array,
     {
         execution::dispatch(array, [&](auto vals)
         {
-            copy_from_ptr_kernel(policy, num_elements, values, vals);
+            array_copy_from_view_kernel(policy, num_elements, values, vals);
         });
     }
     else // dst and src are in different memory spaces
     {
-        // This could be implemented, but forcing the caller to decide where
-        // the data should live first keeps the cost of allocating and copying
-        // from becoming an unexpected side-effect of set().
-        CONDUIT_ERROR("DataArray::set() cannot copy data to and from "
-                      "different memory spaces. Use use_with() and sync() "
-                      "to ensure that the source and destination data live in "
-                      "the same memory space first.");
+        CONDUIT_ERROR("DataArray::set() requires the source and destination to "
+                      "share a memory space. Use use_with() and sync() first.");
     }
 }
 
 //-----------------------------------------------------------------------------
-template <typename U, template <typename> class Accessor, typename T>
+template <typename U, template <typename> class View, typename T>
 void
-set_values_acc_helper(const DataArray<T> &array,
-                      const Accessor<U> &values,
-                      index_t num_elements)
+set_values_view_helper(const DataArray<T> &array,
+                       const View<U> &values,
+                       index_t num_elements)
 {
     // Avoid performing unnecessary work for empty arrays
     if (num_elements <= 0)
@@ -110,8 +400,7 @@ set_values_acc_helper(const DataArray<T> &array,
         return;
     }
 
-    execution::ExecutionPolicy policy = detail::select_policy(array.active_space(),
-                                                              num_elements);
+    execution::ExecutionPolicy policy = array.active_space();
 
     const bool dst_on_device = execution::DeviceMemory::is_device_ptr(array.element_ptr(0));
     const bool src_on_device = execution::DeviceMemory::is_device_ptr(values.element_ptr(0));
@@ -120,18 +409,13 @@ set_values_acc_helper(const DataArray<T> &array,
     {
         execution::dispatch(array, [&](auto vals)
         {
-            copy_from_acc_kernel(policy, num_elements, values, vals);
+            array_copy_from_view_kernel(policy, num_elements, values, vals);
         });
     }
     else // dst and src are in different memory spaces
     {
-        // This could be implemented, but forcing the caller to decide where
-        // the data should live first keeps the cost of allocating and copying
-        // from becoming an unexpected side-effect of set().
-        CONDUIT_ERROR("DataArray::set() cannot copy data to and from "
-                      "different memory spaces. Use use_with() and sync() "
-                      "to ensure that the source and destination data live in "
-                      "the same memory space first.");
+        CONDUIT_ERROR("DataArray::set() requires the source and destination to "
+                      "share a memory space. Use use_with() and sync() first.");
     }
 }
 
@@ -142,7 +426,7 @@ set_values_helper(const DataArray<T> &array,
                   const DataArray<U> &values,
                   index_t num_elements)
 {
-    set_values_acc_helper(array, values, num_elements);
+    set_values_view_helper(array, values, num_elements);
 }
 
 //-----------------------------------------------------------------------------
@@ -152,7 +436,7 @@ set_values_helper(const DataArray<T> &array,
                   const DataAccessor<U> &values,
                   index_t num_elements)
 {
-    set_values_acc_helper(array, values, num_elements);
+    set_values_view_helper(array, values, num_elements);
 }
 }
 //-----------------------------------------------------------------------------
@@ -614,13 +898,12 @@ T
 DataArray<T>::min()  const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
-                                                              num_elements);
+    execution::ExecutionPolicy policy = active_space();
 
     T res = std::numeric_limits<T>::max();
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::min_kernel<T>(policy, num_elements, vals);
+        res = detail::array_min_kernel<T>(policy, num_elements, vals);
     });
 
     return res;
@@ -632,13 +915,12 @@ T
 DataArray<T>::max() const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
-                                                              num_elements);
+    execution::ExecutionPolicy policy = active_space();
 
     T res = std::numeric_limits<T>::lowest();
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::max_kernel<T>(policy, num_elements, vals);
+        res = detail::array_max_kernel<T>(policy, num_elements, vals);
     });
 
     return res;
@@ -651,13 +933,12 @@ T
 DataArray<T>::sum() const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
-                                                              num_elements);
+    execution::ExecutionPolicy policy = active_space();
 
     T res = 0;
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::sum_kernel<T>(policy, num_elements, vals);
+        res = detail::array_sum_kernel<T>(policy, num_elements, vals);
     });
 
     return res;
@@ -669,13 +950,13 @@ float64
 DataArray<T>::mean() const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
-                                                              num_elements);
+    execution::ExecutionPolicy policy = active_space();
 
     float64 res = 0.0;
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::mean_kernel<T>(policy, num_elements, vals);
+        // Accumulate in float64 for accuracy
+        res = detail::array_sum_kernel<float64>(policy, num_elements, vals);
     });
 
     return res / static_cast<float64>(num_elements);
@@ -687,13 +968,12 @@ index_t
 DataArray<T>::count(T val) const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = detail::select_policy(active_space(),
-                                                              num_elements);
+    execution::ExecutionPolicy policy = active_space();
 
     index_t res = 0;
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::count_kernel<T>(policy, num_elements, vals, val);
+        res = detail::array_count_kernel<T>(policy, num_elements, vals, val);
     });
 
     return res;
@@ -862,15 +1142,12 @@ DataArray<T>::sync()
         {
             m_node_ptr->set(dtype());
         }
-        // data_ptr() is the node's base pointer, so we add the node dtype's
-        // offset to write back to the correct elements
-        utils::conduit_memcpy_strided_elements(
-            static_cast<char*>(m_node_ptr->data_ptr()) + m_node_ptr->dtype().offset(),
-            number_of_elements(),
-            m_node_ptr->dtype().element_bytes(),
-            m_node_ptr->dtype().stride(),
-            element_ptr(0),
-            m_stride);
+        utils::conduit_memcpy_strided_elements(m_node_ptr->element_ptr(0),
+                                               number_of_elements(),
+                                               m_node_ptr->dtype().element_bytes(),
+                                               m_node_ptr->dtype().stride(),
+                                               element_ptr(0),
+                                               m_stride);
     }
 }
 

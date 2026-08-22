@@ -911,8 +911,7 @@ TEST(conduit_data_accessor, bulk_strided_and_offset)
 {
     const index_t num_elements = 5;
 
-    // A 1-byte underlying dtype viewing the odd entries of an interleaved
-    // buffer.
+    // A 1-byte underlying dtype viewing the odd entries of an interleaved buffer
     {
         std::vector<int8> buff(2 * num_elements, (int8)-7);
 
@@ -978,7 +977,7 @@ TEST(conduit_data_accessor, bulk_strided_and_offset)
         }
     }
 
-    // An 8-byte underlying dtype with a mismatched accessor type
+    // An 8-byte underlying dtype viewed by a narrower (int32) accessor
     {
         std::vector<float64> buff(2 * num_elements, -7.5);
 
@@ -1015,12 +1014,9 @@ TEST(conduit_data_accessor, bulk_strided_and_offset)
 //-----------------------------------------------------------------------------
 TEST(conduit_data_accessor, bulk_set_double_conversion)
 {
-    // Bulk set converts source -> T (the accessor type) -> underlying dtype,
-    // never source -> underlying directly. These cases produce different
-    // results if the conversion chain is wrong.
+    // Bulk set must convert source -> T -> underlying dtype
 
-    // A float64 source through an int64 accessor into float64 underlying
-    // data.
+    // A float64 source through an int64 accessor into float64 underlying data
     {
         Node n;
         n.set(DataType::float64(4));
@@ -1105,19 +1101,18 @@ TEST(conduit_data_accessor, device_fill)
 
     for_each_enabled_policy([&](ExecutionPolicy &policy)
     {
+        // The same fill runs in each policy's memory space, host or device
         Node n;
         n["vals"].set(DataType::int32(num_elements));
 
-        // Ask the accessor to move its data to the memory space occupied by
-        // the requested execution policy if its data is not already there.
-        // The accessor is a float64 view of int32 data.
+        // A float64 view of int32 data, moved to the policy's space if needed
         float64_accessor acc(n["vals"]);
         acc.use_with(policy);
         EXPECT_EQ(acc.active_space().is_device_policy(), policy.is_device_policy());
 
         acc.fill(static_cast<float64>(-7.0));
 
-        // Sync values to n["vals"].
+        // Sync values back to n["vals"]
         acc.sync();
 
         int32 *vals_ptr = n["vals"].value();
@@ -1144,6 +1139,7 @@ TEST(conduit_data_accessor, device_set_from_host_ptr)
 
     for_each_enabled_policy([&](ExecutionPolicy &policy)
     {
+        // The destination lives in each policy's space, the source stays on host
         Node n;
         n["vals"].set(DataType::int32(num_elements));
 
@@ -1151,7 +1147,7 @@ TEST(conduit_data_accessor, device_set_from_host_ptr)
         float64_accessor acc(n["vals"]);
         acc.use_with(policy);
 
-        // set() requires the source and destination to share a memory space
+        // A device destination cannot be set from a host pointer source
         if (policy.is_device_policy())
         {
             EXPECT_THROW(acc.set(&src[0], num_elements), conduit::Error);
@@ -1167,6 +1163,56 @@ TEST(conduit_data_accessor, device_set_from_host_ptr)
         for (index_t i = 0; i < num_elements; i++)
         {
             EXPECT_EQ(vals_ptr[i], static_cast<int32>(i + 1));
+        }
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_accessor, device_set_from_device_ptr_conversion)
+{
+    conduit_device_prepare();
+
+    const index_t num_elements = 16;
+
+    for_each_enabled_policy([&](ExecutionPolicy &policy)
+    {
+        // Both the source and the destination live in the policy's space
+        Node n;
+        n["src"].set(DataType::int32(num_elements));
+        n["des"].set(DataType::float64(num_elements));
+
+        int32 *src_ptr = n["src"].value();
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            src_ptr[i] = static_cast<int32>(i + 1);
+        }
+
+        // Move the source, then grab its pointer in the policy's space
+        int32_accessor src(n["src"]);
+        src.use_with(policy);
+        const int32 *src_vals = static_cast<const int32*>(src.element_ptr(0));
+
+        float64_accessor des(n["des"]);
+        des.use_with(policy);
+
+        // The int32 source is converted to float64 per element, on device
+        des.set(src_vals, num_elements);
+
+        des.sync();
+
+        float64 *des_ptr = n["des"].value();
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            EXPECT_EQ(des_ptr[i], static_cast<float64>(i + 1));
+        }
+
+        // A host destination still cannot be set from a device source
+        if (policy.is_device_policy())
+        {
+            Node n_host;
+            n_host["des"].set(DataType::float64(num_elements));
+            float64_accessor host_des(n_host["des"]);
+            EXPECT_THROW(host_des.set(src_vals, num_elements), conduit::Error);
         }
     });
 }
@@ -1188,6 +1234,7 @@ TEST(conduit_data_accessor, device_summary_stats)
 
     for_each_enabled_policy([&](ExecutionPolicy &policy)
     {
+        // The same stats are computed in each policy's memory space
         Node n;
         n["vals"].set(src);
 
@@ -1215,6 +1262,7 @@ TEST(conduit_data_accessor, device_strided)
 
     for_each_enabled_policy([&](ExecutionPolicy &policy)
     {
+        // The same strided fill runs in each policy's memory space
         Node n;
         n["vals"].set(DataType::int32(num_elements,
                                       sizeof(int32),        // offset
@@ -1251,7 +1299,7 @@ TEST(conduit_data_accessor, mixed_space_set_errors)
 
     for_each_enabled_policy([&](ExecutionPolicy &policy)
     {
-        // set() between different memory spaces throws an error
+        // Only device policies can form a mixed host/device pair, skip the rest
         if (!policy.is_device_policy())
         {
             return;
@@ -1266,9 +1314,76 @@ TEST(conduit_data_accessor, mixed_space_set_errors)
 
         float64_accessor host_des(n["des"]);
 
+        // A host destination cannot be set from a device source
         EXPECT_THROW(host_des.set(dev_src), conduit::Error);
 
+        // A device destination cannot be set from a host source
         float64_accessor host_src(n["des"]);
         EXPECT_THROW(dev_src.set(host_src), conduit::Error);
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_accessor, large_n_bulk_ops)
+{
+    conduit_device_prepare();
+
+    // Above the small-N threshold so the forall path runs on host policies
+    const index_t num_elements = CONDUIT_SMALL_N_THRESHOLD + 8;
+
+    // Host-based source
+    std::vector<float64> src(num_elements);
+    float64 expected_src_sum = 0.0;
+    for (index_t i = 0; i < num_elements; i++)
+    {
+        src[static_cast<size_t>(i)] = static_cast<float64>(i + 1);
+        expected_src_sum += src[static_cast<size_t>(i)];
+    }
+
+    for_each_enabled_policy([&](ExecutionPolicy &policy)
+    {
+        // The same bulk ops run in each policy's memory space, host or device
+        Node n;
+        n["vals"].set(DataType::float64(num_elements));
+
+        // Move the data if necessary
+        float64_accessor acc(n["vals"]);
+        acc.use_with(policy);
+
+        acc.fill(static_cast<float64>(2.5));
+        EXPECT_EQ(acc.sum(), 2.5 * static_cast<float64>(num_elements));
+
+        // Every element holds the fill value
+        EXPECT_EQ(acc.min(), 2.5);
+        EXPECT_EQ(acc.max(), 2.5);
+        EXPECT_EQ(acc.count(2.5), num_elements);
+
+        // A device destination cannot be set from a host pointer source
+        if (policy.is_device_policy())
+        {
+            EXPECT_THROW(acc.set(&src[0], num_elements), conduit::Error);
+            acc.use_with(ExecutionPolicy::host());
+        }
+
+        acc.set(&src[0], num_elements);
+
+        acc.use_with(policy);
+        EXPECT_EQ(acc.sum(), expected_src_sum);
+
+        // The source holds 1 .. num_elements, so the stats are closed form
+        EXPECT_EQ(acc.min(), 1.0);
+        EXPECT_EQ(acc.max(), static_cast<float64>(num_elements));
+        EXPECT_EQ(acc.mean(), expected_src_sum / static_cast<float64>(num_elements));
+        EXPECT_EQ(acc.count(1.0), 1);
+        EXPECT_EQ(acc.count(0.0), 0);
+
+        // Sync values back to n["vals"]
+        acc.sync();
+
+        // Spot check a few elements
+        float64 *vals_ptr = n["vals"].value();
+        EXPECT_EQ(vals_ptr[0], 1.0);
+        EXPECT_EQ(vals_ptr[num_elements / 2], static_cast<float64>(num_elements / 2 + 1));
+        EXPECT_EQ(vals_ptr[num_elements - 1], static_cast<float64>(num_elements));
     });
 }
