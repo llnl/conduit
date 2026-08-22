@@ -1271,6 +1271,31 @@ TEST(conduit_blueprint_mesh_verify, matset_general)
     }
 }
 
+//-----------------------------------------------------------------------------
+// you can't have a material with no information. The correct thing to do is to
+// have a material map that names that material and remove the material from
+// the volume fractions and element ids, if applicable.
+TEST(conduit_blueprint_mesh_verify, matset_missing_values_case)
+{
+    Node sbm_matset, info;
+    const std::string yaml_text = 
+        "matset: \n"
+        "  volume_fractions: \n"
+        "    background: []\n"
+        "    circle_a: 0.333333333333333\n"
+        "    circle_b: 0.333333333333333\n"
+        "    circle_c: 0.333333333333333\n"
+        "  element_ids: \n"
+        "    background: []\n"
+        "    circle_a: 3\n"
+        "    circle_b: 3\n"
+        "    circle_c: 3\n"
+        "  topology: \"topo\"\n";
+    sbm_matset.parse(yaml_text, "yaml");
+
+    EXPECT_FALSE(blueprint::mesh::matset::verify(sbm_matset, info));
+}
+
 /// Mesh Specsets Tests ///
 
 //-----------------------------------------------------------------------------

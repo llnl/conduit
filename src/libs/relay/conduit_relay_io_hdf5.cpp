@@ -897,10 +897,10 @@ bool check_if_conduit_list_is_compatible_with_hdf5_tree(const Node &node,
 
 //-----------------------------------------------------------------------------
 bool check_if_attributes_are_compatible_with_hdf5_obj(const Node &node,
-                                                   const std::string &ref_path,
-                                                        hid_t hdf5_id,
-                                                        const Node &opts,
-                                                std::string &incompat_details);
+                                                      const std::string &ref_path,
+                                                      hid_t hdf5_id,
+                                                      const Node &opts,
+                                                      std::string &incompat_details);
 
 //-----------------------------------------------------------------------------
 // detects conduit object encoding dataset and atts
@@ -1794,10 +1794,10 @@ check_if_conduit_list_is_compatible_with_hdf5_tree(const Node &node,
 
 //-----------------------------------------------------------------------------
 bool check_if_attributes_are_compatible_with_hdf5_obj(const Node &node,
-                                                   const std::string &ref_path,
-                                                        hid_t hdf5_id,
-                                                        const Node &opts,
-                                                std::string &incompat_details)
+                                                      const std::string &ref_path,
+                                                      hid_t hdf5_id,
+                                                      const Node &opts,
+                                                      std::string &incompat_details)
 {
    bool res = true;
    // TODO
@@ -1817,7 +1817,7 @@ check_if_conduit_node_is_compatible_with_hdf5_tree(const Node &node,
     DataType dt = node.dtype();
 
     // check for leaf or group
-    if(dt.is_number() || dt.is_string() || dt.is_empty() )
+    if(dt.is_number() || dt.is_string() || dt.is_empty())
     {
         res = check_if_conduit_leaf_is_compatible_with_hdf5_obj(dt,
                                                                 ref_path,
@@ -1900,7 +1900,7 @@ check_if_hdf5_object_has_attributes(hid_t hdf5_id,
 
     hsize_t num_attrs = 0;
 
-    if( CONDUIT_HDF5_STATUS_OK(h5_status))
+    if( CONDUIT_HDF5_STATUS_OK(h5_status) )
     {
         num_attrs = h5_obj_info.num_attrs;
     }
@@ -2708,7 +2708,7 @@ write_conduit_node_children_to_hdf5_group(const Node &node,
                                               ref_path,
                                               child_name.c_str());
         }
-        else if( check_if_conduit_node_is_hdf5_group(child) )
+        else if(check_if_conduit_node_is_hdf5_group(child))
         {
             // check if the HDF5 group has child with same name
             // as the node's child
@@ -2948,11 +2948,11 @@ write_attributes_to_hdf5_object(hid_t hdf5_id,
 
             hsize_t num_eles = (hsize_t) dt.number_of_elements();
 
-            RelayH5SHandle h5_dspace_hnd( H5Screate_simple(1,
-                                                           &num_eles,
-                                                           NULL),
-                                          hdf5_id,
-                                          ref_path);
+            RelayH5SHandle h5_dspace_hnd(H5Screate_simple(1,
+                                                          &num_eles,
+                                                          NULL),
+                                         hdf5_id,
+                                         ref_path);
             h5_dspace_hnd.check_created();
 
             RelayH5AHandle h5_attr_hnd(H5Acreate(hdf5_id,
@@ -4069,7 +4069,7 @@ void read_hdf5_object_attribute_into_conduit_node(hid_t hdf5_attr_id,
 
         // get ref to standard variant of this dtype
         h5_dtype_hnd.set_id(conduit_dtype_to_hdf5_dtype(dt,
-                                                   ref_path));
+                                                        ref_path));
         h5_dtype_hnd.check_created();
     }
 
@@ -4124,7 +4124,11 @@ void read_hdf5_object_attribute_into_conduit_node(hid_t hdf5_attr_id,
                                                         ref_path,
                                                         "Error reading HDF5 Attribue: "
                                                          << hdf5_attr_id);
-
+    CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_status,
+                                                    hdf5_attr_id,
+                                                    ref_path,
+                                                    "Error reading HDF5 Attribue: "
+                                                     << hdf5_attr_id);
     // auto cleanup of dtype and dspace
 
 }
