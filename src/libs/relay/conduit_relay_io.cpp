@@ -83,6 +83,15 @@ public:
             // empty
         }
 
+       ~HDF5OptionsContext()
+        {
+            if(!prev_options.dtype().is_empty())
+            {
+                hdf5_set_options(prev_options);
+                prev_options.reset();
+            }
+        }
+
         void set_options(const conduit::Node &options)
         {
             if(options.has_child("hdf5"))
@@ -92,15 +101,6 @@ public:
             }
             else
             {
-                prev_options.reset();
-            }
-        }
-
-       ~HDF5OptionsContext()
-        {
-            if(!prev_options.dtype().is_empty())
-            {
-                hdf5_set_options(prev_options);
                 prev_options.reset();
             }
         }

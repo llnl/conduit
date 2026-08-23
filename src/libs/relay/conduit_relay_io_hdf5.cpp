@@ -903,6 +903,13 @@ bool check_if_attributes_are_compatible_with_hdf5_obj(const Node &node,
                                                       std::string &incompat_details);
 
 //-----------------------------------------------------------------------------
+bool check_if_attribute_leaf_is_compatible_with_hdf5_attribute(const DataType &dt,
+                                                               const std::string &ref_path,
+                                                               hid_t hdf5_id,
+                                                               const Node &opts,
+                                                               std::string &incompat_details);
+
+//-----------------------------------------------------------------------------
 // detects conduit object encoding dataset and atts
 bool check_if_conduit_object_is_hdf5_dataset_with_attributes(const Node &node);
 
@@ -1799,9 +1806,159 @@ bool check_if_attributes_are_compatible_with_hdf5_obj(const Node &node,
                                                       const Node &opts,
                                                       std::string &incompat_details)
 {
-   bool res = true;
-   // TODO
-   return res;
+     if(!node.dtype().is_object())
+    {
+        std::ostringstream oss;
+        oss << "Conduit Node at path '" << ref_path << "'"
+            << " is not compatible with HDF5 attributes at path"
+            << "'" << ref_path << "'"
+            << "\nConduit Node is not an object";
+        incompat_details = oss.str();
+        return false;
+    }
+
+    // node is an object with child nodes that represent attributes
+    bool res = true;
+    NodeConstIterator chld_itr = node.children();
+    while(chld_itr.has_next() && res)
+    {
+        const Node &chld = chld_itr.next();
+        std::string chld_name = chld_itr.name();
+
+        htri_t h5_att_status = H5Aexists_by_name(hdf5_id, ".",
+                                                 chld_name.c_str(),
+                                                 H5P_DEFAULT);
+        //
+        // https://support.hdfgroup.org/HDF5/doc/RM/RM_H5A.html#Annot-ExistsByName
+        // > 0 exists, 0 doesn't exist, < 0 error
+        //
+
+        CONDUIT_CHECK_HDF5_ERROR_WITH_REF_PATH(h5_att_status,
+                                               ref_path,
+                                               "Failed call to H5Aexists_by_name"
+                                               << " to check for '"
+                                               << chld_name
+                                               << "' attribute of HDF5 Object ID "
+                                               << " " << hdf5_id);
+        bool has_att = h5_att_status > 0;
+
+        if(has_att)
+        {
+            std::string chld_ref_path = join_ref_paths(ref_path, chld_name);
+            // get handle for attribute
+            RelayH5AHandle h5_attr_hnd(H5Aopen_by_name(hdf5_id,
+                                                       ".",
+                                                       chld_name.c_str(),
+                                                       H5P_DEFAULT,
+                                                       H5P_DEFAULT),
+                                       ref_path);
+
+            h5_attr_hnd.check_created();
+            res = check_if_attribute_leaf_is_compatible_with_hdf5_attribute(chld.dtype(),
+                                                                            chld_ref_path,
+                                                                            h5_attr_hnd.id(),
+                                                                            opts,
+                                                                            incompat_details);
+        }
+    }
+
+    return res;
+}
+
+//-----------------------------------------------------------------------------
+bool
+check_if_attribute_leaf_is_compatible_with_hdf5_attribute(const DataType &dtype,
+                                                    const std::string &ref_path,
+                                                    hid_t hdf5_id,
+                                                    const Node & /*opts*/,
+                                                    std::string &incompat_details)
+{
+
+    bool res = true;
+
+    RelayH5SHandle h5_test_attr_hnd(H5Aget_space(hdf5_id),
+                                    hdf5_id,
+                                    ref_path);
+
+
+    if( H5Sget_simple_extent_type(h5_test_attr_hnd.id()) == H5S_NULL )
+    {
+        // a dataset with H5S_NULL data space is only compatible with
+        // conduit empty
+        if(!dtype.is_empty())
+        {
+            std::ostringstream oss;
+            oss << "Conduit Node (leaf) at path '" << ref_path << "'"
+                << " is not compatible with given HDF5 Attribute at path"
+                << " '" << ref_path << "'"
+                << "\nHDF5 Attribute has a H5S_NULL Dataspace which"
+                << " only compatible with an empty Conduit Node";
+
+            incompat_details = oss.str();
+
+            res = false;
+        }
+    }
+    else
+    {
+            // get the hdf5 datatype that matches the conduit dtype
+            RelayH5THandle h5_dtype_hnd(conduit_dtype_to_hdf5_dtype(dtype,
+                                                                   ref_path),
+                                        hdf5_id,
+                                        ref_path);
+            h5_dtype_hnd.check_created();
+
+            // get the hdf5 datatype for the passed hdf5 obj
+            RelayH5THandle h5_test_att_hnd(H5Aget_type(hdf5_id),
+                                           hdf5_id,
+                                           ref_path);
+            h5_test_att_hnd.check_created();
+
+            // we will check the 1d-properties of the hdf5 dataspace
+            // hssize_t h5_test_num_ele = H5Sget_simple_extent_npoints(h5_test_att_hnd.id());
+            //
+            // hsize_t dataset_max_dims[1];
+            // H5Sget_simple_extent_dims(h5_test_att_hnd.id(), NULL, dataset_max_dims);
+
+            // string case is special, check it first
+
+            // if the dataset in the file is a custom string type
+            // check the type's size vs the # of elements
+            if(   ( ! H5Tequal(h5_test_att_hnd.id(), H5T_C_S1) &&
+                  ( H5Tget_class(h5_test_att_hnd.id()) == H5T_STRING ) &&
+                  ( H5Tget_class(h5_dtype_hnd.id()) == H5T_STRING ) ) &&
+                 // if not shorted out, we have a string w/ custom type
+                 // check length to see if compat
+                 // note: both hdf5 and conduit dtypes include null term in string size
+                 (dtype.number_of_elements() !=  (index_t)H5Tget_size(h5_test_att_hnd.id()) ) )
+            {
+                std::ostringstream oss;
+                oss << "Conduit Node (string leaf) at path '" << ref_path << "'"
+                    << " is not compatible with given HDF5 Attribute at path"
+                    << " '" << ref_path << "'"
+                    << "\nConduit leaf String Node length ("
+                    << dtype.number_of_elements() << ")"
+                    << " != HDF5 Attribue size (" << H5Tget_size(h5_test_att_hnd.id()) << ")";
+
+                incompat_details = oss.str();
+
+                res = false;
+            }
+            else if( ! (H5Tequal(h5_dtype_hnd.id(), h5_test_att_hnd.id()) > 0) )
+            {
+
+                std::ostringstream oss;
+                oss << "Conduit Node (leaf) at path '" << ref_path << "'"
+                    << " is not compatible with given HDF5 Attribute at path"
+                    << " '" << ref_path << "'";
+
+                incompat_details = oss.str();
+
+                res = false;
+            }
+    }
+
+    return res;
 }
 
 //---------------------------------------------------------------------------//
@@ -1827,7 +1984,24 @@ check_if_conduit_node_is_compatible_with_hdf5_tree(const Node &node,
     }
     else if(check_if_conduit_node_is_hdf5_dataset(node)) // attributes
     {
-        // TODO ATTS SUPPORT
+
+        const std::string &val_key = HDF5Options::attributes_value_key;
+        std::string vals_ref_path = join_ref_paths(ref_path, val_key);
+        const Node &val = node[val_key];
+        res = check_if_conduit_leaf_is_compatible_with_hdf5_obj(val.dtype(),
+                                                                vals_ref_path,
+                                                                hdf5_id,
+                                                                opts,
+                                                                incompat_details);
+
+        const std::string &atts_key = HDF5Options::attributes_key;
+        const Node &atts = node[atts_key];
+        std::string atts_ref_path = join_ref_paths(ref_path, atts_key);
+        res = res && check_if_attributes_are_compatible_with_hdf5_obj(atts,
+                                                                      atts_ref_path,
+                                                                      hdf5_id,
+                                                                      opts,
+                                                                      incompat_details);
     }
     else if(dt.is_object())
     {
@@ -2980,6 +3154,13 @@ write_attributes_to_hdf5_object(hid_t hdf5_id,
                                                    << hdf5_id
                                                    << " "
                                                    << att_name.c_str());
+        }
+        else
+        {
+            std::string hdf5_err_ref_path;
+            hdf5_ref_path_with_filename(hdf5_id, ref_path, hdf5_err_ref_path);
+            CONDUIT_HDF5_ERROR(hdf5_err_ref_path,
+                       "Individual Attributes must be numeric or string Conduit leaf Nodes");
         }
     }
 }
