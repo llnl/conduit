@@ -14,6 +14,7 @@
 #include "conduit.hpp"
 #include "conduit_annotations.hpp"
 #include "conduit_execution.hpp"
+#include "conduit_execution_dispatch.hpp"
 #include "conduit_memory_manager.hpp"
 
 #include <vector>
@@ -462,5 +463,290 @@ expect_no_leak(void (*run_fn)(Node &, ExecutionPolicy),
     EXPECT_EQ(umpire_bytes_allocated("CONDUIT_DEVICE_POOL"), device_baseline);
 }
 #endif // defined(CONDUIT_USE_DEVICE)
+
+//
+// Dispatch helpers
+//
+
+//-----------------------------------------------------------------------------
+// Verifies that the input is a typed view (not a DataAccessor or DataArray)
+template <typename TypedView>
+bool
+is_direct_array(const TypedView &)
+{
+    return true;
+}
+
+//-----------------------------------------------------------------------------
+// Verifies that the input is a DataAccessor (not a typed view)
+template <typename T>
+bool
+is_direct_array(const conduit::DataAccessor<T> &)
+{
+    return false;
+}
+
+//-----------------------------------------------------------------------------
+// Verifies that the input is a DataArray (not a typed view)
+template <typename T>
+bool
+is_direct_array(const conduit::DataArray<T> &)
+{
+    return false;
+}
+
+//-----------------------------------------------------------------------------
+// Generates a vector of values of element type T. Instantiated with float32,
+// these values trigger rounding errors when converted to float64 (for the
+// purpose of validating DataAccessor conversions), while the float64
+// instantiation gives the same values without the rounding.
+template <typename T>
+std::vector<T>
+make_roundoff_vals(index_t size)
+{
+    std::vector<T> vals(static_cast<size_t>(size));
+    for (index_t i = 0; i < size; i++)
+    {
+        vals[static_cast<size_t>(i)] = static_cast<T>(0.1 * static_cast<float64>(i + 1));
+    }
+
+    return vals;
+}
+
+//-----------------------------------------------------------------------------
+// Builds a float64 DataAccessor or DataArray over strided data. The input
+// buffer must already hold 2 * size elements. Overwrites every other element.
+template <typename DataView>
+DataView
+make_strided_float64(std::vector<float64> &buf, index_t size)
+{
+    for (index_t i = 0; i < size; i++)
+    {
+        buf[static_cast<size_t>(2 * i)] = static_cast<float64>(i + 1);
+    }
+
+    const index_t elem = static_cast<index_t>(sizeof(float64));
+
+    return DataView(buf.data(), DataType::float64(size, 0, 2 * elem));
+}
+
+//-----------------------------------------------------------------------------
+// Note that src and dst may be the same view, or different views. This kernel
+// doubles the values in src and writes them to dst.
+template <typename Src, typename Dst>
+void
+run_scale_kernel(ExecutionPolicy &policy,
+                 index_t size,
+                 const Src src,
+                 const Dst dst)
+{
+    conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t idx)
+    {
+        dst.set(idx, 2.0 * src[idx]);
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+// All 3 views are assumed to have the same dtype for this kernel (it's
+// possible to make this work with views of different dtypes if we find a good
+// reason to do so in the future). This kernel sums the values of the 3 views
+// and writes them to dst.
+template <typename DataView>
+void
+run_group_sum_kernel(ExecutionPolicy &policy,
+                     index_t size,
+                     const DataView x,
+                     const DataView y,
+                     const DataView z,
+                     float64 *dst)
+{
+    conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t idx)
+    {
+        dst[idx] = x[idx] + y[idx] + z[idx];
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+// Doubles view in place through the single view dispatch, returning whether
+// the dispatch upgraded it to a typed view.
+template <typename DataView>
+bool
+run_inplace_scale(ExecutionPolicy &policy, const DataView &view)
+{
+    const index_t size = view.number_of_elements();
+    bool is_direct = false;
+    conduit::execution::dispatch(view, [&](auto vals)
+    {
+        is_direct = is_direct_array(vals);
+        run_scale_kernel(policy, size, vals, vals);
+    });
+
+    return is_direct;
+}
+
+//-----------------------------------------------------------------------------
+// Scales src into dst, reporting whether each side was upgraded to a typed
+// view.
+template <typename Src, typename Dst>
+void
+run_pair_scale(ExecutionPolicy &policy,
+               const Src &src_view,
+               const Dst &dst_view,
+               bool &src_is_direct,
+               bool &dst_is_direct)
+{
+    const index_t size = src_view.number_of_elements();
+    conduit::execution::dispatch(src_view,
+                                 dst_view,
+                                 [&](auto src, auto dst)
+    {
+        src_is_direct = is_direct_array(src);
+        dst_is_direct = is_direct_array(dst);
+        run_scale_kernel(policy, size, src, dst);
+    });
+}
+
+//-----------------------------------------------------------------------------
+// Sums the values of three views, checking that the group was or was not
+// upgraded as expected and that the same kernel run over plain DataAccessors
+// gives the same values.
+template <typename DataView>
+void
+check_group_sum(ExecutionPolicy &policy,
+                const DataView &x_view,
+                const DataView &y_view,
+                const DataView &z_view,
+                bool expect_direct)
+{
+    const index_t size = x_view.number_of_elements();
+
+    std::vector<float64> typed_out(static_cast<size_t>(size), 0.0);
+    float64 *out = typed_out.data();
+    bool is_direct = false;
+    conduit::execution::dispatch(x_view,
+                                 y_view,
+                                 z_view,
+                                 [&](auto x, auto y, auto z)
+    {
+        is_direct = is_direct_array(x);
+        run_group_sum_kernel(policy, size, x, y, z, out);
+    });
+    EXPECT_EQ(is_direct, expect_direct);
+
+    std::vector<float64> view_out(static_cast<size_t>(size), 0.0);
+    run_group_sum_kernel(policy, size, x_view, y_view, z_view, view_out.data());
+
+    for (index_t i = 0; i < size; i++)
+    {
+        const size_t idx = static_cast<size_t>(i);
+        EXPECT_EQ(typed_out[idx], view_out[idx]);
+        EXPECT_EQ(typed_out[idx], x_view[i] + y_view[i] + z_view[i]);
+    }
+}
+
+//-----------------------------------------------------------------------------
+template <typename DataView, typename Dst>
+void
+run_group_sum_to_dst_kernel(ExecutionPolicy &policy,
+                            index_t size,
+                            const DataView x,
+                            const DataView y,
+                            const DataView z,
+                            const Dst dst)
+{
+    conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t idx)
+    {
+        dst.set(idx, x[idx] + y[idx] + z[idx]);
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename DataView, typename Dst>
+bool
+run_group_sum(ExecutionPolicy &policy,
+              const DataView &x_view,
+              const DataView &y_view,
+              const DataView &z_view,
+              const Dst &dst_view)
+{
+    const index_t size = x_view.number_of_elements();
+    bool is_direct = false;
+    conduit::execution::dispatch(x_view,
+                                 y_view,
+                                 z_view,
+                                 [&](auto x, auto y, auto z)
+    {
+        is_direct = is_direct_array(x);
+        run_group_sum_to_dst_kernel(policy, size, x, y, z, dst_view);
+    });
+    return is_direct;
+}
+
+//-----------------------------------------------------------------------------
+template <typename Src>
+void
+run_copy_out_kernel(ExecutionPolicy &policy,
+                    index_t size,
+                    const Src src,
+                    float64 *dst)
+{
+    conduit::execution::forall(policy, 0, size, [=] CONDUIT_EXEC(index_t idx)
+    {
+        dst[idx] = src[idx];
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename DataView>
+bool
+run_copy_out(ExecutionPolicy &policy, const DataView &view, float64 *dst)
+{
+    const index_t size = view.number_of_elements();
+    bool is_direct = false;
+    conduit::execution::dispatch(view, [&](auto vals)
+    {
+        is_direct = is_direct_array(vals);
+        run_copy_out_kernel(policy, size, vals, dst);
+    });
+
+    return is_direct;
+}
+
+//-----------------------------------------------------------------------------
+template <typename T>
+void
+check_single_dtype_dispatch(const std::vector<T> &vals,
+                            index_t expected_dtype_id)
+{
+    ExecutionPolicy policy = ExecutionPolicy::serial();
+    const index_t size = static_cast<index_t>(vals.size());
+
+    Node node;
+    node["vals"].set(vals);
+
+    EXPECT_EQ(node["vals"].dtype().id(), expected_dtype_id);
+
+    float64_accessor acc(node["vals"]);
+
+    std::vector<float64> read_vals(static_cast<size_t>(size), 0.0);
+    EXPECT_TRUE(run_copy_out(policy, acc, read_vals.data()));
+    for (index_t i = 0; i < size; i++)
+    {
+        const size_t idx = static_cast<size_t>(i);
+        EXPECT_EQ(read_vals[idx], static_cast<float64>(vals[idx]));
+    }
+
+    EXPECT_TRUE(run_inplace_scale(policy, acc));
+
+    conduit::DataArray<T> res(node["vals"]);
+    for (index_t i = 0; i < size; i++)
+    {
+        EXPECT_EQ(res[i], static_cast<T>(2 * vals[static_cast<size_t>(i)]));
+    }
+}
 
 #endif
