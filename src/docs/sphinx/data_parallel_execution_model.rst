@@ -303,6 +303,37 @@ The ``conduit::execution`` namespace also provides low-level allocation interfac
 
 The allocator ids returned by ``get_host_allocator_id()`` and ``get_device_allocator_id()`` can be passed to ``Node::set_allocator()`` so that node leaf data is allocated directly in the desired memory space.
 
+Improve DataView Performance with Dispatch
+---------------------------------------------
+
+``DataAccessor`` and ``DataArray`` (generically, *DataViews*) support data of any dtype, stride, and offset. However, this generality has a cost: every access re-derives where the element lives and (for ``DataAccessor``) converts its type, which adds per-access overhead and prevents the compiler from vectorizing loops. The ``dispatch()`` helpers in ``conduit_execution_dispatch.hpp`` remove this overhead for common cases. ``dispatch()`` evaluates a view's dtype and data layout exactly once, and then invokes the caller's kernel functor with either a lightweight *typed view* (a thin wrapper around a raw pointer) when the data is contiguous, aligned, and numeric, or with the original DataView for everything else (for example, strided data or string dtypes). Both paths expose the same read/write interface, so that a single kernel written as a generic lambda can handle both:
+
+.. code:: cpp
+
+    #include "conduit_execution_dispatch.hpp"
+
+    float64_accessor acc_src(node["src"]);
+    float64_accessor acc_des(node["des"]);
+    acc_src.use_with(policy);
+    acc_des.use_with(policy);
+
+    const index_t size = acc_src.number_of_elements();
+    conduit::execution::dispatch(acc_src, acc_des, [&](auto src, auto des)
+    {
+        // src and des will either be typed views or the original accessors,
+        // but the kernel body doesn't change.
+        conduit::execution::forall(policy, 0, size,
+            [=] CONDUIT_EXEC(index_t i)
+            {
+                des.set(i, 2.0 * src[i]);
+            });
+        CONDUIT_DEVICE_ERROR_CHECK(policy);
+    });
+
+    acc_des.sync();
+
+Because the kernel's view parameters are ``auto``, the compiler instantiates the kernel once per possible underlying dtype + one fallback (11 instantiations per ``DataAccessor`` or 2 per ``DataArray``). Three overloads cover the existing use cases in the codebase: a single view, a pair of views whose dtypes may differ (each side dispatched independently), and a group of three views of the same accessor type, which upgrades only when all three share one dtype. More overloads may be added as new use cases arise.
+
 Blueprint Port Status
 ---------------------
 
