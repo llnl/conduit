@@ -71,9 +71,9 @@ TEST(conduit_relay_io_hdf5, hdf5_atts_custom_keys)
     n["grp/dset/Atts/my_att"] = 42;
     n["grp/Atts/my_att_a"] = 42;
     n["grp/Atts/my_att_b"] = "details";
-    
+
     nsansattr["grp/dset"] = 3.1415;
-    
+
     Node opts;
     opts["attributes/enabled"] = "true";
     opts["attributes/attributes_key"] = "Atts";
@@ -275,5 +275,53 @@ TEST(conduit_relay_io_hdf5, hdf5_read_existing_atts)
     EXPECT_NEAR(fval,2.7182,0.001);
 }
 
+
+
+//-----------------------------------------------------------------------------
+TEST(conduit_relay_io_hdf5, hdf5_atts_write_compat)
+{
+    io::hdf5_reset_options();
+
+    Node n, nload, info;
+    n["grp/dset/value"] = 3.1415;
+    n["grp/dset/attributes/my_att_a"] = 42;
+    n["grp/dset/attributes/my_att_b"] = "details";
+    n["grp/attributes/my_att"] = 42;
+    n["grp/my_list"].append() = 42;
+    n["grp/my_list"].append() = 96;
+
+    Node opts;
+    CONDUIT_INFO("Example Tree")
+    n.print();
+    opts["attributes/enabled"] = "true";
+    io::hdf5_set_options(opts);
+
+    CONDUIT_INFO("Write with atts")
+    io::hdf5_write(n,"tout_hdf5_attrs_compat.hdf5");
+    CONDUIT_INFO("Read with atts")
+    nload.reset();
+    io::hdf5_read("tout_hdf5_attrs_compat.hdf5",nload);
+    nload.print();
+    EXPECT_FALSE(n.diff(nload,info));
+
+    CONDUIT_INFO("Write with compat atts")
+    // write again, should be compatible
+    n["grp/dset/attributes/my_att_a"] = 21;
+    n.print();
+    io::hdf5_write(n,"tout_hdf5_attrs_compat.hdf5",true);
+
+    nload.reset();
+    io::hdf5_read("tout_hdf5_attrs_compat.hdf5",nload);
+    nload.print();
+    EXPECT_FALSE(n.diff(nload,info));
+
+    CONDUIT_INFO("Write with incompat atts")
+    // write again, should be *incompatible*
+    n["grp/dset/attributes/my_att_a"] = "stringy";
+    n.print();
+
+    EXPECT_THROW(io::hdf5_write(n,"tout_hdf5_attrs_compat.hdf5",true),
+                 conduit::Error);
+}
 
 

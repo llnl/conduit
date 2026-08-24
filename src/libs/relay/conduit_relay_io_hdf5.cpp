@@ -910,6 +910,11 @@ bool check_if_attribute_leaf_is_compatible_with_hdf5_attribute(const DataType &d
                                                                std::string &incompat_details);
 
 //-----------------------------------------------------------------------------
+bool check_if_named_hdf5_attribute_exists(hid_t hdf5_id,
+                                          const std::string &att_name,
+                                          const std::string &ref_path);
+
+//-----------------------------------------------------------------------------
 // detects conduit object encoding dataset and atts
 bool check_if_conduit_object_is_hdf5_dataset_with_attributes(const Node &node);
 
@@ -1604,7 +1609,7 @@ check_if_conduit_object_is_compatible_with_hdf5_tree(const Node &node,
     bool res = true;
 
     // check if we have a dataset with attributes
-    if(check_if_conduit_node_is_hdf5_dataset(node))
+    if(HDF5Options::attributes_enabled && check_if_conduit_node_is_hdf5_dataset(node))
     {
         const std::string &val_key = HDF5Options::attributes_value_key;
         DataType dt = node[val_key].dtype();
@@ -1644,19 +1649,22 @@ check_if_conduit_object_is_compatible_with_hdf5_tree(const Node &node,
         // call on each child with expanded path
         while(itr.has_next() && res)
         {
-
             const Node &child = itr.next();
             std::string child_name = itr.name();
-            const std::string &atts_key = HDF5Options::attributes_key;
-            if(child_name == atts_key)
-            {
 
-                std::string atts_ref_path = join_ref_paths(ref_path, atts_key);
-                res = check_if_attributes_are_compatible_with_hdf5_obj(child[atts_key],
-                                                                       atts_ref_path,
-                                                                       hdf5_id,
-                                                                       opts,
-                                                                       incompat_details);
+            if(HDF5Options::attributes_enabled)
+            {
+                const std::string &atts_key = HDF5Options::attributes_key;
+                if(child_name == atts_key)
+                {
+
+                    std::string atts_ref_path = join_ref_paths(ref_path, atts_key);
+                    res = check_if_attributes_are_compatible_with_hdf5_obj(child,
+                                                                           atts_ref_path,
+                                                                           hdf5_id,
+                                                                           opts,
+                                                                           incompat_details);
+                }
             }
 
             // check if we are still ok after possible acts compat check
@@ -1806,7 +1814,7 @@ bool check_if_attributes_are_compatible_with_hdf5_obj(const Node &node,
                                                       const Node &opts,
                                                       std::string &incompat_details)
 {
-     if(!node.dtype().is_object())
+    if(!node.dtype().is_object())
     {
         std::ostringstream oss;
         oss << "Conduit Node at path '" << ref_path << "'"
@@ -1825,23 +1833,9 @@ bool check_if_attributes_are_compatible_with_hdf5_obj(const Node &node,
         const Node &chld = chld_itr.next();
         std::string chld_name = chld_itr.name();
 
-        htri_t h5_att_status = H5Aexists_by_name(hdf5_id, ".",
-                                                 chld_name.c_str(),
-                                                 H5P_DEFAULT);
-        //
-        // https://support.hdfgroup.org/HDF5/doc/RM/RM_H5A.html#Annot-ExistsByName
-        // > 0 exists, 0 doesn't exist, < 0 error
-        //
-
-        CONDUIT_CHECK_HDF5_ERROR_WITH_REF_PATH(h5_att_status,
-                                               ref_path,
-                                               "Failed call to H5Aexists_by_name"
-                                               << " to check for '"
-                                               << chld_name
-                                               << "' attribute of HDF5 Object ID "
-                                               << " " << hdf5_id);
-        bool has_att = h5_att_status > 0;
-
+        bool has_att = check_if_named_hdf5_attribute_exists(hdf5_id,
+                                                            chld_name,
+                                                            ref_path);
         if(has_att)
         {
             std::string chld_ref_path = join_ref_paths(ref_path, chld_name);
@@ -2944,6 +2938,29 @@ write_conduit_node_children_to_hdf5_group(const Node &node,
     }
 }
 
+//-----------------------------------------------------------------------------
+bool check_if_named_hdf5_attribute_exists(hid_t hdf5_id,
+                                          const std::string &att_name,
+                                          const std::string &ref_path)
+{
+    htri_t h5_att_status = H5Aexists_by_name(hdf5_id, ".",
+                                             att_name.c_str(),
+                                             H5P_DEFAULT);
+    //
+    // https://support.hdfgroup.org/HDF5/doc/RM/RM_H5A.html#Annot-ExistsByName
+    // > 0 exists, 0 doesn't exist, < 0 error
+    //
+
+    CONDUIT_CHECK_HDF5_ERROR_WITH_REF_PATH(h5_att_status,
+                                           ref_path,
+                                           "Failed call to H5Aexists_by_name"
+                                           << " to check for '"
+                                           << att_name
+                                           << "' attribute of HDF5 Object ID "
+                                           << " " << hdf5_id);
+    return h5_att_status > 0;
+}
+
 //---------------------------------------------------------------------------//
 bool
 check_if_conduit_object_is_hdf5_dataset_with_attributes(const Node &node)
@@ -3113,37 +3130,64 @@ write_attributes_to_hdf5_object(hid_t hdf5_id,
         DataType dt = att.dtype();
         if( dt.is_number() || dt.is_string() )
         {
+            // we need the dtype to write to and create an attribute
             RelayH5THandle h5_dtype_hnd(conduit_dtype_to_hdf5_dtype(dt,ref_path),
                                         hdf5_id,
                                         ref_path);
             h5_dtype_hnd.check_created();
 
-            hsize_t num_eles = (hsize_t) dt.number_of_elements();
+            RelayH5AHandle h5_attr_hnd(-1,ref_path);
 
-            RelayH5SHandle h5_dspace_hnd(H5Screate_simple(1,
-                                                          &num_eles,
-                                                          NULL),
-                                         hdf5_id,
-                                         ref_path);
-            h5_dspace_hnd.check_created();
+            // check if the att already exists, if it does it we already
+            // check that it is compatible with what is being written
+            bool has_att = check_if_named_hdf5_attribute_exists(hdf5_id,
+                                                                att_name,
+                                                                ref_path);
 
-            RelayH5AHandle h5_attr_hnd(H5Acreate(hdf5_id,
-                                                 att_name.c_str(),
-                                                 h5_dtype_hnd.id(),
-                                                 h5_dspace_hnd.id(),
-                                                 H5P_DEFAULT,
-                                                 H5P_DEFAULT),
-                                       hdf5_id,
-                                       ref_path);
+            if(has_att) // att exists, open it up
+            {
+                h5_attr_hnd.set_id(H5Aopen_by_name(hdf5_id,
+                                                    ".",
+                                                    att_name.c_str(),
+                                                    H5P_DEFAULT,
+                                                    H5P_DEFAULT));
+                CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_attr_hnd.id(),
+                                                                hdf5_id,
+                                                                ref_path,
+                                                       "Failed to open existing HDF5 Attribute "
+                                                       << hdf5_id
+                                                       << " "
+                                                       << att_name.c_str());
+            }
+            else // att does not exist, we need to create
+            {
+                // we only need the dspace to create a new attribute
+                hsize_t num_eles = (hsize_t) dt.number_of_elements();
 
-            CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_attr_hnd.id(),
-                                                            hdf5_id,
-                                                            ref_path,
-                                                   "Failed to create HDF5 Attribute "
-                                                   << hdf5_id
-                                                   << " "
-                                                   << att_name.c_str());
+                RelayH5SHandle h5_dspace_hnd(H5Screate_simple(1,
+                                                              &num_eles,
+                                                              NULL),
+                                             hdf5_id,
+                                             ref_path);
+                h5_dspace_hnd.check_created();
 
+                h5_attr_hnd.set_id(H5Acreate(hdf5_id,
+                                             att_name.c_str(),
+                                             h5_dtype_hnd.id(),
+                                             h5_dspace_hnd.id(),
+                                             H5P_DEFAULT,
+                                             H5P_DEFAULT));
+
+                CONDUIT_CHECK_HDF5_ERROR_WITH_FILE_AND_REF_PATH(h5_attr_hnd.id(),
+                                                                hdf5_id,
+                                                                ref_path,
+                                                       "Failed to create HDF5 Attribute "
+                                                       << hdf5_id
+                                                       << " "
+                                                       << att_name.c_str());
+            }
+
+            // write data to the att
             hid_t h5_status = H5Awrite(h5_attr_hnd.id(),
                                        h5_dtype_hnd.id(),
                                        att.data_ptr());
