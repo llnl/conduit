@@ -2965,10 +2965,32 @@ bool check_if_named_hdf5_attribute_exists(hid_t hdf5_id,
 bool
 check_if_conduit_object_is_hdf5_dataset_with_attributes(const Node &node)
 {
-    return ( node.number_of_children() == 2 &&
-             node.has_child(HDF5Options::attributes_value_key) && // TODO also check for leaf
-             node.has_child(HDF5Options::attributes_key) // TODO also check for obj?
-           );
+    bool res = false;
+
+    if(node.number_of_children() == 2)
+    {
+        if(node.has_child(HDF5Options::attributes_value_key))
+        {
+            const Node &val = node[HDF5Options::attributes_value_key];
+            const DataType dt = val.dtype();
+            if(dt.is_number() || dt.is_string())
+            {
+                res = true;
+            }
+        }
+
+        if(node.has_child(HDF5Options::attributes_key))
+        {
+            const Node &atts = node[HDF5Options::attributes_key];
+            if(atts.dtype().is_object())
+            {
+                res = res && true;
+            }
+        }
+
+    }
+
+    return res;
 }
 
 //---------------------------------------------------------------------------//
