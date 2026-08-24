@@ -370,7 +370,7 @@ set_values_helper(const DataArray<T> &array,
 
     execution::ExecutionPolicy policy = array.active_space();
 
-    const bool dst_on_device = execution::DeviceMemory::is_device_ptr(array.element_ptr(0));
+    const bool dst_on_device = policy.is_device_policy();
     const bool src_on_device = execution::DeviceMemory::is_device_ptr(values);
 
     if (dst_on_device == src_on_device)
@@ -402,8 +402,8 @@ set_values_view_helper(const DataArray<T> &array,
 
     execution::ExecutionPolicy policy = array.active_space();
 
-    const bool dst_on_device = execution::DeviceMemory::is_device_ptr(array.element_ptr(0));
-    const bool src_on_device = execution::DeviceMemory::is_device_ptr(values.element_ptr(0));
+    const bool dst_on_device = policy.is_device_policy();
+    const bool src_on_device = values.active_space().is_device_policy();
 
     if (dst_on_device == src_on_device)
     {
@@ -460,7 +460,8 @@ DataArray<T>::DataArray()
   m_other_dtype(DataType::empty()),
   m_do_i_own_it(false),
   m_offset(0),
-  m_stride(0)
+  m_stride(0),
+  m_space(execution::MemorySpace::UNKNOWN)
 {}
 
 //---------------------------------------------------------------------------//
@@ -474,7 +475,8 @@ DataArray<T>::DataArray(void *data, const DataType &dtype)
   m_other_dtype(DataType::empty()),
   m_do_i_own_it(false),
   m_offset(0),
-  m_stride(0)
+  m_stride(0),
+  m_space(execution::MemorySpace::UNKNOWN)
 {}
 
 
@@ -489,7 +491,8 @@ DataArray<T>::DataArray(const void *data, const DataType &dtype)
   m_other_dtype(DataType::empty()),
   m_do_i_own_it(false),
   m_offset(0),
-  m_stride(0)
+  m_stride(0),
+  m_space(execution::MemorySpace::UNKNOWN)
 {}
 
 //---------------------------------------------------------------------------//
@@ -503,7 +506,8 @@ DataArray<T>::DataArray(Node &node)
   m_other_dtype(DataType::empty()),
   m_do_i_own_it(false),
   m_offset(node.dtype().offset()),
-  m_stride(node.dtype().stride())
+  m_stride(node.dtype().stride()),
+  m_space(execution::MemorySpace::UNKNOWN)
 {}
 
 //---------------------------------------------------------------------------//
@@ -517,7 +521,8 @@ DataArray<T>::DataArray(const Node &node)
   m_other_dtype(DataType::empty()),
   m_do_i_own_it(false),
   m_offset(node.dtype().offset()),
-  m_stride(node.dtype().stride())
+  m_stride(node.dtype().stride()),
+  m_space(execution::MemorySpace::UNKNOWN)
 {}
 
 //---------------------------------------------------------------------------//
@@ -531,7 +536,8 @@ DataArray<T>::DataArray(Node *node)
   m_other_dtype(DataType::empty()),
   m_do_i_own_it(false),
   m_offset(node->dtype().offset()),
-  m_stride(node->dtype().stride())
+  m_stride(node->dtype().stride()),
+  m_space(execution::MemorySpace::UNKNOWN)
 {}
 
 //---------------------------------------------------------------------------//
@@ -545,7 +551,8 @@ DataArray<T>::DataArray(const Node *node)
   m_other_dtype(DataType::empty()),
   m_do_i_own_it(false),
   m_offset(node->dtype().offset()),
-  m_stride(node->dtype().stride())
+  m_stride(node->dtype().stride()),
+  m_space(execution::MemorySpace::UNKNOWN)
 {}
 
 //---------------------------------------------------------------------------//
@@ -996,7 +1003,7 @@ DataArray<T>::use_with(conduit::execution::ExecutionPolicy policy)
     if (policy.is_device_policy())
     {
         // data is already on the device
-        if (execution::DeviceMemory::is_device_ptr(m_data))
+        if (active_space().is_device_policy())
         {
             // Do nothing
         }
@@ -1056,11 +1063,14 @@ DataArray<T>::use_with(conduit::execution::ExecutionPolicy policy)
                 m_other_ptr = nullptr;
             }
         }
+
+        // m_data is now (or already was) in device memory
+        m_space = execution::MemorySpace::DEVICE;
     }
     else // we are being asked to execute on the host
     {
         // data is already on the host
-        if (! execution::DeviceMemory::is_device_ptr(m_data))
+        if (! active_space().is_device_policy())
         {
             // Do nothing
         }
@@ -1118,6 +1128,9 @@ DataArray<T>::use_with(conduit::execution::ExecutionPolicy policy)
                 m_other_ptr = nullptr;
             }
         }
+
+        // m_data is now (or already was) in host memory
+        m_space = execution::MemorySpace::HOST;
     }
 }
 
@@ -1177,7 +1190,7 @@ DataArray<T>::assume()
         // Allow m_node_ptr to take ownership of m_data so that future
         // release()/reset() calls will free it, lest we leak memory.
         const index_t owning_allocator_id =
-            execution::DeviceMemory::is_device_ptr(m_data)
+            active_space().is_device_policy()
                 ? execution::get_device_allocator_id()
                 : execution::get_host_allocator_id();
         m_node_ptr->assume_data_ptr(m_data,
@@ -1222,11 +1235,23 @@ template <typename T>
 conduit::execution::ExecutionPolicy
 DataArray<T>::active_space() const
 {
-    if (execution::DeviceMemory::is_device_ptr(m_data))
+    // Starting as UNKNOWN allows us to lazily determine m_space so that we
+    // only query is_device_ptr() if we actually need it.
+    if (execution::MemorySpace::UNKNOWN == m_space)
+    {
+        // Caching the result allows us to avoid calling is_device_ptr()
+        // repeatedly across the lifetime of this object, which has a small
+        // but measurable overhead.
+        m_space = execution::DeviceMemory::is_device_ptr(m_data)
+                      ? execution::MemorySpace::DEVICE
+                      : execution::MemorySpace::HOST;
+    }
+
+    if (execution::MemorySpace::DEVICE == m_space)
     {
         return execution::ExecutionPolicy::device();
     }
-    else
+    else // host memory
     {
         return execution::ExecutionPolicy::host();
     }

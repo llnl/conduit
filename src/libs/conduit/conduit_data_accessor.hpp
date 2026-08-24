@@ -83,7 +83,8 @@ public:
           m_other_dtype(accessor.m_other_dtype),
           m_do_i_own_it(false),
           m_offset(accessor.m_offset),
-          m_stride(accessor.m_stride)
+          m_stride(accessor.m_stride),
+          m_space(accessor.m_space)
         {}
         /// Access a pointer to raw data according to dtype description.
         DataAccessor(void *data, const DataType &dtype);
@@ -150,6 +151,7 @@ public:
             m_do_i_own_it = false;
             m_offset = accessor.m_offset;
             m_stride = accessor.m_stride;
+            m_space = accessor.m_space;
         }
         return *this;
     }
@@ -452,7 +454,10 @@ private:
 
     index_t         m_offset;
     index_t         m_stride;
-    
+
+    /// Caches m_data's memory space, initialized to UNKNOWN until the first
+    /// time it's needed.
+    mutable conduit::execution::MemorySpace m_space;
 };
 //-----------------------------------------------------------------------------
 // -- end conduit::DataAccessor --

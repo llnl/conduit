@@ -36,6 +36,18 @@ namespace execution
 ///
 
 //-----------------------------------------------------------------------------
+/// An enum representing the memory space a data pointer lives in. Used by
+/// DataArray / DataAccessor to cache DeviceMemory::is_device_ptr() results,
+/// which has a small overhead if called repeatedly.
+//-----------------------------------------------------------------------------
+enum class MemorySpace
+{
+    UNKNOWN,
+    HOST,
+    DEVICE
+};
+
+//-----------------------------------------------------------------------------
 /// Host Memory allocation / deallocation interface (singleton)
 ///  Uses a Conduit-owned Umpire host allocator when Umpire is enabled,
 ///  Uses malloc/free when Umpire is disabled. 

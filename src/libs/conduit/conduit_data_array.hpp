@@ -81,7 +81,8 @@ public:
           m_other_dtype(array.m_other_dtype),
           m_do_i_own_it(false),
           m_offset(array.m_offset),
-          m_stride(array.m_stride)
+          m_stride(array.m_stride),
+          m_space(array.m_space)
         {}
         /// Access a pointer to raw data according to dtype description.
         DataArray(void *data, const DataType &dtype);
@@ -137,6 +138,7 @@ public:
             m_do_i_own_it = false;
             m_offset = array.m_offset;
             m_stride = array.m_stride;
+            m_space = array.m_space;
         }
         return *this;
     }
@@ -544,7 +546,10 @@ private:
 
     index_t         m_offset;
     index_t         m_stride;
-    
+
+    /// Caches m_data's memory space, initialized to UNKNOWN until the first
+    /// time it's needed.
+    mutable conduit::execution::MemorySpace m_space;
 };
 //-----------------------------------------------------------------------------
 // -- end conduit::DataArray --
