@@ -513,23 +513,6 @@ dispatch(const DataView<T> &view0,
     kernel(view0, view1, view2, view3);
 }
 
-// TODO: Investigate adding support for compact strided arrays, plus figure
-// out a way to benchmark with compact strided data.
-
-// TODO: Investigate adding an API that dispatches by dtype width and not dtype
-// itself, for cases where we don't intend to do any math within a kernel
-// (e.g., a bulk set only copies data). For supported kernels, it would let us
-// upgrade the views using only 5 instantiations (4 dtype widths + 1 fallback)
-// instead of the 11 instantiations that are currently always required
-// (10 dtypes + 1 fallback).
-
-// TODO: It would be nice to provide a way to let users ask if a particular
-// dispatch call resulted in upgraded DataViews or not. The tests demonstrate a
-// way that users can get this information (with some effort). Given that the
-// performance difference of upgrading can be significant, I think users/devs
-// would appreciate a built-in API/utility to confirm that they're getting the
-// benefits.
-
 }
 //-----------------------------------------------------------------------------
 // -- end conduit::execution --
