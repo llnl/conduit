@@ -19,6 +19,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 #### General
 - Turned python on by default in `build_conduit`.
+- Added `CONDUIT_PYTHONPATH`, the absolute path of Conduit's installed Python module, to Conduit's CMake config.
 
 ### Fixed
 

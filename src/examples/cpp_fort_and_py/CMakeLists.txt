@@ -12,11 +12,15 @@
 # Note: The python instance must have the conduit python module installed
 # or it must be in your PYTHONPATH.
 #
+# CMake projects that find conduit can use CONDUIT_PYTHONPATH, which holds
+# the directory containing the conduit python module of the conduit that
+# was found.
+#
 # > mkdir build
 # > cd build
 # 
 # # if conduit python module is not installed in your python instance
-# # > export PYTHONPATH=/path/to/conduit-install/python-modules
+# # > export PYTHONPATH=${CONDUIT_PYTHONPATH}
 #
 # > cmake  \
 #    -DCONDUIT_DIR=/path/to/conduit/install
@@ -30,6 +34,7 @@
 # > ./conduit_fort_and_py_ex
 #
 # # if conduit python module is not installed in your python instance
+# # (the path reported as CONDUIT_PYTHONPATH when conduit was found)
 # > env PYTHONPATH=/path/to/conduit-install/python-modules  ./conduit_cpp_and_py_ex
 # > env PYTHONPATH=/path/to/conduit-install/python-modules  ./conduit_fort_and_py_ex
 ###############################################################################
