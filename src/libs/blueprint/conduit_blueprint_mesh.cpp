@@ -9358,10 +9358,6 @@ void mesh::convert(const conduit::Node &n_mesh,
         topologyName = n_topologies[0].name();
         if(n_topologies.number_of_children() > 1)
         {
-            // TODO: Why not throw an error in this case? Seems that making the
-            // requirement stricter would only serve to help users do the right thing
-            // by making it more obvious that they're doing an ambiguous thing (even
-            // if it happens to be doing the right thing).
             CONDUIT_INFO(conduit_fmt::format(
                 "There is more than one possible topology in the mesh. The first one, \"{}\", will "
                 "be used. Consider passing a \"topology\" name in the options.",
@@ -9570,16 +9566,6 @@ void mesh::convert(const conduit::Node &n_mesh,
                 conduit::Node options_copy(n_options);
                 options_copy["target"] = "unstructured";
                 options_copy["copy"] = 0;  // Use set_external when possible
-
-                // TODO: It occurs to me that we may want to audit our usage of .use_with() and .sync()
-                // within all of the ::convert APIs given that they are so interconnected. It would be
-                // very easy to end up executing multiple APIs from one ::convert call, and each may
-                // defensively copy data to/from different memory spaces. Ideally we would want input
-                // data to be moved to the execution memory space as early in the conversion as possible,
-                // and moved to the output memory space as late as possible. Maybe it makes sense to overwrite
-                // the execution options at the very top of this function so that output location = execution
-                // location temporarily. Then we could restore the original execution options at the end of
-                // this function before doing a final .sync()?
 
                 convert(n_mesh, options_copy, n_mesh_uns, tmp);
                 n_input = &n_mesh_uns;
