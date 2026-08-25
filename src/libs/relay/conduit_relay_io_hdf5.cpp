@@ -1867,9 +1867,6 @@ check_if_attribute_leaf_is_compatible_with_hdf5_attribute(const DataType &dtype,
                                                     const Node & /*opts*/,
                                                     std::string &incompat_details)
 {
-
-    bool res = true;
-
     RelayH5SHandle h5_test_attr_hnd(H5Aget_space(hdf5_id),
                                     hdf5_id,
                                     ref_path);
@@ -1890,7 +1887,7 @@ check_if_attribute_leaf_is_compatible_with_hdf5_attribute(const DataType &dtype,
 
             incompat_details = oss.str();
 
-            res = false;
+            return false;
         }
     }
     else
@@ -1907,12 +1904,6 @@ check_if_attribute_leaf_is_compatible_with_hdf5_attribute(const DataType &dtype,
                                            hdf5_id,
                                            ref_path);
             h5_test_att_hnd.check_created();
-
-            // we will check the 1d-properties of the hdf5 dataspace
-            // hssize_t h5_test_num_ele = H5Sget_simple_extent_npoints(h5_test_att_hnd.id());
-            //
-            // hsize_t dataset_max_dims[1];
-            // H5Sget_simple_extent_dims(h5_test_att_hnd.id(), NULL, dataset_max_dims);
 
             // string case is special, check it first
 
@@ -1936,7 +1927,7 @@ check_if_attribute_leaf_is_compatible_with_hdf5_attribute(const DataType &dtype,
 
                 incompat_details = oss.str();
 
-                res = false;
+                return false;
             }
             else if( ! (H5Tequal(h5_dtype_hnd.id(), h5_test_att_hnd.id()) > 0) )
             {
@@ -1948,11 +1939,11 @@ check_if_attribute_leaf_is_compatible_with_hdf5_attribute(const DataType &dtype,
 
                 incompat_details = oss.str();
 
-                res = false;
+                return false;
             }
     }
 
-    return res;
+    return true;
 }
 
 //---------------------------------------------------------------------------//
