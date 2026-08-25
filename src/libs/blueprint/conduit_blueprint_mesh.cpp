@@ -918,11 +918,10 @@ verify_multi_domain(const Node &n,
 // forall.
 //
 // How it works: the iteration range is the sum of the three axis lengths,
-// laid out as [x values | y values | z values]. Each index selects its axis
-// with at most two comparisons and is rebased to a local index d within
-// that axis. Axes that do not exist (e.g. z in 2D) are passed with a length
-// of 0 and a default accessor, so their range is empty and they are never
-// touched.
+// laid out as [x values | y values | z values]. Each iteration i selects its
+// axis with at most two comparisons and is converted into a local index d
+// within that axis. Axes that do not exist (e.g. z in 2D) are passed with a
+// length of 0 and a default accessor, so their range is empty.
 //
 // This is a separate function because nvcc does not allow device lambdas
 // to be defined inside generic lambdas.
@@ -1013,6 +1012,8 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
         accessors[i].use_with(policy);
     }
 
+    // It is faster to launch one kernel that fills all 3 axes than to launch 3
+    // kernels that fill 1 axis each.
     conduit::execution::dispatch(accessors[0],
                                  accessors[1],
                                  accessors[2],
@@ -1045,9 +1046,9 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
 // Expands one axis of an implicit (uniform or rectilinear) coordset into
 // explicit per-vertex coordinates for host.
 //
-// Parallelizing over the dim_len distinct values lets each value be
-// fetched or computed once, and makes the inner loops effectively
-// sequential stores that vectorize.
+// Parallelizing over dim_len distinct values lets each value be fetched
+// or computed once, and makes the inner loops effectively sequential
+// stores that vectorize (favoring host execution).
 //
 // This is a separate function because nvcc does not allow device lambdas
 // to be defined inside generic lambdas.
@@ -1064,8 +1065,6 @@ coordset_explicit_fill_host_kernel(conduit::execution::ExecutionPolicy &policy,
                                    const index_t dim_block_size,
                                    const index_t dim_block_count)
 {
-    // One work item per distinct axis value; the inner loops write every
-    // position where that value appears.
     conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
     {
         const index_t doffset = d * dim_block_size;
@@ -1075,6 +1074,9 @@ coordset_explicit_fill_host_kernel(conduit::execution::ExecutionPolicy &policy,
             for (index_t bi = 0; bi < dim_block_size; bi++)
             {
                 const index_t ioffset = bi + doffset + boffset;
+                // TODO: Investigate whether it's faster to have 2 separate
+                // kernels for rectilinear and uniform fills to avoid this
+                // comparison every iteration.
                 if (is_base_rectilinear)
                 {
                     dst_cvals.set(ioffset, src_cvals[d]);
@@ -1093,10 +1095,12 @@ coordset_explicit_fill_host_kernel(conduit::execution::ExecutionPolicy &policy,
 // Expands one axis of an implicit (uniform or rectilinear) coordset into
 // explicit per-vertex coordinates for device.
 //
-// The host version only exposes dim_len (at most a few hundred) work items,
-// each serially writing coords_len / dim_len elements, which leaves a GPU
-// almost entirely idle. Here every output element is its own work item,
-// so the launch saturates the device.
+// Instead having each forall iteration be a double for loop over small
+// ranges, GPUs excel at doing many simple operations at once. Similar to a
+// real device kernel, we can flatten the inner loops and have each thread
+// compute d and directly set a value. This more overhead per iteration
+// (due to computing d), but rewriting the problem in this way lets us
+// fully leverage GPU parallelism.
 //
 // This is a separate function because nvcc does not allow device lambdas
 // to be defined inside generic lambdas.
@@ -1121,6 +1125,10 @@ coordset_explicit_fill_device_kernel(conduit::execution::ExecutionPolicy &policy
         //   i / dim_block_size = d + b * dim_len
         // and taking that modulo dim_len leaves d.
         const index_t d = (i / dim_block_size) % dim_len;
+
+        // TODO: Investigate whether it's faster to have 2 separate
+        // kernels for rectilinear and uniform fills to avoid this
+        // comparison every iteration.
         if (is_base_rectilinear)
         {
             dst_cvals.set(i, src_cvals[d]);
