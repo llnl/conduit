@@ -285,69 +285,10 @@ public:
     CONDUIT_EXEC void set(index_t elem_idx, float64 value) const
                     { set_value_helper(elem_idx, static_cast<T>(value)); }
 
-    CONDUIT_EXEC void set_value_helper(index_t idx, T value) const
-    {
-        switch(dtype().id())
-        {
-            case DataType::INT8_ID:
-            {
-                (*(int8*)(element_ptr(idx))) = static_cast<int8>(value);
-                break;
-            }
-            case DataType::INT16_ID:
-            {
-                (*(int16*)(element_ptr(idx))) = static_cast<int16>(value);
-                break;
-            }
-            case DataType::INT32_ID:
-            {
-                (*(int32*)(element_ptr(idx))) = static_cast<int32>(value);
-                break;
-            }
-            case DataType::INT64_ID:
-            {
-                (*(int64*)(element_ptr(idx))) = static_cast<int64>(value);
-                break;
-            }
-            case DataType::UINT8_ID:
-            {
-                (*(uint8*)(element_ptr(idx))) = static_cast<uint8>(value);
-                break;
-            }
-            case DataType::UINT16_ID:
-            {
-                (*(uint16*)(element_ptr(idx))) = static_cast<uint16>(value);
-                break;
-            }
-            case DataType::UINT32_ID:
-            {
-                (*(uint32*)(element_ptr(idx))) = static_cast<uint32>(value);
-                break;
-            }
-            case DataType::UINT64_ID:
-            {
-                (*(uint64*)(element_ptr(idx))) = static_cast<uint64>(value);
-                break;
-            }
-            case DataType::FLOAT32_ID:
-            {
-                (*(float32*)(element_ptr(idx))) = static_cast<float32>(value);
-                break;
-            }
-            case DataType::FLOAT64_ID:
-            {
-                (*(float64*)(element_ptr(idx))) = static_cast<float64>(value);
-                break;
-            }
-            default:
-            {
-#if !defined(CONDUIT_DEVICE_COMPILE)
-                CONDUIT_ERROR("DataAccessor does not support dtype: "
-                              << dtype().name());
-#endif
-            }
-        }
-    }
+    /// catch-all for any other numeric type
+    template <typename U>
+    CONDUIT_EXEC void set(index_t elem_idx, U value) const
+                    { set_value_helper(elem_idx, static_cast<T>(value)); }
 
     /// signed integer arrays
     void            set(const int8  *values, index_t num_elements) const;
@@ -430,6 +371,78 @@ public:
                       {std::cout << to_summary_string() << std::endl;}
 
 private:
+
+//-----------------------------------------------------------------------------
+// Scalar setter implementation
+//-----------------------------------------------------------------------------
+    ///
+    /// DataAccessor keeps the public scalar overload set for the supported
+    /// Conduit bitwidth types, but they all share this single device-visible
+    /// implementation so set(idx, value) behaves the same on host and device.
+    ///
+    CONDUIT_EXEC void set_value_helper(index_t idx, T value) const
+    {
+        switch(dtype().id())
+        {
+            case DataType::INT8_ID:
+            {
+                (*(int8*)(element_ptr(idx))) = static_cast<int8>(value);
+                break;
+            }
+            case DataType::INT16_ID:
+            {
+                (*(int16*)(element_ptr(idx))) = static_cast<int16>(value);
+                break;
+            }
+            case DataType::INT32_ID:
+            {
+                (*(int32*)(element_ptr(idx))) = static_cast<int32>(value);
+                break;
+            }
+            case DataType::INT64_ID:
+            {
+                (*(int64*)(element_ptr(idx))) = static_cast<int64>(value);
+                break;
+            }
+            case DataType::UINT8_ID:
+            {
+                (*(uint8*)(element_ptr(idx))) = static_cast<uint8>(value);
+                break;
+            }
+            case DataType::UINT16_ID:
+            {
+                (*(uint16*)(element_ptr(idx))) = static_cast<uint16>(value);
+                break;
+            }
+            case DataType::UINT32_ID:
+            {
+                (*(uint32*)(element_ptr(idx))) = static_cast<uint32>(value);
+                break;
+            }
+            case DataType::UINT64_ID:
+            {
+                (*(uint64*)(element_ptr(idx))) = static_cast<uint64>(value);
+                break;
+            }
+            case DataType::FLOAT32_ID:
+            {
+                (*(float32*)(element_ptr(idx))) = static_cast<float32>(value);
+                break;
+            }
+            case DataType::FLOAT64_ID:
+            {
+                (*(float64*)(element_ptr(idx))) = static_cast<float64>(value);
+                break;
+            }
+            default:
+            {
+#if !defined(CONDUIT_DEVICE_COMPILE)
+                CONDUIT_ERROR("DataAccessor does not support dtype: "
+                              << dtype().name());
+#endif
+            }
+        }
+    }
 
 //-----------------------------------------------------------------------------
 //

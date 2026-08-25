@@ -87,7 +87,7 @@ struct FillAccessor
 
     CONDUIT_EXEC void operator()(index_t i) const
     {
-        vals.set_value_helper(i, value);
+        vals.set(i, value);
     }
 };
 
@@ -159,7 +159,7 @@ struct CopyFromViewAccessor
 
     CONDUIT_EXEC void operator()(index_t i) const
     {
-        vals.set_value_helper(i, static_cast<T>(src[i]));
+        vals.set(i, static_cast<T>(src[i]));
     }
 };
 
