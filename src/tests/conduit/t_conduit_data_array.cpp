@@ -2700,7 +2700,7 @@ TEST(conduit_data_array, device_fill)
         // Move the data to the policy's space if needed
         float64_array va(n["vals"]);
         va.use_with(policy);
-        EXPECT_EQ(va.active_space().is_device_policy(), policy.is_device_policy());
+        EXPECT_EQ(va.active_policy().is_device_policy(), policy.is_device_policy());
 
         va.fill(static_cast<float64>(-3.5));
 

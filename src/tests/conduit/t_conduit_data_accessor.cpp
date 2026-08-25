@@ -1108,7 +1108,7 @@ TEST(conduit_data_accessor, device_fill)
         // A float64 view of int32 data, moved to the policy's space if needed
         float64_accessor acc(n["vals"]);
         acc.use_with(policy);
-        EXPECT_EQ(acc.active_space().is_device_policy(), policy.is_device_policy());
+        EXPECT_EQ(acc.active_policy().is_device_policy(), policy.is_device_policy());
 
         acc.fill(static_cast<float64>(-7.0));
 

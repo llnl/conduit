@@ -1235,7 +1235,7 @@ TEST(conduit_execution, strawman_data_accessor)
                 annotations::initialize(cali_opts);
 
                 ExecutionPolicy policy;
-                run_data_accessor_using_active_space(node, policy);
+                run_data_accessor_using_active_policy(node, policy);
 
                 annotations::finalize();
 
@@ -1599,7 +1599,7 @@ TEST(conduit_execution, strawman_data_array)
                 annotations::initialize(cali_opts);
 
                 ExecutionPolicy policy;
-                run_data_array_using_active_space(node, policy);
+                run_data_array_using_active_policy(node, policy);
 
                 annotations::finalize();
 

@@ -349,7 +349,7 @@ set_values_helper(const DataAccessor<T> &accessor,
         return;
     }
 
-    execution::ExecutionPolicy policy = accessor.active_space();
+    execution::ExecutionPolicy policy = accessor.active_policy();
 
     const bool dst_on_device = policy.is_device_policy();
     const bool src_on_device = execution::DeviceMemory::is_device_ptr(values);
@@ -381,10 +381,10 @@ set_values_view_helper(const DataAccessor<T> &accessor,
         return;
     }
 
-    execution::ExecutionPolicy policy = accessor.active_space();
+    execution::ExecutionPolicy policy = accessor.active_policy();
 
     const bool dst_on_device = policy.is_device_policy();
-    const bool src_on_device = values.active_space().is_device_policy();
+    const bool src_on_device = values.active_policy().is_device_policy();
 
     if (dst_on_device == src_on_device)
     {
@@ -410,7 +410,7 @@ set_values_helper(const DataAccessor<T> &accessor,
         return;
     }
 
-    execution::ExecutionPolicy policy = accessor.active_space();
+    execution::ExecutionPolicy policy = accessor.active_policy();
 
     const bool dst_on_device = policy.is_device_policy();
     const bool src_on_device = execution::DeviceMemory::is_device_ptr(values);
@@ -446,6 +446,7 @@ set_values_helper(const DataAccessor<T> &accessor,
 {
     set_values_view_helper(accessor, values, num_elements);
 }
+
 }
 //-----------------------------------------------------------------------------
 // -- end conduit::detail --
@@ -469,7 +470,7 @@ DataAccessor<T>::DataAccessor()
   m_do_i_own_it(false),
   m_offset(0),
   m_stride(0),
-  m_space(execution::MemorySpace::UNKNOWN)
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------//
@@ -484,7 +485,7 @@ DataAccessor<T>::DataAccessor(void *data, const DataType &dtype)
   m_do_i_own_it(false),
   m_offset(0),
   m_stride(0),
-  m_space(execution::MemorySpace::UNKNOWN)
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 
@@ -500,7 +501,7 @@ DataAccessor<T>::DataAccessor(const void *data, const DataType &dtype)
   m_do_i_own_it(false),
   m_offset(0),
   m_stride(0),
-  m_space(execution::MemorySpace::UNKNOWN)
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------//
@@ -515,7 +516,7 @@ DataAccessor<T>::DataAccessor(Node &node)
   m_do_i_own_it(false),
   m_offset(node.dtype().offset()),
   m_stride(node.dtype().stride()),
-  m_space(execution::MemorySpace::UNKNOWN)
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------//
@@ -530,7 +531,7 @@ DataAccessor<T>::DataAccessor(const Node &node)
   m_do_i_own_it(false),
   m_offset(node.dtype().offset()),
   m_stride(node.dtype().stride()),
-  m_space(execution::MemorySpace::UNKNOWN)
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------//
@@ -545,7 +546,7 @@ DataAccessor<T>::DataAccessor(Node *node)
   m_do_i_own_it(false),
   m_offset(node->dtype().offset()),
   m_stride(node->dtype().stride()),
-  m_space(execution::MemorySpace::UNKNOWN)
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------//
@@ -560,7 +561,7 @@ DataAccessor<T>::DataAccessor(const Node *node)
   m_do_i_own_it(false),
   m_offset(node->dtype().offset()),
   m_stride(node->dtype().stride()),
-  m_space(execution::MemorySpace::UNKNOWN)
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------// 
@@ -575,12 +576,11 @@ T
 DataAccessor<T>::min()  const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = active_space();
 
     T res = std::numeric_limits<T>::max();
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::accessor_min_kernel<T>(policy, num_elements, vals);
+        res = detail::accessor_min_kernel<T>(m_policy, num_elements, vals);
     });
 
     return res;
@@ -592,12 +592,11 @@ T
 DataAccessor<T>::max() const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = active_space();
 
     T res = std::numeric_limits<T>::lowest();
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::accessor_max_kernel<T>(policy, num_elements, vals);
+        res = detail::accessor_max_kernel<T>(m_policy, num_elements, vals);
     });
 
     return res;
@@ -610,12 +609,11 @@ T
 DataAccessor<T>::sum() const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = active_space();
 
     T res = 0;
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::accessor_sum_kernel<T>(policy, num_elements, vals);
+        res = detail::accessor_sum_kernel<T>(m_policy, num_elements, vals);
     });
 
     return res;
@@ -627,13 +625,12 @@ float64
 DataAccessor<T>::mean() const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = active_space();
 
     float64 res = 0.0;
     execution::dispatch(*this, [&](auto vals)
     {
         // Accumulate in float64 for accuracy
-        res = detail::accessor_sum_kernel<float64>(policy, num_elements, vals);
+        res = detail::accessor_sum_kernel<float64>(m_policy, num_elements, vals);
     });
 
     return res / static_cast<float64>(num_elements);
@@ -645,12 +642,11 @@ index_t
 DataAccessor<T>::count(T val) const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = active_space();
 
     index_t res = 0;
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::accessor_count_kernel<T>(policy, num_elements, vals, val);
+        res = detail::accessor_count_kernel<T>(m_policy, num_elements, vals, val);
     });
 
     return res;
@@ -662,11 +658,10 @@ void
 DataAccessor<T>::fill(T value)
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = active_space();
 
     execution::dispatch(*this, [&](auto vals)
     {
-        detail::accessor_fill_kernel(policy, num_elements, vals, value);
+        detail::accessor_fill_kernel(m_policy, num_elements, vals, value);
     });
 }
 
@@ -687,7 +682,7 @@ DataAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
     if (policy.is_device_policy())
     {
         // data is already on the device
-        if (active_space().is_device_policy())
+        if (active_policy().is_device_policy())
         {
             // Do nothing
         }
@@ -749,12 +744,12 @@ DataAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
         }
 
         // m_data is now (or already was) in device memory
-        m_space = execution::MemorySpace::DEVICE;
+        m_policy = policy;
     }
     else // we are being asked to execute on the host
     {
         // data is already on the host
-        if (! active_space().is_device_policy())
+        if (! active_policy().is_device_policy())
         {
             // Do nothing
         }
@@ -814,7 +809,7 @@ DataAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
         }
 
         // m_data is now (or already was) in host memory
-        m_space = execution::MemorySpace::HOST;
+        m_policy = policy;
     }
 }
 
@@ -874,7 +869,7 @@ DataAccessor<T>::assume()
         // Allow m_node_ptr to take ownership of m_data so that future
         // release()/reset() calls will free it, lest we leak memory.
         const index_t owning_allocator_id =
-            active_space().is_device_policy()
+            active_policy().is_device_policy()
                 ? execution::get_device_allocator_id()
                 : execution::get_host_allocator_id();
         m_node_ptr->assume_data_ptr(m_data,
@@ -916,28 +911,21 @@ DataAccessor<T>::data_movement(const conduit::execution::SyncStrategy strategy)
 //---------------------------------------------------------------------------//
 template <typename T>
 conduit::execution::ExecutionPolicy
-DataAccessor<T>::active_space() const
+DataAccessor<T>::active_policy() const
 {
-    // Starting as UNKNOWN allows us to lazily determine m_space so that we
-    // only query is_device_ptr() if we actually need it.
-    if (execution::MemorySpace::UNKNOWN == m_space)
+    // Starting as EMPTY_ID allows us to lazily determine m_policy so that we
+    // only query is_device_ptr() once we actually need to.
+    if (execution::ExecutionPolicy::PolicyID::EMPTY_ID == m_policy.policy_id())
     {
         // Caching the result allows us to avoid calling is_device_ptr()
         // repeatedly across the lifetime of this object, which has a small
         // but measurable overhead.
-        m_space = execution::DeviceMemory::is_device_ptr(m_data)
-                      ? execution::MemorySpace::DEVICE
-                      : execution::MemorySpace::HOST;
+        m_policy = execution::DeviceMemory::is_device_ptr(m_data)
+                      ? execution::ExecutionPolicy::device()
+                      : execution::ExecutionPolicy::host();
     }
 
-    if (execution::MemorySpace::DEVICE == m_space)
-    {
-        return execution::ExecutionPolicy::device();
-    }
-    else  // host memory
-    {
-        return execution::ExecutionPolicy::host();
-    }
+    return m_policy;
 }
 
 //---------------------------------------------------------------------------//
@@ -1473,7 +1461,6 @@ DataAccessor<T>::to_summary_string_stream(std::ostream &os,
 
     }
 }
-
 
 //-----------------------------------------------------------------------------
 //

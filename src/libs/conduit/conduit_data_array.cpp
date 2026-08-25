@@ -20,6 +20,7 @@
 //-----------------------------------------------------------------------------
 // -- conduit includes -- 
 //-----------------------------------------------------------------------------
+#include "conduit_execution_policy.hpp"
 #include "conduit_node.hpp"
 #include "conduit_utils.hpp"
 #include "conduit_log.hpp"
@@ -346,7 +347,7 @@ fill_value_helper(const DataArray<T> &array,
                   U value)
 {
     const index_t num_elements = array.number_of_elements();
-    execution::ExecutionPolicy policy = array.active_space();
+    execution::ExecutionPolicy policy = array.active_policy();
     const T val = static_cast<T>(value);
 
     execution::dispatch(array, [&](auto vals)
@@ -368,7 +369,7 @@ set_values_helper(const DataArray<T> &array,
         return;
     }
 
-    execution::ExecutionPolicy policy = array.active_space();
+    execution::ExecutionPolicy policy = array.active_policy();
 
     const bool dst_on_device = policy.is_device_policy();
     const bool src_on_device = execution::DeviceMemory::is_device_ptr(values);
@@ -400,10 +401,10 @@ set_values_view_helper(const DataArray<T> &array,
         return;
     }
 
-    execution::ExecutionPolicy policy = array.active_space();
+    execution::ExecutionPolicy policy = array.active_policy();
 
     const bool dst_on_device = policy.is_device_policy();
-    const bool src_on_device = values.active_space().is_device_policy();
+    const bool src_on_device = values.active_policy().is_device_policy();
 
     if (dst_on_device == src_on_device)
     {
@@ -438,6 +439,7 @@ set_values_helper(const DataArray<T> &array,
 {
     set_values_view_helper(array, values, num_elements);
 }
+
 }
 //-----------------------------------------------------------------------------
 // -- end conduit::detail --
@@ -461,7 +463,7 @@ DataArray<T>::DataArray()
   m_do_i_own_it(false),
   m_offset(0),
   m_stride(0),
-  m_space(execution::MemorySpace::UNKNOWN)
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------//
@@ -476,7 +478,7 @@ DataArray<T>::DataArray(void *data, const DataType &dtype)
   m_do_i_own_it(false),
   m_offset(0),
   m_stride(0),
-  m_space(execution::MemorySpace::UNKNOWN)
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 
@@ -492,7 +494,7 @@ DataArray<T>::DataArray(const void *data, const DataType &dtype)
   m_do_i_own_it(false),
   m_offset(0),
   m_stride(0),
-  m_space(execution::MemorySpace::UNKNOWN)
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------//
@@ -507,7 +509,7 @@ DataArray<T>::DataArray(Node &node)
   m_do_i_own_it(false),
   m_offset(node.dtype().offset()),
   m_stride(node.dtype().stride()),
-  m_space(execution::MemorySpace::UNKNOWN)
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------//
@@ -522,7 +524,7 @@ DataArray<T>::DataArray(const Node &node)
   m_do_i_own_it(false),
   m_offset(node.dtype().offset()),
   m_stride(node.dtype().stride()),
-  m_space(execution::MemorySpace::UNKNOWN)
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------//
@@ -537,7 +539,7 @@ DataArray<T>::DataArray(Node *node)
   m_do_i_own_it(false),
   m_offset(node->dtype().offset()),
   m_stride(node->dtype().stride()),
-  m_space(execution::MemorySpace::UNKNOWN)
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------//
@@ -552,7 +554,7 @@ DataArray<T>::DataArray(const Node *node)
   m_do_i_own_it(false),
   m_offset(node->dtype().offset()),
   m_stride(node->dtype().stride()),
-  m_space(execution::MemorySpace::UNKNOWN)
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------//
@@ -905,12 +907,10 @@ T
 DataArray<T>::min()  const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = active_space();
-
     T res = std::numeric_limits<T>::max();
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::array_min_kernel<T>(policy, num_elements, vals);
+        res = detail::array_min_kernel<T>(m_policy, num_elements, vals);
     });
 
     return res;
@@ -922,12 +922,11 @@ T
 DataArray<T>::max() const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = active_space();
 
     T res = std::numeric_limits<T>::lowest();
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::array_max_kernel<T>(policy, num_elements, vals);
+        res = detail::array_max_kernel<T>(m_policy, num_elements, vals);
     });
 
     return res;
@@ -940,12 +939,11 @@ T
 DataArray<T>::sum() const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = active_space();
 
     T res = 0;
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::array_sum_kernel<T>(policy, num_elements, vals);
+        res = detail::array_sum_kernel<T>(m_policy, num_elements, vals);
     });
 
     return res;
@@ -957,13 +955,12 @@ float64
 DataArray<T>::mean() const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = active_space();
 
     float64 res = 0.0;
     execution::dispatch(*this, [&](auto vals)
     {
         // Accumulate in float64 for accuracy
-        res = detail::array_sum_kernel<float64>(policy, num_elements, vals);
+        res = detail::array_sum_kernel<float64>(m_policy, num_elements, vals);
     });
 
     return res / static_cast<float64>(num_elements);
@@ -975,12 +972,11 @@ index_t
 DataArray<T>::count(T val) const
 {
     const index_t num_elements = number_of_elements();
-    execution::ExecutionPolicy policy = active_space();
 
     index_t res = 0;
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::array_count_kernel<T>(policy, num_elements, vals, val);
+        res = detail::array_count_kernel<T>(m_policy, num_elements, vals, val);
     });
 
     return res;
@@ -1003,7 +999,7 @@ DataArray<T>::use_with(conduit::execution::ExecutionPolicy policy)
     if (policy.is_device_policy())
     {
         // data is already on the device
-        if (active_space().is_device_policy())
+        if (active_policy().is_device_policy())
         {
             // Do nothing
         }
@@ -1065,12 +1061,12 @@ DataArray<T>::use_with(conduit::execution::ExecutionPolicy policy)
         }
 
         // m_data is now (or already was) in device memory
-        m_space = execution::MemorySpace::DEVICE;
+        m_policy = policy;
     }
     else // we are being asked to execute on the host
     {
         // data is already on the host
-        if (! active_space().is_device_policy())
+        if (! active_policy().is_device_policy())
         {
             // Do nothing
         }
@@ -1130,7 +1126,7 @@ DataArray<T>::use_with(conduit::execution::ExecutionPolicy policy)
         }
 
         // m_data is now (or already was) in host memory
-        m_space = execution::MemorySpace::HOST;
+        m_policy = policy;
     }
 }
 
@@ -1190,7 +1186,7 @@ DataArray<T>::assume()
         // Allow m_node_ptr to take ownership of m_data so that future
         // release()/reset() calls will free it, lest we leak memory.
         const index_t owning_allocator_id =
-            active_space().is_device_policy()
+            active_policy().is_device_policy()
                 ? execution::get_device_allocator_id()
                 : execution::get_host_allocator_id();
         m_node_ptr->assume_data_ptr(m_data,
@@ -1233,28 +1229,21 @@ DataArray<T>::data_movement(const conduit::execution::SyncStrategy strategy)
 //---------------------------------------------------------------------------//
 template <typename T>
 conduit::execution::ExecutionPolicy
-DataArray<T>::active_space() const
+DataArray<T>::active_policy() const
 {
-    // Starting as UNKNOWN allows us to lazily determine m_space so that we
-    // only query is_device_ptr() if we actually need it.
-    if (execution::MemorySpace::UNKNOWN == m_space)
+    // Starting as EMPTY_ID allows us to lazily determine m_policy so that we
+    // only query is_device_ptr() once we actually need to.
+    if (execution::ExecutionPolicy::PolicyID::EMPTY_ID == m_policy.policy_id())
     {
         // Caching the result allows us to avoid calling is_device_ptr()
         // repeatedly across the lifetime of this object, which has a small
         // but measurable overhead.
-        m_space = execution::DeviceMemory::is_device_ptr(m_data)
-                      ? execution::MemorySpace::DEVICE
-                      : execution::MemorySpace::HOST;
+        m_policy = execution::DeviceMemory::is_device_ptr(m_data)
+                      ? execution::ExecutionPolicy::device()
+                      : execution::ExecutionPolicy::host();
     }
 
-    if (execution::MemorySpace::DEVICE == m_space)
-    {
-        return execution::ExecutionPolicy::device();
-    }
-    else // host memory
-    {
-        return execution::ExecutionPolicy::host();
-    }
+    return m_policy;
 }
 
 //---------------------------------------------------------------------------// 
@@ -2539,8 +2528,6 @@ DataArray<T>::to_summary_string_stream(std::ostream &os,
             os << "]";
     }
 }
-
-
 
 //-----------------------------------------------------------------------------
 //

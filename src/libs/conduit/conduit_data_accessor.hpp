@@ -84,7 +84,7 @@ public:
           m_do_i_own_it(false),
           m_offset(accessor.m_offset),
           m_stride(accessor.m_stride),
-          m_space(accessor.m_space)
+          m_policy(accessor.m_policy)
         {}
         /// Access a pointer to raw data according to dtype description.
         DataAccessor(void *data, const DataType &dtype);
@@ -151,7 +151,7 @@ public:
             m_do_i_own_it = false;
             m_offset = accessor.m_offset;
             m_stride = accessor.m_stride;
-            m_space = accessor.m_space;
+            m_policy = accessor.m_policy;
         }
         return *this;
     }
@@ -254,7 +254,7 @@ public:
 
     void                                data_movement(const conduit::execution::SyncStrategy strategy);
 
-    conduit::execution::ExecutionPolicy active_space() const;
+    conduit::execution::ExecutionPolicy active_policy() const;
 
 //-----------------------------------------------------------------------------
 // Setters
@@ -468,9 +468,8 @@ private:
     index_t         m_offset;
     index_t         m_stride;
 
-    /// Caches m_data's memory space, initialized to UNKNOWN until the first
-    /// time it's needed.
-    mutable conduit::execution::MemorySpace m_space;
+    /// Caches the execution policy, starts with an empty policy.
+    mutable conduit::execution::ExecutionPolicy m_policy;
 };
 //-----------------------------------------------------------------------------
 // -- end conduit::DataAccessor --
