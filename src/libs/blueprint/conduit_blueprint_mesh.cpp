@@ -1065,29 +1065,41 @@ coordset_explicit_fill_host_kernel(conduit::execution::ExecutionPolicy &policy,
                                    const index_t dim_block_size,
                                    const index_t dim_block_count)
 {
-    conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
+    // We duplicate these foralls to avoid having to branch on
+    // rectilinear/uniform. The only difference is how we ultimately set
+    // the values.
+    if (is_base_rectilinear)
     {
-        const index_t doffset = d * dim_block_size;
-        for (index_t b = 0; b < dim_block_count; b++)
+        conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
         {
-            const index_t boffset = b * dim_block_size * dim_len;
-            for (index_t bi = 0; bi < dim_block_size; bi++)
+            const index_t doffset = d * dim_block_size;
+            for (index_t b = 0; b < dim_block_count; b++)
             {
-                const index_t ioffset = bi + doffset + boffset;
-                // TODO: Investigate whether it's faster to have 2 separate
-                // kernels for rectilinear and uniform fills to avoid this
-                // comparison every iteration.
-                if (is_base_rectilinear)
+                const index_t boffset = b * dim_block_size * dim_len;
+                for (index_t bi = 0; bi < dim_block_size; bi++)
                 {
+                    const index_t ioffset = bi + doffset + boffset;
                     dst_cvals.set(ioffset, src_cvals[d]);
                 }
-                else if (is_base_uniform)
+            }
+        });
+    }
+    else if (is_base_uniform)
+    {
+        conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
+        {
+            const index_t doffset = d * dim_block_size;
+            for (index_t b = 0; b < dim_block_count; b++)
+            {
+                const index_t boffset = b * dim_block_size * dim_len;
+                for (index_t bi = 0; bi < dim_block_size; bi++)
                 {
+                    const index_t ioffset = bi + doffset + boffset;
                     dst_cvals.set(ioffset, dim_origin + d * dim_spacing);
                 }
             }
-        }
-    });
+        });
+    }
     CONDUIT_DEVICE_ERROR_CHECK(policy);
 }
 
@@ -1095,7 +1107,7 @@ coordset_explicit_fill_host_kernel(conduit::execution::ExecutionPolicy &policy,
 // Expands one axis of an implicit (uniform or rectilinear) coordset into
 // explicit per-vertex coordinates for device.
 //
-// Instead having each forall iteration be a double for loop over small
+// Instead of having each forall iteration be a double for loop over small
 // ranges, GPUs excel at doing many simple operations at once. Similar to a
 // real device kernel, we can flatten the inner loops and have each thread
 // compute d and directly set a value. This more overhead per iteration
@@ -1117,27 +1129,33 @@ coordset_explicit_fill_device_kernel(conduit::execution::ExecutionPolicy &policy
                                      const index_t dim_block_size,
                                      const index_t dim_block_count)
 {
+    // We duplicate these foralls to avoid having to branch on
+    // rectilinear/uniform. They work by inverting the layout formula to
+    // recover d:
+    //
+    // With bi < dim_block_size:
+    //   i = bi + d * dim_block_size + b * dim_block_size * dim_len
+    // Dividing both sides by dim_block_size:
+    //   i / dim_block_size = d + b * dim_len
+    // Taking the modulus dim_len of both sides:
+    //   = (d + b * dim_len) % dim_len == d.
     const index_t coords_len = dim_len * dim_block_size * dim_block_count;
-    conduit::execution::forall(policy, 0, coords_len, [=] CONDUIT_EXEC(index_t i)
+    if (is_base_rectilinear)
     {
-        // Invert the layout formula to recover d. With bi < dim_block_size,
-        //   i = bi + d * dim_block_size + b * dim_block_size * dim_len
-        //   i / dim_block_size = d + b * dim_len
-        // and taking that modulo dim_len leaves d.
-        const index_t d = (i / dim_block_size) % dim_len;
-
-        // TODO: Investigate whether it's faster to have 2 separate
-        // kernels for rectilinear and uniform fills to avoid this
-        // comparison every iteration.
-        if (is_base_rectilinear)
+        conduit::execution::forall(policy, 0, coords_len, [=] CONDUIT_EXEC(index_t i)
         {
+            const index_t d = (i / dim_block_size) % dim_len;
             dst_cvals.set(i, src_cvals[d]);
-        }
-        else if (is_base_uniform)
+        });
+    }
+    else if (is_base_uniform)
+    {
+        conduit::execution::forall(policy, 0, coords_len, [=] CONDUIT_EXEC(index_t i)
         {
+            const index_t d = (i / dim_block_size) % dim_len;
             dst_cvals.set(i, dim_origin + d * dim_spacing);
-        }
-    });
+        });
+    }
     CONDUIT_DEVICE_ERROR_CHECK(policy);
 }
 
@@ -1216,6 +1234,12 @@ convert_coordset_to_explicit(const std::string &base_type,
         const index_t dim_len = dim_lens[i];
         if (policy.is_device_policy())
         {
+            // Instead of having each forall iteration be a double for loop over small
+            // ranges, GPUs excel at doing many simple operations at once. Similar to a
+            // real device kernel, we can flatten the inner loops and have each thread
+            // compute d and directly set a value. This more overhead per iteration
+            // (due to computing d), but rewriting the problem in this way lets us
+            // fully leverage GPU parallelism.
             conduit::execution::dispatch(src_cvals_acc,
                                          dst_cvals_acc,
                                          [&](auto src_vals, auto dst_vals)
@@ -1234,6 +1258,9 @@ convert_coordset_to_explicit(const std::string &base_type,
         }
         else // if (!policy.is_device_policy())
         {
+            // Each forall iteration is a double for loop. Parallelizing over dim_len
+            // distinct values lets each value be fetched or computed once, and makes
+            // the inner loops effectively sequential stores that vectorize.
             conduit::execution::dispatch(src_cvals_acc,
                                          dst_cvals_acc,
                                          [&](auto src_vals, auto dst_vals)
