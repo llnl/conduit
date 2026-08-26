@@ -6942,7 +6942,7 @@ mesh::matset::verify(const Node &matset,
                 }
                 else if (vfs.dtype().is_number() && vfs.dtype().number_of_elements() == 0)
                 {
-                    log::error(info, protocol,
+                    conduit::utils::log::error(info, protocol,
                         "material volume fractions must be a scalar array with more than 0 elements");
                     res &= false;
                 }
