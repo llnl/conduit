@@ -63,7 +63,10 @@ namespace examples
 {
 
 //---------------------------------------------------------------------------//
-void venn_full_matset(Node &res, index_t nx, index_t ny)
+void venn_full_matset(Node &res,
+                      const index_t nx,
+                      const index_t ny,
+                      const std::string &generate_material_map)
 {
     // create the material sets
 
@@ -73,6 +76,18 @@ void venn_full_matset(Node &res, index_t nx, index_t ny)
     float64 dx = 1.0 / float64(nx);
     float64 dy = 1.0 / float64(ny);
     float64 element_area = dx * dy;
+
+    if (generate_material_map == "yes")
+    {
+        res["matsets/matset/material_map/background"] = 0;
+        res["matsets/matset/material_map/circle_a"] = 1;
+        res["matsets/matset/material_map/circle_b"] = 2;
+        res["matsets/matset/material_map/circle_c"] = 3;
+    }
+    else if (generate_material_map != "no" && generate_material_map != "default")
+    {
+        CONDUIT_ERROR("Unknown option for generate_material_map: " << generate_material_map);
+    }
 
     // create importance reference
     Node &mat_importance = res["meta/importance"];
@@ -213,13 +228,13 @@ void compute_material_sparse_matset_field(Node &res,
                                           index_t nx,
                                           index_t ny)
 {
-    index_t elements = nx * ny;
+    const index_t elements = nx * ny;
 
-    Node & n = res["fields/" + field_name + "/values"];
+    Node &n = res["fields/" + field_name + "/values"];
     n.set(DataType::float64(elements));
     float64_array n_val = n.value();
 
-    Node & matset_values = res["fields/" + field_name + "/matset_values"];
+    Node &matset_values = res["fields/" + field_name + "/matset_values"];
 
     NodeIterator itr = matset_values.children();
     while (itr.has_next())
@@ -245,7 +260,11 @@ void compute_material_sparse_matset_field(Node &res,
 }
 
 //---------------------------------------------------------------------------//
-void venn_sparse_by_material_matset(Node &res, index_t nx, index_t ny)
+void venn_sparse_by_material_matset(Node &res,
+                                    const index_t nx,
+                                    const index_t ny,
+                                    const std::string &generate_material_map,
+                                    const float64 epsilon = CONDUIT_EPSILON)
 {    
     // create the materials
     
@@ -260,17 +279,6 @@ void venn_sparse_by_material_matset(Node &res, index_t nx, index_t ny)
     res["matsets/matset/element_ids/circle_a"];
     res["matsets/matset/element_ids/circle_b"];
     res["matsets/matset/element_ids/circle_c"];
-
-    // we could also use the following material map:
-    //
-    // res["matsets/matset/material_map/background"] = 0;
-    // res["matsets/matset/material_map/circle_a"] = 1;
-    // res["matsets/matset/material_map/circle_b"] = 2;
-    // res["matsets/matset/material_map/circle_c"] = 3;
-    //
-    // however, this current setup is a good test of the
-    // non explicit map case
-
 
     float64_array cir_a = res["fields/circle_a/values"].value();
     float64_array cir_b = res["fields/circle_b/values"].value();
@@ -314,45 +322,82 @@ void venn_sparse_by_material_matset(Node &res, index_t nx, index_t ny)
         res["fields/importance/matset_values/circle_c"],
         res["matsets/matset"]);
 
+    const float64 one_minus_epsilon = 1.0 - epsilon;
+
     // The background material volume fraction depends on the other three
     // materials, so we deal with it in a custom loop.
-    index_t bgcount = 0;
-    for (index_t idx = 0; idx < elements; ++idx)
+    const index_t bgcount = [&]() -> float64
     {
-        if (cir_a[idx] + cir_b[idx] + cir_c[idx] < 1.) bgcount += 1;
+        index_t count = 0;
+        for (index_t idx = 0; idx < elements; ++idx)
+        {
+            const float64 circle_sum = cir_a[idx] + cir_b[idx] + cir_c[idx];
+            if (circle_sum < one_minus_epsilon)
+            {
+                count += 1;
+            }
+        }
+        return count;
+    }();
+
+    const bool background_exists = bgcount != 0;
+
+    if (generate_material_map == "yes" ||
+        (generate_material_map == "default" && ! background_exists))
+    {
+        // either we have asked for a material map
+        // or we need to include one since background is
+        // missing, and it is best to include it in
+        // the material map.
+        res["matsets/matset/material_map/background"] = 0;
+        res["matsets/matset/material_map/circle_a"] = 1;
+        res["matsets/matset/material_map/circle_b"] = 2;
+        res["matsets/matset/material_map/circle_c"] = 3;
+    }
+    else if (generate_material_map != "no" && generate_material_map != "default")
+    {
+        CONDUIT_ERROR("Unknown option for generate_material_map: " << generate_material_map);
     }
 
-    res["matsets/matset/volume_fractions/background"].set(DataType::float64(bgcount));
-    res["matsets/matset/element_ids/background"].set(DataType::int32(bgcount));
-    float64_array bg_val = res["matsets/matset/volume_fractions/background"].value();
-    int32_array bg_idx = res["matsets/matset/element_ids/background"].value();
-
-    Node &matset_area_bg = res["fields/area/matset_values/background"];
-    matset_area_bg.set(DataType::float64(bgcount));
-    float64_array matset_area_bg_value = matset_area_bg.value();
-
-    Node &matset_importance_bg = res["fields/importance/matset_values/background"];
-    matset_importance_bg.set(DataType::float64(bgcount));
-    float64_array matset_importance_bg_value = matset_importance_bg.value();
-
-    index_t nidx = 0;
-    for (index_t idx = 0; idx < elements; ++idx)
+    if (background_exists)
     {
-        float64 x_pos = ((float64)(idx % nx)) / nx;
-        float64 y_pos = ((float64)(idx / nx)) / ny;
+        res["matsets/matset/volume_fractions/background"].set(DataType::float64(bgcount));
+        res["matsets/matset/element_ids/background"].set(DataType::int32(bgcount));
+        float64_array bg_val = res["matsets/matset/volume_fractions/background"].value();
+        int32_array bg_idx = res["matsets/matset/element_ids/background"].value();
 
-        float64 fgvf = cir_a[idx] + cir_b[idx] + cir_c[idx];
-        if (fgvf < 1.)
+        Node &matset_area_bg = res["fields/area/matset_values/background"];
+        matset_area_bg.set(DataType::float64(bgcount));
+        float64_array matset_area_bg_value = matset_area_bg.value();
+
+        Node &matset_importance_bg = res["fields/importance/matset_values/background"];
+        matset_importance_bg.set(DataType::float64(bgcount));
+        float64_array matset_importance_bg_value = matset_importance_bg.value();
+
+        index_t nidx = 0;
+        for (index_t idx = 0; idx < elements; ++idx)
         {
-            bg_idx[nidx] = (int32)idx;
+            const float64 x_pos = static_cast<float64>(idx % nx) / nx;
+            const float64 y_pos = static_cast<float64>(idx / nx) / ny;
 
-            bg_val[nidx] = 1. - fgvf;
+            const float64 fgvf = cir_a[idx] + cir_b[idx] + cir_c[idx];
+            if (fgvf < one_minus_epsilon)
+            {
+                bg_idx[nidx] = (int32)idx;
 
-            matset_area_bg_value[nidx] = element_area;
-            matset_importance_bg_value[nidx] = x_pos + y_pos;
+                bg_val[nidx] = 1. - fgvf;
 
-            nidx += 1;
+                matset_area_bg_value[nidx] = element_area;
+                matset_importance_bg_value[nidx] = x_pos + y_pos;
+
+                nidx += 1;
+            }
         }
+    }
+    else
+    {
+        res["matsets/matset/volume_fractions"].remove_child("background");
+        res["matsets/matset/element_ids"].remove_child("background");
     }
 
     // --------- //
@@ -369,38 +414,30 @@ void venn_sparse_by_material_matset(Node &res, index_t nx, index_t ny)
     index_t cir_c_count = res["matsets/matset/element_ids/circle_c"].dtype().number_of_elements();
 
     // init our matset_values arrays
-    res["fields/mat_check/matset_values/background"].set(DataType::int64(bgcount));
+    if (background_exists)
+    {
+        res["fields/mat_check/matset_values/background"].set(DataType::int64(bgcount));
+    }
     res["fields/mat_check/matset_values/circle_a"].set(DataType::int64(cir_a_count));
     res["fields/mat_check/matset_values/circle_b"].set(DataType::int64(cir_b_count));
     res["fields/mat_check/matset_values/circle_c"].set(DataType::int64(cir_c_count));
 
     // set with unique values
 
-    // NOTE: this is good use case for adding DataArray.fill ...
-    int64_array m_chk_bg_vals = res["fields/mat_check/matset_values/background"].value();
-        
-    for(index_t idx=0;idx < bgcount; idx++)
+    if (background_exists)
     {
-        m_chk_bg_vals[idx] = 1;
+        int64_array m_chk_bg_vals = res["fields/mat_check/matset_values/background"].value();
+        m_chk_bg_vals.fill(1);
     }
 
     int64_array m_chk_cir_a_vals = res["fields/mat_check/matset_values/circle_a"].value();
-    for(index_t idx=0;idx < cir_a_count; idx++)
-    {
-        m_chk_cir_a_vals[idx] = 20;
-    }
+    m_chk_cir_a_vals.fill(20);
 
     int64_array m_chk_cir_b_vals = res["fields/mat_check/matset_values/circle_b"].value();
-    for(index_t idx=0;idx < cir_b_count; idx++)
-    {
-        m_chk_cir_b_vals[idx] = 300;
-    }
+    m_chk_cir_b_vals.fill(300);
 
     int64_array m_chk_cir_c_vals = res["fields/mat_check/matset_values/circle_c"].value();
-    for(index_t idx=0;idx < cir_c_count; idx++)
-    {
-        m_chk_cir_c_vals[idx] = 4000;
-    }
+    m_chk_cir_c_vals.fill(4000);
 
     // Now we've computed the matset values for the fields area and
     // importance, sum the product of the volume fraction and the matset
@@ -410,7 +447,10 @@ void venn_sparse_by_material_matset(Node &res, index_t nx, index_t ny)
     compute_material_sparse_matset_field(res, "importance", nx, ny);
 }
 
-void venn_sparse_by_element_matset(Node &res, index_t nx, index_t ny)
+void venn_sparse_by_element_matset(Node &res,
+                                   const index_t nx,
+                                   const index_t ny,
+                                   const std::string &generate_material_map)
 {
     // create the materials
 
@@ -440,11 +480,23 @@ void venn_sparse_by_element_matset(Node &res, index_t nx, index_t ny)
 
     // Build the rest of the single-buffer matset
     res["matsets/matset/topology"] = "topo";
-    // This is the "key" that tells what material each volume fraction refers to
-    res["matsets/matset/material_map/circle_a"] = 1;
-    res["matsets/matset/material_map/circle_b"] = 2;
-    res["matsets/matset/material_map/circle_c"] = 3;
-    res["matsets/matset/material_map/background"] = 0;
+
+    if (generate_material_map == "yes" || generate_material_map == "default")
+    {
+        // This is the "key" that tells what material each volume fraction refers to
+        res["matsets/matset/material_map/circle_a"] = 1;
+        res["matsets/matset/material_map/circle_b"] = 2;
+        res["matsets/matset/material_map/circle_c"] = 3;
+        res["matsets/matset/material_map/background"] = 0;
+    }
+    else if (generate_material_map == "no")
+    {
+        CONDUIT_ERROR("Material map is required for sparse by element (uni-buffer by element) matsets.");
+    }
+    else
+    {
+        CONDUIT_ERROR("Unknown option for generate_material_map: " << generate_material_map);
+    }
 
     // All the volume fractions go here ("one big buffer")
     res["matsets/matset/volume_fractions"].set(DataType::float64(vfcount));
@@ -529,11 +581,274 @@ void venn_sparse_by_element_matset(Node &res, index_t nx, index_t ny)
     }
 }
 
+//---------------------------------------------------------------------------//
+void venn_full_specset(Node &res, index_t nx, index_t ny)
+{
+    // create the species sets
+
+    index_t elements = nx * ny;
+
+    res["specsets/specset/matset"] = "matset";
+    res["specsets/specset/matset_values/background/bg_spec1"] = DataType::float64(elements);
+    res["specsets/specset/matset_values/circle_a/a_spec1"] = DataType::float64(elements);
+    res["specsets/specset/matset_values/circle_a/a_spec2"] = DataType::float64(elements);
+    res["specsets/specset/matset_values/circle_b/b_spec1"] = DataType::float64(elements);
+    res["specsets/specset/matset_values/circle_b/b_spec2"] = DataType::float64(elements);
+    res["specsets/specset/matset_values/circle_c/c_spec1"] = DataType::float64(elements);
+    res["specsets/specset/matset_values/circle_c/c_spec2"] = DataType::float64(elements);
+    res["specsets/specset/matset_values/circle_c/c_spec3"] = DataType::float64(elements);
+
+    float64_array bg_spec1 = res["specsets/specset/matset_values/background/bg_spec1"].value();
+    float64_array ca_spec1 = res["specsets/specset/matset_values/circle_a/a_spec1"].value();
+    float64_array ca_spec2 = res["specsets/specset/matset_values/circle_a/a_spec2"].value();
+    float64_array cb_spec1 = res["specsets/specset/matset_values/circle_b/b_spec1"].value();
+    float64_array cb_spec2 = res["specsets/specset/matset_values/circle_b/b_spec2"].value();
+    float64_array cc_spec1 = res["specsets/specset/matset_values/circle_c/c_spec1"].value();
+    float64_array cc_spec2 = res["specsets/specset/matset_values/circle_c/c_spec2"].value();
+    float64_array cc_spec3 = res["specsets/specset/matset_values/circle_c/c_spec3"].value();
+
+    const float64 nxf = static_cast<float64>(nx);
+    const float64 nyf = static_cast<float64>(ny);
+
+    for (index_t y = 0; y < ny; y ++)
+    {
+        const float64 yf = static_cast<float64>(y);
+        for (index_t x = 0; x < nx; x ++)
+        {
+            const index_t elem_id = x + nx * y;
+            const float64 xf = static_cast<float64>(x);
+
+            // circle_a species vary horizontally
+            float64 specvalue = xf / nxf;
+            ca_spec1[elem_id] = specvalue;
+            ca_spec2[elem_id] = 1.0 - specvalue;
+
+            // circle_b species vary vertically
+            specvalue = yf / nyf;
+            cb_spec1[elem_id] = specvalue;
+            cb_spec2[elem_id] = 1.0 - specvalue;
+
+            // circle_c species vary diagonally
+            specvalue = (yf / nyf + xf / nxf) / 2.0;
+            cc_spec1[elem_id] = 1.0 - specvalue;
+            cc_spec2[elem_id] = 0.75 * specvalue;
+            cc_spec3[elem_id] = 0.25 * specvalue;
+
+            // background species do not vary
+            bg_spec1[elem_id] = 1.0;
+        }
+    }
+}
+
+void venn_sparse_by_material_specset(Node &res, index_t nx, index_t ny)
+{
+    auto contains = [](const Node &leaf_array, index_t value) -> bool
+    {
+        const index_t_accessor leaf_arr_acc = leaf_array.value();
+        return leaf_arr_acc.count(value) > 0;
+    };
+
+    const Node &element_ids = res["matsets/matset/element_ids"];
+
+    std::vector<float64> bg_spec1;
+    std::vector<float64> ca_spec1;
+    std::vector<float64> ca_spec2;
+    std::vector<float64> cb_spec1;
+    std::vector<float64> cb_spec2;
+    std::vector<float64> cc_spec1;
+    std::vector<float64> cc_spec2;
+    std::vector<float64> cc_spec3;
+
+    const float64 nxf = static_cast<float64>(nx);
+    const float64 nyf = static_cast<float64>(ny);
+    for (index_t y = 0; y < ny; y ++)
+    {
+        const float64 yf = static_cast<float64>(y);
+        for (index_t x = 0; x < nx; x ++)
+        {
+            const index_t elem_id = x + nx * y;
+            const float64 xf = static_cast<float64>(x);
+
+            if (contains(element_ids["circle_a"], elem_id))
+            {
+                // circle_a species vary horizontally
+                const float64 specvalue = xf / nxf;
+                ca_spec1.push_back(specvalue);
+                ca_spec2.push_back(1.0 - specvalue);
+            }
+
+            if (contains(element_ids["circle_b"], elem_id))
+            {
+                // circle_b species vary vertically
+                const float64 specvalue = yf / nyf;
+                cb_spec1.push_back(specvalue);
+                cb_spec2.push_back(1.0 - specvalue);
+            }
+
+            if (contains(element_ids["circle_c"], elem_id))
+            {
+                // circle_c species vary diagonally
+                const float64 specvalue = (yf / nyf + xf / nxf) / 2.0;
+                cc_spec1.push_back(1.0 - specvalue);
+                cc_spec2.push_back(0.75 * specvalue);
+                cc_spec3.push_back(0.25 * specvalue);
+            }
+
+            if (contains(element_ids["background"], elem_id))
+            {
+                // background species do not vary
+                bg_spec1.push_back(1.0);
+            }
+        }
+    }
+
+    res["specsets/specset/matset"] = "matset";
+    res["specsets/specset/matset_values/background/bg_spec1"].set(bg_spec1);
+    res["specsets/specset/matset_values/circle_a/a_spec1"].set(ca_spec1);
+    res["specsets/specset/matset_values/circle_a/a_spec2"].set(ca_spec2);
+    res["specsets/specset/matset_values/circle_b/b_spec1"].set(cb_spec1);
+    res["specsets/specset/matset_values/circle_b/b_spec2"].set(cb_spec2);
+    res["specsets/specset/matset_values/circle_c/c_spec1"].set(cc_spec1);
+    res["specsets/specset/matset_values/circle_c/c_spec2"].set(cc_spec2);
+    res["specsets/specset/matset_values/circle_c/c_spec3"].set(cc_spec3);
+}
+
+void venn_sparse_by_element_specset(Node &res, index_t nx, index_t ny)
+{
+    // get references to the matset
+    const Node &matset = res["matsets/matset"];
+    const index_t_accessor m_sizes = matset["sizes"].value();
+    const index_t_accessor m_offsets = matset["offsets"].value();
+    const index_t_accessor m_material_ids = matset["material_ids"].value();
+
+    // create reverse material map
+    std::map<int, std::string> reverse_matmap;
+    auto matmap_itr = matset["material_map"].children();
+    while (matmap_itr.has_next())
+    {
+        const Node &matmap_entry = matmap_itr.next();
+        const std::string matname = matmap_itr.name();
+
+        reverse_matmap[matmap_entry.to_int()] = matname;
+    }
+
+    // create species_names
+    res["specsets/specset/matset"] = "matset";
+    res["specsets/specset/species_names/background/bg_spec1"];
+    res["specsets/specset/species_names/circle_a/a_spec1"];
+    res["specsets/specset/species_names/circle_a/a_spec2"];
+    res["specsets/specset/species_names/circle_b/b_spec1"];
+    res["specsets/specset/species_names/circle_b/b_spec2"];
+    res["specsets/specset/species_names/circle_c/c_spec1"];
+    res["specsets/specset/species_names/circle_c/c_spec2"];
+    res["specsets/specset/species_names/circle_c/c_spec3"];
+
+    std::vector<float64> matset_values;
+    std::vector<index_t> sizes;
+    std::vector<index_t> offsets;
+
+    const float64 nxf = static_cast<float64>(nx);
+    const float64 nyf = static_cast<float64>(ny);
+    for (index_t y = 0; y < ny; y ++)
+    {
+        const float64 yf = static_cast<float64>(y);
+        for (index_t x = 0; x < nx; x ++)
+        {
+            const index_t elem_id = x + nx * y;
+            const float64 xf = static_cast<float64>(x);
+
+            const index_t zone_size = m_sizes[elem_id];
+            const index_t zone_offset = m_offsets[elem_id];
+
+            index_t num_specs_in_zone = 0;
+            for (index_t local_offset = 0; local_offset < zone_size; local_offset ++)
+            {
+                const index_t mat_id = m_material_ids[zone_offset + local_offset];
+                const std::string matname = reverse_matmap.at(mat_id);
+
+                if ("circle_a" == matname)
+                {
+                    // circle_a species vary horizontally
+                    const float64 specvalue = xf / nxf;
+                    matset_values.push_back(specvalue);
+                    matset_values.push_back(1.0 - specvalue);
+                    num_specs_in_zone += 2;
+                }
+                else if ("circle_b" == matname)
+                {
+                    // circle_b species vary vertically
+                    const float64 specvalue = yf / nyf;
+                    matset_values.push_back(specvalue);
+                    matset_values.push_back(1.0 - specvalue);
+                    num_specs_in_zone += 2;
+                }
+                else if ("circle_c" == matname)
+                {
+                    // circle_c species vary diagonally
+                    const float64 specvalue = (yf / nyf + xf / nxf) / 2.0;
+                    matset_values.push_back(1.0 - specvalue);
+                    matset_values.push_back(0.75 * specvalue);
+                    matset_values.push_back(0.25 * specvalue);
+                    num_specs_in_zone += 3;
+                }
+                else // ("background" == matname)
+                {
+                    // background species do not vary
+                    matset_values.push_back(1.0);
+                    num_specs_in_zone += 1;
+                }
+            }
+
+            sizes.push_back(num_specs_in_zone);
+        }
+    }
+
+    offsets.push_back(0);
+    for (index_t elem_id = 1; elem_id < nx * ny; elem_id ++)
+    {
+        offsets.push_back(offsets[elem_id - 1] + sizes[elem_id - 1]);
+    }
+
+    res["specsets/specset/matset_values"].set(matset_values);
+    res["specsets/specset/sizes"].set(sizes);
+    res["specsets/specset/offsets"].set(offsets);
+}
+
+//-----------------------------------------------------------------------------
 void venn(const std::string &matset_type,
-          index_t nx,
-          index_t ny,
-          float64 radius, 
-          Node &res)
+          const index_t nx,
+          const index_t ny,
+          const float64 radius, 
+          Node &res,
+          const float64 epsilon)
+{
+    const std::string generate_material_map = "default";
+    const std::string generate_specset = "default";
+    venn(matset_type, nx, ny, radius, generate_material_map, generate_specset, res, epsilon);
+}
+
+//-----------------------------------------------------------------------------
+void venn(const std::string &matset_type,
+          const index_t nx,
+          const index_t ny,
+          const float64 radius, 
+          const std::string &generate_material_map,
+          Node &res,
+          const float64 epsilon)
+{
+    const std::string generate_specset = "default";
+    venn(matset_type, nx, ny, radius, generate_material_map, generate_specset, res, epsilon);
+}
+
+//-----------------------------------------------------------------------------
+void venn(const std::string &matset_type,
+          const index_t nx,
+          const index_t ny,
+          const float64 radius,
+          const std::string &generate_material_map,
+          const std::string &generate_specset,
+          Node &res,
+          const float64 epsilon)
 {
     res.reset();
     // create a rectilinear coordset 
@@ -783,15 +1098,15 @@ void venn(const std::string &matset_type,
 
     if (matset_type == "full")
     {
-        venn_full_matset(res, nx, ny);
+        venn_full_matset(res, nx, ny, generate_material_map);
     }
     else if (matset_type == "sparse_by_material")
     {
-        venn_sparse_by_material_matset(res, nx, ny);
+        venn_sparse_by_material_matset(res, nx, ny, generate_material_map, epsilon);
     }
     else if (matset_type == "sparse_by_element")
     {
-        venn_sparse_by_element_matset(res, nx, ny);
+        venn_sparse_by_element_matset(res, nx, ny, generate_material_map);
     }
     else
     {
@@ -800,266 +1115,42 @@ void venn(const std::string &matset_type,
     
     // remove temp tree used during construction
     res.remove("meta");
-}
 
-//---------------------------------------------------------------------------//
-void venn_full_specset(Node &res, index_t nx, index_t ny)
-{
-    // create the species sets
-
-    index_t elements = nx * ny;
-
-    res["specsets/specset/matset"] = "matset";
-    res["specsets/specset/matset_values/background/bg_spec1"] = DataType::float64(elements);
-    res["specsets/specset/matset_values/circle_a/a_spec1"] = DataType::float64(elements);
-    res["specsets/specset/matset_values/circle_a/a_spec2"] = DataType::float64(elements);
-    res["specsets/specset/matset_values/circle_b/b_spec1"] = DataType::float64(elements);
-    res["specsets/specset/matset_values/circle_b/b_spec2"] = DataType::float64(elements);
-    res["specsets/specset/matset_values/circle_c/c_spec1"] = DataType::float64(elements);
-    res["specsets/specset/matset_values/circle_c/c_spec2"] = DataType::float64(elements);
-    res["specsets/specset/matset_values/circle_c/c_spec3"] = DataType::float64(elements);
-
-    float64_array bg_spec1 = res["specsets/specset/matset_values/background/bg_spec1"].value();
-    float64_array ca_spec1 = res["specsets/specset/matset_values/circle_a/a_spec1"].value();
-    float64_array ca_spec2 = res["specsets/specset/matset_values/circle_a/a_spec2"].value();
-    float64_array cb_spec1 = res["specsets/specset/matset_values/circle_b/b_spec1"].value();
-    float64_array cb_spec2 = res["specsets/specset/matset_values/circle_b/b_spec2"].value();
-    float64_array cc_spec1 = res["specsets/specset/matset_values/circle_c/c_spec1"].value();
-    float64_array cc_spec2 = res["specsets/specset/matset_values/circle_c/c_spec2"].value();
-    float64_array cc_spec3 = res["specsets/specset/matset_values/circle_c/c_spec3"].value();
-
-    const float64 nxf = static_cast<float64>(nx);
-    const float64 nyf = static_cast<float64>(ny);
-
-    for (index_t y = 0; y < ny; y ++)
+    if (generate_specset == "yes")
     {
-        const float64 yf = static_cast<float64>(y);
-        for (index_t x = 0; x < nx; x ++)
+        if (matset_type == "full")
         {
-            const index_t elem_id = x + nx * y;
-            const float64 xf = static_cast<float64>(x);
-
-            // circle_a species vary horizontally
-            float64 specvalue = xf / nxf;
-            ca_spec1[elem_id] = specvalue;
-            ca_spec2[elem_id] = 1.0 - specvalue;
-
-            // circle_b species vary vertically
-            specvalue = yf / nyf;
-            cb_spec1[elem_id] = specvalue;
-            cb_spec2[elem_id] = 1.0 - specvalue;
-
-            // circle_c species vary diagonally
-            specvalue = (yf / nyf + xf / nxf) / 2.0;
-            cc_spec1[elem_id] = 1.0 - specvalue;
-            cc_spec2[elem_id] = 0.75 * specvalue;
-            cc_spec3[elem_id] = 0.25 * specvalue;
-
-            // background species do not vary
-            bg_spec1[elem_id] = 1.0;
+            venn_full_specset(res, nx, ny);
+        }
+        else if (matset_type == "sparse_by_material")
+        {
+            venn_sparse_by_material_specset(res, nx, ny);
+        }
+        else if (matset_type == "sparse_by_element")
+        {
+            venn_sparse_by_element_specset(res, nx, ny);
+        }
+        else
+        {
+            CONDUIT_ERROR("unknown matset_type = " << matset_type);
         }
     }
-}
-
-void venn_sparse_by_material_specset(Node &res, index_t nx, index_t ny)
-{
-    auto contains = [](const Node &leaf_array, index_t value) -> bool
+    else if (generate_specset != "no" && generate_specset != "default")
     {
-        const index_t_accessor leaf_arr_acc = leaf_array.value();
-        return leaf_arr_acc.count(value) > 0;
-    };
-
-    const Node &element_ids = res["matsets/matset/element_ids"];
-
-    std::vector<float64> bg_spec1;
-    std::vector<float64> ca_spec1;
-    std::vector<float64> ca_spec2;
-    std::vector<float64> cb_spec1;
-    std::vector<float64> cb_spec2;
-    std::vector<float64> cc_spec1;
-    std::vector<float64> cc_spec2;
-    std::vector<float64> cc_spec3;
-
-    const float64 nxf = static_cast<float64>(nx);
-    const float64 nyf = static_cast<float64>(ny);
-    for (index_t y = 0; y < ny; y ++)
-    {
-        const float64 yf = static_cast<float64>(y);
-        for (index_t x = 0; x < nx; x ++)
-        {
-            const index_t elem_id = x + nx * y;
-            const float64 xf = static_cast<float64>(x);
-
-            if (contains(element_ids["circle_a"], elem_id))
-            {
-                // circle_a species vary horizontally
-                const float64 specvalue = xf / nxf;
-                ca_spec1.push_back(specvalue);
-                ca_spec2.push_back(1.0 - specvalue);
-            }
-
-            if (contains(element_ids["circle_b"], elem_id))
-            {
-                // circle_b species vary vertically
-                const float64 specvalue = yf / nyf;
-                cb_spec1.push_back(specvalue);
-                cb_spec2.push_back(1.0 - specvalue);
-            }
-
-            if (contains(element_ids["circle_c"], elem_id))
-            {
-                // circle_c species vary diagonally
-                const float64 specvalue = (yf / nyf + xf / nxf) / 2.0;
-                cc_spec1.push_back(1.0 - specvalue);
-                cc_spec2.push_back(0.75 * specvalue);
-                cc_spec3.push_back(0.25 * specvalue);
-            }
-
-            if (contains(element_ids["background"], elem_id))
-            {
-                // background species do not vary
-                bg_spec1.push_back(1.0);
-            }
-        }
+        CONDUIT_ERROR("unknown option for generate_specset: " << generate_specset)
     }
-
-    res["specsets/specset/matset"] = "matset";
-    res["specsets/specset/matset_values/background/bg_spec1"].set(bg_spec1);
-    res["specsets/specset/matset_values/circle_a/a_spec1"].set(ca_spec1);
-    res["specsets/specset/matset_values/circle_a/a_spec2"].set(ca_spec2);
-    res["specsets/specset/matset_values/circle_b/b_spec1"].set(cb_spec1);
-    res["specsets/specset/matset_values/circle_b/b_spec2"].set(cb_spec2);
-    res["specsets/specset/matset_values/circle_c/c_spec1"].set(cc_spec1);
-    res["specsets/specset/matset_values/circle_c/c_spec2"].set(cc_spec2);
-    res["specsets/specset/matset_values/circle_c/c_spec3"].set(cc_spec3);
-}
-
-void venn_sparse_by_element_specset(Node &res, index_t nx, index_t ny)
-{
-    // get references to the matset
-    const Node &matset = res["matsets/matset"];
-    const index_t_accessor m_sizes = matset["sizes"].value();
-    const index_t_accessor m_offsets = matset["offsets"].value();
-    const index_t_accessor m_material_ids = matset["material_ids"].value();
-
-    // create reverse material map
-    std::map<int, std::string> reverse_matmap;
-    auto matmap_itr = matset["material_map"].children();
-    while (matmap_itr.has_next())
-    {
-        const Node &matmap_entry = matmap_itr.next();
-        const std::string matname = matmap_itr.name();
-
-        reverse_matmap[matmap_entry.to_int()] = matname;
-    }
-
-    // create species_names
-    res["specsets/specset/matset"] = "matset";
-    res["specsets/specset/species_names/background/bg_spec1"];
-    res["specsets/specset/species_names/circle_a/a_spec1"];
-    res["specsets/specset/species_names/circle_a/a_spec2"];
-    res["specsets/specset/species_names/circle_b/b_spec1"];
-    res["specsets/specset/species_names/circle_b/b_spec2"];
-    res["specsets/specset/species_names/circle_c/c_spec1"];
-    res["specsets/specset/species_names/circle_c/c_spec2"];
-    res["specsets/specset/species_names/circle_c/c_spec3"];
-
-    std::vector<float64> matset_values;
-    std::vector<index_t> sizes;
-    std::vector<index_t> offsets;
-
-    const float64 nxf = static_cast<float64>(nx);
-    const float64 nyf = static_cast<float64>(ny);
-    for (index_t y = 0; y < ny; y ++)
-    {
-        const float64 yf = static_cast<float64>(y);
-        for (index_t x = 0; x < nx; x ++)
-        {
-            const index_t elem_id = x + nx * y;
-            const float64 xf = static_cast<float64>(x);
-
-            const index_t zone_size = m_sizes[elem_id];
-            const index_t zone_offset = m_offsets[elem_id];
-
-            index_t num_specs_in_zone = 0;
-            for (index_t local_offset = 0; local_offset < zone_size; local_offset ++)
-            {
-                const index_t mat_id = m_material_ids[zone_offset + local_offset];
-                const std::string matname = reverse_matmap.at(mat_id);
-
-                if ("circle_a" == matname)
-                {
-                    // circle_a species vary horizontally
-                    const float64 specvalue = xf / nxf;
-                    matset_values.push_back(specvalue);
-                    matset_values.push_back(1.0 - specvalue);
-                    num_specs_in_zone += 2;
-                }
-                else if ("circle_b" == matname)
-                {
-                    // circle_b species vary vertically
-                    const float64 specvalue = yf / nyf;
-                    matset_values.push_back(specvalue);
-                    matset_values.push_back(1.0 - specvalue);
-                    num_specs_in_zone += 2;
-                }
-                else if ("circle_c" == matname)
-                {
-                    // circle_c species vary diagonally
-                    const float64 specvalue = (yf / nyf + xf / nxf) / 2.0;
-                    matset_values.push_back(1.0 - specvalue);
-                    matset_values.push_back(0.75 * specvalue);
-                    matset_values.push_back(0.25 * specvalue);
-                    num_specs_in_zone += 3;
-                }
-                else // ("background" == matname)
-                {
-                    // background species do not vary
-                    matset_values.push_back(1.0);
-                    num_specs_in_zone += 1;
-                }
-            }
-
-            sizes.push_back(num_specs_in_zone);
-        }
-    }
-
-    offsets.push_back(0);
-    for (index_t elem_id = 1; elem_id < nx * ny; elem_id ++)
-    {
-        offsets.push_back(offsets[elem_id - 1] + sizes[elem_id - 1]);
-    }
-
-    res["specsets/specset/matset_values"].set(matset_values);
-    res["specsets/specset/sizes"].set(sizes);
-    res["specsets/specset/offsets"].set(offsets);
 }
 
 //-----------------------------------------------------------------------------
 void venn_specsets(const std::string &matset_type,
-                   index_t nx,
-                   index_t ny,
-                   float64 radius, 
+                   const index_t nx,
+                   const index_t ny,
+                   const float64 radius,
                    Node &res)
 {
-    venn(matset_type, nx, ny, radius, res);
-
-    if (matset_type == "full")
-    {
-        venn_full_specset(res, nx, ny);
-    }
-    else if (matset_type == "sparse_by_material")
-    {
-        venn_sparse_by_material_specset(res, nx, ny);
-    }
-    else if (matset_type == "sparse_by_element")
-    {
-        venn_sparse_by_element_specset(res, nx, ny);
-    }
-    else
-    {
-        CONDUIT_ERROR("unknown matset_type = " << matset_type);
-    }
+    const std::string generate_material_map = "default";
+    const std::string generate_specset = "yes";
+    venn(matset_type, nx, ny, radius, generate_material_map, generate_specset, res);
 }
 
 }

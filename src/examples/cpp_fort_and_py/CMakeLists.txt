@@ -12,11 +12,15 @@
 # Note: The python instance must have the conduit python module installed
 # or it must be in your PYTHONPATH.
 #
+# CMake projects that find conduit can use CONDUIT_PYTHONPATH, which holds
+# the directory containing the conduit python module of the conduit that
+# was found.
+#
 # > mkdir build
 # > cd build
 # 
 # # if conduit python module is not installed in your python instance
-# # > export PYTHONPATH=/path/to/conduit-install/python-modules
+# # > export PYTHONPATH=${CONDUIT_PYTHONPATH}
 #
 # > cmake  \
 #    -DCONDUIT_DIR=/path/to/conduit/install
@@ -30,6 +34,7 @@
 # > ./conduit_fort_and_py_ex
 #
 # # if conduit python module is not installed in your python instance
+# # (the path reported as CONDUIT_PYTHONPATH when conduit was found)
 # > env PYTHONPATH=/path/to/conduit-install/python-modules  ./conduit_cpp_and_py_ex
 # > env PYTHONPATH=/path/to/conduit-install/python-modules  ./conduit_fort_and_py_ex
 ###############################################################################
@@ -43,14 +48,21 @@ project(conduit_cpp_fort_and_py C CXX Fortran)
 # Setup Conduit
 ######
 find_package(Conduit REQUIRED
+             COMPONENTS Python
              NO_DEFAULT_PATH 
              PATHS ${CONDUIT_DIR}/lib/cmake/conduit)
 
 ######
 # Setup Python
 ######
-include(SetupPython.cmake)
+# allow PYTHON_EXECUTABLE to init Python3_EXECUTABLE
+if(PYTHON_EXECUTABLE AND NOT Python3_EXECUTABLE)
+    set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
+endif()
 
+find_package(Python3
+             REQUIRED
+             COMPONENTS Interpreter Development NumPy)
 ######
 # Conduit requires c++17 support
 ######
@@ -67,15 +79,8 @@ add_executable(conduit_cpp_and_py_ex
 
 target_link_libraries(conduit_cpp_and_py_ex
                       conduit::conduit
-                      conduit::conduit_python)
-
-
-# extra includes and libs to support the embedded python interpreter
-target_include_directories(conduit_cpp_and_py_ex
-                           PUBLIC ${PYTHON_INCLUDE_DIR})
-
-target_link_libraries(conduit_cpp_and_py_ex
-                      ${PYTHON_LIBRARY})
+                      conduit::conduit_python
+                      Python3::Python)
 
 ##############################################################################
 # fortran to and from python example
@@ -91,12 +96,6 @@ add_executable(conduit_fort_and_py_ex
 
 target_link_libraries(conduit_fort_and_py_ex
                       conduit::conduit
-                      conduit::conduit_python)
-
-# extra includes and libs to support the embedded python interpreter
-target_include_directories(conduit_fort_and_py_ex
-                           PUBLIC ${PYTHON_INCLUDE_DIR})
-
-target_link_libraries(conduit_fort_and_py_ex
-                      ${PYTHON_LIBRARY})
+                      conduit::conduit_python
+                      Python3::Python)
 

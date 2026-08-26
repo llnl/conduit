@@ -84,18 +84,20 @@ if(CONDUIT_PYTHON_ENABLED)
     # Python Capsule API for conduit
     add_library(conduit::conduit_python INTERFACE IMPORTED)
 
-    # custom prefix allows the module to be installed outside of the
-    # conduit install, when given we use that exact path
+    # Build the absolute path to installed python modules here, since we know
+    # whether a custom prefix was used, as well as the install root
     if(CONDUIT_PYTHON_MODULE_CUSTOM_PREFIX)
-        set_property(TARGET conduit::conduit_python
-                     APPEND PROPERTY
-                     INTERFACE_INCLUDE_DIRECTORIES "${CONDUIT_PYTHON_MODULE_DIR}/conduit/")
-     else()
-         # default case, find the python headers relative to the install root
-         set_property(TARGET conduit::conduit_python
-                      APPEND PROPERTY
-                      INTERFACE_INCLUDE_DIRECTORIES "${_IMPORT_ROOT}/${CONDUIT_PYTHON_MODULE_DIR}/conduit/")
-     endif()
+        # custom prefix allows the module to be installed outside of the
+        # conduit install, when given we use that exact path
+        set(CONDUIT_PYTHONPATH "${CONDUIT_PYTHON_MODULE_DIR}")
+    else()
+        set(CONDUIT_PYTHONPATH "${_IMPORT_ROOT}/${CONDUIT_PYTHON_MODULE_DIR}")
+    endif()
+
+    # Consumer convenience variable: export the python modules install path
+    set_property(TARGET conduit::conduit_python
+                 APPEND PROPERTY
+                 INTERFACE_INCLUDE_DIRECTORIES "${CONDUIT_PYTHONPATH}/conduit/")
 endif()
 
 # and if mpi enabled, a convenience target for remaining mpi deps (conduit::conduit_mpi)
@@ -128,6 +130,7 @@ if(NOT Conduit_FIND_QUIETLY)
     message(STATUS "CONDUIT_PYTHON_EXECUTABLE   = ${CONDUIT_PYTHON_EXECUTABLE}")
     message(STATUS "CONDUIT_PYTHON_MODULE_DIR   = ${CONDUIT_PYTHON_MODULE_DIR}")
     message(STATUS "CONDUIT_PYTHON_MODULE_CUSTOM_PREFIX = ${CONDUIT_PYTHON_MODULE_CUSTOM_PREFIX}")
+    message(STATUS "CONDUIT_PYTHONPATH          = ${CONDUIT_PYTHONPATH}")
 
     message(STATUS "CONDUIT_USE_FMT             = ${CONDUIT_USE_FMT}")
     message(STATUS "CONDUIT_USE_MPI             = ${CONDUIT_USE_MPI}")

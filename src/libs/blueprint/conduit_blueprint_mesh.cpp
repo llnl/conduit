@@ -1180,7 +1180,16 @@ convert_topology_to_rectilinear(const std::string &/*base_type*/,
 
     dest.set(topo);
     dest["type"].set("rectilinear");
-    dest["coordset"].set(cdest.name());
+
+    if (!cdest.name().empty())
+    {
+        dest["coordset"].set(cdest.name());
+    }
+    else // if (cdest.name().empty())
+    {
+        CONDUIT_ERROR("The destination coordset Node has no name. Pass a named Node "
+                      "(e.g. output[\"coordsets/mycoordset\"]) instead of an anonymous Node.")
+    }
 }
 
 //-------------------------------------------------------------------------
@@ -1208,7 +1217,17 @@ convert_topology_to_structured(const std::string &base_type,
     }
 
     dest["type"].set("structured");
-    dest["coordset"].set(cdest.name());
+
+    if (!cdest.name().empty())
+    {
+        dest["coordset"].set(cdest.name());
+    }
+    else // if (cdest.name().empty())
+    {
+        CONDUIT_ERROR("The destination coordset Node has no name. Pass a named Node "
+                      "(e.g. output[\"coordsets/mycoordset\"]) instead of an anonymous Node.")
+    }
+
     if(topo.has_child("origin"))
     {
         dest["origin"].set(topo["origin"]);
@@ -1387,8 +1406,18 @@ convert_topology_to_unstructured(const std::string &base_type,
     }
 
     dest["type"].set("unstructured");
-    dest["coordset"].set(cdest.name());
-    if (topo.has_child("origin"))
+
+    if (!cdest.name().empty())
+    {
+        dest["coordset"].set(cdest.name());
+    }
+    else // if (cdest.name().empty())
+    {
+        CONDUIT_ERROR("The destination coordset Node has no name. Pass a named Node "
+                      "(e.g. output[\"coordsets/mycoordset\"]) instead of an anonymous Node.")
+    }
+
+    if(topo.has_child("origin"))
     {
         dest["origin"].set(topo["origin"]);
     }
@@ -1859,7 +1888,17 @@ calculate_unstructured_centroids(const conduit::Node &topo,
 
     dest.reset();
     dest["type"].set("unstructured");
-    dest["coordset"].set(cdest.name());
+
+    if (!cdest.name().empty())
+    {
+        dest["coordset"].set(cdest.name());
+    }
+    else // if (cdest.name().empty())
+    {
+        CONDUIT_ERROR("The destination coordset Node has no name. Pass a named Node "
+                      "(e.g. output[\"coordsets/mycoordset\"]) instead of an anonymous Node.")
+    }
+
     dest["elements/shape"].set(topo_cascade.get_shape(0).type());
     dest["elements/connectivity"].set(DataType(int_dtype.id(), topo_num_elems));
 
@@ -5424,18 +5463,18 @@ mesh::topology::unstructured::generate_sides(const Node &topo,
     const DataType &int_dtype = topo_data.get_int_dtype();
     const DataType &float_dtype = topo_data.get_float_dtype();
 
-    std::vector<conduit::Node> dim_cent_topos(topo_shape.dim + 1);
-    std::vector<conduit::Node> dim_cent_coords(topo_shape.dim + 1);
+    conduit::Node dim_cent_topos;
+    conduit::Node dim_cent_coords;
 
     for(index_t di = 0; di <= topo_shape.dim; di++)
     {
         // NOTE: No centroids are generate for the lines of the geometry
         // because they aren't included in the final sides topology.
         if(di == line_shape.dim) { continue; }
-
+        const std::string dim_key = "d" + std::to_string(di);
         calculate_unstructured_centroids(
             topo_data.get_topology(di), *coordset,
-            dim_cent_topos[di], dim_cent_coords[di]);
+            dim_cent_topos[dim_key], dim_cent_coords[dim_key]);
     }
 
     // Allocate Data Templates for Outputs //
@@ -5449,7 +5488,17 @@ mesh::topology::unstructured::generate_sides(const Node &topo,
 
     topo_dest.reset();
     topo_dest["type"].set("unstructured");
-    topo_dest["coordset"].set(coords_dest.name());
+
+    if (!coords_dest.name().empty())
+    {
+        topo_dest["coordset"].set(coords_dest.name());
+    }
+    else // if (coords_dest.name().empty())
+    {
+        CONDUIT_ERROR("The destination coordset Node has no name. Pass a named Node "
+                      "(e.g. output[\"coordsets/mycoordset\"]) instead of an anonymous Node.")
+    }
+
     topo_dest["elements/shape"].set(side_shape.type());
     topo_dest["elements/connectivity"].set(DataType(int_dtype.id(),
         side_shape.indices * sides_num_elems));
@@ -5481,7 +5530,8 @@ mesh::topology::unstructured::generate_sides(const Node &topo,
             // NOTE: The centroid ordering for the positions is different
             // from the base ordering, which messes up all subsequent indexing.
             // We must use the coordinate set associated with the base topology.
-            const Node &cset = (di != 0) ? dim_cent_coords[di] : *coordset;
+            const std::string dim_key = "d" + std::to_string(di);
+            const Node &cset = (di != 0) ? dim_cent_coords[dim_key] : *coordset;
             if(!cset.dtype().is_empty())
             {
                 const Node &cset_axis = cset["values"][csys_axes[ai]];
@@ -6282,13 +6332,14 @@ mesh::topology::unstructured::generate_corners(const Node &topo,
     const DataType &int_dtype = topo_data.get_int_dtype();
     const DataType &float_dtype = topo_data.get_float_dtype();
 
-    std::vector<conduit::Node> dim_cent_topos(topo_shape.dim + 1);
-    std::vector<conduit::Node> dim_cent_coords(topo_shape.dim + 1);
+    conduit::Node dim_cent_topos;
+    conduit::Node dim_cent_coords;
     for(index_t di = 0; di <= topo_shape.dim; di++)
     {
+        const std::string dim_key = "d" + std::to_string(di);
         calculate_unstructured_centroids(
             topo_data.get_topology(di), *coordset,
-            dim_cent_topos[di], dim_cent_coords[di]);
+            dim_cent_topos[dim_key], dim_cent_coords[dim_key]);
     }
 
     // Allocate Data Templates for Outputs //
@@ -6298,7 +6349,17 @@ mesh::topology::unstructured::generate_corners(const Node &topo,
 
     topo_dest.reset();
     topo_dest["type"].set("unstructured");
-    topo_dest["coordset"].set(coords_dest.name());
+
+    if (!coords_dest.name().empty())
+    {
+        topo_dest["coordset"].set(coords_dest.name());
+    }
+    else // if (coords_dest.name().empty())
+    {
+        CONDUIT_ERROR("The destination coordset Node has no name. Pass a named Node "
+                      "(e.g. output[\"coordsets/mycoordset\"]) instead of an anonymous Node.")
+    }
+
     topo_dest["elements/shape"].set(corner_shape.type());
     if (is_topo_3d)
     {
@@ -6337,7 +6398,8 @@ mesh::topology::unstructured::generate_corners(const Node &topo,
             // NOTE: The centroid ordering for the positions is different
             // from the base ordering, which messes up all subsequent indexing.
             // We must use the coordinate set associated with the base topology.
-            const Node &cset = (di != 0) ? dim_cent_coords[di] : *coordset;
+            const std::string dim_key = "d" + std::to_string(di);
+            const Node &cset = (di != 0) ? dim_cent_coords[dim_key] : *coordset;
             const Node &cset_axis = cset["values"][csys_axes[ai]];
             index_t cset_length = cset_axis.dtype().number_of_elements();
             // TODO: USE ACCESSORS?
@@ -6876,6 +6938,12 @@ mesh::matset::verify(const Node &matset,
                 {
                     conduit::utils::log::error(info, protocol,
                         "material volume fractions must be a scalar array, not an object with children");
+                    res &= false;
+                }
+                else if (vfs.dtype().is_number() && vfs.dtype().number_of_elements() == 0)
+                {
+                    log::error(info, protocol,
+                        "material volume fractions must be a scalar array with more than 0 elements");
                     res &= false;
                 }
                 else

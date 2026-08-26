@@ -5,55 +5,23 @@ on:
     branches: [ develop ]
 
 jobs:
-  build_windows_msvc_base:
-    name: MSVC 2019 Default Release
-    runs-on: windows-latest
-    steps:
-    - name: Setup MPI
-      uses: mpi4py/setup-mpi@v1
-    - name: Setup Python Env
-      run: python3 -m pip install --upgrade pip numpy mpi4py wheel setuptools
-    - uses: actions/checkout@v2
-      with: 
-        submodules: 'recursive'
-    - name: Build & Test
-      run: |
-        cmake -S src -B build            `
-              -DCMAKE_BUILD_TYPE=Release `
-              -DENABLE_PYTHON=ON         `
-              -DENABLE_MPI=ON
-        cmake --build build --config Release --parallel 2
-        cmake -E env CTEST_OUTPUT_ON_FAILURE=1 cmake --build build --config Release --target RUN_TESTS --parallel 1
-
-  build_windows_msvc_base_cpp14:
-    name: MSVC 2019 C++14 Release
-    runs-on: windows-latest
-    steps:
-    - name: Setup MPI
-      uses: mpi4py/setup-mpi@v1
-    - name: Setup Python Env
-      run: python3 -m pip install --upgrade pip numpy mpi4py wheel setuptools
-    - uses: actions/checkout@v4
-      with: 
-        submodules: 'recursive'
-    - name: Build & Test
-      run: |
-        cmake -S src -B build                       `
-              -DBLT_CXX_STD=c++14                   `
-              -DCMAKE_BUILD_TYPE=Release            `
-              -DENABLE_PYTHON=ON                    `
-              -DENABLE_MPI=ON
-        cmake --build build --config Release --parallel 2
-        cmake -E env CTEST_OUTPUT_ON_FAILURE=1 cmake --build build --config Release --target RUN_TESTS --parallel 1
-
   build_windows_msvc_base_cpp17:
     name: MSVC 2022 C++17 Release
     runs-on: windows-latest
+    strategy:
+      matrix:
+          python-version:
+          - '3.9'
+          - '3.13'
     steps:
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
     - name: Setup MPI
       uses: mpi4py/setup-mpi@v1
     - name: Setup Python Env
-      run: python3 -m pip install --upgrade pip numpy mpi4py wheel setuptools
+      run: python -m pip install --upgrade pip numpy mpi4py wheel setuptools
     - uses: actions/checkout@v4
       with: 
         submodules: 'recursive'
@@ -63,12 +31,13 @@ jobs:
               -DBLT_CXX_STD=c++17        `
               -DCMAKE_BUILD_TYPE=Release `
               -DENABLE_PYTHON=ON         `
+              -DPYTHON_EXECUTABLE="${{ env.pythonLocation }}/python" `
               -DENABLE_MPI=ON
         cmake --build build --config Release --parallel 2
         cmake -E env CTEST_OUTPUT_ON_FAILURE=1 cmake --build build --config Release --target RUN_TESTS --parallel 1
 
-  build_windows_msvc_py_ver:
-    name: MSVC Release Py Verison
+  build_windows_msvc_base_cpp20:
+    name: MSVC 2022 C++20 Release
     runs-on: windows-latest
     strategy:
       matrix:
@@ -76,29 +45,37 @@ jobs:
           - '3.9'
           - '3.13'
     steps:
-    - uses: actions/setup-python@v2
+    - name: Setup Python
+      uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
     - name: Setup MPI
       uses: mpi4py/setup-mpi@v1
     - name: Setup Python Env
-      run: python3 -m pip install --upgrade pip numpy mpi4py wheel setuptools
+      run: python -m pip install --upgrade pip numpy mpi4py wheel setuptools
     - uses: actions/checkout@v4
       with: 
         submodules: 'recursive'
     - name: Build & Test
       run: |
         cmake -S src -B build            `
+              -DBLT_CXX_STD=c++20        `
               -DCMAKE_BUILD_TYPE=Release `
               -DENABLE_PYTHON=ON         `
+              -DPYTHON_EXECUTABLE="${{ env.pythonLocation }}/python" `
               -DENABLE_MPI=ON
         cmake --build build --config Release --parallel 2
         cmake -E env CTEST_OUTPUT_ON_FAILURE=1 cmake --build build --config Release --target RUN_TESTS --parallel 1
-        cmake --install build --config Release
+
 
   build_windows_clang:
     name: Clang Base Debug
     runs-on: windows-latest
+    strategy:
+      matrix:
+          python-version:
+          - '3.9'
+          - '3.13'
     steps:
     - name: Install LLVM Clang 19 on Windows
       shell: powershell
@@ -107,8 +84,12 @@ jobs:
              Invoke-WebRequest -Uri "https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.8/LLVM-21.1.8-win64.exe" -OutFile "llvm.exe"
              Start-Process -FilePath .\llvm.exe -ArgumentList "/S", "/D=C:\LLVM" -Wait
              echo "C:\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+    - name: Setup Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
     - name: Setup Python Env
-      run: python3 -m pip install --upgrade pip numpy wheel setuptools
+      run: python -m pip install --upgrade pip numpy wheel setuptools
     - uses: actions/checkout@v4
       with: 
         submodules: 'recursive'

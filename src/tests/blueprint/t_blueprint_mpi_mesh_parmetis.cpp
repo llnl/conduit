@@ -278,7 +278,9 @@ TEST(blueprint_mpi_parmetis, braid)
     conduit::blueprint::mesh::examples::braid("structured",
                                               npts, npts, 1,
                                               mesh.append());
-    Node unstruct_topo, unstruct_coords;
+    Node unstruct_scratch;
+    Node &unstruct_topo = unstruct_scratch["topo"];
+    Node &unstruct_coords = unstruct_scratch["coords"];
     conduit::blueprint::mesh::topology::structured::to_unstructured(mesh[0]["topologies/mesh"],
                                                                     unstruct_topo,
                                                                     unstruct_coords);
@@ -566,7 +568,9 @@ TEST(blueprint_mpi_parmetis, uniform_adjset)
     // construct unstructured topology
     for (Node& domain : local_mesh.children())
     {
-        Node unstruct_topo, unstruct_coords;
+        Node unstruct_scratch;
+        Node &unstruct_topo = unstruct_scratch["topo"];
+        Node &unstruct_coords = unstruct_scratch["coords"];
         conduit::blueprint::mesh::topology::uniform::to_unstructured(domain["topologies/topo"],
                                                                      unstruct_topo,
                                                                      unstruct_coords);

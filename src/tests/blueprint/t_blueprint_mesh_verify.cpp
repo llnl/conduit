@@ -1271,6 +1271,31 @@ TEST(conduit_blueprint_mesh_verify, matset_general)
     }
 }
 
+//-----------------------------------------------------------------------------
+// you can't have a material with no information. The correct thing to do is to
+// have a material map that names that material and remove the material from
+// the volume fractions and element ids, if applicable.
+TEST(conduit_blueprint_mesh_verify, matset_missing_values_case)
+{
+    Node sbm_matset, info;
+    const std::string yaml_text = 
+        "matset: \n"
+        "  volume_fractions: \n"
+        "    background: []\n"
+        "    circle_a: 0.333333333333333\n"
+        "    circle_b: 0.333333333333333\n"
+        "    circle_c: 0.333333333333333\n"
+        "  element_ids: \n"
+        "    background: []\n"
+        "    circle_a: 3\n"
+        "    circle_b: 3\n"
+        "    circle_c: 3\n"
+        "  topology: \"topo\"\n";
+    sbm_matset.parse(yaml_text, "yaml");
+
+    EXPECT_FALSE(blueprint::mesh::matset::verify(sbm_matset, info));
+}
+
 /// Mesh Specsets Tests ///
 
 //-----------------------------------------------------------------------------
@@ -2732,5 +2757,47 @@ TEST(conduit_blueprint_mesh_verify, empty_mesh_vs_gen_index)
     EXPECT_THROW(blueprint::mesh::generate_index(empty,"",1,n_idx),conduit::Error);
     
     
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_verify, shape_map_int64_entries)
+{
+    Node mesh, info;
+    blueprint::mesh::examples::braid("mixed_2d", 2, 2, 0, mesh);
+
+    // state: 
+    //   ...
+    // coordsets: 
+    //   ...
+    // topologies: 
+    //   mesh: 
+    //     type: "unstructured"
+    //     coordset: "coords"
+    //     elements: 
+    //       shape: "mixed"
+    //       shape_map: 
+    //         quad: 9
+    //         tri: 5
+    //       shapes: [5, 5]
+    //       sizes: [3, 3]
+    //       offsets: [0, 3]
+    //       connectivity: [0, 1, 3, ..., 3, 2]
+    // fields: 
+    //   ...
+
+    EXPECT_EQ(mesh["topologies/mesh/elements/shape_map/quad"].dtype().id(), CONDUIT_INT32_ID);
+    EXPECT_EQ(mesh["topologies/mesh/elements/shape_map/tri"].dtype().id(), CONDUIT_INT32_ID);
+
+    EXPECT_TRUE(blueprint::mesh::verify(mesh, info));
+
+    mesh["topologies/mesh/elements/shape_map"].remove_child("quad");
+    mesh["topologies/mesh/elements/shape_map"].remove_child("tri");
+
+    mesh["topologies/mesh/elements/shape_map/quad"].set(static_cast<int64>(9));
+    EXPECT_EQ(mesh["topologies/mesh/elements/shape_map/quad"].dtype().id(), CONDUIT_INT64_ID);
+    mesh["topologies/mesh/elements/shape_map/tri"].set(static_cast<int64>(5));
+    EXPECT_EQ(mesh["topologies/mesh/elements/shape_map/tri"].dtype().id(), CONDUIT_INT64_ID);
+
+    EXPECT_TRUE(blueprint::mesh::verify(mesh, info));
 }
 

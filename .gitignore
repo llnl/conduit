@@ -3,6 +3,8 @@ install-*/
 .DS_Store
 src/examples/using-with-cmake/build
 src/examples/using-with-make/example
+src/libs/conduit/python/build/
+src/libs/conduit/python/conduit.egg-info/
 *.pyc
 .ipynb_checkpoints
 visitlog.py

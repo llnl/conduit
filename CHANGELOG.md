@@ -6,13 +6,30 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 ## Unreleased
 
+### Added
+
+#### Blueprint
+- Added additional options for `conduit::blueprint::mesh::examples::venn()` allowing for the creation of a material map in all cases as well as the creation of species sets. These options were exposed in `conduit::blueprint::mesh::examples:generate()`.
+- Added `conduit::blueprint::mesh::matset::has_mixed_elements()` which can determine if a material set contains any mixed elements.
+
+### Changed
+
+#### Blueprint
+- Made `verify` for `matsets` more restrictive, rejecting matsets that include materials outside of the material map that have no volume fractions.
+
+#### General
+- Turned python on by default in `build_conduit`.
+- Added `CONDUIT_PYTHONPATH`, the absolute path of Conduit's installed Python module, to Conduit's CMake config.
+
 ### Fixed
 
 #### Blueprint
 - Fixed more C++20 issues with runtime fmt params in Silo support implementation and tests.
+- Fixed an issue where the `conduit::blueprint::mesh::examples::venn()` example would produce incorrect output for large radii.
 
 #### Relay
 - The `conduit::relay::mpi::safe_tag` function and its underlying logic to probe the maximum allowable MPI tag were modified to avoid `MPI_Waitall`. Tag values now use modulo above the upper limit as opposed to clamping.
+- Fixed a bug with the Silo reader where material-dependent fields failed to read correctly on domains that had no mixed material elements.
 
 ## [0.9.7] - Released 2026-05-27
 
@@ -83,9 +100,12 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Changed
 
 #### Conduit
-- Updated uberenv to use Spack 1.1.1
+- Conduit now requires CMake 3.26 or newer.
+- Updated uberenv to use Spack 1.1.1.
 - Updated built in fmt to version 12.1.0.
+- Updated CMake python logic to use CMake Python targets.
 - Updated python module build processes to use `pyproject.toml` files. Process now requires pip `24.0.0` or newer.
+
 
 #### Blueprint
 - Removed previously deprecated `quads_and_tris` and `hexs_and_tets` mesh types from `braid` in `blueprint::mesh::examples`.
