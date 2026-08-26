@@ -1164,7 +1164,7 @@ TEST(conduit_blueprint_generate_unstructured, generate_centroids)
         mesh::topology::unstructured::generate_centroids(
             grid_topo, cent_topo, cent_coords, t2c_map, c2t_map);
 
-        Node data, info;
+        Node info;
         EXPECT_TRUE(mesh::coordset::_explicit::verify(cent_coords, info));
         EXPECT_TRUE(mesh::topology::unstructured::verify(cent_topo, info));
 
@@ -1199,29 +1199,10 @@ TEST(conduit_blueprint_generate_unstructured, generate_centroids)
 
         // Verify Correctness of Mappings //
 
-        conduit::Node* map_nodes[2] = { &t2c_map, &c2t_map };
-        for(index_t mi = 0; mi < 2; mi++)
-        {
-            conduit::Node& map_node = *map_nodes[mi];
-            // relax exact type req, conn transforms will become index_t
-            //EXPECT_EQ(map_node.dtype().id(), grid_conn.dtype().id());
-            EXPECT_EQ(map_node.dtype().number_of_elements(), 2 * grid_mesh.elems());
-
-            std::vector<index_t> map_values, expected_values;
-            for(index_t ei = 0; ei < grid_mesh.elems(); ei++)
-            {
-                for(index_t esi = 0; esi < 2; esi++)
-                {
-                    data.set_external(DataType(map_node.dtype().id(), 1),
-                        map_node.element_ptr(2 * ei + esi));
-                    map_values.push_back(data.to_int64());
-                }
-
-                expected_values.push_back(1);
-                expected_values.push_back(ei);
-            }
-            EXPECT_EQ(map_values, expected_values);
-        }
+        // Generated centroids map to input elements 1-1, so these maps are not
+        // useful. We should eventually remove these.
+        EXPECT_TRUE(t2c_map.dtype().is_empty());
+        EXPECT_TRUE(c2t_map.dtype().is_empty());
     }
 }
 

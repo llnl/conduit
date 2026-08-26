@@ -1527,23 +1527,6 @@ centroid_conn_fill_kernel(conduit::execution::ExecutionPolicy &policy,
 }
 
 //-------------------------------------------------------------------------
-// This is a separate function because nvcc does not allow device lambdas
-// to be defined inside generic lambdas.
-template <typename MapVals>
-void
-centroid_map_fill_kernel(conduit::execution::ExecutionPolicy &policy,
-                         const index_t n,
-                         const MapVals map_vals)
-{
-    conduit::execution::forall(policy, 0, n, [=] CONDUIT_EXEC(index_t i)
-    {
-        map_vals.set(2 * i,     static_cast<int64>(1));
-        map_vals.set(2 * i + 1, static_cast<int64>(i));
-    });
-    CONDUIT_DEVICE_ERROR_CHECK(policy);
-}
-
-//-------------------------------------------------------------------------
 // Computes the centroid of each element in an unstructured topology and
 // stores the result in dest_centroids. is_polygonal and shape_indices are
 // passed as scalars (instead of the ShapeType they come from) because
@@ -5351,28 +5334,11 @@ mesh::topology::unstructured::generate_centroids(const Node &topo,
     const Node *coordset = bputils::find_reference_node(topo, "coordset");
     calculate_unstructured_centroids(topo, *coordset, topo_dest, coords_dest);
 
-    DataType int_dtype = bputils::find_widest_dtype(bputils::link_nodes(topo, *coordset), bputils::DEFAULT_INT_DTYPES);
-    index_t n = bputils::topology::length(topo);
-
-    conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
-    const index_t output_allocator_id = conduit::execution::get_output_allocator_id();
-    const conduit::execution::SyncStrategy sync_strategy = conduit::execution::get_sync_strategy();
-    
+    // Generated centroids map to input elements 1-1, so these maps are not
+    // useful. It would be best to remove these from the function signature
+    // entirely someday.
     s2dmap.reset();
-    s2dmap.set_allocator(output_allocator_id);
-    s2dmap.set(DataType(int_dtype.id(), 2 * n));
-
-    int64_accessor map_acc(s2dmap);
-    map_acc.use_with(policy);
-    conduit::execution::dispatch(map_acc, [&](auto map_vals)
-    {
-        centroid_map_fill_kernel(policy, n, map_vals);
-    });
-    map_acc.data_movement(sync_strategy);
-
     d2smap.reset();
-    d2smap.set_allocator(output_allocator_id);
-    d2smap.set(s2dmap);
 }
 
 //-----------------------------------------------------------------------------
