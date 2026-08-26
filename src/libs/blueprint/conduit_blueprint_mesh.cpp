@@ -1475,7 +1475,7 @@ convert_topology_to_unstructured(const std::string &base_type,
  @param values The sequence of values to be searched.
  @param offset An offset from the start of values.
  @param n The number of values in the sequence.
- @param mask A buffer of n elements in which to store the mask.
+ @param mask A buffer of at least n elements in which to store the mask.
 
  @return True if duplicates were found, false otherwise.
 
