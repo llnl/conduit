@@ -913,20 +913,51 @@ verify_multi_domain(const Node &n,
 //-----------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------
+// Fills the axis value arrays of a rectilinear coordset with uniformly
+// spaced values (origin + d * spacing) for up to three axes in a single
+// forall.
+//
+// How it works: the iteration range is the sum of the three axis lengths,
+// laid out as [x values | y values | z values]. Each iteration i selects its
+// axis with at most two comparisons and is converted into a local index d
+// within that axis. Axes that do not exist (e.g. z in 2D) are passed with a
+// length of 0 and a default accessor, so their range is empty.
+//
 // This is a separate function because nvcc does not allow device lambdas
 // to be defined inside generic lambdas.
-template <typename DstVals>
+template <typename Vals>
 void
-coordset_uniform_fill_kernel(conduit::execution::ExecutionPolicy &policy,
-                             const float64 dim_origin,
-                             const float64 dim_spacing,
-                             const index_t dim_len,
-                             const DstVals dst_values)
+coordset_uniform_fill_all_axes_kernel(conduit::execution::ExecutionPolicy &policy,
+                                      const Vals vals_x,
+                                      const Vals vals_y,
+                                      const Vals vals_z,
+                                      const float64 origin_x,
+                                      const float64 spacing_x,
+                                      const index_t len_x,
+                                      const float64 origin_y,
+                                      const float64 spacing_y,
+                                      const index_t len_y,
+                                      const float64 origin_z,
+                                      const float64 spacing_z,
+                                      const index_t len_z)
 {
-    conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
+    const index_t total = len_x + len_y + len_z;
+    conduit::execution::forall(policy, 0, total, [=] CONDUIT_EXEC(index_t i)
     {
-        const float64 val = dim_origin + d * dim_spacing;
-        dst_values.set(d, val);
+        if (i < len_x)
+        {
+            vals_x.set(i, origin_x + i * spacing_x);
+        }
+        else if (i < len_x + len_y)
+        {
+            const index_t d = i - len_x;
+            vals_y.set(d, origin_y + d * spacing_y);
+        }
+        else // if (i < len_x + len_y + len_z)
+        {
+            const index_t d = i - len_x - len_y;
+            vals_z.set(d, origin_z + d * spacing_z);
+        }
     });
     CONDUIT_DEVICE_ERROR_CHECK(policy);
 }
@@ -954,74 +985,177 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
     const conduit::execution::SyncStrategy sync_strategy =
         conduit::execution::get_sync_strategy();
 
-    for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
+    // Describe and allocate all axes up front so that they can all be filled
+    // with a single kernel launch.
+    const index_t n_axes = static_cast<index_t>(csys_axes.size());
+    float64 origins[3]  = {0.0, 0.0, 0.0};
+    float64 spacings[3] = {1.0, 1.0, 1.0};
+    index_t lens[3]     = {0, 0, 0};
+    float64_accessor accessors[3];
+
+    for (index_t i = 0; i < n_axes; i++)
     {
         const std::string& csys_axis = csys_axes[i];
         const std::string& logical_axis = logical_axes[i];
 
-        float64 dim_origin = coordset.has_child("origin") ?
+        origins[i] = coordset.has_child("origin") ?
             coordset["origin"][csys_axis].to_float64() : 0.0;
-        float64 dim_spacing = coordset.has_child("spacing") ?
+        spacings[i] = coordset.has_child("spacing") ?
             coordset["spacing"]["d"+csys_axis].to_float64() : 1.0;
-        index_t dim_len = coordset["dims"][logical_axis].to_int64();
+        lens[i] = coordset["dims"][logical_axis].to_int64();
 
         Node &dst_cvals_node = dest["values"][csys_axis];
         dst_cvals_node.set_allocator(allocator_id);
-        dst_cvals_node.set(DataType(float_dtype.id(), dim_len));
+        dst_cvals_node.set(DataType(float_dtype.id(), lens[i]));
 
-        float64_accessor dst_values(dest["values"][csys_axis]);
-        dst_values.use_with(policy);
+        accessors[i] = float64_accessor(dst_cvals_node);
+        accessors[i].use_with(policy);
+    }
 
-        conduit::execution::dispatch(dst_values,
-                                     [&](auto vals)
-        {
-            coordset_uniform_fill_kernel(policy,
-                                         dim_origin,
-                                         dim_spacing,
-                                         dim_len,
-                                         vals);
-        });
+    // It is faster to launch one kernel that fills all 3 axes than to launch 3
+    // kernels that fill 1 axis each.
+    conduit::execution::dispatch(accessors[0],
+                                 accessors[1],
+                                 accessors[2],
+                                 [&](auto vals_x,
+                                     auto vals_y,
+                                     auto vals_z)
+    {
+        coordset_uniform_fill_all_axes_kernel(policy,
+                                              vals_x,
+                                              vals_y,
+                                              vals_z,
+                                              origins[0],
+                                              spacings[0],
+                                              lens[0],
+                                              origins[1],
+                                              spacings[1],
+                                              lens[1],
+                                              origins[2],
+                                              spacings[2],
+                                              lens[2]);
+    });
 
-        dst_values.data_movement(sync_strategy);
+    for (index_t i = 0; i < n_axes; i++)
+    {
+        accessors[i].data_movement(sync_strategy);
     }
 }
 
 //-------------------------------------------------------------------------
+// Expands one axis of an implicit (uniform or rectilinear) coordset into
+// explicit per-vertex coordinates for host.
+//
+// Parallelizing over dim_len distinct values lets each value be fetched
+// or computed once, and makes the inner loops effectively sequential
+// stores that vectorize (favoring host execution).
+//
 // This is a separate function because nvcc does not allow device lambdas
 // to be defined inside generic lambdas.
 template <typename SrcVals, typename DstVals>
 void
-coordset_explicit_fill_kernel(conduit::execution::ExecutionPolicy &policy,
-                              const bool is_base_rectilinear,
-                              const bool is_base_uniform,
-                              const float64 dim_origin,
-                              const float64 dim_spacing,
-                              const index_t dim_len,
-                              const index_t dim_block_size,
-                              const index_t dim_block_count,
-                              const SrcVals src_cvals,
-                              const DstVals dst_cvals)
+coordset_explicit_fill_host_kernel(conduit::execution::ExecutionPolicy &policy,
+                                   const SrcVals src_cvals,
+                                   const DstVals dst_cvals,
+                                   const bool is_base_rectilinear,
+                                   const bool is_base_uniform,
+                                   const float64 dim_origin,
+                                   const float64 dim_spacing,
+                                   const index_t dim_len,
+                                   const index_t dim_block_size,
+                                   const index_t dim_block_count)
 {
-    conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
+    // We duplicate these foralls to avoid having to branch on
+    // rectilinear/uniform. The only difference is how we ultimately set
+    // the values.
+    if (is_base_rectilinear)
     {
-        index_t doffset = d * dim_block_size;
-        for(index_t b = 0; b < dim_block_count; b++)
+        conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
         {
-            index_t boffset = b * dim_block_size * dim_len;
-            for(index_t bi = 0; bi < dim_block_size; bi++)
+            const index_t doffset = d * dim_block_size;
+            for (index_t b = 0; b < dim_block_count; b++)
             {
-                index_t ioffset = doffset + boffset + bi;
-                if(is_base_rectilinear)
+                const index_t boffset = b * dim_block_size * dim_len;
+                for (index_t bi = 0; bi < dim_block_size; bi++)
                 {
+                    const index_t ioffset = bi + doffset + boffset;
                     dst_cvals.set(ioffset, src_cvals[d]);
                 }
-                else if(is_base_uniform)
+            }
+        });
+    }
+    else if (is_base_uniform)
+    {
+        conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
+        {
+            const index_t doffset = d * dim_block_size;
+            for (index_t b = 0; b < dim_block_count; b++)
+            {
+                const index_t boffset = b * dim_block_size * dim_len;
+                for (index_t bi = 0; bi < dim_block_size; bi++)
                 {
+                    const index_t ioffset = bi + doffset + boffset;
                     dst_cvals.set(ioffset, dim_origin + d * dim_spacing);
                 }
             }
-        }
-    });
+        });
+    }
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-------------------------------------------------------------------------
+// Expands one axis of an implicit (uniform or rectilinear) coordset into
+// explicit per-vertex coordinates for device.
+//
+// Instead of having each forall iteration be a double for loop over small
+// ranges, GPUs excel at doing many simple operations at once. Similar to a
+// real device kernel, we can flatten the inner loops and have each thread
+// compute d and directly set a value. This more overhead per iteration
+// (due to computing d), but rewriting the problem in this way lets us
+// fully leverage GPU parallelism.
+//
+// This is a separate function because nvcc does not allow device lambdas
+// to be defined inside generic lambdas.
+template <typename SrcVals, typename DstVals>
+void
+coordset_explicit_fill_device_kernel(conduit::execution::ExecutionPolicy &policy,
+                                     const SrcVals src_cvals,
+                                     const DstVals dst_cvals,
+                                     const bool is_base_rectilinear,
+                                     const bool is_base_uniform,
+                                     const float64 dim_origin,
+                                     const float64 dim_spacing,
+                                     const index_t dim_len,
+                                     const index_t dim_block_size,
+                                     const index_t dim_block_count)
+{
+    // We duplicate these foralls to avoid having to branch on
+    // rectilinear/uniform. They work by inverting the layout formula to
+    // recover d:
+    //
+    // With bi < dim_block_size:
+    //   i = bi + d * dim_block_size + b * dim_block_size * dim_len
+    // Dividing both sides by dim_block_size:
+    //   i / dim_block_size = d + b * dim_len
+    // Taking the modulus dim_len of both sides:
+    //   = (d + b * dim_len) % dim_len == d.
+    const index_t coords_len = dim_len * dim_block_size * dim_block_count;
+    if (is_base_rectilinear)
+    {
+        conduit::execution::forall(policy, 0, coords_len, [=] CONDUIT_EXEC(index_t i)
+        {
+            const index_t d = (i / dim_block_size) % dim_len;
+            dst_cvals.set(i, src_cvals[d]);
+        });
+    }
+    else if (is_base_uniform)
+    {
+        conduit::execution::forall(policy, 0, coords_len, [=] CONDUIT_EXEC(index_t i)
+        {
+            const index_t d = (i / dim_block_size) % dim_len;
+            dst_cvals.set(i, dim_origin + d * dim_spacing);
+        });
+    }
     CONDUIT_DEVICE_ERROR_CHECK(policy);
 }
 
@@ -1098,21 +1232,51 @@ convert_coordset_to_explicit(const std::string &base_type,
         }
 
         const index_t dim_len = dim_lens[i];
-        conduit::execution::dispatch(src_cvals_acc,
-                                     dst_cvals_acc,
-                                     [&](auto src_vals, auto dst_vals)
+        if (policy.is_device_policy())
         {
-            coordset_explicit_fill_kernel(policy,
-                                          is_base_rectilinear,
-                                          is_base_uniform,
-                                          dim_origin,
-                                          dim_spacing,
-                                          dim_len,
-                                          dim_block_size,
-                                          dim_block_count,
-                                          src_vals,
-                                          dst_vals);
-        });
+            // Instead of having each forall iteration be a double for loop over small
+            // ranges, GPUs excel at doing many simple operations at once. Similar to a
+            // real device kernel, we can flatten the inner loops and have each thread
+            // compute d and directly set a value. This more overhead per iteration
+            // (due to computing d), but rewriting the problem in this way lets us
+            // fully leverage GPU parallelism.
+            conduit::execution::dispatch(src_cvals_acc,
+                                         dst_cvals_acc,
+                                         [&](auto src_vals, auto dst_vals)
+            {
+                coordset_explicit_fill_device_kernel(policy,
+                                                     src_vals,
+                                                     dst_vals,
+                                                     is_base_rectilinear,
+                                                     is_base_uniform,
+                                                     dim_origin,
+                                                     dim_spacing,
+                                                     dim_len,
+                                                     dim_block_size,
+                                                     dim_block_count);
+            });
+        }
+        else // if (!policy.is_device_policy())
+        {
+            // Each forall iteration is a double for loop. Parallelizing over dim_len
+            // distinct values lets each value be fetched or computed once, and makes
+            // the inner loops effectively sequential stores that vectorize.
+            conduit::execution::dispatch(src_cvals_acc,
+                                         dst_cvals_acc,
+                                         [&](auto src_vals, auto dst_vals)
+            {
+                coordset_explicit_fill_host_kernel(policy,
+                                                   src_vals,
+                                                   dst_vals,
+                                                   is_base_rectilinear,
+                                                   is_base_uniform,
+                                                   dim_origin,
+                                                   dim_spacing,
+                                                   dim_len,
+                                                   dim_block_size,
+                                                   dim_block_count);
+            });
+        }
 
         dst_cvals_acc.data_movement(sync_strategy);
     }
