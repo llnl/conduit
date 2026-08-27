@@ -3491,19 +3491,22 @@ Partitioner::create_new_unstructured_topo(const conduit::Node &n_topo,
 {
     if(n_topo["type"].as_string() == "uniform")
     {
-        conduit::Node n_uns, cdest; // what is cdest?
+        conduit::Node n_uns, cdest_scratch;
+        conduit::Node &cdest = cdest_scratch[csname];
         conduit::blueprint::mesh::topology::uniform::to_unstructured(n_topo, n_uns, cdest);
         unstructured_topo_from_unstructured(n_uns, csname, originalCoordsetLength, element_ids, vertex_ids, n_new_topo);
     }
     else if(n_topo["type"].as_string() == "rectilinear")
     {
-        conduit::Node n_uns, cdest; // what is cdest?
+        conduit::Node n_uns, cdest_scratch;
+        conduit::Node &cdest = cdest_scratch[csname];
         conduit::blueprint::mesh::topology::rectilinear::to_unstructured(n_topo, n_uns, cdest);
         unstructured_topo_from_unstructured(n_uns, csname, originalCoordsetLength, element_ids, vertex_ids, n_new_topo);
     }
     else if(n_topo["type"].as_string() == "structured")
     {
-        conduit::Node n_uns, cdest; // what is cdest?
+        conduit::Node n_uns, cdest_scratch;
+        conduit::Node &cdest = cdest_scratch[csname];
         conduit::blueprint::mesh::topology::structured::to_unstructured(n_topo, n_uns, cdest);
         unstructured_topo_from_unstructured(n_uns, csname, originalCoordsetLength, element_ids, vertex_ids, n_new_topo);
     }
@@ -10961,7 +10964,6 @@ Partitioner::combine_as_unstructured(const std::string &topo_name,
         for(index_t i = 0; i < ntopos; i++)
         {
             const Node *topo = topologies[i];
-            Node temp;
             if(!topo) { continue; }
 
             const Node *type = topo->fetch_ptr("type");
@@ -10969,6 +10971,9 @@ Partitioner::combine_as_unstructured(const std::string &topo_name,
 
             const Node *cset = topo->fetch_ptr("coordset");
             if(!cset) { continue; }
+
+            Node temp_scratch;
+            Node &temp = temp_scratch[cset_name];
 
             const std::string &t = type->as_string();
             if(t == "points")

@@ -60,6 +60,18 @@ find_package(Conduit REQUIRED
              NO_DEFAULT_PATH 
              PATHS ${CONDUIT_DIR}/lib/cmake/conduit)
 
+#
+# If conduit was built with python support, CONDUIT_PYTHONPATH holds the
+# directory containing conduit's python module. Add it to PYTHONPATH to
+# import conduit from python.
+#
+if(CONDUIT_PYTHON_ENABLED)
+    message(STATUS "Conduit python module dir: ${CONDUIT_PYTHONPATH}")
+    if(NOT EXISTS ${CONDUIT_PYTHONPATH})
+        message(FATAL_ERROR "Conduit python module dir does not exist (${CONDUIT_PYTHONPATH})")
+    endif()
+endif()
+
 
 ################################################################
 # Option 2: import conduit using find_package search

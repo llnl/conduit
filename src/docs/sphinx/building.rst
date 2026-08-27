@@ -42,7 +42,7 @@ Configure a build
 ~~~~~~~~~~~~~~~~~~~~
 
 Conduit uses CMake for its build system. These instructions assume ``cmake`` is in your path.
-We recommend CMake 3.21 or newer, for more details see :ref:`Supported CMake Versions <supported_cmake>`.
+We require CMake 3.26 or newer, for more details see :ref:`Supported CMake Versions <supported_cmake>`.
 
 ``config-build.sh`` is a simple wrapper for the cmake call to configure conduit.
 This creates a new out-of-source build directory ``build-debug`` and a directory for the install ``install-debug``.
@@ -184,7 +184,7 @@ Conduit's build system provides an **install** target that installs the Conduit 
 Additional Build Notes
 ^^^^^^^^^^^^^^^^^^^^^^
 
-* **Python** - The Conduit Python module builds for both Python 2 and Python 3. To select a specific Python, set the CMake variable PYTHON_EXECUTABLE to path of the desired python binary. When ``PYTHON_MODULE_INSTALL_PREFIX`` is set and ``ENABLE_PYTHON=ON``, Conduit's Python modules will be installed to ``${PYTHON_MODULE_INSTALL_PREFIX}`` directory instead of ``${CMAKE_INSTALL_PREFIX}/python-modules``.
+* **Python** - The Conduit Python module builds for both Python 2 and Python 3. To select a specific Python, set the CMake variable PYTHON_EXECUTABLE to path of the desired python binary. When ``PYTHON_MODULE_INSTALL_PREFIX`` is set and ``ENABLE_PYTHON=ON``, Conduit's Python modules will be installed to ``${PYTHON_MODULE_INSTALL_PREFIX}`` directory instead of ``${CMAKE_INSTALL_PREFIX}/python-modules``. Either way, projects that find Conduit with CMake can use ``CONDUIT_PYTHONPATH`` to locate the installed module, for example to add it to ``PYTHONPATH``.
 
 * **MPI** - We use CMake's standard FindMPI logic. To select a specific MPI set the CMake variables ``MPI_C_COMPILER`` and ``MPI_CXX_COMPILER``, or the other FindMPI options for MPI include paths and MPI libraries. To run the mpi unit tests, you may also need change the CMake variables ``MPIEXEC_EXECUTABLE`` and ``MPIEXEC_NUMPROC_FLAG``, so you can use a different launcher, such as srun and set number of MPI tasks used.
 
@@ -389,7 +389,7 @@ You can specify specific versions of a dependency using ``^``. For Example, to b
 
 Supported CMake Versions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-We recommend CMake 3.21 or newer. We test building Conduit with CMake 3.21 and newer 3.2x variants.
+We require CMake 3.26 or newer. We test building Conduit with newer 3.x variants.
 
 
 Using Conduit in Another Project

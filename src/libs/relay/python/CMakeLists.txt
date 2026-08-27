@@ -22,7 +22,7 @@ PYTHON_ADD_COMPILED_MODULE(NAME          conduit_relay_python
 target_link_libraries(conduit_relay_python PRIVATE conduit_python_py_setup)
 
 # link with the proper libs
-target_link_libraries(conduit_relay_python PRIVATE conduit conduit_relay conduit_python_build)
+target_link_libraries(conduit_relay_python PRIVATE conduit conduit_relay)
 
 # add relay io submodule
 PYTHON_ADD_COMPILED_MODULE(NAME          conduit_relay_io_python
@@ -36,7 +36,7 @@ PYTHON_ADD_COMPILED_MODULE(NAME          conduit_relay_io_python
 target_link_libraries(conduit_relay_io_python PRIVATE conduit_python_py_setup)
 
 # link with the proper libs (beyond python)
-target_link_libraries(conduit_relay_io_python PRIVATE conduit conduit_relay conduit_python_build)
+target_link_libraries(conduit_relay_io_python PRIVATE conduit conduit_relay)
 
 # add relay io blueprint submodule
 PYTHON_ADD_COMPILED_MODULE(NAME          conduit_relay_io_blueprint_python
@@ -50,7 +50,7 @@ PYTHON_ADD_COMPILED_MODULE(NAME          conduit_relay_io_blueprint_python
 target_link_libraries(conduit_relay_io_blueprint_python PRIVATE conduit_python_py_setup)
 
 # link with the proper libs (beyond python)
-target_link_libraries(conduit_relay_io_blueprint_python PRIVATE conduit conduit_relay conduit_blueprint conduit_python_build)
+target_link_libraries(conduit_relay_io_blueprint_python PRIVATE conduit conduit_relay conduit_blueprint)
 
 if(SILO_FOUND)
 
@@ -66,7 +66,7 @@ if(SILO_FOUND)
     target_link_libraries(conduit_relay_io_silo_python PRIVATE conduit_python_py_setup)
 
     # link with the proper libs (beyond python)
-    target_link_libraries(conduit_relay_io_silo_python PRIVATE conduit conduit_relay conduit_blueprint conduit_python_build)
+    target_link_libraries(conduit_relay_io_silo_python PRIVATE conduit conduit_relay conduit_blueprint)
 
 endif()
 
@@ -83,7 +83,7 @@ if(ENABLE_RELAY_WEBSERVER)
     target_link_libraries(conduit_relay_web_python PRIVATE conduit_python_py_setup)
 
     # link with the proper libs (beyond python)
-    target_link_libraries(conduit_relay_web_python PRIVATE conduit conduit_relay conduit_python_build)
+    target_link_libraries(conduit_relay_web_python PRIVATE conduit conduit_relay)
 endif()
 
 ################################################################
@@ -104,7 +104,7 @@ if(MPI_FOUND)
     target_link_libraries(conduit_relay_mpi_python PRIVATE conduit_python_py_setup)
 
     # link with the proper libs (beyond python)
-    target_link_libraries(conduit_relay_mpi_python PRIVATE conduit conduit_relay_mpi conduit_python_build)
+    target_link_libraries(conduit_relay_mpi_python PRIVATE conduit conduit_relay_mpi)
 
 endif()
 
@@ -126,7 +126,7 @@ if(MPI_FOUND)
     target_link_libraries(conduit_relay_mpi_io_python PRIVATE conduit_python_py_setup)
 
     # link with the proper libs (beyond python)
-    target_link_libraries(conduit_relay_mpi_io_python PRIVATE conduit conduit_relay_mpi conduit_relay_mpi_io conduit_python_build)
+    target_link_libraries(conduit_relay_mpi_io_python PRIVATE conduit conduit_relay_mpi conduit_relay_mpi_io)
 
 
     # add io blueprint submodule
@@ -141,7 +141,7 @@ if(MPI_FOUND)
     target_link_libraries(conduit_relay_mpi_io_blueprint_python PRIVATE conduit_python_py_setup)
 
     # link with the proper libs (beyond python)
-    target_link_libraries(conduit_relay_mpi_io_blueprint_python PRIVATE conduit conduit_relay_mpi conduit_relay_mpi_io conduit_python_build)
+    target_link_libraries(conduit_relay_mpi_io_blueprint_python PRIVATE conduit conduit_relay_mpi conduit_relay_mpi_io)
 
 endif()
 

@@ -1273,7 +1273,7 @@ template class DataAccessor<double>;
 #endif
 
 #ifdef CONDUIT_USE_LONG_DOUBLE
-    ltemplate class DataAccessor<long double>;
+template class DataAccessor<long double>;
 #endif
 
 

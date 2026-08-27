@@ -1255,6 +1255,290 @@ TEST(conduit_relay_io_silo, overlink_specset_rules)
 }
 
 //-----------------------------------------------------------------------------
+// we want to test the case where a field is material dependent but it exists
+// on domains that have no material mixing, which causes them to have no
+// mixvals when reading from Silo. Our post-processing can recognize this
+// case and address it so that material dependence is explicitly established.
+TEST(conduit_relay_io_silo, mixed_var_special_case)
+{
+    const std::vector<std::string> matset_styles = {
+        "full", 
+        "sparse_by_material", 
+        "sparse_by_element",
+    };
+
+    for (const std::string &matset_style : matset_styles)
+    {
+        //
+        // Part 1: Create & Save a representative data set
+        //
+
+        // create venn
+        const index_t nx = 16;
+        const index_t ny = 16;
+        const double radius = 0.2;
+        Node venn_mesh;
+        blueprint::mesh::examples::venn(matset_style, nx, ny, radius, venn_mesh);
+
+        // remove unwanted fields
+        venn_mesh["fields"].remove_child("circle_b");
+        venn_mesh["fields"].remove_child("circle_c");
+        venn_mesh["fields"].remove_child("radius_a");
+        venn_mesh["fields"].remove_child("radius_b");
+        venn_mesh["fields"].remove_child("radius_c");
+        venn_mesh["fields"].remove_child("background");
+        venn_mesh["fields"].remove_child("overlap");
+        venn_mesh["fields"].remove_child("mat_check");
+
+        // repartition it into 4
+        Node part_mesh, opts;
+        opts["target"] = 4;
+        conduit::blueprint::mesh::partition(venn_mesh, opts, part_mesh);
+
+        // domain 0 and 2 are unmixed
+        // domain 1 and 3 are mixed
+
+        // verify that our setup yields domains with clean elements
+        // and remove extra fields
+        index_t dom_id = 0;
+        auto doms_itr = part_mesh.children();
+        while (doms_itr.has_next())
+        {
+            Node &dom = doms_itr.next();
+            const Node &matset = dom["matsets"]["matset"];
+
+            if (0 == dom_id || 2 == dom_id)
+            {
+                EXPECT_FALSE(conduit::blueprint::mesh::matset::has_mixed_elements(matset));
+            }
+            else // 1 == dom_id || 3 == dom_id
+            {
+                EXPECT_TRUE(conduit::blueprint::mesh::matset::has_mixed_elements(matset));
+            }
+
+            dom["fields"].remove_child("original_vertex_ids");
+            dom["fields"].remove_child("original_element_ids");
+
+            dom_id ++;
+        }
+
+        // save mesh to silo
+        const std::string basename = "silo_mixed_and_clean_vars";
+        const std::string filename = basename + ".root";
+        EXPECT_EQ(filename, io::blueprint::generate_root_filename(part_mesh, basename, "silo"));
+        remove_path_if_exists(filename);
+        io::silo::save_mesh(part_mesh, basename);
+
+        //
+        // Part 2: Read from Silo and verify that our fields are all mixed
+        //
+
+        Node load_mesh, read_opts, info;
+        if (matset_style == "full")
+        {
+            read_opts["matset_style"] = "multi_buffer_full";
+        }
+        else if (matset_style == "sparse_by_material")
+        {
+            read_opts["matset_style"] = "multi_buffer_by_material";
+        }
+        else // if (matset_style == "sparse_by_element")
+        {
+            read_opts["matset_style"] = "sparse_by_element";
+        }
+        io::silo::load_mesh(filename, read_opts, load_mesh);
+        EXPECT_TRUE(blueprint::mesh::verify(load_mesh, info));
+
+        // make changes to part_mesh so the diff will pass
+        for (index_t child = 0; child < part_mesh.number_of_children(); child ++)
+        {
+            if ("sparse_by_element" == matset_style && (0 == child || 2 == child))
+            {
+                // get the matset for this domain
+                Node &n_matset = part_mesh[child]["matsets"]["matset"];
+
+                // cheat a little bit - we don't have these to start
+                n_matset["sizes"].set_external(load_mesh[child]["matsets"]["mesh_matset"]["sizes"]);
+                n_matset["offsets"].set_external(load_mesh[child]["matsets"]["mesh_matset"]["offsets"]);
+            }
+
+            // TODO remove when https://github.com/llnl/conduit/issues/1600
+            // is addressed
+            if ("sparse_by_material" == matset_style)
+            {
+                // get the matset for this domain
+                Node &n_matset = part_mesh[child]["matsets"]["matset"];
+
+                Node material_map;
+                conduit::blueprint::mesh::matset::create_or_reuse_material_map(n_matset, material_map);
+                n_matset["material_map"].set(material_map);
+
+                if (0 == child)
+                {
+                    n_matset["volume_fractions"].remove_child("circle_a");
+                    n_matset["volume_fractions"].remove_child("circle_b");
+                    n_matset["element_ids"].remove_child("circle_a");
+                    n_matset["element_ids"].remove_child("circle_b");
+                }
+                else if (1 == child)
+                {
+                    n_matset["volume_fractions"].remove_child("circle_b");
+                    n_matset["element_ids"].remove_child("circle_b");
+                }
+                else if (2 == child)
+                {
+                    n_matset["volume_fractions"].remove_child("circle_a");
+                    n_matset["volume_fractions"].remove_child("circle_b");
+                    n_matset["element_ids"].remove_child("circle_a");
+                    n_matset["element_ids"].remove_child("circle_b");
+                }
+                else // if (3 == child)
+                {
+                    // nothing to do for child == 3
+                }
+            }
+
+            silo_name_changer("mesh", part_mesh[child]);
+        }
+
+        dom_id = 0;
+        EXPECT_EQ(load_mesh.number_of_children(), part_mesh.number_of_children());
+        NodeConstIterator l_itr = load_mesh.children();
+        NodeConstIterator s_itr = part_mesh.children();
+        while (l_itr.has_next())
+        {
+            const Node &l_curr = l_itr.next();
+            const Node &s_curr = s_itr.next();
+
+            EXPECT_TRUE(l_curr.has_path("fields/mesh_importance/matset"));
+            EXPECT_TRUE(l_curr.has_path("fields/mesh_importance/matset_values"));
+            EXPECT_TRUE(l_curr.has_path("fields/mesh_area/matset"));
+            EXPECT_TRUE(l_curr.has_path("fields/mesh_area/matset_values"));
+
+            // we can only do these checks in the SBE case
+            // the other cases will need to rely on the diff
+            if ("sparse_by_element" == matset_style)
+            {
+                // check that mset vals are field vals copied for the clean domains
+                const Node &imp_mset_vals = l_curr["fields"]["mesh_importance"]["matset_values"];
+                const Node &imp_field_vals = l_curr["fields"]["mesh_importance"]["values"];
+                const Node &area_mset_vals = l_curr["fields"]["mesh_area"]["matset_values"];
+                const Node &area_field_vals = l_curr["fields"]["mesh_area"]["values"];
+                if (0 == dom_id || 2 == dom_id)
+                {
+                    EXPECT_FALSE(imp_field_vals.diff(imp_mset_vals, info, CONDUIT_EPSILON, true));
+                    EXPECT_FALSE(area_field_vals.diff(area_mset_vals, info, CONDUIT_EPSILON, true));
+                }
+                else // (1 == dom_id || 3 == dom_id)
+                {
+                    EXPECT_TRUE(imp_field_vals.diff(imp_mset_vals, info, CONDUIT_EPSILON, true));
+                    EXPECT_TRUE(area_field_vals.diff(area_mset_vals, info, CONDUIT_EPSILON, true));
+                }
+            }
+
+            EXPECT_FALSE(l_curr.diff(s_curr, info, CONDUIT_EPSILON, true));
+
+            if (l_curr.diff(s_curr, info, CONDUIT_EPSILON, true))
+            {
+                std::cout << dom_id << std::endl;
+                l_curr.print();
+                s_curr.print();
+                info.print();
+            }
+
+            dom_id ++;
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_relay_io_silo, mixed_var_special_case_errors)
+{
+    // create venn
+    const index_t nx = 16;
+    const index_t ny = 16;
+    const double radius = 0.2;
+    Node venn_mesh;
+    blueprint::mesh::examples::venn("sparse_by_element", nx, ny, radius, venn_mesh);
+
+    // remove unwanted fields
+    venn_mesh["fields"].remove_child("circle_b");
+    venn_mesh["fields"].remove_child("circle_c");
+    venn_mesh["fields"].remove_child("radius_a");
+    venn_mesh["fields"].remove_child("radius_b");
+    venn_mesh["fields"].remove_child("radius_c");
+    venn_mesh["fields"].remove_child("background");
+    venn_mesh["fields"].remove_child("overlap");
+    venn_mesh["fields"].remove_child("mat_check");
+
+    // repartition it into 4
+    Node part_mesh, opts;
+    opts["target"] = 4;
+    conduit::blueprint::mesh::partition(venn_mesh, opts, part_mesh);
+
+    Node test_mesh;
+
+    // verify that our setup yields domains with clean elements
+    // and remove extra fields
+    // then add to test_mesh in the right path
+    index_t dom_id = 0;
+    auto doms_itr = part_mesh.children();
+    while (doms_itr.has_next())
+    {
+        Node &dom = doms_itr.next();
+        const Node &matset = dom["matsets"]["matset"];
+
+        if (0 == dom_id || 2 == dom_id)
+        {
+            EXPECT_FALSE(conduit::blueprint::mesh::matset::has_mixed_elements(matset));
+            Node &fields = dom["fields"];
+            fields["importance"].remove_child("matset");
+            fields["importance"].remove_child("matset_values");
+            fields["area"].remove_child("matset");
+            fields["area"].remove_child("matset_values");
+        }
+        else // (1 == dom_id || 3 == dom_id)
+        {
+            EXPECT_TRUE(conduit::blueprint::mesh::matset::has_mixed_elements(matset));
+        }
+
+        dom["fields"].remove_child("original_vertex_ids");
+        dom["fields"].remove_child("original_element_ids");
+
+        const std::string domain_path = conduit_fmt::format("domain_{:06d}", dom_id);
+        test_mesh[domain_path].set(dom);
+
+        dom_id ++;
+    }
+
+    // test missing matset assoc
+    test_mesh.child(1)["fields"]["importance"].remove_child("matset");
+    EXPECT_THROW(io::silo::honor_material_dependent_fields(0, 4, test_mesh), conduit::Error);
+    // restore matset name
+    test_mesh.child(1)["fields"]["importance"]["matset"].set("matset");
+
+    // cache matset for use later
+    Node dom_2_matset;
+    dom_2_matset.set(test_mesh.child(2)["matsets"]["matset"]);
+
+    // test missing matsets
+    test_mesh.child(2).remove_child("matsets");
+    EXPECT_THROW(io::silo::honor_material_dependent_fields(0, 4, test_mesh), conduit::Error);
+    // now restore missing matset
+    test_mesh.child(2)["matsets"]["matset"].set(dom_2_matset);
+
+    // test ambiguous matsets
+    test_mesh.child(2)["matsets"]["matset2"].set(dom_2_matset);
+    EXPECT_THROW(io::silo::honor_material_dependent_fields(0, 4, test_mesh), conduit::Error);
+    // remove extra matset
+    test_mesh.child(2)["matsets"].remove_child("matset2");
+
+    // test mixed matset error
+    test_mesh.child(2)["matsets"]["matset"].set(test_mesh.child(3)["matsets"]["matset"]);
+    EXPECT_THROW(io::silo::honor_material_dependent_fields(0, 4, test_mesh), conduit::Error);
+}
+
+//-----------------------------------------------------------------------------
 
 //
 // save option tests

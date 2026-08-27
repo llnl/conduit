@@ -2,6 +2,12 @@
 # Project developers. See top-level LICENSE AND COPYRIGHT files for dates and
 # other details. No copyright assignment is required to contribute to Conduit.
 
+if(POLICY CMP0074)
+    #policy for <PackageName>_ROOT variables
+    cmake_policy(PUSH)
+    cmake_policy(SET CMP0074 NEW)
+endif()
+
 include(CMakeFindDependencyMacro)
 
 # calc the proper relative install root
@@ -15,12 +21,6 @@ endif()
 
 # we want the import root, which is right above the "lib" prefix
 get_filename_component(_IMPORT_ROOT "${_IMPORT_PREFIX}" PATH)
-
-if(POLICY CMP0074)
-    #policy for <PackageName>_ROOT variables
-    cmake_policy(PUSH)
-    cmake_policy(SET CMP0074 NEW)
-endif()
 
 ###############################################################################
 # Setup Threads
@@ -76,6 +76,22 @@ if("MPI" IN_LIST Conduit_FIND_COMPONENTS)
     set(Conduit_MPI_FOUND 1)
     if(Conduit_MPI_NOT_FOUND_MESSAGE)
         set(Conduit_MPI_FOUND 0)
+    endif()
+endif()
+
+###############################################################################
+# Setup Python
+###############################################################################
+if("Python" IN_LIST Conduit_FIND_COMPONENTS)
+    set(Conduit_Python_NOT_FOUND_MESSAGE "")
+
+    if(NOT CONDUIT_PYTHON_ENABLED)
+        set(Conduit_Python_NOT_FOUND_MESSAGE "Python support is not available")
+    endif()
+
+    set(Conduit_Python_FOUND 1)
+    if(Conduit_Python_NOT_FOUND_MESSAGE)
+        set(Conduit_Python_FOUND 0)
     endif()
 endif()
 
