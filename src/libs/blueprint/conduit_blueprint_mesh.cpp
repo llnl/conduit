@@ -1533,7 +1533,8 @@ centroid_conn_fill_kernel(conduit::execution::ExecutionPolicy &policy,
 // ShapeType is host-only.
 template <typename ConnType, typename OffsetsType, typename SizesType, typename CoordType>
 void
-unstructured_centroid_kernel(const bool is_polygonal,
+unstructured_centroid_kernel(conduit::execution::ExecutionPolicy &policy,
+                             const bool is_polygonal,
                              const index_t shape_indices,
                              const ConnType &topo_conn,
                              const OffsetsType &topo_offsets,
@@ -1553,8 +1554,6 @@ unstructured_centroid_kernel(const bool is_polygonal,
     // shape types, I found that the largest number of unique points per
     // element that we see in practice is 16, so 32 gives us 2x headroom.
     const index_t max_stack_npts = 32;
-
-    conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
 
     conduit::execution::forall(policy, 0, topo_num_elems, [=] CONDUIT_EXEC(index_t ei)
     {
@@ -1652,7 +1651,8 @@ unstructured_centroid_kernel(const bool is_polygonal,
 // topology and stores the result in dest_centroids.
 template <typename IndexType, typename OffsetsType, typename CoordType>
 void
-unstructured_centroid_polyhedral_kernel(const IndexType &topo_conn,
+unstructured_centroid_polyhedral_kernel(conduit::execution::ExecutionPolicy &policy,
+                                        const IndexType &topo_conn,
                                         const OffsetsType &topo_offsets,
                                         const IndexType &topo_sizes,
                                         const IndexType &topo_subconn,
@@ -1670,8 +1670,6 @@ unstructured_centroid_polyhedral_kernel(const IndexType &topo_conn,
     // max_stack_npts represents the maximum number of unique points per
     // element that we can handle before falling back to a slower path.
     const index_t max_stack_npts = 32;
-
-    conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
 
     conduit::execution::forall(policy, 0, topo_num_elems, [=] CONDUIT_EXEC(index_t ei)
     {
@@ -1850,9 +1848,15 @@ calculate_unstructured_centroids(const conduit::Node &topo,
     const Node &topo_conn_const = topo["elements/connectivity"];
     Node topo_conn; topo_conn.set_external(topo_conn_const);
 
-    conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
-    const index_t output_allocator_id = conduit::execution::get_output_allocator_id();
-    const conduit::execution::SyncStrategy sync_strategy = conduit::execution::get_sync_strategy();
+    // Following the convention used in other APIs
+    const Node &first_axis_values = coordset["values"][csys_axes[0]];
+
+    conduit::execution::ExecutionPolicy policy =
+        conduit::execution::get_execution_policy(first_axis_values);
+    const index_t output_allocator_id =
+        conduit::execution::get_output_allocator_id(first_axis_values);
+    const conduit::execution::SyncStrategy sync_strategy =
+        conduit::execution::get_sync_strategy();
 
     // Allocate Data Templates for Outputs //
 
@@ -1934,7 +1938,8 @@ calculate_unstructured_centroids(const conduit::Node &topo,
                                      [&](auto conn, auto sizes,
                                          auto subconn, auto subsizes)
         {
-            unstructured_centroid_polyhedral_kernel(conn,
+            unstructured_centroid_polyhedral_kernel(policy,
+                                                    conn,
                                                     topo_offsets_access,
                                                     sizes,
                                                     subconn,
@@ -1952,7 +1957,8 @@ calculate_unstructured_centroids(const conduit::Node &topo,
                                      topo_offsets_access,
                                      [&](auto conn, auto offsets)
         {
-            unstructured_centroid_kernel(topo_shape.is_polygonal(),
+            unstructured_centroid_kernel(policy,
+                                         topo_shape.is_polygonal(),
                                          topo_shape.indices,
                                          conn,
                                          offsets,
