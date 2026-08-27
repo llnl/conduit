@@ -927,8 +927,11 @@ TEST(conduit_data_accessor, bulk_strided_and_offset)
         acc.fill(42);
         for (index_t i = 0; i < num_elements; i++)
         {
+            // The gap bytes between the viewed elements are untouched
             EXPECT_EQ(buff[2 * i], (int8)-7);
+            // The viewed odd bytes hold the fill value, stored as int8
             EXPECT_EQ(buff[2 * i + 1], (int8)42);
+            // Reading back through the accessor converts the int8 to int64
             EXPECT_EQ(acc[i], (int64)42);
         }
 

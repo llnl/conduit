@@ -2552,8 +2552,9 @@ TEST(conduit_data_array, bulk_strided_and_offset)
         va.fill((int8)-7);
         for (index_t i = 0; i < num_ele; i++)
         {
-            // The viewed elements are the odd elements, the gaps must be untouched
+            // The viewed odd elements hold the fill value
             EXPECT_EQ(buff[(size_t)(2 * i + 1)], (int8)-7);
+            // The gap elements between them are untouched
             EXPECT_EQ(buff[(size_t)(2 * i)], (int8)(100 + 2 * i));
         }
 
