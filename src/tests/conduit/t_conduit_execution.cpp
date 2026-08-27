@@ -1801,6 +1801,22 @@ TEST(conduit_execution, no_memory_leak_on_data_array_assume)
                    conduit::execution::get_device_allocator_id(),
                    ExecutionPolicy::host());
 }
+
+//-----------------------------------------------------------------------------
+TEST(conduit_execution, no_memory_leak_on_cross_space_set)
+{
+    conduit_device_prepare();
+
+    // Data originates on the host but the destination is set on the device
+    expect_no_leak(run_data_array_cross_space_set,
+                   conduit::execution::get_host_allocator_id(),
+                   ExecutionPolicy::device());
+
+    // Data originates on the device but the destination is set on the host
+    expect_no_leak(run_data_array_cross_space_set,
+                   conduit::execution::get_device_allocator_id(),
+                   ExecutionPolicy::host());
+}
 #endif // defined(CONDUIT_USE_DEVICE)
 
 //-----------------------------------------------------------------------------

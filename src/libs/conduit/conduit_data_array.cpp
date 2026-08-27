@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cstring>
 #include <limits>
+#include <type_traits>
 
 
 //-----------------------------------------------------------------------------
@@ -27,6 +28,7 @@
 #include "conduit_data_accessor.hpp"
 #include "conduit_execution.hpp"
 #include "conduit_execution_dispatch.hpp"
+#include "conduit_memory_manager.hpp"
 #include "conduit_annotations.hpp"
 
 //-----------------------------------------------------------------------------
@@ -383,8 +385,50 @@ set_values_helper(const DataArray<T> &array,
     }
     else // dst and src are in different memory spaces
     {
-        CONDUIT_ERROR("DataArray::set() requires the source and destination to "
-                      "share a memory space. Use use_with() and sync() first.");
+        const DataType &dtype = array.dtype();
+
+        // When the source elements are the same type as the destination and
+        // the destination has a compact layout, we can avoid using a temp
+        // buffer.
+        const index_t type_size = static_cast<index_t>(sizeof(T));
+        const bool same_layout = std::is_same<U, T>::value &&
+                                 dtype.stride() == type_size &&
+                                 dtype.element_bytes() == type_size;
+        if (same_layout)
+        {
+            utils::conduit_memcpy(const_cast<void*>(array.element_ptr(0)),
+                                  values,
+                                  num_elements * sizeof(T));
+            return;
+        }
+
+        // Set up
+        const size_t src_type_size = sizeof(U);
+        const size_t num_bytes = num_elements * src_type_size;
+        void *temp_ptr = dst_on_device
+            ? execution::DeviceMemory::allocate(num_bytes)
+            : execution::HostMemory::allocate(num_bytes);
+        utils::conduit_memcpy_strided_elements(temp_ptr,
+                                               num_elements,
+                                               src_type_size,
+                                               src_type_size,
+                                               values,
+                                               src_type_size);
+        const U *temp_vals = static_cast<const U*>(temp_ptr);
+        execution::dispatch(array, [&](auto vals)
+        {
+            array_copy_from_view_kernel(policy, num_elements, temp_vals, vals);
+        });
+
+        // Clean up
+        if (dst_on_device)
+        {
+            execution::DeviceMemory::deallocate(temp_ptr);
+        }
+        else // if (!dst_on_device)
+        {
+            execution::HostMemory::deallocate(temp_ptr);
+        }
     }
 }
 
@@ -415,8 +459,41 @@ set_values_view_helper(const DataArray<T> &array,
     }
     else // dst and src are in different memory spaces
     {
-        CONDUIT_ERROR("DataArray::set() requires the source and destination to "
-                      "share a memory space. Use use_with() and sync() first.");
+        // Set up
+        const DataType &src_dt = values.dtype();
+        const size_t type_size = src_dt.element_bytes();
+        const size_t num_bytes = num_elements * type_size;
+        void *temp_ptr = dst_on_device
+            ? execution::DeviceMemory::allocate(num_bytes)
+            : execution::HostMemory::allocate(num_bytes);
+        const DataType temp_dtype(src_dt.id(),
+                                  num_elements,
+                                  0, // offset is 0
+                                  DataType::default_bytes(src_dt.id()), // stride
+                                  src_dt.element_bytes(),
+                                  src_dt.endianness());
+        utils::conduit_memcpy_strided_elements(temp_ptr,
+                                               num_elements,
+                                               type_size,
+                                               temp_dtype.stride(),
+                                               values.element_ptr(0),
+                                               src_dt.stride());
+        const View<U> temp_view(static_cast<const void*>(temp_ptr),
+                                temp_dtype);
+        execution::dispatch(array, [&](auto vals)
+        {
+            array_copy_from_view_kernel(policy, num_elements, temp_view, vals);
+        });
+
+        // Clean up
+        if (dst_on_device)
+        {
+            execution::DeviceMemory::deallocate(temp_ptr);
+        }
+        else // if (!dst_on_device)
+        {
+            execution::HostMemory::deallocate(temp_ptr);
+        }
     }
 }
 
@@ -427,6 +504,27 @@ set_values_helper(const DataArray<T> &array,
                   const DataArray<U> &values,
                   index_t num_elements)
 {
+    // Setting across memory spaces between compact DataArrays can be a single
+    // bulk copy. This fast path is only valid for DataArrays since
+    // DataAccessors convert between their underlying dtype and their element
+    // type.
+    const DataType &dst_dt = array.dtype();
+    const DataType &src_dt = values.dtype();
+    const bool cross_space = array.active_policy().is_device_policy() !=
+                             values.active_policy().is_device_policy();
+    const bool same_layout = dst_dt.id() == src_dt.id() &&
+                             dst_dt.element_bytes() == src_dt.element_bytes() &&
+                             dst_dt.stride() == dst_dt.element_bytes() &&
+                             src_dt.stride() == src_dt.element_bytes();
+    if (num_elements > 0 && cross_space && same_layout)
+    {
+        utils::conduit_memcpy(const_cast<void*>(array.element_ptr(0)),
+                              values.element_ptr(0),
+                              num_elements * dst_dt.element_bytes());
+        return;
+    }
+
+    // Non-fast path
     set_values_view_helper(array, values, num_elements);
 }
 
@@ -907,10 +1005,11 @@ T
 DataArray<T>::min()  const
 {
     const index_t num_elements = number_of_elements();
+    execution::ExecutionPolicy policy = active_policy();
     T res = std::numeric_limits<T>::max();
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::array_min_kernel<T>(m_policy, num_elements, vals);
+        res = detail::array_min_kernel<T>(policy, num_elements, vals);
     });
 
     return res;
@@ -923,10 +1022,11 @@ DataArray<T>::max() const
 {
     const index_t num_elements = number_of_elements();
 
+    execution::ExecutionPolicy policy = active_policy();
     T res = std::numeric_limits<T>::lowest();
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::array_max_kernel<T>(m_policy, num_elements, vals);
+        res = detail::array_max_kernel<T>(policy, num_elements, vals);
     });
 
     return res;
@@ -940,10 +1040,11 @@ DataArray<T>::sum() const
 {
     const index_t num_elements = number_of_elements();
 
+    execution::ExecutionPolicy policy = active_policy();
     T res = 0;
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::array_sum_kernel<T>(m_policy, num_elements, vals);
+        res = detail::array_sum_kernel<T>(policy, num_elements, vals);
     });
 
     return res;
@@ -956,11 +1057,12 @@ DataArray<T>::mean() const
 {
     const index_t num_elements = number_of_elements();
 
+    execution::ExecutionPolicy policy = active_policy();
     float64 res = 0.0;
     execution::dispatch(*this, [&](auto vals)
     {
         // Accumulate in float64 for accuracy
-        res = detail::array_sum_kernel<float64>(m_policy, num_elements, vals);
+        res = detail::array_sum_kernel<float64>(policy, num_elements, vals);
     });
 
     return res / static_cast<float64>(num_elements);
@@ -973,10 +1075,11 @@ DataArray<T>::count(T val) const
 {
     const index_t num_elements = number_of_elements();
 
+    execution::ExecutionPolicy policy = active_policy();
     index_t res = 0;
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::array_count_kernel<T>(m_policy, num_elements, vals, val);
+        res = detail::array_count_kernel<T>(policy, num_elements, vals, val);
     });
 
     return res;

@@ -1147,16 +1147,9 @@ TEST(conduit_data_accessor, device_set_from_host_ptr)
         float64_accessor acc(n["vals"]);
         acc.use_with(policy);
 
-        // A device destination cannot be set from a host pointer source
-        if (policy.is_device_policy())
-        {
-            EXPECT_THROW(acc.set(&src[0], num_elements), conduit::Error);
-            acc.use_with(ExecutionPolicy::host());
-        }
-
+        // The host source is copied across memory spaces when needed
         acc.set(&src[0], num_elements);
 
-        acc.use_with(policy);
         acc.sync();
 
         int32 *vals_ptr = n["vals"].value();
@@ -1206,13 +1199,20 @@ TEST(conduit_data_accessor, device_set_from_device_ptr_conversion)
             EXPECT_EQ(des_ptr[i], static_cast<float64>(i + 1));
         }
 
-        // A host destination still cannot be set from a device source
+        // A host destination can also be set from the device source, with
+        // the same int32 to float64 conversion
         if (policy.is_device_policy())
         {
             Node n_host;
             n_host["des"].set(DataType::float64(num_elements));
             float64_accessor host_des(n_host["des"]);
-            EXPECT_THROW(host_des.set(src_vals, num_elements), conduit::Error);
+            host_des.set(src_vals, num_elements);
+
+            float64 *host_ptr = n_host["des"].value();
+            for (index_t i = 0; i < num_elements; i++)
+            {
+                EXPECT_EQ(host_ptr[i], static_cast<float64>(i + 1));
+            }
         }
     });
 }
@@ -1291,7 +1291,7 @@ TEST(conduit_data_accessor, device_strided)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_data_accessor, mixed_space_set_errors)
+TEST(conduit_data_accessor, mixed_space_set)
 {
     conduit_device_prepare();
 
@@ -1309,18 +1309,104 @@ TEST(conduit_data_accessor, mixed_space_set_errors)
         n["src"].set(DataType::float64(num_ele));
         n["des"].set(DataType::float64(num_ele));
 
+        float64 *src_ptr = n["src"].value();
+        for (index_t i = 0; i < num_ele; i++)
+        {
+            src_ptr[i] = static_cast<float64>(i + 1);
+        }
+
         float64_accessor dev_src(n["src"]);
         dev_src.use_with(policy);
 
+        // A host destination set from a device source
         float64_accessor host_des(n["des"]);
+        host_des.set(dev_src);
 
-        // A host destination cannot be set from a device source
-        EXPECT_THROW(host_des.set(dev_src), conduit::Error);
+        float64 *des_ptr = n["des"].value();
+        for (index_t i = 0; i < num_ele; i++)
+        {
+            EXPECT_EQ(des_ptr[i], static_cast<float64>(i + 1));
+        }
 
-        // A device destination cannot be set from a host source
-        float64_accessor host_src(n["des"]);
-        EXPECT_THROW(dev_src.set(host_src), conduit::Error);
+        // A device destination set from a host source
+        Node n_dev;
+        n_dev["des"].set(DataType::float64(num_ele));
+        float64_accessor dev_des(n_dev["des"]);
+        dev_des.use_with(policy);
+        dev_des.set(host_des);
+        dev_des.sync();
+
+        float64 *dev_des_ptr = n_dev["des"].value();
+        for (index_t i = 0; i < num_ele; i++)
+        {
+            EXPECT_EQ(dev_des_ptr[i], static_cast<float64>(i + 1));
+        }
     });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_accessor, mixed_space_set_narrowing)
+{
+    conduit_device_prepare();
+
+    const index_t num_ele = 4;
+
+    for_each_enabled_policy([&](ExecutionPolicy &policy)
+    {
+        // Only device policies can form a mixed host/device pair, skip the rest
+        if (!policy.is_device_policy())
+        {
+            return;
+        }
+
+        Node n;
+        n["src"].set(DataType::int64(num_ele));
+        n["des"].set(DataType::int64(num_ele));
+
+        int64 *src_ptr = n["src"].value();
+        for (index_t i = 0; i < num_ele; i++)
+        {
+            // Values that do not fit in an int8
+            src_ptr[i] = 1000 + i;
+        }
+
+        // The source accessor narrows its int64 data to int8 on read, and
+        // the cross-space set must preserve that narrowing rather than
+        // copying the raw int64 bytes
+        int8_accessor host_src(n["src"]);
+
+        int64_accessor dev_des(n["des"]);
+        dev_des.use_with(policy);
+        dev_des.set(host_src);
+        dev_des.sync();
+
+        int64 *des_ptr = n["des"].value();
+        for (index_t i = 0; i < num_ele; i++)
+        {
+            EXPECT_EQ(des_ptr[i], static_cast<int64>(static_cast<int8>(1000 + i)));
+        }
+    });
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_data_accessor, accessor_large_n_bulk_ops)
+{
+    // A newly constructed view must resolve its execution policy lazily. We
+    // need the number of elements to be above the small-N threshold so that
+    // these operations use foralls.
+    const index_t num_elements = CONDUIT_SMALL_N_THRESHOLD + 8;
+
+    Node n;
+    n["vals"].set(DataType::int32(num_elements));
+
+    float64_accessor acc(n["vals"]);
+    acc.fill(1.0);
+
+    EXPECT_EQ(acc.min(), 1.0);
+    EXPECT_EQ(acc.max(), 1.0);
+    EXPECT_EQ(acc.sum(), static_cast<float64>(num_elements));
+    EXPECT_EQ(acc.mean(), 1.0);
+    EXPECT_EQ(acc.count(1.0), num_elements);
 }
 
 //-----------------------------------------------------------------------------
@@ -1328,7 +1414,8 @@ TEST(conduit_data_accessor, large_n_bulk_ops)
 {
     conduit_device_prepare();
 
-    // Above the small-N threshold so the forall path runs on host policies
+    // We need the number of elements to be above the small-N threshold so that
+    // these operations use foralls.
     const index_t num_elements = CONDUIT_SMALL_N_THRESHOLD + 8;
 
     // Host-based source
@@ -1358,19 +1445,10 @@ TEST(conduit_data_accessor, large_n_bulk_ops)
         EXPECT_EQ(acc.max(), 2.5);
         EXPECT_EQ(acc.count(2.5), num_elements);
 
-        // A device destination cannot be set from a host pointer source
-        if (policy.is_device_policy())
-        {
-            EXPECT_THROW(acc.set(&src[0], num_elements), conduit::Error);
-            acc.use_with(ExecutionPolicy::host());
-        }
-
+        // The host source is copied across memory spaces when needed
         acc.set(&src[0], num_elements);
 
-        acc.use_with(policy);
         EXPECT_EQ(acc.sum(), expected_src_sum);
-
-        // The source holds 1 .. num_elements, so the stats are closed form
         EXPECT_EQ(acc.min(), 1.0);
         EXPECT_EQ(acc.max(), static_cast<float64>(num_elements));
         EXPECT_EQ(acc.mean(), expected_src_sum / static_cast<float64>(num_elements));
@@ -1380,7 +1458,7 @@ TEST(conduit_data_accessor, large_n_bulk_ops)
         // Sync values back to n["vals"]
         acc.sync();
 
-        // Spot check a few elements
+        // Check a few elements
         float64 *vals_ptr = n["vals"].value();
         EXPECT_EQ(vals_ptr[0], 1.0);
         EXPECT_EQ(vals_ptr[num_elements / 2], static_cast<float64>(num_elements / 2 + 1));

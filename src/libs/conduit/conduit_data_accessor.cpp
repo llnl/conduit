@@ -363,8 +363,33 @@ set_values_helper(const DataAccessor<T> &accessor,
     }
     else // dst and src are in different memory spaces
     {
-        CONDUIT_ERROR("DataAccessor::set() requires the source and destination to "
-                      "share a memory space. Use use_with() and sync() first.");
+        // Set up
+        const size_t type_size = sizeof(T);
+        const size_t num_bytes = num_elements * type_size;
+        void *temp_ptr = dst_on_device
+            ? execution::DeviceMemory::allocate(num_bytes)
+            : execution::HostMemory::allocate(num_bytes);
+        utils::conduit_memcpy_strided_elements(temp_ptr,
+                                               num_elements,
+                                               type_size,
+                                               type_size,
+                                               values,
+                                               type_size);
+        const T *temp_vals = static_cast<const T*>(temp_ptr);
+        execution::dispatch(accessor, [&](auto vals)
+        {
+            accessor_copy_from_view_kernel(policy, num_elements, temp_vals, vals);
+        });
+
+        // Clean up
+        if (dst_on_device)
+        {
+            execution::DeviceMemory::deallocate(temp_ptr);
+        }
+        else // if (!dst_on_device)
+        {
+            execution::HostMemory::deallocate(temp_ptr);
+        }
     }
 }
 
@@ -392,8 +417,38 @@ set_values_view_helper(const DataAccessor<T> &accessor,
     }
     else // dst and src are in different memory spaces
     {
-        CONDUIT_ERROR("DataAccessor::set() requires the source and destination to "
-                      "share a memory space. Use use_with() and sync() first.");
+        // Set up
+        const DataType &src_dt = values.dtype();
+        const size_t type_size = src_dt.element_bytes();
+        const size_t num_bytes = num_elements * type_size;
+        void *temp_ptr = dst_on_device
+            ? execution::DeviceMemory::allocate(num_bytes)
+            : execution::HostMemory::allocate(num_bytes);
+        const DataType temp_dtype(src_dt.id(),
+                                  num_elements,
+                                  0, // offset is 0
+                                  DataType::default_bytes(src_dt.id()), // stride
+                                  src_dt.element_bytes(),
+                                  src_dt.endianness());
+        utils::conduit_memcpy_strided_elements(temp_ptr,
+                                               num_elements,
+                                               type_size,
+                                               temp_dtype.stride(),
+                                               values.element_ptr(0),
+                                               src_dt.stride());
+        const View<U> temp_view(static_cast<const void*>(temp_ptr),
+                                temp_dtype);
+        accessor_copy_from_view_kernel(policy, num_elements, temp_view, accessor);
+
+        // Clean up
+        if (dst_on_device)
+        {
+            execution::DeviceMemory::deallocate(temp_ptr);
+        }
+        else // if (!dst_on_device)
+        {
+            execution::HostMemory::deallocate(temp_ptr);
+        }
     }
 }
 
@@ -422,8 +477,30 @@ set_values_helper(const DataAccessor<T> &accessor,
     }
     else // dst and src are in different memory spaces
     {
-        CONDUIT_ERROR("DataAccessor::set() requires the source and destination to "
-                      "share a memory space. Use use_with() and sync() first.");
+        // Set up
+        const size_t type_size = sizeof(U);
+        const size_t num_bytes = num_elements * type_size;
+        void *temp_ptr = dst_on_device
+            ? execution::DeviceMemory::allocate(num_bytes)
+            : execution::HostMemory::allocate(num_bytes);
+        utils::conduit_memcpy_strided_elements(temp_ptr,
+                                               num_elements,
+                                               type_size,
+                                               type_size,
+                                               values,
+                                               type_size);
+        const U *temp_vals = static_cast<const U*>(temp_ptr);
+        accessor_copy_from_view_kernel(policy, num_elements, temp_vals, accessor);
+
+        // Clean up
+        if (dst_on_device)
+        {
+            execution::DeviceMemory::deallocate(temp_ptr);
+        }
+        else // if (!dst_on_device)
+        {
+            execution::HostMemory::deallocate(temp_ptr);
+        }
     }
 }
 
@@ -577,10 +654,11 @@ DataAccessor<T>::min()  const
 {
     const index_t num_elements = number_of_elements();
 
+    execution::ExecutionPolicy policy = active_policy();
     T res = std::numeric_limits<T>::max();
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::accessor_min_kernel<T>(m_policy, num_elements, vals);
+        res = detail::accessor_min_kernel<T>(policy, num_elements, vals);
     });
 
     return res;
@@ -593,10 +671,11 @@ DataAccessor<T>::max() const
 {
     const index_t num_elements = number_of_elements();
 
+    execution::ExecutionPolicy policy = active_policy();
     T res = std::numeric_limits<T>::lowest();
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::accessor_max_kernel<T>(m_policy, num_elements, vals);
+        res = detail::accessor_max_kernel<T>(policy, num_elements, vals);
     });
 
     return res;
@@ -610,10 +689,11 @@ DataAccessor<T>::sum() const
 {
     const index_t num_elements = number_of_elements();
 
+    execution::ExecutionPolicy policy = active_policy();
     T res = 0;
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::accessor_sum_kernel<T>(m_policy, num_elements, vals);
+        res = detail::accessor_sum_kernel<T>(policy, num_elements, vals);
     });
 
     return res;
@@ -626,11 +706,12 @@ DataAccessor<T>::mean() const
 {
     const index_t num_elements = number_of_elements();
 
+    execution::ExecutionPolicy policy = active_policy();
     float64 res = 0.0;
     execution::dispatch(*this, [&](auto vals)
     {
         // Accumulate in float64 for accuracy
-        res = detail::accessor_sum_kernel<float64>(m_policy, num_elements, vals);
+        res = detail::accessor_sum_kernel<float64>(policy, num_elements, vals);
     });
 
     return res / static_cast<float64>(num_elements);
@@ -643,10 +724,11 @@ DataAccessor<T>::count(T val) const
 {
     const index_t num_elements = number_of_elements();
 
+    execution::ExecutionPolicy policy = active_policy();
     index_t res = 0;
     execution::dispatch(*this, [&](auto vals)
     {
-        res = detail::accessor_count_kernel<T>(m_policy, num_elements, vals, val);
+        res = detail::accessor_count_kernel<T>(policy, num_elements, vals, val);
     });
 
     return res;
@@ -658,10 +740,11 @@ void
 DataAccessor<T>::fill(T value)
 {
     const index_t num_elements = number_of_elements();
+    execution::ExecutionPolicy policy = active_policy();
 
     execution::dispatch(*this, [&](auto vals)
     {
-        detail::accessor_fill_kernel(m_policy, num_elements, vals, value);
+        detail::accessor_fill_kernel(policy, num_elements, vals, value);
     });
 }
 

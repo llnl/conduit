@@ -177,6 +177,29 @@ run_data_array_policy_and_sync(Node &node, ExecutionPolicy policy)
 
 //-----------------------------------------------------------------------------
 void
+run_data_array_cross_space_set(Node &node, ExecutionPolicy policy)
+{
+    float64_array arr_src(node["src"]);
+    float64_array arr_des(node["des"]);
+
+    // Move only the destination. When the policy's space differs from the
+    // source's space, set() copies the data across memory spaces.
+    arr_des.use_with(policy);
+
+    // A same-dtype compact DataArray source can be directly copied
+    arr_des.set(arr_src);
+
+    // An accessor source requires allocating and freeing a temporary buffer
+    // in the destination's memory space
+    float64_accessor acc_src(node["src"]);
+    arr_des.set(acc_src);
+
+    // Sync values to node["des"].
+    arr_des.sync();
+}
+
+//-----------------------------------------------------------------------------
+void
 run_data_accessor_policy_and_assume(Node &node, ExecutionPolicy policy)
 {
     // DataAccessors wrap node leaf data.
