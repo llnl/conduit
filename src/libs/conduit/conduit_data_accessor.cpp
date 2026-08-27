@@ -1603,7 +1603,7 @@ template class DataAccessor<double>;
 #endif
 
 #ifdef CONDUIT_USE_LONG_DOUBLE
-    template class DataAccessor<long double>;
+template class DataAccessor<long double>;
 #endif
 
 

@@ -9,6 +9,7 @@
 
 import sys
 import unittest
+import numpy as np
 
 import conduit.blueprint as blueprint
 
@@ -346,6 +347,49 @@ class Test_Blueprint_Mesh(unittest.TestCase):
                     conduit.blueprint.mesh.convert(n, options, output)
                     conduit.blueprint.mesh.convert(n, options, output, maps)
 
+    def test_shape_map_int64_verify(self):
+        mesh = conduit.Node()
+        conduit.blueprint.mesh.examples.braid("mixed_2d", 2, 2, 0, mesh)
+        # state: 
+        #   ...
+        # coordsets: 
+        #   ...
+        # topologies: 
+        #   mesh: 
+        #     type: "unstructured"
+        #     coordset: "coords"
+        #     elements: 
+        #       shape: "mixed"
+        #       shape_map: 
+        #         quad: 9
+        #         tri: 5
+        #       shapes: ...
+        #       sizes: ...
+        #       offsets: ...
+        #       connectivity: ...
+        # fields: 
+        #   ...
+
+        info = conduit.Node()
+
+        quadnode = mesh.fetch("topologies/mesh/elements/shape_map/quad")
+        self.assertTrue(conduit.DataType.is_int32(quadnode.dtype()))
+        trinode = mesh.fetch("topologies/mesh/elements/shape_map/tri")
+        self.assertTrue(conduit.DataType.is_int32(trinode.dtype()))
+
+        self.assertTrue(conduit.blueprint.mesh.verify(mesh, info))
+
+        mesh["topologies/mesh/elements/shape_map"].remove_child("quad")
+        mesh["topologies/mesh/elements/shape_map"].remove_child("tri")
+        mesh["topologies/mesh/elements/shape_map/quad"].set(np.int64(9))
+        mesh["topologies/mesh/elements/shape_map/tri"].set(np.int64(5))
+
+        quadnode = mesh.fetch("topologies/mesh/elements/shape_map/quad")
+        self.assertTrue(conduit.DataType.is_int64(quadnode.dtype()))
+        trinode = mesh.fetch("topologies/mesh/elements/shape_map/tri")
+        self.assertTrue(conduit.DataType.is_int64(trinode.dtype()))
+
+        self.assertTrue(conduit.blueprint.mesh.verify(mesh, info))
 
 if __name__ == '__main__':
     unittest.main()

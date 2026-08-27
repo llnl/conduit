@@ -49,8 +49,8 @@ PYTHON_ADD_HYBRID_MODULE(NAME          conduit_python
                          FOLDER        libs/python)
 
 # link with the proper libs (beyond python)
-target_link_libraries(conduit_python PRIVATE conduit conduit_python_build)
-
+target_link_libraries(conduit_python PRIVATE conduit)
+target_link_libraries(conduit_python PRIVATE Python3::NumPy)
 
 #############################################################
 # conduit.utils
@@ -68,7 +68,7 @@ PYTHON_ADD_COMPILED_MODULE(NAME          conduit_utils_python
 target_link_libraries(conduit_utils_python PRIVATE conduit_python_py_setup)
                            
 # link with the proper libs (beyond python)
-target_link_libraries(conduit_utils_python PRIVATE conduit conduit_python_build)
+target_link_libraries(conduit_utils_python PRIVATE conduit)
 
 # install the capi header so other python modules can use it
 # support alt install dir for python module via PYTHON_MODULE_INSTALL_PREFIX

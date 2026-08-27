@@ -52,10 +52,40 @@ namespace examples
     ///   sparse_by_element  ->  sparse (element dominant)
     ///                          volume fractions and matset values
     void CONDUIT_BLUEPRINT_API venn(const std::string &matset_type,
-                                    index_t nx,
-                                    index_t ny,
-                                    float64 radius,
-                                    Node &res);
+                                    const index_t nx,
+                                    const index_t ny,
+                                    const float64 radius,
+                                    Node &res,
+                                    const float64 epsilon = CONDUIT_EPSILON);
+
+    // alternate
+    void CONDUIT_BLUEPRINT_API venn(const std::string &matset_type,
+                                    const index_t nx,
+                                    const index_t ny,
+                                    const float64 radius,
+                                    const std::string &generate_material_map,
+                                    Node &res,
+                                    const float64 epsilon = CONDUIT_EPSILON);
+
+    // alternate
+    //
+    // generate_material_map options:
+    //   yes -> include a material map
+    //   no -> do not include a material map
+    //   default -> include a material map only if required
+    //
+    // generate_specset options:
+    //   yes -> include a specset
+    //   no -> do not include a specset
+    //   default -> do not include a specset
+    void CONDUIT_BLUEPRINT_API venn(const std::string &matset_type,
+                                    const index_t nx,
+                                    const index_t ny,
+                                    const float64 radius,
+                                    const std::string &generate_material_map,
+                                    const std::string &generate_specset,
+                                    Node &res,
+                                    const float64 epsilon = CONDUIT_EPSILON);
 
     /// Generates a rectilinear grid with fields that
     /// are computed from 3 overlapping circles.

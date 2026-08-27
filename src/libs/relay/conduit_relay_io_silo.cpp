@@ -4090,6 +4090,355 @@ read_var_attributes(DBfile *dbfile,
 }
 
 //-----------------------------------------------------------------------------
+// We need an additional step to examine fields we have read from Silo.
+// If a material is clean (unmixed) for an entire domain, then any
+// material-dependent fields on that domain will not present as such.
+// We have no way of knowing until after we have read in the entire mesh
+// to check for this case. Blueprint requires material-dependent fields
+// to have "matset" and "matset_vals" children, even if there is no
+// material mixing for a particular domain. To keep Blueprint happy,
+// it is necessary to perform post-processing for fields to ensure that
+// material dependence is consistent across all domains.
+void CONDUIT_RELAY_API
+honor_material_dependent_fields(const int domain_start,
+                                const int domain_end,
+                                Node &mesh
+                                CONDUIT_RELAY_COMMUNICATOR_ARG(MPI_Comm mpi_comm))
+{
+    Node local_fields_material_status;
+
+    // we create a structure like this:
+    //
+    // mesh_area: "yes"
+    // mesh_background: "no"
+    // mesh_circle_a: "no"
+    // mesh_circle_b: "no"
+    // mesh_circle_c: "no"
+    // mesh_importance: "yes"
+    // mesh_mat_check: "yes"
+    // mesh_overlap: "no"
+    // mesh_radius_a: "no"
+    // mesh_radius_b: "no"
+    // mesh_radius_c: "no"
+
+    int error = 0;
+    std::ostringstream error_oss;
+
+    for (int domain_id = domain_start; domain_id < domain_end; domain_id ++)
+    {
+        const std::string domain_path = conduit_fmt::format("domain_{:06d}", domain_id);
+        
+        if (! mesh.has_path(domain_path + "/fields"))
+        {
+            continue;
+        }
+        const Node &mesh_fields = mesh[domain_path]["fields"];
+
+        auto field_itr = mesh_fields.children();
+        while (field_itr.has_next())
+        {
+            const Node &field = field_itr.next();
+            const std::string fieldname = field_itr.name();
+            const bool has_matset       = field.has_child("matset");
+            const bool has_matset_vals  = field.has_child("matset_values");
+
+            if (has_matset && has_matset_vals)
+            {
+                // Whether we have a note about this field or not,
+                // if we are material dependent on this domain then
+                // we want to mark this field as material dependent.
+                local_fields_material_status[fieldname].set("yes");
+            }
+            else if (! has_matset && ! has_matset_vals)
+            {
+                // If we have already looked at the field, and on this 
+                // domain there is no matset association, then we defer 
+                // to other domains.
+                // If we have not already looked at the field, and on this
+                // domain there is no matset association, then we can note
+                // that down.
+                if (! local_fields_material_status.has_child(fieldname))
+                {
+                    local_fields_material_status[fieldname].set("no");
+                }
+            }
+            else
+            {
+                error = 1;
+                error_oss << "Field " << fieldname << " on domain " << domain_id << 
+                             " was not read correctly from Silo.";
+                break;
+            }
+        }
+
+        // break out of the domain loop if an error was encountered
+        if (1 == error)
+        {
+            break;
+        }
+    }
+
+    // parallel error handling & collect global data
+    Node global_collected_fields_material_status;
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    Node n_local, n_global;
+    n_local.set(static_cast<int>(error));
+    relay::mpi::sum_all_reduce(n_local, n_global, mpi_comm);
+    error = n_global.as_int();
+
+    if (1 == error)
+    {
+        // we have a problem, broadcast string messages
+        // to all ranks so they can throw
+        n_local.set(error_oss.str());
+        relay::mpi::all_gather_using_schema(n_local, n_global, mpi_comm);
+        CONDUIT_ERROR(n_global.as_string());
+    }
+    else
+    {
+        relay::mpi::all_gather_using_schema(local_fields_material_status,
+                                            global_collected_fields_material_status,
+                                            mpi_comm);
+    }
+
+#else
+    // non MPI case, throw error
+    if (1 == error)
+    {
+        CONDUIT_ERROR(error_oss.str());
+    }
+    else
+    {
+        global_collected_fields_material_status.append().set_external(local_fields_material_status);
+    }
+#endif
+
+    // after the communication, we have a structure like this:
+    // 
+    // - 
+    //   mesh_area: "yes"
+    //   mesh_background: "no"
+    //   mesh_circle_a: "no"
+    //   mesh_circle_b: "no"
+    //   mesh_circle_c: "no"
+    //   mesh_importance: "yes"
+    //   mesh_mat_check: "yes"
+    //   mesh_overlap: "no"
+    //   mesh_radius_a: "no"
+    //   mesh_radius_b: "no"
+    //   mesh_radius_c: "no"
+    // -
+    //   mesh_area: "yes"
+    //   mesh_background: "no"
+    //   mesh_circle_a: "no"
+    //   ...
+
+    // now we must unify the sources of truth across ranks
+    Node fields_material_status;
+    auto rank_data_itr = global_collected_fields_material_status.children();
+    while (rank_data_itr.has_next())
+    {
+        const Node &rank_data = rank_data_itr.next();
+        auto field_status_itr = rank_data.children();
+        while (field_status_itr.has_next())
+        {
+            const Node &field_status = field_status_itr.next();
+            const std::string fieldname = field_status_itr.name();
+            
+            // if we already have an entry for this field
+            if (fields_material_status.has_child(fieldname))
+            {
+                // then we choose "yes" over "no"
+                if ("yes" == field_status.as_string() &&
+                    "no" == fields_material_status[fieldname].as_string())
+                {
+                    fields_material_status[fieldname].set(field_status);
+                }
+            }
+            // if we do not yet have an entry for this field
+            else
+            {
+                // then add the one we have found
+                fields_material_status[fieldname].set(field_status);
+            }
+        }
+    }
+
+    // finally, we are back to a structure like this, but unified over all ranks:
+    //
+    // mesh_area: "yes"
+    // mesh_background: "no"
+    // mesh_circle_a: "no"
+    // mesh_circle_b: "no"
+    // mesh_circle_c: "no"
+    // mesh_importance: "yes"
+    // mesh_mat_check: "yes"
+    // mesh_overlap: "no"
+    // mesh_radius_a: "no"
+    // mesh_radius_b: "no"
+    // mesh_radius_c: "no"
+    //
+    // stored in `fields_material_status`
+
+    // now for the fun part - we must ensure that all of the fields that are globally
+    // material dependent have matset_values.
+
+
+    for (int domain_id = domain_start; domain_id < domain_end; domain_id ++)
+    {
+        // fetch the domain path for this domain_id
+        const std::string domain_path = conduit_fmt::format("domain_{:06d}", domain_id);
+
+        // ensure we have fields on this domain
+        if (! mesh.has_path(domain_path + "/fields"))
+        {
+            continue;
+        }
+
+        // are there any material dependent fields requiring changes on this domain?
+        const bool any_matdep_fields_requiring_changes = [&]() -> bool
+        {
+            bool changes_needed = false;
+
+            const Node &mesh_fields = mesh[domain_path]["fields"];
+            auto field_itr = mesh_fields.children();
+            while (field_itr.has_next())
+            {
+                const Node &field = field_itr.next();
+                const std::string fieldname = field_itr.name();
+
+                const bool globally_matdep = "yes" == fields_material_status[fieldname].as_string();
+                const bool locally_matdep  = field.has_child("matset");
+
+                if (globally_matdep && locally_matdep)
+                {
+                    // nothing to do
+                }
+                else if (globally_matdep && ! locally_matdep)
+                {
+                    changes_needed = true;
+                }
+                else if (! globally_matdep && locally_matdep)
+                {
+                    error = 1;
+                    error_oss << "Material dependence could not be established for field "
+                                  << fieldname << " on domain " << domain_id;
+                    return false;
+                }
+                else // (! globally_matdep && ! locally_matdep)
+                {
+                    // nothing to do
+                }
+            }
+
+            return changes_needed;
+        }();
+
+        // break out of the domain loop if an error was encountered
+        if (1 == error)
+        {
+            break;
+        }
+
+        // If there are not any material dependent fields on this domain, we can skip
+        if (! any_matdep_fields_requiring_changes)
+        {
+            continue;
+        }
+
+        //
+        // If we have made it this far, we have at least one material dependent field
+        // on this domain, so we must now find its matset
+        //
+
+        // check for the existence of matsets
+        if (! mesh.has_path(domain_path + "/matsets"))
+        {
+            error = 1;
+            error_oss << "Missing matsets for domain " << domain_path;
+            break; // break out of the domain loop if an error was encountered
+        }
+
+        // make sure there is only one matset
+        const Node &mesh_matsets = mesh[domain_path]["matsets"];
+        if (1 != mesh_matsets.number_of_children())
+        {
+            error = 1;
+            error_oss << "Ambiguous matsets for domain " << domain_path;
+            break; // break out of the domain loop if an error was encountered
+        }
+
+        // fetch the matset
+        const Node &matset = mesh_matsets.child(0);
+
+        // In order for this to work, the matset must have no mixed elements
+        // on this domain. Otherwise we cannot infer the field values from
+        // the volume fractions.
+        const bool matset_has_mixed_elems = conduit::blueprint::mesh::matset::has_mixed_elements(matset);
+        if (matset_has_mixed_elems)
+        {
+            error = 1;
+            error_oss << "Matset has mixed elements so we cannot infer "
+                         "field matset values for material dependent "
+                         "fields on domain " << domain_path;
+            break; // break out of the domain loop if an error was encountered
+        }
+
+        // finally we can fetch the fields and iterate over them
+        Node &mesh_fields = mesh[domain_path]["fields"];
+        auto field_itr = mesh_fields.children();
+        while (field_itr.has_next())
+        {
+            Node &field = field_itr.next();
+            const std::string fieldname = field_itr.name();
+
+            const bool globally_matdep = fields_material_status[fieldname].as_string() == "yes";
+            const bool locally_matdep  = field.has_child("matset");
+
+            if (globally_matdep && ! locally_matdep)
+            {
+                field["matset"].set(matset.name());
+
+                conduit::blueprint::mesh::field::create_field_matset_values_from_unmixed_matset(matset, field);
+            }
+            else
+            {
+                // We have already handled the other cases earlier:
+                //
+                // For both
+                //   (globally_matdep && locally_matdep)
+                //   (! globally_matdep && ! locally_matdep)
+                // there is nothing to do, and for
+                //   (! globally_matdep && locally_matdep)
+                // we have already errored.
+            }
+        }
+    } // end loop over domains
+
+    // parallel error handling
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    n_local.set(static_cast<int>(error));
+    relay::mpi::sum_all_reduce(n_local, n_global, mpi_comm);
+    error = n_global.as_int();
+
+    if (1 == error)
+    {
+        // we have a problem, broadcast string messages
+        // to all ranks so they can throw
+        n_local.set(error_oss.str());
+        relay::mpi::all_gather_using_schema(n_local, n_global, mpi_comm);
+        CONDUIT_ERROR(n_global.as_string());
+    }
+#else
+    // non MPI case, throw error
+    if (1 == error)
+    {
+        CONDUIT_ERROR(error_oss.str());
+    }
+#endif
+}
+
+//-----------------------------------------------------------------------------
 bool
 read_root_silo_index(const std::string &root_file_path,
                      const Node &opts,
@@ -4938,7 +5287,21 @@ read_mesh(const std::string &root_file_path,
                 file_map_itr ++;
             }
         }
-    }
+    } // end loop over domains
+
+    //
+    // Post-processing
+    //
+
+#if CONDUIT_RELAY_IO_MPI_ENABLED
+    honor_material_dependent_fields(domain_start, domain_end, mesh, mpi_comm);
+#else
+    honor_material_dependent_fields(domain_start, domain_end, mesh);
+#endif
+
+    //
+    // Cleanup
+    //
 
     delete mesh_path_gen;
     mesh_path_gen = nullptr;

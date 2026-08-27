@@ -254,6 +254,16 @@ void CONDUIT_RELAY_API read_mesh(const std::string &root_file_path,
                                  const conduit::Node &opts,
                                  conduit::Node &mesh);
 
+//-----------------------------------------------------------------------------
+///
+/// Added to header for testing purposes; not meant to be used publicly
+///
+//-----------------------------------------------------------------------------
+void CONDUIT_RELAY_API
+honor_material_dependent_fields(const int domain_start,
+                                const int domain_end,
+                                Node &mesh);
+
 
 }
 //-----------------------------------------------------------------------------
