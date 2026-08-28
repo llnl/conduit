@@ -8,6 +8,9 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 ### Added
 
+#### Relay
+- Added optional support for reading and writing HDF5 attributes.
+
 #### Blueprint
 - Added additional options for `conduit::blueprint::mesh::examples::venn()` allowing for the creation of a material map in all cases as well as the creation of species sets. These options were exposed in `conduit::blueprint::mesh::examples:generate()`.
 - Added `conduit::blueprint::mesh::matset::has_mixed_elements()` which can determine if a material set contains any mixed elements.

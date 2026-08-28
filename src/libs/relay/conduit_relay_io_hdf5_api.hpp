@@ -461,6 +461,11 @@ void CONDUIT_RELAY_API hdf5_remove_path(hid_t hdf5_id, const std::string &path);
 void CONDUIT_RELAY_API hdf5_set_options(const Node &opts);
 
 //-----------------------------------------------------------------------------
+/// Reset hdf5 i/o options to defaults
+//-----------------------------------------------------------------------------
+void CONDUIT_RELAY_API hdf5_reset_options();
+
+//-----------------------------------------------------------------------------
 /// Get a Node that contains hdf5 i/o options.
 //-----------------------------------------------------------------------------
 void CONDUIT_RELAY_API hdf5_options(Node &opts);

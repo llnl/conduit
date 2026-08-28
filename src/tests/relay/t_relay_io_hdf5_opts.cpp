@@ -52,6 +52,27 @@ rand_fill(float64_array &vals)
 }
 
 //-----------------------------------------------------------------------------
+TEST(conduit_relay_io_hdf5, conduit_hdf5_reset_opts)
+{
+    Node def_opts, opts, info;
+    io::hdf5_options(def_opts);
+
+    opts["attributes/enabled"] = "true";
+    opts["chunking/enabled"] = "false";
+    io::hdf5_set_options(opts);
+    io::hdf5_options(opts);
+
+    // opts should have diffs
+    EXPECT_TRUE(def_opts.diff(opts,info));
+
+    io::hdf5_reset_options();
+    io::hdf5_options(opts);
+
+    // now opts should diff clean
+    EXPECT_FALSE(def_opts.diff(opts,info));
+}
+
+//-----------------------------------------------------------------------------
 TEST(conduit_relay_io_hdf5, conduit_hdf5_write_synth)
 {
     Node opts;
