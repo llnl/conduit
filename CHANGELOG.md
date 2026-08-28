@@ -23,6 +23,9 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 ### Fixed
 
+#### General
+- Fixed Python unit test registration to use `Python3_EXECUTABLE` instead of `PYTHON_EXECUTABLE`. Configuring with `-DPython3_EXECUTABLE` left the old variable empty, which registered every Python test with an empty program name (`ctest` reported `Could not find executable -B`) and made those tests unrunnable.
+
 #### Blueprint
 - Fixed more C++20 issues with runtime fmt params in Silo support implementation and tests.
 - Fixed an issue where the `conduit::blueprint::mesh::examples::venn()` example would produce incorrect output for large radii.

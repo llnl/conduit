@@ -130,7 +130,7 @@ function(add_python_test )
 
     message(STATUS " [*] Adding Python-based Unit Test: ${args_TEST}")
     add_test(NAME ${args_TEST} COMMAND
-             ${PYTHON_EXECUTABLE} -B -m unittest -v ${args_TEST})
+             ${Python3_EXECUTABLE} -B -m unittest -v ${args_TEST})
 
     # use proper env var path sep for current platform
     if(WIN32)
@@ -183,7 +183,7 @@ function(add_python_mpi_test)
                          "${multiValueArgs}" ${ARGN} )
 
     message(STATUS " [*] Adding Python-based MPI Unit Test: ${args_TEST}")
-    set(test_command ${PYTHON_EXECUTABLE} -B -m unittest -v ${args_TEST})
+    set(test_command ${Python3_EXECUTABLE} -B -m unittest -v ${args_TEST})
 
     # Handle mpi
     if ( ${args_NUM_MPI_TASKS} )
