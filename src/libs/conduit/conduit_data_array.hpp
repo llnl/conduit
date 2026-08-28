@@ -555,7 +555,7 @@ private:
 // -- conduit::DataArray explicit instantiation declarations --
 //
 //-----------------------------------------------------------------------------
-#if defined(_WIN32) && defined(CONDUIT_WINDOWS_DLL_EXPORTS) && \
+#if defined(CONDUIT_WINDOWS_DLL_EXPORTS) && \
     !defined(CONDUIT_EXPORTS_DEFINED) && \
     !defined(CONDUIT_TU_IS_CUDA) && !defined(CONDUIT_TU_IS_HIP)
 
