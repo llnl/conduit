@@ -25,6 +25,8 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 #### General
 - Fixed Python unit test registration to use `Python3_EXECUTABLE` instead of `PYTHON_EXECUTABLE`. Configuring with `-DPython3_EXECUTABLE` left the old variable empty, which registered every Python test with an empty program name (`ctest` reported `Could not find executable -B`) and made those tests unrunnable.
+- Fixed a case where a Python with `setuptools < 61.0.0` would silently result in empty python modules. The python modules are installed with `pip install --no-build-isolation`, so pip uses the setuptools installed in the selected python rather than the version our `pyproject.toml` files request. The exit code of the install-time `pip install` is now checked so thta pip errors don't go unnoticed, and the install is validated after the fact by ensuring the presenece of the top-level `__init__.py`.
+- A setuptools bare-minimum version (`61.0.0`) is now manually enforced at configure time.
 
 #### Blueprint
 - Fixed more C++20 issues with runtime fmt params in Silo support implementation and tests.
