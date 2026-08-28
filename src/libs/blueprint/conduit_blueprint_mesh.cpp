@@ -9318,7 +9318,7 @@ void mesh::convert(const conduit::Node &n_mesh,
                                                                                     coords_dest);
                     copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
                 }
-                else // we have a unsupported target type
+                else // we have an unsupported target type
                 {
                     CONDUIT_ERROR(conduit_fmt::format("No conversion for {} to {}.", type, target));
                 }
@@ -9477,7 +9477,7 @@ void mesh::convert(const conduit::Node &n_mesh,
             }
             else if(target == "generate_sides")
             {
-                // TODO Justin called dibs on porting this
+                // TODO: Justin called dibs on porting this
                 // NOTE: Use the same coordset name as the original mesh.
                 conduit::blueprint::mesh::topology::unstructured::generate_sides(
                     n_input_topo,
