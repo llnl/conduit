@@ -5543,9 +5543,8 @@ mesh::topology::unstructured::generate_centroids(const Node &topo,
     const Node *coordset = bputils::find_reference_node(topo, "coordset");
     calculate_unstructured_centroids(topo, *coordset, topo_dest, coords_dest);
 
-    // Generated centroids map to input elements 1-1, so these maps are not
-    // useful. It would be best to remove these from the function signature
-    // entirely someday.
+    // TODO: Thoroughly remove these maps from all overloads of
+    // generate_centroids.
     s2dmap.reset();
     d2smap.reset();
 }

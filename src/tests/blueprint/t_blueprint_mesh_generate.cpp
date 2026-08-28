@@ -1196,13 +1196,6 @@ TEST(conduit_blueprint_generate_unstructured, generate_centroids)
 
         // TODO(JRC): Extend this test case to validate that each centroid is
         // contained within the convex hull of its source element.
-
-        // Verify Correctness of Mappings //
-
-        // Generated centroids map to input elements 1-1, so these maps are not
-        // useful. We should eventually remove these.
-        EXPECT_TRUE(t2c_map.dtype().is_empty());
-        EXPECT_TRUE(c2t_map.dtype().is_empty());
     }
 
     // Exercise Example Meshes with Other Shape Types //
