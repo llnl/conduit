@@ -12,6 +12,65 @@ https://github.com/LLNL/conduit/releases
 
 .. note:: Conduit uses `BLT <https://github.com/LLNL/blt>`__ as its core CMake build system. We leverage BLT as a git submodule, however github does not include submodule contents in its automatically created source tarballs. To avoid confusion, starting with v0.3.0 we provide our own source tarballs that include BLT. 
 
+v0.9.8
+---------------------------------
+
+* Released 2026-08-31
+* `Source Tarball <https://github.com/LLNL/conduit/releases/download/v0.9.8/conduit-v0.9.8-src-with-blt.tar.gz>`__
+
+Highlights
+++++++++++++++++++++++++++++++++++++
+
+(Extracted from Conduit's :download:`Changelog <../../../CHANGELOG.md>`)
+
+
+Added
+~~~~~
+
+
+* **Blueprint**
+
+ * Added additional options for ``conduit::blueprint::mesh::examples::venn()`` allowing for the creation of a material map in all cases as well as the creation of species sets. These options were exposed in ``conduit::blueprint::mesh::examples:generate()``.
+ * Added ``conduit::blueprint::mesh::matset::has_mixed_elements()`` which can determine if a material set contains any mixed elements.
+
+* **Relay**
+
+ * Added optional support for reading and writing HDF5 attributes.
+
+Changed
+~~~~~~~
+
+
+* **Blueprint**
+
+ * Made ``verify`` for ``matsets`` more restrictive, rejecting matsets that include materials outside of the material map that have no volume fractions.
+
+* **General**
+
+ * Turned python on by default in ``build_conduit``.
+ * Added ``CONDUIT_PYTHONPATH``, the absolute path of Conduit's installed Python module, to Conduit's CMake config.
+
+Fixed
+~~~~~
+
+
+* **General**
+
+ * Fixed Python unit test registration to use ``Python3_EXECUTABLE`` instead of ``PYTHON_EXECUTABLE``. Configuring with ``-DPython3_EXECUTABLE`` left the old variable empty, which registered every Python test with an empty program name (``ctest`` reported ``Could not find executable -B``) and made those tests unrunnable.
+ * Fixed a case where a Python with ``setuptools < 61.0.0`` would silently result in empty python modules. The python modules are installed with ``pip install --no-build-isolation``, so pip uses the setuptools installed in the selected python rather than the version our ``pyproject.toml`` files request. The exit code of the install-time ``pip install`` is now checked so thta pip errors don't go unnoticed, and the install is validated after the fact by ensuring the presenece of the top-level ``__init__.py``.
+ * A setuptools bare-minimum version (``61.0.0``) is now manually enforced at configure time..
+
+* **Blueprint**
+
+ * Fixed more C++20 issues with runtime fmt params in Silo support implementation and tests.
+ * Fixed an issue where the ``conduit::blueprint::mesh::examples::venn()`` example would produce incorrect output for large radii.
+
+* **Relay**
+
+ * The ``conduit::relay::mpi::safe_tag`` function and its underlying logic to probe the maximum allowable MPI tag were modified to avoid ``MPI_Waitall``. Tag values now use modulo above the upper limit as opposed to clamping.
+ * Fixed a bug with the Silo reader where material-dependent fields failed to read correctly on domains that had no mixed material elements.
+
+
 v0.9.7
 ---------------------------------
 
