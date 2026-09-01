@@ -15,7 +15,7 @@ https://github.com/LLNL/conduit/releases
 v0.9.8
 ---------------------------------
 
-* Released 2026-08-31
+* Released 2026-09-01
 * `Source Tarball <https://github.com/LLNL/conduit/releases/download/v0.9.8/conduit-v0.9.8-src-with-blt.tar.gz>`__
 
 Highlights
