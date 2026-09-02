@@ -1234,9 +1234,9 @@ TEST(conduit_blueprint_generate_unstructured, generate_centroids)
         const index_t num_elems = bputils::topology::length(mesh_topo);
         EXPECT_EQ(cent_topo["elements/connectivity"].dtype().number_of_elements(), num_elems);
 
-        // Check that each centroid lies within the source coordset's
-        // bounding box.
-        for(const std::string &axis : bputils::coordset::axes(mesh_coords))
+        // Check that each centroid lies within the bounding box of its
+        // own source element.
+        for (const std::string &axis : bputils::coordset::axes(mesh_coords))
         {
             ASSERT_TRUE(cent_coords["values"].has_child(axis));
             ASSERT_EQ(cent_coords["values"][axis].dtype().number_of_elements(), num_elems);
@@ -1244,12 +1244,22 @@ TEST(conduit_blueprint_generate_unstructured, generate_centroids)
             const float64_accessor src_vals(mesh_coords["values"][axis]);
             const float64_accessor cent_vals(cent_coords["values"][axis]);
 
-            const float64 axis_min = src_vals.min();
-            const float64 axis_max = src_vals.max();
-            for(index_t ei = 0; ei < num_elems; ei++)
+            for (index_t ei = 0; ei < num_elems; ei++)
             {
-                EXPECT_GE(cent_vals[ei], axis_min);
-                EXPECT_LE(cent_vals[ei], axis_max);
+                const std::vector<index_t> elem_pts =
+                    bputils::topology::unstructured::points(mesh_topo, ei);
+                ASSERT_FALSE(elem_pts.empty());
+
+                float64 elem_min = src_vals[elem_pts[0]];
+                float64 elem_max = elem_min;
+                for (const index_t pi : elem_pts)
+                {
+                    elem_min = std::min(elem_min, src_vals[pi]);
+                    elem_max = std::max(elem_max, src_vals[pi]);
+                }
+
+                EXPECT_GE(cent_vals[ei], elem_min);
+                EXPECT_LE(cent_vals[ei], elem_max);
             }
         }
     }
