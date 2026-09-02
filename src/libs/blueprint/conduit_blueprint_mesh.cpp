@@ -1746,7 +1746,7 @@ unstructured_centroid_kernel(conduit::execution::ExecutionPolicy &policy,
     // After looking at a variety of blueprint example meshes with different
     // shape types, I found that the largest number of unique points per
     // element that we see in practice is 16, so 32 gives us 2x headroom.
-    const index_t max_stack_npts = 32;
+    constexpr index_t max_stack_npts = 32;
 
     conduit::execution::forall(policy, 0, topo_num_elems, [=] CONDUIT_EXEC(index_t ei)
     {
@@ -1862,7 +1862,7 @@ unstructured_centroid_polyhedral_kernel(conduit::execution::ExecutionPolicy &pol
     // a fixed-size array instead of the std::vector that was here before.
     // max_stack_npts represents the maximum number of unique points per
     // element that we can handle before falling back to a slower path.
-    const index_t max_stack_npts = 32;
+    constexpr index_t max_stack_npts = 32;
 
     conduit::execution::forall(policy, 0, topo_num_elems, [=] CONDUIT_EXEC(index_t ei)
     {
