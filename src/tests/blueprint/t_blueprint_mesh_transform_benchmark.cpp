@@ -322,7 +322,7 @@ TEST(blueprint_mesh_transform_benchmark, generate_transforms)
         configs.push_back({"generate_points_" + shape,    shape, "generate_points",    true});
         configs.push_back({"generate_lines_" + shape,     shape, "generate_lines",     true});
         configs.push_back({"generate_faces_" + shape,     shape, "generate_faces",     true});
-        configs.push_back({"generate_centroids_" + shape, shape, "generate_centroids", true});
+        configs.push_back({"generate_centroids_" + shape, shape, "generate_centroids", false});
         configs.push_back({"generate_sides_" + shape,     shape, "generate_sides",     true});
         configs.push_back({"generate_corners_" + shape,   shape, "generate_corners",   true});
     }
