@@ -1164,7 +1164,7 @@ TEST(conduit_blueprint_generate_unstructured, generate_centroids)
         mesh::topology::unstructured::generate_centroids(
             grid_topo, cent_topo, cent_coords, t2c_map, c2t_map);
 
-        Node data, info;
+        Node info;
         EXPECT_TRUE(mesh::coordset::_explicit::verify(cent_coords, info));
         EXPECT_TRUE(mesh::topology::unstructured::verify(cent_topo, info));
 
@@ -1196,31 +1196,71 @@ TEST(conduit_blueprint_generate_unstructured, generate_centroids)
 
         // TODO(JRC): Extend this test case to validate that each centroid is
         // contained within the convex hull of its source element.
+    }
 
-        // Verify Correctness of Mappings //
+    // Exercise Example Meshes with Other Shape Types //
 
-        conduit::Node* map_nodes[2] = { &t2c_map, &c2t_map };
-        for(index_t mi = 0; mi < 2; mi++)
+    Node example_meshes;
+    blueprint::mesh::examples::braid("wedges", 3, 3, 3, example_meshes["braid_wedges"]);
+    blueprint::mesh::examples::braid("pyramids", 3, 3, 3, example_meshes["braid_pyramids"]);
+    blueprint::mesh::examples::polytess(3, 1, example_meshes["polytess_2d"]);
+    blueprint::mesh::examples::polytess(2, 3, example_meshes["polytess_3d"]);
+    blueprint::mesh::examples::polychain(4, example_meshes["polychain"]);
+
+    for (int i = 0; i < example_meshes.number_of_children(); i++)
+    {
+        const Node &example_mesh = example_meshes.child(i);
+        const Node &mesh_coords = example_mesh["coordsets"].child(0);
+        const Node &mesh_topo = example_mesh["topologies"].child(0);
+
+        Node cent_mesh, t2c_map, c2t_map;
+        Node &cent_coords = cent_mesh["coordsets"][CENTROID_COORDSET_NAME];
+        Node &cent_topo = cent_mesh["topologies"][CENTROID_TOPOLOGY_NAME];
+        mesh::topology::unstructured::generate_centroids(mesh_topo,
+                                                         cent_topo,
+                                                         cent_coords,
+                                                         t2c_map,
+                                                         c2t_map);
+
+        Node info;
+        EXPECT_TRUE(mesh::coordset::_explicit::verify(cent_coords, info));
+        EXPECT_TRUE(mesh::topology::unstructured::verify(cent_topo, info));
+        EXPECT_EQ(cent_topo["coordset"].as_string(), CENTROID_COORDSET_NAME);
+        EXPECT_EQ(cent_topo["elements/shape"].as_string(), "point");
+
+        EXPECT_TRUE(t2c_map.dtype().is_empty());
+        EXPECT_TRUE(c2t_map.dtype().is_empty());
+
+        const index_t num_elems = bputils::topology::length(mesh_topo);
+        EXPECT_EQ(cent_topo["elements/connectivity"].dtype().number_of_elements(), num_elems);
+
+        // Check that each centroid lies within the bounding box of its
+        // own source element.
+        for (const std::string &axis : bputils::coordset::axes(mesh_coords))
         {
-            conduit::Node& map_node = *map_nodes[mi];
-            // relax exact type req, conn transforms will become index_t
-            //EXPECT_EQ(map_node.dtype().id(), grid_conn.dtype().id());
-            EXPECT_EQ(map_node.dtype().number_of_elements(), 2 * grid_mesh.elems());
+            ASSERT_TRUE(cent_coords["values"].has_child(axis));
+            ASSERT_EQ(cent_coords["values"][axis].dtype().number_of_elements(), num_elems);
 
-            std::vector<index_t> map_values, expected_values;
-            for(index_t ei = 0; ei < grid_mesh.elems(); ei++)
+            const float64_accessor src_vals(mesh_coords["values"][axis]);
+            const float64_accessor cent_vals(cent_coords["values"][axis]);
+
+            for (index_t ei = 0; ei < num_elems; ei++)
             {
-                for(index_t esi = 0; esi < 2; esi++)
+                const std::vector<index_t> elem_pts =
+                    bputils::topology::unstructured::points(mesh_topo, ei);
+                ASSERT_FALSE(elem_pts.empty());
+
+                float64 elem_min = src_vals[elem_pts[0]];
+                float64 elem_max = elem_min;
+                for (const index_t pi : elem_pts)
                 {
-                    data.set_external(DataType(map_node.dtype().id(), 1),
-                        map_node.element_ptr(2 * ei + esi));
-                    map_values.push_back(data.to_int64());
+                    elem_min = std::min(elem_min, src_vals[pi]);
+                    elem_max = std::max(elem_max, src_vals[pi]);
                 }
 
-                expected_values.push_back(1);
-                expected_values.push_back(ei);
+                EXPECT_GE(cent_vals[ei], elem_min);
+                EXPECT_LE(cent_vals[ei], elem_max);
             }
-            EXPECT_EQ(map_values, expected_values);
         }
     }
 }
