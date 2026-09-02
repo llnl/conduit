@@ -364,8 +364,30 @@ set_values_helper(const DataAccessor<T> &accessor,
     else // dst and src are in different memory spaces
     {
         // Set up
+        const DataType &dtype = accessor.dtype();
         const size_t type_size = sizeof(T);
         const size_t num_bytes = num_elements * type_size;
+
+        // When the source type matches the destination's underlying dtype and
+        // the destination has a compact layout, no conversion is necessary,
+        // so we can just memcpy the values directly to the destination.
+        const bool same_type =
+            (std::is_floating_point<T>::value && dtype.is_floating_point()) ||
+            (std::is_integral<T>::value && std::is_signed<T>::value &&
+             dtype.is_signed_integer()) ||
+            (std::is_integral<T>::value && std::is_unsigned<T>::value &&
+             dtype.is_unsigned_integer());
+        const bool same_layout = same_type &&
+                                 dtype.stride() == type_size &&
+                                 dtype.element_bytes() == type_size;
+        if (same_layout)
+        {
+            utils::conduit_memcpy(const_cast<void*>(accessor.element_ptr(0)),
+                                  values,
+                                  num_bytes);
+            return;
+        }
+
         void *temp_ptr = dst_on_device
             ? execution::DeviceMemory::allocate(num_bytes)
             : execution::HostMemory::allocate(num_bytes);
