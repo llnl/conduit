@@ -363,7 +363,6 @@ set_values_helper(const DataAccessor<T> &accessor,
     }
     else // dst and src are in different memory spaces
     {
-        // Set up
         const DataType &dtype = accessor.dtype();
         const size_t type_size = sizeof(T);
         const size_t num_bytes = num_elements * type_size;
@@ -388,6 +387,15 @@ set_values_helper(const DataAccessor<T> &accessor,
             return;
         }
 
+        // The API for copying data across memory spaces (host <-> device)
+        // only transmits raw bytes. It cannot apply a destination stride or
+        // offset, and it cannot convert element types. So we do it in two passes:
+        //
+        // 1. Copy the source elements into a temp buffer that lives in the
+        //    destination's memory space.
+        // 2. Run a kernel in the destination's memory space that reads
+        //    the temp buffer and writes each element into the destination
+        //    with the correct stride, offset, and type.
         void *temp_ptr = dst_on_device
             ? execution::DeviceMemory::allocate(num_bytes)
             : execution::HostMemory::allocate(num_bytes);
@@ -439,7 +447,15 @@ set_values_view_helper(const DataAccessor<T> &accessor,
     }
     else // dst and src are in different memory spaces
     {
-        // Set up
+        // The API for copying data across memory spaces (host <-> device)
+        // only transmits raw bytes. It cannot apply a destination stride or
+        // offset, and it cannot convert element types. So we do it in two passes:
+        //
+        // 1. Copy the source elements into a temp buffer that lives in the
+        //    destination's memory space.
+        // 2. Run a kernel in the destination's memory space that reads
+        //    the temp buffer and writes each element into the destination
+        //    with the correct stride, offset, and type.
         const DataType &src_dt = values.dtype();
         const size_t type_size = src_dt.element_bytes();
         const size_t num_bytes = num_elements * type_size;
@@ -499,7 +515,15 @@ set_values_helper(const DataAccessor<T> &accessor,
     }
     else // dst and src are in different memory spaces
     {
-        // Set up
+        // The API for copying data across memory spaces (host <-> device)
+        // only transmits raw bytes. It cannot apply a destination stride or
+        // offset, and it cannot convert element types. So we do it in two passes:
+        //
+        // 1. Copy the source elements into a temp buffer that lives in the
+        //    destination's memory space.
+        // 2. Run a kernel in the destination's memory space that reads
+        //    the temp buffer and writes each element into the destination
+        //    with the correct stride, offset, and type.
         const size_t type_size = sizeof(U);
         const size_t num_bytes = num_elements * type_size;
         void *temp_ptr = dst_on_device
