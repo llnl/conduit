@@ -81,7 +81,8 @@ public:
           m_other_dtype(array.m_other_dtype),
           m_do_i_own_it(false),
           m_offset(array.m_offset),
-          m_stride(array.m_stride)
+          m_stride(array.m_stride),
+          m_policy(array.m_policy)
         {}
         /// Access a pointer to raw data according to dtype description.
         DataArray(void *data, const DataType &dtype);
@@ -137,6 +138,7 @@ public:
             m_do_i_own_it = false;
             m_offset = array.m_offset;
             m_stride = array.m_stride;
+            m_policy = array.m_policy;
         }
         return *this;
     }
@@ -238,7 +240,7 @@ public:
 
     void                                data_movement(const conduit::execution::SyncStrategy strategy);
 
-    conduit::execution::ExecutionPolicy active_space();
+    conduit::execution::ExecutionPolicy active_policy() const;
 
 //-----------------------------------------------------------------------------
 // Setters
@@ -544,11 +546,76 @@ private:
 
     index_t         m_offset;
     index_t         m_stride;
-    
+
+    /// Caches the execution policy, starts with an empty policy.
+    mutable conduit::execution::ExecutionPolicy m_policy;
 };
 //-----------------------------------------------------------------------------
 // -- end conduit::DataArray --
 //-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+//
+// -- conduit::DataArray explicit instantiation declarations --
+//
+//-----------------------------------------------------------------------------
+#if defined(CONDUIT_WINDOWS_DLL_EXPORTS) && \
+    !defined(CONDUIT_EXPORTS_DEFINED) && \
+    !defined(CONDUIT_TU_IS_CUDA) && !defined(CONDUIT_TU_IS_HIP)
+
+extern template class CONDUIT_API DataArray<int8>;
+extern template class CONDUIT_API DataArray<int16>;
+extern template class CONDUIT_API DataArray<int32>;
+extern template class CONDUIT_API DataArray<int64>;
+
+extern template class CONDUIT_API DataArray<uint8>;
+extern template class CONDUIT_API DataArray<uint16>;
+extern template class CONDUIT_API DataArray<uint32>;
+extern template class CONDUIT_API DataArray<uint64>;
+
+extern template class CONDUIT_API DataArray<float32>;
+extern template class CONDUIT_API DataArray<float64>;
+
+extern template class CONDUIT_API DataArray<char>;
+
+#ifndef CONDUIT_USE_CHAR
+extern template class CONDUIT_API DataArray<signed char>;
+extern template class CONDUIT_API DataArray<unsigned char>;
+#endif
+
+#ifndef CONDUIT_USE_SHORT
+extern template class CONDUIT_API DataArray<signed short>;
+extern template class CONDUIT_API DataArray<unsigned short>;
+#endif
+
+#ifndef CONDUIT_USE_INT
+extern template class CONDUIT_API DataArray<signed int>;
+extern template class CONDUIT_API DataArray<unsigned int>;
+#endif
+
+#ifndef CONDUIT_USE_LONG
+extern template class CONDUIT_API DataArray<signed long>;
+extern template class CONDUIT_API DataArray<unsigned long>;
+#endif
+
+#if defined(CONDUIT_HAS_LONG_LONG) && !defined(CONDUIT_USE_LONG_LONG)
+extern template class CONDUIT_API DataArray<signed long long>;
+extern template class CONDUIT_API DataArray<unsigned long long>;
+#endif
+
+#ifndef CONDUIT_USE_FLOAT
+extern template class CONDUIT_API DataArray<float>;
+#endif
+
+#ifndef CONDUIT_USE_DOUBLE
+extern template class CONDUIT_API DataArray<double>;
+#endif
+
+#ifdef CONDUIT_USE_LONG_DOUBLE
+extern template class CONDUIT_API DataArray<long double>;
+#endif
+
+#endif // Windows shared, importing, non-device TUs
 
 //-----------------------------------------------------------------------------
 //

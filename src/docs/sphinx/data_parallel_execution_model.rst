@@ -269,7 +269,7 @@ Moving Data Between Memory Spaces
 * ``use_with(policy)``: make the data accessible in the memory space of ``policy``. If the data already lives in that memory space, this is a no-op. Otherwise the wrapper allocates a *working buffer* in the policy's memory space, copies the node's elements into it (compacting stride and offset in the process), and points itself at that buffer. The Node's original buffer is untouched and still owned by the Node, so between ``use_with()`` and the next ``sync()`` or ``assume()`` the wrapper manages two memory spaces: the Node's original data on one side and the wrapper's working copy on the other. Calling ``use_with()`` again with a policy for the original memory space first syncs the working buffer back, then frees it and returns the wrapper to the Node's own buffer.
 * ``sync()``: copy the contents of the working buffer back into the buffer the Node owns, reallocating the Node's data if the types or element counts no longer match. The Node keeps its original memory space, and the wrapper keeps its working buffer. A no-op if the data never moved.
 * ``assume()``: hand the working buffer to the Node. The Node releases its original buffer and takes ownership of the working buffer where it currently lives, which means the Node's data may change memory spaces. This avoids the copy that ``sync()`` performs. A no-op if the data never moved.
-* ``active_space()``: returns an ``ExecutionPolicy`` describing the memory space where the wrapper's data currently lives. This lets you execute wherever the input already resides:
+* ``active_policy()``: returns the wrapper's cached ``ExecutionPolicy``. After a ``use_with(policy)`` call this will be the same policy that was passed in. If ``use_with()`` has not been called yet, the first ``active_policy()`` query will infer an appropriate policy based on where the data lives: the default host policy for host memory or the default device policy for device memory. This always returns a policy that lets you execute wherever the input already resides:
 
 .. code:: cpp
 
@@ -277,7 +277,7 @@ Moving Data Between Memory Spaces
     float64_accessor acc_des(node["des"]);
 
     // execute where node["src"] lives
-    ExecutionPolicy policy = acc_src.active_space();
+    ExecutionPolicy policy = acc_src.active_policy();
     acc_src.use_with(policy);
     acc_des.use_with(policy);
 

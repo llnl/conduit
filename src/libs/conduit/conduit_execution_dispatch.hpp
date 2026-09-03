@@ -44,11 +44,11 @@
 // and 1 fallback) and only 2 times for DataArray (DataArrays don't do type
 // conversion, so 1 typed view and 1 fallback). The two-view overload
 // dispatches each side independently (any DataView and dtype mix, up to
-// 11^2 = 121 instantiations in the worst case), while the three-view overload
-// dispatches a group through one shared case (a compromise between
-// 11 vs. 11^3 = 1331 instantiations) and falls back to the original DataView
+// 11^2 = 121 instantiations in the worst case), while the three- and four-view
+// overloads dispatch a group through one shared case (a compromise between
+// 11 vs. 11^3 or 11^4 instantiations) and fall back to the original DataViews
 // if any have a different dtype.
-// 
+//
 // Supported cases that can be upgraded:
 //
 //   DataViews passed to a kernel                  | result
@@ -56,6 +56,7 @@
 //   compact single,     any numeric dtype         | TypedDataView (fast)
 //   compact pair,       *different* dtypes        | TypedDataView (fast)
 //   compact triple,     *same* dtype              | TypedDataView (fast)
+//   compact quadruple,  *same* dtype              | TypedDataView (fast)
 //   compact group (>2), *different* dtypes        | DataView      (slow)
 //   any combination with strided data             | DataView      (slow)
 //
@@ -249,11 +250,36 @@ try_typed_view(const DataAccessor<T> &view0,
     });
 }
 
+//-----------------------------------------------------------------------------
+// Same as above, for a group of four DataAccessors.
+template <typename T, typename Kernel>
+bool
+try_typed_view(const DataAccessor<T> &view0,
+               const DataAccessor<T> &view1,
+               const DataAccessor<T> &view2,
+               const DataAccessor<T> &view3,
+               Kernel &&kernel)
+{
+    const index_t dtype_id = view0.dtype().id();
+    return dispatch_dtype(dtype_id, [&](auto dtype)
+    {
+        // decltype deduces the underlying dtype for us
+        using U = decltype(dtype);
+        kernel(make_typed_view<U>(view0),
+               make_typed_view<U>(view1),
+               make_typed_view<U>(view2),
+               make_typed_view<U>(view3));
+    });
+}
+
 //
 // DataArray Specializations
 //
 
 //-----------------------------------------------------------------------------
+// Invokes the kernel with a typed view of the underlying dtype. Returns false
+// when the dtype is not supported (e.g., non-numeric), in which case the
+// caller falls back to invoking the kernel with the DataAccessor directly.
 // Invokes the kernel with a typed view of the underlying data's dtype. Never
 // returns false for this specialization because DataArray doesn't do type
 // conversion. The only way that this could fail is if the input DataArray is
@@ -282,6 +308,22 @@ try_typed_view(const DataArray<T> &view0,
 }
 
 //-----------------------------------------------------------------------------
+// Same as above, for a group of four DataArrays.
+template <typename T, typename Kernel>
+bool
+try_typed_view(const DataArray<T> &view0,
+               const DataArray<T> &view1,
+               const DataArray<T> &view2,
+               const DataArray<T> &view3,
+               Kernel &&kernel)
+{
+    kernel(make_typed_view<T>(view0),
+           make_typed_view<T>(view1),
+           make_typed_view<T>(view2),
+           make_typed_view<T>(view3));
+    return true;
+}
+
 // A helper that returns true when a view's data is safe to access through a
 // raw typed pointer, which implies a typed view can be used instead of the
 // input DataView.
@@ -339,6 +381,26 @@ is_upgradeable_group(const DataView<T> &view0,
            is_upgradeable(view0) &&
            is_upgradeable(view1) &&
            is_upgradeable(view2);
+}
+
+//-----------------------------------------------------------------------------
+// Same as above but for a group of 4 DataViews
+template <template <typename> class DataView,
+          typename T>
+bool
+is_upgradeable_group(const DataView<T> &view0,
+                     const DataView<T> &view1,
+                     const DataView<T> &view2,
+                     const DataView<T> &view3)
+{
+    const index_t view0_dtype_id = view0.dtype().id();
+    return view0_dtype_id == view1.dtype().id() &&
+           view0_dtype_id == view2.dtype().id() &&
+           view0_dtype_id == view3.dtype().id() &&
+           is_upgradeable(view0) &&
+           is_upgradeable(view1) &&
+           is_upgradeable(view2) &&
+           is_upgradeable(view3);
 }
 
 }
@@ -426,6 +488,29 @@ dispatch(const DataView<T> &view0,
     // The conditions were not met to invoke the kernel with typed views,
     // so we directly invoke it with the provided DataViews instead.
     kernel(view0, view1, view2);
+}
+
+//-----------------------------------------------------------------------------
+// A special case of dispatch that takes four DataViews of the *same* dtype.
+template <template <typename> class DataView,
+          typename T,
+          typename Kernel>
+void
+dispatch(const DataView<T> &view0,
+         const DataView<T> &view1,
+         const DataView<T> &view2,
+         const DataView<T> &view3,
+         Kernel &&kernel)
+{
+    if (detail::is_upgradeable_group(view0, view1, view2, view3) &&
+        detail::try_typed_view(view0, view1, view2, view3, kernel))
+    {
+        // The conditions were met to invoke the kernel with typed views
+        return;
+    }
+    // The conditions were not met to invoke the kernel with typed views,
+    // so we directly invoke it with the provided DataViews instead.
+    kernel(view0, view1, view2, view3);
 }
 
 }

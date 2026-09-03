@@ -83,7 +83,8 @@ public:
           m_other_dtype(accessor.m_other_dtype),
           m_do_i_own_it(false),
           m_offset(accessor.m_offset),
-          m_stride(accessor.m_stride)
+          m_stride(accessor.m_stride),
+          m_policy(accessor.m_policy)
         {}
         /// Access a pointer to raw data according to dtype description.
         DataAccessor(void *data, const DataType &dtype);
@@ -150,6 +151,7 @@ public:
             m_do_i_own_it = false;
             m_offset = accessor.m_offset;
             m_stride = accessor.m_stride;
+            m_policy = accessor.m_policy;
         }
         return *this;
     }
@@ -252,7 +254,7 @@ public:
 
     void                                data_movement(const conduit::execution::SyncStrategy strategy);
 
-    conduit::execution::ExecutionPolicy active_space();
+    conduit::execution::ExecutionPolicy active_policy() const;
 
 //-----------------------------------------------------------------------------
 // Setters
@@ -281,6 +283,11 @@ public:
     CONDUIT_EXEC void set(index_t elem_idx, float32 value) const
                     { set_value_helper(elem_idx, static_cast<T>(value)); }
     CONDUIT_EXEC void set(index_t elem_idx, float64 value) const
+                    { set_value_helper(elem_idx, static_cast<T>(value)); }
+
+    /// catch-all for any other numeric type
+    template <typename U>
+    CONDUIT_EXEC void set(index_t elem_idx, U value) const
                     { set_value_helper(elem_idx, static_cast<T>(value)); }
 
     /// signed integer arrays
@@ -460,11 +467,76 @@ private:
 
     index_t         m_offset;
     index_t         m_stride;
-    
+
+    /// Caches the execution policy, starts with an empty policy.
+    mutable conduit::execution::ExecutionPolicy m_policy;
 };
 //-----------------------------------------------------------------------------
 // -- end conduit::DataAccessor --
 //-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+//
+// -- conduit::DataAccessor explicit instantiation declarations --
+//
+//-----------------------------------------------------------------------------
+#if defined(CONDUIT_WINDOWS_DLL_EXPORTS) && \
+    !defined(CONDUIT_EXPORTS_DEFINED) && \
+    !defined(CONDUIT_TU_IS_CUDA) && !defined(CONDUIT_TU_IS_HIP)
+
+extern template class CONDUIT_API DataAccessor<int8>;
+extern template class CONDUIT_API DataAccessor<int16>;
+extern template class CONDUIT_API DataAccessor<int32>;
+extern template class CONDUIT_API DataAccessor<int64>;
+
+extern template class CONDUIT_API DataAccessor<uint8>;
+extern template class CONDUIT_API DataAccessor<uint16>;
+extern template class CONDUIT_API DataAccessor<uint32>;
+extern template class CONDUIT_API DataAccessor<uint64>;
+
+extern template class CONDUIT_API DataAccessor<float32>;
+extern template class CONDUIT_API DataAccessor<float64>;
+
+extern template class CONDUIT_API DataAccessor<char>;
+
+#ifndef CONDUIT_USE_CHAR
+extern template class CONDUIT_API DataAccessor<signed char>;
+extern template class CONDUIT_API DataAccessor<unsigned char>;
+#endif
+
+#ifndef CONDUIT_USE_SHORT
+extern template class CONDUIT_API DataAccessor<signed short>;
+extern template class CONDUIT_API DataAccessor<unsigned short>;
+#endif
+
+#ifndef CONDUIT_USE_INT
+extern template class CONDUIT_API DataAccessor<signed int>;
+extern template class CONDUIT_API DataAccessor<unsigned int>;
+#endif
+
+#ifndef CONDUIT_USE_LONG
+extern template class CONDUIT_API DataAccessor<signed long>;
+extern template class CONDUIT_API DataAccessor<unsigned long>;
+#endif
+
+#if defined(CONDUIT_HAS_LONG_LONG) && !defined(CONDUIT_USE_LONG_LONG)
+extern template class CONDUIT_API DataAccessor<signed long long>;
+extern template class CONDUIT_API DataAccessor<unsigned long long>;
+#endif
+
+#ifndef CONDUIT_USE_FLOAT
+extern template class CONDUIT_API DataAccessor<float>;
+#endif
+
+#ifndef CONDUIT_USE_DOUBLE
+extern template class CONDUIT_API DataAccessor<double>;
+#endif
+
+#ifdef CONDUIT_USE_LONG_DOUBLE
+extern template class CONDUIT_API DataAccessor<long double>;
+#endif
+
+#endif // Windows shared, importing, non-device TUs
 
 //-----------------------------------------------------------------------------
 //
