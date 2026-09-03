@@ -54,9 +54,6 @@ set(conduit_headers
     conduit_execution_macros.hpp
     conduit_execution_policy.hpp
     conduit_memory_manager.hpp
-    conduit_data_array.hpp
-    conduit_data_accessor.hpp
-    conduit_data_type.hpp
     conduit_fixed_size_map.hpp
     conduit_fixed_size_vector.hpp
     conduit_geometry_vector.hpp
@@ -108,6 +105,12 @@ set(conduit_sources
     conduit_utils.cpp
     conduit_annotations.cpp
     )
+
+# Compile device TUs for these files
+set(conduit_device_sources
+    conduit_data_array.cpp
+    conduit_data_accessor.cpp)
+conduit_set_source_device_properties("${conduit_device_sources}")
 
 if(TOTALVIEW_FOUND)
   list(APPEND conduit_sources debug/conduit_node_totalview.cpp)

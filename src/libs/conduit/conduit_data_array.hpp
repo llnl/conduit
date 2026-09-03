@@ -81,7 +81,8 @@ public:
           m_other_dtype(array.m_other_dtype),
           m_do_i_own_it(false),
           m_offset(array.m_offset),
-          m_stride(array.m_stride)
+          m_stride(array.m_stride),
+          m_policy(array.m_policy)
         {}
         /// Access a pointer to raw data according to dtype description.
         DataArray(void *data, const DataType &dtype);
@@ -137,6 +138,7 @@ public:
             m_do_i_own_it = false;
             m_offset = array.m_offset;
             m_stride = array.m_stride;
+            m_policy = array.m_policy;
         }
         return *this;
     }
@@ -238,7 +240,7 @@ public:
 
     void                                data_movement(const conduit::execution::SyncStrategy strategy);
 
-    conduit::execution::ExecutionPolicy active_space();
+    conduit::execution::ExecutionPolicy active_policy() const;
 
 //-----------------------------------------------------------------------------
 // Setters
@@ -544,7 +546,9 @@ private:
 
     index_t         m_offset;
     index_t         m_stride;
-    
+
+    /// Caches the execution policy, starts with an empty policy.
+    mutable conduit::execution::ExecutionPolicy m_policy;
 };
 //-----------------------------------------------------------------------------
 // -- end conduit::DataArray --

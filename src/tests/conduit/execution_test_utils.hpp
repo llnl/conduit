@@ -119,8 +119,8 @@ run_data_accessor_policy_and_sync(Node &node, ExecutionPolicy policy)
     float64_accessor acc_src(node["src"]);
     float64_accessor acc_des(node["des"]);
 
-    ExecutionPolicy as = acc_src.active_space();
-    std::cout << as.policy_name() << std::endl;
+    ExecutionPolicy ap = acc_src.active_policy();
+    std::cout << ap.policy_name() << std::endl;
 
     // Ask the accessors to move their data to the memory space occupied
     // by the requested execution policy if their data is not already
@@ -172,6 +172,29 @@ run_data_array_policy_and_sync(Node &node, ExecutionPolicy policy)
     // Sync values to node["des"].
     // This is a no op if node["des"] was originally in the same memory
     // space as the requested execution policy.
+    arr_des.sync();
+}
+
+//-----------------------------------------------------------------------------
+void
+run_data_array_cross_space_set(Node &node, ExecutionPolicy policy)
+{
+    float64_array arr_src(node["src"]);
+    float64_array arr_des(node["des"]);
+
+    // Move only the destination. When the policy's space differs from the
+    // source's space, set() copies the data across memory spaces.
+    arr_des.use_with(policy);
+
+    // A same-dtype compact DataArray source can be directly copied
+    arr_des.set(arr_src);
+
+    // An accessor source requires allocating and freeing a temporary buffer
+    // in the destination's memory space
+    float64_accessor acc_src(node["src"]);
+    arr_des.set(acc_src);
+
+    // Sync values to node["des"].
     arr_des.sync();
 }
 
@@ -237,14 +260,14 @@ run_data_array_policy_and_assume(Node &node, ExecutionPolicy policy)
 // the passed-in policy is set to the active space policy so we can test it for
 // correctness after this function.
 void
-run_data_accessor_using_active_space(Node &node, ExecutionPolicy &exec_policy)
+run_data_accessor_using_active_policy(Node &node, ExecutionPolicy &exec_policy)
 {
     // DataAccessors wrap node leaf data.
     float64_accessor acc_src(node["src"]);
     float64_accessor acc_des(node["des"]);
 
     // Use the location of the source data.
-    ExecutionPolicy policy = acc_src.active_space();
+    ExecutionPolicy policy = acc_src.active_policy();
 
     // Ask the accessors to move their data to the memory space occupied
     // by node["src"] if their data is not already there.
@@ -274,14 +297,14 @@ run_data_accessor_using_active_space(Node &node, ExecutionPolicy &exec_policy)
 // the passed-in policy is set to the active space policy so we can test it for
 // correctness after this function.
 void
-run_data_array_using_active_space(Node &node, ExecutionPolicy &exec_policy)
+run_data_array_using_active_policy(Node &node, ExecutionPolicy &exec_policy)
 {
     // DataArrays wrap node leaf data.
     float64_array arr_src(node["src"]);
     float64_array arr_des(node["des"]);
 
     // Use the location of the source data.
-    ExecutionPolicy policy = arr_src.active_space();
+    ExecutionPolicy policy = arr_src.active_policy();
 
     // Ask the arrays to move their data to the memory space occupied
     // by node["src"] if their data is not already there.

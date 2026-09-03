@@ -34,6 +34,11 @@
 #define HIP_BLOCK_SIZE 256
 #endif
 
+// Serial execution is faster than OpenMP execution for kernels operating on
+// arrays with element counts below this threshold (determined empirically).
+// This threshold only applies to host policies.
+#define CONDUIT_SMALL_N_THRESHOLD 8192
+
 //-----------------------------------------------------------------------------
 // -- begin conduit --
 //-----------------------------------------------------------------------------

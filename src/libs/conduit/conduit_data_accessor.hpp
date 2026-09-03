@@ -83,7 +83,8 @@ public:
           m_other_dtype(accessor.m_other_dtype),
           m_do_i_own_it(false),
           m_offset(accessor.m_offset),
-          m_stride(accessor.m_stride)
+          m_stride(accessor.m_stride),
+          m_policy(accessor.m_policy)
         {}
         /// Access a pointer to raw data according to dtype description.
         DataAccessor(void *data, const DataType &dtype);
@@ -150,6 +151,7 @@ public:
             m_do_i_own_it = false;
             m_offset = accessor.m_offset;
             m_stride = accessor.m_stride;
+            m_policy = accessor.m_policy;
         }
         return *this;
     }
@@ -252,7 +254,7 @@ public:
 
     void                                data_movement(const conduit::execution::SyncStrategy strategy);
 
-    conduit::execution::ExecutionPolicy active_space();
+    conduit::execution::ExecutionPolicy active_policy() const;
 
 //-----------------------------------------------------------------------------
 // Setters
@@ -281,6 +283,11 @@ public:
     CONDUIT_EXEC void set(index_t elem_idx, float32 value) const
                     { set_value_helper(elem_idx, static_cast<T>(value)); }
     CONDUIT_EXEC void set(index_t elem_idx, float64 value) const
+                    { set_value_helper(elem_idx, static_cast<T>(value)); }
+
+    /// catch-all for any other numeric type
+    template <typename U>
+    CONDUIT_EXEC void set(index_t elem_idx, U value) const
                     { set_value_helper(elem_idx, static_cast<T>(value)); }
 
     /// signed integer arrays
@@ -460,7 +467,9 @@ private:
 
     index_t         m_offset;
     index_t         m_stride;
-    
+
+    /// Caches the execution policy, starts with an empty policy.
+    mutable conduit::execution::ExecutionPolicy m_policy;
 };
 //-----------------------------------------------------------------------------
 // -- end conduit::DataAccessor --

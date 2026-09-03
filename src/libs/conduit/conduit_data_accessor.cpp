@@ -23,6 +23,7 @@
 #include "conduit_node.hpp"
 #include "conduit_data_array.hpp"
 #include "conduit_execution.hpp"
+#include "conduit_execution_dispatch.hpp"
 #include "conduit_annotations.hpp"
 
 //-----------------------------------------------------------------------------
@@ -37,90 +38,538 @@ namespace conduit
 namespace detail
 {
 
+//
+// Kernels
+//
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Fill
+{
+    U vals;
+    T value;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        vals.set(i, value);
+    }
+};
+
 //-----------------------------------------------------------------------------
 template <typename T, typename U>
 void
-set_values_helper(const DataAccessor<T> &accessor, const U &values, index_t num_elements)
+accessor_fill_kernel(execution::ExecutionPolicy &policy,
+                     index_t num_elements,
+                     const U vals,
+                     const T value)
 {
-    // Preserve DataAccessor semantics by converting source values through the
-    // accessor's logical type T before converting to the destination dtype.
-    switch(accessor.dtype().id())
+    // Small host arrays are faster to fill without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
     {
-        case DataType::INT8_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(int8*)(accessor.element_ptr(i))) =
-                    static_cast<int8>(static_cast<T>(values[i]));
-            }
-            break;
-        case DataType::INT16_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(int16*)(accessor.element_ptr(i))) =
-                    static_cast<int16>(static_cast<T>(values[i]));
-            }
-            break;
-        case DataType::INT32_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(int32*)(accessor.element_ptr(i))) =
-                    static_cast<int32>(static_cast<T>(values[i]));
-            }
-            break;
-        case DataType::INT64_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(int64*)(accessor.element_ptr(i))) =
-                    static_cast<int64>(static_cast<T>(values[i]));
-            }
-            break;
-        case DataType::UINT8_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(uint8*)(accessor.element_ptr(i))) =
-                    static_cast<uint8>(static_cast<T>(values[i]));
-            }
-            break;
-        case DataType::UINT16_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(uint16*)(accessor.element_ptr(i))) =
-                    static_cast<uint16>(static_cast<T>(values[i]));
-            }
-            break;
-        case DataType::UINT32_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(uint32*)(accessor.element_ptr(i))) =
-                    static_cast<uint32>(static_cast<T>(values[i]));
-            }
-            break;
-        case DataType::UINT64_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(uint64*)(accessor.element_ptr(i))) =
-                    static_cast<uint64>(static_cast<T>(values[i]));
-            }
-            break;
-        case DataType::FLOAT32_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(float32*)(accessor.element_ptr(i))) =
-                    static_cast<float32>(static_cast<T>(values[i]));
-            }
-            break;
-        case DataType::FLOAT64_ID:
-            for(index_t i = 0; i < num_elements; i++)
-            {
-                (*(float64*)(accessor.element_ptr(i))) =
-                    static_cast<float64>(static_cast<T>(values[i]));
-            }
-            break;
-        default:
-            CONDUIT_ERROR("DataAccessor does not support dtype: "
-                          << accessor.dtype().name());
+        Fill<T, U> kernel{vals, value};
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            kernel(i);
+        }
+        return;
+    }
+
+    execution::forall(policy, 0, num_elements, Fill<T, U>{vals, value});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename T>
+struct FillAccessor
+{
+    DataAccessor<T> vals;
+    T value;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        vals.set(i, value);
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T>
+void
+accessor_fill_kernel(execution::ExecutionPolicy &policy,
+                     index_t num_elements,
+                     const DataAccessor<T> vals,
+                     const T value)
+{
+    // Small host arrays are faster to fill without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        FillAccessor<T> kernel{vals, value};
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            kernel(i);
+        }
+        return;
+    }
+
+    execution::forall(policy, 0, num_elements, FillAccessor<T>{vals, value});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct CopyFromView
+{
+    T vals;
+    U src;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        vals.set(i, src[i]);
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+void
+accessor_copy_from_view_kernel(execution::ExecutionPolicy &policy,
+                               index_t num_elements,
+                               const U src,
+                               const T vals)
+{
+    // Small host arrays are faster to copy without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        CopyFromView<T, U> kernel{vals, src};
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            kernel(i);
+        }
+        return;
+    }
+
+    execution::forall(policy, 0, num_elements, CopyFromView<T, U>{vals, src});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct CopyFromViewAccessor
+{
+    DataAccessor<T> vals;
+    U src;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        vals.set(i, static_cast<T>(src[i]));
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+void
+accessor_copy_from_view_kernel(execution::ExecutionPolicy &policy,
+                               index_t num_elements,
+                               const U src,
+                               const DataAccessor<T> vals)
+{
+    // Small host arrays are faster to copy without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        CopyFromViewAccessor<T, U> kernel{vals, src};
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            kernel(i);
+        }
+        return;
+    }
+
+    execution::forall(policy, 0, num_elements, CopyFromViewAccessor<T, U>{vals, src});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Min
+{
+    execution::ReduceMin<T> reducer;
+    U vals;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        reducer.min(static_cast<T>(vals[i]));
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+T
+accessor_min_kernel(execution::ExecutionPolicy &policy,
+                    index_t num_elements,
+                    const U vals)
+{
+    // Small host arrays are faster to compute min without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        T res = std::numeric_limits<T>::max();
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            res = std::min(res, static_cast<T>(vals[i]));
+        }
+        return res;
+    }
+
+    execution::ReduceMin<T> reducer(std::numeric_limits<T>::max());
+    execution::forall(policy, 0, num_elements, Min<T, U>{reducer, vals});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    return reducer.get();
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Max
+{
+    execution::ReduceMax<T> reducer;
+    U vals;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        reducer.max(static_cast<T>(vals[i]));
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+T
+accessor_max_kernel(execution::ExecutionPolicy &policy,
+                    index_t num_elements,
+                    const U vals)
+{
+    // Small host arrays are faster to compute max without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        T res = std::numeric_limits<T>::lowest();
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            res = std::max(res, static_cast<T>(vals[i]));
+        }
+        return res;
+    }
+
+    execution::ReduceMax<T> reducer(std::numeric_limits<T>::lowest());
+    execution::forall(policy, 0, num_elements, Max<T, U>{reducer, vals});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    return reducer.get();
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Sum
+{
+    execution::ReduceSum<T> reducer;
+    U vals;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        reducer += static_cast<T>(vals[i]);
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+T
+accessor_sum_kernel(execution::ExecutionPolicy &policy,
+                    index_t num_elements,
+                    const U vals)
+{
+    // Small host arrays are faster to sum without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        T res = static_cast<T>(0);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            res += static_cast<T>(vals[i]);
+        }
+        return res;
+    }
+
+    execution::ReduceSum<T> reducer(static_cast<T>(0));
+    execution::forall(policy, 0, num_elements, Sum<T, U>{reducer, vals});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    return reducer.get();
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Count
+{
+    execution::ReduceSum<index_t> reducer;
+    U vals;
+    T value;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        reducer += (static_cast<T>(vals[i]) == value) ? 1 : 0;
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+index_t
+accessor_count_kernel(execution::ExecutionPolicy &policy,
+                      index_t num_elements,
+                      const U vals,
+                      const T value)
+{
+    // Small host arrays are faster to count without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        index_t res = 0;
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            res += (static_cast<T>(vals[i]) == value) ? 1 : 0;
+        }
+        return res;
+    }
+
+    execution::ReduceSum<index_t> reducer(0);
+    execution::forall(policy, 0, num_elements, Count<T, U>{reducer, vals, value});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    return reducer.get();
+}
+
+//-----------------------------------------------------------------------------
+template <typename T>
+void
+set_values_helper(const DataAccessor<T> &accessor,
+                  const T *values,
+                  index_t num_elements)
+{
+    // Avoid performing unnecessary work for empty arrays
+    if (num_elements <= 0)
+    {
+        return;
+    }
+
+    execution::ExecutionPolicy policy = accessor.active_policy();
+
+    const bool dst_on_device = policy.is_device_policy();
+    const bool src_on_device = execution::DeviceMemory::is_device_ptr(values);
+
+    if (dst_on_device == src_on_device)
+    {
+        execution::dispatch(accessor, [&](auto vals)
+        {
+            accessor_copy_from_view_kernel(policy, num_elements, values, vals);
+        });
+    }
+    else // dst and src are in different memory spaces
+    {
+        const DataType &dtype = accessor.dtype();
+        const size_t type_size = sizeof(T);
+        const size_t num_bytes = num_elements * type_size;
+
+        // When the source type matches the destination's underlying dtype and
+        // the destination has a compact layout, no conversion is necessary,
+        // so we can just memcpy the values directly to the destination.
+        const bool same_type =
+            (std::is_floating_point<T>::value && dtype.is_floating_point()) ||
+            (std::is_integral<T>::value && std::is_signed<T>::value &&
+             dtype.is_signed_integer()) ||
+            (std::is_integral<T>::value && std::is_unsigned<T>::value &&
+             dtype.is_unsigned_integer());
+        const bool same_layout = same_type &&
+                                 dtype.stride() == type_size &&
+                                 dtype.element_bytes() == type_size;
+        if (same_layout)
+        {
+            utils::conduit_memcpy(const_cast<void*>(accessor.element_ptr(0)),
+                                  values,
+                                  num_bytes);
+            return;
+        }
+
+        // The API for copying data across memory spaces (host <-> device)
+        // only transmits raw bytes. It cannot apply a destination stride or
+        // offset, and it cannot convert element types. So we do it in two passes:
+        //
+        // 1. Copy the source elements into a temp buffer that lives in the
+        //    destination's memory space.
+        // 2. Run a kernel in the destination's memory space that reads
+        //    the temp buffer and writes each element into the destination
+        //    with the correct stride, offset, and type.
+        void *temp_ptr = dst_on_device
+            ? execution::DeviceMemory::allocate(num_bytes)
+            : execution::HostMemory::allocate(num_bytes);
+        utils::conduit_memcpy_strided_elements(temp_ptr,
+                                               num_elements,
+                                               type_size,
+                                               type_size,
+                                               values,
+                                               type_size);
+        const T *temp_vals = static_cast<const T*>(temp_ptr);
+        execution::dispatch(accessor, [&](auto vals)
+        {
+            accessor_copy_from_view_kernel(policy, num_elements, temp_vals, vals);
+        });
+
+        // Clean up
+        if (dst_on_device)
+        {
+            execution::DeviceMemory::deallocate(temp_ptr);
+        }
+        else // if (!dst_on_device)
+        {
+            execution::HostMemory::deallocate(temp_ptr);
+        }
     }
 }
+
+//-----------------------------------------------------------------------------
+template <typename U, template <typename> class View, typename T>
+void
+set_values_view_helper(const DataAccessor<T> &accessor,
+                       const View<U> &values,
+                       index_t num_elements)
+{
+    // Avoid performing unnecessary work for empty arrays
+    if (num_elements <= 0)
+    {
+        return;
+    }
+
+    execution::ExecutionPolicy policy = accessor.active_policy();
+
+    const bool dst_on_device = policy.is_device_policy();
+    const bool src_on_device = values.active_policy().is_device_policy();
+
+    if (dst_on_device == src_on_device)
+    {
+        accessor_copy_from_view_kernel(policy, num_elements, values, accessor);
+    }
+    else // dst and src are in different memory spaces
+    {
+        // The API for copying data across memory spaces (host <-> device)
+        // only transmits raw bytes. It cannot apply a destination stride or
+        // offset, and it cannot convert element types. So we do it in two passes:
+        //
+        // 1. Copy the source elements into a temp buffer that lives in the
+        //    destination's memory space.
+        // 2. Run a kernel in the destination's memory space that reads
+        //    the temp buffer and writes each element into the destination
+        //    with the correct stride, offset, and type.
+        const DataType &src_dt = values.dtype();
+        const size_t type_size = src_dt.element_bytes();
+        const size_t num_bytes = num_elements * type_size;
+        void *temp_ptr = dst_on_device
+            ? execution::DeviceMemory::allocate(num_bytes)
+            : execution::HostMemory::allocate(num_bytes);
+        const DataType temp_dtype(src_dt.id(),
+                                  num_elements,
+                                  0, // offset is 0
+                                  DataType::default_bytes(src_dt.id()), // stride
+                                  src_dt.element_bytes(),
+                                  src_dt.endianness());
+        utils::conduit_memcpy_strided_elements(temp_ptr,
+                                               num_elements,
+                                               type_size,
+                                               temp_dtype.stride(),
+                                               values.element_ptr(0),
+                                               src_dt.stride());
+        const View<U> temp_view(static_cast<const void*>(temp_ptr),
+                                temp_dtype);
+        accessor_copy_from_view_kernel(policy, num_elements, temp_view, accessor);
+
+        // Clean up
+        if (dst_on_device)
+        {
+            execution::DeviceMemory::deallocate(temp_ptr);
+        }
+        else // if (!dst_on_device)
+        {
+            execution::HostMemory::deallocate(temp_ptr);
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+template <typename U, typename T>
+void
+set_values_helper(const DataAccessor<T> &accessor,
+                  const U *values,
+                  index_t num_elements)
+{
+    // Avoid performing unnecessary work for empty arrays
+    if (num_elements <= 0)
+    {
+        return;
+    }
+
+    execution::ExecutionPolicy policy = accessor.active_policy();
+
+    const bool dst_on_device = policy.is_device_policy();
+    const bool src_on_device = execution::DeviceMemory::is_device_ptr(values);
+
+    if (dst_on_device == src_on_device)
+    {
+        // The kernel converts U to T per element
+        accessor_copy_from_view_kernel(policy, num_elements, values, accessor);
+    }
+    else // dst and src are in different memory spaces
+    {
+        // The API for copying data across memory spaces (host <-> device)
+        // only transmits raw bytes. It cannot apply a destination stride or
+        // offset, and it cannot convert element types. So we do it in two passes:
+        //
+        // 1. Copy the source elements into a temp buffer that lives in the
+        //    destination's memory space.
+        // 2. Run a kernel in the destination's memory space that reads
+        //    the temp buffer and writes each element into the destination
+        //    with the correct stride, offset, and type.
+        const size_t type_size = sizeof(U);
+        const size_t num_bytes = num_elements * type_size;
+        void *temp_ptr = dst_on_device
+            ? execution::DeviceMemory::allocate(num_bytes)
+            : execution::HostMemory::allocate(num_bytes);
+        utils::conduit_memcpy_strided_elements(temp_ptr,
+                                               num_elements,
+                                               type_size,
+                                               type_size,
+                                               values,
+                                               type_size);
+        const U *temp_vals = static_cast<const U*>(temp_ptr);
+        accessor_copy_from_view_kernel(policy, num_elements, temp_vals, accessor);
+
+        // Clean up
+        if (dst_on_device)
+        {
+            execution::DeviceMemory::deallocate(temp_ptr);
+        }
+        else // if (!dst_on_device)
+        {
+            execution::HostMemory::deallocate(temp_ptr);
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+template <typename U, typename T>
+void
+set_values_helper(const DataAccessor<T> &accessor,
+                  const DataAccessor<U> &values,
+                  index_t num_elements)
+{
+    set_values_view_helper(accessor, values, num_elements);
+}
+
+//-----------------------------------------------------------------------------
+template <typename U, typename T>
+void
+set_values_helper(const DataAccessor<T> &accessor,
+                  const DataArray<U> &values,
+                  index_t num_elements)
+{
+    set_values_view_helper(accessor, values, num_elements);
+}
+
 }
 //-----------------------------------------------------------------------------
 // -- end conduit::detail --
@@ -143,7 +592,8 @@ DataAccessor<T>::DataAccessor()
   m_other_dtype(DataType::empty()),
   m_do_i_own_it(false),
   m_offset(0),
-  m_stride(0)
+  m_stride(0),
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------//
@@ -157,7 +607,8 @@ DataAccessor<T>::DataAccessor(void *data, const DataType &dtype)
   m_other_dtype(DataType::empty()),
   m_do_i_own_it(false),
   m_offset(0),
-  m_stride(0)
+  m_stride(0),
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 
@@ -172,7 +623,8 @@ DataAccessor<T>::DataAccessor(const void *data, const DataType &dtype)
   m_other_dtype(DataType::empty()),
   m_do_i_own_it(false),
   m_offset(0),
-  m_stride(0)
+  m_stride(0),
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------//
@@ -186,7 +638,8 @@ DataAccessor<T>::DataAccessor(Node &node)
   m_other_dtype(DataType::empty()),
   m_do_i_own_it(false),
   m_offset(node.dtype().offset()),
-  m_stride(node.dtype().stride())
+  m_stride(node.dtype().stride()),
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------//
@@ -200,7 +653,8 @@ DataAccessor<T>::DataAccessor(const Node &node)
   m_other_dtype(DataType::empty()),
   m_do_i_own_it(false),
   m_offset(node.dtype().offset()),
-  m_stride(node.dtype().stride())
+  m_stride(node.dtype().stride()),
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------//
@@ -214,7 +668,8 @@ DataAccessor<T>::DataAccessor(Node *node)
   m_other_dtype(DataType::empty()),
   m_do_i_own_it(false),
   m_offset(node->dtype().offset()),
-  m_stride(node->dtype().stride())
+  m_stride(node->dtype().stride()),
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------//
@@ -228,7 +683,8 @@ DataAccessor<T>::DataAccessor(const Node *node)
   m_other_dtype(DataType::empty()),
   m_do_i_own_it(false),
   m_offset(node->dtype().offset()),
-  m_stride(node->dtype().stride())
+  m_stride(node->dtype().stride()),
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------// 
@@ -242,15 +698,14 @@ template <typename T>
 T
 DataAccessor<T>::min()  const
 {
+    const index_t num_elements = number_of_elements();
+
+    execution::ExecutionPolicy policy = active_policy();
     T res = std::numeric_limits<T>::max();
-    for(index_t i = 0; i < number_of_elements(); i++)
+    execution::dispatch(*this, [&](auto vals)
     {
-        const T &val = element(i);
-        if(val < res)
-        {
-            res = val;
-        }
-    }
+        res = detail::accessor_min_kernel<T>(policy, num_elements, vals);
+    });
 
     return res;
 }
@@ -260,15 +715,14 @@ template <typename T>
 T
 DataAccessor<T>::max() const
 {
+    const index_t num_elements = number_of_elements();
+
+    execution::ExecutionPolicy policy = active_policy();
     T res = std::numeric_limits<T>::lowest();
-    for(index_t i = 0; i < number_of_elements(); i++)
+    execution::dispatch(*this, [&](auto vals)
     {
-        const T &val = element(i);
-        if(val > res)
-        {
-            res = val;
-        }
-    }
+        res = detail::accessor_max_kernel<T>(policy, num_elements, vals);
+    });
 
     return res;
 }
@@ -279,12 +733,14 @@ template <typename T>
 T
 DataAccessor<T>::sum() const
 {
-    T res =0;
-    for(index_t i = 0; i < number_of_elements(); i++)
+    const index_t num_elements = number_of_elements();
+
+    execution::ExecutionPolicy policy = active_policy();
+    T res = 0;
+    execution::dispatch(*this, [&](auto vals)
     {
-        const T &val = element(i);
-        res += val;
-    }
+        res = detail::accessor_sum_kernel<T>(policy, num_elements, vals);
+    });
 
     return res;
 }
@@ -294,15 +750,17 @@ template <typename T>
 float64
 DataAccessor<T>::mean() const
 {
-    float64 res =0;
-    for(index_t i = 0; i < number_of_elements(); i++)
-    {
-        const T &val = element(i);
-        res += val;
-    }
+    const index_t num_elements = number_of_elements();
 
-    res = res / float64(number_of_elements());
-    return res;
+    execution::ExecutionPolicy policy = active_policy();
+    float64 res = 0.0;
+    execution::dispatch(*this, [&](auto vals)
+    {
+        // Accumulate in float64 for accuracy
+        res = detail::accessor_sum_kernel<float64>(policy, num_elements, vals);
+    });
+
+    return res / static_cast<float64>(num_elements);
 }
 
 //---------------------------------------------------------------------------// 
@@ -310,14 +768,15 @@ template <typename T>
 index_t
 DataAccessor<T>::count(T val) const
 {
-    index_t res= 0;
-    for(index_t i = 0; i < number_of_elements(); i++)
+    const index_t num_elements = number_of_elements();
+
+    execution::ExecutionPolicy policy = active_policy();
+    index_t res = 0;
+    execution::dispatch(*this, [&](auto vals)
     {
-        if(element(i) == val)
-        {
-            res++;
-        }
-    }
+        res = detail::accessor_count_kernel<T>(policy, num_elements, vals, val);
+    });
+
     return res;
 }
 
@@ -326,106 +785,13 @@ template <typename T>
 void
 DataAccessor<T>::fill(T value)
 {
-    switch(dtype().id())
+    const index_t num_elements = number_of_elements();
+    execution::ExecutionPolicy policy = active_policy();
+
+    execution::dispatch(*this, [&](auto vals)
     {
-        // ints
-        case DataType::INT8_ID:
-        {
-            int8 v = static_cast<int8>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(int8*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        case DataType::INT16_ID:
-        {
-            int16 v = static_cast<int16>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(int16*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        case DataType::INT32_ID:
-        {
-            int32 v = static_cast<int32>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(int32*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        case DataType::INT64_ID:
-        {
-            int64 v = static_cast<int64>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(int64*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        // uints
-        case DataType::UINT8_ID:
-        {
-            uint8 v = static_cast<uint8>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(uint8*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        case DataType::UINT16_ID:
-        {
-            uint16 v = static_cast<uint16>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(uint16*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        case DataType::UINT32_ID:
-        {
-            uint32 v = static_cast<uint32>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(uint32*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        case DataType::UINT64_ID:
-        {
-            uint64 v = static_cast<uint64>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(uint64*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        // floats
-        case DataType::FLOAT32_ID:
-        {
-            float32 v = static_cast<float32>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(float32*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        case DataType::FLOAT64_ID:
-        {
-            float64 v = static_cast<float64>(value);
-            for(index_t i=0;i < dtype().number_of_elements(); i++)
-            {
-                 (*(float64*)(element_ptr(i))) = v;
-            }
-            break;
-        }
-        default:
-            // error
-            CONDUIT_ERROR("DataAccessor does not support dtype: "
-                          << dtype().name());
-    }
+        detail::accessor_fill_kernel(policy, num_elements, vals, value);
+    });
 }
 
 //---------------------------------------------------------------------------//
@@ -445,7 +811,7 @@ DataAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
     if (policy.is_device_policy())
     {
         // data is already on the device
-        if (execution::DeviceMemory::is_device_ptr(m_data))
+        if (active_policy().is_device_policy())
         {
             // Do nothing
         }
@@ -473,7 +839,7 @@ DataAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
                                                        number_of_elements(),
                                                        dtype().element_bytes(),
                                                        m_other_dtype.stride(),
-                                                       m_data,
+                                                       element_ptr(0),
                                                        dtype().stride());
 
                 // change where our data pointer points and update offset and stride
@@ -505,11 +871,14 @@ DataAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
                 m_other_ptr = nullptr;
             }
         }
+
+        // m_data is now (or already was) in device memory
+        m_policy = policy;
     }
     else // we are being asked to execute on the host
     {
         // data is already on the host
-        if (! execution::DeviceMemory::is_device_ptr(m_data))
+        if (! active_policy().is_device_policy())
         {
             // Do nothing
         }
@@ -537,7 +906,7 @@ DataAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
                                                        number_of_elements(),
                                                        dtype().element_bytes(),
                                                        m_other_dtype.stride(),
-                                                       m_data,
+                                                       element_ptr(0),
                                                        dtype().stride());
 
                 // change where our data pointer points and update offset and stride
@@ -567,6 +936,9 @@ DataAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
                 m_other_ptr = nullptr;
             }
         }
+
+        // m_data is now (or already was) in host memory
+        m_policy = policy;
     }
 }
 
@@ -591,11 +963,11 @@ DataAccessor<T>::sync()
         {
             m_node_ptr->set(dtype());
         }
-        utils::conduit_memcpy_strided_elements(m_node_ptr->data_ptr(),
+        utils::conduit_memcpy_strided_elements(m_node_ptr->element_ptr(0),
                                                number_of_elements(),
                                                m_node_ptr->dtype().element_bytes(),
                                                m_node_ptr->dtype().stride(),
-                                               m_data,
+                                               element_ptr(0),
                                                m_stride);
     }
 }
@@ -626,7 +998,7 @@ DataAccessor<T>::assume()
         // Allow m_node_ptr to take ownership of m_data so that future
         // release()/reset() calls will free it, lest we leak memory.
         const index_t owning_allocator_id =
-            execution::DeviceMemory::is_device_ptr(m_data)
+            active_policy().is_device_policy()
                 ? execution::get_device_allocator_id()
                 : execution::get_host_allocator_id();
         m_node_ptr->assume_data_ptr(m_data,
@@ -668,16 +1040,21 @@ DataAccessor<T>::data_movement(const conduit::execution::SyncStrategy strategy)
 //---------------------------------------------------------------------------//
 template <typename T>
 conduit::execution::ExecutionPolicy
-DataAccessor<T>::active_space()
+DataAccessor<T>::active_policy() const
 {
-    if (execution::DeviceMemory::is_device_ptr(m_data))
+    // Starting as EMPTY_ID allows us to lazily determine m_policy so that we
+    // only query is_device_ptr() once we actually need to.
+    if (execution::ExecutionPolicy::PolicyID::EMPTY_ID == m_policy.policy_id())
     {
-        return execution::ExecutionPolicy::device();
+        // Caching the result allows us to avoid calling is_device_ptr()
+        // repeatedly across the lifetime of this object, which has a small
+        // but measurable overhead.
+        m_policy = execution::DeviceMemory::is_device_ptr(m_data)
+                      ? execution::ExecutionPolicy::device()
+                      : execution::ExecutionPolicy::host();
     }
-    else
-    {
-        return execution::ExecutionPolicy::host();
-    }
+
+    return m_policy;
 }
 
 //---------------------------------------------------------------------------//
@@ -1213,7 +1590,6 @@ DataAccessor<T>::to_summary_string_stream(std::ostream &os,
 
     }
 }
-
 
 //-----------------------------------------------------------------------------
 //
