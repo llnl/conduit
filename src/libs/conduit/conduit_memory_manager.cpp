@@ -346,21 +346,6 @@ MagicMemory::copy(void * destination, const void * source, size_t num)
 #if defined(CONDUIT_USE_RAJA)
     bool src_is_gpu = DeviceMemory::is_device_allocation(source);
     bool dst_is_gpu = DeviceMemory::is_device_allocation(destination);
-#if defined(CONDUIT_USE_HIP)
-    // hipMemcpy is slow if a host pointer is involved. If we're in unified
-    // memory, we can do a faster async device-to-device copy instead and
-    // synchronize on it.
-    if (DeviceMemory::unified() && (src_is_gpu || dst_is_gpu))
-    {
-        if (hipMemcpyAsync(destination, source, num,
-                           hipMemcpyDeviceToDevice, 0) == hipSuccess &&
-            hipStreamSynchronize(0) == hipSuccess)
-        {
-            return;
-        }
-        (void)hipGetLastError();
-    }
-#endif
     if (src_is_gpu && dst_is_gpu)
     {
 #if defined(CONDUIT_USE_CUDA)
