@@ -64,6 +64,7 @@ struct CONDUIT_API DeviceMemory
     static void  deallocate(void *data_ptr);
     static bool  is_device_ptr(const void *ptr);
     static void  is_device_ptr(const void *ptr, bool &is_gpu, bool &is_unified);
+    static bool  is_device_allocation(const void *ptr);
     static bool  unified();
 
 private:

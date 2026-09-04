@@ -1055,8 +1055,11 @@ DataAccessor<T>::active_policy() const
     {
         // Caching the result allows us to avoid calling is_device_ptr()
         // repeatedly across the lifetime of this object, which has a small
-        // but measurable overhead.
-        m_policy = execution::DeviceMemory::is_device_ptr(m_data)
+        // but measurable overhead. In unified memory the host can read
+        // anything, and small arrays are faster there than a kernel launch.
+        const bool small_unified = execution::DeviceMemory::unified() &&
+                                   number_of_elements() < CONDUIT_SMALL_N_THRESHOLD;
+        m_policy = (execution::DeviceMemory::is_device_ptr(m_data) && !small_unified)
                       ? execution::ExecutionPolicy::device()
                       : execution::ExecutionPolicy::host();
     }

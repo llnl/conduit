@@ -237,6 +237,13 @@ DeviceMemory::is_device_ptr(const void *ptr)
     {
         return true;
     }
+    return is_device_allocation(ptr);
+}
+
+//-----------------------------------------------------------------------------
+bool
+DeviceMemory::is_device_allocation(const void *ptr)
+{
 #if defined(CONDUIT_USE_CUDA)
     cudaPointerAttributes atts;
     const cudaError_t perr = cudaPointerGetAttributes(&atts, ptr);
@@ -310,12 +317,7 @@ void
 MagicMemory::set(void * ptr, int value, size_t num )
 {
 #if defined(CONDUIT_USE_RAJA)
-    if (DeviceMemory::unified())
-    {
-        memset(ptr, value, num);
-        return;
-    }
-    bool is_device = DeviceMemory::is_device_ptr(ptr);
+    bool is_device = DeviceMemory::is_device_allocation(ptr);
     if (is_device)
     {
 #if defined(CONDUIT_USE_CUDA)
@@ -342,14 +344,10 @@ void
 MagicMemory::copy(void * destination, const void * source, size_t num)
 {
 #if defined(CONDUIT_USE_RAJA)
-    // Unified memory is directly host accessible
-    if (DeviceMemory::unified())
-    {
-        memcpy(destination, source, num);
-        return;
-    }
-    bool src_is_gpu = DeviceMemory::is_device_ptr(source);
-    bool dst_is_gpu = DeviceMemory::is_device_ptr(destination);
+    // The device runtime copies device memory far faster than the CPU can,
+    // even in unified memory, so classify by allocation rather than access
+    bool src_is_gpu = DeviceMemory::is_device_allocation(source);
+    bool dst_is_gpu = DeviceMemory::is_device_allocation(destination);
     if (src_is_gpu && dst_is_gpu)
     {
 #if defined(CONDUIT_USE_CUDA)
