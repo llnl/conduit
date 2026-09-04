@@ -89,7 +89,7 @@ def parse_scope_name(raw):
 
     if not all(fields.get(key, "").isdigit() for key in REQUIRED_NUMERIC_FIELDS):
         return None
-    if any(fields.get(key) not in ("host", "device") for key in LOCATION_FIELDS):
+    if any(fields.get(key) not in ("host", "device", "input") for key in LOCATION_FIELDS):
         return None
 
     if fields.get("sync") not in SYNC_STRATEGIES:

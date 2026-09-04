@@ -118,6 +118,8 @@ get_exec_configs(const bool host_only = false)
         {"device",         "device",           "host",          "sync"},
         {"device",         "device",           "host",          "assume"},
         {"device",         "device",           "device",        "sync"},
+        // default output placement, which unified memory decides for itself
+        {"host",           "device",           "input",         "sync"},
 #endif // defined(CONDUIT_USE_DEVICE)
     };
 

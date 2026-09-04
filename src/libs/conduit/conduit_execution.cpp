@@ -558,6 +558,14 @@ public:
         }
         if ("input" == output_location)
         {
+            // In unified memory either side can read any allocation, so
+            // allocate the output where it will be written: device kernels
+            // write far faster into device memory, host loops into host memory.
+            if (DeviceMemory::unified())
+            {
+                return get_execution_policy_helper(src_node).is_device_policy() ?
+                    device_allocator : host_allocator;
+            }
             if (nullptr != src_node)
             {
                 return src_node->allocator();
