@@ -65,7 +65,7 @@ struct CONDUIT_API DeviceMemory
     // whether the device can access ptr
     static bool  is_device_ptr(const void *ptr);
     static void  is_device_ptr(const void *ptr, bool &is_gpu, bool &is_unified);
-    // whether ptr was allocated by the device runtime
+    // whether ptr was allocated by a device allocator
     static bool  is_device_allocation(const void *ptr);
     // whether the host and device share a memory space
     static bool  unified();

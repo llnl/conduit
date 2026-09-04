@@ -1055,8 +1055,11 @@ DataAccessor<T>::active_policy() const
     {
         // Caching the result allows us to avoid calling is_device_ptr()
         // repeatedly across the lifetime of this object, which has a small
-        // but measurable overhead. In unified memory the host can read
-        // anything, and small arrays are faster there than a kernel launch.
+        // but measurable overhead. In unified memory, 1) policies don't have
+        // to be concerned about which memory space the data is in and 2)
+        // operations over small arrays are faster on the host than on the
+        // device. Therefore, we prefer host policies for small N, unless the
+        // user explicitly requests a device policy via use_with().
         const bool small_unified = execution::DeviceMemory::unified() &&
                                    number_of_elements() < CONDUIT_SMALL_N_THRESHOLD;
         m_policy = (execution::DeviceMemory::is_device_ptr(m_data) && !small_unified)

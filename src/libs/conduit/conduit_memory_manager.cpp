@@ -232,11 +232,13 @@ DeviceMemory::is_device_ptr(const void *ptr, bool &is_gpu, bool &is_unified)
 bool
 DeviceMemory::is_device_ptr(const void *ptr)
 {
-    // Every pointer is device accessible in unified memory
+    // In unified memory, every pointer is considered device accessible
     if (unified())
     {
         return true;
     }
+    // In discrete memory, we have to directly check if this is a device
+    // pointer.
     return is_device_allocation(ptr);
 }
 
@@ -273,15 +275,18 @@ DeviceMemory::is_device_allocation(const void *ptr)
 bool
 DeviceMemory::unified()
 {
-    // Unified memory needs two things to be true: the GPU can access pageable
-    // host memory (HSA_XNACK=1 sets hipDeviceAttributePageableMemoryAccess),
-    // and the host can quickly access device memory, which is only true when
-    // the CPU and GPU share physical memory (hipDeviceAttributeIntegrated). A
-    // discrete GPU with XNACK enabled satisfies the first but not the second,
-    // so it's slower to treat it as unified memory.
+    // MI300A-style unified memory requires two things to be true:
     //
-    // Skipping the host <-> device copies is only safe because forall() uses
-    // the synchronous RAJA policies.
+    //   1. The GPU can access host memory (HSA_XNACK=1 sets
+    //      hipDeviceAttributePageableMemoryAccess)
+    //   2. The host can quickly access device memory, which is only true when
+    //      the CPU and GPU share physical memory (checked with
+    //      hipDeviceAttributeIntegrated)
+    //
+    // We use the synchronous RAJA policies to execute our foralls, which makes
+    // it safe to perform host <-> device copies without extra synchronization.
+    // That would no longer be true if we were to begin experimenting with the
+    // async RAJA policies (good to keep in mind).
     static const bool result = []()
     {
         int value = 0;
