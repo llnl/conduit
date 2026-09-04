@@ -63,6 +63,8 @@
 
 #cmakedefine CONDUIT_USE_OPENMP
 
+#cmakedefine CONDUIT_USE_TYPED_DISPATCH
+
 #cmakedefine CONDUIT_USE_PARMETIS
 
 #cmakedefine CONDUIT_USE_TOTALVIEW

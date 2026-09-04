@@ -433,12 +433,14 @@ template <template <typename> class DataView,
 void
 dispatch(const DataView<T> &view, Kernel &&kernel)
 {
+#if defined(CONDUIT_USE_TYPED_DISPATCH)
     if (detail::is_upgradeable(view) &&
         detail::try_typed_view(view, kernel))
     {
         // The conditions were met to invoke the kernel with a typed view
         return;
     }
+#endif
     // The conditions were not met to invoke the kernel with a typed view,
     // so we directly invoke it with the provided DataView instead.
     kernel(view);
@@ -479,12 +481,14 @@ dispatch(const DataView<T> &view0,
          const DataView<T> &view2,
          Kernel &&kernel)
 {
+#if defined(CONDUIT_USE_TYPED_DISPATCH)
     if (detail::is_upgradeable_group(view0, view1, view2) &&
         detail::try_typed_view(view0, view1, view2, kernel))
     {
         // The conditions were met to invoke the kernel with typed views
         return;
     }
+#endif
     // The conditions were not met to invoke the kernel with typed views,
     // so we directly invoke it with the provided DataViews instead.
     kernel(view0, view1, view2);
@@ -502,12 +506,14 @@ dispatch(const DataView<T> &view0,
          const DataView<T> &view3,
          Kernel &&kernel)
 {
+#if defined(CONDUIT_USE_TYPED_DISPATCH)
     if (detail::is_upgradeable_group(view0, view1, view2, view3) &&
         detail::try_typed_view(view0, view1, view2, view3, kernel))
     {
         // The conditions were met to invoke the kernel with typed views
         return;
     }
+#endif
     // The conditions were not met to invoke the kernel with typed views,
     // so we directly invoke it with the provided DataViews instead.
     kernel(view0, view1, view2, view3);

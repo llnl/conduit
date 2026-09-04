@@ -34,7 +34,7 @@ TEST(conduit_execution_dispatch, single_accessor)
         std::vector<float64> buffer(static_cast<size_t>(size), 1.5);
         float64_accessor acc(buffer.data(), DataType::float64(size));
 
-        EXPECT_TRUE(run_inplace_scale(policy, acc));
+        EXPECT_EQ(run_inplace_scale(policy, acc), TYPED_DISPATCH_ENABLED);
 
         for (index_t i = 0; i < size; i++)
         {
@@ -48,7 +48,7 @@ TEST(conduit_execution_dispatch, single_accessor)
         buffer[0] = -1.0;
         float64_accessor acc(buffer.data(), DataType::float64(size, sizeof(float64)));
 
-        EXPECT_TRUE(run_inplace_scale(policy, acc));
+        EXPECT_EQ(run_inplace_scale(policy, acc), TYPED_DISPATCH_ENABLED);
 
         // The first element was not part of the DataAccessor, so it should not
         // have been modified.
@@ -73,7 +73,7 @@ TEST(conduit_execution_dispatch, single_accessor)
         float64_accessor typed_acc(node["typed"]);
         float64_accessor acc(node["acc"]);
 
-        EXPECT_TRUE(run_inplace_scale(policy, typed_acc));
+        EXPECT_EQ(run_inplace_scale(policy, typed_acc), TYPED_DISPATCH_ENABLED);
         run_scale_kernel(policy, size, acc, acc);
 
         float32_array typed_res(node["typed"]);
@@ -115,7 +115,7 @@ TEST(conduit_execution_dispatch, single_array)
         std::vector<float64> buffer(static_cast<size_t>(size), 1.5);
         float64_array view(buffer.data(), DataType::float64(size));
 
-        EXPECT_TRUE(run_inplace_scale(policy, view));
+        EXPECT_EQ(run_inplace_scale(policy, view), TYPED_DISPATCH_ENABLED);
 
         for (index_t i = 0; i < size; i++)
         {
@@ -129,7 +129,7 @@ TEST(conduit_execution_dispatch, single_array)
         buffer[0] = -1.0;
         float64_array view(buffer.data(), DataType::float64(size, sizeof(float64)));
 
-        EXPECT_TRUE(run_inplace_scale(policy, view));
+        EXPECT_EQ(run_inplace_scale(policy, view), TYPED_DISPATCH_ENABLED);
 
         // The first element was not part of the DataArray, so it should not
         // have been modified.
@@ -154,7 +154,7 @@ TEST(conduit_execution_dispatch, single_array)
         float32_array typed_view(node["typed"]);
         float32_array view(node["view"]);
 
-        EXPECT_TRUE(run_inplace_scale(policy, typed_view));
+        EXPECT_EQ(run_inplace_scale(policy, typed_view), TYPED_DISPATCH_ENABLED);
         run_scale_kernel(policy, size, view, view);
 
         float32_array typed_res(node["typed"]);
@@ -243,8 +243,8 @@ TEST(conduit_execution_dispatch, accessor_pair)
                        src_is_direct,
                        dst_is_direct);
 
-        EXPECT_TRUE(src_is_direct);
-        EXPECT_TRUE(dst_is_direct);
+        EXPECT_EQ(src_is_direct, TYPED_DISPATCH_ENABLED);
+        EXPECT_EQ(dst_is_direct, TYPED_DISPATCH_ENABLED);
 
         float64_array res(node["des"]);
         for (index_t i = 0; i < size; i++)
@@ -271,7 +271,7 @@ TEST(conduit_execution_dispatch, accessor_pair)
                        dst_is_direct);
 
         EXPECT_FALSE(src_is_direct);
-        EXPECT_TRUE(dst_is_direct);
+        EXPECT_EQ(dst_is_direct, TYPED_DISPATCH_ENABLED);
 
         for (index_t i = 0; i < size; i++)
         {
@@ -308,8 +308,8 @@ TEST(conduit_execution_dispatch, array_pair)
                        src_is_direct,
                        dst_is_direct);
 
-        EXPECT_TRUE(src_is_direct);
-        EXPECT_TRUE(dst_is_direct);
+        EXPECT_EQ(src_is_direct, TYPED_DISPATCH_ENABLED);
+        EXPECT_EQ(dst_is_direct, TYPED_DISPATCH_ENABLED);
 
         float64_array res(node["des"]);
         for (index_t i = 0; i < size; i++)
@@ -335,7 +335,7 @@ TEST(conduit_execution_dispatch, array_pair)
                        dst_is_direct);
 
         EXPECT_FALSE(src_is_direct);
-        EXPECT_TRUE(dst_is_direct);
+        EXPECT_EQ(dst_is_direct, TYPED_DISPATCH_ENABLED);
 
         for (index_t i = 0; i < size; i++)
         {
@@ -366,7 +366,7 @@ TEST(conduit_execution_dispatch, accessor_group)
     // The group shares one compact dtype, so it is upgraded. Swapping in
     // a member of another dtype causes the whole group to use plain
     // DataAccessors.
-    check_group_sum(policy, x_acc, y_acc, z_acc, true);
+    check_group_sum(policy, x_acc, y_acc, z_acc, TYPED_DISPATCH_ENABLED);
 
     // Compact, but not the dtype the other members share, so this doesn't get
     // upgraded.
@@ -395,7 +395,7 @@ TEST(conduit_execution_dispatch, array_group)
     const float64_array z_view(node["z"]);
 
     // The group shares one compact dtype, so it is upgraded
-    check_group_sum(policy, x_view, y_view, z_view, true);
+    check_group_sum(policy, x_view, y_view, z_view, TYPED_DISPATCH_ENABLED);
 
     // Swapping in a strided member causes the whole group to use plain
     // DataArrays.
@@ -422,7 +422,7 @@ run_test_single_policies()
 
         acc.use_with(policy);
 
-        EXPECT_TRUE(run_inplace_scale(policy, acc));
+        EXPECT_EQ(run_inplace_scale(policy, acc), TYPED_DISPATCH_ENABLED);
 
         acc.sync();
 
@@ -460,8 +460,8 @@ run_test_pair_policies()
         run_pair_scale(policy,
                        src_view, dst_acc, src_is_direct, dst_is_direct);
 
-        EXPECT_TRUE(src_is_direct);
-        EXPECT_TRUE(dst_is_direct);
+        EXPECT_EQ(src_is_direct, TYPED_DISPATCH_ENABLED);
+        EXPECT_EQ(dst_is_direct, TYPED_DISPATCH_ENABLED);
 
         dst_acc.sync();
 
@@ -502,11 +502,11 @@ run_test_group_policies()
         z_acc.use_with(policy);
         dst_acc.use_with(policy);
 
-        EXPECT_TRUE(run_group_sum(policy,
-                                  x_acc,
-                                  y_acc,
-                                  z_acc,
-                                  dst_acc));
+        EXPECT_EQ(run_group_sum(policy,
+                                x_acc,
+                                y_acc,
+                                z_acc,
+                                dst_acc), TYPED_DISPATCH_ENABLED);
 
         dst_acc.sync();
 
