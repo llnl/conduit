@@ -96,7 +96,10 @@ def parse_scope_name(raw):
         return None
 
     cfg = tuple(fields[key] for key in LOCATION_FIELDS) + (fields["sync"],)
-    parsed = {"name": name, "cfg": cfg, "backend": fields.get("backend")}
+    backend = fields.get("backend")
+    if fields.get("mem") == "unified" and backend is not None:
+        backend += "-unified"
+    parsed = {"name": name, "cfg": cfg, "backend": backend}
     parsed.update((key, int(fields[key])) for key in REQUIRED_NUMERIC_FIELDS)
     threads = fields.get("threads")
     parsed["threads"] = int(threads) if threads is not None and threads.isdigit() else None

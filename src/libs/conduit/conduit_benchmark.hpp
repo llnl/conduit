@@ -20,6 +20,7 @@
 #include "conduit_annotations.hpp"
 #include "conduit_data_type.hpp"
 #include "conduit_execution_policy.hpp"
+#include "conduit_memory_manager.hpp"
 
 //-----------------------------------------------------------------------------
 // -- begin conduit --
@@ -119,6 +120,20 @@ get_exec_configs(const bool host_only = false)
         {"device",         "device",           "device",        "sync"},
 #endif // defined(CONDUIT_USE_DEVICE)
     };
+
+    // In unified memory we don't stage buffers in another memory space.
+    if (execution::DeviceMemory::unified())
+    {
+        std::vector<ExecConfig> unified_configs;
+        for (const ExecConfig &config : configs)
+        {
+            if (config.sync_strategy == "sync")
+            {
+                unified_configs.push_back(config);
+            }
+        }
+        return unified_configs;
+    }
     return configs;
 }
 
@@ -157,6 +172,8 @@ exec(const std::string &name,
         backend_name = execution::ExecutionPolicy::device().policy_name();
     }
 
+    std::string memory_type = execution::DeviceMemory::unified() ? "unified" : "discrete";
+
     // Execute `run` `iterations` times
     {
         // This scope name is used to identify specific benchmarks in the
@@ -168,6 +185,7 @@ exec(const std::string &name,
             + "_exec-" + config.exec_location
             + "_out-"  + config.output_location
             + "_sync-" + config.sync_strategy
+            + "_mem-"  + memory_type
             + "_backend-" + backend_name
 #if defined(CONDUIT_USE_OPENMP)
             + "_threads-" + std::to_string(omp_get_max_threads())

@@ -807,6 +807,13 @@ DataAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
         return;
     }
 
+    // Unified memory is accessible from any policy
+    if (execution::DeviceMemory::unified())
+    {
+        m_policy = policy;
+        return;
+    }
+
     // we are being asked to execute on the device
     if (policy.is_device_policy())
     {

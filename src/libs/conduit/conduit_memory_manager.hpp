@@ -62,8 +62,9 @@ struct CONDUIT_API DeviceMemory
     static void *allocate(size_t bytes);
     static void *allocate(size_t items, size_t item_size);
     static void  deallocate(void *data_ptr);
-    static bool is_device_ptr(const void *ptr);
-    static void is_device_ptr(const void *ptr, bool &is_gpu, bool &is_unified);
+    static bool  is_device_ptr(const void *ptr);
+    static void  is_device_ptr(const void *ptr, bool &is_gpu, bool &is_unified);
+    static bool  unified();
 
 private:
     static size_t m_total_bytes_alloced;

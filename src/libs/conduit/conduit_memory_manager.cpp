@@ -232,6 +232,11 @@ DeviceMemory::is_device_ptr(const void *ptr, bool &is_gpu, bool &is_unified)
 bool
 DeviceMemory::is_device_ptr(const void *ptr)
 {
+    // Every pointer is device accessible in unified memory
+    if (unified())
+    {
+        return true;
+    }
 #if defined(CONDUIT_USE_CUDA)
     cudaPointerAttributes atts;
     const cudaError_t perr = cudaPointerGetAttributes(&atts, ptr);
@@ -258,6 +263,34 @@ DeviceMemory::is_device_ptr(const void *ptr)
 }
 
 //-----------------------------------------------------------------------------
+bool
+DeviceMemory::unified()
+{
+    // hipDeviceAttributePageableMemoryAccess is set when the GPU can access
+    // pageable host memory (we must be running on a unified memory architecture).
+    //
+    // Skipping the host <-> device copies is only safe because forall() uses
+    // the synchronous RAJA policies.
+    static const bool result = []()
+    {
+        int value = 0;
+#if defined(CONDUIT_USE_HIP) && defined(CONDUIT_USE_UMPIRE)
+        int device = 0;
+        if (hipGetDevice(&device) != hipSuccess ||
+            hipDeviceGetAttribute(&value,
+                                  hipDeviceAttributePageableMemoryAccess,
+                                  device) != hipSuccess)
+        {
+            value = 0;
+        }
+        (void)hipGetLastError();
+#endif
+        return value != 0;
+    }();
+    return result;
+}
+
+//-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 // Magic Memory
 //-----------------------------------------------------------------------------
@@ -268,6 +301,11 @@ void
 MagicMemory::set(void * ptr, int value, size_t num )
 {
 #if defined(CONDUIT_USE_RAJA)
+    if (DeviceMemory::unified())
+    {
+        memset(ptr, value, num);
+        return;
+    }
     bool is_device = DeviceMemory::is_device_ptr(ptr);
     if (is_device)
     {
@@ -295,6 +333,12 @@ void
 MagicMemory::copy(void * destination, const void * source, size_t num)
 {
 #if defined(CONDUIT_USE_RAJA)
+    // Unified memory is directly host accessible
+    if (DeviceMemory::unified())
+    {
+        memcpy(destination, source, num);
+        return;
+    }
     bool src_is_gpu = DeviceMemory::is_device_ptr(source);
     bool dst_is_gpu = DeviceMemory::is_device_ptr(destination);
     if (src_is_gpu && dst_is_gpu)
