@@ -333,6 +333,12 @@ MagicMemory::set(void * ptr, int value, size_t num )
         {
             CONDUIT_ERROR("hipMemset failed: " << hipGetErrorName(err));
         }
+        // hipMemset can return before it finishes, and in unified memory the
+        // host may read this memory next
+        if (DeviceMemory::unified())
+        {
+            (void)hipStreamSynchronize(0);
+        }
 #endif
     }
     else
@@ -362,6 +368,12 @@ MagicMemory::copy(void * destination, const void * source, size_t num)
         {
             CONDUIT_ERROR("hipMemcpy device-to-device failed: "
                           << hipGetErrorName(err));
+        }
+        // device-to-device copies can return before they finish, and in
+        // unified memory the host may read the destination next
+        if (DeviceMemory::unified())
+        {
+            (void)hipStreamSynchronize(0);
         }
 #endif
     }
