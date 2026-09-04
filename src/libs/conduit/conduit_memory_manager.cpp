@@ -266,8 +266,12 @@ DeviceMemory::is_device_ptr(const void *ptr)
 bool
 DeviceMemory::unified()
 {
-    // hipDeviceAttributePageableMemoryAccess is set when the GPU can access
-    // pageable host memory (we must be running on a unified memory architecture).
+    // Unified memory needs two things to be true: the GPU can access pageable
+    // host memory (HSA_XNACK=1 sets hipDeviceAttributePageableMemoryAccess),
+    // and the host can quickly access device memory, which is only true when
+    // the CPU and GPU share physical memory (hipDeviceAttributeIntegrated). A
+    // discrete GPU with XNACK enabled satisfies the first but not the second,
+    // so it's slower to treat it as unified memory.
     //
     // Skipping the host <-> device copies is only safe because forall() uses
     // the synchronous RAJA policies.
@@ -276,10 +280,15 @@ DeviceMemory::unified()
         int value = 0;
 #if defined(CONDUIT_USE_HIP) && defined(CONDUIT_USE_UMPIRE)
         int device = 0;
+        int integrated = 0;
         if (hipGetDevice(&device) != hipSuccess ||
             hipDeviceGetAttribute(&value,
                                   hipDeviceAttributePageableMemoryAccess,
-                                  device) != hipSuccess)
+                                  device) != hipSuccess ||
+            hipDeviceGetAttribute(&integrated,
+                                  hipDeviceAttributeIntegrated,
+                                  device) != hipSuccess ||
+            integrated == 0)
         {
             value = 0;
         }
