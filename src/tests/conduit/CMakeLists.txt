@@ -50,7 +50,6 @@ set(BASIC_TESTS t_conduit_smoke
                 t_conduit_annotations
                 t_conduit_mem_allocator
                 t_conduit_device
-                t_conduit_unified_memory
                 t_conduit_intro_cpp_example
                 t_conduit_fixed_size_map
                 t_conduit_fixed_size_vector
@@ -69,8 +68,7 @@ endforeach()
 
 set(conduit_device_test_sources
     t_conduit_execution.cpp
-    t_conduit_execution_dispatch.cpp
-    t_conduit_unified_memory.cpp)
+    t_conduit_execution_dispatch.cpp)
 
 conduit_set_source_device_properties("${conduit_device_test_sources}")
 

@@ -62,9 +62,12 @@ struct CONDUIT_API DeviceMemory
     static void *allocate(size_t bytes);
     static void *allocate(size_t items, size_t item_size);
     static void  deallocate(void *data_ptr);
+    // whether the device can access ptr
     static bool  is_device_ptr(const void *ptr);
     static void  is_device_ptr(const void *ptr, bool &is_gpu, bool &is_unified);
+    // whether ptr was allocated by the device runtime
     static bool  is_device_allocation(const void *ptr);
+    // whether the host and device share a memory space
     static bool  unified();
 
 private:

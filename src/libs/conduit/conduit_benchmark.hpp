@@ -118,12 +118,14 @@ get_exec_configs(const bool host_only = false)
         {"device",         "device",           "host",          "sync"},
         {"device",         "device",           "host",          "assume"},
         {"device",         "device",           "device",        "sync"},
-        // default output placement, which unified memory decides for itself
+        // default output location
         {"host",           "device",           "input",         "sync"},
+        {"device",         "host",             "input",         "sync"},
 #endif // defined(CONDUIT_USE_DEVICE)
     };
 
-    // In unified memory we don't stage buffers in another memory space.
+    // We don't have to stage buffers in unified memory, so assume is identical to sync.
+    // Both will always no-op (so we only have to benchmark one or the other).
     if (execution::DeviceMemory::unified())
     {
         std::vector<ExecConfig> unified_configs;
