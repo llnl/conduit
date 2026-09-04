@@ -558,6 +558,15 @@ public:
         }
         if ("input" == output_location)
         {
+            // In unified memory, policies don't have to be concerned about
+            // which output location they select. Benchmarks show that it is
+            // fastest to use a device allocator if we are using executing on
+            // device, and to use a host allocator if we are executing on host.
+            if (DeviceMemory::unified())
+            {
+                return get_execution_policy_helper(src_node).is_device_policy() ?
+                    device_allocator : host_allocator;
+            }
             if (nullptr != src_node)
             {
                 return src_node->allocator();

@@ -232,6 +232,20 @@ DeviceMemory::is_device_ptr(const void *ptr, bool &is_gpu, bool &is_unified)
 bool
 DeviceMemory::is_device_ptr(const void *ptr)
 {
+    // In unified memory, every pointer is considered device accessible
+    if (unified())
+    {
+        return true;
+    }
+    // In discrete memory, we have to directly check if this is a device
+    // pointer.
+    return is_device_allocation(ptr);
+}
+
+//-----------------------------------------------------------------------------
+bool
+DeviceMemory::is_device_allocation(const void *ptr)
+{
 #if defined(CONDUIT_USE_CUDA)
     cudaPointerAttributes atts;
     const cudaError_t perr = cudaPointerGetAttributes(&atts, ptr);
@@ -258,6 +272,46 @@ DeviceMemory::is_device_ptr(const void *ptr)
 }
 
 //-----------------------------------------------------------------------------
+bool
+DeviceMemory::unified()
+{
+    // MI300A-style unified memory requires two things to be true:
+    //
+    //   1. The GPU can access host memory (HSA_XNACK=1 sets
+    //      hipDeviceAttributePageableMemoryAccess)
+    //   2. The host can quickly access device memory, which is only true when
+    //      the CPU and GPU share physical memory (checked with
+    //      hipDeviceAttributeIntegrated)
+    //
+    // We use the synchronous RAJA policies to execute our foralls, which makes
+    // it safe to perform host <-> device copies without extra synchronization.
+    // That would no longer be true if we were to begin experimenting with the
+    // async RAJA policies (good to keep in mind).
+    static const bool result = []()
+    {
+        int value = 0;
+#if defined(CONDUIT_USE_HIP) && defined(CONDUIT_USE_UMPIRE)
+        int device = 0;
+        int integrated = 0;
+        if (hipGetDevice(&device) != hipSuccess ||
+            hipDeviceGetAttribute(&value,
+                                  hipDeviceAttributePageableMemoryAccess,
+                                  device) != hipSuccess ||
+            hipDeviceGetAttribute(&integrated,
+                                  hipDeviceAttributeIntegrated,
+                                  device) != hipSuccess ||
+            integrated == 0)
+        {
+            value = 0;
+        }
+        (void)hipGetLastError();
+#endif
+        return value != 0;
+    }();
+    return result;
+}
+
+//-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 // Magic Memory
 //-----------------------------------------------------------------------------
@@ -268,7 +322,7 @@ void
 MagicMemory::set(void * ptr, int value, size_t num )
 {
 #if defined(CONDUIT_USE_RAJA)
-    bool is_device = DeviceMemory::is_device_ptr(ptr);
+    bool is_device = DeviceMemory::is_device_allocation(ptr);
     if (is_device)
     {
 #if defined(CONDUIT_USE_CUDA)
@@ -278,6 +332,12 @@ MagicMemory::set(void * ptr, int value, size_t num )
         if (err != hipSuccess)
         {
             CONDUIT_ERROR("hipMemset failed: " << hipGetErrorName(err));
+        }
+        // hipMemset can return before it finishes, and in unified memory the
+        // host may read this memory next
+        if (DeviceMemory::unified())
+        {
+            (void)hipStreamSynchronize(0);
         }
 #endif
     }
@@ -295,8 +355,8 @@ void
 MagicMemory::copy(void * destination, const void * source, size_t num)
 {
 #if defined(CONDUIT_USE_RAJA)
-    bool src_is_gpu = DeviceMemory::is_device_ptr(source);
-    bool dst_is_gpu = DeviceMemory::is_device_ptr(destination);
+    bool src_is_gpu = DeviceMemory::is_device_allocation(source);
+    bool dst_is_gpu = DeviceMemory::is_device_allocation(destination);
     if (src_is_gpu && dst_is_gpu)
     {
 #if defined(CONDUIT_USE_CUDA)
@@ -308,6 +368,12 @@ MagicMemory::copy(void * destination, const void * source, size_t num)
         {
             CONDUIT_ERROR("hipMemcpy device-to-device failed: "
                           << hipGetErrorName(err));
+        }
+        // device-to-device copies can return before they finish, and in
+        // unified memory the host may read the destination next
+        if (DeviceMemory::unified())
+        {
+            (void)hipStreamSynchronize(0);
         }
 #endif
     }

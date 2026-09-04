@@ -807,6 +807,13 @@ DataAccessor<T>::use_with(conduit::execution::ExecutionPolicy policy)
         return;
     }
 
+    // Unified memory is accessible from any policy
+    if (execution::DeviceMemory::unified())
+    {
+        m_policy = policy;
+        return;
+    }
+
     // we are being asked to execute on the device
     if (policy.is_device_policy())
     {
@@ -1048,8 +1055,14 @@ DataAccessor<T>::active_policy() const
     {
         // Caching the result allows us to avoid calling is_device_ptr()
         // repeatedly across the lifetime of this object, which has a small
-        // but measurable overhead.
-        m_policy = execution::DeviceMemory::is_device_ptr(m_data)
+        // but measurable overhead. In unified memory, 1) policies don't have
+        // to be concerned about which memory space the data is in and 2)
+        // operations over small arrays are faster on the host than on the
+        // device. Therefore, we prefer host policies for small N, unless the
+        // user explicitly requests a device policy via use_with().
+        const bool small_unified = execution::DeviceMemory::unified() &&
+                                   number_of_elements() < CONDUIT_SMALL_N_THRESHOLD;
+        m_policy = (execution::DeviceMemory::is_device_ptr(m_data) && !small_unified)
                       ? execution::ExecutionPolicy::device()
                       : execution::ExecutionPolicy::host();
     }
