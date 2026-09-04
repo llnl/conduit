@@ -334,8 +334,9 @@ Improve DataView Performance with Dispatch
 
 Because the kernel's view parameters are ``auto``, the compiler instantiates the kernel once per possible underlying dtype + one fallback (11 instantiations per ``DataAccessor`` or 2 per ``DataArray``). Three overloads cover the existing use cases in the codebase: a single view, a pair of views whose dtypes may differ (each side dispatched independently), and a group of three views of the same accessor type, which upgrades only when all three share one dtype. More overloads may be added as new use cases arise.
 
+The typed view instantiations are only compiled when Conduit is configured with ``ENABLE_TYPED_DISPATCH=ON``. Otherwise, ``dispatch()`` always invokes the kernel with the original DataView, so kernels stay correct but don't get the typed view speedup.
+
 Blueprint Port Status
 ---------------------
 
 The :ref:`Mesh Blueprint <mesh_blueprint>` ``mesh::convert`` API is in the process of being ported to the execution model. Currently, the mesh-to-mesh conversions (coordset and topology conversions) are supported. Additional transforms and internal operations are being ported over time. Until a transform is ported, it will continue to execute on the host exactly as before.
-

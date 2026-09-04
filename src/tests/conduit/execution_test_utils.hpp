@@ -492,6 +492,14 @@ expect_no_leak(void (*run_fn)(Node &, ExecutionPolicy),
 //
 
 //-----------------------------------------------------------------------------
+// Whether dispatch() upgrades compact views to typed views in this build
+#if defined(CONDUIT_USE_TYPED_DISPATCH)
+const bool TYPED_DISPATCH_ENABLED = true;
+#else
+const bool TYPED_DISPATCH_ENABLED = false;
+#endif
+
+//-----------------------------------------------------------------------------
 // Verifies that the input is a typed view (not a DataAccessor or DataArray)
 template <typename TypedView>
 bool
@@ -756,14 +764,14 @@ check_single_dtype_dispatch(const std::vector<T> &vals,
     float64_accessor acc(node["vals"]);
 
     std::vector<float64> read_vals(static_cast<size_t>(size), 0.0);
-    EXPECT_TRUE(run_copy_out(policy, acc, read_vals.data()));
+    EXPECT_EQ(run_copy_out(policy, acc, read_vals.data()), TYPED_DISPATCH_ENABLED);
     for (index_t i = 0; i < size; i++)
     {
         const size_t idx = static_cast<size_t>(i);
         EXPECT_EQ(read_vals[idx], static_cast<float64>(vals[idx]));
     }
 
-    EXPECT_TRUE(run_inplace_scale(policy, acc));
+    EXPECT_EQ(run_inplace_scale(policy, acc), TYPED_DISPATCH_ENABLED);
 
     conduit::DataArray<T> res(node["vals"]);
     for (index_t i = 0; i < size; i++)

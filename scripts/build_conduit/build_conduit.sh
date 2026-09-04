@@ -51,6 +51,7 @@ build_zfp="${build_zfp:=false}"
 
 # conduit options
 build_conduit="${build_conduit:=true}"
+enable_typed_dispatch="${enable_typed_dispatch:=ON}"
 
 # see if we are building on windows
 build_windows="${build_windows:=OFF}"
@@ -869,6 +870,7 @@ echo 'set(ENABLE_TESTS ' ${enable_tests} ' CACHE BOOL "")' >> ${cmake_host_confi
 echo 'set(ENABLE_MPI ' ${enable_mpi} ' CACHE BOOL "")' >> ${cmake_host_config}
 echo 'set(ENABLE_FIND_MPI ' ${enable_find_mpi} ' CACHE BOOL "")' >> ${cmake_host_config}
 echo 'set(ENABLE_OPENMP ' ${enable_openmp} ' CACHE BOOL "")' >> ${cmake_host_config}
+echo 'set(ENABLE_TYPED_DISPATCH ' ${enable_typed_dispatch} ' CACHE BOOL "")' >> ${cmake_host_config}
 echo 'set(ENABLE_FORTRAN ' ${enable_fortran} ' CACHE BOOL "")' >> ${cmake_host_config}
 echo 'set(ENABLE_PYTHON ' ${enable_python} ' CACHE BOOL "")' >> ${cmake_host_config}
 if ${build_pyvenv}; then
