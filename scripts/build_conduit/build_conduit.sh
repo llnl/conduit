@@ -51,6 +51,7 @@ build_zfp="${build_zfp:=false}"
 
 # conduit options
 build_conduit="${build_conduit:=true}"
+enable_typed_dispatch="${enable_typed_dispatch:=ON}"
 
 # see if we are building on windows
 build_windows="${build_windows:=OFF}"
@@ -585,6 +586,11 @@ fi
 if [ ! -d ${raja_src_dir} ]; then
   echo "**** Extracting ${raja_tarball}"
   tar ${tar_extra_args} -xzf ${raja_tarball} -C ${source_dir}
+  # Fix ambiguous unqualified partition call
+  # TODO: Remove this patch after upgrading to RAJA v2026.xx.x
+  cd ${raja_src_dir}
+  patch -p1 < ${script_dir}/2026_06_15_raja_sort_partition_ambiguity_fix.patch
+  cd ${root_dir}
 fi
 
 raja_extra_cmake_args=""
@@ -863,6 +869,8 @@ echo 'set(CMAKE_INSTALL_PREFIX ' ${conduit_install_dir} ' CACHE PATH "")' >> ${c
 echo 'set(ENABLE_TESTS ' ${enable_tests} ' CACHE BOOL "")' >> ${cmake_host_config}
 echo 'set(ENABLE_MPI ' ${enable_mpi} ' CACHE BOOL "")' >> ${cmake_host_config}
 echo 'set(ENABLE_FIND_MPI ' ${enable_find_mpi} ' CACHE BOOL "")' >> ${cmake_host_config}
+echo 'set(ENABLE_OPENMP ' ${enable_openmp} ' CACHE BOOL "")' >> ${cmake_host_config}
+echo 'set(ENABLE_TYPED_DISPATCH ' ${enable_typed_dispatch} ' CACHE BOOL "")' >> ${cmake_host_config}
 echo 'set(ENABLE_FORTRAN ' ${enable_fortran} ' CACHE BOOL "")' >> ${cmake_host_config}
 echo 'set(ENABLE_PYTHON ' ${enable_python} ' CACHE BOOL "")' >> ${cmake_host_config}
 if ${build_pyvenv}; then
@@ -903,6 +911,7 @@ fi
 if [[ "$enable_cuda" == "ON" ]]; then
     echo 'set(ENABLE_CUDA ON CACHE BOOL "")' >> ${cmake_host_config}
     echo 'set(CMAKE_CUDA_ARCHITECTURES ' ${CUDA_ARCH} ' CACHE PATH "")' >> ${cmake_host_config}
+    echo 'set(CMAKE_CUDA_FLAGS "--expt-extended-lambda" CACHE STRING "")' >> ${cmake_host_config}
 fi
 
 if [[ "$enable_hip" == "ON" ]]; then

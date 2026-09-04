@@ -96,11 +96,16 @@ if(ENABLE_OPENMP)
     message(STATUS "OpenMP support enabled (CONDUIT_USE_OPENMP == TRUE)")
 endif()
 
+if(ENABLE_TYPED_DISPATCH)
+    set(CONDUIT_USE_TYPED_DISPATCH TRUE)
+    message(STATUS "Typed dispatch enabled (CONDUIT_USE_TYPED_DISPATCH == TRUE)")
+endif()
+
 ################################
 # Device Support
 ################################
 set(CONDUIT_USE_CUDA FALSE)
-set(CONDUIT_USE_CUDA FALSE)
+set(CONDUIT_USE_HIP FALSE)
 
 if(ENABLE_CUDA)
     set(CONDUIT_USE_CUDA TRUE)

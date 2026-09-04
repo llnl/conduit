@@ -86,6 +86,14 @@ public:
     friend class NodeIterator;
     friend class NodeConstIterator;
     friend class Generator;
+    template<typename T>
+    // DataArray can hand an execution-space buffer back to Node via assume()
+    // without exposing Node's low-level pointer adoption helpers publicly.
+    friend class DataArray;
+    template<typename T>
+    // DataAccessor needs the same access when assume() replaces the Node's
+    // backing allocation with the accessor's active buffer.
+    friend class DataAccessor;
 
 #if defined(CONDUIT_USE_TOTALVIEW)
     friend int ::TV_ttf_display_type ( const conduit::Node *n );
@@ -4437,6 +4445,13 @@ private:
 /// these methods are used for construction by the Node & Generator classes.
 //-----------------------------------------------------------------------------
     void             set_data_ptr(void *data_ptr);
+    ///
+    /// Unlike set_data_ptr(), this lets the node take ownership of data_ptr, so
+    /// that a later release()/reset() will free it.
+    ///
+    void             assume_data_ptr(void *data_ptr,
+                                     index_t data_size,
+                                     index_t allocator_id);
     ///
     /// Note: set_schema_ptr is *only* used in the case were we have
     /// a schema pointer that is owned by a parent schema. Using it to set a

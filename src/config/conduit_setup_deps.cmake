@@ -187,13 +187,13 @@ endif()
 # Setup Umpire
 ###############################################################################
 if(CONDUIT_USE_UMPIRE)
-    if($CONDUIT_UMPIRE_DIR)
+    if(CONDUIT_UMPIRE_DIR)
         if(NOT Conduit_FIND_QUIETLY)
             message(STATUS "Conduit was built with Umpire Support")
         endif()
 
         set(_CONDUIT_UMPIRE_SEARCH_PATH)
-        if(EXISTS ${CONDUIT_UMPIRE_DIR}}/share/umpire/cmake)
+        if(EXISTS ${CONDUIT_UMPIRE_DIR}/share/umpire/cmake)
           # old install layout
           set(_CONDUIT_UMPIRE_SEARCH_PATH ${CONDUIT_UMPIRE_DIR}/share/umpire/cmake)
         elseif(EXISTS ${CONDUIT_UMPIRE_DIR}/lib/cmake/umpire)
@@ -441,4 +441,3 @@ if(POLICY CMP0074)
     # clear CMP0074
     cmake_policy(POP)
 endif()
-

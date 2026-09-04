@@ -34,6 +34,7 @@
 //-----------------------------------------------------------------------------
 #include "conduit_fmt/conduit_fmt.h"
 #include "conduit_execution.hpp"
+#include "conduit_execution_dispatch.hpp"
 #include "conduit_fixed_size_map.hpp"
 #include "conduit_fixed_size_vector.hpp"
 #include "conduit_geometry_vector.hpp"
@@ -50,8 +51,6 @@
 #include "conduit_utils.hpp"
 
 using namespace conduit;
-// Easier access to the Conduit logging functions
-using namespace conduit::utils;
 // access conduit path helper
 using ::conduit::utils::join_path;
 // access conduit blueprint mesh utilities
@@ -86,40 +85,35 @@ typedef std::vector<conduit::index_t> (*CalcDimDecomposedFun)(const bputils::Sha
 //-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
+// Converts 3D grid coordinates (i, j, k) into a flat, linear index
+// into a structured grid.
+CONDUIT_EXEC
 void grid_ijk_to_id(const index_t *ijk,
                     const index_t *dims,
                     index_t &grid_id)
 {
-    grid_id = 0;
-    for(index_t d = 0; d < 3; d++)
-    {
-        index_t doffset = ijk[d];
-        for(index_t dd = 0; dd < d; dd++)
-        {
-            doffset *= dims[dd];
-        }
-
-        grid_id += doffset;
-    }
+    // This is the general N-dimensional stride formula, specialized for 3-D
+    grid_id = ijk[0] + dims[0] * (ijk[1] + dims[1] * ijk[2]);
 }
 
 //-----------------------------------------------------------------------------
+// Converts a flat, linear grid index back into 3D grid coordinates
+// (i, j, k). This is the exact inverse of grid_ijk_to_id, above.
+CONDUIT_EXEC
 void grid_id_to_ijk(const index_t id,
                     const index_t *dims,
                     index_t *grid_ijk)
 {
-    index_t dremain = id;
-    for(index_t d = 3; d-- > 0;)
-    {
-        index_t dstride = 1;
-        for(index_t dd = 0; dd < d; dd++)
-        {
-            dstride *= dims[dd];
-        }
+    // This is the inverse of grid_ijk_to_id, using the same stride formula
+    const index_t dim01 = dims[0] * dims[1];
+    grid_ijk[2] = id / dim01;
 
-        grid_ijk[d] = dremain / dstride;
-        dremain = dremain % dstride;
-    }
+    // We can avoid computing id % dim01 by reusing the quotient from the division above
+    const index_t rem = id - grid_ijk[2] * dim01;
+    grid_ijk[1] = rem / dims[0];
+
+    // Same trick as above: reuse the quotient instead of computing rem % dims[0]
+    grid_ijk[0] = rem - grid_ijk[1] * dims[0];
 }
 
 //-----------------------------------------------------------------------------
@@ -194,11 +188,11 @@ bool verify_field_exists(const std::string &protocol,
     {
         if(!node.has_child(field_name))
         {
-            log::error(info, protocol, "missing child" + log::quote(field_name, 1));
+            conduit::utils::log::error(info, protocol, "missing child" + conduit::utils::log::quote(field_name, 1));
             res = false;
         }
 
-        log::validation(info[field_name], res);
+        conduit::utils::log::validation(info[field_name], res);
     }
 
     return res;
@@ -219,12 +213,12 @@ bool verify_integer_field(const std::string &protocol,
 
         if(!field_node.dtype().is_integer())
         {
-            log::error(info, protocol, log::quote(field_name) + "is not an integer (array)");
+            conduit::utils::log::error(info, protocol, conduit::utils::log::quote(field_name) + "is not an integer (array)");
             res = false;
         }
     }
 
-    log::validation(field_info, res);
+    conduit::utils::log::validation(field_info, res);
 
     return res;
 }
@@ -245,12 +239,12 @@ bool verify_number_field(const std::string &protocol,
 
         if(!field_node.dtype().is_number())
         {
-            log::error(info, protocol, log::quote(field_name) + "is not a number");
+            conduit::utils::log::error(info, protocol, conduit::utils::log::quote(field_name) + "is not a number");
             res = false;
         }
     }
 
-    log::validation(field_info, res);
+    conduit::utils::log::validation(field_info, res);
 
     return res;
 }
@@ -271,12 +265,12 @@ bool verify_string_field(const std::string &protocol,
 
         if(!field_node.dtype().is_string())
         {
-            log::error(info, protocol, log::quote(field_name) + "is not a string");
+            conduit::utils::log::error(info, protocol, conduit::utils::log::quote(field_name) + "is not a string");
             res = false;
         }
     }
 
-    log::validation(field_info, res);
+    conduit::utils::log::validation(field_info, res);
 
     return res;
 }
@@ -301,13 +295,13 @@ bool verify_object_field(const std::string &protocol,
         if(!(field_node.dtype().is_object() ||
             (allow_list && field_node.dtype().is_list())))
         {
-            log::error(info, protocol, log::quote(field_name) + "is not an object" +
+            conduit::utils::log::error(info, protocol, conduit::utils::log::quote(field_name) + "is not an object" +
                                        (allow_list ? " or a list" : ""));
             res = false;
         }
         else if(!allow_empty && field_node.number_of_children() == 0)
         {
-            log::error(info,protocol, "has no children");
+            conduit::utils::log::error(info,protocol, "has no children");
             res = false;
         }
         else if(num_children && field_node.number_of_children() != num_children)
@@ -318,12 +312,12 @@ bool verify_object_field(const std::string &protocol,
                 << " vs "
                 << num_children
                 << ")";
-            log::error(info,protocol, oss.str());
+            conduit::utils::log::error(info,protocol, oss.str());
             res = false;
         }
     }
 
-    log::validation(field_info, res);
+    conduit::utils::log::validation(field_info, res);
 
     return res;
 }
@@ -344,15 +338,15 @@ bool verify_mcarray_field(const std::string &protocol,
         res = blueprint::mcarray::verify(field_node,field_info);
         if(res)
         {
-            log::info(info, protocol, log::quote(field_name) + "is an mcarray");
+            conduit::utils::log::info(info, protocol, conduit::utils::log::quote(field_name) + "is an mcarray");
         }
         else
         {
-            log::error(info, protocol, log::quote(field_name) + "is not an mcarray");
+            conduit::utils::log::error(info, protocol, conduit::utils::log::quote(field_name) + "is not an mcarray");
         }
     }
 
-    log::validation(field_info, res);
+    conduit::utils::log::validation(field_info, res);
 
     return res;
 }
@@ -376,15 +370,15 @@ bool verify_mlarray_field(const std::string &protocol,
         res = blueprint::mlarray::verify(field_node,field_info,min_depth,max_depth,leaf_uniformity);
         if(res)
         {
-            log::info(info, protocol, log::quote(field_name) + "is an mlarray");
+            conduit::utils::log::info(info, protocol, conduit::utils::log::quote(field_name) + "is an mlarray");
         }
         else
         {
-            log::error(info, protocol, log::quote(field_name) + "is not an mlarray");
+            conduit::utils::log::error(info, protocol, conduit::utils::log::quote(field_name) + "is not an mlarray");
         }
     }
 
-    log::validation(field_info, res);
+    conduit::utils::log::validation(field_info, res);
 
     return res;
 }
@@ -405,15 +399,15 @@ bool verify_o2mrelation_field(const std::string &protocol,
         res = blueprint::o2mrelation::verify(field_node,field_info);
         if(res)
         {
-            log::info(info, protocol, log::quote(field_name) + "describes a one-to-many relation");
+            conduit::utils::log::info(info, protocol, conduit::utils::log::quote(field_name) + "describes a one-to-many relation");
         }
         else
         {
-            log::error(info, protocol, log::quote(field_name) + "doesn't describe a one-to-many relation");
+            conduit::utils::log::error(info, protocol, conduit::utils::log::quote(field_name) + "doesn't describe a one-to-many relation");
         }
     }
 
-    log::validation(field_info, res);
+    conduit::utils::log::validation(field_info, res);
 
     return res;
 }
@@ -442,20 +436,20 @@ bool verify_enum_field(const std::string &protocol,
 
         if(is_field_enum)
         {
-            log::info(info, protocol, log::quote(field_name) +
+            conduit::utils::log::info(info, protocol, conduit::utils::log::quote(field_name) +
                                       "has valid value" +
-                                      log::quote(field_value, 1));
+                                      conduit::utils::log::quote(field_value, 1));
         }
         else
         {
-            log::error(info, protocol, log::quote(field_name) +
+            conduit::utils::log::error(info, protocol, conduit::utils::log::quote(field_name) +
                                        "has invalid value" +
-                                       log::quote(field_value, 1));
+                                       conduit::utils::log::quote(field_value, 1));
             res = false;
         }
     }
 
-    log::validation(field_info, res);
+    conduit::utils::log::validation(field_info, res);
 
     return res;
 }
@@ -477,20 +471,20 @@ bool verify_reference_field(const std::string &protocol,
 
         if(!node_tree.has_child(ref_path) || !node_tree[ref_path].has_child(ref_name))
         {
-            log::error(info, protocol, "reference to non-existent " + field_name +
-                                        log::quote(ref_name, 1));
+            conduit::utils::log::error(info, protocol, "reference to non-existent " + field_name +
+                                        conduit::utils::log::quote(ref_name, 1));
             res = false;
         }
         else if(info_tree[ref_path][ref_name]["valid"].as_string() != "true")
         {
-            log::error(info, protocol, "reference to invalid " + field_name +
-                                       log::quote(ref_name, 1));
+            conduit::utils::log::error(info, protocol, "reference to invalid " + field_name +
+                                       conduit::utils::log::quote(ref_name, 1));
             res = false;
         }
     }
 
-    log::validation(info[field_name], res);
-    log::validation(info, res);
+    conduit::utils::log::validation(info[field_name], res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -515,7 +509,7 @@ bool verify_shapes_node(const Node &node, const Node &shape_map, Node &info)
     const bool expectedShape = std::find(range.begin(), range.end(), shape) != range.end();
     if (!expectedShape)
     {
-      log::error(info, protocol, "shape not in shape_map");
+      conduit::utils::log::error(info, protocol, "shape not in shape_map");
     }
     res &= expectedShape;
   }
@@ -524,7 +518,7 @@ bool verify_shapes_node(const Node &node, const Node &shape_map, Node &info)
   {
     for(auto &child : shape_map.children())
     {
-      log::info(info, protocol, "cells found for shape "
+      conduit::utils::log::info(info, protocol, "cells found for shape "
         + child.name() + " ("
         + std::to_string(child.to_int32())
         + ").");
@@ -634,9 +628,9 @@ bool verify_poly_node(bool is_mixed_topo,
                         subnode_res = false;
                     }
 
-                    log::validation(subnode_info,subnode_res);
+                    conduit::utils::log::validation(subnode_info,subnode_res);
                 }
-                log::validation(info_subelems, subnode_res);
+                conduit::utils::log::validation(info_subelems, subnode_res);
             }
             elems_res &= subnode_res;
         }
@@ -671,7 +665,7 @@ verify_single_domain(const Node &n,
             cset_res &= blueprint::mesh::coordset::verify(chld, info["coordsets"][chld_name]);
         }
 
-        log::validation(info["coordsets"],cset_res);
+        conduit::utils::log::validation(info["coordsets"],cset_res);
         res &= cset_res;
     }
 
@@ -694,7 +688,7 @@ verify_single_domain(const Node &n,
                 chld, chld_info, "coordset", "coordsets");
         }
 
-        log::validation(info["topologies"],topo_res);
+        conduit::utils::log::validation(info["topologies"],topo_res);
         res &= topo_res;
     }
 
@@ -720,7 +714,7 @@ verify_single_domain(const Node &n,
                     chld, chld_info, "topology", "topologies");
             }
 
-            log::validation(info["matsets"],mset_res);
+            conduit::utils::log::validation(info["matsets"],mset_res);
             res &= mset_res;
         }
     }
@@ -747,7 +741,7 @@ verify_single_domain(const Node &n,
                     chld, chld_info, "matset", "matsets");
             }
 
-            log::validation(info["specsets"],sset_res);
+            conduit::utils::log::validation(info["specsets"],sset_res);
             res &= sset_res;
         }
     }
@@ -782,7 +776,7 @@ verify_single_domain(const Node &n,
                 }
             }
 
-            log::validation(info["fields"],field_res);
+            conduit::utils::log::validation(info["fields"],field_res);
             res &= field_res;
         }
     }
@@ -809,7 +803,7 @@ verify_single_domain(const Node &n,
                     chld, chld_info, "topology", "topologies");
             }
 
-            log::validation(info["adjsets"],aset_res);
+            conduit::utils::log::validation(info["adjsets"],aset_res);
             res &= aset_res;
         }
     }
@@ -836,7 +830,7 @@ verify_single_domain(const Node &n,
                     chld, chld_info, "topology", "topologies");
             }
 
-            log::validation(info["nestsets"],nset_res);
+            conduit::utils::log::validation(info["nestsets"],nset_res);
             res &= nset_res;
         }
     }
@@ -861,11 +855,11 @@ verify_single_domain(const Node &n,
             }
         }
 
-        log::validation(info["topologies"],topo_res);
+        conduit::utils::log::validation(info["topologies"],topo_res);
         res &= topo_res;
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -882,14 +876,14 @@ verify_multi_domain(const Node &n,
 
     if(!n.dtype().is_object() && !n.dtype().is_list() && !n.dtype().is_empty())
     {
-        log::error(info, protocol, "not an object, a list, or empty");
+        conduit::utils::log::error(info, protocol, "not an object, a list, or empty");
         res = false;
     }
     else
     {
         if(n.dtype().is_empty() || n.number_of_children() == 0)
         {
-            log::info(info, protocol, "is an empty mesh");
+            conduit::utils::log::info(info, protocol, "is an empty mesh");
         }
         else
         {
@@ -902,10 +896,10 @@ verify_multi_domain(const Node &n,
             }
         }
 
-        log::info(info, protocol, "is a multi domain mesh");
+        conduit::utils::log::info(info, protocol, "is a multi domain mesh");
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -919,11 +913,61 @@ verify_multi_domain(const Node &n,
 //-----------------------------------------------------------------------------
 
 //-------------------------------------------------------------------------
+// Fills the axis value arrays of a rectilinear coordset with uniformly
+// spaced values (origin + d * spacing) for up to three axes in a single
+// forall.
+//
+// How it works: the iteration range is the sum of the three axis lengths,
+// laid out as [x values | y values | z values]. Each iteration i selects its
+// axis with at most two comparisons and is converted into a local index d
+// within that axis. Axes that do not exist (e.g. z in 2D) are passed with a
+// length of 0 and a default accessor, so their range is empty.
+//
+// This is a separate function because nvcc does not allow device lambdas
+// to be defined inside generic lambdas.
+template <typename Vals>
+void
+coordset_uniform_fill_all_axes_kernel(conduit::execution::ExecutionPolicy &policy,
+                                      const Vals vals_x,
+                                      const Vals vals_y,
+                                      const Vals vals_z,
+                                      const float64 origin_x,
+                                      const float64 spacing_x,
+                                      const index_t len_x,
+                                      const float64 origin_y,
+                                      const float64 spacing_y,
+                                      const index_t len_y,
+                                      const float64 origin_z,
+                                      const float64 spacing_z,
+                                      const index_t len_z)
+{
+    const index_t total = len_x + len_y + len_z;
+    conduit::execution::forall(policy, 0, total, [=] CONDUIT_EXEC(index_t i)
+    {
+        if (i < len_x)
+        {
+            vals_x.set(i, origin_x + i * spacing_x);
+        }
+        else if (i < len_x + len_y)
+        {
+            const index_t d = i - len_x;
+            vals_y.set(d, origin_y + d * spacing_y);
+        }
+        else // if (i < len_x + len_y + len_z)
+        {
+            const index_t d = i - len_x - len_y;
+            vals_z.set(d, origin_z + d * spacing_z);
+        }
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-------------------------------------------------------------------------
 void
 convert_coordset_to_rectilinear(const std::string &/*base_type*/,
                                 const conduit::Node &coordset,
                                 conduit::Node &dest)
-{ 
+{
     CONDUIT_ANNOTATE_MARK_FUNCTION;
     // bool is_base_uniform = true;
 
@@ -934,29 +978,185 @@ convert_coordset_to_rectilinear(const std::string &/*base_type*/,
 
     const std::vector<std::string> csys_axes = bputils::coordset::axes(coordset);
     const std::vector<std::string> &logical_axes = bputils::LOGICAL_AXES;
-    for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
+
+    // execution setup
+    conduit::execution::ExecutionPolicy policy = conduit::execution::get_execution_policy();
+    const index_t allocator_id = conduit::execution::get_output_allocator_id();
+    const conduit::execution::SyncStrategy sync_strategy =
+        conduit::execution::get_sync_strategy();
+
+    // Describe and allocate all axes up front so that they can all be filled
+    // with a single kernel launch.
+    const index_t n_axes = static_cast<index_t>(csys_axes.size());
+    float64 origins[3]  = {0.0, 0.0, 0.0};
+    float64 spacings[3] = {1.0, 1.0, 1.0};
+    index_t lens[3]     = {0, 0, 0};
+    float64_accessor accessors[3];
+
+    for (index_t i = 0; i < n_axes; i++)
     {
         const std::string& csys_axis = csys_axes[i];
         const std::string& logical_axis = logical_axes[i];
 
-        float64 dim_origin = coordset.has_child("origin") ?
+        origins[i] = coordset.has_child("origin") ?
             coordset["origin"][csys_axis].to_float64() : 0.0;
-        float64 dim_spacing = coordset.has_child("spacing") ?
+        spacings[i] = coordset.has_child("spacing") ?
             coordset["spacing"]["d"+csys_axis].to_float64() : 1.0;
-        index_t dim_len = coordset["dims"][logical_axis].to_int64();
+        lens[i] = coordset["dims"][logical_axis].to_int64();
 
         Node &dst_cvals_node = dest["values"][csys_axis];
-        dst_cvals_node.set(DataType(float_dtype.id(), dim_len));
+        dst_cvals_node.set_allocator(allocator_id);
+        dst_cvals_node.set(DataType(float_dtype.id(), lens[i]));
 
-        Node src_cval_node, dst_cval_node;
-        for(index_t d = 0; d < dim_len; d++)
-        {
-            // TODO: USE ACCESSORS
-            src_cval_node.set(dim_origin + d * dim_spacing);
-            dst_cval_node.set_external(float_dtype, dst_cvals_node.element_ptr(d));
-            src_cval_node.to_data_type(float_dtype.id(), dst_cval_node);
-        }
+        accessors[i] = float64_accessor(dst_cvals_node);
+        accessors[i].use_with(policy);
     }
+
+    // It is faster to launch one kernel that fills all 3 axes than to launch 3
+    // kernels that fill 1 axis each.
+    conduit::execution::dispatch(accessors[0],
+                                 accessors[1],
+                                 accessors[2],
+                                 [&](auto vals_x,
+                                     auto vals_y,
+                                     auto vals_z)
+    {
+        coordset_uniform_fill_all_axes_kernel(policy,
+                                              vals_x,
+                                              vals_y,
+                                              vals_z,
+                                              origins[0],
+                                              spacings[0],
+                                              lens[0],
+                                              origins[1],
+                                              spacings[1],
+                                              lens[1],
+                                              origins[2],
+                                              spacings[2],
+                                              lens[2]);
+    });
+
+    for (index_t i = 0; i < n_axes; i++)
+    {
+        accessors[i].data_movement(sync_strategy);
+    }
+}
+
+//-------------------------------------------------------------------------
+// Expands one axis of an implicit (uniform or rectilinear) coordset into
+// explicit per-vertex coordinates for host.
+//
+// Parallelizing over dim_len distinct values lets each value be fetched
+// or computed once, and makes the inner loops effectively sequential
+// stores that vectorize (favoring host execution).
+//
+// This is a separate function because nvcc does not allow device lambdas
+// to be defined inside generic lambdas.
+template <typename SrcVals, typename DstVals>
+void
+coordset_explicit_fill_host_kernel(conduit::execution::ExecutionPolicy &policy,
+                                   const SrcVals src_cvals,
+                                   const DstVals dst_cvals,
+                                   const bool is_base_rectilinear,
+                                   const bool is_base_uniform,
+                                   const float64 dim_origin,
+                                   const float64 dim_spacing,
+                                   const index_t dim_len,
+                                   const index_t dim_block_size,
+                                   const index_t dim_block_count)
+{
+    // We duplicate these foralls to avoid having to branch on
+    // rectilinear/uniform. The only difference is how we ultimately set
+    // the values.
+    if (is_base_rectilinear)
+    {
+        conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
+        {
+            const index_t doffset = d * dim_block_size;
+            for (index_t b = 0; b < dim_block_count; b++)
+            {
+                const index_t boffset = b * dim_block_size * dim_len;
+                for (index_t bi = 0; bi < dim_block_size; bi++)
+                {
+                    const index_t ioffset = bi + doffset + boffset;
+                    dst_cvals.set(ioffset, src_cvals[d]);
+                }
+            }
+        });
+    }
+    else if (is_base_uniform)
+    {
+        conduit::execution::forall(policy, 0, dim_len, [=] CONDUIT_EXEC(index_t d)
+        {
+            const index_t doffset = d * dim_block_size;
+            for (index_t b = 0; b < dim_block_count; b++)
+            {
+                const index_t boffset = b * dim_block_size * dim_len;
+                for (index_t bi = 0; bi < dim_block_size; bi++)
+                {
+                    const index_t ioffset = bi + doffset + boffset;
+                    dst_cvals.set(ioffset, dim_origin + d * dim_spacing);
+                }
+            }
+        });
+    }
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-------------------------------------------------------------------------
+// Expands one axis of an implicit (uniform or rectilinear) coordset into
+// explicit per-vertex coordinates for device.
+//
+// Instead of having each forall iteration be a double for loop over small
+// ranges, GPUs excel at doing many simple operations at once. Similar to a
+// real device kernel, we can flatten the inner loops and have each thread
+// compute d and directly set a value. This more overhead per iteration
+// (due to computing d), but rewriting the problem in this way lets us
+// fully leverage GPU parallelism.
+//
+// This is a separate function because nvcc does not allow device lambdas
+// to be defined inside generic lambdas.
+template <typename SrcVals, typename DstVals>
+void
+coordset_explicit_fill_device_kernel(conduit::execution::ExecutionPolicy &policy,
+                                     const SrcVals src_cvals,
+                                     const DstVals dst_cvals,
+                                     const bool is_base_rectilinear,
+                                     const bool is_base_uniform,
+                                     const float64 dim_origin,
+                                     const float64 dim_spacing,
+                                     const index_t dim_len,
+                                     const index_t dim_block_size,
+                                     const index_t dim_block_count)
+{
+    // We duplicate these foralls to avoid having to branch on
+    // rectilinear/uniform. They work by inverting the layout formula to
+    // recover d:
+    //
+    // With bi < dim_block_size:
+    //   i = bi + d * dim_block_size + b * dim_block_size * dim_len
+    // Dividing both sides by dim_block_size:
+    //   i / dim_block_size = d + b * dim_len
+    // Taking the modulus dim_len of both sides:
+    //   = (d + b * dim_len) % dim_len == d.
+    const index_t coords_len = dim_len * dim_block_size * dim_block_count;
+    if (is_base_rectilinear)
+    {
+        conduit::execution::forall(policy, 0, coords_len, [=] CONDUIT_EXEC(index_t i)
+        {
+            const index_t d = (i / dim_block_size) % dim_len;
+            dst_cvals.set(i, src_cvals[d]);
+        });
+    }
+    else if (is_base_uniform)
+    {
+        conduit::execution::forall(policy, 0, coords_len, [=] CONDUIT_EXEC(index_t i)
+        {
+            const index_t d = (i / dim_block_size) % dim_len;
+            dst_cvals.set(i, dim_origin + d * dim_spacing);
+        });
+    }
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
 }
 
 //-------------------------------------------------------------------------
@@ -995,7 +1195,7 @@ convert_coordset_to_explicit(const std::string &base_type,
         // rectilinear transform case.
         const Node &src_cvals_node = coordset.has_child("values") ?
             coordset["values"][csys_axis] : info;
-        float64_accessor src_cvals_acc = src_cvals_node.value();
+        float64_accessor src_cvals_acc(src_cvals_node);
         // NOTE: The following values are specific to the
         // uniform transform case.
         float64 dim_origin = coordset.has_child("origin") ?
@@ -1010,31 +1210,75 @@ convert_coordset_to_explicit(const std::string &base_type,
             dim_block_count *= (i < j) ? dim_lens[j] : 1;
         }
 
+        // execution setup
+        conduit::execution::ExecutionPolicy policy = is_base_rectilinear ?
+            conduit::execution::get_execution_policy(src_cvals_node) :
+            conduit::execution::get_execution_policy();
+        const index_t allocator_id = is_base_rectilinear ?
+            conduit::execution::get_output_allocator_id(src_cvals_node) :
+            conduit::execution::get_output_allocator_id();
+        const conduit::execution::SyncStrategy sync_strategy =
+            conduit::execution::get_sync_strategy();
+
         Node &dst_cvals_node = dest["values"][csys_axis];
+        dst_cvals_node.set_allocator(allocator_id);
         dst_cvals_node.set(DataType(float_dtype.id(), coords_len));
 
-        float64_accessor dst_cvals_acc = dst_cvals_node.value();
-
-        for(index_t d = 0; d < dim_lens[i]; d++)
+        float64_accessor dst_cvals_acc(dst_cvals_node);
+        dst_cvals_acc.use_with(policy);
+        if (is_base_rectilinear)
         {
-            index_t doffset = d * dim_block_size;
-            for(index_t b = 0; b < dim_block_count; b++)
-            {
-                index_t boffset = b * dim_block_size * dim_lens[i];
-                for(index_t bi = 0; bi < dim_block_size; bi++)
-                {
-                    index_t ioffset = doffset + boffset + bi;
-                    if(is_base_rectilinear)
-                    {
-                        dst_cvals_acc.set(ioffset, src_cvals_acc[d]);
-                    }
-                    else if(is_base_uniform)
-                    {
-                        dst_cvals_acc.set(ioffset, dim_origin + d * dim_spacing);
-                    }
-                }
-            }
+            src_cvals_acc.use_with(policy);
         }
+
+        const index_t dim_len = dim_lens[i];
+        if (policy.is_device_policy())
+        {
+            // Instead of having each forall iteration be a double for loop over small
+            // ranges, GPUs excel at doing many simple operations at once. Similar to a
+            // real device kernel, we can flatten the inner loops and have each thread
+            // compute d and directly set a value. This more overhead per iteration
+            // (due to computing d), but rewriting the problem in this way lets us
+            // fully leverage GPU parallelism.
+            conduit::execution::dispatch(src_cvals_acc,
+                                         dst_cvals_acc,
+                                         [&](auto src_vals, auto dst_vals)
+            {
+                coordset_explicit_fill_device_kernel(policy,
+                                                     src_vals,
+                                                     dst_vals,
+                                                     is_base_rectilinear,
+                                                     is_base_uniform,
+                                                     dim_origin,
+                                                     dim_spacing,
+                                                     dim_len,
+                                                     dim_block_size,
+                                                     dim_block_count);
+            });
+        }
+        else // if (!policy.is_device_policy())
+        {
+            // Each forall iteration is a double for loop. Parallelizing over dim_len
+            // distinct values lets each value be fetched or computed once, and makes
+            // the inner loops effectively sequential stores that vectorize.
+            conduit::execution::dispatch(src_cvals_acc,
+                                         dst_cvals_acc,
+                                         [&](auto src_vals, auto dst_vals)
+            {
+                coordset_explicit_fill_host_kernel(policy,
+                                                   src_vals,
+                                                   dst_vals,
+                                                   is_base_rectilinear,
+                                                   is_base_uniform,
+                                                   dim_origin,
+                                                   dim_spacing,
+                                                   dim_len,
+                                                   dim_block_size,
+                                                   dim_block_count);
+            });
+        }
+
+        dst_cvals_acc.data_movement(sync_strategy);
     }
 }
 
@@ -1175,6 +1419,104 @@ convert_topology_to_structured(const std::string &base_type,
 }
 
 //-------------------------------------------------------------------------
+// This is a separate function because nvcc does not allow device lambdas
+// to be defined inside generic lambdas.
+template <typename ConnOut>
+void
+to_unstructured_connectivity_kernel(conduit::execution::ExecutionPolicy &policy,
+                                    const index_t num_axes,
+                                    const index_t indices_per_elem,
+                                    const index_t num_elems,
+                                    const index_t (&edims)[3],
+                                    const index_t (&vdims)[3],
+                                    const ConnOut conn_out)
+{
+    index_t edims_axes[3] = {edims[0], edims[1], edims[2]};
+    index_t vdims_axes[3] = {vdims[0], vdims[1], vdims[2]};
+
+    // This parallel loop builds the connectivity array
+    conduit::execution::forall(policy, 0, num_elems, [=] CONDUIT_EXEC(index_t e)
+    {
+        index_t curr_elem[3];
+        index_t curr_vert[3];
+
+        // Convert the grid ID to IJK coordinates for the current element
+        grid_id_to_ijk(e, &edims_axes[0], &curr_elem[0]);
+
+        // In order to build the connectivity array from a list of
+        // elements, we loop over each element's vertices and use the bitwise
+        // interpretation of each index (per vertex) to inform the connectivity
+        // direction. For example, if i = 5, the binary representation for 5
+        // would be 0b101. Each bit in 0b101 tells you whether the vertex is
+        // offset along a particular direction, in this case 0b101 would be
+        // interpreted as: (z: +1, y: +0, x: +1)).
+        for (index_t i = 0; i < indices_per_elem; i++)
+        {
+            curr_vert[0] = curr_elem[0];
+            curr_vert[1] = curr_elem[1];
+            curr_vert[2] = curr_elem[2];
+
+            // This inner loop visits each element's corner vertices in
+            // "binary counting" order as explained above. For a quad face,
+            // that means that the corners are visited in the order:
+            // i = 0,     i = 1,     i = 2,     i = 3
+            // 0b000,     0b001,     0b010,     0b011
+            // (0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0)
+            //
+            // However, the connectivity array expects that the corners
+            // will be visited in counter-clockwise order, which
+            // requires that we swap the order in which we visit the
+            // 2nd and 3rd indices:
+            //
+            //                         <- swapped ->
+            // i = 0,     i = 1,     i = 3,     i = 2
+            // 0b000,     0b001,     0b011,     0b010
+            // (0, 0, 0), (1, 0, 0), (1, 1, 0), (0, 1, 0)
+            //
+            // This swap applies to the faces of a hexahedron
+            // also.
+            for (index_t dim = 0; dim < num_axes; dim++)
+            {
+                curr_vert[dim] += (i & (index_t(1) << dim)) >> dim;
+            }
+
+            // Convert the IJK coordinates to a grid ID for the current vertex
+            index_t v;
+            grid_ijk_to_id(&curr_vert[0], &vdims_axes[0], v);
+
+            // TODO(JRC): Once the ordering transforms are introduced,
+            // this remapping should be removed and replaced with
+            // initializing the ordering label value.
+
+            // Continuing from the above comment, the vertices that need to be
+            // swapped are always the ones with their y-axis bit set,
+            // i.e. i == 2 (0b010), i == 3 (0b011), i == 6 (0b110), and i == 7 (0b111).
+
+            // Swapping the order of these vertices can be done by flipping
+            // the x-axis bit (bit 0) of i whenever the y-axis bit (bit 1) is set.
+
+            // If the y-axis bit (bit 1) is not set, then i is already correct
+            index_t out_i = i;
+
+            // Check if the y-axis bit (bit 1) is set to 1
+            if (i & 0x2)
+            {
+                // XOR with 0x1 to flip the x-axis bit (bit 0)
+                out_i ^= 0x1;
+            }
+
+            // The purpose of the above is so that we can directly write the vertex
+            // IDs into the connectivity array in counter-clockwise order. Previously,
+            // we would write the IDs in the wrong order first and then have to
+            // swap the IDs around to fix ordering afterwards. It's less work to
+            // simply put the IDs into their correct positions in the first place.
+            conn_out.set(e * indices_per_elem + out_i, v);
+        }
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-------------------------------------------------------------------------
 void
 convert_topology_to_unstructured(const std::string &base_type,
                                  const conduit::Node &topo,
@@ -1182,23 +1524,47 @@ convert_topology_to_unstructured(const std::string &base_type,
                                  conduit::Node &cdest)
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    bool is_base_structured = base_type == "structured";
-    bool is_base_rectilinear = base_type == "rectilinear";
-    bool is_base_uniform = base_type == "uniform";
+    const bool is_base_structured  = base_type == "structured";
+    const bool is_base_rectilinear = base_type == "rectilinear";
+    const bool is_base_uniform     = base_type == "uniform";
 
     dest.reset();
     cdest.reset();
 
     const Node *coordset = bputils::find_reference_node(topo, "coordset");
-    if(is_base_structured)
+    const std::vector<std::string> csys_axes = bputils::coordset::axes(*coordset);
+
+    const bool base_has_coordset_values = is_base_structured || is_base_rectilinear;
+
+    // Both the policy and allocator ID are derived from the same source
+    // node when one is available, so only fetch it once.
+    const Node *first_axis_values = base_has_coordset_values ?
+        &(*coordset)["values"][csys_axes[0]] : nullptr;
+
+    conduit::execution::ExecutionPolicy policy = first_axis_values ?
+        conduit::execution::get_execution_policy(*first_axis_values) :
+        conduit::execution::get_execution_policy();
+
+    const index_t allocator_id = first_axis_values ?
+        conduit::execution::get_output_allocator_id(*first_axis_values) :
+        conduit::execution::get_output_allocator_id();
+
+    const conduit::execution::SyncStrategy sync_strategy = conduit::execution::get_sync_strategy();
+
+    if (is_base_structured)
     {
-        cdest.set(*coordset);
+        cdest["type"].set((*coordset)["type"]);
+        // Setting the allocator on the parent "values" node is
+        // sufficient here because calling Node::set() copies each
+        // child using the destination's allocator.
+        cdest["values"].set_allocator(allocator_id);
+        cdest["values"].set((*coordset)["values"]);
     }
-    else if(is_base_rectilinear)
+    else if (is_base_rectilinear)
     {
         blueprint::mesh::coordset::rectilinear::to_explicit(*coordset, cdest);
     }
-    else if(is_base_uniform)
+    else if (is_base_uniform)
     {
         blueprint::mesh::coordset::uniform::to_explicit(*coordset, cdest);
     }
@@ -1222,410 +1588,395 @@ convert_topology_to_unstructured(const std::string &base_type,
 
     // TODO(JRC): In this case, should we reach back into the coordset
     // and use its types to inform those of the topology?
-    DataType int_dtype = bputils::find_widest_dtype(topo, bputils::DEFAULT_INT_DTYPES);
+    const DataType int_dtype = bputils::find_widest_dtype(topo, bputils::DEFAULT_INT_DTYPES);
 
-    const std::vector<std::string> csys_axes = bputils::coordset::axes(*coordset);
+    const index_t num_axes = static_cast<index_t>(csys_axes.size());
     dest["elements/shape"].set(
-        (csys_axes.size() == 1) ? "line" : (
-        (csys_axes.size() == 2) ? "quad" : (
-        (csys_axes.size() == 3) ? "hex"  : "")));
+        (num_axes == 1) ? "line" : (
+        (num_axes == 2) ? "quad" : (
+        (num_axes == 3) ? "hex"  : "")));
+
     const std::vector<std::string> &logical_axes = bputils::LOGICAL_AXES;
 
     index_t edims_axes[3] = {1, 1, 1};
-    if(is_base_structured)
+    if (is_base_structured)
     {
         const conduit::Node &dim_node = topo["elements/dims"];
-        for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
+        for (index_t i = 0; i < num_axes; i++)
         {
             edims_axes[i] = dim_node[logical_axes[i]].to_int();
         }
     }
-    else if(is_base_rectilinear)
+    else if (is_base_rectilinear)
     {
         const conduit::Node &dim_node = (*coordset)["values"];
-        for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
+        for (index_t i = 0; i < num_axes; i++)
         {
             edims_axes[i] =
                 dim_node[csys_axes[i]].dtype().number_of_elements() - 1;
         }
     }
-    else if(is_base_uniform)
+    else if (is_base_uniform)
     {
         const conduit::Node &dim_node = (*coordset)["dims"];
-        for(index_t i = 0; i < (index_t)csys_axes.size(); i++)
+        for (index_t i = 0; i < num_axes; i++)
         {
             edims_axes[i] = dim_node[logical_axes[i]].to_int() - 1;
         }
     }
 
-    index_t vdims_axes[3] = {1, 1, 1}, num_elems = 1;
-    for(index_t d = 0; d < 3; d++)
+    index_t vdims_axes[3] = {1, 1, 1};
+    index_t num_elems = 1;
+    for (index_t dim = 0; dim < 3; dim++)
     {
-        num_elems *= edims_axes[d];
-        vdims_axes[d] = edims_axes[d] + 1;
+        num_elems *= edims_axes[dim];
+        vdims_axes[dim] = edims_axes[dim] + 1;
     }
-    index_t indices_per_elem = (index_t) pow(2, csys_axes.size());
 
-    CONDUIT_ANNOTATE_MARK_BEGIN("to_unstructured_index_gen");
+    // indices_per_elem is 2^num_axes (2 for a line, 4 for a quad, 8 for a hex).
+    const index_t indices_per_elem = index_t(1) << num_axes;
+
+    CONDUIT_ANNOTATE_MARK_BEGIN("to_unstructured_connectivity_gen");
     conduit::Node &conn_node = dest["elements/connectivity"];
+    conn_node.set_allocator(allocator_id);
     conn_node.set(DataType(int_dtype.id(), num_elems * indices_per_elem));
 
-    int64_accessor conn_node_vals = conn_node.value();
-    Node src_idx_node, dst_idx_node;
-    index_t curr_elem[3], curr_vert[3];
-    index_t idx=0;
-    for(index_t e = 0; e < num_elems; e++)
+    int64_accessor conn_node_vals(conn_node);
+    conn_node_vals.use_with(policy);
+
+    conduit::execution::dispatch(conn_node_vals,
+                                 [&](auto conn_out)
     {
-        grid_id_to_ijk(e, &edims_axes[0], &curr_elem[0]);
+        to_unstructured_connectivity_kernel(policy,
+                                            num_axes,
+                                            indices_per_elem,
+                                            num_elems,
+                                            edims_axes,
+                                            vdims_axes,
+                                            conn_out);
+    });
+    conn_node_vals.data_movement(sync_strategy);
 
-        // NOTE(JRC): In order to get all adjacent vertices for the
-        // element, we use the bitwise interpretation of each index
-        // per element to inform the direction (e.g. 5, which is
-        // 101 bitwise, means (z+1, y+0, x+1)).
-        for(index_t i = 0, v = 0; i < indices_per_elem; i++)
-        {
-            memcpy(&curr_vert[0], &curr_elem[0], 3 * sizeof(index_t));
-            for(index_t d = 0; d < (index_t)csys_axes.size(); d++)
-            {
-                curr_vert[d] += (i & (index_t)pow(2, d)) >> d;
-            }
-            grid_ijk_to_id(&curr_vert[0], &vdims_axes[0], v);
-
-            conn_node_vals.set(idx,v);
-            idx++;
-        }
-
-        // TODO(JRC): This loop inverts quads/hexes to conform to
-        // the default Blueprint ordering. Once the ordering transforms
-        // are introduced, this code should be removed and replaced
-        // with initializing the ordering label value.
-        for(index_t p = 2; p < indices_per_elem; p += 4)
-        {
-            index_t p1 = e * indices_per_elem + p;
-            index_t p2 = e * indices_per_elem + p + 1;
-
-            int64 value_swap = conn_node_vals[p1];
-            conn_node_vals.set(p1,conn_node_vals[p2]);
-            conn_node_vals.set(p2,value_swap);
-        }
-    }
-
-    CONDUIT_ANNOTATE_MARK_END("to_unstructured_index_gen");
+    CONDUIT_ANNOTATE_MARK_END("to_unstructured_connectivity_gen");
 }
 
 //-------------------------------------------------------------------------
 /**
- @brief This function scans a list of values and stores a 1 for the first
-        occurance of each unique value. Subsequent occurances of repeated
-        values get a 0.
+ @brief Scans a sequence of values and stores 1 for the first occurrence
+        of each unique value. Subsequent occurrences are marked 0.
 
  @param values The sequence of values to be searched.
  @param offset An offset from the start of values.
  @param n The number of values in the sequence.
- @param mask A buffer in which to store the mask. It must have at least n
-             elements.
- 
- @return True if there were dups; False otherwise.
+ @param mask A buffer of at least n elements in which to store the mask.
+
+ @return True if duplicates were found, false otherwise.
 
  @note This function could be useful in a few places. I might move it later.
 */
 template <typename Container>
-bool
+CONDUIT_EXEC bool
 unique_mask(const Container &values, index_t offset, index_t n, int *mask)
 {
-#define LUT
-#ifdef LUT
-    // Look up tables for the comparisons we make for n<=8.
-    static const int ncaseslut[] = {0,0,1,3,6,10,15,21,28};
-    static const int offsets[]   = {0,0,0,1,4,10,20,35,56};
-    static const int leftlut[] = {
-        // 2 values
-        0,
-        // 3 values
-        0,0,
-        1,
-        // 4 values
-        0,0,0,
-        1,1,
-        2,
-        // 5 values
-        0,0,0,0,
-        1,1,1,
-        2,2,
-        3,
-        // 6 values
-        0,0,0,0,0,
-        1,1,1,1,
-        2,2,2,
-        3,3,
-        4,
-        // 7 values
-        0,0,0,0,0,0,
-        1,1,1,1,1,
-        2,2,2,2,
-        3,3,3,
-        4,4,
-        5,
-        // 8 values
-        0,0,0,0,0,0,0,
-        1,1,1,1,1,1,
-        2,2,2,2,2,
-        3,3,3,3,
-        4,4,4,
-        5,5,
-        6
-      };
-    static const int rightlut[] = {
-        // 2 values
-        1,
-        // 3 values
-        1,2,
-        2,
-        // 4 values
-        1,2,3,
-        2,3,
-        3,
-        // 5 values
-        1,2,3,4,
-        2,3,4,
-        3,4,
-        4,
-        // 6 values
-        1,2,3,4,5,
-        2,3,4,5,
-        3,4,5,
-        4,5,
-        5,
-        // 7 values
-        1,2,3,4,5,6,
-        2,3,4,5,6,
-        3,4,5,6,
-        4,5,6,
-        5,6,
-        6,
-        // 8 values
-        1,2,3,4,5,6,7,
-        2,3,4,5,6,7,
-        3,4,5,6,7,
-        4,5,6,7,
-        5,6,7,
-        6,7,
-        7
-    };
-#endif
-    // The mask is the same size as the values vector.
-    constexpr index_t onemask = 1;
-    for(index_t i = 0; i < n; i++)
-        mask[i] = onemask;
-    bool needmask = false;
+    // The mask has one entry for each value.
+    for (index_t i = 0; i < n; i++)
+    {
+        mask[i] = 1;
+    }
 
-    // LUTs faster are a bit faster than loops.
-#ifdef LUT
-    if(n <= 8)
+    bool has_duplicates = false;
+
+    // Compare every pair of values (row, col) with row < col, and clear the
+    // mask entry of the later occurrence when a pair matches.
+    for (index_t row = 0; row < n; row++)
     {
-        // Make the mask using the LUT values.
-        int ncases = ncaseslut[n];
-        const int *left = &leftlut[offsets[n]];
-        const int *right = &rightlut[offsets[n]];
-        if(offset == 0)
+        for (index_t col = row + 1; col < n; col++)
         {
-            for(int i = 0; i < ncases; i++)
+            if (values[row + offset] == values[col + offset])
             {
-                if(values[left[i]] == values[right[i]])
-                {
-                    mask[right[i]]--;
-                    needmask = true;
-                }
-            }
-        }
-        else
-        {
-            for(int i = 0; i < ncases; i++)
-            {
-                if(values[offset + left[i]] == values[offset + right[i]])
-                {
-                    mask[right[i]]--;
-                    needmask = true;
-                }
+                mask[col] = 0;
+                has_duplicates = true;
             }
         }
     }
-    else
-    {
-#endif
-        // Make the mask using loops
-        if(offset == 0)
-        {
-            for(int row = 0; row < n; row++)
-            {
-                for(int col = row + 1; col <= n; col++)
-                {
-                    if(values[row] == values[col])
-                    {
-                        mask[col]--;
-                        needmask = true;
-                    }
-                }
-            }
-        }
-        else
-        {
-            for(int row = 0; row < n; row++)
-            {
-                for(int col = row + 1; col <= n; col++)
-                {
-                    if(values[offset + row] == values[offset + col])
-                    {
-                        mask[col]--;
-                        needmask = true;
-                    }
-                }
-            }
-        }
-#ifdef LUT
-    }
-#endif
-    return needmask;
+
+    return has_duplicates;
 }
 
 //-------------------------------------------------------------------------
-// NOTE: This function is templated to support passing raw pointers (as
-//       well as accessors) and for passing in a custom function to store
-//       the data.
-template <typename IndexType, typename CoordType, typename StorageFunc>
+// This is a separate function because nvcc does not allow device lambdas
+// to be defined inside generic lambdas.
+template <typename ConnVals>
 void
-unstructured_centroid(const ShapeType &topo_shape,
-                      const IndexType &topo_conn,
-                      const IndexType &topo_offsets,
-                      const IndexType &topo_sizes,
-                      index_t topo_num_elems,
-                      const CoordType &coords,
-                      index_t ncoord_dims,
-                      StorageFunc &&store)
+centroid_conn_fill_kernel(conduit::execution::ExecutionPolicy &policy,
+                          const index_t topo_num_elems,
+                          const ConnVals conn_vals)
 {
-    constexpr size_t max_size_guess = 12;
-    std::vector<index_t> eids;
-    std::vector<int> mask;
-    eids.reserve(max_size_guess);
-    mask.reserve(max_size_guess);
-
-    bool is_polygonal = topo_shape.is_polygonal();
-    for(index_t ei = 0; ei < topo_num_elems; ei++)
+    conduit::execution::forall(policy, 0, topo_num_elems, [=] CONDUIT_EXEC(index_t i)
     {
+        conn_vals.set(i, i);
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-------------------------------------------------------------------------
+// Computes the centroid of each element in an unstructured topology and
+// stores the result in dest_centroids. is_polygonal and shape_indices are
+// passed as scalars (instead of the ShapeType they come from) because
+// ShapeType is host-only.
+template <typename ConnType, typename OffsetsType, typename SizesType, typename CoordType>
+void
+unstructured_centroid_kernel(conduit::execution::ExecutionPolicy &policy,
+                             const bool is_polygonal,
+                             const index_t shape_indices,
+                             const ConnType &topo_conn,
+                             const OffsetsType &topo_offsets,
+                             const SizesType &topo_sizes,
+                             const index_t topo_num_elems,
+                             const CoordType &coords,
+                             const index_t ncoord_dims,
+                             const CoordType &dest_centroids)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+
+    conduit::execution::forall(policy, 0, topo_num_elems, [=] CONDUIT_EXEC(index_t ei)
+    {
+        // Device kernels can't allocate memory dynamically, so we have to use
+        // a fixed-size array instead of the std::vector that was here before.
+        // max_stack_npts represents the maximum number of unique points per
+        // element that we can handle before falling back to a slower path.
+        // After looking at a variety of blueprint example meshes with different
+        // shape types, I found that the largest number of unique points per
+        // element that we see in practice is 16, so 32 gives us 2x headroom.
+        const index_t max_stack_npts = 32;
+
         const index_t eoffset = topo_offsets[ei];
-        const index_t npts = is_polygonal
-            ? topo_sizes[ei] : topo_shape.indices;
+        const index_t npts = is_polygonal ? topo_sizes[ei] : shape_indices;
 
-        // Just in case for larger polygons
-        mask.resize(npts);
-        eids.resize(npts);
-
-        // Assuming topo_conn is an index_t accessor. We copy the data
-        // out to an actual index_t buffer first.
-        for(index_t ci = 0; ci < npts; ci++)
-            eids[ci] = topo_conn[eoffset + ci];
-
-        // Compute a mask that identifies the unique points. No sorting.
-        bool needmask = unique_mask(&eids[0], 0, npts, &mask[0]);
-
-        // Accumulate unique node values for centroid, using mask.
-        float64 centroid[3]={0.,0.,0.};
+        // Accumulate unique coordinate values for the centroid.
+        float64 centroid[3] = {0., 0., 0.};
         index_t npts_used = 0;
-        if(needmask)
+
+        if (npts <= max_stack_npts)
         {
-            for(index_t ci = 0; ci < npts; ci++)
+            // This is the fast path. We should always hit this in practice with
+            // our existing shape types.
+
+            // Computes a mask that identifies the unique points for a given element
+            int mask[max_stack_npts];
+            const bool has_duplicates = unique_mask(topo_conn, eoffset, npts, mask);
+
+            if (has_duplicates)
             {
-                if(mask[ci])
+                for (index_t ci = 0; ci < npts; ci++)
                 {
-                    auto id = eids[ci];
-                    for(index_t ai = 0; ai < ncoord_dims; ai++)
+                    if (mask[ci])
+                    {
+                        const index_t id = topo_conn[eoffset + ci];
+                        for (index_t ai = 0; ai < ncoord_dims; ai++)
+                        {
+                            centroid[ai] += coords[ai][id];
+                        }
+                        npts_used++;
+                    }
+                }
+            }
+            else // if (!has_duplicates)
+            {
+                // All of the points are unique, so we don't need to use the mask we
+                // generated. Duplicating the loop here lets us avoid branching on
+                // if (mask[ci]).
+                npts_used = npts;
+                for(index_t ci = 0; ci < npts; ci++)
+                {
+                    const index_t id = topo_conn[eoffset + ci];
+                    for (index_t ai = 0; ai < ncoord_dims; ai++)
+                    {
                         centroid[ai] += coords[ai][id];
+                    }
+                }
+            }
+        }
+        else // if (npts > max_stack_npts)
+        {
+            // This is the slow path. I don't think we expect to ever hit
+            // this in practice, but it exists as a fallback for correctness.
+
+            // We can't mask out the unique points like in the fast path, so
+            // we check that each point is unique compared to the points that
+            // came before it.
+            for (index_t ci = 0; ci < npts; ci++)
+            {
+                const index_t id = topo_conn[eoffset + ci];
+                bool is_duplicate = false;
+                for (index_t cj = 0; cj < ci && !is_duplicate; cj++)
+                {
+                    is_duplicate = topo_conn[eoffset + cj] == id;
+                }
+
+                if (!is_duplicate)
+                {
+                    for (index_t ai = 0; ai < ncoord_dims; ai++)
+                    {
+                        centroid[ai] += coords[ai][id];
+                    }
                     npts_used++;
                 }
             }
         }
-        else
-        {
-            // We don't need to use the mask - save some branches.
-            npts_used = npts;
-            for(index_t ci = 0; ci < npts; ci++)
-            {
-                auto id = eids[ci];
-                for(index_t ai = 0; ai < ncoord_dims; ai++)
-                    centroid[ai] += coords[ai][id];
-            }
-        }
-        // Average the values.
-        float64 one_over_npts = 1. / static_cast<float64>(npts_used);
-        for(index_t ai = 0; ai < ncoord_dims; ai++)
-            centroid[ai] *= one_over_npts;
 
-        // Store the centroid.
-        store(ei, centroid);
-    }
+        // Now that we know the number of unique points that the current
+        // element consists of, we compute the centroid by dividing each
+        // the accumulated coordinate values by the number of unique points.
+
+        // Compute and store the centroid.
+        const float64 one_over_npts = 1. / static_cast<float64>(npts_used);
+        for(index_t ai = 0; ai < ncoord_dims; ai++)
+        {
+            dest_centroids[ai].set(ei, centroid[ai] * one_over_npts);
+        }
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
 }
 
 //-------------------------------------------------------------------------
-// NOTE: This function is templated to support passing raw pointers (as
-//       well as accessors) and for passing in a custom function to store
-//       the data.
-template <typename IndexType, typename CoordType, typename StorageFunc>
+// Computes the centroid of each element in a polyhedral unstructured
+// topology and stores the result in dest_centroids.
+template <typename IndexType, typename OffsetsType, typename CoordType>
 void
-unstructured_centroid_polyhedral(const ShapeType &/*topo_shape*/,
-                                 const IndexType &topo_conn,
-                                 const IndexType &topo_offsets,
-                                 const IndexType &topo_sizes,
-                                 const IndexType &topo_subconn,
-                                 const IndexType &topo_suboffsets,
-                                 const IndexType &topo_subsizes,
-                                 index_t topo_num_elems,
-                                 const CoordType &coords,
-                                 index_t ncoord_dims,
-                                 StorageFunc &&store)
+unstructured_centroid_polyhedral_kernel(conduit::execution::ExecutionPolicy &policy,
+                                        const IndexType &topo_conn,
+                                        const OffsetsType &topo_offsets,
+                                        const IndexType &topo_sizes,
+                                        const IndexType &topo_subconn,
+                                        const OffsetsType &topo_suboffsets,
+                                        const IndexType &topo_subsizes,
+                                        const index_t topo_num_elems,
+                                        const CoordType &coords,
+                                        const index_t ncoord_dims,
+                                        const CoordType &dest_centroids)
 {
-    std::vector<index_t> elem_coord_indices;
-    elem_coord_indices.reserve(12);
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
 
-    for(index_t ei = 0; ei < topo_num_elems; ei++)
+    conduit::execution::forall(policy, 0, topo_num_elems, [=] CONDUIT_EXEC(index_t ei)
     {
+        // Device kernels can't allocate memory dynamically, so we have to use
+        // a fixed-size array instead of the std::vector that was here before.
+        // max_stack_npts represents the maximum number of unique points per
+        // element that we can handle before falling back to a slower path.
+        const index_t max_stack_npts = 32;
+
         const index_t eoffset = topo_offsets[ei];
-
-        // Determine the unique points in the element.
-        elem_coord_indices.clear();
         const index_t elem_num_faces = topo_sizes[ei];
-        for(index_t fi = 0, foffset = eoffset; fi < elem_num_faces; fi++)
-        {
-            index_t subelem_index = topo_conn[foffset];
-            index_t subelem_offset = topo_suboffsets[subelem_index];
-            index_t subelem_size = topo_subsizes[subelem_index];
 
-            const index_t face_num_coords = subelem_size;
-            for(index_t ci = 0; ci < face_num_coords; ci++)
+        // Determine the unique points in the element by walking the faces
+        // and collecting each point we haven't seen yet. This replaces the
+        // std::vector + std::find that was here before, as that can't be
+        // used in device kernels.
+        index_t elem_coord_indices[max_stack_npts];
+        index_t nunique = 0;
+        bool overflow = false;
+
+        for (index_t fi = 0, foffset = eoffset; fi < elem_num_faces && !overflow; fi++, foffset++)
+        {
+            const index_t subelem_index  = topo_conn[foffset];
+            const index_t subelem_offset = topo_suboffsets[subelem_index];
+            const index_t subelem_size   = topo_subsizes[subelem_index];
+
+            for (index_t ci = 0; ci < subelem_size; ci++)
             {
-                index_t id = topo_subconn[subelem_offset + ci];
-                if(std::find(elem_coord_indices.cbegin(),
-                             elem_coord_indices.cend(), id)
-                   == elem_coord_indices.cend())
+                const index_t id = topo_subconn[subelem_offset + ci];
+                bool has_duplicate = false;
+                for (index_t k = 0; k < nunique && !has_duplicate; k++)
                 {
-                    elem_coord_indices.push_back(id);
+                    has_duplicate = elem_coord_indices[k] == id;
+                }
+
+                if (!has_duplicate)
+                {
+                    if (nunique == max_stack_npts)
+                    {
+                        overflow = true;
+                        break;
+                    }
+                    elem_coord_indices[nunique++] = id;
                 }
             }
-            foffset++;
         }
 
-        // Compute the centroid.
+        // Accumulate unique coordinate values for the centroid.
         float64 centroid[3] = {0., 0., 0.};
-        float64 one_over_npts = 1. / static_cast<float64>(elem_coord_indices.size());
+        index_t npts_used = 0;
+
+        if (!overflow)
+        {
+            // This is the fast path.
+            npts_used = nunique;
+            for (index_t k = 0; k < nunique; k++)
+            {
+                const index_t id = elem_coord_indices[k];
+                for (index_t ai = 0; ai < ncoord_dims; ai++)
+                {
+                    centroid[ai] += coords[ai][id];
+                }
+            }
+        }
+        else // if (overflow)
+        {
+            // This is the slow path.
+
+            // The element has more unique points than the fixed-size array
+            // can hold, so we walk the faces again and check that each point
+            // is unique compared to the points that came before it.
+            for (index_t fi = 0, foffset = eoffset; fi < elem_num_faces; fi++, foffset++)
+            {
+                const index_t subelem_index  = topo_conn[foffset];
+                const index_t subelem_offset = topo_suboffsets[subelem_index];
+                const index_t subelem_size   = topo_subsizes[subelem_index];
+
+                for (index_t ci = 0; ci < subelem_size; ci++)
+                {
+                    const index_t id = topo_subconn[subelem_offset + ci];
+                    bool has_duplicate = false;
+                    for (index_t fj = 0; fj <= fi && !has_duplicate; fj++)
+                    {
+                        const index_t prev_index  = topo_conn[eoffset + fj];
+                        const index_t prev_offset = topo_suboffsets[prev_index];
+                        const index_t prev_size   = topo_subsizes[prev_index];
+
+                        // On the current face, only look at the points that
+                        // came before this one.
+                        const index_t climit = (fj == fi) ? ci : prev_size;
+                        for (index_t cj = 0; cj < climit && !has_duplicate; cj++)
+                        {
+                            has_duplicate = topo_subconn[prev_offset + cj] == id;
+                        }
+                    }
+
+                    if (!has_duplicate)
+                    {
+                        for (index_t ai = 0; ai < ncoord_dims; ai++)
+                        {
+                            centroid[ai] += coords[ai][id];
+                        }
+                        npts_used++;
+                    }
+                }
+            }
+        }
+
+        // Now that we know the number of unique points that the current
+        // element consists of, we compute the centroid by dividing each
+        // the accumulated coordinate values by the number of unique points.
+
+        // Compute and store the centroid.
+        const float64 one_over_npts = 1. / static_cast<float64>(npts_used);
         for(index_t ai = 0; ai < ncoord_dims; ai++)
         {
-            for(const auto ci : elem_coord_indices)
-                centroid[ai] += coords[ai][ci];
-            centroid[ai] *= one_over_npts;
+            dest_centroids[ai].set(ei, centroid[ai] * one_over_npts);
         }
-
-        // Store the centroid.
-        store(ei, centroid);
-    }
+    });
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
 }
 
 // NOTE(JRC): The following two functions need to be passed the coordinate set
@@ -1659,9 +2010,10 @@ calculate_unstructured_centroids(const conduit::Node &topo,
                                                           topo_offsets,
                                                           topo_suboffsets);
     }
-    else
+    else // if (!topo_shape.is_polyhedral())
     {
-        bputils::topology::unstructured::generate_offsets(topo, topo_offsets);
+        bputils::topology::unstructured::generate_offsets(topo,
+                                                          topo_offsets);
     }
 
     const index_t topo_num_elems = topo_offsets.dtype().number_of_elements();
@@ -1669,7 +2021,7 @@ calculate_unstructured_centroids(const conduit::Node &topo,
     Node topo_sizes;
     if (topo_shape.is_poly())
     {
-      topo_sizes = topo["elements/sizes"];
+      topo_sizes.set_external(topo["elements/sizes"]);
     }
 
     Node topo_subconn;
@@ -1682,24 +2034,22 @@ calculate_unstructured_centroids(const conduit::Node &topo,
 
     // Discover Data Types //
 
-    DataType int_dtype, float_dtype;
-    {
-        conduit::Node src_node;
-        src_node["topology"].set_external(topo);
-        src_node["coordset"].set_external(coordset);
-        int_dtype = bputils::find_widest_dtype(src_node, bputils::DEFAULT_INT_DTYPES);
-        float_dtype = bputils::find_widest_dtype(src_node, bputils::DEFAULT_FLOAT_DTYPE);
-    }
+    const conduit::Node linked = bputils::link_nodes(topo, coordset);
+    const DataType int_dtype = bputils::find_widest_dtype(linked, bputils::DEFAULT_INT_DTYPES);
+    const DataType float_dtype = bputils::find_widest_dtype(linked, bputils::DEFAULT_FLOAT_DTYPE);
 
     const Node &topo_conn_const = topo["elements/connectivity"];
     Node topo_conn; topo_conn.set_external(topo_conn_const);
-    const DataType conn_dtype(topo_conn.dtype().id(), 1);
-    const DataType offset_dtype(topo_offsets.dtype().id(), 1);
-    const DataType size_dtype(topo_sizes.dtype().id(), 1);
 
-    const DataType subconn_dtype(topo_subconn.dtype().id(), 1);
-    const DataType suboffset_dtype(topo_suboffsets.dtype().id(), 1);
-    const DataType subsize_dtype(topo_subsizes.dtype().id(), 1);
+    // Following the convention used in other APIs
+    const Node &first_axis_values = coordset["values"][csys_axes[0]];
+
+    conduit::execution::ExecutionPolicy policy =
+        conduit::execution::get_execution_policy(first_axis_values);
+    const index_t output_allocator_id =
+        conduit::execution::get_output_allocator_id(first_axis_values);
+    const conduit::execution::SyncStrategy sync_strategy =
+        conduit::execution::get_sync_strategy();
 
     // Allocate Data Templates for Outputs //
 
@@ -1717,150 +2067,116 @@ calculate_unstructured_centroids(const conduit::Node &topo,
     }
 
     dest["elements/shape"].set(topo_cascade.get_shape(0).type());
+    dest["elements/connectivity"].set_allocator(output_allocator_id);
     dest["elements/connectivity"].set(DataType(int_dtype.id(), topo_num_elems));
 
     cdest.reset();
     cdest["type"].set("explicit");
-    for(index_t ai = 0; ai < (index_t)csys_axes.size(); ai++)
+    cdest["values"].set_allocator(output_allocator_id);
+
+    const index_t csys_axes_size = static_cast<index_t>(csys_axes.size());
+    for(index_t ai = 0; ai < csys_axes_size; ai++)
     {
         cdest["values"][csys_axes[ai]].set(DataType(float_dtype.id(), topo_num_elems));
     }
 
     // Compute Data for Centroid Topology //
 
-    // Store the element ids into the connectivity - with some fast paths.
-    // Should we make a Node::iota() function?
-    Node &dest_elem_conn = dest["elements/connectivity"];
-    if(dest_elem_conn.dtype().is_int64())
+    int64_accessor conn_acc(dest["elements/connectivity"]);
+    conn_acc.use_with(policy);
+    conduit::execution::dispatch(conn_acc, [&](auto conn_vals)
     {
-        auto conn = dest_elem_conn.as_int64_ptr();
-        auto n = static_cast<int64>(topo_num_elems);
-        for(int64 i = 0; i < n; i++)
-            conn[i] = i;
-    }
-    else if(dest_elem_conn.dtype().is_int32())
+        centroid_conn_fill_kernel(policy, topo_num_elems, conn_vals);
+    });
+    conn_acc.data_movement(sync_strategy);
+
+    // Create accessors for the coordset values. These have to be plain arrays (not
+    // std::vector) so that they can be used inside device kernels.
+    // A coordinate system has at most 3 axes.
+    float64_accessor axis_data_access[3];
+    for (index_t i = 0; i < csys_axes_size; i++)
     {
-        auto conn = dest_elem_conn.as_int32_ptr();
-        auto n = static_cast<int32>(topo_num_elems);
-        for(int32 i = 0; i < n; i++)
-            conn[i] = i;
-    }
-    else
-    {
-        // Store generally - but SLOW.
-        int64 ei_value;
-        Node data_node;
-        Node ei_data(DataType::int64(1), &ei_value, true);
-        auto n = static_cast<int64>(topo_num_elems);
-        for(ei_value = 0; ei_value < n; ei_value++)
-        {
-            // TODO: USE ACCESSORS
-            // Use data_node to wrap connectivity[ei].
-            data_node.set_external(int_dtype, dest_elem_conn.element_ptr(ei_value));
-            // Convert ei_data to int, store in data_node.
-            ei_data.to_data_type(int_dtype.id(), data_node);
-        }
+        axis_data_access[i] = float64_accessor(coordset["values"][csys_axes[i]]);
+        axis_data_access[i].use_with(policy);
     }
 
-    // Create some accessors to access the data.
-    index_t csys_axes_size = csys_axes.size();
-    std::vector<float64_accessor> axis_data_access;
-    for(index_t ai = 0; ai < csys_axes_size; ai++)
+    index_t_accessor topo_conn_access(topo_conn);
+    index_t_accessor topo_offsets_access(topo_offsets);
+    index_t_accessor topo_sizes_access(topo_sizes);
+    topo_conn_access.use_with(policy);
+    topo_offsets_access.use_with(policy);
+    if (topo_shape.is_poly())
     {
-        axis_data_access.push_back(coordset["values"][csys_axes[ai]].as_float64_accessor());
+        topo_sizes_access.use_with(policy);
     }
 
-    const auto topo_sizes_access = topo_sizes.as_index_t_accessor();
-    const auto topo_offsets_access = topo_offsets.as_index_t_accessor();
-    const auto topo_conn_access = topo_conn.as_index_t_accessor();
-
-    // Get the dest nodes to save on lookups later.
-    std::vector<Node *> dest_centroid;
-    for(index_t ai = 0; ai < csys_axes_size; ai++)
-        dest_centroid.push_back(cdest["values"].fetch_ptr(csys_axes[ai]));
-
-    // NOTE: We're primarily dispatching to different template functions that
-    //       let us pick how to store the centroid results. This was the latest
-    //       slow part. The functions are templated though in case we wanted to
-    //       pass raw index_t pointers (when appropriate) instead of using
-    //       accessors.
-    if(topo_shape.is_polyhedral())
+    // Wrap the dest coordinate arrays in accessors
+    float64_accessor dest_centroid_access[3];
+    for (index_t i = 0; i < csys_axes_size; i++)
     {
-        const auto topo_subconn_access = topo_subconn.as_index_t_accessor();
-        const auto topo_suboffsets_access = topo_suboffsets.as_index_t_accessor();
-        const auto topo_subsizes_access = topo_subsizes.as_index_t_accessor();
-
-        if(float_dtype.is_float64())
-        {
-            // Get pointers to where we'll write the centroid data directly.
-            float64 *typed_dest_centroid[3] = {nullptr, nullptr, nullptr};
-            for(index_t ai = 0; ai < csys_axes_size; ai++)
-                typed_dest_centroid[ai] = reinterpret_cast<float64 *>(dest_centroid[ai]->element_ptr(0));
-            
-            unstructured_centroid_polyhedral(topo_shape,
-                topo_conn_access, topo_offsets_access, topo_sizes_access, 
-                topo_subconn_access, topo_suboffsets_access, topo_subsizes_access,
-                topo_num_elems,
-                axis_data_access, csys_axes_size,
-                [&](index_t ei, const float64 centroid[3])
-            {
-                for(index_t ai = 0; ai < csys_axes_size; ai++)
-                    typed_dest_centroid[ai][ei] = centroid[ai];
-            });
-        }
-        else //if(float_dtype.is_float32())
-        {
-            // Get pointers to where we'll write the centroid data directly.
-            float32 *typed_dest_centroid[3] = {nullptr, nullptr, nullptr};
-            for(index_t ai = 0; ai < csys_axes_size; ai++)
-                typed_dest_centroid[ai] = reinterpret_cast<float32 *>(dest_centroid[ai]->element_ptr(0));
-
-            unstructured_centroid_polyhedral(topo_shape,
-                topo_conn_access, topo_offsets_access, topo_sizes_access,
-                topo_subconn_access, topo_suboffsets_access, topo_subsizes_access,
-                topo_num_elems,
-                axis_data_access, csys_axes_size,
-                [&](index_t ei, const float64 centroid[3])
-            {
-                for(index_t ai = 0; ai < csys_axes_size; ai++)
-                    typed_dest_centroid[ai][ei] = static_cast<float32>(centroid[ai]);
-            });
-        }
+        dest_centroid_access[i] = float64_accessor(cdest["values"][csys_axes[i]]);
+        dest_centroid_access[i].use_with(policy);
     }
-    else // polygonal, other
-    {
-        if(float_dtype.is_float64())
-        {
-            // Get pointers to where we'll write the centroid data directly.
-            float64 *typed_dest_centroid[3] = {nullptr, nullptr, nullptr};
-            for(index_t ai = 0; ai < csys_axes_size; ai++)
-                typed_dest_centroid[ai] = reinterpret_cast<float64 *>(dest_centroid[ai]->element_ptr(0));
-            
-            unstructured_centroid(topo_shape,
-                topo_conn_access, topo_offsets_access, topo_sizes_access, topo_num_elems,
-                axis_data_access, csys_axes_size,
-                [&](index_t ei, const float64 centroid[3])
-            {
-                for(index_t ai = 0; ai < csys_axes_size; ai++)
-                    typed_dest_centroid[ai][ei] = centroid[ai];
-            });
-        }
-        else //if(float_dtype.is_float32())
-        {
-            // Get pointers to where we'll write the centroid data directly.
-            float32 *typed_dest_centroid[3] = {nullptr, nullptr, nullptr};
-            for(index_t ai = 0; ai < csys_axes_size; ai++)
-                typed_dest_centroid[ai] = reinterpret_cast<float32 *>(dest_centroid[ai]->element_ptr(0));
 
-            unstructured_centroid(topo_shape,
-                topo_conn_access, topo_offsets_access, topo_sizes_access, topo_num_elems,
-                axis_data_access, csys_axes_size,
-                [&](index_t ei, const float64 centroid[3])
-            {
-                for(index_t ai = 0; ai < csys_axes_size; ai++)
-                    typed_dest_centroid[ai][ei] = static_cast<float32>(centroid[ai]);
-            });
-        }
+    if (topo_shape.is_polyhedral())
+    {
+        index_t_accessor topo_subconn_access(topo_subconn);
+        index_t_accessor topo_suboffsets_access(topo_suboffsets);
+        index_t_accessor topo_subsizes_access(topo_subsizes);
+        topo_subconn_access.use_with(policy);
+        topo_suboffsets_access.use_with(policy);
+        topo_subsizes_access.use_with(policy);
+
+        // We only dispatch on the non-offset accessors here,
+        // because the offsets won't be of the same dtype in the
+        // polyhedral case specifically (we should look into whether
+        // it is feasible to change this within generate_offsets).
+        // This isn't so bad however, since they are only accessed
+        // once per element anyways, but this still a compromise that
+        // does technically leave a little performance on the table.
+        conduit::execution::dispatch(topo_conn_access,
+                                     topo_sizes_access,
+                                     topo_subconn_access,
+                                     topo_subsizes_access,
+                                     [&](auto conn, auto sizes,
+                                         auto subconn, auto subsizes)
+        {
+            unstructured_centroid_polyhedral_kernel(policy,
+                                                    conn,
+                                                    topo_offsets_access,
+                                                    sizes,
+                                                    subconn,
+                                                    topo_suboffsets_access,
+                                                    subsizes,
+                                                    topo_num_elems,
+                                                    axis_data_access,
+                                                    csys_axes_size,
+                                                    dest_centroid_access);
+        });
+    }
+    else // if (!topo_shape.is_polyhedral())
+    {
+        conduit::execution::dispatch(topo_conn_access,
+                                     topo_offsets_access,
+                                     [&](auto conn, auto offsets)
+        {
+            unstructured_centroid_kernel(policy,
+                                         topo_shape.is_polygonal(),
+                                         topo_shape.indices,
+                                         conn,
+                                         offsets,
+                                         topo_sizes_access,
+                                         topo_num_elems,
+                                         axis_data_access,
+                                         csys_axes_size,
+                                         dest_centroid_access);
+        });
+    }
+
+    // Move the centroids to the output memory space
+    for (index_t i = 0; i < csys_axes_size; i++)
+    {
+        dest_centroid_access[i].data_movement(sync_strategy);
     }
 }
 
@@ -2598,7 +2914,7 @@ mesh::can_generate_strip(const Node &mesh,
     std::string topo_type = topo["type"].as_string();
     if (!(cs_dim == 1 && topo_type != "points"))
     {
-        log::error(info, protocol, "coordset dimension != 1, or topology type is points");
+        conduit::utils::log::error(info, protocol, "coordset dimension != 1, or topology type is points");
         res = false;
     }
 
@@ -2611,9 +2927,9 @@ mesh::can_generate_strip(const Node &mesh,
         // This method requires fields to have "association" == "element".
         if (!f.has_child("association") || f["association"].as_string() != "element")
         {
-            log::error(info,
+            conduit::utils::log::error(info,
                        protocol,
-                       "fields[" + log::quote(fitr.name()) + "/association] != element");
+                       "fields[" + conduit::utils::log::quote(fitr.name()) + "/association] != element");
             res = false;
         }
     }
@@ -3972,7 +4288,7 @@ mesh::logical_dims::verify(const Node &dims,
         res &= verify_integer_field(protocol, dims, info, "k");
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -3994,7 +4310,7 @@ mesh::association::verify(const Node &assoc,
 
     res &= verify_enum_field(protocol, assoc, info, "", bputils::ASSOCIATIONS);
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -4027,7 +4343,7 @@ mesh::coordset::uniform::origin::verify(const Node &origin,
         }
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -4053,7 +4369,7 @@ mesh::coordset::uniform::spacing::verify(const Node &spacing,
         }
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4075,19 +4391,19 @@ mesh::coordset::uniform::verify(const Node &coordset,
 
     if(coordset.has_child("origin"))
     {
-        log::optional(info, protocol, "has origin");
+        conduit::utils::log::optional(info, protocol, "has origin");
         res &= mesh::coordset::uniform::origin::verify(coordset["origin"],
                                                        info["origin"]);
     }
 
     if(coordset.has_child("spacing"))
     {
-        log::optional(info,protocol, "has spacing");
+        conduit::utils::log::optional(info,protocol, "has spacing");
         res &= mesh::coordset::uniform::spacing::verify(coordset["spacing"],
                                                         info["spacing"]);
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4117,14 +4433,14 @@ mesh::coordset::rectilinear::verify(const Node &coordset,
             const std::string chld_name = itr.name();
             if(!chld.dtype().is_number())
             {
-                log::error(info, protocol, "value child " + log::quote(chld_name) +
+                conduit::utils::log::error(info, protocol, "value child " + conduit::utils::log::quote(chld_name) +
                                            " is not a number array");
                 res = false;
             }
         }
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4144,7 +4460,7 @@ mesh::coordset::_explicit::verify(const Node &coordset,
 
     res &= verify_mcarray_field(protocol, coordset, info, "values");
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4180,7 +4496,7 @@ mesh::coordset::verify(const Node &coordset,
         }
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4263,7 +4579,6 @@ mesh::coordset::uniform::to_rectilinear(const conduit::Node &coordset,
     convert_coordset_to_rectilinear("uniform", coordset, dest);
 }
 
-
 //-----------------------------------------------------------------------------
 void
 mesh::coordset::uniform::to_explicit(const conduit::Node &coordset,
@@ -4273,7 +4588,6 @@ mesh::coordset::uniform::to_explicit(const conduit::Node &coordset,
     convert_coordset_to_explicit("uniform", coordset, dest);
 }
 
-
 //-----------------------------------------------------------------------------
 void
 mesh::coordset::rectilinear::to_explicit(const conduit::Node &coordset,
@@ -4282,7 +4596,6 @@ mesh::coordset::rectilinear::to_explicit(const conduit::Node &coordset,
     CONDUIT_ANNOTATE_MARK_FUNCTION;
     convert_coordset_to_explicit("rectilinear", coordset, dest);
 }
-
 
 //-----------------------------------------------------------------------------
 // blueprint::mesh::coordset::type protocol interface
@@ -4299,7 +4612,7 @@ mesh::coordset::type::verify(const Node &type,
 
     res &= verify_enum_field(protocol, type, info, "", bputils::COORD_TYPES);
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4358,14 +4671,14 @@ mesh::coordset::coord_system::verify(const Node &coord_sys,
 
             if(!axis_name_ok)
             {
-                log::error(info, protocol, "unsupported " + coord_sys_str +
+                conduit::utils::log::error(info, protocol, "unsupported " + coord_sys_str +
                                            " axis name: " + axis_name);
                 res = false;
             }
         }
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4390,7 +4703,7 @@ mesh::coordset::index::verify(const Node &coordset_idx,
     res &= verify_object_field(protocol, coordset_idx, info, "coord_system") &&
            coordset::coord_system::verify(coordset_idx["coord_system"], info["coord_system"]);
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4442,11 +4755,11 @@ mesh::topology::verify(const Node &topo,
 
     if(topo.has_child("grid_function"))
     {
-        log::optional(info, protocol, "includes grid_function");
+        conduit::utils::log::optional(info, protocol, "includes grid_function");
         res &= verify_string_field(protocol, topo, info, "grid_function");
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 
@@ -4518,7 +4831,7 @@ mesh::topology::points::verify(const Node &topo,
     // if needed in the future, can be used to verify optional info for
     // implicit 'points' topology
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4544,7 +4857,7 @@ mesh::topology::uniform::verify(const Node &topo,
     // future: will be used to verify optional info from "elements"
     // child of a uniform topology
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4600,7 +4913,7 @@ mesh::topology::rectilinear::verify(const Node &topo,
     // future: will be used to verify optional info from "elements"
     // child of a rectilinear topology
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4656,14 +4969,14 @@ mesh::topology::structured::verify(const Node &topo,
             verify_object_field(protocol, topo_elements, info_elements, "dims") &&
             mesh::logical_dims::verify(topo_elements["dims"], info_elements["dims"]);
 
-        log::validation(info_elements,elements_res);
+        conduit::utils::log::validation(info_elements,elements_res);
         res &= elements_res;
     }
 
     // FIXME: Add some verification code here for the optional origin in the
     // structured topology.
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -4752,22 +5065,22 @@ mesh::topology::unstructured::verify(const Node &topo,
                 // Verify if child is polygonal or polyhedral
                 chld_res &= verify_poly_node (true, name, chld, chld_info, topo, info, elems_res);
 
-                log::validation(chld_info,chld_res);
+                conduit::utils::log::validation(chld_info,chld_res);
                 elems_res &= chld_res;
             }
         }
         else
         {
-            log::error(info,protocol,"invalid child 'elements'");
+            conduit::utils::log::error(info,protocol,"invalid child 'elements'");
             res = false;
         }
 
-        log::validation(info_elems,elems_res);
+        conduit::utils::log::validation(info_elems,elems_res);
         res &= elems_res;
         res &= subelems_res;
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -5230,21 +5543,10 @@ mesh::topology::unstructured::generate_centroids(const Node &topo,
     const Node *coordset = bputils::find_reference_node(topo, "coordset");
     calculate_unstructured_centroids(topo, *coordset, topo_dest, coords_dest);
 
-    Node map_node;
-    std::vector<index_t> map_vec;
-    index_t n = bputils::topology::length(topo);
-    for(index_t ei = 0; ei < n; ei++)
-    {
-        map_vec.push_back(1);
-        map_vec.push_back(ei);
-    }
-    map_node.set(map_vec);
-
-    DataType int_dtype = bputils::find_widest_dtype(bputils::link_nodes(topo, *coordset), bputils::DEFAULT_INT_DTYPES);
+    // TODO: Thoroughly remove these maps from all overloads of
+    // generate_centroids.
     s2dmap.reset();
     d2smap.reset();
-    map_node.to_data_type(int_dtype.id(), s2dmap);
-    map_node.to_data_type(int_dtype.id(), d2smap);
 }
 
 //-----------------------------------------------------------------------------
@@ -6577,11 +6879,11 @@ mesh::topology::index::verify(const Node &topo_idx,
 
     if (topo_idx.has_child("grid_function"))
     {
-        log::optional(info, protocol, "includes grid_function");
+        conduit::utils::log::optional(info, protocol, "includes grid_function");
         res &= verify_string_field(protocol, topo_idx, info, "grid_function");
     }
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -6601,7 +6903,7 @@ mesh::topology::type::verify(const Node &type,
 
     res &= verify_enum_field(protocol, type, info, "", bputils::TOPO_TYPES);
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -6621,7 +6923,7 @@ mesh::topology::shape::verify(const Node &shape,
 
     res &= verify_enum_field(protocol, shape, info, "", bputils::TOPO_SHAPES);
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -6650,18 +6952,18 @@ mesh::topology::shape_map::verify(const Node& shape_map,
     }
     if (isEnum)
     {
-      log::info(info, protocol, "has valid value "+ log::quote(child.name()) +
+      conduit::utils::log::info(info, protocol, "has valid value "+ conduit::utils::log::quote(child.name()) +
       "(" + std::to_string(child.to_int32()) + ")");
     }
     else
     {
-      log::error(info, protocol, "has invalid value " + log::quote(child.name()) +
+      conduit::utils::log::error(info, protocol, "has invalid value " + conduit::utils::log::quote(child.name()) +
         "(" + std::to_string(child.to_int32()) + ")");
     }
     res &= isEnum;
   }
 
-  log::validation(info, res);
+  conduit::utils::log::validation(info, res);
 
   return res;
 }
@@ -6690,18 +6992,18 @@ bool verify_matset_material_map(const std::string &protocol,
             const Node &curr_child = itr.next();
             if(!curr_child.dtype().is_integer())
             {
-                log::error(info,
+                conduit::utils::log::error(info,
                            protocol,
-                           log::quote("material_map") +
+                           conduit::utils::log::quote("material_map") +
                            "child " +
-                           log::quote(itr.name()) +
+                           conduit::utils::log::quote(itr.name()) +
                            " is not an integer leaf.");
                 res = false;
             }
         }
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -6724,13 +7026,13 @@ mesh::matset::verify(const Node &matset,
         if(!matset["volume_fractions"].dtype().is_number() &&
             !matset["volume_fractions"].dtype().is_object())
         {
-            log::error(info, protocol, "'volume_fractions' isn't the correct type");
+            conduit::utils::log::error(info, protocol, "'volume_fractions' isn't the correct type");
             res &= vfs_res &= false;
         }
         else if(matset["volume_fractions"].dtype().is_number() &&
             verify_number_field(protocol, matset, info, "volume_fractions"))
         {
-            log::info(info, protocol, "detected uni-buffer matset");
+            conduit::utils::log::info(info, protocol, "detected uni-buffer matset");
             // materials_map is not optional in this case, signal
             // for opt check down the line
             mat_map_is_optional = false;
@@ -6743,7 +7045,7 @@ mesh::matset::verify(const Node &matset,
         else if(matset["volume_fractions"].dtype().is_object() &&
             verify_object_field(protocol, matset, info, "volume_fractions"))
         {
-            log::info(info, protocol, "detected multi-buffer matset");
+            conduit::utils::log::info(info, protocol, "detected multi-buffer matset");
 
             const Node &vfs = matset["volume_fractions"];
             Node &vfs_info = info["volume_fractions"];
@@ -6756,13 +7058,13 @@ mesh::matset::verify(const Node &matset,
 
                 if(mat.dtype().is_object())
                 {
-                    log::error(info, protocol,
+                    conduit::utils::log::error(info, protocol,
                         "material volume fractions must be a scalar array, not an object with children");
                     res &= false;
                 }
                 else if (vfs.dtype().is_number() && vfs.dtype().number_of_elements() == 0)
                 {
-                    log::error(info, protocol,
+                    conduit::utils::log::error(info, protocol,
                         "material volume fractions must be a scalar array with more than 0 elements");
                     res &= false;
                 }
@@ -6773,13 +7075,13 @@ mesh::matset::verify(const Node &matset,
             }
 
             res &= vfs_res;
-            log::validation(vfs_info, vfs_res);
+            conduit::utils::log::validation(vfs_info, vfs_res);
         }
     }
 
     if(!mat_map_is_optional && !matset.has_child("material_map"))
     {
-        log::error(info, protocol,
+        conduit::utils::log::error(info, protocol,
             "'material_map' is missing (required for uni-buffer matsets) ");
         res &= false;
     }
@@ -6788,7 +7090,7 @@ mesh::matset::verify(const Node &matset,
     {
         if(mat_map_is_optional)
         {
-            log::optional(info, protocol, "includes material_map");
+            conduit::utils::log::optional(info, protocol, "includes material_map");
         }
 
         res &= verify_matset_material_map(protocol,matset,info);
@@ -6811,7 +7113,7 @@ mesh::matset::verify(const Node &matset,
                            " 'material_map' is missing child '"
                            << curr_name
                            <<"' which exists in 'volume_fractions`" ;
-                    log::error(info, protocol,oss.str());
+                    conduit::utils::log::error(info, protocol,oss.str());
                     res &= false;
                 }
             }
@@ -6827,7 +7129,7 @@ mesh::matset::verify(const Node &matset,
             if(!matset["element_ids"].dtype().is_integer() &&
                 !matset["element_ids"].dtype().is_object())
             {
-                log::error(info, protocol, "'element_ids' isn't the correct type");
+                conduit::utils::log::error(info, protocol, "'element_ids' isn't the correct type");
                 res &= eids_res &= false;
             }
             else if(matset["element_ids"].dtype().is_object() &&
@@ -6839,7 +7141,7 @@ mesh::matset::verify(const Node &matset,
                 const std::set<std::string> eid_matset(eid_mats.begin(), eid_mats.end());
                 if(vf_matset != eid_matset)
                 {
-                    log::error(info, protocol, "'element_ids' hierarchy must match 'volume_fractions'");
+                    conduit::utils::log::error(info, protocol, "'element_ids' hierarchy must match 'volume_fractions'");
                     eids_res &= false;
                 }
 
@@ -6854,7 +7156,7 @@ mesh::matset::verify(const Node &matset,
                 }
 
                 res &= eids_res;
-                log::validation(eids_info, eids_res);
+                conduit::utils::log::validation(eids_info, eids_res);
             }
             else if(matset["element_ids"].dtype().is_integer() &&
                 matset["volume_fractions"].dtype().is_number())
@@ -6863,13 +7165,13 @@ mesh::matset::verify(const Node &matset,
             }
             else
             {
-                log::error(info, protocol, "'element_ids' hierarchy must match 'volume_fractions'");
+                conduit::utils::log::error(info, protocol, "'element_ids' hierarchy must match 'volume_fractions'");
                 res &= eids_res &= false;
             }
         }
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -6933,7 +7235,7 @@ mesh::matset::index::verify(const Node &matset_idx,
 
     res &= verify_string_field(protocol, matset_idx, info, "path");
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -6955,7 +7257,7 @@ mesh::field::verify(const Node &field,
     bool has_basis = field.has_child("basis");
     if(!has_assoc && !has_basis)
     {
-        log::error(info, protocol, "missing child 'association' or 'basis'");
+        conduit::utils::log::error(info, protocol, "missing child 'association' or 'basis'");
         res = false;
     }
     if(has_assoc)
@@ -6973,7 +7275,7 @@ mesh::field::verify(const Node &field,
     bool has_matset_values = field.has_child("matset_values");
     if(!has_topo && !has_matset)
     {
-        log::error(info, protocol, "missing child 'topology' or 'matset'");
+        conduit::utils::log::error(info, protocol, "missing child 'topology' or 'matset'");
         res = false;
     }
 
@@ -6984,7 +7286,7 @@ mesh::field::verify(const Node &field,
             << " is present, but its companion "
             << "'" << (has_topo ? "values" : "topology") << "'"
             << " is missing";
-        log::error(info, protocol, oss.str());
+        conduit::utils::log::error(info, protocol, oss.str());
         res = false;
     }
     else if(has_topo && has_topo_values)
@@ -7000,7 +7302,7 @@ mesh::field::verify(const Node &field,
             << " is present, but its companion "
             << "'" << (has_matset ? "matset_values" : "matset") << "'"
             << " is missing";
-        log::error(info, protocol, oss.str());
+        conduit::utils::log::error(info, protocol, oss.str());
         res = false;
     }
     else if(has_matset && has_matset_values)
@@ -7013,7 +7315,7 @@ mesh::field::verify(const Node &field,
     // entry for fields.
     // res &= verify_enum_field(protocol, field, info, "volume_dependent", bputils::BOOLEANS);
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -7081,7 +7383,7 @@ mesh::field::basis::verify(const Node &basis,
 
     res &= verify_string_field(protocol, basis, info);
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -7103,7 +7405,7 @@ mesh::field::index::verify(const Node &field_idx,
     bool has_basis = field_idx.has_child("basis");
     if(!has_assoc && !has_basis)
     {
-        log::error(info, protocol, "missing child 'association' or 'basis'");
+        conduit::utils::log::error(info, protocol, "missing child 'association' or 'basis'");
         res = false;
     }
     if(has_assoc)
@@ -7119,7 +7421,7 @@ mesh::field::index::verify(const Node &field_idx,
     bool has_matset = field_idx.has_child("matset");
     if(!has_topo && !has_matset)
     {
-        log::error(info, protocol, "missing child 'topology' or 'matset'");
+        conduit::utils::log::error(info, protocol, "missing child 'topology' or 'matset'");
         res = false;
     }
     if(has_topo)
@@ -7134,7 +7436,7 @@ mesh::field::index::verify(const Node &field_idx,
     res &= verify_integer_field(protocol, field_idx, info, "number_of_components");
     res &= verify_string_field(protocol, field_idx, info, "path");
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -7162,18 +7464,18 @@ bool verify_specset_species_names(const std::string &protocol,
             const Node &curr_child = itr.next();
             if (!curr_child.dtype().is_object())
             {
-                log::error(info,
+                conduit::utils::log::error(info,
                            protocol,
-                           log::quote("species_names") +
+                           conduit::utils::log::quote("species_names") +
                            "child " +
-                           log::quote(itr.name()) +
+                           conduit::utils::log::quote(itr.name()) +
                            " is not an object.");
                 res = false;
             }
         }
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -7210,13 +7512,13 @@ mesh::specset::verify(const Node &specset,
         if (!specset["matset_values"].dtype().is_number() &&
             !specset["matset_values"].dtype().is_object())
         {
-            log::error(info, protocol, "'matset_values' isn't the correct type");
+            conduit::utils::log::error(info, protocol, "'matset_values' isn't the correct type");
             res &= mvs_res &= false;
         }
         else if (specset["matset_values"].dtype().is_number() &&
                  verify_number_field(protocol, specset, info, "matset_values"))
         {
-            log::info(info, protocol, "detected uni-buffer specset");
+            conduit::utils::log::info(info, protocol, "detected uni-buffer specset");
             // species_names is not optional in this case, signal
             // for opt check down the line
             specnames_are_optional = false;
@@ -7228,7 +7530,7 @@ mesh::specset::verify(const Node &specset,
         else if (specset["matset_values"].dtype().is_object() &&
                  verify_object_field(protocol, specset, info, "matset_values"))
         {
-            log::info(info, protocol, "detected multi-buffer specset");
+            conduit::utils::log::info(info, protocol, "detected multi-buffer specset");
 
             const Node &mfs = specset["matset_values"];
             Node &mfs_info = info["matset_values"];
@@ -7241,7 +7543,7 @@ mesh::specset::verify(const Node &specset,
 
                 if (!mat.dtype().is_object())
                 {
-                    log::error(info, protocol,
+                    conduit::utils::log::error(info, protocol,
                                "each material name must be the parent of species names (required for multi-buffer specsets) ");
                     res &= mvs_res &= false;
                 }
@@ -7265,18 +7567,18 @@ mesh::specset::verify(const Node &specset,
                     }
 
                     res &= mvs_res;
-                    log::validation(mat_info, mvs_res);
+                    conduit::utils::log::validation(mat_info, mvs_res);
                 }
             }
 
             res &= mvs_res;
-            log::validation(mfs_info, mvs_res);
+            conduit::utils::log::validation(mfs_info, mvs_res);
         }
     }
 
     if (!specnames_are_optional && !specset.has_child("species_names"))
     {
-        log::error(info, protocol,
+        conduit::utils::log::error(info, protocol,
             "'species_names' is missing (required for uni-buffer specsets) ");
         res &= false;
     }
@@ -7285,7 +7587,7 @@ mesh::specset::verify(const Node &specset,
     {
         if (specnames_are_optional)
         {
-            log::optional(info, protocol, "includes species_names");
+            conduit::utils::log::optional(info, protocol, "includes species_names");
         }
 
         res &= verify_specset_species_names(protocol,specset,info);
@@ -7315,7 +7617,7 @@ mesh::specset::verify(const Node &specset,
                                " 'matset_values' is missing child '"
                                << mat_name << "/" << spec_name
                                <<"' which exists in 'species_names`" ;
-                        log::error(info, protocol,oss.str());
+                        conduit::utils::log::error(info, protocol,oss.str());
                         res &= false;
                     }
                 }
@@ -7323,7 +7625,7 @@ mesh::specset::verify(const Node &specset,
         }
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -7348,7 +7650,7 @@ mesh::specset::index::verify(const Node &specset_idx,
     res &= verify_object_field(protocol, specset_idx, info, "species");
     res &= verify_string_field(protocol, specset_idx, info, "path");
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -7431,11 +7733,11 @@ mesh::adjset::verify(const Node &adjset,
                                 wndw_info, "ratio", false, window_dim);
                     }
 
-                    log::validation(wndw_info,window_res);
+                    conduit::utils::log::validation(wndw_info,window_res);
                     windows_res &= window_res;
                 }
 
-                log::validation(chld_info["windows"],windows_res);
+                conduit::utils::log::validation(chld_info["windows"],windows_res);
                 res &= windows_res;
 
                 if(chld.has_child("orientation"))
@@ -7445,15 +7747,15 @@ mesh::adjset::verify(const Node &adjset,
                 }
             }
 
-            log::validation(chld_info,group_res);
+            conduit::utils::log::validation(chld_info,group_res);
             groups_res &= group_res;
         }
 
-        log::validation(info["groups"],groups_res);
+        conduit::utils::log::validation(info["groups"],groups_res);
         res &= groups_res;
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -7719,7 +8021,7 @@ mesh::adjset::index::verify(const Node &adj_idx,
            mesh::association::verify(adj_idx["association"], info["association"]);
     res &= verify_string_field(protocol, adj_idx, info, "path");
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -7778,15 +8080,15 @@ mesh::nestset::verify(const Node &nestset,
                     verify_object_field(protocol, chld, chld_info, "dims", false, false, window_dim);
             }
 
-            log::validation(chld_info,window_res);
+            conduit::utils::log::validation(chld_info,window_res);
             windows_res &= window_res;
         }
 
-        log::validation(info["windows"],windows_res);
+        conduit::utils::log::validation(info["windows"],windows_res);
         res &= windows_res;
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -7809,7 +8111,7 @@ mesh::nestset::index::verify(const Node &nest_idx,
            mesh::association::verify(nest_idx["association"], info["association"]);
     res &= verify_string_field(protocol, nest_idx, info, "path");
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -7829,7 +8131,7 @@ mesh::nestset::type::verify(const Node &type,
 
     res &= verify_enum_field(protocol, type, info, "", bputils::NESTSET_TYPES);
 
-    log::validation(info,res);
+    conduit::utils::log::validation(info,res);
 
     return res;
 }
@@ -7863,7 +8165,7 @@ mesh::index::verify(const Node &n,
             cset_res &= coordset::index::verify(chld, info["coordsets"][chld_name]);
         }
 
-        log::validation(info["coordsets"],cset_res);
+        conduit::utils::log::validation(info["coordsets"],cset_res);
         res &= cset_res;
     }
 
@@ -7886,7 +8188,7 @@ mesh::index::verify(const Node &n,
                 chld, chld_info, "coordset", "coordsets");
         }
 
-        log::validation(info["topologies"],topo_res);
+        conduit::utils::log::validation(info["topologies"],topo_res);
         res &= topo_res;
     }
 
@@ -7913,7 +8215,7 @@ mesh::index::verify(const Node &n,
                     chld, chld_info, "topology", "topologies");
             }
 
-            log::validation(info["matsets"],mset_res);
+            conduit::utils::log::validation(info["matsets"],mset_res);
             res &= mset_res;
         }
     }
@@ -7941,7 +8243,7 @@ mesh::index::verify(const Node &n,
                     chld, chld_info, "matset", "matsets");
             }
 
-            log::validation(info["specsets"],sset_res);
+            conduit::utils::log::validation(info["specsets"],sset_res);
             res &= sset_res;
         }
     }
@@ -7977,7 +8279,7 @@ mesh::index::verify(const Node &n,
                 }
             }
 
-            log::validation(info["fields"],field_res);
+            conduit::utils::log::validation(info["fields"],field_res);
             res &= field_res;
         }
     }
@@ -8005,7 +8307,7 @@ mesh::index::verify(const Node &n,
                     chld, chld_info, "topology", "topologies");
             }
 
-            log::validation(info["adjsets"],aset_res);
+            conduit::utils::log::validation(info["adjsets"],aset_res);
             res &= aset_res;
         }
     }
@@ -8033,12 +8335,12 @@ mesh::index::verify(const Node &n,
                     chld, chld_info, "topology", "topologies");
             }
 
-            log::validation(info["nestsets"],nset_res);
+            conduit::utils::log::validation(info["nestsets"],nset_res);
             res &= nset_res;
         }
     }
 
-    log::validation(info, res);
+    conduit::utils::log::validation(info, res);
 
     return res;
 }
@@ -8266,6 +8568,7 @@ copy_nodes_with_topology(const conduit::Node &n_mesh,
                          bool copy,
                          const std::set<std::string> &selection = std::set<std::string>())
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     if(n_mesh.has_path(rootName))
     {
         const conduit::Node &n_objs = n_mesh.fetch_existing(rootName);
@@ -8313,6 +8616,7 @@ copy_nodes_with_topology(const conduit::Node &n_mesh,
  */
 static void copy_node(const conduit::Node &n_src, conduit::Node &n_dest, bool copy)
 {
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
     if(copy)
     {
         n_dest.set(n_src);
@@ -8372,10 +8676,10 @@ using Vector = conduit::geometry::vector<double, 3>;
 /*!
  * @brief Compute face centers and face normals for polyhedral zones.
  *
- * @tparam ExecPolicy The execution policy to use for the loop.
  * @tparam IndexAccessor The container type for the subelement connectivity.
  * @tparam CoordAccessor The container type for the coordinates.
  *
+ * @param exec_policy The execution policy to use for the loop.
  * @param subelements_connectivity An accessor used for subelements_connectivity
  * @param subelements_sizes An accessor used for subelements_sizes
  * @param subelements_offsets An accessor used for subelements_offsets
@@ -8388,8 +8692,9 @@ using Vector = conduit::geometry::vector<double, 3>;
  * @note Many of these arguments would normally be references but the loop captures
  *       by value so it is best to not use references.
  */
-template <typename ExecPolicy, typename IndexAccessor, typename CoordAccessor>
-void polyhedral_face_centers_normals(const IndexAccessor subelements_connectivity,
+template <typename IndexAccessor, typename CoordAccessor>
+void polyhedral_face_centers_normals(conduit::execution::ExecutionPolicy exec_policy,
+                                     const IndexAccessor subelements_connectivity,
                                      const IndexAccessor subelements_sizes,
                                      const IndexAccessor subelements_offsets,
                                      const CoordAccessor x,
@@ -8408,7 +8713,7 @@ void polyhedral_face_centers_normals(const IndexAccessor subelements_connectivit
     Vector *allFaceNormalsPtr = allFaceNormals.data();
 
     // Compute face centers and normals.
-    conduit::execution::for_all<ExecPolicy>(0, totalNumFaces, [=](conduit::index_t f) {
+    conduit::execution::forall(exec_policy, 0, totalNumFaces, [=] CONDUIT_EXEC(conduit::index_t f) {
         const int NUM_VERTS = 4;
         const auto size = subelements_sizes[f];
         const auto offset = subelements_offsets[f];
@@ -8434,9 +8739,9 @@ void polyhedral_face_centers_normals(const IndexAccessor subelements_connectivit
 /*!
  * @brief Compute face centers and face normals for polyhedral zones.
  *
- * @tparam ExecPolicy The execution policy to use for the loop.
  * @tparam IndexAccessor The container type for the subelement connectivity.
  *
+ * @param exec_policy The execution policy to use for the loop.
  * @param n_coordset The node that contains the coordset. It must be explicit.
  * @param subelements_connectivity An accessor used for subelements_connectivity
  * @param subelements_sizes An accessor used for subelements_sizes
@@ -8444,8 +8749,9 @@ void polyhedral_face_centers_normals(const IndexAccessor subelements_connectivit
  * @param[out] allFaceCenters The output vector for all of the face centers.
  * @param[out] allFaceNormals The output vector for all of the face normals.
  */
-template <typename ExecPolicy, typename IndexAccessor>
-void polyhedral_face_centers_normals(const conduit::Node &n_coordset,
+template <typename IndexAccessor>
+void polyhedral_face_centers_normals(conduit::execution::ExecutionPolicy exec_policy,
+                                     const conduit::Node &n_coordset,
                                      const IndexAccessor &subelements_connectivity,
                                      const IndexAccessor &subelements_sizes,
                                      const IndexAccessor &subelements_offsets,
@@ -8457,75 +8763,52 @@ void polyhedral_face_centers_normals(const conduit::Node &n_coordset,
     const conduit::Node &n_x = n_coordset["values/x"];
     const conduit::Node &n_y = n_coordset["values/y"];
     const conduit::Node &n_z = n_coordset["values/z"];
-    bool handled = false;
-    // Dispatch to different instantiations of the function.
-    if(n_x.dtype().is_compact() && n_y.dtype().is_compact() && n_z.dtype().is_compact())
+
+    // Read the coordinates through typed raw pointers to avoid the accessors'
+    // per-element dtype dispatch.
+    conduit::execution::dispatch(n_x.as_double_accessor(),
+                                 n_y.as_double_accessor(),
+                                 n_z.as_double_accessor(),
+                                 [&](auto x, auto y, auto z)
     {
-        // Handle contiguous float64, float32. (fast paths)
-        if(n_x.dtype().is_float64() && n_y.dtype().is_float64() && n_z.dtype().is_float64())
-        {
-            polyhedral_face_centers_normals<ExecPolicy>(subelements_connectivity,
-                                                        subelements_sizes,
-                                                        subelements_offsets,
-                                                        n_x.as_float64_ptr(),
-                                                        n_y.as_float64_ptr(),
-                                                        n_z.as_float64_ptr(),
-                                                        allFaceCenters,
-                                                        allFaceNormals);
-            handled = true;
-        }
-        if(n_x.dtype().is_float32() && n_y.dtype().is_float32() && n_z.dtype().is_float32())
-        {
-            polyhedral_face_centers_normals<ExecPolicy>(subelements_connectivity,
-                                                        subelements_sizes,
-                                                        subelements_offsets,
-                                                        n_x.as_float32_ptr(),
-                                                        n_y.as_float32_ptr(),
-                                                        n_z.as_float32_ptr(),
-                                                        allFaceCenters,
-                                                        allFaceNormals);
-            handled = true;
-        }
-    }
-    if(!handled)
-    {
-        // The coordinates were not supported in the more direct modes above so
-        // use accessors instead.
-        polyhedral_face_centers_normals<ExecPolicy>(subelements_connectivity,
-                                                    subelements_sizes,
-                                                    subelements_offsets,
-                                                    n_x.as_double_accessor(),
-                                                    n_y.as_double_accessor(),
-                                                    n_z.as_double_accessor(),
-                                                    allFaceCenters,
-                                                    allFaceNormals);
-    }
+        polyhedral_face_centers_normals(exec_policy,
+                                        subelements_connectivity,
+                                        subelements_sizes,
+                                        subelements_offsets,
+                                        x,
+                                        y,
+                                        z,
+                                        allFaceCenters,
+                                        allFaceNormals);
+    });
 }
 
 /*!
  * @brief Average a PH element's face centers to make its element center (good enough).
  *
- * @tparam ExecPolicy The execution policy to use for the loop.
  * @tparam IndexAccessor The container type for the element connectivity.
  *
+ * @param exec_policy The execution policy to use for the loop.
  * @param elements_connectivity An accessor used for elements_connectivity
  * @param elements_sizes An accessor used for elements_sizes
  * @param elements_offsets An accessor used for elements_offsets
+ * @param totalNumElems The number of elements in the topology.
  * @param allFaceCenters The vector for all of the face centers.
  * @param[out] allElemCenters The output vector for the element centers.
  */
-template <typename ExecPolicy, typename IndexAccessor>
-void polyhedral_elem_centers(const IndexAccessor elements_connectivity,
+template <typename IndexAccessor>
+void polyhedral_elem_centers(conduit::execution::ExecutionPolicy exec_policy,
+                             const IndexAccessor elements_connectivity,
                              const IndexAccessor elements_sizes,
                              const IndexAccessor elements_offsets,
+                             const index_t totalNumElems,
                              const std::vector<Vector> &allFaceCenters,
                              std::vector<Vector> &allElemCenters)
 {
-    const auto totalNumElems = elements_sizes.number_of_elements();
     allElemCenters.resize(totalNumElems);
     Vector *allElemCentersPtr = allElemCenters.data();
     const Vector *allFaceCentersPtr = allFaceCenters.data();
-    conduit::execution::for_all<ExecPolicy>(0, totalNumElems, [=](conduit::index_t i) {
+    conduit::execution::forall(exec_policy, 0, totalNumElems, [=] CONDUIT_EXEC(conduit::index_t i) {
         const auto size = elements_sizes[i];
         const auto offset = elements_offsets[i];
         Vector center {};
@@ -8539,17 +8822,39 @@ void polyhedral_elem_centers(const IndexAccessor elements_connectivity,
     });
 }
 
+//-------------------------------------------------------------------------
+// This needed to be extracted into its own function to avoid an NVCC
+// compilation error.
+template <typename IndexContainer>
+CONDUIT_EXEC void appendIndex(IndexContainer &vec, conduit::index_t value)
+{
+    bool found = false;
+    for (auto it = vec.begin(); it != vec.end(); ++it)
+    {
+        if (*it == value)
+        {
+            found = true;
+            break;
+        }
+    }
+
+    if (!found)
+    {
+        vec.push_back(value);
+    }
+}
+
 /*!
  * @brief Convert a polyhedral topology to an unstructured topology of hexes. If the
  *        input topology does not contain exclusively hexes then it errors out.
  *
- * @tparam ExecPolicy The execution policy to use for the loop.
- *
+ * @param exec_policy The execution policy to use for the loop.
  * @param n_topo The source unstructured polyhedral topology.
  * @param n_output_topo The output unstructured hex topology.
  */
-template <typename ExecPolicy>
-static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_output_topo)
+static void polyhedral_to_hexes(conduit::execution::ExecutionPolicy exec_policy,
+                                const conduit::Node &n_topo,
+                                conduit::Node &n_output_topo)
 {
 #if defined(_WIN32)
     // Use macros on Windows to work around an issue with lambda capture.
@@ -8616,30 +8921,31 @@ static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_ou
 
     using IndexContainer = conduit::fixed_size_vector<conduit::index_t, 3>;
 
-    /// Add a value to a vector if the value does not exist in the vector.
-    auto appendIndex = [](IndexContainer &vec, conduit::index_t value) {
-        if(std::find(vec.begin(), vec.end(), value) == vec.end())
-        {
-            vec.push_back(value);
-        }
-    };
-
     // Compute the face centers for all faces.
     std::vector<Vector> allFaceCenters, allFaceNormals;
-    polyhedral_face_centers_normals<ExecPolicy>(*n_coordset,
-                                                subelements_connectivity,
-                                                subelements_sizes,
-                                                subelements_offsets,
-                                                allFaceCenters,
-                                                allFaceNormals);
+    polyhedral_face_centers_normals(exec_policy,
+                                    *n_coordset,
+                                    subelements_connectivity,
+                                    subelements_sizes,
+                                    subelements_offsets,
+                                    allFaceCenters,
+                                    allFaceNormals);
 
     // Compute all elem centers for all elems.
     std::vector<Vector> allElemCenters;
-    polyhedral_elem_centers<ExecPolicy>(elements_connectivity,
-                                        elements_sizes,
-                                        elements_offsets,
-                                        allFaceCenters,
-                                        allElemCenters);
+    conduit::execution::dispatch(elements_connectivity,
+                                 elements_sizes,
+                                 elements_offsets,
+                                 [&](auto conn, auto sizes, auto offsets)
+    {
+        polyhedral_elem_centers(exec_policy,
+                                conn,
+                                sizes,
+                                offsets,
+                                nElem,
+                                allFaceCenters,
+                                allElemCenters);
+    });
 
     // Fill in the output hex connectivity
     // NOTE: We're using value capture [=], mainly to avoid issues on Windows. This
@@ -8648,7 +8954,7 @@ static void polyhedral_to_hexes(const conduit::Node &n_topo, conduit::Node &n_ou
     const Vector *allFaceCentersPtr = allFaceCenters.data();
     const Vector *allFaceNormalsPtr = allFaceNormals.data();
     const Vector *allElemCentersPtr = allElemCenters.data();
-    conduit::execution::for_all<ExecPolicy>(0, nElem, [=](conduit::index_t i) {
+    conduit::execution::forall(exec_policy, 0, nElem, [=] CONDUIT_EXEC(conduit::index_t i) {
         constexpr int FORWARD = 1;
         constexpr int BACKWARD = -1;
         // Determine face orientations with respect to this element.
@@ -8836,26 +9142,14 @@ static void to_unstructured(const conduit::Node &n_mesh,
     {
         conduit::Node &n_output_topo = n_output["topologies/" + n_topo->name()];
 
-#if defined(CONDUIT_USE_OPENMP)
         // Let the user select an execution policy via options.
-        std::string policy("seq");
-        if(n_options.has_path("policy"))
+        std::string policy_choice = "serial";
+        if (n_options.has_path("policy"))
         {
-            const std::string p = n_options["policy"].as_string();
-            if(p == "omp" || p == "seq") policy = p;
+            policy_choice = n_options["policy"].as_string();
         }
-
-        if(policy == "omp")
-        {
-            polyhedral_to_hexes<conduit::execution::OpenMPExec>(*n_topo, n_output_topo);
-        }
-        else
-        {
-            polyhedral_to_hexes<conduit::execution::SerialExec>(*n_topo, n_output_topo);
-        }
-#else
-        polyhedral_to_hexes<conduit::execution::SerialExec>(*n_topo, n_output_topo);
-#endif
+        conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy(policy_choice);
+        polyhedral_to_hexes(policy, *n_topo, n_output_topo);
     }
     else
     {
@@ -8940,6 +9234,8 @@ void mesh::convert(const conduit::Node &n_mesh,
         copy = (n_options["copy"].to_int() != 0);
     }
 
+    // If no target is passed in the options, we default to converting to unstructured.
+
     // Get the target
     std::string target("unstructured");
     if(n_options.has_path("target"))
@@ -8947,7 +9243,7 @@ void mesh::convert(const conduit::Node &n_mesh,
         target = n_options["target"].as_string();
     }
 
-    const int FIELDS_MASK = 1;
+    const int FIELDS_MASK  = 1;
     const int MATSETS_MASK = 2;
     const int ADJSETS_MASK = 4;
     int copyMask = 0;
@@ -8963,8 +9259,7 @@ void mesh::convert(const conduit::Node &n_mesh,
     else
     {
         const conduit::Node &n_topo = n_mesh["topologies/" + topologyName];
-        const conduit::Node *n_coordset =
-            bputils::find_reference_node(n_topo, "coordset");
+        const conduit::Node *n_coordset = bputils::find_reference_node(n_topo, "coordset");
         if(n_coordset == nullptr)
         {
             CONDUIT_ERROR("Could not locate coordset.");
@@ -8981,8 +9276,8 @@ void mesh::convert(const conduit::Node &n_mesh,
                 const bool degrade_polytopes = n_options.has_path("degrade_polytopes")
                     ? (n_options["degrade_polytopes"].to_int() > 0)
                     : false;
-                const bool isPolygonal = shape == "polygonal" && degrade_polytopes;
-                const bool isPolyhedral = shape == "polyhedral" && degrade_polytopes;
+                const bool isPolygonal  = degrade_polytopes && shape == "polygonal";
+                const bool isPolyhedral = degrade_polytopes && shape == "polyhedral";
                 if(isPolygonal || isPolyhedral)
                 {
                     // Convert polytopal BACK to unstructured.
@@ -8998,7 +9293,7 @@ void mesh::convert(const conduit::Node &n_mesh,
                     copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
                 }
             }
-            else
+            else // we have a type other than unstructured
             {
                 conduit::Node &topo_dest = n_output["topologies/" + topologyName];
                 conduit::Node &coords_dest = n_output["coordsets/" + n_coordset->name()];
@@ -9023,7 +9318,7 @@ void mesh::convert(const conduit::Node &n_mesh,
                                                                                     coords_dest);
                     copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
                 }
-                else
+                else // we have an unsupported target type
                 {
                     CONDUIT_ERROR(conduit_fmt::format("No conversion for {} to {}.", type, target));
                 }
@@ -9133,6 +9428,7 @@ void mesh::convert(const conduit::Node &n_mesh,
                 conduit::Node options_copy(n_options);
                 options_copy["target"] = "unstructured";
                 options_copy["copy"] = 0;  // Use set_external when possible
+
                 convert(n_mesh, options_copy, n_mesh_uns, tmp);
                 n_input = &n_mesh_uns;
             }
@@ -9181,6 +9477,7 @@ void mesh::convert(const conduit::Node &n_mesh,
             }
             else if(target == "generate_sides")
             {
+                // TODO: Justin called dibs on porting this
                 // NOTE: Use the same coordset name as the original mesh.
                 conduit::blueprint::mesh::topology::unstructured::generate_sides(
                     n_input_topo,
@@ -9701,4 +9998,3 @@ void mesh::rename(const conduit::Node &n_options,
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-

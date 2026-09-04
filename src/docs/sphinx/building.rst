@@ -103,6 +103,10 @@ Main CMake Options
      - Controls if Conduit OpenMP features are built.
      - *(default = OFF)*
 
+   * - ``ENABLE_TYPED_DISPATCH``
+     - Controls if ``execution::dispatch`` compiles typed kernel instantiations. Signifantly improves the performance of data-parallel kernels, at the cost of longer compile times and larger libraries.
+     - *(default = OFF)*
+
    * - ``ENABLE_TESTS``
      - Controls if unit tests are built.
      - *(default = ON)*

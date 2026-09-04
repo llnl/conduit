@@ -41,12 +41,14 @@ copies it to the tests/blueprint folder for convenience).
 #include "conduit_annotations.hpp"
 #include "conduit_benchmark.hpp"
 #include "conduit_blueprint.hpp"
-#include "conduit_core.hpp"
+#include "conduit_execution.hpp"
+#include "conduit_blueprint_mesh_examples.hpp"
 
 #include "gtest/gtest.h"
 
 #include <cstdlib>
 #include <iostream>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -79,7 +81,46 @@ mesh_size_info(const Node &input, const Node &output)
 
 //-----------------------------------------------------------------------------
 void
-make_braid_dataset(const std::string &src_type,
+copy_numeric_arrays_to_device(const Node &src,
+                              Node &dst,
+                              index_t device_alloc)
+{
+    // Scalars have to stay on the host, attempting to copy them to device
+    // will result in a segfault when the transform code later dereferences
+    // them directly.
+    if(src.dtype().is_object())
+    {
+        NodeConstIterator itr = src.children();
+        while(itr.has_next())
+        {
+            const Node &src_child = itr.next();
+            copy_numeric_arrays_to_device(src_child, dst[itr.name()], device_alloc);
+        }
+    }
+    else if(src.dtype().is_list())
+    {
+        NodeConstIterator itr = src.children();
+        while(itr.has_next())
+        {
+            const Node &src_child = itr.next();
+            copy_numeric_arrays_to_device(src_child, dst.append(), device_alloc);
+        }
+    }
+    else if(src.dtype().is_number() && src.dtype().number_of_elements() > 1)
+    {
+        dst.set_allocator(device_alloc);
+        dst.set(src);
+    }
+    else // Not a numeric array, leave it in host memory
+    {
+        dst.set(src);
+    }
+}
+
+//-----------------------------------------------------------------------------
+void
+make_braid_dataset(const std::string &src_location,
+                   const std::string &src_type,
                    const index_t npts,
                    Node &src)
 {
@@ -89,12 +130,34 @@ make_braid_dataset(const std::string &src_type,
 
     const index_t npts_z = is_2d ? 0 : npts;
 
-    // Braid will reset `src` for us internally 
-    blueprint::mesh::examples::braid(src_type,
-                                     npts,
-                                     npts,
-                                     npts_z,
-                                     src);
+    // Free the previous mesh before building the next one to keep memory
+    // utilization as low as possible.
+    src.reset();
+
+    if (src_location == "device")
+    {
+        // Braid only builds host meshes, so we first build it on the host
+        // and then copy the result to device memory.
+        Node host_src;
+        blueprint::mesh::examples::braid(src_type,
+                                         npts,
+                                         npts,
+                                         npts_z,
+                                         host_src);
+
+        copy_numeric_arrays_to_device(host_src,
+                                      src,
+                                      execution::get_device_allocator_id());
+    }
+    else // if (src_location == "host")
+    {
+        // Build directly into `src` to avoid a full copy
+        blueprint::mesh::examples::braid(src_type,
+                                         npts,
+                                         npts,
+                                         npts_z,
+                                         src);
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -104,15 +167,21 @@ struct ConvertConfig
     std::string name;
     std::string src_type;
     std::string target;
+    bool host_only;
 };
 
 //-----------------------------------------------------------------------------
 void
 run_benchmarks(const std::vector<ConvertConfig> &convert_configs)
 {
+    // Setup
+    execution::init_device_memory_handlers();
+
     // The available execution configurations (host/device) based
-    // on what Conduit was compiled with.
-    const auto exec_configs = benchmark::get_exec_configs();
+    // on what Conduit was compiled with. We build both variants up front
+    // so each benchmark can select the one it supports.
+    const auto all_configs       = benchmark::get_exec_configs(/*host_only=*/false);
+    const auto host_only_configs = benchmark::get_exec_configs(/*host_only=*/true);
 
     // We create src and dst nodes once and reuse them across all benchmarks
     Node src;
@@ -123,47 +192,89 @@ run_benchmarks(const std::vector<ConvertConfig> &convert_configs)
     // overall runtime and memory usage.
     for (const auto npts : BENCHMARK_DIM_SIZES)
     {
-        // Iterating over `exec_configs` second will allow us to reuse `src`
-        // across all configurations of a particular `src_location`. This
-        // allows us to create `src` once for host and once for device,
-        // per `src_type` and `npts` combination.
-        std::string built_src_type;
-        for (const auto &exec_config : exec_configs)
+        // Input/output sizes depend on the benchmark and `npts`, so we
+        // record them once per benchmark and reuse them across every
+        // configuration of this `npts`.
+        std::map<std::string, std::string> sizes;
+
+        // Benchmarking one location at a time lets us build `src`
+        // once per (src_location, src_type, npts) combination.
+        for (const auto src_location : {"host", "device"})
         {
+            std::string built_src_type;
+
             // This iterates over all of the benchmark configurations
             // themselves (i.e., which source and target types to use).
             for (const auto &convert_config : convert_configs)
             {
-                // Since multiple benchmarks will use the same
-                // src_type and npts, we can improve performance and
-                // limit memory utilization by only rebuilding `src`
-                // when the next entry's (src_type, npts) differs.
-                if (convert_config.src_type != built_src_type)
+                // Only benchmark the configurations this transform supports.
+                const auto &exec_configs = convert_config.host_only
+                                               ? host_only_configs
+                                               : all_configs;
+
+                for (const auto &exec_config : exec_configs)
                 {
-                    make_braid_dataset(convert_config.src_type, npts, src);
-                    built_src_type = convert_config.src_type;
+                    // `src` holds `src_location` data, so skip the
+                    // configurations that expect it somewhere else.
+                    if (exec_config.src_location != src_location)
+                    {
+                        continue;
+                    }
+
+                    // Benchmarks that share a `src_type` are grouped
+                    // together, such that this will only rebuild `src`
+                    // once per `src_type`.
+                    if (convert_config.src_type != built_src_type)
+                    {
+                        make_braid_dataset(src_location,
+                                           convert_config.src_type,
+                                           npts,
+                                           src);
+                        built_src_type = convert_config.src_type;
+                    }
+
+                    // Set all execution options for this configuration
+                    Node exec_opts;
+                    exec_opts["execution_location"].set(exec_config.exec_location);
+                    exec_opts["output_location"].set(exec_config.output_location);
+                    exec_opts["sync_strategy"].set(exec_config.sync_strategy);
+                    execution::execution_set_options(exec_opts);
+
+                    // TODO: There may be other interesting options to
+                    // set here.
+                    Node options;
+                    options["target"] = convert_config.target;
+                    options["copy"]   = 0;
+
+                    // This lambda defines the code to be benchmarked
+                    auto run = [&](const Node &input, Node &output) {
+                        blueprint::mesh::convert(input, options, output);
+                    };
+
+                    // Get the data sizes the first time we run this
+                    // benchmark, then we can reuse them for similar
+                    // configurations.
+                    if (sizes.find(convert_config.name) == sizes.end())
+                    {
+                        CONDUIT_ANNOTATE_MARK_SCOPE("size_probe");
+                        run(src, dst);
+                        sizes[convert_config.name] = mesh_size_info(src, dst);
+                        dst.reset();
+                    }
+
+                    // This executes a benchmark of the current configuration
+                    benchmark::exec(convert_config.name,
+                                    src,
+                                    dst,
+                                    run,
+                                    sizes[convert_config.name],
+                                    exec_config,
+                                    npts,
+                                    BENCHMARK_NUM_WARMUP_ITERATIONS,
+                                    BENCHMARK_NUM_ITERATIONS);
+
+                    execution::reset_execution_options();
                 }
-
-                // TODO: There may be other interesting options
-                Node options;
-                options["target"] = convert_config.target;
-                options["copy"]   = 0;
-
-                // This lambda defines the code to be benchmarked
-                auto run = [&](const Node &input, Node &output) {
-                    blueprint::mesh::convert(input, options, output);
-                };
-
-                // This executes a benchmark of the current configuration
-                benchmark::exec(convert_config.name,
-                                src,
-                                dst,
-                                run,
-                                mesh_size_info,
-                                exec_config,
-                                npts,
-                                BENCHMARK_NUM_WARMUP_ITERATIONS,
-                                BENCHMARK_NUM_ITERATIONS);
             }
         }
     }
@@ -176,21 +287,24 @@ TEST(blueprint_mesh_transform_benchmark, mesh_transforms)
     CONDUIT_ANNOTATE_MARK_FUNCTION;
 
     run_benchmarks({
-        {"mesh_uniform_to_rectilinear",      "uniform",     "rectilinear"},
-        {"mesh_uniform_to_structured",       "uniform",     "structured"},
-        {"mesh_uniform_to_unstructured",     "uniform",     "unstructured"},
-        {"mesh_rectilinear_to_structured",   "rectilinear", "structured"},
-        {"mesh_rectilinear_to_unstructured", "rectilinear", "unstructured"},
-        {"mesh_structured_to_unstructured",  "structured",  "unstructured"},
+        {"mesh_uniform_to_rectilinear",      "uniform",     "rectilinear",  false},
+        {"mesh_uniform_to_structured",       "uniform",     "structured",   false},
+        {"mesh_uniform_to_unstructured",     "uniform",     "unstructured", false},
+        {"mesh_rectilinear_to_structured",   "rectilinear", "structured",   false},
+        {"mesh_rectilinear_to_unstructured", "rectilinear", "unstructured", false},
+        {"mesh_structured_to_unstructured",  "structured",  "unstructured", false},
     });
 }
 
 //-----------------------------------------------------------------------------
 TEST(blueprint_mesh_transform_benchmark, generate_transforms)
-// Benchmarks that measure the performance of mesh generation transforms
+// Benchmarks that measure the performance of mesh generation transforms.
+// Since these APIs have not been ported to the device execution model yet,
+// they are all marked `host_only = true`. Flip an entry's flag to false as
+// its transform gains device support.
 {
     CONDUIT_ANNOTATE_MARK_FUNCTION;
-    
+
     const std::vector<std::string> shapes = {
         "quads",
         "hexs",
@@ -204,13 +318,13 @@ TEST(blueprint_mesh_transform_benchmark, generate_transforms)
     std::vector<ConvertConfig> configs;
     for (const auto &shape : shapes)
     {
-        configs.push_back({"to_polytopal_" + shape,       shape, "polytopal"});
-        configs.push_back({"generate_points_" + shape,    shape, "generate_points"});
-        configs.push_back({"generate_lines_" + shape,     shape, "generate_lines"});
-        configs.push_back({"generate_faces_" + shape,     shape, "generate_faces"});
-        configs.push_back({"generate_centroids_" + shape, shape, "generate_centroids"});
-        configs.push_back({"generate_sides_" + shape,     shape, "generate_sides"});
-        configs.push_back({"generate_corners_" + shape,   shape, "generate_corners"});
+        configs.push_back({"to_polytopal_" + shape,       shape, "polytopal",          true});
+        configs.push_back({"generate_points_" + shape,    shape, "generate_points",    true});
+        configs.push_back({"generate_lines_" + shape,     shape, "generate_lines",     true});
+        configs.push_back({"generate_faces_" + shape,     shape, "generate_faces",     true});
+        configs.push_back({"generate_centroids_" + shape, shape, "generate_centroids", false});
+        configs.push_back({"generate_sides_" + shape,     shape, "generate_sides",     true});
+        configs.push_back({"generate_corners_" + shape,   shape, "generate_corners",   true});
     }
 
     run_benchmarks(configs);

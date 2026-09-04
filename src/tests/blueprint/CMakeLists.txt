@@ -50,6 +50,11 @@ foreach(TEST ${BLUEPRINT_TESTS})
                  FOLDER tests/blueprint)
 endforeach()
 
+set(conduit_blueprint_device_test_sources
+    t_blueprint_mesh_transform_benchmark.cpp)
+
+conduit_set_source_device_properties("${conduit_blueprint_device_test_sources}")
+
 ################################
 # Add c interface tests
 ################################

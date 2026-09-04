@@ -16,8 +16,10 @@
 //-----------------------------------------------------------------------------
 // -- conduit  includes -- 
 //-----------------------------------------------------------------------------
+#include "conduit_execution.hpp"
 #include "conduit_core.hpp"
 #include "conduit_data_type.hpp"
+#include "conduit_memory_manager.hpp"
 #include "conduit_utils.hpp"
 
 //-----------------------------------------------------------------------------
@@ -29,8 +31,13 @@ namespace conduit
 //-----------------------------------------------------------------------------
 // -- forward declarations required for conduit::DataArray --
 //-----------------------------------------------------------------------------
+class Node;
 template <typename T>
 class DataAccessor;
+namespace execution
+{
+    class ExecutionPolicy;
+}
 
 //-----------------------------------------------------------------------------
 // -- begin conduit::DataArray --
@@ -39,7 +46,9 @@ class DataAccessor;
 /// class: conduit::DataArray
 ///
 /// description:
-///  Light weight pointer wrapper that handles addressing for ragged arrays.
+///  Light weight pointer wrapper that handles addressing for ragged arrays 
+///  that may be stored in Nodes; also supports memory movement between host
+///  and device.
 ///
 //-----------------------------------------------------------------------------
 template <typename T> 
@@ -57,48 +66,148 @@ public:
 //-----------------------------------------------------------------------------
         /// default constructor
         DataArray();
+        ///
+        /// This copy constructor must remain inline in the header because a
+        /// DataArray is commonly captured by value into device lambdas.
+        /// Device compilation needs to see the copy operation.
+        ///
         /// copy constructor
-        DataArray(const DataArray<T> &array);
+        CONDUIT_EXEC DataArray(const DataArray<T> &array)
+        : m_data(array.m_data),
+          m_orig_data_ptr(array.m_orig_data_ptr),
+          m_dtype(array.m_dtype),
+          m_node_ptr(array.m_node_ptr),
+          m_other_ptr(array.m_other_ptr),
+          m_other_dtype(array.m_other_dtype),
+          m_do_i_own_it(false),
+          m_offset(array.m_offset),
+          m_stride(array.m_stride),
+          m_policy(array.m_policy)
+        {}
         /// Access a pointer to raw data according to dtype description.
         DataArray(void *data, const DataType &dtype);
         /// Access a const pointer to raw data according to dtype description.
         DataArray(const void *data, const DataType &dtype);
+        /// Access a pointer to node data according to node dtype description.
+        DataArray(Node &node);
+        // /// Access a const pointer to node data according to node dtype description.
+        DataArray(const Node &node);
+        /// Access a pointer to node data according to node dtype description.
+        DataArray(Node *node);
+        /// Access a const pointer to node data according to node dtype description.
+        DataArray(const Node *node);
+        ///
+        /// This destructor must remain inline in the header because arrays may
+        /// be materialized during device compilation. The device path is a
+        /// no-op while the host path preserves ownership cleanup.
+        ///
         /// Destructor
-       ~DataArray();
+        CONDUIT_EXEC ~DataArray()
+        {
+#if !defined(CONDUIT_DEVICE_COMPILE)
+            if (m_do_i_own_it)
+            {
+                if (execution::DeviceMemory::is_device_ptr(m_other_ptr))
+                {
+                    execution::DeviceMemory::deallocate(m_other_ptr);
+                }
+                else
+                {
+                    execution::HostMemory::deallocate(m_other_ptr);
+                }
+            }
+#endif
+        }
 
+    ///
+    /// This assignment operator must remain inline in the header because
+    /// arrays may be copied and assigned while preparing captures for device
+    /// lambdas.
+    ///
     /// Assignment operator
-    DataArray<T>   &operator=(const DataArray<T> &array);
+    CONDUIT_EXEC DataArray<T> &operator=(const DataArray<T> &array)
+    {
+        if(this != &array)
+        {
+            m_data = array.m_data;
+            m_orig_data_ptr = array.m_orig_data_ptr;
+            m_dtype = array.m_dtype;
+            m_node_ptr = array.m_node_ptr;
+            m_other_ptr = array.m_other_ptr;
+            m_other_dtype = array.m_other_dtype;
+            m_do_i_own_it = false;
+            m_offset = array.m_offset;
+            m_stride = array.m_stride;
+            m_policy = array.m_policy;
+        }
+        return *this;
+    }
 
 //-----------------------------------------------------------------------------
 // Data and Info Access
 //-----------------------------------------------------------------------------
     typedef T ElementType;
 
-    T              &operator[](index_t idx)
+    ///
+    /// These inline methods form the minimal device-usable slice of
+    /// DataArray. Kernels use them to read values, write values, and walk
+    /// array layout, so device compilation must see the definitions here in
+    /// the header.
+    ///
+    CONDUIT_EXEC T &operator[](index_t idx)
                     {return element(idx);}
-    T              &operator[](index_t idx) const
+    CONDUIT_EXEC T &operator[](index_t idx) const
                     {return element(idx);}
     
-    T              &element(index_t idx);
-    T              &element(index_t idx) const;
+    CONDUIT_EXEC T &element(index_t idx)
+                    {return (*(T*)(element_ptr(idx)));}
+    CONDUIT_EXEC T &element(index_t idx) const
+                    {return (*(T*)(element_ptr(idx)));}
 
-    void           *element_ptr(index_t idx)
+    CONDUIT_EXEC void *element_ptr(index_t idx)
                     {
                         return static_cast<char*>(m_data) +
-                            m_dtype.element_index(idx);
+                            dtype().element_index(idx);
                     };
 
-    const void     *element_ptr(index_t idx) const 
+    CONDUIT_EXEC const void *element_ptr(index_t idx) const
                     {
                          return static_cast<char*>(m_data) +
-                            m_dtype.element_index(idx);
+                            dtype().element_index(idx);
                     };
 
-    index_t         number_of_elements() const 
-                        {return m_dtype.number_of_elements();}
-    const DataType &dtype()    const 
-                        { return m_dtype;} 
-    void           *data_ptr() const 
+    CONDUIT_EXEC index_t number_of_elements() const
+                        {return dtype().number_of_elements();}
+    ///
+    /// dtype metadata is cached in the array so device code can choose
+    /// between the original and migrated layout without dereferencing Node.
+    /// This logic must stay inline in the header for device compilation.
+    ///
+    CONDUIT_EXEC const DataType &dtype() const
+    {
+        if (nullptr != m_node_ptr)
+        {
+            return (m_data == m_orig_data_ptr)
+                   ? orig_dtype()
+                   : other_dtype();
+        }
+        else
+        {
+            return m_dtype;
+        }
+    }
+
+    ///
+    /// These methods are part of the cached dtype metadata used by device
+    /// code, so they must remain inline in the header alongside dtype().
+    ///
+    CONDUIT_EXEC const DataType &orig_dtype() const
+                    { return m_dtype; }
+
+    CONDUIT_EXEC const DataType &other_dtype() const
+                    { return nullptr != m_node_ptr ? m_other_dtype : m_dtype; }
+    
+    CONDUIT_EXEC void *data_ptr() const
                         { return m_data;}
 
     bool            compatible(const DataArray<T> &array) const;
@@ -121,64 +230,87 @@ public:
     index_t         count(T value) const;
 
 //-----------------------------------------------------------------------------
+// Data movement
+//-----------------------------------------------------------------------------
+    void                                use_with(conduit::execution::ExecutionPolicy policy);
+
+    void                                sync();
+
+    void                                assume();
+
+    void                                data_movement(const conduit::execution::SyncStrategy strategy);
+
+    conduit::execution::ExecutionPolicy active_policy() const;
+
+//-----------------------------------------------------------------------------
 // Setters
 //-----------------------------------------------------------------------------
     /// signed integer single element
-    void            set(index_t elem_idx, int8  value);
-    void            set(index_t elem_idx, int16 value);
-    void            set(index_t elem_idx, int32 value);
-    void            set(index_t elem_idx, int64 value);
+    CONDUIT_EXEC void set(index_t elem_idx, int8  value) const
+                    { this->element(elem_idx) = (T)value; }
+    CONDUIT_EXEC void set(index_t elem_idx, int16 value) const
+                    { this->element(elem_idx) = (T)value; }
+    CONDUIT_EXEC void set(index_t elem_idx, int32 value) const
+                    { this->element(elem_idx) = (T)value; }
+    CONDUIT_EXEC void set(index_t elem_idx, int64 value) const
+                    { this->element(elem_idx) = (T)value; }
 
     // unsigned integer single element
-    void            set(index_t elem_idx, uint8  value);
-    void            set(index_t elem_idx, uint16 value);
-    void            set(index_t elem_idx, uint32 value);
-    void            set(index_t elem_idx, uint64 value);
+    CONDUIT_EXEC void set(index_t elem_idx, uint8  value) const
+                    { this->element(elem_idx) = (T)value; }
+    CONDUIT_EXEC void set(index_t elem_idx, uint16 value) const
+                    { this->element(elem_idx) = (T)value; }
+    CONDUIT_EXEC void set(index_t elem_idx, uint32 value) const
+                    { this->element(elem_idx) = (T)value; }
+    CONDUIT_EXEC void set(index_t elem_idx, uint64 value) const
+                    { this->element(elem_idx) = (T)value; }
 
     /// floating point single element
-    void            set(index_t elem_idx, float32 value);
-    void            set(index_t elem_idx, float64 value);
+    CONDUIT_EXEC void set(index_t elem_idx, float32 value) const
+                    { this->element(elem_idx) = (T)value; }
+    CONDUIT_EXEC void set(index_t elem_idx, float64 value) const
+                    { this->element(elem_idx) = (T)value; }
 
     /// signed integer arrays
-    void            set(const int8  *values, index_t num_elements);
-    void            set(const int16 *values, index_t num_elements);
-    void            set(const int32 *values, index_t num_elements);
-    void            set(const int64 *values, index_t num_elements);
+    void            set(const int8  *values, index_t num_elements) const;
+    void            set(const int16 *values, index_t num_elements) const;
+    void            set(const int32 *values, index_t num_elements) const;
+    void            set(const int64 *values, index_t num_elements) const;
 
     /// unsigned integer arrays
-    void            set(const uint8   *values, index_t num_elements);
-    void            set(const uint16  *values, index_t num_elements);
-    void            set(const uint32  *values, index_t num_elements);
-    void            set(const uint64  *values, index_t num_elements);
+    void            set(const uint8   *values, index_t num_elements) const;
+    void            set(const uint16  *values, index_t num_elements) const;
+    void            set(const uint32  *values, index_t num_elements) const;
+    void            set(const uint64  *values, index_t num_elements) const;
     
     /// floating point arrays
-    void            set(const float32 *values, index_t num_elements);
-    void            set(const float64 *values, index_t num_elements);
+    void            set(const float32 *values, index_t num_elements) const;
+    void            set(const float64 *values, index_t num_elements) const;
     
     /// signed integer arrays via std::vector
-    void            set(const std::vector<int8>    &values)
+    void            set(const std::vector<int8>    &values) const
                         {set(&values[0],values.size());}
-    void            set(const std::vector<int16>   &values)
+    void            set(const std::vector<int16>   &values) const
                         {set(&values[0],values.size());}
-    void            set(const std::vector<int32>   &values)
+    void            set(const std::vector<int32>   &values) const
                         {set(&values[0],values.size());}
-    void            set(const std::vector<int64>   &values)
+    void            set(const std::vector<int64>   &values) const
                         {set(&values[0],values.size());}
 
     /// unsigned integer arrays via std::vector
-    void            set(const std::vector<uint8>   &values)
+    void            set(const std::vector<uint8>   &values) const
                         {set(&values[0],values.size());}
-    void            set(const std::vector<uint16>  &values)
+    void            set(const std::vector<uint16>  &values) const
                         {set(&values[0],values.size());}
-    void            set(const std::vector<uint32>  &values)
+    void            set(const std::vector<uint32>  &values) const
                         {set(&values[0],values.size());}
-    void            set(const std::vector<uint64>  &values)
+    void            set(const std::vector<uint64>  &values) const
                         {set(&values[0],values.size());}
     
     /// floating point arrays via std::vector
-    void            set(const std::vector<float32> &values)
+    void            set(const std::vector<float32> &values) const
                         {set(&values[0],values.size());}
-    void            set(const std::vector<float64> &values)
+    void            set(const std::vector<float64> &values) const
                         {set(&values[0],values.size());}
 
     //-------------------------------------------------------------------------
@@ -186,58 +318,58 @@ public:
     //-------------------------------------------------------------------------
 
     /// signed integer arrays via std::initializer_list
-    void            set(const std::initializer_list<int8>    &values);
-    void            set(const std::initializer_list<int16>   &values);
-    void            set(const std::initializer_list<int32>   &values);
-    void            set(const std::initializer_list<int64>   &values);
+    void            set(const std::initializer_list<int8>    &values) const;
+    void            set(const std::initializer_list<int16>   &values) const;
+    void            set(const std::initializer_list<int32>   &values) const;
+    void            set(const std::initializer_list<int64>   &values) const;
 
     /// unsigned integer arrays via std::initializer_list
-    void            set(const std::initializer_list<uint8>   &values);
-    void            set(const std::initializer_list<uint16>  &values);
-    void            set(const std::initializer_list<uint32>  &values);
-    void            set(const std::initializer_list<uint64>  &values);
+    void            set(const std::initializer_list<uint8>   &values) const;
+    void            set(const std::initializer_list<uint16>  &values) const;
+    void            set(const std::initializer_list<uint32>  &values) const;
+    void            set(const std::initializer_list<uint64>  &values) const;
     
     /// floating point arrays via std::initializer_list
-    void            set(const std::initializer_list<float32> &values);
-    void            set(const std::initializer_list<float64> &values);
+    void            set(const std::initializer_list<float32> &values) const;
+    void            set(const std::initializer_list<float64> &values) const;
 
     //-------------------------------------------------------------------------
     // --  assignment c-native gap operators for initializer_list types ---
     //-------------------------------------------------------------------------
 
-    void set(const std::initializer_list<char> &values);
+    void set(const std::initializer_list<char> &values) const;
 
     #ifndef CONDUIT_USE_CHAR
-        void set(const std::initializer_list<signed char> &values);
-        void set(const std::initializer_list<unsigned char> &values);
+        void set(const std::initializer_list<signed char> &values) const;
+        void set(const std::initializer_list<unsigned char> &values) const;
     #endif
 
     #ifndef CONDUIT_USE_SHORT
-        void set(const std::initializer_list<short> &values);
-        void set(const std::initializer_list<unsigned short> &values);
+        void set(const std::initializer_list<short> &values) const;
+        void set(const std::initializer_list<unsigned short> &values) const;
     #endif
 
     #ifndef CONDUIT_USE_INT
-       void set(const std::initializer_list<int> &values);
-       void set(const std::initializer_list<unsigned int> &values); 
+       void set(const std::initializer_list<int> &values) const;
+       void set(const std::initializer_list<unsigned int> &values) const; 
     #endif
 
     #ifndef CONDUIT_USE_LONG
-       void set(const std::initializer_list<long> &values);
-       void set(const std::initializer_list<unsigned long> &values); 
+       void set(const std::initializer_list<long> &values) const;
+       void set(const std::initializer_list<unsigned long> &values) const; 
     #endif
 
     #if defined(CONDUIT_HAS_LONG_LONG) && !defined(CONDUIT_USE_LONG_LONG)
-       void set(const std::initializer_list<long long> &values);
-       void set(const std::initializer_list<unsigned long long> &values); 
+       void set(const std::initializer_list<long long> &values) const;
+       void set(const std::initializer_list<unsigned long long> &values) const; 
     #endif
 
     #ifndef CONDUIT_USE_FLOAT
-       void set(const std::initializer_list<float> &values);
+       void set(const std::initializer_list<float> &values) const;
     #endif
 
     #ifndef CONDUIT_USE_DOUBLE
-       void set(const std::initializer_list<double> &values);
+       void set(const std::initializer_list<double> &values) const;
     #endif
 
     //-------------------------------------------------------------------------
@@ -299,36 +431,36 @@ public:
     #endif
 
     /// signed integer arrays via DataArray
-    void            set(const DataArray<int8>    &values);
-    void            set(const DataArray<int16>   &values);
-    void            set(const DataArray<int32>   &values);
-    void            set(const DataArray<int64>   &values);
+    void            set(const DataArray<int8>    &values) const;
+    void            set(const DataArray<int16>   &values) const;
+    void            set(const DataArray<int32>   &values) const;
+    void            set(const DataArray<int64>   &values) const;
 
     /// unsigned integer arrays via DataArray
-    void            set(const DataArray<uint8>   &values);
-    void            set(const DataArray<uint16>  &values);
-    void            set(const DataArray<uint32>  &values);
-    void            set(const DataArray<uint64>  &values);
+    void            set(const DataArray<uint8>   &values) const;
+    void            set(const DataArray<uint16>  &values) const;
+    void            set(const DataArray<uint32>  &values) const;
+    void            set(const DataArray<uint64>  &values) const;
     
     /// floating point arrays via DataArray
-    void            set(const DataArray<float32>  &values);
-    void            set(const DataArray<float64>  &values);
+    void            set(const DataArray<float32>  &values) const;
+    void            set(const DataArray<float64>  &values) const;
 
     /// signed integer arrays via DataAccessor
-    void            set(const DataAccessor<int8>    &values);
-    void            set(const DataAccessor<int16>   &values);
-    void            set(const DataAccessor<int32>   &values);
-    void            set(const DataAccessor<int64>   &values);
+    void            set(const DataAccessor<int8>    &values) const;
+    void            set(const DataAccessor<int16>   &values) const;
+    void            set(const DataAccessor<int32>   &values) const;
+    void            set(const DataAccessor<int64>   &values) const;
 
     /// unsigned integer arrays via DataAccessor
-    void            set(const DataAccessor<uint8>   &values);
-    void            set(const DataAccessor<uint16>  &values);
-    void            set(const DataAccessor<uint32>  &values);
-    void            set(const DataAccessor<uint64>  &values);
+    void            set(const DataAccessor<uint8>   &values) const;
+    void            set(const DataAccessor<uint16>  &values) const;
+    void            set(const DataAccessor<uint32>  &values) const;
+    void            set(const DataAccessor<uint64>  &values) const;
     
     /// floating point arrays via DataAccessor
-    void            set(const DataAccessor<float32>  &values);
-    void            set(const DataAccessor<float64>  &values);
+    void            set(const DataAccessor<float32>  &values) const;
+    void            set(const DataAccessor<float64>  &values) const;
 
 //-----------------------------------------------------------------------------
 // fill
@@ -397,13 +529,93 @@ private:
 //-----------------------------------------------------------------------------
     /// holds data (always external, never allocated)
     void           *m_data;
+    /// caches the original backing pointer so device code can reason about
+    /// migrated state without dereferencing Node.
+    void           *m_orig_data_ptr;
     /// holds data description
     DataType        m_dtype;
+
+    Node           *m_node_ptr;
+
+    /// holds data
+    void           *m_other_ptr;
+    /// holds data description
+    DataType        m_other_dtype;
     
+    bool            m_do_i_own_it;
+
+    index_t         m_offset;
+    index_t         m_stride;
+
+    /// Caches the execution policy, starts with an empty policy.
+    mutable conduit::execution::ExecutionPolicy m_policy;
 };
 //-----------------------------------------------------------------------------
 // -- end conduit::DataArray --
 //-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+//
+// -- conduit::DataArray explicit instantiation declarations --
+//
+//-----------------------------------------------------------------------------
+#if defined(CONDUIT_WINDOWS_DLL_EXPORTS) && \
+    !defined(CONDUIT_EXPORTS_DEFINED) && \
+    !defined(CONDUIT_TU_IS_CUDA) && !defined(CONDUIT_TU_IS_HIP)
+
+extern template class CONDUIT_API DataArray<int8>;
+extern template class CONDUIT_API DataArray<int16>;
+extern template class CONDUIT_API DataArray<int32>;
+extern template class CONDUIT_API DataArray<int64>;
+
+extern template class CONDUIT_API DataArray<uint8>;
+extern template class CONDUIT_API DataArray<uint16>;
+extern template class CONDUIT_API DataArray<uint32>;
+extern template class CONDUIT_API DataArray<uint64>;
+
+extern template class CONDUIT_API DataArray<float32>;
+extern template class CONDUIT_API DataArray<float64>;
+
+extern template class CONDUIT_API DataArray<char>;
+
+#ifndef CONDUIT_USE_CHAR
+extern template class CONDUIT_API DataArray<signed char>;
+extern template class CONDUIT_API DataArray<unsigned char>;
+#endif
+
+#ifndef CONDUIT_USE_SHORT
+extern template class CONDUIT_API DataArray<signed short>;
+extern template class CONDUIT_API DataArray<unsigned short>;
+#endif
+
+#ifndef CONDUIT_USE_INT
+extern template class CONDUIT_API DataArray<signed int>;
+extern template class CONDUIT_API DataArray<unsigned int>;
+#endif
+
+#ifndef CONDUIT_USE_LONG
+extern template class CONDUIT_API DataArray<signed long>;
+extern template class CONDUIT_API DataArray<unsigned long>;
+#endif
+
+#if defined(CONDUIT_HAS_LONG_LONG) && !defined(CONDUIT_USE_LONG_LONG)
+extern template class CONDUIT_API DataArray<signed long long>;
+extern template class CONDUIT_API DataArray<unsigned long long>;
+#endif
+
+#ifndef CONDUIT_USE_FLOAT
+extern template class CONDUIT_API DataArray<float>;
+#endif
+
+#ifndef CONDUIT_USE_DOUBLE
+extern template class CONDUIT_API DataArray<double>;
+#endif
+
+#ifdef CONDUIT_USE_LONG_DOUBLE
+extern template class CONDUIT_API DataArray<long double>;
+#endif
+
+#endif // Windows shared, importing, non-device TUs
 
 //-----------------------------------------------------------------------------
 //

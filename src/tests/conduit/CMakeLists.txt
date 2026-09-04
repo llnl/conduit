@@ -20,7 +20,6 @@ set(BASIC_TESTS t_conduit_smoke
                 t_conduit_node_static_init
                 t_conduit_node_move_and_swap
                 t_conduit_serialize
-                t_conduit_array
                 t_conduit_list_of
                 t_conduit_node_binary_io
                 t_conduit_node_save_load
@@ -33,6 +32,7 @@ set(BASIC_TESTS t_conduit_smoke
                 t_conduit_json_sanitize
                 t_conduit_yaml
                 t_conduit_generator
+                t_conduit_data_array
                 t_conduit_data_accessor
                 t_conduit_node_update
                 t_conduit_node_compact
@@ -43,6 +43,8 @@ set(BASIC_TESTS t_conduit_smoke
                 t_conduit_node_type_dispatch
                 t_conduit_schema
                 t_conduit_error
+                t_conduit_execution
+                t_conduit_execution_dispatch
                 t_conduit_log
                 t_conduit_utils
                 t_conduit_annotations
@@ -64,6 +66,12 @@ foreach(TEST ${BASIC_TESTS})
                  FOLDER tests/conduit)
 endforeach()
 
+set(conduit_device_test_sources
+    t_conduit_execution.cpp
+    t_conduit_execution_dispatch.cpp)
+
+conduit_set_source_device_properties("${conduit_device_test_sources}")
+
 ################################
 # Add c interface tests
 ################################
@@ -83,5 +91,3 @@ if(FORTRAN_FOUND)
 else()
     message(STATUS "Fortran disabled: Skipping conduit fortran interface tests")
 endif()
-
-

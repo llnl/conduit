@@ -24,7 +24,7 @@
 
 #else
 
-#define EXEC_LAMBDA 
+#define EXEC_LAMBDA
 
 #endif
 
@@ -38,11 +38,11 @@ device_alloc(int size)
 {
 #if defined (RAJA_ENABLE_CUDA)
     void *buff;
-    cudaMalloc(&buff, size);
+    EXPECT_EQ(cudaSuccess, cudaMalloc(&buff, size));
     return buff;
 #elif defined (RAJA_ENABLE_HIP)
     void *buff;
-    hipMalloc(&buff, size);
+    EXPECT_EQ(hipSuccess, hipMalloc(&buff, size));
     return buff;
 #else
     return malloc(size);
@@ -55,9 +55,9 @@ device_free(void *ptr)
 
 {
 #if defined (RAJA_ENABLE_CUDA)
-    cudaFree(ptr);
+    EXPECT_EQ(cudaSuccess, cudaFree(ptr));
 #elif defined (RAJA_ENABLE_HIP)
-    hipFree(ptr);
+    EXPECT_EQ(hipSuccess, hipFree(ptr));
 #else
     free(ptr);
 #endif
@@ -68,27 +68,28 @@ void
 copy_from_device_to_host(void *dest, void *src, int size)
 {
 #if defined (RAJA_ENABLE_CUDA)
-   cudaMemcpy(dest, src, size, cudaMemcpyDeviceToHost);
+   EXPECT_EQ(cudaSuccess,
+             cudaMemcpy(dest, src, size, cudaMemcpyDeviceToHost));
 #elif defined (RAJA_ENABLE_HIP)
-   hipMemcpy(dest, src, size, hipMemcpyDeviceToHost);
+   EXPECT_EQ(hipSuccess,
+             hipMemcpy(dest, src, size, hipMemcpyDeviceToHost));
 #else
    memcpy(dest,src,size);
 #endif
 }
 
-
 //-----------------------------------------------------------------------------
 void run_test()
 {
 // setup exec policy
-#if defined (RAJA_ENABLE_OPENMP)
-    using ExecPolicy = RAJA::omp_parallel_for_exec;
-#elif defined (RAJA_ENABLE_CUDA)
+#if defined (RAJA_ENABLE_CUDA)
     #define CUDA_BLOCK_SIZE 128
     using ExecPolicy = RAJA::cuda_exec<CUDA_BLOCK_SIZE>;
 #elif defined (RAJA_ENABLE_HIP)
     #define HIP_BLOCK_SIZE 256
     using ExecPolicy = RAJA::hip_exec<HIP_BLOCK_SIZE>;
+#elif defined (RAJA_ENABLE_OPENMP)
+    using ExecPolicy = RAJA::omp_parallel_for_exec;
 #else
     using ExecPolicy = RAJA::seq_exec;
 #endif
@@ -118,6 +119,3 @@ TEST(raja_smoke, basic_use_default_policy)
     // this is a separate func to avoid issue with lambda vs gtest macro
     run_test();
 }
-
-
-

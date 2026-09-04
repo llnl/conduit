@@ -25,6 +25,7 @@
 #include "conduit_blueprint_mesh_utils.hpp"
 #include "conduit_annotations.hpp"
 #include "conduit_execution.hpp"
+#include "conduit_execution_dispatch.hpp"
 #include "conduit_utils.hpp"
 
 //#define DEBUG_PRINT
@@ -59,14 +60,6 @@ namespace mesh
 //-----------------------------------------------------------------------------
 namespace utils
 {
-
-// We may tag certain algorithms as ParallelExec if it is safe to do so.
-using SerialExec = conduit::execution::SerialExec;
-#if defined(CONDUIT_USE_OPENMP)
-using ParallelExec = conduit::execution::OpenMPExec;
-#else
-using ParallelExec = conduit::execution::SerialExec;
-#endif
 
 //---------------------------------------------------------------------------
 void
@@ -925,7 +918,8 @@ private:
         CONDUIT_ANNOTATE_MARK_BEGIN("Labeling");
         std::vector<std::pair<uint64, uint64>> faceid_to_ef(nelem_faces);
 
-        conduit::execution::for_all<ParallelExec>(0, nelem, [&](index_t elem)
+        conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy::host();
+        conduit::execution::forall(policy, 0, nelem, [&](index_t elem)
         {
             // Get the element faces, storing them all in face_pts.
             index_t elemstart = elem * points_per_elem;
@@ -945,6 +939,7 @@ private:
                 // encode element and face into element_face.
                 uint64 element_face = facestart + face;
 
+                // TODO: Can this use conduit::execution::sort_ascending?
                 std::sort(face_pts_start, face_pts_end);
                 uint64 faceid = conduit::utils::hash(face_pts_start,
                                     static_cast<unsigned int>(points_per_face));
@@ -963,7 +958,9 @@ private:
         // general faceid, then by their elemface "ef", which should keep the
         // elements in order.
         CONDUIT_ANNOTATE_MARK_BEGIN("Sort labels");
-        conduit::execution::sort<ParallelExec>(faceid_to_ef.begin(), faceid_to_ef.end());
+        // std::vectors of std::pairs are sorted by their first element, so we
+        // don't need a custom comparator.
+        conduit::execution::sort_ascending(policy, faceid_to_ef.begin(), faceid_to_ef.end());
         CONDUIT_ANNOTATE_MARK_END("Sort labels");
 #ifdef DEBUG_PRINT
         std::cout << "faceid_to_ef.sorted = " << faceid_to_ef << std::endl;
@@ -982,13 +979,9 @@ private:
 #endif
 
         // Sort on ef to get back to a ef->unique mapping.
-        conduit::execution::sort<ParallelExec>(
-            ef_to_unique.begin(), ef_to_unique.end(),
-            [&](const std::pair<uint64, uint64> &lhs, const std::pair<uint64, uint64> &rhs)
-            {
-                // Only sort using the ef value.
-                return lhs.first < rhs.first;
-            });
+        // std::vectors of std::pairs are sorted by their first element, so we
+        // don't need a custom comparator.
+        conduit::execution::sort_ascending(policy, ef_to_unique.begin(), ef_to_unique.end());
         CONDUIT_ANNOTATE_MARK_END("Sort ef->unique");
 #ifdef DEBUG_PRINT
         std::cout << "ef_to_unique.sorted = " << ef_to_unique << std::endl;
@@ -1135,7 +1128,8 @@ private:
         std::vector<std::pair<uint64, uint64>> edgeid_to_ee(nelem_edges);
         std::vector<std::pair<index_t, index_t>> ee_to_edge(nelem_edges);
 
-        conduit::execution::for_all<ParallelExec>(0, nelem, [&](index_t elem)
+        conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy::host();
+        conduit::execution::forall(policy, 0, nelem, [&](index_t elem)
         {
             constexpr size_t MAX_VERTS = 32;
 
@@ -1173,7 +1167,9 @@ private:
 
         // Sort edgeid_to_ee so any like edges will be sorted.
         CONDUIT_ANNOTATE_MARK_BEGIN("Sort labels");
-        conduit::execution::sort<ParallelExec>(edgeid_to_ee.begin(), edgeid_to_ee.end());
+        // std::vectors of std::pairs are sorted by their first element, so we
+        // don't need a custom comparator.
+        conduit::execution::sort_ascending(policy, edgeid_to_ee.begin(), edgeid_to_ee.end());
         CONDUIT_ANNOTATE_MARK_END("Sort labels");
 #ifdef DEBUG_PRINT
         std::cout << "edgeid_to_ee.sorted = " << edgeid_to_ee << std::endl;
@@ -1189,13 +1185,9 @@ private:
 #endif
 
         // Sort on ef to get back to a ef->unique mapping.
-        conduit::execution::sort<ParallelExec>(
-            ee_to_unique.begin(), ee_to_unique.end(),
-            [&](const std::pair<uint64, uint64> &lhs, const std::pair<uint64, uint64> &rhs)
-            {
-                // Only sort using the ee value.
-                return lhs.first < rhs.first;
-            });
+        // std::vectors of std::pairs are sorted by their first element, so we
+        // don't need a custom comparator.
+        conduit::execution::sort_ascending(policy, ee_to_unique.begin(), ee_to_unique.end());
         CONDUIT_ANNOTATE_MARK_END("Sort ef->unique");
 #ifdef DEBUG_PRINT
         std::cout << "ee_to_unique.sorted = " << ee_to_unique << std::endl;
@@ -2167,39 +2159,38 @@ TopologyMetadata::Implementation::build_edge_key_to_id(
 #ifdef DEBUG_PRINT
     std::cout << "edges_key_to_id = {" << std::endl;
     // Because of the printing.
-    using Exec = SerialExec;
+    conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy::serial();
 #else
-    using Exec = ParallelExec;
+    conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy::host();
 #endif
-    conduit::execution::for_all<Exec>(0, nedges, [&](index_t edge_index)
+    conduit::execution::dispatch(conn1D,
+                                 [&](auto conn)
     {
-        // Make a key for this edge.
-        index_t edge[2];
-        edge[0] = conn1D[edge_index * 2];
-        edge[1] = conn1D[edge_index * 2 + 1];
-        if(edge[1] > edge[0])
-            std::swap(edge[0], edge[1]);
-        uint64 key = conduit::utils::hash(edge, 2);
-        // Store the edge in the map.
-        edge_key_to_id[edge_index] = std::make_pair(key, edge_index);
+        conduit::execution::forall(policy, 0, nedges, [&](index_t edge_index)
+        {
+            // Make a key for this edge.
+            index_t edge[2];
+            edge[0] = conn[edge_index * 2];
+            edge[1] = conn[edge_index * 2 + 1];
+            if(edge[1] > edge[0])
+                std::swap(edge[0], edge[1]);
+            uint64 key = conduit::utils::hash(edge, 2);
+            // Store the edge in the map.
+            edge_key_to_id[edge_index] = std::make_pair(key, edge_index);
 #ifdef DEBUG_PRINT
-        std::cout << std::setw(4) << edge_index << ": key=" <<  std::setw(20) << key
-             << ", pts=" << std::setw(8) << edge[0] << ", "
-             << std::setw(8) << edge[1] << std::endl;
+            std::cout << std::setw(4) << edge_index << ": key=" <<  std::setw(20) << key
+                 << ", pts=" << std::setw(8) << edge[0] << ", "
+                 << std::setw(8) << edge[1] << std::endl;
 #endif
+        });
     });
 #ifdef DEBUG_PRINT
     std::cout << "}" << std::endl;
 #endif
 
-    // Sort the edges by the ids.
-    conduit::execution::sort<ParallelExec>(
-        edge_key_to_id.begin(), edge_key_to_id.end(),
-        [&](const std::pair<uint64, index_t> &lhs,
-            const std::pair<uint64, index_t> &rhs) 
-        {
-            return lhs.first < rhs.first;
-        });
+    // Sort the edges by the ids. std::vectors of std::pairs are sorted by
+    // their first element, so we don't need a custom comparator.
+    conduit::execution::sort_ascending(policy, edge_key_to_id.begin(), edge_key_to_id.end());
 }
 
 //---------------------------------------------------------------------------
@@ -2288,7 +2279,8 @@ TopologyMetadata::Implementation::build_association_3_1_and_3_0_nonph()
     // Iterate over the elements, applying the edge template to make unique
     // edges for the element. We look up the edge in edge_key_to_id to get
     // its id.
-    conduit::execution::for_all<ParallelExec>(0, nelem, [&](index_t ei)
+    conduit::execution::ExecutionPolicy policy = conduit::execution::ExecutionPolicy::host();
+    conduit::execution::forall(policy, 0, nelem, [&](index_t ei)
     {
         index_t elem_offset = ei * points_per_elem;
 
@@ -2487,7 +2479,9 @@ TopologyMetadata::Implementation::build_child_to_parent_association(int e, int a
     std::cout << "p2c=" << p2c << std::endl;
 #endif
     // Sort p2c by child.
-    conduit::execution::sort<ParallelExec>(p2c.begin(), p2c.end(),
+    // TODO: see if p2c can be constucted in reverse to make it compatible
+    // with conduit::execution::sort_ascending
+    std::sort(p2c.begin(), p2c.end(),
         [&](const std::pair<index_t, index_t> &lhs,
             const std::pair<index_t, index_t> &rhs)
     {
@@ -2512,6 +2506,7 @@ TopologyMetadata::Implementation::build_child_to_parent_association(int e, int a
         {
             index_t *start = &mapCP.data[mapCP.offsets[i]];
             index_t *end = start + mapCP.sizes[i];
+            // TODO: Can this use conduit::execution::sort_ascending?
             std::sort(start, end);
         }
     }
@@ -3742,6 +3737,7 @@ TopologyMetadata::TopologyMetadata(const conduit::Node &topology,
                     }
                 }
             }
+            // TODO: Can this use conduit::execution::sort_ascending?
             std::sort(vert_ids.begin(), vert_ids.end());
 
             // Look up the entity in the map, make global_id.

@@ -29,6 +29,7 @@ message(STATUS "Found Umpire in: ${UMPIRE_DIR}")
 # reset UMPIRE_DIR just in case the find process mangled it
 set(UMPIRE_DIR ${UMPIRE_DIR_ORIG})
 set(UMPIRE_FOUND TRUE)
+set(CONDUIT_USE_UMPIRE TRUE)
 
 if(CONDUIT_ENABLE_TESTS AND WIN32 AND BUILD_SHARED_LIBS)
     # if we are running tests with dlls, we need path to dlls

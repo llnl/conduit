@@ -57,7 +57,13 @@
 
 #cmakedefine CONDUIT_USE_CALIPER
 
+#cmakedefine CONDUIT_USE_RAJA
+
+#cmakedefine CONDUIT_USE_UMPIRE
+
 #cmakedefine CONDUIT_USE_OPENMP
+
+#cmakedefine CONDUIT_USE_TYPED_DISPATCH
 
 #cmakedefine CONDUIT_USE_PARMETIS
 

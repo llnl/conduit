@@ -15,18 +15,21 @@
 #include <algorithm>
 #include <cstring>
 #include <limits>
+#include <type_traits>
 
 
 //-----------------------------------------------------------------------------
 // -- conduit includes -- 
 //-----------------------------------------------------------------------------
+#include "conduit_execution_policy.hpp"
 #include "conduit_node.hpp"
 #include "conduit_utils.hpp"
 #include "conduit_log.hpp"
 #include "conduit_data_accessor.hpp"
-
-// Easier access to the Conduit logging functions
-using namespace conduit::utils;
+#include "conduit_execution.hpp"
+#include "conduit_execution_dispatch.hpp"
+#include "conduit_memory_manager.hpp"
+#include "conduit_annotations.hpp"
 
 //-----------------------------------------------------------------------------
 // -- begin conduit:: --
@@ -34,6 +37,527 @@ using namespace conduit::utils;
 namespace conduit
 {
 
+
+//-----------------------------------------------------------------------------
+// -- begin conduit::detail --
+//-----------------------------------------------------------------------------
+namespace detail
+{
+
+//
+// Kernels
+//
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Fill
+{
+    U vals;
+    T value;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        vals.set(i, value);
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+void
+array_fill_kernel(execution::ExecutionPolicy &policy,
+                  index_t num_elements,
+                  const U vals,
+                  const T value)
+{
+    // Small host arrays are faster to fill without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        Fill<T, U> kernel{vals, value};
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            kernel(i);
+        }
+        return;
+    }
+
+    execution::forall(policy, 0, num_elements, Fill<T, U>{vals, value});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename T>
+struct FillArray
+{
+    DataArray<T> vals;
+    T value;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        vals.element(i) = value;
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T>
+void
+array_fill_kernel(execution::ExecutionPolicy &policy,
+                  index_t num_elements,
+                  const DataArray<T> vals,
+                  const T value)
+{
+    // Small host arrays are faster to fill without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        FillArray<T> kernel{vals, value};
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            kernel(i);
+        }
+        return;
+    }
+
+    execution::forall(policy, 0, num_elements, FillArray<T>{vals, value});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct CopyFromView
+{
+    T vals;
+    U src;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        vals.set(i, src[i]);
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+void
+array_copy_from_view_kernel(execution::ExecutionPolicy &policy,
+                            index_t num_elements,
+                            const U src,
+                            const T vals)
+{
+    // Small host arrays are faster to copy without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        CopyFromView<T, U> kernel{vals, src};
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            kernel(i);
+        }
+        return;
+    }
+
+    execution::forall(policy, 0, num_elements, CopyFromView<T, U>{vals, src});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct CopyFromViewArray
+{
+    DataArray<T> vals;
+    U src;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        vals.element(i) = static_cast<T>(src[i]);
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+void
+array_copy_from_view_kernel(execution::ExecutionPolicy &policy,
+                            index_t num_elements,
+                            const U src,
+                            const DataArray<T> vals)
+{
+    // Small host arrays are faster to copy without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        CopyFromViewArray<T, U> kernel{vals, src};
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            kernel(i);
+        }
+        return;
+    }
+
+    execution::forall(policy, 0, num_elements, CopyFromViewArray<T, U>{vals, src});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Min
+{
+    execution::ReduceMin<T> reducer;
+    U vals;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        reducer.min(static_cast<T>(vals[i]));
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+T
+array_min_kernel(execution::ExecutionPolicy &policy,
+                 index_t num_elements,
+                 const U vals)
+{
+    // Small host arrays are faster to compute min without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        T res = std::numeric_limits<T>::max();
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            res = std::min(res, static_cast<T>(vals[i]));
+        }
+        return res;
+    }
+
+    execution::ReduceMin<T> reducer(std::numeric_limits<T>::max());
+    execution::forall(policy, 0, num_elements, Min<T, U>{reducer, vals});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    return reducer.get();
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Max
+{
+    execution::ReduceMax<T> reducer;
+    U vals;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        reducer.max(static_cast<T>(vals[i]));
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+T
+array_max_kernel(execution::ExecutionPolicy &policy,
+                 index_t num_elements,
+                 const U vals)
+{
+    // Small host arrays are faster to compute max without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        T res = std::numeric_limits<T>::lowest();
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            res = std::max(res, static_cast<T>(vals[i]));
+        }
+        return res;
+    }
+
+    execution::ReduceMax<T> reducer(std::numeric_limits<T>::lowest());
+    execution::forall(policy, 0, num_elements, Max<T, U>{reducer, vals});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    return reducer.get();
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Sum
+{
+    execution::ReduceSum<T> reducer;
+    U vals;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        reducer += static_cast<T>(vals[i]);
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+T
+array_sum_kernel(execution::ExecutionPolicy &policy,
+                 index_t num_elements,
+                 const U vals)
+{
+    // Small host arrays are faster to sum without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        T res = static_cast<T>(0);
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            res += static_cast<T>(vals[i]);
+        }
+        return res;
+    }
+
+    execution::ReduceSum<T> reducer(static_cast<T>(0));
+    execution::forall(policy, 0, num_elements, Sum<T, U>{reducer, vals});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    return reducer.get();
+}
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+struct Count
+{
+    execution::ReduceSum<index_t> reducer;
+    U vals;
+    T value;
+
+    CONDUIT_EXEC void operator()(index_t i) const
+    {
+        reducer += (static_cast<T>(vals[i]) == value) ? 1 : 0;
+    }
+};
+
+//-----------------------------------------------------------------------------
+template <typename T, typename U>
+index_t
+array_count_kernel(execution::ExecutionPolicy &policy,
+                   index_t num_elements,
+                   const U vals,
+                   const T value)
+{
+    // Small host arrays are faster to count without a forall
+    if (!policy.is_device_policy() && num_elements < CONDUIT_SMALL_N_THRESHOLD)
+    {
+        index_t res = 0;
+        for (index_t i = 0; i < num_elements; i++)
+        {
+            res += (static_cast<T>(vals[i]) == value) ? 1 : 0;
+        }
+        return res;
+    }
+
+    execution::ReduceSum<index_t> reducer(0);
+    execution::forall(policy, 0, num_elements, Count<T, U>{reducer, vals, value});
+    CONDUIT_DEVICE_ERROR_CHECK(policy);
+    return reducer.get();
+}
+
+//-----------------------------------------------------------------------------
+template <typename U, typename T>
+void
+fill_value_helper(const DataArray<T> &array,
+                  U value)
+{
+    const index_t num_elements = array.number_of_elements();
+    execution::ExecutionPolicy policy = array.active_policy();
+    const T val = static_cast<T>(value);
+
+    execution::dispatch(array, [&](auto vals)
+    {
+        array_fill_kernel(policy, num_elements, vals, val);
+    });
+}
+
+//-----------------------------------------------------------------------------
+template <typename U, typename T>
+void
+set_values_helper(const DataArray<T> &array,
+                  const U *values,
+                  index_t num_elements)
+{
+    // Avoid performing unnecessary work for empty arrays
+    if (num_elements <= 0)
+    {
+        return;
+    }
+
+    execution::ExecutionPolicy policy = array.active_policy();
+
+    const bool dst_on_device = policy.is_device_policy();
+    const bool src_on_device = execution::DeviceMemory::is_device_ptr(values);
+
+    if (dst_on_device == src_on_device)
+    {
+        execution::dispatch(array, [&](auto vals)
+        {
+            array_copy_from_view_kernel(policy, num_elements, values, vals);
+        });
+    }
+    else // dst and src are in different memory spaces
+    {
+        const DataType &dtype = array.dtype();
+
+        // When the source elements are the same type as the destination and
+        // the destination has a compact layout, we can avoid using a temp
+        // buffer.
+        const index_t type_size = static_cast<index_t>(sizeof(T));
+        const bool same_layout = std::is_same<U, T>::value &&
+                                 dtype.stride() == type_size &&
+                                 dtype.element_bytes() == type_size;
+        if (same_layout)
+        {
+            utils::conduit_memcpy(const_cast<void*>(array.element_ptr(0)),
+                                  values,
+                                  num_elements * sizeof(T));
+            return;
+        }
+
+        // The API for copying data across memory spaces (host <-> device)
+        // only transmits raw bytes. It cannot apply a destination stride or
+        // offset, and it cannot convert element types. So we do it in two passes:
+        //
+        // 1. Copy the source elements into a temp buffer that lives in the
+        //    destination's memory space.
+        // 2. Run a kernel in the destination's memory space that reads
+        //    the temp buffer and writes each element into the destination
+        //    with the correct stride, offset, and type.
+        const size_t src_type_size = sizeof(U);
+        const size_t num_bytes = num_elements * src_type_size;
+        void *temp_ptr = dst_on_device
+            ? execution::DeviceMemory::allocate(num_bytes)
+            : execution::HostMemory::allocate(num_bytes);
+        utils::conduit_memcpy_strided_elements(temp_ptr,
+                                               num_elements,
+                                               src_type_size,
+                                               src_type_size,
+                                               values,
+                                               src_type_size);
+        const U *temp_vals = static_cast<const U*>(temp_ptr);
+        execution::dispatch(array, [&](auto vals)
+        {
+            array_copy_from_view_kernel(policy, num_elements, temp_vals, vals);
+        });
+
+        // Clean up
+        if (dst_on_device)
+        {
+            execution::DeviceMemory::deallocate(temp_ptr);
+        }
+        else // if (!dst_on_device)
+        {
+            execution::HostMemory::deallocate(temp_ptr);
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+template <typename U, template <typename> class View, typename T>
+void
+set_values_view_helper(const DataArray<T> &array,
+                       const View<U> &values,
+                       index_t num_elements)
+{
+    // Avoid performing unnecessary work for empty arrays
+    if (num_elements <= 0)
+    {
+        return;
+    }
+
+    execution::ExecutionPolicy policy = array.active_policy();
+
+    const bool dst_on_device = policy.is_device_policy();
+    const bool src_on_device = values.active_policy().is_device_policy();
+
+    if (dst_on_device == src_on_device)
+    {
+        execution::dispatch(array, [&](auto vals)
+        {
+            array_copy_from_view_kernel(policy, num_elements, values, vals);
+        });
+    }
+    else // dst and src are in different memory spaces
+    {
+        // The API for copying data across memory spaces (host <-> device)
+        // only transmits raw bytes. It cannot apply a destination stride or
+        // offset, and it cannot convert element types. So we do it in two passes:
+        //
+        // 1. Copy the source elements into a temp buffer that lives in the
+        //    destination's memory space.
+        // 2. Run a kernel in the destination's memory space that reads
+        //    the temp buffer and writes each element into the destination
+        //    with the correct stride, offset, and type.
+        const DataType &src_dt = values.dtype();
+        const size_t type_size = src_dt.element_bytes();
+        const size_t num_bytes = num_elements * type_size;
+        void *temp_ptr = dst_on_device
+            ? execution::DeviceMemory::allocate(num_bytes)
+            : execution::HostMemory::allocate(num_bytes);
+        const DataType temp_dtype(src_dt.id(),
+                                  num_elements,
+                                  0, // offset is 0
+                                  DataType::default_bytes(src_dt.id()), // stride
+                                  src_dt.element_bytes(),
+                                  src_dt.endianness());
+        utils::conduit_memcpy_strided_elements(temp_ptr,
+                                               num_elements,
+                                               type_size,
+                                               temp_dtype.stride(),
+                                               values.element_ptr(0),
+                                               src_dt.stride());
+        const View<U> temp_view(static_cast<const void*>(temp_ptr),
+                                temp_dtype);
+        execution::dispatch(array, [&](auto vals)
+        {
+            array_copy_from_view_kernel(policy, num_elements, temp_view, vals);
+        });
+
+        // Clean up
+        if (dst_on_device)
+        {
+            execution::DeviceMemory::deallocate(temp_ptr);
+        }
+        else // if (!dst_on_device)
+        {
+            execution::HostMemory::deallocate(temp_ptr);
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+template <typename U, typename T>
+void
+set_values_helper(const DataArray<T> &array,
+                  const DataArray<U> &values,
+                  index_t num_elements)
+{
+    // Setting across memory spaces between compact DataArrays can be a single
+    // bulk copy. This fast path is only valid for DataArrays since
+    // DataAccessors convert between their underlying dtype and their element
+    // type.
+    const DataType &dst_dt = array.dtype();
+    const DataType &src_dt = values.dtype();
+    const bool cross_space = array.active_policy().is_device_policy() !=
+                             values.active_policy().is_device_policy();
+    const bool same_layout = dst_dt.id() == src_dt.id() &&
+                             dst_dt.element_bytes() == src_dt.element_bytes() &&
+                             dst_dt.stride() == dst_dt.element_bytes() &&
+                             src_dt.stride() == src_dt.element_bytes();
+    if (num_elements > 0 && cross_space && same_layout)
+    {
+        utils::conduit_memcpy(const_cast<void*>(array.element_ptr(0)),
+                              values.element_ptr(0),
+                              num_elements * dst_dt.element_bytes());
+        return;
+    }
+
+    // Non-fast path
+    set_values_view_helper(array, values, num_elements);
+}
+
+//-----------------------------------------------------------------------------
+template <typename U, typename T>
+void
+set_values_helper(const DataArray<T> &array,
+                  const DataAccessor<U> &values,
+                  index_t num_elements)
+{
+    set_values_view_helper(array, values, num_elements);
+}
+
+}
+//-----------------------------------------------------------------------------
+// -- end conduit::detail --
+//-----------------------------------------------------------------------------
 
 //-----------------------------------------------------------------------------
 //
@@ -44,65 +568,108 @@ namespace conduit
 //---------------------------------------------------------------------------//
 template <typename T> 
 DataArray<T>::DataArray()
-: m_data(NULL),
-  m_dtype(DataType::empty())
-{} 
+: m_data(nullptr),
+  m_orig_data_ptr(nullptr),
+  m_dtype(DataType::empty()),
+  m_node_ptr(nullptr),
+  m_other_ptr(nullptr),
+  m_other_dtype(DataType::empty()),
+  m_do_i_own_it(false),
+  m_offset(0),
+  m_stride(0),
+  m_policy(execution::ExecutionPolicy::empty())
+{}
 
 //---------------------------------------------------------------------------//
 template <typename T> 
-DataArray<T>::DataArray(void *data,const DataType &dtype)
+DataArray<T>::DataArray(void *data, const DataType &dtype)
 : m_data(data),
-  m_dtype(dtype)
+  m_orig_data_ptr(data),
+  m_dtype(dtype),
+  m_node_ptr(nullptr),
+  m_other_ptr(nullptr),
+  m_other_dtype(DataType::empty()),
+  m_do_i_own_it(false),
+  m_offset(0),
+  m_stride(0),
+  m_policy(execution::ExecutionPolicy::empty())
 {}
+
 
 //---------------------------------------------------------------------------//
 template <typename T> 
-DataArray<T>::DataArray(const void *data,const DataType &dtype)
+DataArray<T>::DataArray(const void *data, const DataType &dtype)
 : m_data(const_cast<void*>(data)),
-  m_dtype(dtype)
+  m_orig_data_ptr(const_cast<void*>(data)),
+  m_dtype(dtype),
+  m_node_ptr(nullptr),
+  m_other_ptr(nullptr),
+  m_other_dtype(DataType::empty()),
+  m_do_i_own_it(false),
+  m_offset(0),
+  m_stride(0),
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
-
-//---------------------------------------------------------------------------// 
+//---------------------------------------------------------------------------//
 template <typename T> 
-DataArray<T>::DataArray(const DataArray<T> &array)
-: m_data(array.m_data),
-  m_dtype(array.m_dtype)
+DataArray<T>::DataArray(Node &node)
+: m_data(node.data_ptr()),
+  m_orig_data_ptr(node.data_ptr()),
+  m_dtype(node.dtype()),
+  m_node_ptr(&node),
+  m_other_ptr(nullptr),
+  m_other_dtype(DataType::empty()),
+  m_do_i_own_it(false),
+  m_offset(node.dtype().offset()),
+  m_stride(node.dtype().stride()),
+  m_policy(execution::ExecutionPolicy::empty())
 {}
 
 //---------------------------------------------------------------------------//
 template <typename T> 
-DataArray<T>::~DataArray()
-{} // all data is external
+DataArray<T>::DataArray(const Node &node)
+: m_data(const_cast<void*>(node.data_ptr())),
+  m_orig_data_ptr(const_cast<void*>(node.data_ptr())),
+  m_dtype(node.dtype()),
+  m_node_ptr(const_cast<Node*>(&node)),
+  m_other_ptr(nullptr),
+  m_other_dtype(DataType::empty()),
+  m_do_i_own_it(false),
+  m_offset(node.dtype().offset()),
+  m_stride(node.dtype().stride()),
+  m_policy(execution::ExecutionPolicy::empty())
+{}
 
 //---------------------------------------------------------------------------//
 template <typename T> 
-DataArray<T> &
-DataArray<T>::operator=(const DataArray<T> &array)
-{
-    if(this != &array)
-    {
-        m_data  = array.m_data;
-        m_dtype = array.m_dtype;
-    }
-    return *this;
-}
+DataArray<T>::DataArray(Node *node)
+: m_data(node->data_ptr()),
+  m_orig_data_ptr(node->data_ptr()),
+  m_dtype(node->dtype()), 
+  m_node_ptr(node),
+  m_other_ptr(nullptr),
+  m_other_dtype(DataType::empty()),
+  m_do_i_own_it(false),
+  m_offset(node->dtype().offset()),
+  m_stride(node->dtype().stride()),
+  m_policy(execution::ExecutionPolicy::empty())
+{}
 
 //---------------------------------------------------------------------------//
 template <typename T> 
-T &
-DataArray<T>::element(index_t idx)
-{ 
-    return (*(T*)(element_ptr(idx)));
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-T &             
-DataArray<T>::element(index_t idx) const 
-{ 
-    return (*(T*)(element_ptr(idx)));
-}
+DataArray<T>::DataArray(const Node *node)
+: m_data(const_cast<void*>(node->data_ptr())),
+  m_orig_data_ptr(const_cast<void*>(node->data_ptr())),
+  m_dtype(node->dtype()), 
+  m_node_ptr(const_cast<Node*>(node)),
+  m_other_ptr(nullptr),
+  m_other_dtype(DataType::empty()),
+  m_do_i_own_it(false),
+  m_offset(node->dtype().offset()),
+  m_stride(node->dtype().stride()),
+  m_policy(execution::ExecutionPolicy::empty())
+{}
 
 //---------------------------------------------------------------------------//
 template <typename T> 
@@ -188,7 +755,7 @@ DataArray<T>::diff(const DataArray<T> &array, Node &info, const float64 epsilon)
                 << " vs "
                 << "\"" << o_data << "\""
                 << ")";
-            log::error(info, protocol, oss.str());
+            utils::log::error(info, protocol, oss.str());
             res = true;
         }
         // o_data is null, array is len 0
@@ -200,7 +767,7 @@ DataArray<T>::diff(const DataArray<T> &array, Node &info, const float64 epsilon)
                 << " vs "
                 << " [empty buffer] "
                 << ")";
-            log::error(info, protocol, oss.str());
+            utils::log::error(info, protocol, oss.str());
             res = true;
         }
         // all other cases use strcmp
@@ -212,7 +779,7 @@ DataArray<T>::diff(const DataArray<T> &array, Node &info, const float64 epsilon)
                 << " vs "
                 << "\"" << o_data << "\""
                 << ")";
-            log::error(info, protocol, oss.str());
+            utils::log::error(info, protocol, oss.str());
             res = true;
         }
 
@@ -234,7 +801,7 @@ DataArray<T>::diff(const DataArray<T> &array, Node &info, const float64 epsilon)
             << " vs "
             << o_nelems
             << ")";
-        log::error(info, protocol, oss.str());
+        utils::log::error(info, protocol, oss.str());
         res = true;
     }
     else
@@ -258,11 +825,11 @@ DataArray<T>::diff(const DataArray<T> &array, Node &info, const float64 epsilon)
 
         if(res)
         {
-            log::error(info, protocol, "data item(s) mismatch; see 'value' section");
+            utils::log::error(info, protocol, "data item(s) mismatch; see 'value' section");
         }
     }
 
-    log::validation(info, !res);
+    utils::log::validation(info, !res);
 
     return res;
 }
@@ -341,7 +908,7 @@ DataArray<T>::diff_compatible(const DataArray<T> &array, Node &info, const float
                 << " vs "
                 << "\"" << o_data << "\""
                 << ")";
-            log::error(info, protocol, oss.str());
+            utils::log::error(info, protocol, oss.str());
             res = true;
         }
         // o_data is null, array is len 0
@@ -353,7 +920,7 @@ DataArray<T>::diff_compatible(const DataArray<T> &array, Node &info, const float
                 << " vs "
                 << " [empty buffer] "
                 << ")";
-            log::error(info, protocol, oss.str());
+            utils::log::error(info, protocol, oss.str());
             res = true;
         }
         // standard compat size check
@@ -366,7 +933,7 @@ DataArray<T>::diff_compatible(const DataArray<T> &array, Node &info, const float
                 << " vs "
                 << o_nelems
                 << ")";
-            log::error(info, protocol, oss.str());
+            utils::log::error(info, protocol, oss.str());
             res = true;
         }
         // all other cases use strstr
@@ -386,7 +953,7 @@ DataArray<T>::diff_compatible(const DataArray<T> &array, Node &info, const float
                     << " vs "
                     << "\"" << o_data << "\""
                     << ")";
-                log::error(info, protocol, oss.str());
+                utils::log::error(info, protocol, oss.str());
                 res = true;
             }
         }
@@ -409,7 +976,7 @@ DataArray<T>::diff_compatible(const DataArray<T> &array, Node &info, const float
             << " vs "
             << o_nelems
             << ")";
-        log::error(info, protocol, oss.str());
+        utils::log::error(info, protocol, oss.str());
         res = true;
     }
     else
@@ -433,11 +1000,11 @@ DataArray<T>::diff_compatible(const DataArray<T> &array, Node &info, const float
 
         if(res)
         {
-            log::error(info, protocol, "data item(s) mismatch; see diff below");
+            utils::log::error(info, protocol, "data item(s) mismatch; see diff below");
         }
     }
 
-    log::validation(info, !res);
+    utils::log::validation(info, !res);
 
     return res;
 }
@@ -453,15 +1020,13 @@ template <typename T>
 T
 DataArray<T>::min()  const
 {
+    const index_t num_elements = number_of_elements();
+    execution::ExecutionPolicy policy = active_policy();
     T res = std::numeric_limits<T>::max();
-    for(index_t i = 0; i < number_of_elements(); i++)
+    execution::dispatch(*this, [&](auto vals)
     {
-        const T &val = element(i);
-        if(val < res)
-        {
-            res = val;
-        }
-    }
+        res = detail::array_min_kernel<T>(policy, num_elements, vals);
+    });
 
     return res;
 }
@@ -471,15 +1036,14 @@ template <typename T>
 T
 DataArray<T>::max() const
 {
+    const index_t num_elements = number_of_elements();
+
+    execution::ExecutionPolicy policy = active_policy();
     T res = std::numeric_limits<T>::lowest();
-    for(index_t i = 0; i < number_of_elements(); i++)
+    execution::dispatch(*this, [&](auto vals)
     {
-        const T &val = element(i);
-        if(val > res)
-        {
-            res = val;
-        }
-    }
+        res = detail::array_max_kernel<T>(policy, num_elements, vals);
+    });
 
     return res;
 }
@@ -490,12 +1054,14 @@ template <typename T>
 T
 DataArray<T>::sum() const
 {
-    T res =0;
-    for(index_t i = 0; i < number_of_elements(); i++)
+    const index_t num_elements = number_of_elements();
+
+    execution::ExecutionPolicy policy = active_policy();
+    T res = 0;
+    execution::dispatch(*this, [&](auto vals)
     {
-        const T &val = element(i);
-        res += val;
-    }
+        res = detail::array_sum_kernel<T>(policy, num_elements, vals);
+    });
 
     return res;
 }
@@ -505,15 +1071,17 @@ template <typename T>
 float64
 DataArray<T>::mean() const
 {
-    float64 res =0;
-    for(index_t i = 0; i < number_of_elements(); i++)
-    {
-        const T &val = element(i);
-        res += val;
-    }
+    const index_t num_elements = number_of_elements();
 
-    res = res / float64(number_of_elements());
-    return res;
+    execution::ExecutionPolicy policy = active_policy();
+    float64 res = 0.0;
+    execution::dispatch(*this, [&](auto vals)
+    {
+        // Accumulate in float64 for accuracy
+        res = detail::array_sum_kernel<float64>(policy, num_elements, vals);
+    });
+
+    return res / static_cast<float64>(num_elements);
 }
 
 //---------------------------------------------------------------------------// 
@@ -521,15 +1089,280 @@ template <typename T>
 index_t
 DataArray<T>::count(T val) const
 {
-    index_t res= 0;
-    for(index_t i = 0; i < number_of_elements(); i++)
+    const index_t num_elements = number_of_elements();
+
+    execution::ExecutionPolicy policy = active_policy();
+    index_t res = 0;
+    execution::dispatch(*this, [&](auto vals)
     {
-        if(element(i) == val)
-        {
-            res++;
-        }
-    }
+        res = detail::array_count_kernel<T>(policy, num_elements, vals, val);
+    });
+
     return res;
+}
+
+//---------------------------------------------------------------------------//
+template <typename T>
+void
+DataArray<T>::use_with(conduit::execution::ExecutionPolicy policy)
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+
+    if (nullptr == m_node_ptr)
+    {
+        // TODO error; we can't do anything
+        return;
+    }
+
+    // we are being asked to execute on the device
+    if (policy.is_device_policy())
+    {
+        // data is already on the device
+        if (active_policy().is_device_policy())
+        {
+            // Do nothing
+        }
+        else // m_data is on the host
+        {
+            // if we started out on the host
+            if (m_node_ptr->data_ptr() == m_data)
+            {
+                CONDUIT_ASSERT(m_other_ptr == nullptr,
+                    "Using execution array in this way will result in a memory leak.");
+
+                // allocate new memory and create a new dtype
+                m_other_ptr = execution::DeviceMemory::allocate(
+                    dtype().element_bytes() * number_of_elements());
+                m_do_i_own_it = true;
+                m_other_dtype = DataType(dtype().id(),
+                                         number_of_elements(),
+                                         0, // offset is 0
+                                         DataType::default_bytes(dtype().id()), // stride
+                                         dtype().element_bytes(),
+                                         dtype().endianness());
+
+                // copy data
+                utils::conduit_memcpy_strided_elements(m_other_ptr,
+                                                       number_of_elements(),
+                                                       dtype().element_bytes(),
+                                                       m_other_dtype.stride(),
+                                                       element_ptr(0),
+                                                       dtype().stride());
+
+                // change where our data pointer points and update offset and stride
+                m_data = m_other_ptr;
+                m_offset = m_other_dtype.offset();
+                m_stride = m_other_dtype.stride();
+            }
+            else // we started out on the device
+            {
+                CONDUIT_ASSERT(m_data == m_other_ptr,
+                    "Using execution array in this way will result in a memory leak.");
+
+                // call sync to bring our copy of the data on the host back to the device
+                sync();
+
+                // dealloc the ptr on the host now that we have copied back
+                execution::HostMemory::deallocate(m_data);
+                m_do_i_own_it = false;
+                m_other_dtype = DataType::empty();
+
+                // set m_data to device data and update offset and stride
+                m_data = m_node_ptr->data_ptr();
+                // the order of operations is important here; changing the pointer
+                // will change the result of calling dtype().
+                m_offset = dtype().offset();
+                m_stride = dtype().stride();
+
+                // reset m_other_ptr
+                m_other_ptr = nullptr;
+            }
+        }
+
+        // m_data is now (or already was) in device memory
+        m_policy = policy;
+    }
+    else // we are being asked to execute on the host
+    {
+        // data is already on the host
+        if (! active_policy().is_device_policy())
+        {
+            // Do nothing
+        }
+        else // m_data is on the device
+        {
+            // if we started out on the device
+            if (m_node_ptr->data_ptr() == m_data)
+            {
+                CONDUIT_ASSERT(m_other_ptr == nullptr,
+                    "Using execution array in this way will result in a memory leak.");
+
+                // allocate new memory and create a new dtype
+                m_other_ptr = execution::HostMemory::allocate(
+                    dtype().element_bytes() * number_of_elements());
+                m_do_i_own_it = true;
+                m_other_dtype = DataType(dtype().id(),
+                                         number_of_elements(),
+                                         0, // offset is 0
+                                         DataType::default_bytes(dtype().id()), // stride
+                                         dtype().element_bytes(),
+                                         dtype().endianness());
+
+                // copy data
+                utils::conduit_memcpy_strided_elements(m_other_ptr,
+                                                       number_of_elements(),
+                                                       dtype().element_bytes(),
+                                                       m_other_dtype.stride(),
+                                                       element_ptr(0),
+                                                       dtype().stride());
+
+                // change where our data pointer points and update offset and stride
+                m_data = m_other_ptr;
+                m_offset = m_other_dtype.offset();
+                m_stride = m_other_dtype.stride();
+            }
+            else // we started out on the host
+            {
+                CONDUIT_ASSERT(m_data == m_other_ptr,
+                    "Using execution array in this way will result in a memory leak.");
+
+                // call sync to bring our copy of the data on the device back to the host
+                sync();
+
+                // dealloc the ptr on the host now that we have copied back
+                execution::DeviceMemory::deallocate(m_data);
+                m_do_i_own_it = false;
+                m_other_dtype = DataType::empty();
+
+                // set m_data to host data and update offset and stride
+                m_data = m_node_ptr->data_ptr();
+                m_offset = dtype().offset();
+                m_stride = dtype().stride();
+
+                // reset m_other_ptr
+                m_other_ptr = nullptr;
+            }
+        }
+
+        // m_data is now (or already was) in host memory
+        m_policy = policy;
+    }
+}
+
+//---------------------------------------------------------------------------//
+template <typename T>
+void
+DataArray<T>::sync()
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+
+    if (nullptr == m_node_ptr)
+    {
+        // TODO error; we can't do anything
+        return;
+    }
+
+    // if the ptrs don't point to the same place
+    if (m_data != m_node_ptr->data_ptr())
+    {
+        if (!(m_node_ptr->dtype().compatible(dtype()) && 
+              number_of_elements() == m_node_ptr->dtype().number_of_elements()))
+        {
+            m_node_ptr->set(dtype());
+        }
+        utils::conduit_memcpy_strided_elements(m_node_ptr->element_ptr(0),
+                                               number_of_elements(),
+                                               m_node_ptr->dtype().element_bytes(),
+                                               m_node_ptr->dtype().stride(),
+                                               element_ptr(0),
+                                               m_stride);
+    }
+}
+
+//---------------------------------------------------------------------------//
+template <typename T>
+void
+DataArray<T>::assume()
+{
+    CONDUIT_ANNOTATE_MARK_FUNCTION;
+
+    if (nullptr == m_node_ptr)
+    {
+        // TODO error; we can't do anything
+        return;
+    }
+
+    // if the ptrs don't point to the same place
+    if (m_data != m_node_ptr->data_ptr())
+    {
+        CONDUIT_ASSERT(m_data == m_other_ptr,
+            "Using execution array in this way will result in a memory leak.");
+
+        // reset will deallocate the data the node points to
+        m_node_ptr->reset();
+        m_node_ptr->schema_ptr()->set(dtype());
+
+        // Allow m_node_ptr to take ownership of m_data so that future
+        // release()/reset() calls will free it, lest we leak memory.
+        const index_t owning_allocator_id =
+            active_policy().is_device_policy()
+                ? execution::get_device_allocator_id()
+                : execution::get_host_allocator_id();
+        m_node_ptr->assume_data_ptr(m_data,
+                                    dtype().element_bytes() * number_of_elements(),
+                                    owning_allocator_id);
+
+        // the assumed data is now the array's new original backing storage
+        m_orig_data_ptr = m_data;
+        m_dtype = other_dtype();
+
+        // we no longer own the data since we have given it to node
+        m_other_ptr = nullptr;
+        m_do_i_own_it = false;
+        m_other_dtype = DataType::empty();
+    }
+}
+
+//---------------------------------------------------------------------------//
+template <typename T>
+void
+DataArray<T>::data_movement(const conduit::execution::SyncStrategy strategy)
+{
+    if (conduit::execution::SyncStrategy::Sync == strategy)
+    {
+        sync();
+    }
+    else if (conduit::execution::SyncStrategy::Assume == strategy)
+    {
+        assume();
+    }
+    else
+    {
+        CONDUIT_ERROR("Unknown data movement strategy: "
+                      << conduit::execution::sync_strategy_to_string(strategy)
+                      << " (" << static_cast<int>(strategy) << ").");
+    }
+}
+
+
+//---------------------------------------------------------------------------//
+template <typename T>
+conduit::execution::ExecutionPolicy
+DataArray<T>::active_policy() const
+{
+    // Starting as EMPTY_ID allows us to lazily determine m_policy so that we
+    // only query is_device_ptr() once we actually need to.
+    if (execution::ExecutionPolicy::PolicyID::EMPTY_ID == m_policy.policy_id())
+    {
+        // Caching the result allows us to avoid calling is_device_ptr()
+        // repeatedly across the lifetime of this object, which has a small
+        // but measurable overhead.
+        m_policy = execution::DeviceMemory::is_device_ptr(m_data)
+                      ? execution::ExecutionPolicy::device()
+                      : execution::ExecutionPolicy::host();
+    }
+
+    return m_policy;
 }
 
 //---------------------------------------------------------------------------// 
@@ -609,7 +1442,7 @@ DataArray<T>::to_json_stream(std::ostream &os) const
     {
         if(!first)
             os << ", ";
-        switch(m_dtype.id())
+        switch(dtype().id())
         {
             // ints 
             case DataType::INT8_ID:
@@ -650,7 +1483,7 @@ DataArray<T>::to_json_stream(std::ostream &os) const
             default:
             {
                 CONDUIT_ERROR("Leaf type \"" 
-                              <<  m_dtype.name()
+                              <<  dtype().name()
                               << "\"" 
                               << "is not supported in conduit::DataArray.")
             }
@@ -687,140 +1520,37 @@ DataArray<T>::to_yaml_stream(std::ostream &os) const
 // DataArray::set() signed integers single element
 //---------------------------------------------------------------------------//
 
+
 //---------------------------------------------------------------------------//
-template <typename T> 
+template <typename T>
 void
-DataArray<T>::set(index_t ele_idx, int8 value)
-{ 
-    this->element(ele_idx) = (T)value;
+DataArray<T>::set(const int8 *values, index_t num_elements) const
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 void
-DataArray<T>::set(index_t ele_idx, int16 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, int32 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, int64 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-// DataArray::set() unsigned integers single element
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, uint8 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, uint16 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, uint32 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, uint64 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-// DataArray::set() floating point single element
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, float32 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(index_t ele_idx, float64 value)
-{ 
-    this->element(ele_idx) = (T)value;
-}
-
-//---------------------------------------------------------------------------//
-// DataArray::set() signed integers multi element
-//---------------------------------------------------------------------------//
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(const int8 *values, index_t num_elements)
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
-}
-
-//---------------------------------------------------------------------------//
-template <typename T> 
-void
-DataArray<T>::set(const  int16 *values, index_t num_elements)
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+DataArray<T>::set(const  int16 *values, index_t num_elements) const
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataArray<T>::set(const int32 *values, index_t num_elements)
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+DataArray<T>::set(const int32 *values, index_t num_elements) const
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataArray<T>::set(const  int64 *values, index_t num_elements)
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+DataArray<T>::set(const  int64 *values, index_t num_elements) const
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
@@ -830,45 +1560,33 @@ DataArray<T>::set(const  int64 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataArray<T>::set(const  uint8 *values, index_t num_elements)
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+DataArray<T>::set(const  uint8 *values, index_t num_elements) const
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataArray<T>::set(const  uint16 *values, index_t num_elements)
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+DataArray<T>::set(const  uint16 *values, index_t num_elements) const
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataArray<T>::set(const uint32 *values, index_t num_elements)
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+DataArray<T>::set(const uint32 *values, index_t num_elements) const
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataArray<T>::set(const uint64 *values, index_t num_elements)
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+DataArray<T>::set(const uint64 *values, index_t num_elements) const
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
@@ -878,23 +1596,17 @@ DataArray<T>::set(const uint64 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataArray<T>::set(const float32 *values, index_t num_elements)
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+DataArray<T>::set(const float32 *values, index_t num_elements) const
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 void            
-DataArray<T>::set(const float64 *values, index_t num_elements)
-{ 
-    for(index_t i=0;i<num_elements;i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+DataArray<T>::set(const float64 *values, index_t num_elements) const
+{
+    detail::set_values_helper(*this, values, num_elements);
 }
 
 //---------------------------------------------------------------------------//
@@ -904,171 +1616,111 @@ DataArray<T>::set(const float64 *values, index_t num_elements)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<int8> &values)
+DataArray<T>::set(const std::initializer_list<int8> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<int8>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<int16> &values)
+DataArray<T>::set(const std::initializer_list<int16> &values) const
 {
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<int16>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<int32> &values)
+DataArray<T>::set(const std::initializer_list<int32> &values) const
 {
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<int32>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<int64> &values)
+DataArray<T>::set(const std::initializer_list<int64> &values) const
 {
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<int64>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<uint8> &values)
+DataArray<T>::set(const std::initializer_list<uint8> &values) const
 {
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<uint8>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<uint16> &values)
+DataArray<T>::set(const std::initializer_list<uint16> &values) const
 {
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<uint16>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<uint32> &values)
+DataArray<T>::set(const std::initializer_list<uint32> &values) const
 {
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<uint32>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<uint64> &values)
+DataArray<T>::set(const std::initializer_list<uint64> &values) const
 {
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<uint64>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<float32> &values)
+DataArray<T>::set(const std::initializer_list<float32> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<float32>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 void
-DataArray<T>::set(const std::initializer_list<float64> &values)
+DataArray<T>::set(const std::initializer_list<float64> &values) const
 {
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<float64>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 
@@ -1079,18 +1731,12 @@ DataArray<T>::set(const std::initializer_list<float64> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<char> &values)
+DataArray<T>::set(const std::initializer_list<char> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<char>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1100,35 +1746,23 @@ DataArray<T>::set(const std::initializer_list<char> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<signed char> &values)
+DataArray<T>::set(const std::initializer_list<signed char> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<signed char>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<unsigned char> &values)
+DataArray<T>::set(const std::initializer_list<unsigned char> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<unsigned char>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1142,35 +1776,23 @@ DataArray<T>::set(const std::initializer_list<unsigned char> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<short> &values)
+DataArray<T>::set(const std::initializer_list<short> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<short>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<unsigned short> &values)
+DataArray<T>::set(const std::initializer_list<unsigned short> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<unsigned short>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1184,35 +1806,23 @@ DataArray<T>::set(const std::initializer_list<unsigned short> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<int> &values)
+DataArray<T>::set(const std::initializer_list<int> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<int>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<unsigned int> &values)
+DataArray<T>::set(const std::initializer_list<unsigned int> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<unsigned int>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1226,35 +1836,23 @@ DataArray<T>::set(const std::initializer_list<unsigned int> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<long> &values)
+DataArray<T>::set(const std::initializer_list<long> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<long>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<unsigned long> &values)
+DataArray<T>::set(const std::initializer_list<unsigned long> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<unsigned long>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1269,35 +1867,23 @@ DataArray<T>::set(const std::initializer_list<unsigned long> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<long long> &values)
+DataArray<T>::set(const std::initializer_list<long long> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<long long>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<unsigned long long> &values)
+DataArray<T>::set(const std::initializer_list<unsigned long long> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<unsigned long long>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1309,18 +1895,12 @@ DataArray<T>::set(const std::initializer_list<unsigned long long> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<float> &values)
+DataArray<T>::set(const std::initializer_list<float> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<float>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1332,18 +1912,12 @@ DataArray<T>::set(const std::initializer_list<float> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const std::initializer_list<double> &values)
+DataArray<T>::set(const std::initializer_list<double> &values) const
 { 
-    index_t idx = 0;
-    index_t num_elems = m_dtype.number_of_elements();
-    // iterate and set up to the number of elements of this array
-    std::initializer_list<double>::const_iterator itr;
-    for( itr = values.begin();
-         idx < num_elems && itr != values.end();
-         ++itr, idx++)
-    {
-        this->element(idx) = (T)*itr;
-    }
+    // set up to the number of elements of this array
+    const index_t num_elems = std::min((index_t)values.size(),
+                                       dtype().number_of_elements());
+    detail::set_values_helper(*this, values.begin(), num_elems);
 }
 
 //---------------------------------------------------------------------------//
@@ -1364,44 +1938,32 @@ DataArray<T>::set(const std::initializer_list<double> &values)
 template <typename T> 
 void
 DataArray<T>::fill(int8 value)
-{ 
-    for(index_t i=0;i < m_dtype.number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
 template <typename T> 
 void
 DataArray<T>::fill(int16 value)
-{ 
-    for(index_t i=0;i < m_dtype.number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
 template <typename T> 
 void
 DataArray<T>::fill(int32 value)
-{ 
-    for(index_t i=0;i < m_dtype.number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
 template <typename T> 
 void
 DataArray<T>::fill(int64 value)
-{ 
-    for(index_t i=0;i < m_dtype.number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1412,44 +1974,32 @@ DataArray<T>::fill(int64 value)
 template <typename T> 
 void
 DataArray<T>::fill(uint8 value)
-{ 
-    for(index_t i=0;i < m_dtype.number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
 template <typename T> 
 void
 DataArray<T>::fill(uint16 value)
-{ 
-    for(index_t i=0;i < m_dtype.number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
 template <typename T> 
 void
 DataArray<T>::fill(uint32 value)
-{ 
-    for(index_t i=0;i < m_dtype.number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
 template <typename T> 
 void
 DataArray<T>::fill(uint64 value)
-{ 
-    for(index_t i=0;i < m_dtype.number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
@@ -1460,22 +2010,16 @@ DataArray<T>::fill(uint64 value)
 template <typename T> 
 void
 DataArray<T>::fill(float32 value)
-{ 
-    for(index_t i=0;i < m_dtype.number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_value_helper(*this, value);
 }
 
 //-----------------------------------------------------------------------------
 template <typename T> 
 void
 DataArray<T>::fill(float64 value)
-{ 
-    for(index_t i=0;i < m_dtype.number_of_elements(); i++)
-    {
-        this->element(i) = (T)value;
-    }
+{
+    detail::fill_value_helper(*this, value);
 }
 
 //---------------------------------------------------------------------------//
@@ -1774,49 +2318,33 @@ DataArray<T>::operator=(const std::initializer_list<double> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<int8> &values)
+DataArray<T>::set(const DataArray<int8> &values) const
 {
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<int16> &values)
-{ 
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+DataArray<T>::set(const DataArray<int16> &values) const
+{
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<int32> &values)
-{ 
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+DataArray<T>::set(const DataArray<int32> &values) const
+{
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<int64> &values)
-{ 
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+DataArray<T>::set(const DataArray<int64> &values) const
+{
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -1826,49 +2354,33 @@ DataArray<T>::set(const DataArray<int64> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<uint8> &values)
+DataArray<T>::set(const DataArray<uint8> &values) const
 {
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<uint16> &values)
-{ 
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+DataArray<T>::set(const DataArray<uint16> &values) const
+{
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<uint32> &values)
+DataArray<T>::set(const DataArray<uint32> &values) const
 {
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<uint64> &values)
+DataArray<T>::set(const DataArray<uint64> &values) const
 {
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -1878,25 +2390,17 @@ DataArray<T>::set(const DataArray<uint64> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<float32> &values)
+DataArray<T>::set(const DataArray<float32> &values) const
 {
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataArray<float64> &values)
+DataArray<T>::set(const DataArray<float64> &values) const
 {
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -1912,49 +2416,33 @@ DataArray<T>::set(const DataArray<float64> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataAccessor<int8> &values)
+DataArray<T>::set(const DataAccessor<int8> &values) const
 {
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void            
-DataArray<T>::set(const DataAccessor<int16> &values)
-{ 
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+DataArray<T>::set(const DataAccessor<int16> &values) const
+{
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void            
-DataArray<T>::set(const DataAccessor<int32> &values)
-{ 
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+DataArray<T>::set(const DataAccessor<int32> &values) const
+{
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void            
-DataArray<T>::set(const DataAccessor<int64> &values)
-{ 
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+DataArray<T>::set(const DataAccessor<int64> &values) const
+{
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -1964,49 +2452,33 @@ DataArray<T>::set(const DataAccessor<int64> &values)
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataAccessor<uint8> &values)
+DataArray<T>::set(const DataAccessor<uint8> &values) const
 {
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataAccessor<uint16> &values)
-{ 
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+DataArray<T>::set(const DataAccessor<uint16> &values) const
+{
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataAccessor<uint32> &values)
+DataArray<T>::set(const DataAccessor<uint32> &values) const
 {
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T>
 void
-DataArray<T>::set(const DataAccessor<uint64> &values)
+DataArray<T>::set(const DataAccessor<uint64> &values) const
 {
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -2016,25 +2488,17 @@ DataArray<T>::set(const DataAccessor<uint64> &values)
 //---------------------------------------------------------------------------//
 template <typename T> 
 void
-DataArray<T>::set(const DataAccessor<float32> &values)
+DataArray<T>::set(const DataAccessor<float32> &values) const
 {
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
 template <typename T> 
 void
-DataArray<T>::set(const DataAccessor<float64> &values)
+DataArray<T>::set(const DataAccessor<float64> &values) const
 {
-    index_t num_elems = m_dtype.number_of_elements();
-    for(index_t i=0; i <num_elems; i++)
-    {
-        this->element(i) = (T)values[i];
-    }
+    detail::set_values_helper(*this, values, dtype().number_of_elements());
 }
 
 //---------------------------------------------------------------------------//
@@ -2115,7 +2579,7 @@ DataArray<T>::to_summary_string_stream(std::ostream &os,
             if(idx > 0 )
                 os << ", ";
 
-            switch(m_dtype.id())
+            switch(dtype().id())
             {
                 // ints
                 case DataType::INT8_ID:
@@ -2156,7 +2620,7 @@ DataArray<T>::to_summary_string_stream(std::ostream &os,
                 default:
                 {
                     CONDUIT_ERROR("Leaf type \""
-                                  <<  m_dtype.name()
+                                  <<  dtype().name()
                                   << "\""
                                   << "is not supported in conduit::DataArray.")
                 }
@@ -2183,8 +2647,6 @@ DataArray<T>::to_summary_string_stream(std::ostream &os,
             os << "]";
     }
 }
-
-
 
 //-----------------------------------------------------------------------------
 //
@@ -2251,4 +2713,3 @@ template class DataArray<long double>;
 //-----------------------------------------------------------------------------
 // -- end conduit:: --
 //-----------------------------------------------------------------------------
-

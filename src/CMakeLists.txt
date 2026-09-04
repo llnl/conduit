@@ -37,6 +37,7 @@ option(ENABLE_MPI         "Build MPI Support"           OFF)
 option(ENABLE_OPENMP      "Build OpenMP Support"        OFF)
 option(ENABLE_CUDA        "Build CUDA Support"          OFF)
 option(ENABLE_HIP         "Build HIP Support"           OFF)
+option(ENABLE_TYPED_DISPATCH "Build typed dispatch kernels" OFF)
 
 option(ENABLE_YYJSON      "Use yyjson for JSON Parsing" ON)
 
