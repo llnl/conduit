@@ -17,6 +17,7 @@
 
 #include "conduit_node.h"
 #include "conduit_datatype.h"
+#include "conduit_schema.h"
 #include "conduit_utils.h"
 
 //-----------------------------------------------------------------------------
