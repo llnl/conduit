@@ -12,7 +12,9 @@
 ###############################################################################
 
 
-cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
+# Match the project's known policy version without changing the caller's minimum.
+cmake_policy(PUSH)
+cmake_policy(VERSION 3.8...3.26)
 
 @PACKAGE_INIT@
 
@@ -124,3 +126,5 @@ unset(_conduit_component)
 set(CONDUIT_FOUND "${Conduit_FOUND}")
 
 endif() # end of if Conduit_FOUND guard
+
+cmake_policy(POP)

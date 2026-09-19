@@ -64,6 +64,12 @@ foreach(TEST ${BASIC_TESTS})
                  FOLDER tests/conduit)
 endforeach()
 
+add_test(NAME t_conduit_cmake_config_policy
+         COMMAND ${CMAKE_COMMAND} -Werror=deprecated
+                 "-DCONDUIT_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
+                 "-DTEST_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}/cmake_config_policy"
+                 -P "${CMAKE_CURRENT_SOURCE_DIR}/t_conduit_cmake_config_policy.cmake")
+
 ################################
 # Add c interface tests
 ################################
