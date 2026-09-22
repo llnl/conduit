@@ -807,7 +807,6 @@ public:
 
             switch(dtype.id())
             {
-               /// signed integer types
                case DataType::UINT8_ID:
                {
                    if(prec_uint8_r > 0)
