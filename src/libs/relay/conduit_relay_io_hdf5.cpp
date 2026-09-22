@@ -2767,7 +2767,6 @@ create_hdf5_dataset_for_conduit_leaf(const DataType &dtype,
 {
     hid_t res = -1;
 
-    // TODO APPLY A MAPPING ON FILE DTYPE CREATE
 
     DataType file_dtype = dtype;
     if(HDF5Options::check_write_precision_override(file_dtype))
@@ -3079,7 +3078,7 @@ write_conduit_leaf_to_hdf5_dataset_direct(const Node &node,
             // write data
             h5_status = H5Dwrite(hdf5_dset_id, // dspace id
                                  h5_dtype_hnd.id(), // mem type id
-                                 H5S_ALL, //
+                                 H5S_ALL,
                                  H5S_ALL,
                                  H5P_DEFAULT,
                                  node.data_ptr());
