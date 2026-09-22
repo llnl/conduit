@@ -12,7 +12,10 @@
 ###############################################################################
 
 
-cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
+# check for viable cmake
+if (CMAKE_VERSION VERSION_LESS "3.26")
+  message(FATAL_ERROR "Conduit requires CMake 3.26+")
+endif()
 
 @PACKAGE_INIT@
 

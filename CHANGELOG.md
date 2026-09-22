@@ -10,6 +10,9 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 ### Changed
 
+#### General
+- Changed CMake version check in ConduitConfig.cmake to check for a minimum version, instead of setting the minimum version which impacts policy choices.
+
 ### Fixed
 
 ## [0.9.8] - Released 2026-09-01
