@@ -33,6 +33,7 @@ set(RELAY_HDF5_TESTS t_relay_io_hdf5
                      t_relay_io_hdf5_slab
                      t_relay_io_hdf5_opts
                      t_relay_io_hdf5_atts
+                     t_relay_io_hdf5_prec
                      t_relay_io_hdf5_diag_verbose
                      t_relay_io_hdf5_ident_report)
 
