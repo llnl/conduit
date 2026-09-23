@@ -4686,6 +4686,18 @@ read_hdf5_dataset_into_conduit_leaf_node(hid_t hdf5_dset_id,
                                    << " greater than the number of entries in"
                                    << " the HDF5 dataset (" << nelems << ")");
             }
+            else if(dest.dtype().is_empty())
+            {
+                // if dest is empty we will have to allocate, we can avoid the extra copy
+                // necessary in final the `else` case b/c striding is not involved
+                dest.set(dt);
+                h5_status = H5Dread(hdf5_dset_id,
+                                    h5_dtype_hnd.id(),
+                                    h5_node_dspace_hnd.id(),
+                                    h5_dspace_hnd.id(),
+                                    H5P_DEFAULT,
+                                    dest.data_ptr());
+            }
             else if(dest.dtype().is_compact() &&
                dest.dtype().compatible(dt) )
             {
