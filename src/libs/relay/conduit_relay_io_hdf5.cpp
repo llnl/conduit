@@ -794,10 +794,10 @@ public:
 
            switch(bits)
            {
-               case 8:  res.set_id(DataType::INT8_ID);  break;
-               case 16: res.set_id(DataType::INT16_ID); break;
-               case 32: res.set_id(DataType::INT32_ID); break;
-               case 64: res.set_id(DataType::INT64_ID); break;
+               case 8:  res = DataType::int8(res.number_of_elements());  break;
+               case 16: res = DataType::int16(res.number_of_elements()); break;
+               case 32: res = DataType::int32(res.number_of_elements()); break;
+               case 64: res = DataType::int64(res.number_of_elements()); break;
                default: break;
            }
        }
@@ -843,10 +843,10 @@ public:
 
             switch(bits)
             {
-               case 8:  res.set_id(DataType::UINT8_ID);  break;
-               case 16: res.set_id(DataType::UINT16_ID); break;
-               case 32: res.set_id(DataType::UINT32_ID); break;
-               case 64: res.set_id(DataType::UINT64_ID); break;
+               case 8:  res = DataType::uint8(res.number_of_elements());  break;
+               case 16: res = DataType::uint16(res.number_of_elements()); break;
+               case 32: res = DataType::uint32(res.number_of_elements()); break;
+               case 64: res = DataType::uint64(res.number_of_elements()); break;
                default: break;
             }
         }
@@ -876,8 +876,8 @@ public:
 
            switch(bits)
            {
-               case 32: res.set_id(DataType::FLOAT32_ID); break;
-               case 64: res.set_id(DataType::FLOAT64_ID); break;
+               case 32: res = DataType::float32(res.number_of_elements()); break;
+               case 64: res = DataType::float64(res.number_of_elements()); break;
                default: break;
            }
        }
@@ -957,10 +957,10 @@ public:
 
            switch(bits)
            {
-               case 8:  res.set_id(DataType::INT8_ID);  break;
-               case 16: res.set_id(DataType::INT16_ID); break;
-               case 32: res.set_id(DataType::INT32_ID); break;
-               case 64: res.set_id(DataType::INT64_ID); break;
+               case 8:  res = DataType::int8(res.number_of_elements());  break;
+               case 16: res = DataType::int16(res.number_of_elements()); break;
+               case 32: res = DataType::int32(res.number_of_elements()); break;
+               case 64: res = DataType::int64(res.number_of_elements()); break;
                default: break;
            }
        }
@@ -1007,10 +1007,10 @@ public:
 
             switch(bits)
             {
-               case 8:  res.set_id(DataType::UINT8_ID);  break;
-               case 16: res.set_id(DataType::UINT16_ID); break;
-               case 32: res.set_id(DataType::UINT32_ID); break;
-               case 64: res.set_id(DataType::UINT64_ID); break;
+               case 8:  res = DataType::uint8(res.number_of_elements());  break;
+               case 16: res = DataType::uint16(res.number_of_elements()); break;
+               case 32: res = DataType::uint32(res.number_of_elements()); break;
+               case 64: res = DataType::uint64(res.number_of_elements()); break;
                default: break;
             }
         }
@@ -1040,8 +1040,8 @@ public:
 
            switch(bits)
            {
-               case 32: res.set_id(DataType::FLOAT32_ID); break;
-               case 64: res.set_id(DataType::FLOAT64_ID); break;
+               case 32: res = DataType::float32(res.number_of_elements()); break;
+               case 64: res = DataType::float64(res.number_of_elements()); break;
                default: break;
            }
        }
@@ -4706,6 +4706,7 @@ read_hdf5_dataset_into_conduit_leaf_node(hid_t hdf5_dset_id,
                 // the hdf5 data will always be compact, source node we are
                 // reading will not unless it's already compatible and compact.
                 Node n_tmp(dt);
+
                 h5_status = H5Dread(hdf5_dset_id,
                                     h5_dtype_hnd.id(),
                                     h5_node_dspace_hnd.id(),
