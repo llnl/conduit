@@ -8,6 +8,9 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 ### Added
 
+#### Blueprint
+- Added relay hdf5 options to override the desired leaf types used when writing and reading hdf5 files. This enables on the fly conversion of say, all float64 data values to float32 data values, as well as many other combinations. This only supports bitwidth conversion, within signed, unsigned, and floating point values. See the test `t_relay_io_hdf5_prec.cpp` for examples of using these options.
+
 ### Changed
 
 #### General
