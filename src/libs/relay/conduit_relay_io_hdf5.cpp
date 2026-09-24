@@ -587,14 +587,14 @@ public:
         opts["precision/int64/write"] = precision_bits_to_dtype_name("int",prec_int64_w);
         opts["precision/int64/read"]  = precision_bits_to_dtype_name("int",prec_int64_r);
 
-        opts["precision/uint8/write"]  = precision_bits_to_dtype_name("uint",prec_int8_w);
-        opts["precision/uint8/read"]   = precision_bits_to_dtype_name("uint",prec_int8_r);
-        opts["precision/uint16/write"] = precision_bits_to_dtype_name("uint",prec_int16_w);
-        opts["precision/uint16/read"]  = precision_bits_to_dtype_name("uint",prec_int16_r);
-        opts["precision/uint32/write"] = precision_bits_to_dtype_name("uint",prec_int32_w);
-        opts["precision/uint32/read"]  = precision_bits_to_dtype_name("uint",prec_int32_r);
-        opts["precision/uint64/write"] = precision_bits_to_dtype_name("uint",prec_int64_w);
-        opts["precision/uint64/read"]  = precision_bits_to_dtype_name("uint",prec_int64_r);
+        opts["precision/uint8/write"]  = precision_bits_to_dtype_name("uint",prec_uint8_w);
+        opts["precision/uint8/read"]   = precision_bits_to_dtype_name("uint",prec_uint8_r);
+        opts["precision/uint16/write"] = precision_bits_to_dtype_name("uint",prec_uint16_w);
+        opts["precision/uint16/read"]  = precision_bits_to_dtype_name("uint",prec_uint16_r);
+        opts["precision/uint32/write"] = precision_bits_to_dtype_name("uint",prec_uint32_w);
+        opts["precision/uint32/read"]  = precision_bits_to_dtype_name("uint",prec_uint32_r);
+        opts["precision/uint64/write"] = precision_bits_to_dtype_name("uint",prec_uint64_w);
+        opts["precision/uint64/read"]  = precision_bits_to_dtype_name("uint",prec_uint64_r);
 
         opts["precision/float32/write"] = precision_bits_to_dtype_name("float",prec_float32_w);
         opts["precision/float32/read"]  = precision_bits_to_dtype_name("float",prec_float32_r);
