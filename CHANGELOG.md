@@ -9,6 +9,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Added
 
 ### Changed
+- `conduit::blueprint::mesh::matset::renumber_material_ids()` was adjusted to take an additional argument, a starting index, so that material ids can be renumbered to run between `start` and `N-(start+1)` where `N` is the number of materials.
 
 #### General
 - Changed CMake version check in ConduitConfig.cmake to check for a minimum version, instead of setting the minimum version which impacts policy choices.

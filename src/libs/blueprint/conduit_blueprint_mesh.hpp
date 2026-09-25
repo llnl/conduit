@@ -936,14 +936,16 @@ namespace matset
     // _matset_create_matmap_methods_end
     // _matset_renumber_mat_ids_start
     //-------------------------------------------------------------------------
-    // renumbers material ids to run between 0 and N-1 where N is the number of
-    // materials.
+    // renumbers material ids to run between `start` and `N-(start+1)` where
+    // `N` is the number of materials.
     void CONDUIT_BLUEPRINT_API renumber_material_ids(const conduit::Node &src_matset,
-                                                     conduit::Node &dest_matset);
+                                                     conduit::Node &dest_matset,
+                                                     const index_t start = 0);
     //-------------------------------------------------------------------------
-    // renumbers material ids to run between 0 and N-1 where N is the number of
-    // materials.
-    void CONDUIT_BLUEPRINT_API renumber_material_ids(conduit::Node &matset);
+    // renumbers material ids to run between `start` and `N-(start+1)` where
+    // `N` is the number of materials.
+    void CONDUIT_BLUEPRINT_API renumber_material_ids(conduit::Node &matset,
+                                                     const index_t start = 0);
     // _matset_renumber_mat_ids_end
     // _matset_info_methods_start
     //-------------------------------------------------------------------------
