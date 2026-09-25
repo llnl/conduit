@@ -2260,11 +2260,12 @@ create_reverse_material_map(const conduit::Node &src_material_map)
 }
 
 //-------------------------------------------------------------------------
-// renumbers material ids to run between 0 and N-1 where N is the number of
-// materials.
+// renumbers material ids to run between `start` and `N-(start+1)` where
+// `N` is the number of materials.
 void
 renumber_material_ids(const conduit::Node &src_matset,
-                      conduit::Node &dest_matset)
+                      conduit::Node &dest_matset,
+                      const index_t start)
 {
     // extra seat belt here
     if (! src_matset.dtype().is_object())
@@ -2274,14 +2275,15 @@ renumber_material_ids(const conduit::Node &src_matset,
     }
 
     dest_matset.set(src_matset);
-    renumber_material_ids(dest_matset);
+    renumber_material_ids(dest_matset, start);
 }
 
 //-------------------------------------------------------------------------
-// renumbers material ids to run between 0 and N-1 where N is the number of
-// materials.
+// renumbers material ids to run between `start` and `N-(start+1)` where
+// `N` is the number of materials.
 void
-renumber_material_ids(conduit::Node &matset)
+renumber_material_ids(conduit::Node &matset,
+                      const index_t start)
 {
     // extra seat belt here
     if (! matset.dtype().is_object())
@@ -2304,8 +2306,8 @@ renumber_material_ids(conduit::Node &matset)
             {
                 const std::string &matname = matnames[i];
                 const index_t old = matset["material_map"][matname].to_index_t();
-                matset["material_map"][matname].set(i);
-                old_to_new[old] = i;
+                matset["material_map"][matname].set(i + start);
+                old_to_new[old] = i + start;
             }
 
             index_t_accessor mat_ids = matset["material_ids"].as_index_t_accessor();
@@ -2333,7 +2335,7 @@ renumber_material_ids(conduit::Node &matset)
             for (index_t i = 0; i < num_mats; i ++)
             {
                 const std::string &matname = matnames[i];
-                matset["material_map"][matname].set(i);
+                matset["material_map"][matname].set(i + start);
             }
         }
     }
