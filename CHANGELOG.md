@@ -9,6 +9,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Added
 
 ### Changed
+- Removed large silo data used for testing that made our release tarball too large.
 - `conduit::blueprint::mesh::matset::renumber_material_ids()` was adjusted to take an additional argument, a starting index, so that material ids can be renumbered to run between `start` and `N-(start+1)` where `N` is the number of materials.
 
 #### General
