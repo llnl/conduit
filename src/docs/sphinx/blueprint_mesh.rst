@@ -2074,7 +2074,7 @@ Here is a list of valid strings for the ``mesh_type`` argument:
 |                 | (explicit coords, explicit topology)          |
 +-----------------+-----------------------------------------------+
 
-``nx``, ``ny``, ``nz`` specify the number of elements in the x, y, and z directions.
+``nx``, ``ny``, ``nz`` specify the number of points in the x, y, and z directions.
 
 ``nz`` is ignored for 2d-only examples.
 
