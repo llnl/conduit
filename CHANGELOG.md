@@ -9,6 +9,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Added
 
 ### Changed
+- Removed large silo data used for testing that made our release tarball too large.
 
 #### General
 - Changed CMake version check in ConduitConfig.cmake to check for a minimum version, instead of setting the minimum version which impacts policy choices.
