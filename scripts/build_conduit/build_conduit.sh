@@ -48,6 +48,7 @@ build_raja="${build_raja:=true}"
 build_umpire="${build_umpire:=true}"
 build_silo="${build_silo:=true}"
 build_zfp="${build_zfp:=false}"
+build_netcdf="${build_netcdf:=true}"
 
 # conduit options
 build_conduit="${build_conduit:=true}"
@@ -347,6 +348,50 @@ cmake --install ${cgns_build_dir} --config ${build_config}
 
 fi # build_cgns
 fi # if cgns install exists, skip build
+
+
+################
+# NetCDF
+################
+netcdf_version=4.10.0
+netcdf_src_dir=$(ospath ${source_dir}/netcdf-c-${netcdf_version})
+netcdf_build_dir=$(ospath ${build_dir}/netcdf-c-${netcdf_version}/)
+netcdf_install_dir=$(ospath ${install_dir}/netcdf-c-${netcdf_version}/)
+netcdf_tarball=$(ospath ${source_dir}/netcdf-c-${netcdf_version}.tar.gz)
+
+# build only if install doesn't exist
+if [ ! -d ${netcdf_install_dir} ]; then
+if ${build_netcdf}; then
+if [ ! -f ${netcdf_tarball} ]; then
+  echo "**** Downloading ${netcdf_tarball}"
+  curl -L https://downloads.unidata.ucar.edu/netcdf-c/${netcdf_version}/netcdf-c-${netcdf_version}.tar.gz -o ${netcdf_tarball}
+fi
+
+if [ ! -d ${netcdf_src_dir} ]; then
+  echo "**** Extracting ${netcdf_tarball}"
+  tar ${tar_extra_args} -xzf ${netcdf_tarball} -C ${source_dir}
+fi
+
+echo "**** Configuring NetCDF ${netcdf_version}"
+cmake -S ${netcdf_src_dir} -B ${netcdf_build_dir} ${cmake_compiler_settings} \
+  -DCMAKE_VERBOSE_MAKEFILE:BOOL=${enable_verbose} \
+  -DCMAKE_BUILD_TYPE=${build_config} \
+  -DCMAKE_INSTALL_PREFIX=${netcdf_install_dir} \
+  -DNETCDF_ENABLE_HDF5=ON \
+  -DNETCDF_ENABLE_DAP=OFF \
+  -DNETCDF_BUILD_UTILITIES=OFF \
+  -DNETCDF_ENABLE_TESTS=OFF \
+  -DCMAKE_PREFIX_PATH="${hdf5_install_dir};${zlib_install_dir}"
+
+echo "**** Building NetCDF ${netcdf_version}"
+cmake --build ${netcdf_build_dir} --config ${build_config} -j${build_jobs}
+echo "**** Installing NetCDF ${netcdf_version}"
+cmake --install ${netcdf_build_dir} --config ${build_config}
+
+fi
+else
+  echo "**** Skipping NetCDF build, install found at: ${netcdf_install_dir}"
+fi # build_netcdf
 
 
 ################
@@ -894,6 +939,9 @@ if ${build_silo}; then
 fi
 if ${build_cgns}; then
   echo 'set(CGNS_DIR ' ${cgns_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
+fi
+if ${build_netcdf}; then
+  echo 'set(NETCDF_DIR ' ${netcdf_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
 fi
 if ${build_zfp}; then
   echo 'set(ZFP_DIR ' ${zfp_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
