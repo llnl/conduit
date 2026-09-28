@@ -168,6 +168,33 @@ public:
     static std::string attributes_key;
     static std::string attributes_value_key;
 
+    static int         prec_int8_w;
+    static int         prec_int16_w;
+    static int         prec_int32_w;
+    static int         prec_int64_w;
+
+    static int         prec_int8_r;
+    static int         prec_int16_r;
+    static int         prec_int32_r;
+    static int         prec_int64_r;
+
+    static int         prec_uint8_w;
+    static int         prec_uint16_w;
+    static int         prec_uint32_w;
+    static int         prec_uint64_w;
+
+    static int         prec_uint8_r;
+    static int         prec_uint16_r;
+    static int         prec_uint32_r;
+    static int         prec_uint64_r;
+
+    static int         prec_float32_w;
+    static int         prec_float64_w;
+
+    static int         prec_float32_r;
+    static int         prec_float64_r;
+
+
 //-----------------------------------------------------------------------------
 // zfp options
 //-----------------------------------------------------------------------------
@@ -187,7 +214,8 @@ public:
 public:
 
     //------------------------------------------------------------------------
-    static void set(const Node &opts)
+    static void
+    set(const Node &opts)
     {
 
         if(opts.has_child("libver"))
@@ -248,6 +276,140 @@ public:
             if(atts.has_child("value_key"))
             {
                 attributes_value_key = atts["value_key"].as_string();
+            }
+        }
+
+        if(opts.has_child("precision"))
+        {
+            // loop over children
+            NodeConstIterator itr =  opts["precision"].children();
+            while(itr.has_next())
+            {
+                const Node &curr = itr.next();
+                std::string name = itr.name();
+
+                // ints
+                if(name == "int8")
+                {
+                    if(curr.has_child("write"))
+                    {
+                        prec_int8_w = precision_dtype_name_to_bits(curr["write"].as_string());
+                    }
+
+                    if(curr.has_child("read"))
+                    {
+                        prec_int8_r = precision_dtype_name_to_bits(curr["read"].as_string());
+                    }
+                }
+                else if(name == "int16")
+                {
+                    if(curr.has_child("write"))
+                    {
+                        prec_int16_w = precision_dtype_name_to_bits(curr["write"].as_string());
+                    }
+
+                    if(curr.has_child("read"))
+                    {
+                        prec_int16_r = precision_dtype_name_to_bits(curr["read"].as_string());
+                    }
+                }
+                else if(name == "int32")
+                {
+                    if(curr.has_child("write"))
+                    {
+                        prec_int32_w = precision_dtype_name_to_bits(curr["write"].as_string());
+                    }
+
+                    if(curr.has_child("read"))
+                    {
+                        prec_int32_r = precision_dtype_name_to_bits(curr["read"].as_string());
+                    }
+                }
+                else if(name == "int64")
+                {
+                    if(curr.has_child("write"))
+                    {
+                        prec_int64_w = precision_dtype_name_to_bits(curr["write"].as_string());
+                    }
+
+                    if(curr.has_child("read"))
+                    {
+                        prec_int64_r = precision_dtype_name_to_bits(curr["read"].as_string());
+                    }
+                }
+                // uints
+                else if(name ==  "uint8")
+                {
+                    if(curr.has_child("write"))
+                    {
+                        prec_uint8_w = precision_dtype_name_to_bits(curr["write"].as_string());
+                    }
+
+                    if(curr.has_child("read"))
+                    {
+                        prec_uint8_r = precision_dtype_name_to_bits(curr["read"].as_string());
+                    }
+                }
+                else if(name == "uint16")
+                {
+                    if(curr.has_child("write"))
+                    {
+                        prec_uint16_w = precision_dtype_name_to_bits(curr["write"].as_string());
+                    }
+
+                    if(curr.has_child("read"))
+                    {
+                        prec_uint16_r = precision_dtype_name_to_bits(curr["read"].as_string());
+                    }
+                }
+                else if(name == "uint32")
+                {
+                    if(curr.has_child("write"))
+                    {
+                        prec_uint32_w = precision_dtype_name_to_bits(curr["write"].as_string());
+                    }
+
+                    if(curr.has_child("read"))
+                    {
+                        prec_uint32_r = precision_dtype_name_to_bits(curr["read"].as_string());
+                    }
+                }
+                else if(name == "uint64")
+                {
+                    if(curr.has_child("write"))
+                    {
+                        prec_uint64_w = precision_dtype_name_to_bits(curr["write"].as_string());
+                    }
+
+                    if(curr.has_child("read"))
+                    {
+                        prec_uint64_r = precision_dtype_name_to_bits(curr["read"].as_string());
+                    }
+                }
+                else if(name == "float32")
+                {
+                    if(curr.has_child("write"))
+                    {
+                        prec_float32_w = precision_dtype_name_to_bits(curr["write"].as_string());
+                    }
+
+                    if(curr.has_child("read"))
+                    {
+                        prec_float32_r = precision_dtype_name_to_bits(curr["read"].as_string());
+                    }
+                }
+                else if(name == "float64")
+                {
+                    if(curr.has_child("write"))
+                    {
+                        prec_float64_w = precision_dtype_name_to_bits(curr["write"].as_string());
+                    }
+
+                    if(curr.has_child("read"))
+                    {
+                        prec_float64_r = precision_dtype_name_to_bits(curr["read"].as_string());
+                    }
+                }
             }
         }
 
@@ -371,7 +533,8 @@ public:
     }
 
     //------------------------------------------------------------------------
-    static void about(Node &opts)
+    static void
+    about(Node &opts)
     {
         opts.reset();
 
@@ -414,6 +577,30 @@ public:
 
         opts["attributes/attributes_key"] = attributes_key;
         opts["attributes/value_key"] = attributes_value_key;
+
+        opts["precision/int8/write"]  = precision_bits_to_dtype_name("int",prec_int8_w);
+        opts["precision/int8/read"]   = precision_bits_to_dtype_name("int",prec_int8_r);
+        opts["precision/int16/write"] = precision_bits_to_dtype_name("int",prec_int16_w);
+        opts["precision/int16/read"]  = precision_bits_to_dtype_name("int",prec_int16_r);
+        opts["precision/int32/write"] = precision_bits_to_dtype_name("int",prec_int32_w);
+        opts["precision/int32/read"]  = precision_bits_to_dtype_name("int",prec_int32_r);
+        opts["precision/int64/write"] = precision_bits_to_dtype_name("int",prec_int64_w);
+        opts["precision/int64/read"]  = precision_bits_to_dtype_name("int",prec_int64_r);
+
+        opts["precision/uint8/write"]  = precision_bits_to_dtype_name("uint",prec_uint8_w);
+        opts["precision/uint8/read"]   = precision_bits_to_dtype_name("uint",prec_uint8_r);
+        opts["precision/uint16/write"] = precision_bits_to_dtype_name("uint",prec_uint16_w);
+        opts["precision/uint16/read"]  = precision_bits_to_dtype_name("uint",prec_uint16_r);
+        opts["precision/uint32/write"] = precision_bits_to_dtype_name("uint",prec_uint32_w);
+        opts["precision/uint32/read"]  = precision_bits_to_dtype_name("uint",prec_uint32_r);
+        opts["precision/uint64/write"] = precision_bits_to_dtype_name("uint",prec_uint64_w);
+        opts["precision/uint64/read"]  = precision_bits_to_dtype_name("uint",prec_uint64_r);
+
+        opts["precision/float32/write"] = precision_bits_to_dtype_name("float",prec_float32_w);
+        opts["precision/float32/read"]  = precision_bits_to_dtype_name("float",prec_float32_r);
+        opts["precision/float64/write"] = precision_bits_to_dtype_name("float",prec_float64_w);
+        opts["precision/float64/read"]  = precision_bits_to_dtype_name("float",prec_float64_r);
+
 
         if(chunking_enabled)
         {
@@ -472,7 +659,8 @@ public:
 //-----------------------------------------------------------------------------
     }
 
-    static void reset()
+    static void
+    reset()
     {
         HDF5Options::libver             = "default";
     // quiet (default) suppresses hdf5 diag warnings in outer relay API layers
@@ -494,6 +682,32 @@ public:
         HDF5Options::compression_method = "gzip";
         HDF5Options::compression_level  = 5;
 
+        HDF5Options::prec_int8_w  = -1;
+        HDF5Options::prec_int16_w = -1;
+        HDF5Options::prec_int32_w = -1;
+        HDF5Options::prec_int64_w = -1;
+
+        HDF5Options::prec_int8_r  = -1;
+        HDF5Options::prec_int16_r = -1;
+        HDF5Options::prec_int32_r = -1;
+        HDF5Options::prec_int64_r = -1;
+
+        HDF5Options::prec_uint8_w  = -1;
+        HDF5Options::prec_uint16_w = -1;
+        HDF5Options::prec_uint32_w = -1;
+        HDF5Options::prec_uint64_w = -1;
+
+        HDF5Options::prec_uint8_r  = -1;
+        HDF5Options::prec_uint16_r = -1;
+        HDF5Options::prec_uint32_r = -1;
+        HDF5Options::prec_uint64_r = -1;
+
+        HDF5Options::prec_float32_w = -1;
+        HDF5Options::prec_float64_w = -1;
+
+        HDF5Options::prec_float32_r = -1;
+        HDF5Options::prec_float64_r = -1;
+
     //-----------------------------------------------------------------------------
     // zfp options
     //-----------------------------------------------------------------------------
@@ -507,6 +721,364 @@ public:
         HDF5Options::zfp_maxprec = ZFP_MAX_PREC; // default from zfp
         HDF5Options::zfp_minexp  = ZFP_MIN_EXP;  // default from zfp
     #endif // zfp options
+    }
+
+    static bool
+    check_read_precision_override(const DataType &dtype)
+    {
+        switch(dtype.id())
+        {
+           /// signed integer types
+           case DataType::INT8_ID :  return prec_int8_r > 0;
+           case DataType::INT16_ID : return prec_int16_r > 0;
+           case DataType::INT32_ID : return prec_int32_r > 0;
+           case DataType::INT64_ID : return prec_int64_r > 0;
+   
+           /// unsigned integer types
+           case DataType::UINT8_ID :  return prec_uint8_r > 0;
+           case DataType::UINT16_ID : return prec_uint16_r > 0;
+           case DataType::UINT32_ID : return prec_uint32_r > 0;
+           case DataType::UINT64_ID : return prec_uint64_r > 0;
+
+           /// floating point types
+           case DataType::FLOAT32_ID : return prec_float32_r > 0;
+           case DataType::FLOAT64_ID : return prec_float64_r > 0;
+           
+           default: return false;
+        }
+    }
+
+    static DataType
+    get_read_precision_override(const DataType &dtype)
+    {
+        DataType res(dtype);
+        if(dtype.is_signed_integer())
+        {
+            int bits = -1;
+
+            switch(dtype.id())
+            {
+               case DataType::INT8_ID:
+               {
+                   if(prec_int8_r > 0)
+                   {
+                       bits = prec_int8_r;
+                   }
+                   break;
+               }
+               case DataType::INT16_ID:
+               { 
+                   if(prec_int16_r > 0)
+                   {
+                       bits = prec_int16_r;
+                   }
+                   break;
+               } 
+               case DataType::INT32_ID:
+               {
+                   if(prec_int32_r > 0)
+                   {
+                       bits = prec_int32_r;
+                   }
+                   break;
+               }
+               case DataType::INT64_ID: 
+               {
+                   if(prec_int64_r > 0)
+                   {
+                       bits = prec_int64_r;
+                   }
+                   break;
+               }
+           }
+
+           switch(bits)
+           {
+               case 8:  res = DataType::int8(res.number_of_elements());  break;
+               case 16: res = DataType::int16(res.number_of_elements()); break;
+               case 32: res = DataType::int32(res.number_of_elements()); break;
+               case 64: res = DataType::int64(res.number_of_elements()); break;
+               default: break;
+           }
+       }
+       else if(dtype.is_unsigned_integer())
+       {
+            int bits = -1;
+
+            switch(dtype.id())
+            {
+               case DataType::UINT8_ID:
+               {
+                   if(prec_uint8_r > 0)
+                   {
+                       bits = prec_uint8_r;
+                   }
+                   break;
+               }
+               case DataType::UINT16_ID:
+               { 
+                   if(prec_uint16_r > 0)
+                   {
+                       bits = prec_uint16_r;
+                   }
+                   break;
+               } 
+               case DataType::UINT32_ID:
+               {
+                   if(prec_uint32_r > 0)
+                   {
+                       bits = prec_uint32_r;
+                   }
+                   break;
+               }
+               case DataType::UINT64_ID: 
+               {
+                   if(prec_uint64_r > 0)
+                   {
+                       bits = prec_uint64_r;
+                   }
+                   break;
+               }
+            }
+
+            switch(bits)
+            {
+               case 8:  res = DataType::uint8(res.number_of_elements());  break;
+               case 16: res = DataType::uint16(res.number_of_elements()); break;
+               case 32: res = DataType::uint32(res.number_of_elements()); break;
+               case 64: res = DataType::uint64(res.number_of_elements()); break;
+               default: break;
+            }
+        }
+        else if(dtype.is_floating_point())
+        {
+            int bits = -1;
+
+            switch(dtype.id())
+            {
+               case DataType::FLOAT32_ID:
+               {
+                   if(prec_float32_r > 0)
+                   {
+                       bits = prec_float32_r;
+                   }
+                   break;
+               }
+               case DataType::FLOAT64_ID: 
+               {
+                   if(prec_float64_r > 0)
+                   {
+                       bits = prec_float64_r;
+                   }
+                   break;
+               }
+           }
+
+           switch(bits)
+           {
+               case 32: res = DataType::float32(res.number_of_elements()); break;
+               case 64: res = DataType::float64(res.number_of_elements()); break;
+               default: break;
+           }
+       }
+
+       return res;
+    }
+
+    static bool
+    check_write_precision_override(const DataType &dtype)
+    {
+        switch(dtype.id())
+        {
+           /// signed integer types
+           case DataType::INT8_ID :  return prec_int8_w > 0;
+           case DataType::INT16_ID : return prec_int16_w > 0;
+           case DataType::INT32_ID : return prec_int32_w > 0;
+           case DataType::INT64_ID : return prec_int64_w > 0;
+   
+           /// unsigned integer types
+           case DataType::UINT8_ID :  return prec_uint8_w > 0;
+           case DataType::UINT16_ID : return prec_uint16_w > 0;
+           case DataType::UINT32_ID : return prec_uint32_w > 0;
+           case DataType::UINT64_ID : return prec_uint64_w > 0;
+
+           /// floating point types
+           case DataType::FLOAT32_ID : return prec_float32_w > 0;
+           case DataType::FLOAT64_ID : return prec_float64_w > 0;
+           
+           default: return false;
+        }
+    }
+
+
+    static DataType
+    get_write_precision_override(const DataType &dtype)
+    {
+        DataType res(dtype);
+        if(dtype.is_signed_integer())
+        {
+            int bits = -1;
+
+            switch(dtype.id())
+            {
+               case DataType::INT8_ID:
+               {
+                   if(prec_int8_w > 0)
+                   {
+                       bits = prec_int8_w;
+                   }
+                   break;
+               }
+               case DataType::INT16_ID:
+               { 
+                   if(prec_int16_w > 0)
+                   {
+                       bits = prec_int16_w;
+                   }
+                   break;
+               } 
+               case DataType::INT32_ID:
+               {
+                   if(prec_int32_w > 0)
+                   {
+                       bits = prec_int32_w;
+                   }
+                   break;
+               }
+               case DataType::INT64_ID: 
+               {
+                   if(prec_int64_w > 0)
+                   {
+                       bits = prec_int64_w;
+                   }
+                   break;
+               }
+           }
+
+           switch(bits)
+           {
+               case 8:  res = DataType::int8(res.number_of_elements());  break;
+               case 16: res = DataType::int16(res.number_of_elements()); break;
+               case 32: res = DataType::int32(res.number_of_elements()); break;
+               case 64: res = DataType::int64(res.number_of_elements()); break;
+               default: break;
+           }
+       }
+       else if(dtype.is_unsigned_integer())
+       {
+            int bits = -1;
+
+            switch(dtype.id())
+            {
+               /// signed integer types
+               case DataType::UINT8_ID:
+               {
+                   if(prec_uint8_w > 0)
+                   {
+                       bits = prec_uint8_w;
+                   }
+                   break;
+               }
+               case DataType::UINT16_ID:
+               { 
+                   if(prec_uint16_w > 0)
+                   {
+                       bits = prec_uint16_w;
+                   }
+                   break;
+               } 
+               case DataType::UINT32_ID:
+               {
+                   if(prec_uint32_w > 0)
+                   {
+                       bits = prec_uint32_w;
+                   }
+                   break;
+               }
+               case DataType::UINT64_ID: 
+               {
+                   if(prec_uint64_w > 0)
+                   {
+                       bits = prec_uint64_w;
+                   }
+                   break;
+               }
+            }
+
+            switch(bits)
+            {
+               case 8:  res = DataType::uint8(res.number_of_elements());  break;
+               case 16: res = DataType::uint16(res.number_of_elements()); break;
+               case 32: res = DataType::uint32(res.number_of_elements()); break;
+               case 64: res = DataType::uint64(res.number_of_elements()); break;
+               default: break;
+            }
+        }
+        else if(dtype.is_floating_point())
+        {
+            int bits = -1;
+
+            switch(dtype.id())
+            {
+               case DataType::FLOAT32_ID:
+               {
+                   if(prec_float32_w > 0)
+                   {
+                       bits = prec_float32_w;
+                   }
+                   break;
+               }
+               case DataType::FLOAT64_ID: 
+               {
+                   if(prec_float64_w > 0)
+                   {
+                       bits = prec_float64_w;
+                   }
+                   break;
+               }
+           }
+
+           switch(bits)
+           {
+               case 32: res = DataType::float32(res.number_of_elements()); break;
+               case 64: res = DataType::float64(res.number_of_elements()); break;
+               default: break;
+           }
+       }
+
+       return res;
+    }
+
+    static int
+    precision_dtype_name_to_bits(const std::string &dtype_name)
+    {
+        if(dtype_name == "native")
+        {
+            return -1;
+        }
+        else
+        {
+            int len = dtype_name.size();
+            int res = -1;
+            int idx = 0;
+
+            // find the integer suffix
+            while(idx < len && res == -1)
+            {
+                if(std::isdigit(dtype_name[idx]))
+                {
+                    res = conduit::utils::string_to_value<int>(dtype_name.substr(idx));
+                }
+                idx++;
+            }
+            return res;
+        }
+    }
+
+    static std::string
+    precision_bits_to_dtype_name(const std::string &prefix, int bits)
+    {
+        return conduit_fmt::format("{0}{1}",prefix,bits);
     }
 };
 
@@ -526,6 +1098,33 @@ int         HDF5Options::chunk_threshold    = 2000000; // 2 mb
 bool        HDF5Options::attributes_enabled   = false;
 std::string HDF5Options::attributes_key       = "attributes";
 std::string HDF5Options::attributes_value_key = "value";
+
+int         HDF5Options::prec_int8_w  = -1;
+int         HDF5Options::prec_int16_w = -1;
+int         HDF5Options::prec_int32_w = -1;
+int         HDF5Options::prec_int64_w = -1;
+
+int         HDF5Options::prec_int8_r  = -1;
+int         HDF5Options::prec_int16_r = -1;
+int         HDF5Options::prec_int32_r = -1;
+int         HDF5Options::prec_int64_r = -1;
+
+int         HDF5Options::prec_uint8_w  = -1;
+int         HDF5Options::prec_uint16_w = -1;
+int         HDF5Options::prec_uint32_w = -1;
+int         HDF5Options::prec_uint64_w = -1;
+
+int         HDF5Options::prec_uint8_r  = -1;
+int         HDF5Options::prec_uint16_r = -1;
+int         HDF5Options::prec_uint32_r = -1;
+int         HDF5Options::prec_uint64_r = -1;
+
+int         HDF5Options::prec_float32_w = -1;
+int         HDF5Options::prec_float64_w = -1;
+
+int         HDF5Options::prec_float32_r = -1;
+int         HDF5Options::prec_float64_r = -1;
+
 
 // TODO: ndarray chunk heuristics
 
@@ -1098,7 +1697,6 @@ join_ref_paths(const std::string &parent, const std::string &child)
 // Data Type Helper methods that are a part of public conduit::relay::io
 //
 //  conduit_dtype_to_hdf5_dtype
-//  conduit_dtype_to_hdf5_dtype_cleanup
 //  hdf5_dtype_to_conduit_dtype
 //-----------------------------------------------------------------------------
 
@@ -1231,7 +1829,7 @@ hdf5_dtype_to_conduit_dtype(hid_t hdf5_dtype_id,
 //-----------------------------------------------------------------------------
 DataType
 hdf5_dtype_to_conduit_dtype(hid_t hdf5_dtype_id,
-                            hsize_t * num_elems_array,
+                            hsize_t *num_elems_array,
                             index_t rank,
                             const std::string &ref_path)
 {
@@ -2169,12 +2767,20 @@ create_hdf5_dataset_for_conduit_leaf(const DataType &dtype,
 {
     hid_t res = -1;
 
-    RelayH5THandle h5_dtype_hnd(conduit_dtype_to_hdf5_dtype(dtype,ref_path),
+
+    DataType file_dtype = dtype;
+    if(HDF5Options::check_write_precision_override(file_dtype))
+    {
+        // find the desired data type
+        file_dtype = HDF5Options::get_write_precision_override(file_dtype);
+    }
+
+    RelayH5THandle h5_dtype_hnd(conduit_dtype_to_hdf5_dtype(file_dtype,ref_path),
                                 hdf5_group_id,
                                 ref_path);
     h5_dtype_hnd.check_created();
 
-    hsize_t num_eles = (hsize_t) dtype.number_of_elements();
+    hsize_t num_eles = (hsize_t) file_dtype.number_of_elements();
 
     hid_t h5_cprops_id = H5P_DEFAULT;
 
@@ -2192,16 +2798,16 @@ create_hdf5_dataset_for_conduit_leaf(const DataType &dtype,
 
     // if an offset is supplied, we will default to creating an extendible array
     if( !extendible && HDF5Options::compact_storage_enabled &&
-        dtype.bytes_compact() <= HDF5Options::compact_storage_threshold)
+        file_dtype.bytes_compact() <= HDF5Options::compact_storage_threshold)
     {
         h5_cprops_id = create_hdf5_compact_plist_for_conduit_leaf();
         // if we create custom plist, connect to handle for auto cleanup
         h5_cprops_hnd.set_id(h5_cprops_id);
     }
     else if( extendible || (HDF5Options::chunking_enabled &&
-             dtype.bytes_compact() > HDF5Options::chunk_threshold))
+             file_dtype.bytes_compact() > HDF5Options::chunk_threshold))
     {
-        h5_cprops_id = create_hdf5_chunked_plist_for_conduit_leaf(dtype);
+        h5_cprops_id = create_hdf5_chunked_plist_for_conduit_leaf(file_dtype);
         // if we create custom plist, connect to handle for auto cleanup
         h5_cprops_hnd.set_id(h5_cprops_id);
         unlimited_dim = true;
@@ -2216,7 +2822,7 @@ create_hdf5_dataset_for_conduit_leaf(const DataType &dtype,
 
     // string a scalar with size embedded in type is disabled
     // b/c this path undermines compression
-    // if(dtype.is_string())
+    // if(file_dtype.is_string())
     // {
     //     h5_dspace_id = H5Screate(H5S_SCALAR);
     // }
@@ -2470,8 +3076,8 @@ write_conduit_leaf_to_hdf5_dataset_direct(const Node &node,
         if(dt.is_compact())
         {
             // write data
-            h5_status = H5Dwrite(hdf5_dset_id,
-                                 h5_dtype_hnd.id(),
+            h5_status = H5Dwrite(hdf5_dset_id, // dspace id
+                                 h5_dtype_hnd.id(), // mem type id
                                  H5S_ALL,
                                  H5S_ALL,
                                  H5P_DEFAULT,
@@ -3935,7 +4541,7 @@ read_hdf5_dataset_into_conduit_leaf_node(hid_t hdf5_dset_id,
     }
     else
     {
-        RelayH5THandle h5_dtype_hnd(H5Dget_type(hdf5_dset_id), 
+        RelayH5THandle h5_dtype_hnd(H5Dget_type(hdf5_dset_id),
                                     hdf5_dset_id,
                                     ref_path);
         // custom check for better context
@@ -3980,18 +4586,25 @@ read_hdf5_dataset_into_conduit_leaf_node(hid_t hdf5_dset_id,
                                                              rank,
                                                              ref_path);
 
-            // if the endianness of the dset in the file doesn't
-            // match the current machine we always want to convert it
-            // on read.
-
-            // check endianness
-            // Note: string cases never land here b/c they are
-            // created with default endianness
-            if(!dt.endianness_matches_machine())
+            if(HDF5Options::check_read_precision_override(dt))
             {
-                // if they don't match, modify the dt
-                // and get the proper hdf5 data type handle
-                dt.set_endianness(Endianness::machine_default());
+                // find the desired data type
+                dt = HDF5Options::get_read_precision_override(dt);
+
+                // if the endianness of the dset in the file doesn't
+                // match the current machine we always want to convert it
+                // on read.
+
+                // check endianness
+                // Note: string cases never land here b/c they are
+                // created with default endianness
+
+                if(!dt.endianness_matches_machine())
+                {
+                    // if they don't match, modify the dt
+                    // and get the proper hdf5 data type handle
+                    dt.set_endianness(Endianness::machine_default());
+                }
 
                 // clean up our old handle
                 h5_dtype_hnd.close();
@@ -4001,6 +4614,31 @@ read_hdf5_dataset_into_conduit_leaf_node(hid_t hdf5_dset_id,
                                                            ref_path));
                 h5_dtype_hnd.check_created();
             }
+            else // handle endianness differences
+            {
+                // if the endianness of the dset in the file doesn't
+                // match the current machine we always want to convert it
+                // on read.
+
+                // check endianness
+                // Note: string cases never land here b/c they are
+                // created with default endianness
+                if(!dt.endianness_matches_machine())
+                {
+                    // if they don't match, modify the dt
+                    // and get the proper hdf5 data type handle
+                    dt.set_endianness(Endianness::machine_default());
+
+                    // clean up our old handle
+                    h5_dtype_hnd.close();
+
+                    // get ref to standard variant of this dtype
+                    h5_dtype_hnd.set_id(conduit_dtype_to_hdf5_dtype(dt,
+                                                               ref_path));
+                    h5_dtype_hnd.check_created();
+                }
+            }
+
 
             hsize_t node_size[1] = {readtotal};
             RelayH5SHandle h5_node_dspace_hnd(H5Screate_simple(1,node_size,NULL),
@@ -4048,6 +4686,18 @@ read_hdf5_dataset_into_conduit_leaf_node(hid_t hdf5_dset_id,
                                    << " greater than the number of entries in"
                                    << " the HDF5 dataset (" << nelems << ")");
             }
+            else if(dest.dtype().is_empty())
+            {
+                // if dest is empty we will have to allocate, we can avoid the extra copy
+                // necessary in final the `else` case b/c striding is not involved
+                dest.set(dt);
+                h5_status = H5Dread(hdf5_dset_id,
+                                    h5_dtype_hnd.id(),
+                                    h5_node_dspace_hnd.id(),
+                                    h5_dspace_hnd.id(),
+                                    H5P_DEFAULT,
+                                    dest.data_ptr());
+            }
             else if(dest.dtype().is_compact() &&
                dest.dtype().compatible(dt) )
             {
@@ -4068,6 +4718,7 @@ read_hdf5_dataset_into_conduit_leaf_node(hid_t hdf5_dset_id,
                 // the hdf5 data will always be compact, source node we are
                 // reading will not unless it's already compatible and compact.
                 Node n_tmp(dt);
+
                 h5_status = H5Dread(hdf5_dset_id,
                                     h5_dtype_hnd.id(),
                                     h5_node_dspace_hnd.id(),
