@@ -10,7 +10,38 @@ Source distributions for Conduit releases are hosted on github:
 
 https://github.com/LLNL/conduit/releases
 
-.. note:: Conduit uses `BLT <https://github.com/LLNL/blt>`__ as its core CMake build system. We leverage BLT as a git submodule, however github does not include submodule contents in its automatically created source tarballs. To avoid confusion, starting with v0.3.0 we provide our own source tarballs that include BLT. 
+.. note:: Conduit uses `BLT <https://github.com/LLNL/blt>`__ as its core CMake build system. We leverage BLT as a git submodule, however github does not include submodule contents in its automatically created source tarballs. To avoid confusion, starting with v0.3.0 we provide our own source tarballs that include BLT.
+
+v0.9.9
+---------------------------------
+
+* Released 2026-09-30
+* `Source Tarball <https://github.com/LLNL/conduit/releases/download/v0.9.9/conduit-v0.9.9-src-with-blt.tar.gz>`__
+
+Highlights
+++++++++++++++++++++++++++++++++++++
+
+(Extracted from Conduit's :download:`Changelog <../../../CHANGELOG.md>`)
+
+
+Added
+~~~~~
+
+
+* **Blueprint**
+
+ * Added relay hdf5 options to override the desired leaf types used when writing and reading hdf5 files. This enables on the fly conversion of say, all float64 data values to float32 data values, as well as many other combinations. This only supports bitwidth conversion, within signed, unsigned, and floating point values. See the test ``t_relay_io_hdf5_prec.cpp`` for examples of using these options.
+
+Changed
+~~~~~~~
+
+ * Removed large silo data used for testing that made our release tarball too large.
+ * ``conduit::blueprint::mesh::matset::renumber_material_ids()`` was adjusted to take an additional argument, a starting index, so that material ids can be renumbered to run between ``start`` and ``N-(start+1)`` where ``N`` is the number of materials.
+
+* **General**
+
+ * Changed CMake version check in ConduitConfig.cmake to check for a minimum version, instead of setting the minimum version which impacts policy choices.
+
 
 v0.9.8
 ---------------------------------

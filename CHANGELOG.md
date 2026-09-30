@@ -8,6 +8,14 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## [0.9.9] - Released 2026-09-30
+
+### Added
+
 #### Blueprint
 - Added relay hdf5 options to override the desired leaf types used when writing and reading hdf5 files. This enables on the fly conversion of say, all float64 data values to float32 data values, as well as many other combinations. This only supports bitwidth conversion, within signed, unsigned, and floating point values. See the test `t_relay_io_hdf5_prec.cpp` for examples of using these options.
 
@@ -17,8 +25,6 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 #### General
 - Changed CMake version check in ConduitConfig.cmake to check for a minimum version, instead of setting the minimum version which impacts policy choices.
-
-### Fixed
 
 ## [0.9.8] - Released 2026-09-01
 
@@ -1192,7 +1198,8 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Added
 - Initial Open Source Release on GitHub
 
-[Unreleased]: https://github.com/llnl/conduit/compare/v0.9.8...HEAD
+[Unreleased]: https://github.com/llnl/conduit/compare/v0.9.9...HEAD
+[0.9.9]: https://github.com/llnl/conduit/compare/v0.9.8...v0.9.9
 [0.9.8]: https://github.com/llnl/conduit/compare/v0.9.7...v0.9.8
 [0.9.7]: https://github.com/llnl/conduit/compare/v0.9.6...v0.9.7
 [0.9.6]: https://github.com/llnl/conduit/compare/v0.9.5...v0.9.6
