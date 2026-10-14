@@ -281,28 +281,118 @@ TEST(convert, multi_domain_3d)
     test_convert_multi_domain(3);
 }
 
+//-----------------------------------------------------------------------------
+// Converts a strided structured mesh (one that uses elements/dims/offsets and
+// elements/dims/strides to select a sub-block of its coordset) to unstructured
+// and checks that only the selected points, and the selected field values,
+// make it into the output.
 //
-// TODO: This test case targets issue: https://github.com/llnl/conduit/issues/1436
-//
+// See: https://github.com/llnl/conduit/issues/1436
+//-----------------------------------------------------------------------------
+void test_convert_strided_structured(conduit::index_t npts_z,
+                                     const std::string &target)
+{
+    conduit::Node n_mesh, n_opts;
+    n_opts["npts_x"] = 4;
+    n_opts["npts_y"] = 3;
+    n_opts["npts_z"] = npts_z;
+    conduit::blueprint::mesh::examples::generate("strided_structured",
+                                                 n_opts,
+                                                 n_mesh);
 
-// TEST(convert, strided_struct_to_unstruct)
-// {
-//     conduit::Node n_mesh;
-//     conduit::blueprint::mesh::examples::generate("strided_structured",
-//                                                  n_mesh);
-//     std::cout << n_mesh.to_yaml() << std::endl;
-//     conduit::relay::io::blueprint::save_mesh(n_mesh,"tout_stride_struct_input","hdf5");
-//
-//     conduit::Node n_options, n_converted;
-//     n_options["topology"] = "mesh";
-//     n_options["target"] = "unstructured";
-//
-//     conduit::blueprint::mesh::convert(n_mesh, n_options, n_converted);
-//
-//     std::cout << n_converted.to_yaml() << std::endl;
-//     conduit::relay::io::blueprint::save_mesh(n_converted,"tout_tout_stride_struct_conv","hdf5");
-// }
+    conduit::Node n_options, n_converted, info;
+    n_options["topology"] = "mesh";
+    n_options["target"] = target;
+    conduit::blueprint::mesh::convert(n_mesh, n_options, n_converted);
+    EXPECT_TRUE(conduit::blueprint::mesh::verify(n_converted, info));
 
+    const conduit::Node &n_dims = n_mesh["topologies/mesh/elements/dims"];
+    const conduit::index_t ndims = (npts_z > 0) ? 3 : 2;
+    conduit::index_t vdims[3] = {1, 1, 1};
+    conduit::index_t offsets[3] = {0, 0, 0};
+    conduit::index_t strides[3] = {0, 0, 0};
+    const char *axes[3] = {"i", "j", "k"};
+    conduit::index_t_accessor dims_offsets = n_dims["offsets"].as_index_t_accessor();
+    conduit::index_t_accessor dims_strides = n_dims["strides"].as_index_t_accessor();
+    for(conduit::index_t d = 0; d < ndims; d++)
+    {
+        vdims[d] = n_dims[axes[d]].to_index_t() + 1;
+        offsets[d] = dims_offsets[d];
+        strides[d] = dims_strides[d];
+    }
+    const conduit::index_t nverts = vdims[0] * vdims[1] * vdims[2];
+    const conduit::index_t nelems = (vdims[0] - 1) * (vdims[1] - 1) *
+                                    ((ndims == 3) ? (vdims[2] - 1) : 1);
+
+    // only the selected points should be in the output coordset, in order
+    const char *coord_axes[3] = {"x", "y", "z"};
+    for(conduit::index_t d = 0; d < ndims; d++)
+    {
+        conduit::float64_accessor src =
+            n_mesh["coordsets/coords/values"][coord_axes[d]].as_float64_accessor();
+        conduit::float64_accessor dst =
+            n_converted["coordsets/coords/values"][coord_axes[d]].as_float64_accessor();
+        EXPECT_EQ(dst.number_of_elements(), nverts);
+
+        conduit::index_t v = 0;
+        for(conduit::index_t k = 0; k < vdims[2]; k++)
+        for(conduit::index_t j = 0; j < vdims[1]; j++)
+        for(conduit::index_t i = 0; i < vdims[0]; i++, v++)
+        {
+            conduit::index_t src_idx = (offsets[0] + i) * strides[0] +
+                                       (offsets[1] + j) * strides[1] +
+                                       (offsets[2] + k) * strides[2];
+            EXPECT_EQ(dst[v], src[src_idx]);
+        }
+    }
+
+    const conduit::Node &n_topo = n_converted["topologies/mesh"];
+    EXPECT_EQ(n_topo["type"].as_string(), "unstructured");
+    EXPECT_EQ(conduit::blueprint::mesh::topology::length(n_topo), nelems);
+    if(target == "unstructured")
+    {
+        conduit::index_t_accessor conn =
+            n_topo["elements/connectivity"].as_index_t_accessor();
+        EXPECT_EQ(conn.number_of_elements(), nelems * ((ndims == 3) ? 8 : 4));
+        EXPECT_LT(conn.max(), nverts);
+    }
+
+    // the example numbers the selected field values 1 .. N, the
+    // converted fields should hold just those values and no strides
+    const std::string field_names[2] = {"vert_vals", "ele_vals"};
+    const conduit::index_t field_sizes[2] = {nverts, nelems};
+    for(int f = 0; f < 2; f++)
+    {
+        const conduit::Node &n_field = n_converted["fields"][field_names[f]];
+        EXPECT_FALSE(n_field.has_child("offsets"));
+        EXPECT_FALSE(n_field.has_child("strides"));
+        conduit::float64_accessor vals = n_field["values"].as_float64_accessor();
+        EXPECT_EQ(vals.number_of_elements(), field_sizes[f]);
+        for(conduit::index_t i = 0; i < vals.number_of_elements(); i++)
+        {
+            EXPECT_EQ(vals[i], static_cast<conduit::float64>(i + 1));
+        }
+    }
+}
+
+//-----------------------------------------------------------------------------
+TEST(convert, strided_struct_to_unstruct_2d)
+{
+    test_convert_strided_structured(0, "unstructured");
+}
+
+//-----------------------------------------------------------------------------
+TEST(convert, strided_struct_to_unstruct_3d)
+{
+    test_convert_strided_structured(3, "unstructured");
+}
+
+//-----------------------------------------------------------------------------
+TEST(convert, strided_struct_to_polytopal)
+{
+    test_convert_strided_structured(0, "polytopal");
+    test_convert_strided_structured(3, "polytopal");
+}
 
 /// Conduit error handler that blocks (helpful for getting a stack in a debugger)
 static void conduit_debug_err_handler(const std::string &s1, const std::string &s2, int i1)

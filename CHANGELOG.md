@@ -12,6 +12,9 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 ### Fixed
 
+#### Blueprint
+- Fixed `conduit::blueprint::mesh::topology::structured::to_unstructured()` and `conduit::blueprint::mesh::convert()` to support strided structured topologies (topologies that use `elements/dims/offsets` and `elements/dims/strides`). Only the selected points are kept in the output coordset, and strided vertex and element fields are gathered into contiguous values. Previously the offsets and strides were ignored, which produced a mesh that referenced the wrong points.
+
 ## [0.9.9] - Released 2026-09-30
 
 ### Added

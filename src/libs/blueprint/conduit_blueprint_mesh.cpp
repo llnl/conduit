@@ -1175,6 +1175,73 @@ convert_topology_to_structured(const std::string &base_type,
 }
 
 //-------------------------------------------------------------------------
+// Fetches the optional "offsets" and "strides" of a strided structured
+// index space. Missing offsets default to zero and missing strides default
+// to the dense (unstrided) strides of the given dims.
+static void
+strided_structured_offsets_and_strides(const conduit::Node &node,
+                                       const index_t *dims,
+                                       index_t *offsets,
+                                       index_t *strides)
+{
+    for(index_t d = 0; d < 3; d++)
+    {
+        offsets[d] = 0;
+        strides[d] = (d == 0) ? 1 : strides[d-1] * dims[d-1];
+    }
+
+    if(node.has_child("offsets"))
+    {
+        index_t_accessor vals = node["offsets"].as_index_t_accessor();
+        for(index_t d = 0; d < vals.number_of_elements() && d < 3; d++)
+        {
+            offsets[d] = vals[d];
+        }
+    }
+
+    if(node.has_child("strides"))
+    {
+        index_t_accessor vals = node["strides"].as_index_t_accessor();
+        for(index_t d = 0; d < vals.number_of_elements() && d < 3; d++)
+        {
+            strides[d] = vals[d];
+        }
+    }
+}
+
+//-------------------------------------------------------------------------
+// Copies the values selected by a strided structured index space into a
+// new contiguous array (i varies fastest).
+static void
+gather_strided_structured_values(const conduit::Node &src,
+                                 const index_t *dims,
+                                 const index_t *offsets,
+                                 const index_t *strides,
+                                 conduit::Node &dest)
+{
+    const index_t num_vals = dims[0] * dims[1] * dims[2];
+    const index_t elem_bytes = src.dtype().element_bytes();
+
+    dest.reset();
+    dest.set(DataType(src.dtype().id(), num_vals));
+
+    index_t idx = 0;
+    for(index_t k = 0; k < dims[2]; k++)
+    {
+        for(index_t j = 0; j < dims[1]; j++)
+        {
+            for(index_t i = 0; i < dims[0]; i++, idx++)
+            {
+                const index_t src_idx = (offsets[0] + i) * strides[0] +
+                                        (offsets[1] + j) * strides[1] +
+                                        (offsets[2] + k) * strides[2];
+                memcpy(dest.element_ptr(idx), src.element_ptr(src_idx), elem_bytes);
+            }
+        }
+    }
+}
+
+//-------------------------------------------------------------------------
 void
 convert_topology_to_unstructured(const std::string &base_type,
                                  const conduit::Node &topo,
@@ -1265,6 +1332,39 @@ convert_topology_to_unstructured(const std::string &base_type,
         vdims_axes[d] = edims_axes[d] + 1;
     }
     index_t indices_per_elem = (index_t) pow(2, csys_axes.size());
+
+    // strided structured topologies select a sub-block of the coordset
+    // points; keep only the selected points so the connectivity below
+    // (which indexes points 0 .. N-1) refers to them
+    if(is_base_structured &&
+       (topo.has_path("elements/dims/offsets") ||
+        topo.has_path("elements/dims/strides")))
+    {
+        // number of selected points along each logical axis
+        index_t sel_dims[3] = {1, 1, 1};
+        for(index_t d = 0; d < (index_t)csys_axes.size(); d++)
+        {
+            sel_dims[d] = vdims_axes[d];
+        }
+
+        index_t offsets[3], strides[3];
+        strided_structured_offsets_and_strides(topo["elements/dims"],
+                                               &sel_dims[0],
+                                               &offsets[0],
+                                               &strides[0]);
+
+        const Node &src_vals = (*coordset)["values"];
+        Node &dst_vals = cdest["values"];
+        dst_vals.reset();
+        for(index_t i = 0; i < src_vals.number_of_children(); i++)
+        {
+            gather_strided_structured_values(src_vals[i],
+                                             &sel_dims[0],
+                                             &offsets[0],
+                                             &strides[0],
+                                             dst_vals[src_vals[i].name()]);
+        }
+    }
 
     CONDUIT_ANNOTATE_MARK_BEGIN("to_unstructured_index_gen");
     conduit::Node &conn_node = dest["elements/connectivity"];
@@ -8305,6 +8405,99 @@ copy_nodes_with_topology(const conduit::Node &n_mesh,
 
 //-------------------------------------------------------------------------
 /*!
+ * @brief Replace the values of strided fields (fields with "offsets" and/or
+ *        "strides") on a structured topology with contiguous values that
+ *        only contain the selected entries. This matches the output of
+ *        structured::to_unstructured, which only keeps the selected points.
+ *
+ * @param n_topo The source structured topology.
+ * @param n_src_fields The source fields.
+ * @param n_output_fields The output fields that will be updated.
+ */
+static void
+gather_strided_structured_fields(const conduit::Node &n_topo,
+                                 const conduit::Node &n_src_fields,
+                                 conduit::Node &n_output_fields)
+{
+    const conduit::Node &n_dims = n_topo["elements/dims"];
+    index_t edims[3] = {1, 1, 1}, vdims[3] = {1, 1, 1};
+    for(index_t d = 0; d < 3; d++)
+    {
+        if(n_dims.has_child(bputils::LOGICAL_AXES[d]))
+        {
+            edims[d] = n_dims[bputils::LOGICAL_AXES[d]].to_index_t();
+            vdims[d] = edims[d] + 1;
+        }
+    }
+
+    for(conduit::index_t i = 0; i < n_output_fields.number_of_children(); i++)
+    {
+        conduit::Node &n_field = n_output_fields[i];
+        if(!n_src_fields.has_child(n_field.name()) ||
+           !(n_field.has_child("offsets") || n_field.has_child("strides")))
+        {
+            continue;
+        }
+
+        const conduit::Node &n_src_field = n_src_fields[n_field.name()];
+        if(!n_src_field.has_child("topology") ||
+           n_src_field["topology"].as_string() != n_topo.name())
+        {
+            continue;
+        }
+        const std::string assoc = n_src_field.has_child("association") ?
+            n_src_field["association"].as_string() : std::string();
+        const index_t *dims = nullptr;
+        if(assoc == "vertex")
+        {
+            dims = vdims;
+        }
+        else if(assoc == "element")
+        {
+            dims = edims;
+        }
+        else
+        {
+            continue;
+        }
+
+        index_t offsets[3], strides[3];
+        strided_structured_offsets_and_strides(n_src_field, dims,
+                                               offsets, strides);
+
+        // NOTE: n_field may have been set_external from the source, so we
+        // build new values instead of writing into the existing ones.
+        const conduit::Node &n_src_vals = n_src_field["values"];
+        conduit::Node n_vals;
+        if(n_src_vals.number_of_children() > 0)
+        {
+            for(conduit::index_t c = 0; c < n_src_vals.number_of_children(); c++)
+            {
+                gather_strided_structured_values(n_src_vals[c], dims, offsets, strides,
+                                                 n_vals[n_src_vals[c].name()]);
+            }
+        }
+        else
+        {
+            gather_strided_structured_values(n_src_vals, dims, offsets, strides,
+                                             n_vals);
+        }
+
+        n_field.remove("values");
+        n_field["values"].set(n_vals);
+        if(n_field.has_child("offsets"))
+        {
+            n_field.remove("offsets");
+        }
+        if(n_field.has_child("strides"))
+        {
+            n_field.remove("strides");
+        }
+    }
+}
+
+//-------------------------------------------------------------------------
+/*!
  * @brief Copy a source node to a destination node.
  *
  * @param n_src The source node.
@@ -8951,6 +9144,8 @@ void mesh::convert(const conduit::Node &n_mesh,
     const int MATSETS_MASK = 2;
     const int ADJSETS_MASK = 4;
     int copyMask = 0;
+    // set when strided structured fields need to be gathered (to_unstructured)
+    bool gather_strided_fields = false;
 
     if(domains.size() > 1)
     {
@@ -9022,6 +9217,7 @@ void mesh::convert(const conduit::Node &n_mesh,
                                                                                     topo_dest,
                                                                                     coords_dest);
                     copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+                    gather_strided_fields = true;
                 }
                 else
                 {
@@ -9120,6 +9316,7 @@ void mesh::convert(const conduit::Node &n_mesh,
                 conduit::blueprint::mesh::topology::unstructured::to_polytopal(n_topo_uns, topo_dest);
                 copy_node(n_coordset_uns, n_output["coordsets/" + n_coordset->name()], true);
                 copyMask = FIELDS_MASK | MATSETS_MASK | ADJSETS_MASK;
+                gather_strided_fields = (type == "structured");
             }
         }
         else if(target.find("generate_") == 0)
@@ -9218,6 +9415,12 @@ void mesh::convert(const conduit::Node &n_mesh,
                                   "fields",
                                   copy,
                                   get_selected_fields(n_options));
+            if(gather_strided_fields && n_output.has_child("fields"))
+            {
+                gather_strided_structured_fields(n_mesh["topologies/" + topologyName],
+                                                 n_mesh["fields"],
+                                                 n_output["fields"]);
+            }
         }
         if(copyMask & MATSETS_MASK)
         {
