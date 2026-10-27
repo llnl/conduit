@@ -142,6 +142,68 @@ private:
 };
 
 
+//-----------------------------------------------------------------------------
+// Private class used to manage Silo DB compression options.
+//
+// Manages setting and restoring Silo DB compression options in an exception
+// safe context.
+//
+//-----------------------------------------------------------------------------
+class SiloDBCompressionOptions
+{
+public:
+        SiloDBCompressionOptions()
+        : m_opts_set(false),
+          m_prior_opts_not_null(false),
+          m_prior_opts_str()
+        {
+            // empty
+        }
+
+       ~SiloDBCompressionOptions()
+        {
+            restore();
+        }
+
+        // save current options, then set desired options
+        void
+        set(const std::string &opts)
+        {
+            m_opts_set = true;
+            const char *silo_prior_opts_cstr = DBGetCompression();
+            if(silo_prior_opts_cstr != NULL)
+            {
+                m_prior_opts_str = std::string(silo_prior_opts_cstr);
+                m_prior_opts_not_null = true;
+            }
+            DBSetCompression(opts.c_str());
+        }
+
+        // restore prior compression options (if necessary)
+        void
+        restore()
+        {
+            if(m_opts_set)
+            {
+                if(m_prior_opts_not_null)
+                {
+                    DBSetCompression(m_prior_opts_str.c_str());
+                }
+                else
+                {
+                    DBSetCompression(NULL);
+                }
+            }
+            m_opts_set = false;
+            m_prior_opts_not_null = false;
+        }
+
+private:
+    bool        m_opts_set;
+    bool        m_prior_opts_not_null;
+    std::string m_prior_opts_str;
+};
+
 
 //---------------------------------------------------------------------------//
 void
@@ -8386,6 +8448,11 @@ write_dom2filemap(DBfile *dbfile,
 ///            of types. "yes" will prefer this if possible, "no" will 
 ///            always write the entire array.
 ///
+///      compression:  silo compression options string
+///            If present this string is passed to Silo's DBSetCompression
+///            method before write, and prior compression are restored after
+///            write.
+///
 ///      number_of_files:  {# of files}
 ///            when "multi_file" or "overlink":
 ///                 <= 0, use # of files == # of domains
@@ -8567,6 +8634,16 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         }
     }
 
+    // check for silo compression options string
+    //  When we use compression options, this helper class restores prior options
+    //  either at the end of this call or when an exception occurs
+    SiloDBCompressionOptions silo_compression_opts;
+    if (opts.has_child("compression") && opts["compression"].dtype().is_string() )
+    {
+        silo_compression_opts.set(opts["compression"].as_string());
+    }
+
+    // handle file type options
     if (opts_silo_type == "default")
     {
         silo_type = DB_HDF5;

@@ -13,7 +13,7 @@
 
 #include "conduit_relay.hpp"
 #include "conduit_relay_io_silo.hpp"
-
+#include "conduit_relay_io_hdf5.hpp"
 #include <iostream>
 #include "gtest/gtest.h"
 
@@ -3721,6 +3721,58 @@ TEST(conduit_relay_io_silo, read_overlink_directly)
         write_opts["file_style"] = "overlink";
         write_opts["ovl_topo_name"] = "MMESH";
         io::silo::save_mesh(load_mesh, out_name + "_write_overlink", write_opts);
+    }
+}
+
+#include <conduit_relay_io_blueprint.hpp>
+
+//-----------------------------------------------------------------------------
+// test silo db compression options
+TEST(conduit_relay_io_silo, compression_opts)
+{
+    Node mesh, load_mesh, info, write_opts;
+
+    // example mesh that should benefit from compression
+    blueprint::mesh::examples::braid("structured", 100, 100, 100, mesh);
+
+    // blueprint hdf5 save for comparison
+    write_opts["chunking/compression/level"] = 1;
+    conduit::relay::io::hdf5_set_options(write_opts);
+    conduit::relay::io::blueprint::save_mesh(mesh,"tout_silo_write_compression_test_compare_gzip_l1","hdf5");
+    write_opts["chunking/compression/level"] = 9;
+    conduit::relay::io::hdf5_set_options(write_opts);
+conduit::relay::io::blueprint::save_mesh(mesh,"tout_silo_write_compression_test_compare_gzip_l9","hdf5");
+    write_opts.reset();
+
+    const std::vector<std::pair<std::string, std::string>> comp_tests = {
+             std::make_pair("no_compression", "")
+            ,std::make_pair("gzip_base", "METHOD=GZIP")
+            ,std::make_pair("gzip_1",    "METHOD=GZIP LEVEL=1")
+            ,std::make_pair("gzip_9",    "METHOD=GZIP LEVEL=9")
+            ,std::make_pair("zfp_r85",   "METHOD=ZFP RATE=8.5")
+    };
+
+    for (int i = 0; i < comp_tests.size(); i ++)
+    {
+        std::string case_name = comp_tests[i].first;
+        std::string case_opts = comp_tests[i].second;
+
+        // expect clean slate
+        const char *silo_dbcomp_cstr = DBGetCompression();
+        EXPECT_TRUE(silo_dbcomp_cstr == NULL);
+
+        // write with test case compression opts
+        std::string ofbase = "tout_silo_write_compression_test_" + case_name;
+
+        std::cout << "testing compression case " << case_name << " "
+                  << ofbase << std::endl;
+
+        write_opts["compression"] = case_opts;
+        io::silo::save_mesh(mesh, ofbase, write_opts);
+
+        // again, expect clean slate
+        silo_dbcomp_cstr = DBGetCompression();
+        EXPECT_TRUE(silo_dbcomp_cstr == NULL);
     }
 }
 
