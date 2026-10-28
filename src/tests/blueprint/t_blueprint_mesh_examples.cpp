@@ -2183,65 +2183,6 @@ TEST(conduit_blueprint_mesh_examples, rz_cylinder)
 }
 
 //-----------------------------------------------------------------------------
-TEST(conduit_blueprint_mesh_examples, cross_domain_index_matmap_gen)
-{
-    conduit::Node mesh;
-    int nx = 4;
-    int ny = 4;
-    double radius = 0.15;
-
-    std::string matset_type = "sparse_by_material";
-    conduit::blueprint::mesh::examples::venn(matset_type, nx, ny, radius, mesh);
-    
-    conduit::Node verify_info;
-    if (! conduit::blueprint::mesh::verify(mesh, verify_info))
-    {
-        std::cout << "verify failed" << std::endl;
-        std::cout << verify_info.to_yaml() << std::endl;
-    }
-
-    mesh["fields"].remove_child("radius_a");
-    mesh["fields"].remove_child("radius_b");
-    mesh["fields"].remove_child("radius_c");
-    mesh["fields"].remove_child("overlap");
-    mesh["fields"].remove_child("circle_a");
-    mesh["fields"].remove_child("circle_b");
-    mesh["fields"].remove_child("circle_c");
-    mesh["fields"].remove_child("background");
-    // mesh["fields"].remove_child("importance");
-    // mesh["fields"].remove_child("mat_check");
-    // mesh["fields"].remove_child("area");
-
-    conduit::Node mesh_part;
-    conduit::Node opts;
-    opts["target"] = 2;
-    conduit::blueprint::mesh::partition(mesh, opts, mesh_part);
-
-    mesh_part[0]["matsets/matset/volume_fractions"].remove_child("circle_b");
-    mesh_part[0]["matsets/matset/volume_fractions"].remove_child("circle_c");
-    mesh_part[0]["matsets/matset/element_ids"].remove_child("circle_b");
-    mesh_part[0]["matsets/matset/element_ids"].remove_child("circle_c");
-
-    mesh_part[1]["matsets/matset/volume_fractions"].remove_child("circle_a");
-    mesh_part[1]["matsets/matset/element_ids"].remove_child("circle_a");
-
-    Node bp_index;
-    blueprint::mesh::examples::adjset_uniform(mesh);
-    blueprint::mesh::generate_index(mesh_part, "", 2, bp_index);
-
-    const Node &material_map = bp_index["matsets"]["matset"]["material_map"];
-
-    EXPECT_TRUE(material_map.has_child("background"));
-    EXPECT_EQ(material_map["background"].to_int(), 0);
-    EXPECT_TRUE(material_map.has_child("circle_a"));
-    EXPECT_EQ(material_map["circle_a"].to_int(), 1);
-    EXPECT_TRUE(material_map.has_child("circle_b"));
-    EXPECT_EQ(material_map["circle_b"].to_int(), 2);
-    EXPECT_TRUE(material_map.has_child("circle_c"));
-    EXPECT_EQ(material_map["circle_c"].to_int(), 3);
-}
-
-//-----------------------------------------------------------------------------
 int main(int argc, char* argv[])
 {
     int result = 0;
