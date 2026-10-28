@@ -178,7 +178,7 @@ public:
             }
 
             // in Silo, DBSetCompression with an empty string "" is equivalent
-            //          to METHOD=GZIB, where a NULL pointer truly disables compression
+            //          to METHOD=GZIP, where a NULL pointer truly disables compression
             //          allow the null pointer case to be accessed via the magic
             //          string "NULL"
             if(opts == "NULL")
