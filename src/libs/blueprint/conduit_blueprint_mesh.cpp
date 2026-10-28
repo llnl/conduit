@@ -2207,6 +2207,34 @@ mesh::generate_index(const conduit::Node &mesh,
     {
         NodeConstIterator itr = mesh.children();
 
+        // prep work for cross-domain multi-buffer matset material maps
+        Node matnames_for_matset;
+        while (itr.has_next())
+        {
+            const Node &cld = itr.next();
+            if (cld.has_child("matsets"))
+            {
+                const Node &matsets = cld["matsets"];
+                NodeConstIterator matset_itr = matsets.children();
+                while (matset_itr.has_next())
+                {
+                    const Node &matset = matset_itr.next();
+                    const std::string matset_name = matset_itr.name();
+                    if (matset::is_multi_buffer(matset) &&
+                        (! matset.has_child("material_map")))
+                    {
+                        std::vector<std::string> matnames;
+                        matset::get_material_names(matset, matnames);
+                        for (const std::string &matname : matnames)
+                        {
+                            matnames_for_matset[matset_name][matname];
+                        }
+                    }
+                }
+            }
+        }
+
+        itr.to_front();
         while(itr.has_next())
         {
             Node curr_idx;
@@ -2216,6 +2244,21 @@ mesh::generate_index(const conduit::Node &mesh,
                                              curr_idx);
             // add any new entries to the running index
             index_out.update(curr_idx);
+        }
+
+        // handle cross-domain multi-buffer matset material maps
+        const std::vector<std::string> mb_matset_names = matnames_for_matset.child_names();
+        for (const std::string &mb_matset_name : mb_matset_names)
+        {
+            Node &material_map = index_out["matsets"][mb_matset_name]["material_map"];
+            material_map.reset();
+            index_t mat_id = 0;
+            const std::vector<std::string> matnames = matnames_for_matset[mb_matset_name].child_names();
+            for (const std::string &matname : matnames)
+            {
+                material_map[matname].set(mat_id);
+                mat_id ++;
+            }
         }
     }
     else
