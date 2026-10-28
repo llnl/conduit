@@ -14,6 +14,7 @@
 #include "conduit_relay.hpp"
 #include "conduit_relay_io_silo.hpp"
 #include "conduit_relay_io_hdf5.hpp"
+#include "conduit_relay_io_blueprint.hpp"
 #include <iostream>
 #include "gtest/gtest.h"
 
@@ -1225,7 +1226,7 @@ TEST(conduit_relay_io_silo, overlink_specset_rules)
     remove_path_if_exists(filename);
 
     EXPECT_THROW(io::silo::save_mesh(save_mesh, basename, write_opts), conduit::Error);
-    
+
     // now save without overlink
     io::silo::save_mesh(save_mesh, basename);
 
@@ -1262,8 +1263,8 @@ TEST(conduit_relay_io_silo, overlink_specset_rules)
 TEST(conduit_relay_io_silo, mixed_var_special_case)
 {
     const std::vector<std::string> matset_styles = {
-        "full", 
-        "sparse_by_material", 
+        "full",
+        "sparse_by_material",
         "sparse_by_element",
     };
 
@@ -3724,8 +3725,6 @@ TEST(conduit_relay_io_silo, read_overlink_directly)
     }
 }
 
-#include <conduit_relay_io_blueprint.hpp>
-
 //-----------------------------------------------------------------------------
 // test silo db compression options
 TEST(conduit_relay_io_silo, compression_opts)
@@ -3733,23 +3732,56 @@ TEST(conduit_relay_io_silo, compression_opts)
     Node mesh, load_mesh, info, write_opts;
 
     // example mesh that should benefit from compression
-    blueprint::mesh::examples::braid("structured", 100, 100, 100, mesh);
+    blueprint::mesh::examples::braid("structured", 10, 10, 10, mesh);
+    mesh["state/cycle"].set_int64(100);
+    mesh["state/domain_id"].set_int64(0);
 
-    // blueprint hdf5 save for comparison
+    // save example with blueprint hdf5 for comparison
     write_opts["chunking/compression/level"] = 1;
     conduit::relay::io::hdf5_set_options(write_opts);
     conduit::relay::io::blueprint::save_mesh(mesh,"tout_silo_write_compression_test_compare_gzip_l1","hdf5");
+
     write_opts["chunking/compression/level"] = 9;
     conduit::relay::io::hdf5_set_options(write_opts);
-conduit::relay::io::blueprint::save_mesh(mesh,"tout_silo_write_compression_test_compare_gzip_l9","hdf5");
+    conduit::relay::io::blueprint::save_mesh(mesh,"tout_silo_write_compression_test_compare_gzip_l9","hdf5");
+
     write_opts.reset();
 
+    // DBSetCompression with NULL pointer does not have the same behavior
+    // as an empty string ("").
+    // Empty string is equivalent to "METHOD=GZIP"
+    // so directly test the null pointer case
+    std::string ofbase = "tout_silo_write_compression_test_null_options";
+    std::string ofile_no_compression = ofbase + ".cycle_000100.root";
+    DBSetCompression(NULL);
+    io::silo::save_mesh(mesh, ofbase);
+
+    // create a copy of the mesh with name changes for diffing later
+    Node silo_save_mesh_name_mangled;
+    silo_save_mesh_name_mangled.set(mesh);
+    silo_name_changer("mesh", silo_save_mesh_name_mangled);
+
+    // NOTE:
+    // Silo (4.12.1 and prior) have a bug where the first GZIP LEVEL option is sticky,
+    //      you can't change it after you initially set it.
+    //      This includes when you use an empty string, which is equivalent
+    //      to "METHOD=GZIP"
+    //
+    //      Until we have a fix:
+    //       These tests currently set LEVEL=9 first so:
+    //         cases: gzip_l9, empty_string, gzip_bvase, and gzip_l1
+    //       will all effectively end up using LEVEL=9
     const std::vector<std::pair<std::string, std::string>> comp_tests = {
-             std::make_pair("no_compression", "")
+             std::make_pair("magic_null_string", "NULL")
+            // magic string that we use to emulate NULL pointer path via opts
+            ,std::make_pair("gzip_l9",   "METHOD=GZIP LEVEL=9")
+            ,std::make_pair("empty_string", "")
             ,std::make_pair("gzip_base", "METHOD=GZIP")
-            ,std::make_pair("gzip_1",    "METHOD=GZIP LEVEL=1")
-            ,std::make_pair("gzip_9",    "METHOD=GZIP LEVEL=9")
-            ,std::make_pair("zfp_r85",   "METHOD=ZFP RATE=8.5")
+            ,std::make_pair("gzip_l1",   "METHOD=GZIP LEVEL=1")
+            // // NOTE: skip zfp for now:
+            // //  Silo (4.12.1 and prior) have a bug triggering ZFP on
+            // //  non floating point arrays that causes Silo to fail to write
+            // ,std::make_pair("zfp_r85",   "METHOD=ZFP RATE=8.5") 
     };
 
     for (int i = 0; i < comp_tests.size(); i ++)
@@ -3762,10 +3794,12 @@ conduit::relay::io::blueprint::save_mesh(mesh,"tout_silo_write_compression_test_
         EXPECT_TRUE(silo_dbcomp_cstr == NULL);
 
         // write with test case compression opts
-        std::string ofbase = "tout_silo_write_compression_test_" + case_name;
+        ofbase = "tout_silo_write_compression_test_" + case_name;
+        std::string ofile  = ofbase + ".cycle_000100.root";
 
-        std::cout << "testing compression case " << case_name << " "
-                  << ofbase << std::endl;
+        std::cout << "testing compression case "
+                  << case_name << " options: " << case_opts
+                  << " result file: " << ofile << std::endl;
 
         write_opts["compression"] = case_opts;
         io::silo::save_mesh(mesh, ofbase, write_opts);
@@ -3773,7 +3807,27 @@ conduit::relay::io::blueprint::save_mesh(mesh,"tout_silo_write_compression_test_
         // again, expect clean slate
         silo_dbcomp_cstr = DBGetCompression();
         EXPECT_TRUE(silo_dbcomp_cstr == NULL);
+
+        // round trip our mesh
+        io::silo::load_mesh(ofile,load_mesh);
+
+        // NOTE: Current tests are lossless compression
+        //       this check will not work for ZFP in the future
+        if(case_name.find("zfp") == std::string::npos)
+        {
+            EXPECT_FALSE(load_mesh[0].diff(silo_save_mesh_name_mangled,info));
+        }
     }
+
+    // check relative file size for known compression cases
+    int64 tout_std_fs = utils::file_size( "tout_silo_write_compression_test_null_options.cycle_000100.root");
+    int64 tout_cmp_fs = utils::file_size("tout_silo_write_compression_test_gzip_l9.cycle_000100.root");
+
+    CONDUIT_INFO("no compression file size (bytes) = "
+                 << tout_std_fs
+                 << ", gzip level 9 file size (bytes) = "
+                 << tout_cmp_fs);
+    EXPECT_TRUE(tout_cmp_fs < tout_std_fs);
 }
 
 // TODO add tests for polytopal meshes once they are supported
