@@ -14,7 +14,7 @@
 #include "conduit_relay.hpp"
 #include "conduit_relay_io_silo.hpp"
 #include "conduit_relay_io_hdf5.hpp"
-#include "conduit_relay_io_blueprint.hpp"
+
 #include <iostream>
 #include "gtest/gtest.h"
 
