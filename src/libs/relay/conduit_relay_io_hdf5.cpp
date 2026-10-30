@@ -2701,11 +2701,18 @@ create_hdf5_chunked_plist_for_conduit_leaf(const DataType &dtype)
     // TODO: add ndarray heuristics
 
     // Turn on chunking
-
-    // hdf5 sets chunking in elements, not bytes,
-    // our options are in bytes, so convert to # of elems
-    hsize_t h5_chunk_size =  (hsize_t) (HDF5Options::chunk_size / dtype.element_bytes());
-
+    hsize_t h5_chunk_size = 0;
+    if(HDF5Options::chunk_size  == -1)
+    {
+        // magic case, set chunk size to the number of elements
+        h5_chunk_size = (hsize_t) dtype.number_of_elements();
+    }
+    else if (HDF5Options::chunk_size > 0)
+    {
+        // hdf5 sets chunking in elements, not bytes,
+        // our options are in bytes, so convert to # of elems
+        h5_chunk_size = (hsize_t) (HDF5Options::chunk_size / dtype.element_bytes());
+    }
     H5Pset_chunk(h5_cprops_id, 1, &h5_chunk_size);
 
     if(HDF5Options::compression_method == "gzip" )
