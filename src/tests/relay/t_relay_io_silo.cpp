@@ -3736,17 +3736,6 @@ TEST(conduit_relay_io_silo, compression_opts)
     mesh["state/cycle"].set_int64(100);
     mesh["state/domain_id"].set_int64(0);
 
-    // save example with blueprint hdf5 for comparison
-    write_opts["chunking/compression/level"] = 1;
-    conduit::relay::io::hdf5_set_options(write_opts);
-    conduit::relay::io::blueprint::save_mesh(mesh,"tout_silo_write_compression_test_compare_gzip_l1","hdf5");
-
-    write_opts["chunking/compression/level"] = 9;
-    conduit::relay::io::hdf5_set_options(write_opts);
-    conduit::relay::io::blueprint::save_mesh(mesh,"tout_silo_write_compression_test_compare_gzip_l9","hdf5");
-
-    write_opts.reset();
-
     // DBSetCompression with NULL pointer does not have the same behavior
     // as an empty string ("").
     // Empty string is equivalent to "METHOD=GZIP"

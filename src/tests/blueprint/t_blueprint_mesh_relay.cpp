@@ -23,6 +23,10 @@
 #include "silo_test_utils.hpp"
 #endif
 
+#ifdef CONDUIT_RELAY_IO_HDF5_ENABLED
+#include "conduit_relay_io_hdf5.hpp"
+#endif
+
 
 using namespace conduit;
 using namespace conduit::utils;
@@ -971,3 +975,70 @@ TEST(conduit_blueprint_mesh_relay, spiral_multi_file_yaml_json_hdf5_silo)
     }
 }
 
+
+//-----------------------------------------------------------------------------
+TEST(conduit_blueprint_mesh_relay, test_compression_opts)
+{
+    Node io_protos;
+    relay::io::about(io_protos["io"]);
+    bool hdf5_enabled = io_protos["io/protocols/hdf5"].as_string() == "enabled";
+    if(!hdf5_enabled)
+    {
+        CONDUIT_INFO("HDF5 disabled, skipping test_compression_opts test");
+        return;
+    }
+
+    Node mesh, opts;
+    // example mesh that should benefit from compression
+    blueprint::mesh::examples::braid("structured", 30, 20, 20, mesh);
+    mesh["state/cycle"].set_int64(100);
+    mesh["state/domain_id"].set_int64(0);
+    std::vector<int> levels = {1, 4, 5, 8, 9};
+    int64 fs_bytes_prev = std::numeric_limits<int64_t>::max();
+    for( auto level : levels)
+    {
+        // save example with blueprint hdf5 for comparison
+        std::string obase = conduit_fmt::format("tout_blueprint_write_compression_test_bp_hdf5_gzip_l{}", level);
+        std::string ofile = obase + ".cycle_000100.root";
+        // make sure chunking triggers even on our small test dataset
+        opts["chunking/threshold"] = 10000;
+        opts["chunking/chunk_size"] = 10000;
+        opts["chunking/compression/level"] = level;
+#ifdef CONDUIT_RELAY_IO_HDF5_ENABLED
+        conduit::relay::io::hdf5_set_options(opts);
+#endif
+        conduit::relay::io::blueprint::save_mesh(mesh, obase, "hdf5");
+
+        int64 fs_bytes = utils::file_size(ofile);
+
+        EXPECT_TRUE(conduit::utils::is_file(ofile));
+        EXPECT_TRUE(fs_bytes <= fs_bytes_prev);
+        fs_bytes_prev = fs_bytes;
+    }
+
+
+    // also test silo through he bp mesh io save iface
+    const std::vector<std::pair<std::string, std::string>> comp_tests = {
+          std::make_pair("magic_null_string", "NULL")
+         // magic string that we use to emulate NULL pointer path via opts
+         ,std::make_pair("gzip_l9",   "METHOD=GZIP LEVEL=9")
+    };
+
+    opts.reset();
+
+    fs_bytes_prev = std::numeric_limits<int64_t>::max();
+    for (int i = 0; i < comp_tests.size(); i ++)
+    {
+        std::string case_name = comp_tests[i].first;
+        std::string case_opts = comp_tests[i].second;
+        std::string obase = conduit_fmt::format("tout_blueprint_write_compression_test_silo_{}",case_name);
+        std::string ofile = obase + ".cycle_000100.root";
+        opts["compression"] = case_opts;
+        conduit::relay::io::blueprint::save_mesh(mesh, obase, "silo",opts);
+
+        int64 fs_bytes = utils::file_size(ofile);
+        EXPECT_TRUE(conduit::utils::is_file(ofile));
+        EXPECT_TRUE(fs_bytes <= fs_bytes_prev);
+        fs_bytes_prev = fs_bytes;
+    }
+}
