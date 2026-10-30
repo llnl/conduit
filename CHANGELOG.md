@@ -11,6 +11,8 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Changed
 
 ### Fixed
+
+#### Blueprint
  - Fixed a bug with Blueprint index generation for multi-domain datasets containing multi-buffer material sets missing material maps. The index could previously generate an incorrect material map in this case if not all materials were present on every domain.
 
 ## [0.9.9] - Released 2026-09-30
