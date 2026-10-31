@@ -977,9 +977,10 @@ TEST(conduit_blueprint_mesh_relay, test_compression_opts)
     Node io_protos;
     relay::io::about(io_protos["io"]);
     bool hdf5_enabled = io_protos["io/protocols/hdf5"].as_string() == "enabled";
+    bool silo_enabled = io_protos["io/protocols/silo"].as_string() == "enabled";
     if(!hdf5_enabled)
     {
-        CONDUIT_INFO("HDF5 disabled, skipping test_compression_opts test");
+        CONDUIT_INFO("HDF5 disabled, skipping test_compression_opts tests");
         return;
     }
 
@@ -1007,6 +1008,12 @@ TEST(conduit_blueprint_mesh_relay, test_compression_opts)
         EXPECT_TRUE(conduit::utils::is_file(ofile));
         EXPECT_TRUE(fs_bytes <= fs_bytes_prev);
         fs_bytes_prev = fs_bytes;
+    }
+
+    if(!silo_enabled)
+    {
+        CONDUIT_INFO("HDF5 disabled, skipping Silo test_compression_opts tests");
+        return;
     }
 
 
