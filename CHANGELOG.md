@@ -19,15 +19,24 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 ### Added
 
-#### Blueprint
+#### Relay
 - Added relay hdf5 options to override the desired leaf types used when writing and reading hdf5 files. This enables on the fly conversion of say, all float64 data values to float32 data values, as well as many other combinations. This only supports bitwidth conversion, within signed, unsigned, and floating point values. See the test `t_relay_io_hdf5_prec.cpp` for examples of using these options.
+- Added support for passing hdf5 io options (as `hdf5` or `hdf5_options`) to `relay::blueprint::write_mesh`.
+- Added support for passing Silo compression options string (as `compression`) to `relay::blueprint::write_mesh` and `relay::silo::write_mesh`.
+
 
 ### Changed
-- Removed large silo data used for testing that made our release tarball too large.
-- `conduit::blueprint::mesh::matset::renumber_material_ids()` was adjusted to take an additional argument, a starting index, so that material ids can be renumbered to run between `start` and `N-(start+1)` where `N` is the number of materials.
 
 #### General
 - Changed CMake version check in ConduitConfig.cmake to check for a minimum version, instead of setting the minimum version which impacts policy choices.
+- Removed large silo data used for testing that made our release tarball too large.
+
+#### Relay
+- Relay i/o hdf5 option `chunk_size=-1`, results in a chunk size equal to the number of elements in each data set written.
+
+#### Blueprint
+- `conduit::blueprint::mesh::matset::renumber_material_ids()` was adjusted to take an additional argument, a starting index, so that material ids can be renumbered to run between `start` and `N-(start+1)` where `N` is the number of materials.
+
 
 ## [0.9.8] - Released 2026-09-01
 

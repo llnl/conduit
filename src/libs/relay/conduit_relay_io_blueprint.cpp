@@ -29,6 +29,11 @@
     #include "conduit_relay_io_silo.hpp"
 #endif
 
+#ifdef CONDUIT_RELAY_IO_HDF5_ENABLED
+    #include "conduit_relay_io_hdf5.hpp"
+#endif
+
+
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
 // Define an argument macro that adds the communicator argument.
 #define CONDUIT_RELAY_COMMUNICATOR_ARG(ARG) ,ARG
@@ -644,6 +649,70 @@ identify_protocol(const std::string &path)
 
 
 //-----------------------------------------------------------------------------
+// Private class used to manage HDF5 options.
+//
+// Manages setting and restoring HDF5 options in an exception
+// safe context.
+//
+//-----------------------------------------------------------------------------
+class BlueprintHDF5Options
+{
+public:
+        BlueprintHDF5Options()
+        : m_opts_set(false),
+          m_prior_opts()
+        {
+            // empty
+        }
+
+       ~BlueprintHDF5Options()
+        {
+            restore();
+        }
+
+        // save current options, then set desired options
+        void
+        set(const Node &opts)
+        {
+            // no op if we don't have hdf5 support
+#ifdef CONDUIT_RELAY_IO_HDF5_ENABLED
+            m_opts_set = true;
+            // get a copy of the old options
+            Node relay_io_about;
+            conduit::relay::io::about(relay_io_about);
+            m_prior_opts = relay_io_about["options/hdf5"];
+
+            Node &opts_merged = m_prior_opts;
+            // override with what is passed
+            opts_merged.update(opts);
+            // set
+            conduit::relay::io::hdf5_set_options(opts_merged);
+#endif
+        }
+
+        // restore prior compression options (if necessary)
+        void
+        restore()
+        {
+            // no op if we don't have hdf5 support
+#ifdef CONDUIT_RELAY_IO_HDF5_ENABLED
+            if(m_opts_set)
+            {
+                conduit::relay::io::hdf5_set_options(m_prior_opts);
+            }
+            m_opts_set = false;
+            m_prior_opts.reset();
+#endif
+        }
+
+private:
+    bool        m_opts_set;
+    Node        m_prior_opts;
+};
+
+
+
+//-----------------------------------------------------------------------------
 // -- end conduit::relay::<mpi>::io_blueprint::detail --
 //-----------------------------------------------------------------------------
 };
@@ -1140,6 +1209,19 @@ void write_mesh(const Node &mesh,
         CONDUIT_INFO("Requested more files than actual domains, "
                      "writing one file per domain");
         num_files = global_num_domains;
+    }
+
+    // if we are using hdf5, support hdf5 options
+    // note: this class is effectively a no op if hdf5 support isn't compiled
+    detail::BlueprintHDF5Options hdf5_opts;
+
+    if( opts.has_child("hdf5") )
+    {
+        hdf5_opts.set(opts["hdf5"]);
+    }
+    else if( opts.has_child("hdf5_options") )
+    {
+        hdf5_opts.set(opts["hdf5_options"]);
     }
 
     // new style bp index partition_map
