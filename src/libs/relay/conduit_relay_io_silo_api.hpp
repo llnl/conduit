@@ -25,9 +25,27 @@ bool CONDUIT_RELAY_API is_silo_file(const std::string &path,
                                     const std::string &silo_driver);
 
 //-----------------------------------------------------------------------------
-/// Opens a silo file and returns a silo file handle
+/// Creates a silo file and returns a silo file handle
+//-----------------------------------------------------------------------------
+CONDUIT_RELAY_API DBfile* silo_create_file(const std::string &path,
+                                           int silo_type);
+
+//-----------------------------------------------------------------------------
+/// Opens a silo file and returns a silo file handle (file type specified)
+//-----------------------------------------------------------------------------
+CONDUIT_RELAY_API DBfile* silo_open_file_for_read(const std::string &path,
+                                                  int silo_type);
+
+//-----------------------------------------------------------------------------
+/// Opens a silo file and returns a silo file handle (detect file type)
 //-----------------------------------------------------------------------------
 CONDUIT_RELAY_API DBfile* silo_open_file_for_read(const std::string &path);
+
+//-----------------------------------------------------------------------------
+/// Opens an existing a silo file for write and returns a silo file handle
+//-----------------------------------------------------------------------------
+CONDUIT_RELAY_API DBfile* hdf5_open_file_for_read_write(const std::string &path,
+                                                        int silo_type);
 
 //-----------------------------------------------------------------------------
 /// Close silo file handle
