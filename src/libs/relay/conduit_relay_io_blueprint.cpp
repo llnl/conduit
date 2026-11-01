@@ -984,7 +984,7 @@ void write_mesh(const Node &mesh,
                                                     opts);
     #endif
 #else // conduit lacks silo support
-    CONDUIT_ERROR("write_mesh invalid protocol option: `silo`"
+    CONDUIT_ERROR("write_mesh invalid protocol option: `silo` "
                   << "conduit build lacks silo support\n");
 #endif
     }
@@ -2325,7 +2325,7 @@ void read_mesh(const std::string &root_file_path,
                                                    mesh);
     #endif
 #else // conduit lacks silo support
-    CONDUIT_ERROR("read_mesh invalid protocol option: `silo`"
+    CONDUIT_ERROR("read_mesh invalid protocol option: `silo` "
                   << "conduit build lacks silo support\n");
 #endif
     }
