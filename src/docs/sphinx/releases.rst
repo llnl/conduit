@@ -73,12 +73,14 @@ Added
 Changed
 ~~~~~~~
 
- * Removed large silo data used for testing that made our release tarball too large.
- * ``conduit::blueprint::mesh::matset::renumber_material_ids()`` was adjusted to take an additional argument, a starting index, so that material ids can be renumbered to run between ``start`` and ``N-(start+1)`` where ``N`` is the number of materials.
 
 * **General**
 
  * Changed CMake version check in ConduitConfig.cmake to check for a minimum version, instead of setting the minimum version which impacts policy choices.
+ * Removed large silo data used for testing that made our release tarball too large.
+
+* **Blueprint**
+ * ``conduit::blueprint::mesh::matset::renumber_material_ids()`` was adjusted to take an additional argument, a starting index, so that material ids can be renumbered to run between ``start`` and ``N-(start+1)`` where ``N`` is the number of materials.
 
 
 v0.9.8
