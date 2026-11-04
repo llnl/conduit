@@ -121,6 +121,19 @@ if(SILO_DIR)
     endif()
 endif()
 
+
+################################
+# Setup NetCDF if available
+################################
+# Search for NetCDF.
+if(NETCDF_DIR)
+    include(cmake/thirdparty/SetupNetCDF.cmake)
+    # if we don't find silo, throw a fatal error
+    if(NOT NETCDF_FOUND)
+        message(FATAL_ERROR "NETCDF_DIR is set, but NetCDF wasn't found.")
+    endif()
+endif()
+
 ################################
 # Setup ADIOS if available
 ################################
