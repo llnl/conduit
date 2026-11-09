@@ -19,6 +19,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Changed
 
 #### General
+- Fixed CMake python build pip invocations to use `-v` instead of incorrect form `-V`, which as of pip 26.3 causes pip to fail
 
 #### Conduit
 
