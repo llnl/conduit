@@ -36,6 +36,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Blueprint
 
 #### Relay
+- Fixed the HDF5 link libraries exported with Conduit's CMake targets when HDF5 provides no CMake targets: system libraries in the compiler's implicit link directories (e.g. `m`, `dl` and `pthread` in a sysroot) are linked by name, not by absolute paths that may not exist where Conduit is used.
 
 ## [0.9.10] - Released 2026-11-02
 
