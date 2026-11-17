@@ -30,7 +30,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Fixed
 
 #### General
-- Fixed installing the python modules with `PYTHON_MODULE_INSTALL_PREFIX` on Windows with CMake 4.
+- Fixed backslash (Windows) paths in `PYTHON_EXECUTABLE` and `PYTHON_MODULE_INSTALL_PREFIX`, which broke installing the python modules with CMake 4 and loading the installed `ConduitConfig.cmake`, and installing the python modules from paths with spaces.
 
 #### Conduit
 

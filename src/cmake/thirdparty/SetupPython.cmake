@@ -18,6 +18,15 @@ if(PYTHON_DIR AND NOT PYTHON_EXECUTABLE)
     endif()
 endif()
 
+# Use CMake-style paths (forward slashes): these paths are pasted into
+# generated CMake code (the pip install(CODE) below and ConduitConfig.cmake),
+# where backslashes are escape sequences, e.g. "\b" in "D:\bld\...".
+foreach(py_path_var PYTHON_EXECUTABLE Python3_EXECUTABLE PYTHON_MODULE_INSTALL_PREFIX)
+    if(${py_path_var})
+        cmake_path(SET ${py_path_var} "${${py_path_var}}")
+    endif()
+endforeach()
+
 # allow PYTHON_EXECUTABLE to init Python3_EXECUTABLE
 if(PYTHON_EXECUTABLE AND NOT Python3_EXECUTABLE)
     set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
@@ -148,16 +157,11 @@ FUNCTION(PYTHON_ADD_PIP_SETUP)
     # also use pip for the install ...
     # if PYTHON_MODULE_INSTALL_PREFIX is set, install there
     if(PYTHON_MODULE_INSTALL_PREFIX)
-        set(py_mod_inst_prefix "${PYTHON_MODULE_INSTALL_PREFIX}")
-        # install(CODE) below embeds this path in cmake_install.cmake,
-        # where backslashes are escape sequences: use forward slashes
-        if(WIN32)
-            string(REPLACE "\\" "/" py_mod_inst_prefix "${PYTHON_MODULE_INSTALL_PREFIX}")
-        endif()
+        set(py_mod_inst_prefix ${PYTHON_MODULE_INSTALL_PREFIX})
         INSTALL(CODE
             "
-            EXECUTE_PROCESS(WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                COMMAND ${Python3_EXECUTABLE} -m pip install . -v --upgrade
+            EXECUTE_PROCESS(WORKING_DIRECTORY \"${CMAKE_CURRENT_SOURCE_DIR}\"
+                COMMAND \"${Python3_EXECUTABLE}\" -m pip install . -v --upgrade
                 --disable-pip-version-check --no-warn-script-location
                 --no-index --no-deps --no-build-isolation
                 --target \"${py_mod_inst_prefix}\"
@@ -177,11 +181,11 @@ FUNCTION(PYTHON_ADD_PIP_SETUP)
         # else install to the dest dir under CMAKE_INSTALL_PREFIX
         INSTALL(CODE
             "
-            EXECUTE_PROCESS(WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                COMMAND ${Python3_EXECUTABLE} -m pip install . -v --upgrade
+            EXECUTE_PROCESS(WORKING_DIRECTORY \"${CMAKE_CURRENT_SOURCE_DIR}\"
+                COMMAND \"${Python3_EXECUTABLE}\" -m pip install . -v --upgrade
                 --disable-pip-version-check --no-warn-script-location
                 --no-index --no-deps --no-build-isolation
-                --target \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${args_DEST_DIR}
+                --target \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${args_DEST_DIR}\"
                 RESULT_VARIABLE PY_MODULE_INSTALL_RESULT
                 OUTPUT_VARIABLE PY_DIST_UTILS_INSTALL_OUT)
             MESSAGE(STATUS \"\${PY_DIST_UTILS_INSTALL_OUT}\")
