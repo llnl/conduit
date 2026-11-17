@@ -30,6 +30,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Fixed
 
 #### General
+- Fixed installing the python modules with `PYTHON_MODULE_INSTALL_PREFIX` on Windows with CMake 4.
 
 #### Conduit
 

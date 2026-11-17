@@ -148,10 +148,11 @@ FUNCTION(PYTHON_ADD_PIP_SETUP)
     # also use pip for the install ...
     # if PYTHON_MODULE_INSTALL_PREFIX is set, install there
     if(PYTHON_MODULE_INSTALL_PREFIX)
-        set(py_mod_inst_prefix ${PYTHON_MODULE_INSTALL_PREFIX})
-        # make sure windows style paths don't ruin our day (or night)
+        set(py_mod_inst_prefix "${PYTHON_MODULE_INSTALL_PREFIX}")
+        # install(CODE) below embeds this path in cmake_install.cmake,
+        # where backslashes are escape sequences: use forward slashes
         if(WIN32)
-            string(REGEX REPLACE "/" "\\\\" py_mod_inst_prefix  ${PYTHON_MODULE_INSTALL_PREFIX})
+            string(REPLACE "\\" "/" py_mod_inst_prefix "${PYTHON_MODULE_INSTALL_PREFIX}")
         endif()
         INSTALL(CODE
             "
@@ -159,7 +160,7 @@ FUNCTION(PYTHON_ADD_PIP_SETUP)
                 COMMAND ${Python3_EXECUTABLE} -m pip install . -v --upgrade
                 --disable-pip-version-check --no-warn-script-location
                 --no-index --no-deps --no-build-isolation
-                --target ${py_mod_inst_prefix}
+                --target \"${py_mod_inst_prefix}\"
                 RESULT_VARIABLE PY_MODULE_INSTALL_RESULT
                 OUTPUT_VARIABLE PY_DIST_UTILS_INSTALL_OUT)
             MESSAGE(STATUS \"\${PY_DIST_UTILS_INSTALL_OUT}\")
