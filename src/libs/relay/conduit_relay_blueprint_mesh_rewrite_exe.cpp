@@ -131,21 +131,24 @@ main(int argc, char* argv[])
     MPI_Comm_rank(comm, &comm_rank);
 #endif
 
-    std::cout << comm_size << " " << comm_rank << std::endl;
+    if(comm_rank == 0)
+    {
+           std::cout << "[comm size: " << comm_size << " ]" << std::endl;
+    }
 
     Node opts;
     if(opts_file != "")
     {
         if(comm_rank == 0)
         {
-            CONDUIT_INFO("Using opts file:" << opts_file);
+           std::cout << "[loading opts file: " << opts_file << " ]" << std::endl;
         }
 
 #if defined(CONDUIT_REPLAY_BLUEPRINT_MESH_REWRITE_MPI)
         if(comm_rank == 0)
         {
             io::load(opts_file,opts);
-            conduit::relay::mpi::broadcast_using_schema(actions, 0, mpi_comm);
+            conduit::relay::mpi::broadcast_using_schema(opts, 0, comm);
         }
 #else
         io::load(opts_file,opts);
@@ -164,27 +167,40 @@ main(int argc, char* argv[])
     }
 
     Node data;
-    Node timer_results;
+    Node log_info;
 
     // load data
     if(comm_rank == 0)
     {
-        CONDUIT_INFO("[starting load of:" << input_root);
+       std::cout << "[loading mesh data from: " << input_root << " ]" << std::endl;
     }
 
     utils::Timer t;
 #if defined(CONDUIT_REPLAY_BLUEPRINT_MESH_REWRITE_MPI)
-    relay::mpi::io::blueprint::load_mesh(input_root, data,comm);
+    relay::mpi::io::blueprint::load_mesh(input_root, data, comm);
     MPI_Barrier(comm);
 #else
     relay::io::blueprint::load_mesh(input_root, data);
 #endif
-    timer_results["load_time"] = t.elapsed();
+    log_info["load_time"] = t.elapsed();
+
+    index_t total_bytes = data.total_strided_bytes();
+
+#if defined(CONDUIT_REPLAY_BLUEPRINT_MESH_REWRITE_MPI)
+    Node n_snd;
+    n_snd.set(total_bytes);
+    Node n_reduce;
+    relay::mpi::all_reduce(n_snd, n_reduce, MPI_SUM, comm);
+    total_bytes = n_reduce.to_index_t();
+#endif
+
+    log_info["mesh_total_size"] = total_bytes;
 
     if(comm_rank == 0)
     {
-        CONDUIT_INFO("[starting save to:" << output_base);
+       std::cout << "[saving mesh data to: " << output_base << " ]" << std::endl;
     }
+
 
     // save data
     t.reset();
@@ -195,9 +211,9 @@ main(int argc, char* argv[])
     relay::io::blueprint::save_mesh(data, output_base, write_proto, opts);
 #endif
 
-    timer_results["save_time"] = t.elapsed();
+    log_info["save_time"] = t.elapsed();
 
-    std::cout << timer_results.to_string("json",0,0," ", " ") << std::endl;
+    std::cout << log_info.to_string("json",0,0," ", " ") << std::endl;
 
     return 0;
 }
