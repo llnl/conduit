@@ -175,7 +175,7 @@ main(int argc, char* argv[])
     }
     else
     {
-        relay::io::blueprint::save_mesh(data, output_base, write_proto, opts);
+        relay::mpi::io::blueprint::save_mesh(data, output_base, write_proto, opts, comm);
     }
     MPI_Barrier(comm);
 #else
