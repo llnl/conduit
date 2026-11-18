@@ -136,9 +136,21 @@ main(int argc, char* argv[])
     Node opts;
     if(opts_file != "")
     {
-        // TODO MPI LOAD AND BROADCAST
-        CONDUIT_INFO("Using opts file:" << opts_file);
+        if(comm_rank == 0)
+        {
+            CONDUIT_INFO("Using opts file:" << opts_file);
+        }
+
+#if defined(CONDUIT_REPLAY_BLUEPRINT_MESH_REWRITE_MPI)
+        if(comm_rank == 0)
+        {
+            io::load(opts_file,opts);
+            conduit::relay::mpi::broadcast_using_schema(actions, 0, mpi_comm);
+        }
+#else
         io::load(opts_file,opts);
+#endif
+
     }
 
     if(input_root.empty())
@@ -155,6 +167,10 @@ main(int argc, char* argv[])
     Node timer_results;
 
     // load data
+    if(comm_rank == 0)
+    {
+        CONDUIT_INFO("[starting load of:" << input_root);
+    }
 
     utils::Timer t;
 #if defined(CONDUIT_REPLAY_BLUEPRINT_MESH_REWRITE_MPI)
@@ -165,28 +181,18 @@ main(int argc, char* argv[])
 #endif
     timer_results["load_time"] = t.elapsed();
 
-    // save data
+    if(comm_rank == 0)
+    {
+        CONDUIT_INFO("[starting save to:" << output_base);
+    }
 
+    // save data
     t.reset();
 #if defined(CONDUIT_REPLAY_BLUEPRINT_MESH_REWRITE_MPI)
-    if(opts.number_of_children() == 0)
-    {
-        relay::mpi::io::blueprint::save_mesh(data, output_base, write_proto, comm);
-    }
-    else
-    {
-        relay::mpi::io::blueprint::save_mesh(data, output_base, write_proto, opts, comm);
-    }
+    relay::mpi::io::blueprint::save_mesh(data, output_base, write_proto, comm);
     MPI_Barrier(comm);
 #else
-    if(opts.number_of_children() == 0)
-    {
-        relay::io::blueprint::save_mesh(data, output_base, write_proto);
-    }
-    else
-    {
-        relay::io::blueprint::save_mesh(data, output_base, write_proto, opts);
-    }
+    relay::io::blueprint::save_mesh(data, output_base, write_proto, opts);
 #endif
 
     timer_results["save_time"] = t.elapsed();
