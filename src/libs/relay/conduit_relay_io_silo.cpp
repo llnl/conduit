@@ -1891,11 +1891,11 @@ read_quadmesh_domain(DBquadmesh *quadmesh_ptr,
         origin["i"] = quadmesh_ptr->base_index[0];
         if (ndims > 1)
         {
-            origin["i"] = quadmesh_ptr->base_index[1];
+            origin["j"] = quadmesh_ptr->base_index[1];
         }
         if (ndims > 2)
         {
-            origin["i"] = quadmesh_ptr->base_index[2];
+            origin["k"] = quadmesh_ptr->base_index[2];
         }
     }
 
