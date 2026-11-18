@@ -26,6 +26,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Blueprint
 
 #### Relay
+- Updated to Silo 4.12.2
 
 ### Fixed
 
