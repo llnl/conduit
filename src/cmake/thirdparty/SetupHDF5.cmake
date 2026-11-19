@@ -327,6 +327,29 @@ elseif(TARGET hdf5)
     # legacy hdf5 CMake build system support creates an hdf5 target we use directly
     message(STATUS "HDF5 using hdf5 target")
 else()
+    # FindHDF5 resolves the system libraries that HDF5 links (e.g. m, dl,
+    # pthread) to absolute paths, e.g. in a compiler sysroot. These paths are
+    # exported with conduit's targets, but may not exist where conduit is
+    # used: link libraries in the compiler's implicit link directories by name.
+    set(hdf5_implicit_link_dirs ${CMAKE_C_IMPLICIT_LINK_DIRECTORIES}
+                                ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES})
+    set(hdf5_libs)
+    foreach(hdf5_lib IN LISTS HDF5_LIBRARIES)
+        cmake_path(GET hdf5_lib PARENT_PATH hdf5_lib_dir)
+        cmake_path(GET hdf5_lib FILENAME hdf5_lib_file)
+        if(IS_ABSOLUTE "${hdf5_lib}" AND hdf5_lib_dir IN_LIST hdf5_implicit_link_dirs AND
+           hdf5_lib_file MATCHES "^lib(.+)\\.(so|a|dylib|tbd)(\\.[0-9]+)*$")
+            list(APPEND hdf5_libs ${CMAKE_MATCH_1})
+        else()
+            list(APPEND hdf5_libs ${hdf5_lib})
+        endif()
+    endforeach()
+    set(HDF5_LIBRARIES ${hdf5_libs})
+    unset(hdf5_implicit_link_dirs)
+    unset(hdf5_libs)
+    unset(hdf5_lib_dir)
+    unset(hdf5_lib_file)
+
     # reg includes and libs with blt
     message(STATUS "HDF5 using HDF5_DEFINITIONS + HDF5_INCLUDE_DIRS + HDF5_LIBRARIES")
     message(STATUS "HDF5_DEFINITIONS:  ${HDF5_DEFINITIONS}")
