@@ -31,12 +31,14 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Fixed
 
 #### General
+- Fixed backslash (Windows) paths in `PYTHON_EXECUTABLE` and `PYTHON_MODULE_INSTALL_PREFIX`, which broke installing the python modules with CMake 4 and loading the installed `ConduitConfig.cmake`, and installing the python modules from paths with spaces.
 
 #### Conduit
 
 #### Blueprint
 
 #### Relay
+- Fixed the HDF5 link libraries exported with Conduit's CMake targets when HDF5 provides no CMake targets: system libraries in the compiler's implicit link directories (e.g. `m`, `dl` and `pthread` in a sysroot) are linked by name, not by absolute paths that may not exist where Conduit is used.
 
 ## [0.9.10] - Released 2026-11-02
 

@@ -7,7 +7,7 @@ on:
 jobs:
   build_basic:
     name: Ubuntu Clang Asan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       CC: clang
       CXX: clang++
@@ -18,8 +18,8 @@ jobs:
     steps:
     - name: Install System Deps
       run: |
-           sudo apt-get update -y
-           sudo apt-get install -y binutils \
+           sudo DEBIAN_FRONTEND=noninteractive TZ=UTC apt-get update -y
+           sudo DEBIAN_FRONTEND=noninteractive TZ=UTC apt-get install -y binutils \
                                    clang \
                                    llvm \
                                    python3 \
