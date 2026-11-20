@@ -275,11 +275,14 @@ TEST(conduit_relay_io_silo, options_verbose)
     io::silo::reset_options();
     io::silo::options(def_opts);
     EXPECT_EQ(def_opts["verbose"].as_string(), "no");
+    EXPECT_EQ(def_opts["compression"].as_string(), "NULL");
 
     opts["verbose"] = "yes";
+    opts["compression"] = "METHOD=GZIP LEVEL=9";
     io::silo::set_options(opts);
     io::silo::options(opts);
     EXPECT_EQ(opts["verbose"].as_string(), "yes");
+    EXPECT_EQ(opts["compression"].as_string(), "METHOD=GZIP LEVEL=9");
     EXPECT_TRUE(def_opts.diff(opts, info));
 
     io::silo::reset_options();
@@ -288,6 +291,10 @@ TEST(conduit_relay_io_silo, options_verbose)
 
     Node invalid_opts;
     invalid_opts["verbose"] = "maybe";
+    EXPECT_THROW(io::silo::set_options(invalid_opts), Error);
+
+    invalid_opts.reset();
+    invalid_opts["compression"] = 42;
     EXPECT_THROW(io::silo::set_options(invalid_opts), Error);
 
     io::silo::reset_options();
@@ -3870,6 +3877,7 @@ TEST(conduit_relay_io_silo, read_overlink_directly)
 TEST(conduit_relay_io_silo, compression_opts)
 {
     Node mesh, load_mesh, info, write_opts;
+    io::silo::reset_options();
 
     // example mesh that should benefit from compression
     blueprint::mesh::examples::braid("structured", 10, 10, 10, mesh);
@@ -3957,6 +3965,38 @@ TEST(conduit_relay_io_silo, compression_opts)
                  << ", gzip level 9 file size (bytes) = "
                  << tout_cmp_fs);
     EXPECT_TRUE(tout_cmp_fs < tout_std_fs);
+
+    write_opts.reset();
+    write_opts["compression"] = "METHOD=GZIP LEVEL=9";
+    io::silo::set_options(write_opts);
+
+    Node curr_opts;
+    io::silo::options(curr_opts);
+    EXPECT_EQ(curr_opts["compression"].as_string(), "METHOD=GZIP LEVEL=9");
+
+    ofbase = "tout_silo_write_compression_test_global_gzip_l9";
+    std::string ofile_global = ofbase + ".cycle_000100.root";
+    io::silo::save_mesh(mesh, ofbase);
+    EXPECT_TRUE(DBGetCompression() == NULL);
+
+    int64 tout_global_cmp_fs = utils::file_size(ofile_global);
+    EXPECT_TRUE(tout_global_cmp_fs < tout_std_fs);
+
+    write_opts.reset();
+    write_opts["compression"] = "NULL";
+
+    ofbase = "tout_silo_write_compression_test_global_override_null";
+    std::string ofile_global_override = ofbase + ".cycle_000100.root";
+    io::silo::save_mesh(mesh, ofbase, write_opts);
+    EXPECT_TRUE(DBGetCompression() == NULL);
+
+    io::silo::options(curr_opts);
+    EXPECT_EQ(curr_opts["compression"].as_string(), "METHOD=GZIP LEVEL=9");
+
+    int64 tout_global_override_fs = utils::file_size(ofile_global_override);
+    EXPECT_TRUE(tout_global_cmp_fs < tout_global_override_fs);
+
+    io::silo::reset_options();
 }
 
 // TODO add tests for polytopal meshes once they are supported

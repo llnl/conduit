@@ -143,16 +143,16 @@ private:
 
 
 //-----------------------------------------------------------------------------
-// Private class used to manage Silo DB compression options.
+// Private class used to manage Silo DB compression state.
 //
-// Manages setting and restoring Silo DB compression options in an exception
+// Manages setting and restoring Silo DB compression state in an exception
 // safe context.
 //
 //-----------------------------------------------------------------------------
-class SiloDBCompressionOptions
+class SiloDBCompressionContext
 {
 public:
-        SiloDBCompressionOptions()
+        SiloDBCompressionContext()
         : m_opts_set(false),
           m_prior_opts_not_null(false),
           m_prior_opts_str()
@@ -160,7 +160,7 @@ public:
             // empty
         }
 
-       ~SiloDBCompressionOptions()
+       ~SiloDBCompressionContext()
         {
             restore();
         }
@@ -512,6 +512,7 @@ class SiloOptions
 {
 public:
     static std::string verbose;
+    static std::string compression;
 
     static void
     set(const Node &opts)
@@ -535,6 +536,17 @@ public:
 
             verbose = opts_verbose;
         }
+
+        if(opts.has_child("compression"))
+        {
+            if(!opts["compression"].dtype().is_string())
+            {
+                CONDUIT_ERROR("silo options invalid compression option: "
+                              "expected string");
+            }
+
+            compression = opts["compression"].as_string();
+        }
     }
 
     static void
@@ -542,12 +554,14 @@ public:
     {
         opts.reset();
         opts["verbose"] = verbose;
+        opts["compression"] = compression;
     }
 
     static void
     reset()
     {
         verbose = "no";
+        compression = "NULL";
     }
 
     static bool
@@ -555,9 +569,16 @@ public:
     {
         return verbose == "yes";
     }
+
+    static const std::string &
+    compression_options()
+    {
+        return compression;
+    }
 };
 
 std::string SiloOptions::verbose = "no";
+std::string SiloOptions::compression = "NULL";
 
 //-----------------------------------------------------------------------------
 // Private class used to manage temporary Silo mesh writer options.
@@ -583,7 +604,8 @@ public:
         void
         set(const Node &opts)
         {
-            if(opts.has_child("verbose"))
+            if(opts.has_child("verbose") ||
+               opts.has_child("compression"))
             {
                 SiloOptions::about(m_prior_opts);
                 m_opts_set = true;
@@ -8621,7 +8643,9 @@ write_dom2filemap(DBfile *dbfile,
 ///      compression:  silo compression options string
 ///            If present this string is passed to Silo's DBSetCompression
 ///            method before write, and prior compression are restored after
-///            write.
+///            write. If present, this temporarily overrides
+///            silo::options()["compression"] for this write and restores the
+///            previous value before returning.
 ///
 ///      verbose: "yes", "no"
 ///            "no" suppresses informational messages from the Silo mesh writer.
@@ -8812,14 +8836,10 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         }
     }
 
-    // check for silo compression options string
-    //  When we use compression options, this helper class restores prior options
-    //  either at the end of this call or when an exception occurs
-    SiloDBCompressionOptions silo_compression_opts;
-    if (opts.has_child("compression") && opts["compression"].dtype().is_string() )
-    {
-        silo_compression_opts.set(opts["compression"].as_string());
-    }
+    // Apply the current Conduit Silo compression option to Silo's global
+    // DBSetCompression state for this write.
+    SiloDBCompressionContext silo_compression_context;
+    silo_compression_context.set(SiloOptions::compression_options());
 
     // handle file type options
     if (opts_silo_type == "default")
@@ -10512,6 +10532,16 @@ void CONDUIT_RELAY_API save_mesh(const Node &mesh,
 ///            prefer single mesh/var types versus writing an entire array
 ///            of types. "yes" will prefer this if possible, "no" will 
 ///            always write the entire array.
+///
+///      compression:  silo compression options string
+///            If present, this temporarily overrides
+///            silo::options()["compression"] for this write and restores the
+///            previous value before returning.
+///
+///      verbose: "yes", "no"
+///            "no" suppresses informational messages from the Silo mesh writer.
+///            If present, this temporarily overrides silo::options()["verbose"]
+///            for this write and restores the previous value before returning.
 ///
 ///      number_of_files:  {# of files}
 ///            when "multi_file" or "overlink":

@@ -65,6 +65,10 @@ namespace silo
 ///      verbose: "yes", "no"
 ///          "no" suppresses informational messages from the Silo mesh writer.
 ///          Default is "no".
+///
+///      compression: silo compression options string
+///          Passed to Silo's DBSetCompression method during mesh writes.
+///          Default is "NULL", which disables Silo DB compression.
 //-----------------------------------------------------------------------------
 void CONDUIT_RELAY_API set_options(const conduit::Node &opts);
 
@@ -101,6 +105,11 @@ void CONDUIT_RELAY_API write_mesh(const conduit::Node &mesh,
 ///          If present, this temporarily overrides silo::options()["verbose"]
 ///          for this write and restores the previous value before returning.
 ///
+///      compression: silo compression options string
+///          If present, this temporarily overrides
+///          silo::options()["compression"] for this write and restores the
+///          previous value before returning.
+///
 //-----------------------------------------------------------------------------
 void CONDUIT_RELAY_API write_mesh(const conduit::Node &mesh,
                                   const std::string &path,
@@ -129,6 +138,11 @@ void CONDUIT_RELAY_API save_mesh(const conduit::Node &mesh,
 ///          "no" suppresses informational messages from the Silo mesh writer.
 ///          If present, this temporarily overrides silo::options()["verbose"]
 ///          for this write and restores the previous value before returning.
+///
+///      compression: silo compression options string
+///          If present, this temporarily overrides
+///          silo::options()["compression"] for this write and restores the
+///          previous value before returning.
 ///
 //-----------------------------------------------------------------------------
 void CONDUIT_RELAY_API save_mesh(const conduit::Node &mesh,
