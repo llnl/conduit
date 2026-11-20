@@ -608,7 +608,7 @@ private:
     Node m_prior_opts;
 };
 
-#define CONDUIT_SILO_WRITE_INFO( msg )                              \
+#define CONDUIT_SILO_INFO( msg )                              \
 {                                                                   \
     if(SiloOptions::verbose_enabled())                              \
     {                                                               \
@@ -5736,9 +5736,9 @@ bool prepare_field_for_write(const bool &convert_to_double_array,
 
             if (! detail::check_alphanumeric(comp_name))
             {
-                CONDUIT_SILO_WRITE_INFO("Field component name " << var_name << "/" << comp_name <<
-                             " contains non-alphanumeric characters. Skipping " <<
-                             "Silo write of field " << var_name << ".");
+                CONDUIT_SILO_INFO("Field component name " << var_name << "/" << comp_name <<
+                                  " contains non-alphanumeric characters. Skipping " <<
+                                  "Silo write of field " << var_name << ".");
                 return false;
             }
 
@@ -5776,17 +5776,17 @@ void silo_write_field(DBfile *dbfile,
 {
     if (! detail::check_alphanumeric(var_name))
     {
-        CONDUIT_SILO_WRITE_INFO("Field name " << var_name << " contains " <<
-                     "non-alphanumeric characters. Skipping.");
+        CONDUIT_SILO_INFO("Field name " << var_name << " contains " <<
+                          "non-alphanumeric characters. Skipping.");
         return;
     }
 
     if (!n_mesh_info.has_path(topo_name))
     {
-        CONDUIT_SILO_WRITE_INFO("Skipping this variable because the linked "
-                     "topology is invalid: "
-                      << "fields/" << var_name
-                      << "/topology: " << topo_name);
+        CONDUIT_SILO_INFO("Skipping this variable because the linked "
+                          "topology is invalid: "
+                           << "fields/" << var_name
+                           << "/topology: " << topo_name);
         return;
     }
 
@@ -5799,9 +5799,9 @@ void silo_write_field(DBfile *dbfile,
 
     if (!n_var.has_path("association"))
     {
-        CONDUIT_SILO_WRITE_INFO("Skipping this variable because we are "
-                     "missing association: "
-                      << "fields/" << var_name << "/association");
+        CONDUIT_SILO_INFO("Skipping this variable because we are "
+                          "missing association: "
+                           << "fields/" << var_name << "/association");
         return;
     }
 
@@ -5848,10 +5848,10 @@ void silo_write_field(DBfile *dbfile,
     if (silo_vals_type == DB_NOTYPE)
     {
         // skip the field if we don't support its type
-        CONDUIT_SILO_WRITE_INFO("skipping field "
-                     << var_name
-                     << ", since its type is not implemented, found "
-                     << vals_dtype.name());
+        CONDUIT_SILO_INFO("skipping field "
+                          << var_name
+                          << ", since its type is not implemented, found "
+                          << vals_dtype.name());
         return;
     }
 
@@ -5972,10 +5972,10 @@ void silo_write_field(DBfile *dbfile,
 
             if (used_names.find(var_name) != used_names.end())
             {
-                CONDUIT_SILO_WRITE_INFO("The name " << var_name << " has already been saved to "
-                             "Silo as the name for a different object. Saving this field "
-                             "will overwrite that previous object, so we will skip field "
-                             << var_name << ".");
+                CONDUIT_SILO_INFO("The name " << var_name << " has already been saved to "
+                                  "Silo as the name for a different object. Saving this field "
+                                  "will overwrite that previous object, so we will skip field "
+                                  << var_name << ".");
                 return;
             }
 
@@ -6004,10 +6004,10 @@ void silo_write_field(DBfile *dbfile,
 
                     if (used_names.find(comp_var_name) != used_names.end())
                     {
-                        CONDUIT_SILO_WRITE_INFO("The name " << comp_var_name << " has already been saved to "
-                                     "Silo as the name for a different object. Saving this field component "
-                                     "will overwrite that previous object, so we will skip field component "
-                                     << comp_var_name << ".");
+                        CONDUIT_SILO_INFO("The name " << comp_var_name << " has already been saved to "
+                                          "Silo as the name for a different object. Saving this field component "
+                                          "will overwrite that previous object, so we will skip field component "
+                                          << comp_var_name << ".");
                         return;
                     }
 
@@ -6027,10 +6027,10 @@ void silo_write_field(DBfile *dbfile,
             {
                 if (used_names.find(var_name) != used_names.end())
                 {
-                    CONDUIT_SILO_WRITE_INFO("The name " << var_name << " has already been saved to "
-                                 "Silo as the name for a different object. Saving this field "
-                                 "will overwrite that previous object, so we will skip field "
-                                 << var_name << ".");
+                    CONDUIT_SILO_INFO("The name " << var_name << " has already been saved to "
+                                      "Silo as the name for a different object. Saving this field "
+                                      "will overwrite that previous object, so we will skip field "
+                                      << var_name << ".");
                     return;
                 }
 
@@ -6093,10 +6093,10 @@ void silo_write_field(DBfile *dbfile,
 
             if (used_names.find(var_name) != used_names.end())
             {
-                CONDUIT_SILO_WRITE_INFO("The name " << var_name << " has already been saved to "
-                             "Silo as the name for a different object. Saving this field "
-                             "will overwrite that previous object, so we will skip field "
-                             << var_name << ".");
+                CONDUIT_SILO_INFO("The name " << var_name << " has already been saved to "
+                                  "Silo as the name for a different object. Saving this field "
+                                  "will overwrite that previous object, so we will skip field "
+                                  << var_name << ".");
                 return;
             }
 
@@ -6126,10 +6126,10 @@ void silo_write_field(DBfile *dbfile,
 
                     if (used_names.find(comp_var_name) != used_names.end())
                     {
-                        CONDUIT_SILO_WRITE_INFO("The name " << comp_var_name << " has already been saved to "
-                                     "Silo as the name for a different object. Saving this field component "
-                                     "will overwrite that previous object, so we will skip field component "
-                                     << comp_var_name << ".");
+                        CONDUIT_SILO_INFO("The name " << comp_var_name << " has already been saved to "
+                                          "Silo as the name for a different object. Saving this field component "
+                                          "will overwrite that previous object, so we will skip field component "
+                                          << comp_var_name << ".");
                         return;
                     }
 
@@ -6150,10 +6150,10 @@ void silo_write_field(DBfile *dbfile,
             {
                 if (used_names.find(var_name) != used_names.end())
                 {
-                    CONDUIT_SILO_WRITE_INFO("The name " << var_name << " has already been saved to "
-                                 "Silo as the name for a different object. Saving this field "
-                                 "will overwrite that previous object, so we will skip field "
-                                 << var_name << ".");
+                    CONDUIT_SILO_INFO("The name " << var_name << " has already been saved to "
+                                      "Silo as the name for a different object. Saving this field "
+                                      "will overwrite that previous object, so we will skip field "
+                                      << var_name << ".");
                     return;
                 }
 
@@ -6185,10 +6185,10 @@ void silo_write_field(DBfile *dbfile,
 
         if (used_names.find(var_name) != used_names.end())
         {
-            CONDUIT_SILO_WRITE_INFO("The name " << var_name << " has already been saved to "
-                         "Silo as the name for a different object. Saving this field "
-                         "will overwrite that previous object, so we will skip field "
-                         << var_name << ".");
+            CONDUIT_SILO_INFO("The name " << var_name << " has already been saved to "
+                              "Silo as the name for a different object. Saving this field "
+                              "will overwrite that previous object, so we will skip field "
+                              << var_name << ".");
             return;
         }
 
@@ -6825,8 +6825,8 @@ bool silo_write_topo(DBfile *dbfile,
 {
     if (! detail::check_alphanumeric(topo_name))
     {
-        CONDUIT_SILO_WRITE_INFO("Topology name " << topo_name << " contains " <<
-                     "non-alphanumeric characters. Skipping.");
+        CONDUIT_SILO_INFO("Topology name " << topo_name << " contains " <<
+                          "non-alphanumeric characters. Skipping.");
         return false;
     }
 
@@ -7119,8 +7119,8 @@ bool silo_write_matset(DBfile *dbfile,
 {
     if (! detail::check_alphanumeric(matset_name))
     {
-        CONDUIT_SILO_WRITE_INFO("Matset name " << matset_name << " contains " <<
-                     "non-alphanumeric characters. Skipping.");
+        CONDUIT_SILO_INFO("Matset name " << matset_name << " contains " <<
+                          "non-alphanumeric characters. Skipping.");
         return false;
     }
 
@@ -7128,19 +7128,19 @@ bool silo_write_matset(DBfile *dbfile,
 
     if (used_names.find(silo_matset_name) != used_names.end())
     {
-        CONDUIT_SILO_WRITE_INFO("The name " << silo_matset_name << " has already been saved to "
-                     "Silo as the name for a different object. Saving this matset "
-                     "will overwrite that previous object, so we will skip matset "
-                     << matset_name << ".");
+        CONDUIT_SILO_INFO("The name " << silo_matset_name << " has already been saved to "
+                          "Silo as the name for a different object. Saving this matset "
+                          "will overwrite that previous object, so we will skip matset "
+                          << matset_name << ".");
         return false;
     }
 
     if (!n_mesh_info.has_path(topo_name))
     {
-        CONDUIT_SILO_WRITE_INFO("Skipping this matset because the linked "
-                     "topology is invalid: "
-                      << "matsets/" << matset_name
-                      << "/topology: " << topo_name);
+        CONDUIT_SILO_INFO("Skipping this matset because the linked "
+                          "topology is invalid: "
+                          << "matsets/" << matset_name
+                          << "/topology: " << topo_name);
         return false;
     }
     const std::string silo_meshname = write_overlink ? "MESH" : topo_name;
@@ -7261,8 +7261,8 @@ void silo_write_specset(DBfile *dbfile,
 {
     if (! detail::check_alphanumeric(specset_name))
     {
-        CONDUIT_SILO_WRITE_INFO("Specset name " << specset_name << " contains " <<
-                     "non-alphanumeric characters. Skipping.");
+        CONDUIT_SILO_INFO("Specset name " << specset_name << " contains " <<
+                          "non-alphanumeric characters. Skipping.");
         return;
     }
 
@@ -7274,14 +7274,14 @@ void silo_write_specset(DBfile *dbfile,
             silo_specset_name = ovl_specset_names.at(specset_name).first;
             if ("ERROR" == silo_specset_name)
             {
-                CONDUIT_SILO_WRITE_INFO(ovl_specset_names.at(specset_name).second);
+                CONDUIT_SILO_INFO(ovl_specset_names.at(specset_name).second);
                 return;
             }
         }
         else
         {
-            CONDUIT_SILO_WRITE_INFO("Specset with name " << specset_name << " is missing from "
-                         "Blueprint index. Skipping.");
+            CONDUIT_SILO_INFO("Specset with name " << specset_name << " is missing from "
+                              "Blueprint index. Skipping.");
             return;
         }
     }
@@ -7292,10 +7292,10 @@ void silo_write_specset(DBfile *dbfile,
 
     if (used_names.find(silo_specset_name) != used_names.end())
     {
-        CONDUIT_SILO_WRITE_INFO("The name " << silo_specset_name << " has already been saved to "
-                     "Silo as the name for a different object. Saving this specset "
-                     "will overwrite that previous object, so we will skip specset "
-                     << specset_name << ".");
+        CONDUIT_SILO_INFO("The name " << silo_specset_name << " has already been saved to "
+                          "Silo as the name for a different object. Saving this specset "
+                          "will overwrite that previous object, so we will skip specset "
+                          << specset_name << ".");
         return;
     }
 
@@ -7303,8 +7303,8 @@ void silo_write_specset(DBfile *dbfile,
     if (conduit::blueprint::mesh::matset::is_uni_buffer(n_matset) ||
         conduit::blueprint::mesh::matset::is_material_dominant(n_matset))
     {
-        CONDUIT_SILO_WRITE_INFO("TODO Currently specsets can only be saved to silo if "
-                     "they are multi_buffer + element_dominant.");
+        CONDUIT_SILO_INFO("TODO Currently specsets can only be saved to silo if "
+                          "they are multi_buffer + element_dominant.");
         return;
     }
 
@@ -7489,9 +7489,9 @@ void silo_mesh_write(DBfile *dbfile,
 
             if (!n_matset.has_path("topology"))
             {
-                CONDUIT_SILO_WRITE_INFO("Skipping this matset because we are "
-                             "missing a linked topology: "
-                              << "matsets/" << matset_name << "/topology");
+                CONDUIT_SILO_INFO("Skipping this matset because we are "
+                                  "missing a linked topology: "
+                                  << "matsets/" << matset_name << "/topology");
                 continue;
             }
 
@@ -7500,9 +7500,9 @@ void silo_mesh_write(DBfile *dbfile,
             // if we've already written a matset for this topo successfully
             if (topo_names.find(topo_name) != topo_names.end())
             {
-                CONDUIT_SILO_WRITE_INFO("There are multiple matsets that belong to the same topology "
-                             "for topo " << topo_name << ". This is ambiguous in Silo. "
-                             "Skipping matset " << matset_name << ".");
+                CONDUIT_SILO_INFO("There are multiple matsets that belong to the same topology "
+                                  "for topo " << topo_name << ". This is ambiguous in Silo. "
+                                  "Skipping matset " << matset_name << ".");
                 continue;
             }
 
@@ -7535,18 +7535,18 @@ void silo_mesh_write(DBfile *dbfile,
             const std::string specset_name = specset_itr.name();
             if (! n_specset.has_child("matset"))
             {
-                CONDUIT_SILO_WRITE_INFO("Skipping this specset because we are "
-                             "missing a linked matset: "
-                              << "specsets/" << specset_name << "/matset");
+                CONDUIT_SILO_INFO("Skipping this specset because we are "
+                                  "missing a linked matset: "
+                                  << "specsets/" << specset_name << "/matset");
                 continue;
             }
             const std::string matset_name = n_specset["matset"].as_string();
             if (! n_mesh_info.has_path("matsets/" + matset_name + "/topo_name"))
             {
-                CONDUIT_SILO_WRITE_INFO("Skipping this specset because the linked "
-                             "matset is invalid or was not written: "
-                              << "specsets/" << specset_name
-                              << "/matset: " << matset_name);
+                CONDUIT_SILO_INFO("Skipping this specset because the linked "
+                                  "matset is invalid or was not written: "
+                                  << "specsets/" << specset_name
+                                  << "/matset: " << matset_name);
                 continue;
             }
             const Node &n_matset = mesh_domain["matsets"][matset_name];
@@ -7579,9 +7579,9 @@ void silo_mesh_write(DBfile *dbfile,
             const std::string var_name = field_itr.name();
             if (! n_var.has_path("topology"))
             {
-                CONDUIT_SILO_WRITE_INFO("Skipping this variable because we are "
-                             "missing a linked topology: "
-                              << "fields/" << var_name << "/topology");
+                CONDUIT_SILO_INFO("Skipping this variable because we are "
+                                  "missing a linked topology: "
+                                  << "fields/" << var_name << "/topology");
                 continue;
             }
             const std::string topo_name = n_var["topology"].as_string();
@@ -7610,9 +7610,9 @@ void silo_mesh_write(DBfile *dbfile,
         {
             if (mesh_domain["adjsets"].number_of_children() > 1)
             {
-                CONDUIT_SILO_WRITE_INFO("Only one adjset belonging to topology "
-                             << ovl_topo_name << " will be saved as "
-                             "per the Overlink spec.");
+                CONDUIT_SILO_INFO("Only one adjset belonging to topology "
+                                  << ovl_topo_name << " will be saved as "
+                                  "per the Overlink spec.");
             }
             auto adjset_itr = mesh_domain["adjsets"].children();
             while (adjset_itr.has_next())
@@ -8887,7 +8887,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     if (! conduit::relay::io::blueprint::clean_mesh(mesh, multi_dom))
 #endif
     {
-        CONDUIT_SILO_WRITE_INFO("Silo save: no valid data exists. Skipping save");
+        CONDUIT_SILO_INFO("Silo save: no valid data exists. Skipping save");
         return;
     }
 
@@ -8977,7 +8977,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
             {
                 if (par_rank == 0)
                 {
-                    CONDUIT_SILO_WRITE_INFO("Silo save: Overlink: topo name not provided or not found.");
+                    CONDUIT_SILO_INFO("Silo save: Overlink: topo name not provided or not found.");
                 }
 
                 if (dom_topos.number_of_children() > 0)
@@ -8985,7 +8985,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                     opts_ovl_topo_name = dom_topos.children().next().name();
                     if (par_rank == 0)
                     {
-                        CONDUIT_SILO_WRITE_INFO("Silo save: Overlink: topo name defaulting to " + opts_ovl_topo_name);
+                        CONDUIT_SILO_INFO("Silo save: Overlink: topo name defaulting to " + opts_ovl_topo_name);
                     }
                 }
                 else
@@ -9090,8 +9090,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         if (silo_type != DB_UNKNOWN)
         {
             silo_type = DB_UNKNOWN;
-            CONDUIT_SILO_WRITE_INFO("Overriding silo type to DB_UNKNOWN because the "
-                         "file already exists and truncation is disabled.");
+            CONDUIT_SILO_INFO("Overriding silo type to DB_UNKNOWN because the "
+                              "file already exists and truncation is disabled.");
         }
     }
     else // the file does not exist or we are truncating
@@ -9101,9 +9101,9 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         {
             // silo type can be anything except unknown
             silo_type = DB_HDF5;
-            CONDUIT_SILO_WRITE_INFO("Overriding chosen silo type (DB_UNKNOWN) to DB_HDF5 "
-                         "because either the file does not exist or "
-                         "truncation is enabled.");
+            CONDUIT_SILO_INFO("Overriding chosen silo type (DB_UNKNOWN) to DB_HDF5 "
+                              "because either the file does not exist or "
+                              "truncation is enabled.");
         }
     }
 
@@ -9116,8 +9116,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     // if global domains > num_files, warn and use one file per domain
     if(global_num_domains < num_files)
     {
-        CONDUIT_SILO_WRITE_INFO("Requested more files than actual domains, "
-                     "writing one file per domain");
+        CONDUIT_SILO_INFO("Requested more files than actual domains, "
+                          "writing one file per domain");
         num_files = global_num_domains;
     }
 
@@ -9621,7 +9621,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                                         "Error opening Silo file for writing: " << output_file);
                                 }
 
-                                // CONDUIT_SILO_WRITE_INFO("rank " << par_rank << " output_file"
+                                // CONDUIT_SILO_INFO("rank " << par_rank << " output_file"
                                 //              << output_file << " path " << path);
 
                                 silo_mesh_write(dbfile.getSiloObject(),
@@ -9838,8 +9838,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
             }
             else
             {
-                CONDUIT_SILO_WRITE_INFO("Number of species per material within a set must agree across domains; "
-                             "Number of species sets must be the same on all domains.");
+                CONDUIT_SILO_INFO("Number of species per material within a set must agree across domains; "
+                                  "Number of species sets must be the same on all domains.");
             }
         }
 
@@ -9854,8 +9854,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
             }
             else
             {
-                CONDUIT_SILO_WRITE_INFO("Number of species per material within a set must agree across domains; "
-                             "Number of species sets must be the same on all domains.");
+                CONDUIT_SILO_INFO("Number of species per material within a set must agree across domains; "
+                                  "Number of species sets must be the same on all domains.");
             }
         }
 #endif
@@ -9943,8 +9943,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
             }
             else
             {
-                CONDUIT_SILO_WRITE_INFO("Number of species per material within a set must agree across domains; "
-                             "Number of species sets must be the same on all domains.");
+                CONDUIT_SILO_INFO("Number of species per material within a set must agree across domains; "
+                                  "Number of species sets must be the same on all domains.");
             }
         }
     }
@@ -10555,7 +10555,7 @@ void CONDUIT_RELAY_API save_mesh(const Node &mesh,
 // -- end conduit::relay::<mpi>::io::silo --
 //-----------------------------------------------------------------------------
 
-#undef CONDUIT_SILO_WRITE_INFO
+#undef CONDUIT_SILO_INFO
 
 }
 //-----------------------------------------------------------------------------
