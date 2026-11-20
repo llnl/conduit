@@ -142,6 +142,80 @@ private:
 };
 
 
+//-----------------------------------------------------------------------------
+// Private class used to manage Silo DB compression options.
+//
+// Manages setting and restoring Silo DB compression options in an exception
+// safe context.
+//
+//-----------------------------------------------------------------------------
+class SiloDBCompressionOptions
+{
+public:
+        SiloDBCompressionOptions()
+        : m_opts_set(false),
+          m_prior_opts_not_null(false),
+          m_prior_opts_str()
+        {
+            // empty
+        }
+
+       ~SiloDBCompressionOptions()
+        {
+            restore();
+        }
+
+        // save current options, then set desired options
+        void
+        set(const std::string &opts)
+        {
+            m_opts_set = true;
+            const char *silo_prior_opts_cstr = DBGetCompression();
+            if(silo_prior_opts_cstr != NULL)
+            {
+                m_prior_opts_str = std::string(silo_prior_opts_cstr);
+                m_prior_opts_not_null = true;
+            }
+
+            // in Silo, DBSetCompression with an empty string "" is equivalent
+            //          to METHOD=GZIP, where a NULL pointer truly disables compression
+            //          allow the null pointer case to be accessed via the magic
+            //          string "NULL"
+            if(opts == "NULL")
+            {
+                DBSetCompression(NULL);
+            }
+            else
+            {
+                DBSetCompression(opts.c_str());
+            }
+        }
+
+        // restore prior compression options (if necessary)
+        void
+        restore()
+        {
+            if(m_opts_set)
+            {
+                if(m_prior_opts_not_null)
+                {
+                    DBSetCompression(m_prior_opts_str.c_str());
+                }
+                else
+                {
+                    DBSetCompression(NULL);
+                }
+            }
+            m_opts_set = false;
+            m_prior_opts_not_null = false;
+        }
+
+private:
+    bool        m_opts_set;
+    bool        m_prior_opts_not_null;
+    std::string m_prior_opts_str;
+};
+
 
 //---------------------------------------------------------------------------//
 void
@@ -187,11 +261,7 @@ void silo_write(const Node &node,
                 const std::string &file_path,
                 const std::string &silo_obj_path)
 {
-    DBfile *dbfile = DBCreate(file_path.c_str(),
-                              DB_CLOBBER,
-                              DB_LOCAL,
-                              NULL,
-                              DB_HDF5);
+    DBfile *dbfile = silo_create_file(file_path, DB_HDF5);
 
     CONDUIT_ASSERT(dbfile, "Error opening Silo file for writing: " << file_path);
     silo_write(node,dbfile,silo_obj_path);
@@ -356,6 +426,34 @@ is_silo_file(const std::string &file_path, const std::string &silo_driver)
     }
 
     return res;
+}
+
+
+//---------------------------------------------------------------------------//
+DBfile *
+silo_create_file(const std::string &file_path, int silo_type)
+{
+    DBfile *res = DBCreate(file_path.c_str(),
+                           DB_CLOBBER,
+                           DB_LOCAL,
+                           NULL,
+                           silo_type);
+
+    // if the type is hdf5, set friendly names option
+    if( res != NULL && silo_type == DB_HDF5 )
+    {
+        DBSetFriendlyHDF5NamesFile(res,1);
+    }
+
+    return res;
+}
+
+
+//---------------------------------------------------------------------------//
+DBfile *
+silo_open_file_for_read_write(const std::string &file_path, int silo_type)
+{
+    return DBOpen(file_path.c_str(), silo_type, DB_APPEND);
 }
 
 
@@ -8386,6 +8484,11 @@ write_dom2filemap(DBfile *dbfile,
 ///            of types. "yes" will prefer this if possible, "no" will 
 ///            always write the entire array.
 ///
+///      compression:  silo compression options string
+///            If present this string is passed to Silo's DBSetCompression
+///            method before write, and prior compression are restored after
+///            write.
+///
 ///      number_of_files:  {# of files}
 ///            when "multi_file" or "overlink":
 ///                 <= 0, use # of files == # of domains
@@ -8567,6 +8670,16 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         }
     }
 
+    // check for silo compression options string
+    //  When we use compression options, this helper class restores prior options
+    //  either at the end of this call or when an exception occurs
+    SiloDBCompressionOptions silo_compression_opts;
+    if (opts.has_child("compression") && opts["compression"].dtype().is_string() )
+    {
+        silo_compression_opts.set(opts["compression"].as_string());
+    }
+
+    // handle file type options
     if (opts_silo_type == "default")
     {
         silo_type = DB_HDF5;
@@ -9048,7 +9161,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                         && (global_root_file_created.as_int() == 0)
                         && opts_truncate)
                     {
-                        dbfile.setSiloObject(DBCreate(root_filename.c_str(), DB_CLOBBER, DB_LOCAL, NULL, silo_type));
+                        dbfile.setSiloObject(silo_create_file(root_filename,silo_type));
                         CONDUIT_ASSERT(dbfile.getSiloObject(),
                             "Error opening Silo file for writing: " << root_filename);
                         local_root_file_created.set((int)1);
@@ -9058,11 +9171,11 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                     {
                         if (utils::is_file(root_filename))
                         {
-                            dbfile.setSiloObject(DBOpen(root_filename.c_str(), silo_type, DB_APPEND));
+                            dbfile.setSiloObject(silo_open_file_for_read_write(root_filename, silo_type));
                         }
                         else
                         {
-                            dbfile.setSiloObject(DBCreate(root_filename.c_str(), DB_CLOBBER, DB_LOCAL, NULL, silo_type));
+                            dbfile.setSiloObject(silo_create_file(root_filename,silo_type));
                         }
 
                         CONDUIT_ASSERT(dbfile.getSiloObject(),
@@ -9142,11 +9255,11 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
 
             if (opts_truncate || !utils::is_file(output_file))
             {
-                dbfile.setSiloObject(DBCreate(output_file.c_str(), DB_CLOBBER, DB_LOCAL, NULL, silo_type));
+                dbfile.setSiloObject(silo_create_file(output_file,silo_type));
             }
             else
             {
-                dbfile.setSiloObject(DBOpen(output_file.c_str(), silo_type, DB_APPEND));
+                dbfile.setSiloObject(silo_open_file_for_read_write(output_file, silo_type));
             }
             CONDUIT_ASSERT(dbfile.getSiloObject(),
                 "Error opening Silo file for writing: " << output_file);
@@ -9344,7 +9457,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                                 {
                                     if(!dbfile.getSiloObject())
                                     {
-                                        dbfile.setSiloObject(DBCreate(output_file.c_str(), DB_CLOBBER, DB_LOCAL, NULL, silo_type));
+                                        dbfile.setSiloObject(silo_create_file(output_file, silo_type));
                                         CONDUIT_ASSERT(dbfile.getSiloObject(),
                                             "Error opening Silo file for writing: " << output_file);
                                     }
@@ -9356,11 +9469,11 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                                 {
                                     if (utils::is_file(output_file))
                                     {
-                                        dbfile.setSiloObject(DBOpen(output_file.c_str(), silo_type, DB_APPEND));
+                                        dbfile.setSiloObject(silo_open_file_for_read_write(output_file,silo_type));
                                     }
                                     else
                                     {
-                                        dbfile.setSiloObject(DBCreate(output_file.c_str(), DB_CLOBBER, DB_LOCAL, NULL, silo_type));
+                                        dbfile.setSiloObject(silo_create_file(output_file, silo_type));
                                     }
                                     CONDUIT_ASSERT(dbfile.getSiloObject(),
                                         "Error opening Silo file for writing: " << output_file);
@@ -10089,7 +10202,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         {
             if(!dbfile.getSiloObject())
             {
-                dbfile.setSiloObject(DBCreate(root_filename.c_str(), DB_CLOBBER, DB_LOCAL, NULL, silo_type));
+                dbfile.setSiloObject(silo_create_file(root_filename, silo_type));
                 CONDUIT_ASSERT(dbfile.getSiloObject(),
                     "Error opening Silo file for writing: " << root_filename);
             }
@@ -10099,11 +10212,11 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         {
             if (utils::is_file(root_filename))
             {
-                dbfile.setSiloObject(DBOpen(root_filename.c_str(), silo_type, DB_APPEND));
+                dbfile.setSiloObject(silo_open_file_for_read_write(root_filename, silo_type));
             }
             else
             {
-                dbfile.setSiloObject(DBCreate(root_filename.c_str(), DB_CLOBBER, DB_LOCAL, NULL, silo_type));
+                dbfile.setSiloObject(silo_create_file(root_filename, silo_type));
             }
 
             CONDUIT_ASSERT(dbfile.getSiloObject(),

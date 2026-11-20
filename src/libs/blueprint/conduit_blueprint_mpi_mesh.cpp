@@ -148,9 +148,37 @@ generate_index(const conduit::Node &mesh,
     index_out.reset();
 
     Node local_idx, gather_idx;
+    Node local_matnames_for_matset, global_matnames_for_matset;
 
     if(local_num_domains > 0)
     {
+        // prep work for cross-domain multi-buffer matset material maps
+        NodeConstIterator local_itr = mesh.children();
+        while (local_itr.has_next())
+        {
+            const Node &cld = local_itr.next();
+            if (cld.has_child("matsets"))
+            {
+                const Node &matsets = cld["matsets"];
+                NodeConstIterator matset_itr = matsets.children();
+                while (matset_itr.has_next())
+                {
+                    const Node &matset = matset_itr.next();
+                    const std::string matset_name = matset_itr.name();
+                    if (::conduit::blueprint::mesh::matset::is_multi_buffer(matset) &&
+                        (! matset.has_child("material_map")))
+                    {
+                        std::vector<std::string> matnames;
+                        ::conduit::blueprint::mesh::matset::get_material_names(matset, matnames);
+                        for (const std::string &matname : matnames)
+                        {
+                            local_matnames_for_matset[matset_name][matname];
+                        }
+                    }
+                }
+            }
+        }
+
         ::conduit::blueprint::mesh::generate_index(mesh,
                                                    ref_path,
                                                    global_num_domains,
@@ -161,6 +189,10 @@ generate_index(const conduit::Node &mesh,
                                         gather_idx,
                                         comm);
 
+    relay::mpi::all_gather_using_schema(local_matnames_for_matset,
+                                        global_matnames_for_matset,
+                                        comm);
+
     // union all entries into final index that reps
     // all domains
     NodeConstIterator itr = gather_idx.children();
@@ -168,6 +200,45 @@ generate_index(const conduit::Node &mesh,
     {
         const Node &curr = itr.next();
         index_out.update(curr);
+    }
+
+    // handle cross-domain multi-buffer matset material maps
+    Node matnames_for_matset;
+    NodeConstIterator global_mb_mset_itr = global_matnames_for_matset.children();
+    while(global_mb_mset_itr.has_next())
+    {
+        const Node &curr_matnames_for_matset = global_mb_mset_itr.next();
+        const std::vector<std::string> matset_names = curr_matnames_for_matset.child_names();
+        for (const std::string &matset_name : matset_names)
+        {
+            if (matnames_for_matset.has_child(matset_name))
+            {
+                const std::vector<std::string> matnames = curr_matnames_for_matset[matset_name].child_names();
+                for (const std::string &matname : matnames)
+                {
+                    matnames_for_matset[matset_name][matname];
+                }
+            }
+            else
+            {
+                matnames_for_matset[matset_name].set(curr_matnames_for_matset[matset_name]);
+            }
+        }
+    }
+
+    // handle cross-domain multi-buffer matset material maps
+    const std::vector<std::string> mb_matset_names = matnames_for_matset.child_names();
+    for (const std::string &mb_matset_name : mb_matset_names)
+    {
+        Node &material_map = index_out["matsets"][mb_matset_name]["material_map"];
+        material_map.reset();
+        index_t mat_id = 0;
+        const std::vector<std::string> matnames = matnames_for_matset[mb_matset_name].child_names();
+        for (const std::string &matname : matnames)
+        {
+            material_map[matname].set(mat_id);
+            mat_id ++;
+        }
     }
 }
 

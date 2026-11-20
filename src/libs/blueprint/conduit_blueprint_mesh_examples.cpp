@@ -910,15 +910,16 @@ braid_init_explicit_coordset(index_t npts_x,
 
     for (index_t k = 0; k < outer; k++)
     {
-        float64 cz = -10.0 + k * dz;
+		//guarantee accurate bounds on different systems
+        float64 cz = (npts_z > 1 && k == npts_z - 1) ? 10.0 : -10.0 + k * dz;
 
         for (index_t j = 0; j < middle; j++)
         {
-            float64 cy = -10.0 + j * dy;
+            float64 cy = (npts_y > 1 && j == npts_y - 1) ? 10.0 : -10.0 + j * dy;
 
             for (index_t i = 0; i < npts_x; i++)
             {
-                x_vals[idx] = -10.0 + i * dx;
+                x_vals[idx] = (i == npts_x - 1) ? 10.0 : -10.0 + i * dx;
 
                 if (npts_y > 1)
                 {

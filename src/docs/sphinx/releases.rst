@@ -12,6 +12,44 @@ https://github.com/LLNL/conduit/releases
 
 .. note:: Conduit uses `BLT <https://github.com/LLNL/blt>`__ as its core CMake build system. We leverage BLT as a git submodule, however github does not include submodule contents in its automatically created source tarballs. To avoid confusion, starting with v0.3.0 we provide our own source tarballs that include BLT.
 
+v0.9.10
+---------------------------------
+
+* Released 2026-11-02
+* `Source Tarball <https://github.com/LLNL/conduit/releases/download/v0.9.10/conduit-v0.9.10-src-with-blt.tar.gz>`__
+
+Highlights
+++++++++++++++++++++++++++++++++++++
+
+(Extracted from Conduit's :download:`Changelog <../../../CHANGELOG.md>`)
+
+
+Added
+~~~~~
+
+
+* **Relay**
+
+ * Added support for passing hdf5 io options (as ``hdf5`` or ``hdf5_options``) to ``relay::blueprint::write_mesh``.
+ * Added support for passing Silo compression options string (as ``compression``) to ``relay::blueprint::write_mesh`` and ``relay::silo::write_mesh``.
+
+Changed
+~~~~~~~
+
+
+* **Relay**
+
+ * Relay i/o hdf5 option ``chunk_size=-1``, results in a chunk size equal to the number of elements in each data set written.
+
+Fixed
+~~~~~
+
+
+* **Blueprint**
+
+ * Fixed a bug with Blueprint index generation for multi-domain datasets containing multi-buffer material sets missing material maps. The index could previously generate an incorrect material map in this case if not all materials were present on every domain.
+
+
 v0.9.9
 ---------------------------------
 
@@ -35,12 +73,14 @@ Added
 Changed
 ~~~~~~~
 
- * Removed large silo data used for testing that made our release tarball too large.
- * ``conduit::blueprint::mesh::matset::renumber_material_ids()`` was adjusted to take an additional argument, a starting index, so that material ids can be renumbered to run between ``start`` and ``N-(start+1)`` where ``N`` is the number of materials.
 
 * **General**
 
  * Changed CMake version check in ConduitConfig.cmake to check for a minimum version, instead of setting the minimum version which impacts policy choices.
+ * Removed large silo data used for testing that made our release tarball too large.
+
+* **Blueprint**
+ * ``conduit::blueprint::mesh::matset::renumber_material_ids()`` was adjusted to take an additional argument, a starting index, so that material ids can be renumbered to run between ``start`` and ``N-(start+1)`` where ``N`` is the number of materials.
 
 
 v0.9.8

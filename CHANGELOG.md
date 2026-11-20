@@ -8,26 +8,72 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 ### Added
 
+#### General
+
+#### Conduit
+
+#### Blueprint
+
+#### Relay
+
 ### Changed
+
+#### General
+- Fixed CMake python build pip invocations to use `-v` instead of incorrect form `-V`, which as of pip 26.3 causes pip to fail
+
+#### Conduit
+
+#### Blueprint
+
+#### Relay
+
+### Fixed
+
+#### General
+- Fixed backslash (Windows) paths in `PYTHON_EXECUTABLE` and `PYTHON_MODULE_INSTALL_PREFIX`, which broke installing the python modules with CMake 4 and loading the installed `ConduitConfig.cmake`, and installing the python modules from paths with spaces.
+
+#### Conduit
+
+#### Blueprint
+- Fixed `conduit::blueprint::mesh::topology::structured::to_unstructured()` and `conduit::blueprint::mesh::convert()` to support strided structured topologies (topologies that use `elements/dims/offsets` and `elements/dims/strides`). Only the selected points are kept in the output coordset, and strided vertex and element fields are gathered into contiguous values. Previously the offsets and strides were ignored, which produced a mesh that referenced the wrong points.
+
+#### Relay
+- Fixed the HDF5 link libraries exported with Conduit's CMake targets when HDF5 provides no CMake targets: system libraries in the compiler's implicit link directories (e.g. `m`, `dl` and `pthread` in a sysroot) are linked by name, not by absolute paths that may not exist where Conduit is used.
+
+## [0.9.10] - Released 2026-11-02
+
+### Added
+
+#### Relay
+- Added support for passing hdf5 io options (as `hdf5` or `hdf5_options`) to `relay::blueprint::write_mesh`.
+- Added support for passing Silo compression options string (as `compression`) to `relay::blueprint::write_mesh` and `relay::silo::write_mesh`.
+
+### Changed
+
+#### Relay
+- Relay i/o hdf5 option `chunk_size=-1`, results in a chunk size equal to the number of elements in each data set written.
 
 ### Fixed
 
 #### Blueprint
-- Fixed `conduit::blueprint::mesh::topology::structured::to_unstructured()` and `conduit::blueprint::mesh::convert()` to support strided structured topologies (topologies that use `elements/dims/offsets` and `elements/dims/strides`). Only the selected points are kept in the output coordset, and strided vertex and element fields are gathered into contiguous values. Previously the offsets and strides were ignored, which produced a mesh that referenced the wrong points.
+ - Fixed a bug with Blueprint index generation for multi-domain datasets containing multi-buffer material sets missing material maps. The index could previously generate an incorrect material map in this case if not all materials were present on every domain.
 
 ## [0.9.9] - Released 2026-09-30
 
 ### Added
 
-#### Blueprint
+#### Relay
 - Added relay hdf5 options to override the desired leaf types used when writing and reading hdf5 files. This enables on the fly conversion of say, all float64 data values to float32 data values, as well as many other combinations. This only supports bitwidth conversion, within signed, unsigned, and floating point values. See the test `t_relay_io_hdf5_prec.cpp` for examples of using these options.
 
 ### Changed
-- Removed large silo data used for testing that made our release tarball too large.
-- `conduit::blueprint::mesh::matset::renumber_material_ids()` was adjusted to take an additional argument, a starting index, so that material ids can be renumbered to run between `start` and `N-(start+1)` where `N` is the number of materials.
 
 #### General
 - Changed CMake version check in ConduitConfig.cmake to check for a minimum version, instead of setting the minimum version which impacts policy choices.
+- Removed large silo data used for testing that made our release tarball too large.
+
+#### Blueprint
+- `conduit::blueprint::mesh::matset::renumber_material_ids()` was adjusted to take an additional argument, a starting index, so that material ids can be renumbered to run between `start` and `N-(start+1)` where `N` is the number of materials.
+
 
 ## [0.9.8] - Released 2026-09-01
 
@@ -1201,7 +1247,8 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 ### Added
 - Initial Open Source Release on GitHub
 
-[Unreleased]: https://github.com/llnl/conduit/compare/v0.9.9...HEAD
+[Unreleased]: https://github.com/llnl/conduit/compare/v0.9.10...HEAD
+[0.9.10]: https://github.com/llnl/conduit/compare/v0.9.9...v0.9.10
 [0.9.9]: https://github.com/llnl/conduit/compare/v0.9.8...v0.9.9
 [0.9.8]: https://github.com/llnl/conduit/compare/v0.9.7...v0.9.8
 [0.9.7]: https://github.com/llnl/conduit/compare/v0.9.6...v0.9.7

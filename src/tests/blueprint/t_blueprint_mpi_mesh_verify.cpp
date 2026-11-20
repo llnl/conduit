@@ -219,6 +219,161 @@ TEST(blueprint_mpi_smoke, multi_domain)
 
 
 //-----------------------------------------------------------------------------
+TEST(blueprint_mpi_smoke, cross_domain_index_matmap_gen_2_domain)
+{
+    MPI_Comm comm = MPI_COMM_WORLD;
+    int par_rank;
+    int par_size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &par_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &par_size);
+
+    std::cout<<"Rank "<<par_rank<<" of "<<par_size<<"\n";
+
+    conduit::Node mesh;
+    int nx = 4;
+    int ny = 4;
+    double radius = 0.15;
+
+    std::string matset_type = "sparse_by_material";
+    conduit::blueprint::mesh::examples::venn(matset_type, nx, ny, radius, mesh);
+    
+    conduit::Node verify_info;
+    if (! conduit::blueprint::mesh::verify(mesh, verify_info))
+    {
+        std::cout << "verify failed" << std::endl;
+        std::cout << verify_info.to_yaml() << std::endl;
+    }
+
+    mesh["fields"].remove_child("radius_a");
+    mesh["fields"].remove_child("radius_b");
+    mesh["fields"].remove_child("radius_c");
+    mesh["fields"].remove_child("overlap");
+    mesh["fields"].remove_child("circle_a");
+    mesh["fields"].remove_child("circle_b");
+    mesh["fields"].remove_child("circle_c");
+    mesh["fields"].remove_child("background");
+    // mesh["fields"].remove_child("importance");
+    // mesh["fields"].remove_child("mat_check");
+    // mesh["fields"].remove_child("area");
+
+    conduit::Node mesh_part;
+    conduit::Node opts;
+    opts["target"] = 2;
+    conduit::blueprint::mesh::partition(mesh, opts, mesh_part);
+
+    if(par_rank == 0)
+    {
+        mesh_part.remove(1);
+        mesh_part[0]["matsets/matset/volume_fractions"].remove_child("circle_b");
+        mesh_part[0]["matsets/matset/volume_fractions"].remove_child("circle_c");
+        mesh_part[0]["matsets/matset/element_ids"].remove_child("circle_b");
+        mesh_part[0]["matsets/matset/element_ids"].remove_child("circle_c");
+    }
+    else
+    {
+        mesh_part.remove(0);
+        mesh_part[0]["matsets/matset/volume_fractions"].remove_child("circle_a");
+        mesh_part[0]["matsets/matset/element_ids"].remove_child("circle_a");
+    }
+
+    conduit::Node bp_index;
+    conduit::blueprint::mpi::mesh::generate_index(mesh_part, "", bp_index, comm);
+
+    const conduit::Node &material_map = bp_index["matsets"]["matset"]["material_map"];
+
+    EXPECT_TRUE(material_map.has_child("background"));
+    EXPECT_EQ(material_map["background"].to_int(), 0);
+    EXPECT_TRUE(material_map.has_child("circle_a"));
+    EXPECT_EQ(material_map["circle_a"].to_int(), 1);
+    EXPECT_TRUE(material_map.has_child("circle_b"));
+    EXPECT_EQ(material_map["circle_b"].to_int(), 2);
+    EXPECT_TRUE(material_map.has_child("circle_c"));
+    EXPECT_EQ(material_map["circle_c"].to_int(), 3);
+}
+
+//-----------------------------------------------------------------------------
+TEST(blueprint_mpi_smoke, cross_domain_index_matmap_gen_3_domain)
+{
+    MPI_Comm comm = MPI_COMM_WORLD;
+    int par_rank;
+    int par_size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &par_rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &par_size);
+
+    std::cout<<"Rank "<<par_rank<<" of "<<par_size<<"\n";
+
+    conduit::Node mesh;
+    int nx = 4;
+    int ny = 4;
+    double radius = 0.15;
+
+    std::string matset_type = "sparse_by_material";
+    conduit::blueprint::mesh::examples::venn(matset_type, nx, ny, radius, mesh);
+    
+    conduit::Node verify_info;
+    if (! conduit::blueprint::mesh::verify(mesh, verify_info))
+    {
+        std::cout << "verify failed" << std::endl;
+        std::cout << verify_info.to_yaml() << std::endl;
+    }
+
+    mesh["fields"].remove_child("radius_a");
+    mesh["fields"].remove_child("radius_b");
+    mesh["fields"].remove_child("radius_c");
+    mesh["fields"].remove_child("overlap");
+    mesh["fields"].remove_child("circle_a");
+    mesh["fields"].remove_child("circle_b");
+    mesh["fields"].remove_child("circle_c");
+    mesh["fields"].remove_child("background");
+    // mesh["fields"].remove_child("importance");
+    // mesh["fields"].remove_child("mat_check");
+    // mesh["fields"].remove_child("area");
+
+    conduit::Node mesh_part;
+    conduit::Node opts;
+    opts["target"] = 3;
+    conduit::blueprint::mesh::partition(mesh, opts, mesh_part);
+
+    if(par_rank == 0)
+    {
+        mesh_part.remove(2);
+        mesh_part[0]["matsets/matset/volume_fractions"].remove_child("circle_a");
+        mesh_part[0]["matsets/matset/volume_fractions"].remove_child("circle_b");
+        mesh_part[0]["matsets/matset/volume_fractions"].remove_child("circle_c");
+        mesh_part[0]["matsets/matset/element_ids"].remove_child("circle_a");
+        mesh_part[0]["matsets/matset/element_ids"].remove_child("circle_b");
+        mesh_part[0]["matsets/matset/element_ids"].remove_child("circle_c");
+
+        mesh_part[1]["matsets/matset/volume_fractions"].remove_child("circle_b");
+        mesh_part[1]["matsets/matset/volume_fractions"].remove_child("circle_c");
+        mesh_part[1]["matsets/matset/element_ids"].remove_child("circle_b");
+        mesh_part[1]["matsets/matset/element_ids"].remove_child("circle_c");
+    }
+    else
+    {
+        mesh_part.remove(0);
+        mesh_part.remove(1);
+        mesh_part[0]["matsets/matset/volume_fractions"].remove_child("circle_a");
+        mesh_part[0]["matsets/matset/element_ids"].remove_child("circle_a");
+    }
+
+    conduit::Node bp_index;
+    conduit::blueprint::mpi::mesh::generate_index(mesh_part, "", bp_index, comm);
+
+    const conduit::Node &material_map = bp_index["matsets"]["matset"]["material_map"];
+
+    EXPECT_TRUE(material_map.has_child("background"));
+    EXPECT_EQ(material_map["background"].to_int(), 0);
+    EXPECT_TRUE(material_map.has_child("circle_a"));
+    EXPECT_EQ(material_map["circle_a"].to_int(), 1);
+    EXPECT_TRUE(material_map.has_child("circle_b"));
+    EXPECT_EQ(material_map["circle_b"].to_int(), 2);
+    EXPECT_TRUE(material_map.has_child("circle_c"));
+    EXPECT_EQ(material_map["circle_c"].to_int(), 3);
+}
+
+
+//-----------------------------------------------------------------------------
 int main(int argc, char* argv[])
 {
     int result = 0;

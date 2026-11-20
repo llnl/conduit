@@ -177,8 +177,11 @@ about(Node &n)
 
     // silo mesh aware
 #ifdef CONDUIT_RELAY_IO_SILO_ENABLED
+    // also present this as "silo"
+    io_protos["silo"] = "enabled";
     io_protos["conduit_silo_mesh"] = "enabled";
 #else
+    io_protos["silo"] = "disabled";
     io_protos["conduit_silo_mesh"] = "disabled";
 #endif
 
