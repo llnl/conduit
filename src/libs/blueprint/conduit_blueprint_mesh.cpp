@@ -1221,22 +1221,30 @@ gather_strided_structured_values(const conduit::Node &src,
 {
     const index_t num_vals = dims[0] * dims[1] * dims[2];
     const index_t elem_bytes = src.dtype().element_bytes();
+    // bytes between consecutive selected source values along i
+    const index_t src_row_stride = strides[0] * src.dtype().stride();
 
     dest.reset();
     dest.set(DataType(src.dtype().id(), num_vals));
 
-    index_t idx = 0;
+    // dest was just allocated as a compact array, so we can address it
+    // directly and copy one row of i values at a time
+    char *dest_ptr = static_cast<char*>(dest.data_ptr());
     for(index_t k = 0; k < dims[2]; k++)
     {
         for(index_t j = 0; j < dims[1]; j++)
         {
-            for(index_t i = 0; i < dims[0]; i++, idx++)
-            {
-                const index_t src_idx = (offsets[0] + i) * strides[0] +
-                                        (offsets[1] + j) * strides[1] +
-                                        (offsets[2] + k) * strides[2];
-                memcpy(dest.element_ptr(idx), src.element_ptr(src_idx), elem_bytes);
-            }
+            const index_t src_idx = offsets[0] * strides[0] +
+                                    (offsets[1] + j) * strides[1] +
+                                    (offsets[2] + k) * strides[2];
+            conduit::utils::conduit_memcpy_strided_elements(
+                                            dest_ptr,
+                                            (size_t)dims[0],
+                                            (size_t)elem_bytes,
+                                            (size_t)elem_bytes,
+                                            src.element_ptr(src_idx),
+                                            (size_t)src_row_stride);
+            dest_ptr += dims[0] * elem_bytes;
         }
     }
 }
@@ -8469,6 +8477,7 @@ gather_strided_structured_fields(const conduit::Node &n_topo,
         // build new values instead of writing into the existing ones.
         const conduit::Node &n_src_vals = n_src_field["values"];
         conduit::Node n_vals;
+        n_vals.set_allocator(n_field.allocator());
         if(n_src_vals.number_of_children() > 0)
         {
             for(conduit::index_t c = 0; c < n_src_vals.number_of_children(); c++)
@@ -8483,8 +8492,7 @@ gather_strided_structured_fields(const conduit::Node &n_topo,
                                              n_vals);
         }
 
-        n_field.remove("values");
-        n_field["values"].set(n_vals);
+        n_field["values"].move(n_vals);
         if(n_field.has_child("offsets"))
         {
             n_field.remove("offsets");

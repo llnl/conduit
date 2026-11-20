@@ -349,6 +349,9 @@ void test_convert_strided_structured(conduit::index_t npts_z,
     const conduit::Node &n_topo = n_converted["topologies/mesh"];
     EXPECT_EQ(n_topo["type"].as_string(), "unstructured");
     EXPECT_EQ(conduit::blueprint::mesh::topology::length(n_topo), nelems);
+    // NOTE: the connectivity is only checked for the "unstructured" target.
+    // For "polytopal" we check the coordset, the number of elements and the
+    // fields, but not the polygonal / polyhedral connectivity.
     if(target == "unstructured")
     {
         conduit::index_t_accessor conn =
