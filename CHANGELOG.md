@@ -35,6 +35,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 #### Conduit
 
 #### Blueprint
+- Fixed `conduit::blueprint::mesh::topology::structured::to_unstructured()` and `conduit::blueprint::mesh::convert()` to support strided structured topologies (topologies that use `elements/dims/offsets` and `elements/dims/strides`). Only the selected points are kept in the output coordset, and strided vertex and element fields are gathered into contiguous values. Previously the offsets and strides were ignored, which produced a mesh that referenced the wrong points.
 
 #### Relay
 - Fixed the HDF5 link libraries exported with Conduit's CMake targets when HDF5 provides no CMake targets: system libraries in the compiler's implicit link directories (e.g. `m`, `dl` and `pthread` in a sysroot) are linked by name, not by absolute paths that may not exist where Conduit is used.
