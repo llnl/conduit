@@ -51,6 +51,26 @@ namespace silo
 {
 
 //-----------------------------------------------------------------------------
+/// Pass a Node to set Silo mesh writer options.
+///
+/// opts:
+///      verbose: "yes", "no"
+///          "no" suppresses informational messages from the Silo mesh writer.
+///          Default is "no".
+//-----------------------------------------------------------------------------
+void CONDUIT_RELAY_API set_options(const conduit::Node &opts);
+
+//-----------------------------------------------------------------------------
+/// Reset Silo mesh writer options to defaults.
+//-----------------------------------------------------------------------------
+void CONDUIT_RELAY_API reset_options();
+
+//-----------------------------------------------------------------------------
+/// Get a Node that contains Silo mesh writer options.
+//-----------------------------------------------------------------------------
+void CONDUIT_RELAY_API options(conduit::Node &opts);
+
+//-----------------------------------------------------------------------------
 // Write a blueprint mesh to silo
 //-----------------------------------------------------------------------------
 /// These methods assume `mesh` is a valid blueprint mesh.
@@ -104,6 +124,11 @@ void CONDUIT_RELAY_API write_mesh(const conduit::Node &mesh,
 ///            when "multi_file" or "overlink":
 ///                 <= 0, use # of files == # of domains
 ///                  > 0, # of files == number_of_files
+///
+///      verbose: "yes", "no"
+///            "no" suppresses informational messages from the Silo mesh writer.
+///            If present, this temporarily overrides silo::options()["verbose"]
+///            for this write and restores the previous value before returning.
 ///
 /// Note:
 ///  In the non-overlink case...
@@ -179,6 +204,11 @@ void CONDUIT_RELAY_API save_mesh(const conduit::Node &mesh,
 ///            when "multi_file" or "overlink":
 ///                 <= 0, use # of files ==> # of domains
 ///                  > 0, # of files ==> number_of_files
+///
+///      verbose: "yes", "no"
+///            "no" suppresses informational messages from the Silo mesh writer.
+///            If present, this temporarily overrides silo::options()["verbose"]
+///            for this write and restores the previous value before returning.
 ///
 /// Note:
 ///  In the non-overlink case...

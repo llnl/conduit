@@ -22,6 +22,69 @@ using namespace conduit;
 using namespace conduit::utils;
 using namespace conduit::relay;
 
+namespace
+{
+
+int g_silo_info_count = 0;
+std::string g_silo_last_info;
+
+void
+capture_silo_info(const std::string &msg,
+                  const std::string &,
+                  int)
+{
+    g_silo_info_count++;
+    g_silo_last_info = msg;
+}
+
+void
+reset_silo_info_capture()
+{
+    g_silo_info_count = 0;
+    g_silo_last_info.clear();
+}
+
+class SiloInfoHandlerGuard
+{
+public:
+    SiloInfoHandlerGuard()
+    : m_prev(conduit::utils::info_handler())
+    {
+        conduit::utils::set_info_handler(capture_silo_info);
+    }
+
+    ~SiloInfoHandlerGuard()
+    {
+        conduit::utils::set_info_handler(m_prev);
+    }
+
+private:
+    conduit::utils::conduit_info_handler m_prev;
+};
+
+void
+silo_collision_mesh(Node &save_mesh)
+{
+    blueprint::mesh::examples::misc("specsets", 4, 4, 1, save_mesh);
+    save_mesh["fields"]["mesh"].set(save_mesh["fields"]["braid"]);
+    save_mesh["matsets"]["matset"].set(save_mesh["matsets"]["mesh"]);
+    save_mesh["specsets"]["specset"].set(save_mesh["specsets"]["mesh"]);
+    save_mesh["specsets"]["specset"]["matset"].set("matset");
+}
+
+void
+save_silo_collision_mesh(const std::string &basename,
+                         const Node &opts = Node())
+{
+    Node save_mesh;
+    silo_collision_mesh(save_mesh);
+
+    remove_path_if_exists(basename + ".cycle_000100.root");
+    io::silo::save_mesh(save_mesh, basename, opts);
+}
+
+}
+
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_silo, conduit_silo_cold_storage)
 {
@@ -176,11 +239,7 @@ TEST(conduit_relay_io_silo, round_trip_basic)
 TEST(conduit_relay_io_silo, round_trip_avoid_name_collisions)
 {
     Node save_mesh, load_mesh, info;
-    blueprint::mesh::examples::misc("specsets", 4, 4, 1, save_mesh);
-    save_mesh["fields"]["mesh"].set(save_mesh["fields"]["braid"]);
-    save_mesh["matsets"]["matset"].set(save_mesh["matsets"]["mesh"]);
-    save_mesh["specsets"]["specset"].set(save_mesh["specsets"]["mesh"]);
-    save_mesh["specsets"]["specset"]["matset"].set("matset");
+    silo_collision_mesh(save_mesh);
 
     const std::string basename = "silo_round_trip_avoid_name_collisions";
     const std::string filename = basename + ".cycle_000100.root";
@@ -206,6 +265,87 @@ TEST(conduit_relay_io_silo, round_trip_avoid_name_collisions)
     EXPECT_EQ(load_mesh.number_of_children(), 1);
     EXPECT_EQ(load_mesh[0].number_of_children(), save_mesh.number_of_children());
     EXPECT_FALSE(load_mesh[0].diff(save_mesh, info, CONDUIT_EPSILON, true));
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_relay_io_silo, options_verbose)
+{
+    Node def_opts, opts, info;
+
+    io::silo::reset_options();
+    io::silo::options(def_opts);
+    EXPECT_EQ(def_opts["verbose"].as_string(), "no");
+
+    opts["verbose"] = "yes";
+    io::silo::set_options(opts);
+    io::silo::options(opts);
+    EXPECT_EQ(opts["verbose"].as_string(), "yes");
+    EXPECT_TRUE(def_opts.diff(opts, info));
+
+    io::silo::reset_options();
+    io::silo::options(opts);
+    EXPECT_FALSE(def_opts.diff(opts, info));
+
+    Node invalid_opts;
+    invalid_opts["verbose"] = "maybe";
+    EXPECT_THROW(io::silo::set_options(invalid_opts), Error);
+
+    io::silo::reset_options();
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_relay_io_silo, write_option_verbose)
+{
+    SiloInfoHandlerGuard info_handler_guard;
+
+    io::silo::reset_options();
+
+    reset_silo_info_capture();
+    save_silo_collision_mesh("silo_write_option_verbose_default_quiet");
+    EXPECT_EQ(g_silo_info_count, 0);
+
+    Node opts;
+    opts["verbose"] = "yes";
+    io::silo::set_options(opts);
+
+    reset_silo_info_capture();
+    save_silo_collision_mesh("silo_write_option_verbose_global_yes");
+    EXPECT_GT(g_silo_info_count, 0);
+
+    Node write_opts;
+    write_opts["verbose"] = "no";
+    reset_silo_info_capture();
+    save_silo_collision_mesh("silo_write_option_verbose_call_no", write_opts);
+    EXPECT_EQ(g_silo_info_count, 0);
+
+    Node curr_opts;
+    io::silo::options(curr_opts);
+    EXPECT_EQ(curr_opts["verbose"].as_string(), "yes");
+
+    io::silo::reset_options();
+    write_opts["verbose"] = "yes";
+    reset_silo_info_capture();
+    save_silo_collision_mesh("silo_write_option_verbose_call_yes", write_opts);
+    EXPECT_GT(g_silo_info_count, 0);
+
+    io::silo::options(curr_opts);
+    EXPECT_EQ(curr_opts["verbose"].as_string(), "no");
+
+    opts["verbose"] = "yes";
+    io::silo::set_options(opts);
+    write_opts["verbose"] = "no";
+    write_opts["file_style"] = "not_a_style";
+    Node mesh;
+    silo_collision_mesh(mesh);
+    EXPECT_THROW(io::silo::save_mesh(mesh,
+                                     "silo_write_option_verbose_restore_on_error",
+                                     write_opts),
+                 Error);
+
+    io::silo::options(curr_opts);
+    EXPECT_EQ(curr_opts["verbose"].as_string(), "yes");
+
+    io::silo::reset_options();
 }
 
 //-----------------------------------------------------------------------------
