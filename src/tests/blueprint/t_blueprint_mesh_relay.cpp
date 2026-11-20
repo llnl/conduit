@@ -1002,6 +1002,8 @@ TEST(conduit_blueprint_mesh_relay, test_compression_opts)
         opts["hdf5/chunking/chunk_size"] = -1;
         opts["hdf5/chunking/compression/level"] = level;
 
+        std::cout << "case: hdf5 gzip_l" << level << " opts: " << opts.to_yaml() << std::endl;
+
         conduit::relay::io::blueprint::save_mesh(mesh, obase, "hdf5",opts);
 
         int64 fs_bytes = utils::file_size(ofile);
@@ -1022,7 +1024,11 @@ TEST(conduit_blueprint_mesh_relay, test_compression_opts)
     const std::vector<std::pair<std::string, std::string>> comp_tests = {
           std::make_pair("magic_null_string", "NULL")
          // magic string that we use to emulate NULL pointer path via opts
+         ,std::make_pair("gzip_l1",   "METHOD=GZIP LEVEL=1")
          ,std::make_pair("gzip_l9",   "METHOD=GZIP LEVEL=9")
+         ,std::make_pair("zfp_r16",  "METHOD=ZFP RATE=16")
+         ,std::make_pair("zfp_r8",  "METHOD=ZFP RATE=4")
+         ,std::make_pair("zfp_r4",  "METHOD=ZFP RATE=4")
     };
 
     opts.reset();
@@ -1032,6 +1038,7 @@ TEST(conduit_blueprint_mesh_relay, test_compression_opts)
     {
         std::string case_name = comp_tests[i].first;
         std::string case_opts = comp_tests[i].second;
+        std::cout << "case: silo " << case_name << " opts: " << case_opts << std::endl;
         std::string obase = conduit_fmt::format("tout_blueprint_write_compression_test_silo_{}",case_name);
         std::string ofile = obase + ".cycle_000100.root";
         opts["compression"] = case_opts;
@@ -1039,6 +1046,12 @@ TEST(conduit_blueprint_mesh_relay, test_compression_opts)
 
         int64 fs_bytes = utils::file_size(ofile);
         EXPECT_TRUE(conduit::utils::is_file(ofile));
+        if(case_name.find("zfp_r16") != std::string::npos)
+        {
+            // reset prev bytes
+            fs_bytes_prev = std::numeric_limits<int64_t>::max();
+        }
+
         EXPECT_TRUE(fs_bytes <= fs_bytes_prev);
         fs_bytes_prev = fs_bytes;
     }

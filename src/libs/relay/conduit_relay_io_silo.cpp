@@ -1883,19 +1883,19 @@ read_quadmesh_domain(DBquadmesh *quadmesh_ptr,
     intermediate_topo["coordset"] = multimesh_name;
 
     // If the origin is not the default value, then we need to specify it
-    if (quadmesh_ptr->base_index[0] != 0 &&
-        quadmesh_ptr->base_index[1] != 0 &&
+    if (quadmesh_ptr->base_index[0] != 0 ||
+        quadmesh_ptr->base_index[1] != 0 ||
         quadmesh_ptr->base_index[2] != 0)
     {
         Node &origin = intermediate_topo["elements"]["origin"];
         origin["i"] = quadmesh_ptr->base_index[0];
         if (ndims > 1)
         {
-            origin["i"] = quadmesh_ptr->base_index[1];
+            origin["j"] = quadmesh_ptr->base_index[1];
         }
         if (ndims > 2)
         {
-            origin["i"] = quadmesh_ptr->base_index[2];
+            origin["k"] = quadmesh_ptr->base_index[2];
         }
     }
 

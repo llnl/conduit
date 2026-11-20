@@ -277,6 +277,21 @@ if(ENABLE_UTILS)
     # add install target for conduit_relay_io_convert
     install(TARGETS conduit_relay_io_convert
             RUNTIME DESTINATION bin)
+
+    ###################################
+    # add conduit_relay_blueprint_mesh_rewrite exe
+    ##################################
+            blt_add_executable(
+                NAME        conduit_relay_blueprint_mesh_rewrite
+                SOURCES     conduit_relay_blueprint_mesh_rewrite_exe.cpp
+                DEPENDS_ON  conduit_relay
+                OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}
+                FOLDER utils)
+
+            # add install target for conduit_relay_blueprint_mesh_rewrite
+            install(TARGETS conduit_relay_blueprint_mesh_rewrite
+                    RUNTIME DESTINATION bin)
+
 endif()
 
 if(ENABLE_RELAY_WEBSERVER)
@@ -418,6 +433,25 @@ blt_add_target_compile_flags(TO conduit_relay_mpi_io FLAGS "-DCONDUIT_RELAY_IO_M
 
 # avoid mpi C++ apis + link dep of libmpi_cxx
 target_compile_definitions(conduit_relay_mpi_io PUBLIC ${CONDUIT_MPI_SKIP_MPICXX_DEFINES} )
+
+if(ENABLE_UTILS)
+    ###################################
+    # add conduit_relay_blueprint_mesh_rewrite exe (mpi version)
+    ##################################
+    blt_add_executable(
+        NAME        conduit_relay_blueprint_mesh_rewrite_mpi
+        SOURCES     conduit_relay_blueprint_mesh_rewrite_exe.cpp
+        DEPENDS_ON  conduit_relay conduit_relay_mpi_io mpi
+        OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}
+        FOLDER utils)
+
+    blt_add_target_definitions(TO conduit_relay_blueprint_mesh_rewrite_mpi
+                               TARGET_DEFINITIONS "CONDUIT_REPLAY_BLUEPRINT_MESH_REWRITE_MPI=1")
+
+    # add install target for conduit_relay_blueprint_mesh_rewrite_mpi
+    install(TARGETS conduit_relay_blueprint_mesh_rewrite_mpi
+            RUNTIME DESTINATION bin)
+endif()
 
 
 endif() # end if MPI_FOUND

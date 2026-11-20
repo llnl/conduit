@@ -352,7 +352,7 @@ fi # if cgns install exists, skip build
 ################
 # Silo
 ################
-silo_version=4.12.0
+silo_version=4.12.2
 silo_src_dir=$(ospath ${source_dir}/Silo-${silo_version})
 silo_build_dir=$(ospath ${build_dir}/silo-${silo_version}/)
 silo_install_dir=$(ospath ${install_dir}/silo-${silo_version}/)
@@ -372,12 +372,6 @@ if [ ! -d ${silo_src_dir} ]; then
       --exclude="Silo-${silo_version}/config-site/*" \
       --exclude="Silo-${silo_version}/LICENSE.md" \
       --exclude="Silo-${silo_version}/silo_objects.png"
-
-  # ns patch for 4.12.0
-  cd  ${silo_src_dir}
-  patch -p1 < ${script_dir}/2026_01_26_silo_ns_patch_pr_515.patch
-  patch -p1 < ${script_dir}/2026_02_18_silo_vfd_fix_pr_517.patch
-  cd ${root_dir}
 fi
 
 echo "**** Configuring Silo ${silo_version}"
