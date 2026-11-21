@@ -63,27 +63,6 @@ private:
 };
 
 void
-silo_collision_mesh(Node &save_mesh)
-{
-    blueprint::mesh::examples::misc("specsets", 4, 4, 1, save_mesh);
-    save_mesh["fields"]["mesh"].set(save_mesh["fields"]["braid"]);
-    save_mesh["matsets"]["matset"].set(save_mesh["matsets"]["mesh"]);
-    save_mesh["specsets"]["specset"].set(save_mesh["specsets"]["mesh"]);
-    save_mesh["specsets"]["specset"]["matset"].set("matset");
-}
-
-void
-save_silo_collision_mesh(const std::string &basename,
-                         const Node &opts = Node())
-{
-    Node save_mesh;
-    silo_collision_mesh(save_mesh);
-
-    remove_path_if_exists(basename + ".cycle_000100.root");
-    io::silo::save_mesh(save_mesh, basename, opts);
-}
-
-void
 load_silo_verbose_mesh(const Node &opts = Node())
 {
     Node load_mesh;
@@ -250,7 +229,11 @@ TEST(conduit_relay_io_silo, round_trip_basic)
 TEST(conduit_relay_io_silo, round_trip_avoid_name_collisions)
 {
     Node save_mesh, load_mesh, info;
-    silo_collision_mesh(save_mesh);
+    blueprint::mesh::examples::misc("specsets", 4, 4, 1, save_mesh);
+    save_mesh["fields"]["mesh"].set(save_mesh["fields"]["braid"]);
+    save_mesh["matsets"]["matset"].set(save_mesh["matsets"]["mesh"]);
+    save_mesh["specsets"]["specset"].set(save_mesh["specsets"]["mesh"]);
+    save_mesh["specsets"]["specset"]["matset"].set("matset");
 
     const std::string basename = "silo_round_trip_avoid_name_collisions";
     const std::string filename = basename + ".cycle_000100.root";
@@ -318,8 +301,16 @@ TEST(conduit_relay_io_silo, write_option_verbose)
 
     io::silo::reset_options();
 
+    Node save_mesh;
+    blueprint::mesh::examples::misc("specsets", 4, 4, 1, save_mesh);
+    save_mesh["fields"]["mesh"].set(save_mesh["fields"]["braid"]);
+    save_mesh["matsets"]["matset"].set(save_mesh["matsets"]["mesh"]);
+    save_mesh["specsets"]["specset"].set(save_mesh["specsets"]["mesh"]);
+    save_mesh["specsets"]["specset"]["matset"].set("matset");
+
     reset_silo_info_capture();
-    save_silo_collision_mesh("silo_write_option_verbose_default_quiet");
+    remove_path_if_exists("silo_write_option_verbose_default_quiet.cycle_000100.root");
+    io::silo::save_mesh(save_mesh, "silo_write_option_verbose_default_quiet");
     EXPECT_EQ(g_silo_info_count, 0);
 
     Node opts;
@@ -327,13 +318,15 @@ TEST(conduit_relay_io_silo, write_option_verbose)
     io::silo::set_options(opts);
 
     reset_silo_info_capture();
-    save_silo_collision_mesh("silo_write_option_verbose_global_yes");
+    remove_path_if_exists("silo_write_option_verbose_global_yes.cycle_000100.root");
+    io::silo::save_mesh(save_mesh, "silo_write_option_verbose_global_yes");
     EXPECT_GT(g_silo_info_count, 0);
 
     Node write_opts;
     write_opts["verbose"] = "no";
     reset_silo_info_capture();
-    save_silo_collision_mesh("silo_write_option_verbose_call_no", write_opts);
+    remove_path_if_exists("silo_write_option_verbose_call_no.cycle_000100.root");
+    io::silo::save_mesh(save_mesh, "silo_write_option_verbose_call_no", write_opts);
     EXPECT_EQ(g_silo_info_count, 0);
 
     Node curr_opts;
@@ -343,7 +336,8 @@ TEST(conduit_relay_io_silo, write_option_verbose)
     io::silo::reset_options();
     write_opts["verbose"] = "yes";
     reset_silo_info_capture();
-    save_silo_collision_mesh("silo_write_option_verbose_call_yes", write_opts);
+    remove_path_if_exists("silo_write_option_verbose_call_yes.cycle_000100.root");
+    io::silo::save_mesh(save_mesh, "silo_write_option_verbose_call_yes", write_opts);
     EXPECT_GT(g_silo_info_count, 0);
 
     io::silo::options(curr_opts);
@@ -353,9 +347,7 @@ TEST(conduit_relay_io_silo, write_option_verbose)
     io::silo::set_options(opts);
     write_opts["verbose"] = "no";
     write_opts["file_style"] = "not_a_style";
-    Node mesh;
-    silo_collision_mesh(mesh);
-    EXPECT_THROW(io::silo::save_mesh(mesh,
+    EXPECT_THROW(io::silo::save_mesh(save_mesh,
                                      "silo_write_option_verbose_restore_on_error",
                                      write_opts),
                  Error);
