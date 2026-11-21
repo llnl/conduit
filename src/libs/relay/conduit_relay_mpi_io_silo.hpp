@@ -59,11 +59,12 @@ namespace silo
 {
 
 //-----------------------------------------------------------------------------
-/// Pass a Node to set Silo mesh writer options.
+/// Pass a Node to set Silo mesh reader/writer options.
 ///
 /// opts:
 ///      verbose: "yes", "no"
-///          "no" suppresses informational messages from the Silo mesh writer.
+///          "no" suppresses informational messages from Silo mesh reads and
+///          writes.
 ///          Default is "no".
 ///
 ///      compression: silo compression options string
@@ -73,12 +74,12 @@ namespace silo
 void CONDUIT_RELAY_API set_options(const conduit::Node &opts);
 
 //-----------------------------------------------------------------------------
-/// Reset Silo mesh writer options to defaults.
+/// Reset Silo mesh reader/writer options to defaults.
 //-----------------------------------------------------------------------------
 void CONDUIT_RELAY_API reset_options();
 
 //-----------------------------------------------------------------------------
-/// Get a Node that contains Silo mesh writer options.
+/// Get a Node that contains Silo mesh reader/writer options.
 //-----------------------------------------------------------------------------
 void CONDUIT_RELAY_API options(conduit::Node &opts);
 
@@ -163,7 +164,20 @@ void CONDUIT_RELAY_API load_mesh(const std::string &root_file_path,
 //-----------------------------------------------------------------------------
 ///
 /// opts:
-///      TODO
+///      mesh_name: "{name}"
+///          provide explicit mesh name, for cases where silo data includes
+///          more than one mesh.
+///          We only allow reading of a single mesh to keep these options on
+///          par with the relay io blueprint options.
+///
+///      matset_style: "default", "multi_buffer_full", "sparse_by_element",
+///            "multi_buffer_by_material"
+///            "default"   ==> "sparse_by_element"
+///
+///      verbose: "yes", "no"
+///          "no" suppresses informational messages from the Silo mesh reader.
+///          If present, this temporarily overrides silo::options()["verbose"]
+///          for this read and restores the previous value before returning.
 ///
 //-----------------------------------------------------------------------------
 void CONDUIT_RELAY_API load_mesh(const std::string &root_file_path,
@@ -184,7 +198,20 @@ void CONDUIT_RELAY_API read_mesh(const std::string &root_file_path,
 //-----------------------------------------------------------------------------
 ///
 /// opts:
-///      TODO
+///      mesh_name: "{name}"
+///          provide explicit mesh name, for cases where silo data includes
+///          more than one mesh.
+///          We only allow reading of a single mesh to keep these options on
+///          par with the relay io blueprint options.
+///
+///      matset_style: "default", "multi_buffer_full", "sparse_by_element",
+///            "multi_buffer_by_material"
+///            "default"   ==> "sparse_by_element"
+///
+///      verbose: "yes", "no"
+///          "no" suppresses informational messages from the Silo mesh reader.
+///          If present, this temporarily overrides silo::options()["verbose"]
+///          for this read and restores the previous value before returning.
 ///
 //-----------------------------------------------------------------------------
 void CONDUIT_RELAY_API read_mesh(const std::string &root_file_path,
