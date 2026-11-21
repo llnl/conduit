@@ -22,6 +22,45 @@ using namespace conduit;
 using namespace conduit::utils;
 using namespace conduit::relay;
 
+namespace
+{
+
+int g_silo_info_count = 0;
+
+void
+capture_silo_info(const std::string &,
+                  const std::string &,
+                  int)
+{
+    g_silo_info_count++;
+}
+
+void
+reset_silo_info_capture()
+{
+    g_silo_info_count = 0;
+}
+
+class SiloInfoHandlerGuard
+{
+public:
+    SiloInfoHandlerGuard()
+    : m_prev(conduit::utils::info_handler())
+    {
+        conduit::utils::set_info_handler(capture_silo_info);
+    }
+
+    ~SiloInfoHandlerGuard()
+    {
+        conduit::utils::set_info_handler(m_prev);
+    }
+
+private:
+    conduit::utils::conduit_info_handler m_prev;
+};
+
+}
+
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_silo, conduit_silo_cold_storage)
 {
@@ -206,6 +245,158 @@ TEST(conduit_relay_io_silo, round_trip_avoid_name_collisions)
     EXPECT_EQ(load_mesh.number_of_children(), 1);
     EXPECT_EQ(load_mesh[0].number_of_children(), save_mesh.number_of_children());
     EXPECT_FALSE(load_mesh[0].diff(save_mesh, info, CONDUIT_EPSILON, true));
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_relay_io_silo, options_verbose)
+{
+    Node def_opts, opts, info;
+
+    io::silo::reset_options();
+    io::silo::options(def_opts);
+    EXPECT_EQ(def_opts["verbose"].as_string(), "no");
+    EXPECT_EQ(def_opts["compression"].as_string(), "NULL");
+
+    opts["verbose"] = "yes";
+    opts["compression"] = "METHOD=GZIP LEVEL=9";
+    io::silo::set_options(opts);
+    io::silo::options(opts);
+    EXPECT_EQ(opts["verbose"].as_string(), "yes");
+    EXPECT_EQ(opts["compression"].as_string(), "METHOD=GZIP LEVEL=9");
+    EXPECT_TRUE(def_opts.diff(opts, info));
+
+    io::silo::reset_options();
+    io::silo::options(opts);
+    EXPECT_FALSE(def_opts.diff(opts, info));
+
+    Node invalid_opts;
+    invalid_opts["verbose"] = "maybe";
+    EXPECT_THROW(io::silo::set_options(invalid_opts), Error);
+
+    invalid_opts.reset();
+    invalid_opts["compression"] = 42;
+    EXPECT_THROW(io::silo::set_options(invalid_opts), Error);
+
+    io::silo::reset_options();
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_relay_io_silo, write_option_verbose)
+{
+    SiloInfoHandlerGuard info_handler_guard;
+
+    io::silo::reset_options();
+
+    Node save_mesh;
+    blueprint::mesh::examples::misc("specsets", 4, 4, 1, save_mesh);
+    save_mesh["fields"]["mesh"].set(save_mesh["fields"]["braid"]);
+    save_mesh["matsets"]["matset"].set(save_mesh["matsets"]["mesh"]);
+    save_mesh["specsets"]["specset"].set(save_mesh["specsets"]["mesh"]);
+    save_mesh["specsets"]["specset"]["matset"].set("matset");
+
+    reset_silo_info_capture();
+    remove_path_if_exists("silo_write_option_verbose_default_quiet.cycle_000100.root");
+    io::silo::save_mesh(save_mesh, "silo_write_option_verbose_default_quiet");
+    EXPECT_EQ(g_silo_info_count, 0);
+
+    Node opts;
+    opts["verbose"] = "yes";
+    io::silo::set_options(opts);
+
+    reset_silo_info_capture();
+    remove_path_if_exists("silo_write_option_verbose_global_yes.cycle_000100.root");
+    io::silo::save_mesh(save_mesh, "silo_write_option_verbose_global_yes");
+    EXPECT_GT(g_silo_info_count, 0);
+
+    Node write_opts;
+    write_opts["verbose"] = "no";
+    reset_silo_info_capture();
+    remove_path_if_exists("silo_write_option_verbose_call_no.cycle_000100.root");
+    io::silo::save_mesh(save_mesh, "silo_write_option_verbose_call_no", write_opts);
+    EXPECT_EQ(g_silo_info_count, 0);
+
+    Node curr_opts;
+    io::silo::options(curr_opts);
+    EXPECT_EQ(curr_opts["verbose"].as_string(), "yes");
+
+    io::silo::reset_options();
+    write_opts["verbose"] = "yes";
+    reset_silo_info_capture();
+    remove_path_if_exists("silo_write_option_verbose_call_yes.cycle_000100.root");
+    io::silo::save_mesh(save_mesh, "silo_write_option_verbose_call_yes", write_opts);
+    EXPECT_GT(g_silo_info_count, 0);
+
+    io::silo::options(curr_opts);
+    EXPECT_EQ(curr_opts["verbose"].as_string(), "no");
+
+    opts["verbose"] = "yes";
+    io::silo::set_options(opts);
+    write_opts["verbose"] = "no";
+    write_opts["file_style"] = "not_a_style";
+    EXPECT_THROW(io::silo::save_mesh(save_mesh,
+                                     "silo_write_option_verbose_restore_on_error",
+                                     write_opts),
+                 Error);
+
+    io::silo::options(curr_opts);
+    EXPECT_EQ(curr_opts["verbose"].as_string(), "yes");
+
+    io::silo::reset_options();
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_relay_io_silo, read_option_verbose)
+{
+    SiloInfoHandlerGuard info_handler_guard;
+
+    io::silo::reset_options();
+
+    const std::string filepath =
+        utils::join_file_path("silo", "multi_curv3d.silo");
+    const std::string input_file = relay_test_silo_data_path(filepath);
+    Node load_mesh;
+
+    reset_silo_info_capture();
+    io::silo::load_mesh(input_file, load_mesh);
+    EXPECT_EQ(g_silo_info_count, 0);
+
+    Node opts;
+    opts["verbose"] = "yes";
+    io::silo::set_options(opts);
+
+    reset_silo_info_capture();
+    io::silo::load_mesh(input_file, load_mesh);
+    EXPECT_GT(g_silo_info_count, 0);
+
+    Node read_opts;
+    read_opts["verbose"] = "no";
+    reset_silo_info_capture();
+    io::silo::load_mesh(input_file, read_opts, load_mesh);
+    EXPECT_EQ(g_silo_info_count, 0);
+
+    Node curr_opts;
+    io::silo::options(curr_opts);
+    EXPECT_EQ(curr_opts["verbose"].as_string(), "yes");
+
+    io::silo::reset_options();
+    read_opts["verbose"] = "yes";
+    reset_silo_info_capture();
+    io::silo::load_mesh(input_file, read_opts, load_mesh);
+    EXPECT_GT(g_silo_info_count, 0);
+
+    io::silo::options(curr_opts);
+    EXPECT_EQ(curr_opts["verbose"].as_string(), "no");
+
+    opts["verbose"] = "yes";
+    io::silo::set_options(opts);
+    read_opts["verbose"] = "no";
+    read_opts["matset_style"] = "not_a_style";
+    EXPECT_THROW(io::silo::load_mesh(input_file, read_opts, load_mesh), Error);
+
+    io::silo::options(curr_opts);
+    EXPECT_EQ(curr_opts["verbose"].as_string(), "yes");
+
+    io::silo::reset_options();
 }
 
 //-----------------------------------------------------------------------------
@@ -3730,6 +3921,7 @@ TEST(conduit_relay_io_silo, read_overlink_directly)
 TEST(conduit_relay_io_silo, compression_opts)
 {
     Node mesh, load_mesh, info, write_opts;
+    io::silo::reset_options();
 
     // example mesh that should benefit from compression
     blueprint::mesh::examples::braid("structured", 10, 10, 10, mesh);
@@ -3817,6 +4009,38 @@ TEST(conduit_relay_io_silo, compression_opts)
                  << ", gzip level 9 file size (bytes) = "
                  << tout_cmp_fs);
     EXPECT_TRUE(tout_cmp_fs < tout_std_fs);
+
+    write_opts.reset();
+    write_opts["compression"] = "METHOD=GZIP LEVEL=9";
+    io::silo::set_options(write_opts);
+
+    Node curr_opts;
+    io::silo::options(curr_opts);
+    EXPECT_EQ(curr_opts["compression"].as_string(), "METHOD=GZIP LEVEL=9");
+
+    ofbase = "tout_silo_write_compression_test_global_gzip_l9";
+    std::string ofile_global = ofbase + ".cycle_000100.root";
+    io::silo::save_mesh(mesh, ofbase);
+    EXPECT_TRUE(DBGetCompression() == NULL);
+
+    int64 tout_global_cmp_fs = utils::file_size(ofile_global);
+    EXPECT_TRUE(tout_global_cmp_fs < tout_std_fs);
+
+    write_opts.reset();
+    write_opts["compression"] = "NULL";
+
+    ofbase = "tout_silo_write_compression_test_global_override_null";
+    std::string ofile_global_override = ofbase + ".cycle_000100.root";
+    io::silo::save_mesh(mesh, ofbase, write_opts);
+    EXPECT_TRUE(DBGetCompression() == NULL);
+
+    io::silo::options(curr_opts);
+    EXPECT_EQ(curr_opts["compression"].as_string(), "METHOD=GZIP LEVEL=9");
+
+    int64 tout_global_override_fs = utils::file_size(ofile_global_override);
+    EXPECT_TRUE(tout_global_cmp_fs < tout_global_override_fs);
+
+    io::silo::reset_options();
 }
 
 // TODO add tests for polytopal meshes once they are supported

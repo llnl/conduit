@@ -100,6 +100,7 @@ about(Node &n, MPI_Comm comm)
 #ifdef CONDUIT_RELAY_IO_SILO_ENABLED
     // node is packed into two silo objects
     io_protos["conduit_silo"] = "enabled";
+    silo::options(n["io/options/silo"]);
 #else
     // node is packed into two silo objects
     io_protos["conduit_silo"] = "disabled";
