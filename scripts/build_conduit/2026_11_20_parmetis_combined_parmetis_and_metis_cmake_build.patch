@@ -1,0 +1,113 @@
+From f295caede3224684556569ebcebedec994877edc Mon Sep 17 00:00:00 2001
+From: Cyrus Harrison <cyrush@llnl.gov>
+Date: Fri, 20 Nov 2026 16:42:18 -0800
+Subject: [PATCH] combined parmetis and metis cmake build patches
+
+---
+ CMakeLists.txt             | 26 ++++++++++++++++++++------
+ libparmetis/CMakeLists.txt |  7 +++++--
+ metis/include/metis.h      |  4 ++--
+ 3 files changed, 27 insertions(+), 10 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index ca945dd..0dd1c38 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,6 +1,9 @@
+ cmake_minimum_required(VERSION 2.8)
+ project(ParMETIS)
+ 
++# cyrush added
++option(USE_CMAKE_FIND_MPI       "Use CMakes MPI Setup Logic"         ON)
++
+ set(GKLIB_PATH METIS/GKlib CACHE PATH "path to GKlib")
+ set(METIS_PATH METIS CACHE PATH "path to METIS")
+ 
+@@ -9,12 +12,13 @@ set(METIS_PATH METIS CACHE PATH "path to METIS")
+ execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${METIS_PATH} metis)
+ 
+ # Search for MPI.
+-# GK commented this out as it seems to be creating problems
+-# include(FindMPI)
+-# if(NOT MPI_FOUND)
+-#   message(FATAL_ERROR "mpi is not found")
+-# endif()
+-# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${MPI_COMPILE_FLAGS}")
++# cyrush note: only turn this off if you have implicit mpi compilers (ex: craycc)
++if(USE_CMAKE_FIND_MPI)
++  include(FindMPI)
++    if(NOT MPI_FOUND)
++      message(FATAL_ERROR "mpi is not found")
++   endif()
++endif()
+ 
+ # Prepare libraries.
+ if(SHARED)
+@@ -23,6 +27,15 @@ else()
+   set(ParMETIS_LIBRARY_TYPE STATIC)
+ endif()
+ 
++# Configure libmetis library.
++if(SHARED)
++  set(METIS_LIBRARY_TYPE SHARED)
++else()
++  set(METIS_LIBRARY_TYPE STATIC)
++endif(SHARED)
++
++set(METIS_INSTALL TRUE)
++
+ include(${GKLIB_PATH}/GKlibSystem.cmake)
+ 
+ # List of paths that the compiler will search for header files.
+@@ -34,6 +47,7 @@ include_directories(${METIS_PATH}/include)
+ 
+ # List of directories that cmake will look for CMakeLists.txt
+ add_subdirectory(${METIS_PATH}/libmetis ${CMAKE_BINARY_DIR}/libmetis)
++add_subdirectory(${METIS_PATH}/include)
+ add_subdirectory(include)
+ add_subdirectory(libparmetis)
+ add_subdirectory(programs)
+diff --git a/libparmetis/CMakeLists.txt b/libparmetis/CMakeLists.txt
+index 9cfc8a7..4ce05b3 100644
+--- a/libparmetis/CMakeLists.txt
++++ b/libparmetis/CMakeLists.txt
+@@ -4,9 +4,12 @@ include_directories(.)
+ file(GLOB parmetis_sources *.c)
+ # Create libparmetis
+ add_library(parmetis ${ParMETIS_LIBRARY_TYPE} ${parmetis_sources})
++
++target_link_libraries(parmetis metis )
+ # Link with metis and MPI libraries.
+-target_link_libraries(parmetis metis ${MPI_LIBRARIES})
+-set_target_properties(parmetis PROPERTIES LINK_FLAGS "${MPI_LINK_FLAGS}")
++if (TARGET MPI::MPI_C)
++    target_link_libraries(parmetis MPI::MPI_C )
++endif()
+ 
+ install(TARGETS parmetis
+   LIBRARY DESTINATION lib
+diff --git a/metis/include/metis.h b/metis/include/metis.h
+index dc5406a..e951270 100644
+--- a/metis/include/metis.h
++++ b/metis/include/metis.h
+@@ -30,7 +30,7 @@
+  GCC does provides these definitions in stdint.h, but it may require some
+  modifications on other architectures.
+ --------------------------------------------------------------------------*/
+-#define IDXTYPEWIDTH 32
++#define IDXTYPEWIDTH 64
+ 
+ 
+ /*--------------------------------------------------------------------------
+@@ -40,7 +40,7 @@
+    32 : single precission floating point (float)
+    64 : double precission floating point (double)
+ --------------------------------------------------------------------------*/
+-#define REALTYPEWIDTH 32
++#define REALTYPEWIDTH 64
+ 
+ 
+ 
+-- 
+2.54.0 (Apple Git-157)
+
