@@ -62,17 +62,6 @@ private:
     conduit::utils::conduit_info_handler m_prev;
 };
 
-void
-load_silo_verbose_mesh(const Node &opts = Node())
-{
-    Node load_mesh;
-    const std::string filepath =
-        utils::join_file_path("silo", "multi_curv3d.silo");
-    const std::string input_file = relay_test_silo_data_path(filepath);
-
-    io::silo::load_mesh(input_file, opts, load_mesh);
-}
-
 }
 
 //-----------------------------------------------------------------------------
@@ -365,8 +354,13 @@ TEST(conduit_relay_io_silo, read_option_verbose)
 
     io::silo::reset_options();
 
+    const std::string filepath =
+        utils::join_file_path("silo", "multi_curv3d.silo");
+    const std::string input_file = relay_test_silo_data_path(filepath);
+    Node load_mesh;
+
     reset_silo_info_capture();
-    load_silo_verbose_mesh();
+    io::silo::load_mesh(input_file, load_mesh);
     EXPECT_EQ(g_silo_info_count, 0);
 
     Node opts;
@@ -374,13 +368,13 @@ TEST(conduit_relay_io_silo, read_option_verbose)
     io::silo::set_options(opts);
 
     reset_silo_info_capture();
-    load_silo_verbose_mesh();
+    io::silo::load_mesh(input_file, load_mesh);
     EXPECT_GT(g_silo_info_count, 0);
 
     Node read_opts;
     read_opts["verbose"] = "no";
     reset_silo_info_capture();
-    load_silo_verbose_mesh(read_opts);
+    io::silo::load_mesh(input_file, read_opts, load_mesh);
     EXPECT_EQ(g_silo_info_count, 0);
 
     Node curr_opts;
@@ -390,7 +384,7 @@ TEST(conduit_relay_io_silo, read_option_verbose)
     io::silo::reset_options();
     read_opts["verbose"] = "yes";
     reset_silo_info_capture();
-    load_silo_verbose_mesh(read_opts);
+    io::silo::load_mesh(input_file, read_opts, load_mesh);
     EXPECT_GT(g_silo_info_count, 0);
 
     io::silo::options(curr_opts);
@@ -400,7 +394,7 @@ TEST(conduit_relay_io_silo, read_option_verbose)
     io::silo::set_options(opts);
     read_opts["verbose"] = "no";
     read_opts["matset_style"] = "not_a_style";
-    EXPECT_THROW(load_silo_verbose_mesh(read_opts), Error);
+    EXPECT_THROW(io::silo::load_mesh(input_file, read_opts, load_mesh), Error);
 
     io::silo::options(curr_opts);
     EXPECT_EQ(curr_opts["verbose"].as_string(), "yes");
