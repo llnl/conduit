@@ -26,22 +26,19 @@ namespace
 {
 
 int g_silo_info_count = 0;
-std::string g_silo_last_info;
 
 void
-capture_silo_info(const std::string &msg,
+capture_silo_info(const std::string &,
                   const std::string &,
                   int)
 {
     g_silo_info_count++;
-    g_silo_last_info = msg;
 }
 
 void
 reset_silo_info_capture()
 {
     g_silo_info_count = 0;
-    g_silo_last_info.clear();
 }
 
 class SiloInfoHandlerGuard

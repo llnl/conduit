@@ -2332,7 +2332,7 @@ read_variable_domain_mixvals(const T *var_ptr,
     if (! detail::check_var_type(var_ptr->datatype))
     {
         CONDUIT_SILO_INFO("Unsupported datatype " << var_ptr->datatype << " for variable " <<
-                     var_name << ". Skipping.");
+                          var_name << ". Skipping.");
         return;
     }
 
@@ -2442,15 +2442,15 @@ read_variable_domain_helper(const T *var_ptr,
             vartype_str = "DB_POINTVAR";
         }
         CONDUIT_SILO_INFO(vartype_str + " " + var_name + " is not "
-                     "associated with mesh " + bottom_level_mesh_name +
-                     ". Skipping.");
+                          "associated with mesh " + bottom_level_mesh_name +
+                          ". Skipping.");
         return false;
     }
 
     if (! detail::check_var_type(var_ptr->datatype))
     {
         CONDUIT_SILO_INFO("Unsupported datatype " << var_ptr->datatype << " for variable " <<
-                     var_name << ". Skipping.");
+                          var_name << ". Skipping.");
         return false;
     }
 
@@ -2868,8 +2868,8 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
     if (matset_meshname != bottom_level_mesh_name)
     {
         CONDUIT_SILO_INFO("DBmaterial " + matset_name + " is not "
-                     "associated with mesh " + bottom_level_mesh_name +
-                     ". Skipping.");
+                          "associated with mesh " + bottom_level_mesh_name +
+                          ". Skipping.");
         return false;
     }
 
@@ -2880,16 +2880,16 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
          topo_out.has_path("elements/dims/strides")))
     {
         CONDUIT_SILO_INFO("DBmaterial " + matset_name + " is associated with mesh " +
-                     bottom_level_mesh_name + ", which is a Structured (noncollinear) "
-                     "quadmesh. It uses a subset of the coordinates to define the mesh. "
-                     "We map meshes like this to Structured Strided meshes in Blueprint, "
-                     "which expect associated matsets to only provide data for mesh zones "
-                     "that are actually being used by the topology. Silo materials provide "
-                     "data for all mesh zones, whether or not they are being used by the "
-                     "quadmesh. We have opted to not support this case, as to do so would "
-                     "require us to manually remove material set data that corresponds to "
-                     "unused zones. If there is a need for this feature, please contact a "
-                     "Conduit developer. In the meantime, we will skip reading this DBmaterial.");
+                          bottom_level_mesh_name + ", which is a Structured (noncollinear) "
+                          "quadmesh. It uses a subset of the coordinates to define the mesh. "
+                          "We map meshes like this to Structured Strided meshes in Blueprint, "
+                          "which expect associated matsets to only provide data for mesh zones "
+                          "that are actually being used by the topology. Silo materials provide "
+                          "data for all mesh zones, whether or not they are being used by the "
+                          "quadmesh. We have opted to not support this case, as to do so would "
+                          "require us to manually remove material set data that corresponds to "
+                          "unused zones. If there is a need for this feature, please contact a "
+                          "Conduit developer. In the meantime, we will skip reading this DBmaterial.");
         return false;
     }
 
@@ -2927,11 +2927,10 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
 
     if (matset_ptr->allowmat0 != 0)
     {
-        CONDUIT_SILO_INFO(
-            "Material " << matset_name << " for multimesh " << multimesh_name <<
-            " may contain zones with no materials defined on them." <<
-            " We currently do not support this case. Either contact a Conduit developer" <<
-            " or disable DBOPT_ALLOWMAT0 in calls to DBPutMaterial().");
+        CONDUIT_SILO_INFO("Material " << matset_name << " for multimesh " << multimesh_name <<
+                          " may contain zones with no materials defined on them." <<
+                          " We currently do not support this case. Either contact a Conduit developer" <<
+                          " or disable DBOPT_ALLOWMAT0 in calls to DBPutMaterial().");
         return false;
     }
 
@@ -2954,7 +2953,7 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
         if (matset_ptr->nmat <= 0)
         {
             CONDUIT_SILO_INFO("Number of materials is non-positive for material "
-                         << matset_name << " for multimesh " << multimesh_name);
+                              << matset_name << " for multimesh " << multimesh_name);
             return false;
         }
         for (int i = 0; i < matset_ptr->nmat; i ++)
@@ -2993,7 +2992,7 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
         if (matset_ptr->datatype != DB_DOUBLE && matset_ptr->datatype != DB_FLOAT)
         {
             CONDUIT_SILO_INFO("Volume fractions must be doubles or floats." <<
-                         " Unknown type for volume fractions for " << matset_name);
+                              " Unknown type for volume fractions for " << matset_name);
             return false;
         }
     }
@@ -3257,8 +3256,8 @@ read_specset_domain(DBfile* specset_domain_file_to_use,
     if (opts_matset_style != "multi_buffer_full")
     {
         CONDUIT_SILO_INFO("TODO if the matset flavor is not multi_buffer + "
-                     "element_dominant, we currently cannot read species "
-                     "from silo. Please contact a Conduit developer.");
+                          "element_dominant, we currently cannot read species "
+                          "from silo. Please contact a Conduit developer.");
         return false;
     }
 
@@ -3299,7 +3298,7 @@ read_specset_domain(DBfile* specset_domain_file_to_use,
         ! silo_material.has_child("major_order"))
     {
         CONDUIT_SILO_INFO("Attempting to read DBmatspecies " + specset_name +
-                     " but required DBmaterial information is missing. Skipping.");
+                          " but required DBmaterial information is missing. Skipping.");
         return false;
     }
 
@@ -3317,8 +3316,8 @@ read_specset_domain(DBfile* specset_domain_file_to_use,
     if (matset_path != silo_material["matset_path"].as_string())
     {
         CONDUIT_SILO_INFO("DBmatspecies " + specset_name + " is associated "
-                     "with a matset called " + assoc_matname + " which "
-                     "has not been read from Silo. Skipping.");
+                          "with a matset called " + assoc_matname + " which "
+                          "has not been read from Silo. Skipping.");
         return false;
     }
 
@@ -3377,14 +3376,14 @@ read_specset_domain(DBfile* specset_domain_file_to_use,
     if (silo_matnos.number_of_elements() != specset_ptr->nmat)
     {
         CONDUIT_SILO_INFO("Attempting to read DBmatspecies " + specset_name +
-                     " but there is a mismatch with nmat in the associated DBmaterial. Skipping.");
+                          " but there is a mismatch with nmat in the associated DBmaterial. Skipping.");
         return false;
     }
 
     if (specset_ptr->datatype != DB_DOUBLE && specset_ptr->datatype != DB_FLOAT)
     {
         CONDUIT_SILO_INFO("Species mass fractions must be doubles or floats." <<
-                     " Unknown type for mass fractions for " << specset_name);
+                          " Unknown type for mass fractions for " << specset_name);
         return false;
     }
 
@@ -3397,14 +3396,14 @@ read_specset_domain(DBfile* specset_domain_file_to_use,
         nz != silo_material["dims/nz"].as_int())
     {
         CONDUIT_SILO_INFO("Species object dimensions must match the dimensions "
-                     "of the associated material object.");
+                          "of the associated material object.");
         return false;
     }
 
     if (specset_ptr->major_order != silo_material["major_order"].as_int())
     {
         CONDUIT_SILO_INFO("Species object major order must match the major order "
-                     "of the associated material object.");
+                          "of the associated material object.");
         return false;
     }
 
@@ -3674,7 +3673,7 @@ open_or_reuse_file(const bool ovltop_case,
             auto not_valid_overlink = [&]() -> DBfile*
             {
                 CONDUIT_SILO_INFO("Provided file is not valid Overlink; defaulting "
-                             "to absolute path rather than assumed path.")
+                                  "to absolute path rather than assumed path.")
                 // this is not valid overlink so we default to what is in the path
                 domain_filename = old_domain_filename;
 
@@ -3862,7 +3861,7 @@ read_multivars(DBtoc *toc,
             if (nullptr == mvar_ptr->block_ns)
             {
                 CONDUIT_SILO_INFO("Multivar " << multivar_name <<
-                             " is missing var names and namescheme specifiers. Skipping.");
+                                  " is missing var names and namescheme specifiers. Skipping.");
                 continue;
             }
             else
@@ -3895,15 +3894,15 @@ read_multivars(DBtoc *toc,
         if (! multimesh_assoc)
         {
             CONDUIT_SILO_INFO("Multivar " << multivar_name << " is not associated " <<
-                         "with multimesh " << multimesh_name << ". Skipping.");
+                              "with multimesh " << multimesh_name << ". Skipping.");
             continue;
         }
 
         if (mvar_ptr->nvars != nblocks)
         {
             CONDUIT_SILO_INFO("Domain count mismatch between multivar " +
-                         multivar_name + " and multimesh " +
-                         multimesh_name + ". Skipping.");
+                              multivar_name + " and multimesh " +
+                              multimesh_name + ". Skipping.");
             continue;
         }
 
@@ -3998,7 +3997,7 @@ read_multimats(DBtoc *toc,
             if (nullptr == multimat_ptr->block_ns)
             {
                 CONDUIT_SILO_INFO("Multimat " << multimat_name <<
-                             " is missing material names and namescheme specifiers. Skipping.");
+                                  " is missing material names and namescheme specifiers. Skipping.");
                 continue;
             }
             else
@@ -4031,26 +4030,26 @@ read_multimats(DBtoc *toc,
         if (! multimesh_assoc)
         {
             CONDUIT_SILO_INFO("MultiMaterial " << multimat_name << " is not associated " <<
-                         "with multimesh " << multimesh_name << ". Skipping.");
+                              "with multimesh " << multimesh_name << ". Skipping.");
             continue;
         }
 
         if (multimat_ptr->allowmat0 != 0)
         {
             CONDUIT_SILO_INFO("MultiMaterial " << multimat_name <<
-                         " for multimesh " << multimesh_name <<
-                         " may contain zones with no materials defined on them." <<
-                         " We currently do not support this case. Either contact a Conduit developer" <<
-                         " or disable DBOPT_ALLOWMAT0 in calls to DBPutMaterial()." <<
-                         " Skipping this MultiMaterial.");
+                              " for multimesh " << multimesh_name <<
+                              " may contain zones with no materials defined on them." <<
+                              " We currently do not support this case. Either contact a Conduit developer" <<
+                              " or disable DBOPT_ALLOWMAT0 in calls to DBPutMaterial()." <<
+                              " Skipping this MultiMaterial.");
             continue;
         }
 
         if (multimat_ptr->nmats != nblocks)
         {
             CONDUIT_SILO_INFO("Domain count mismatch between multimat " +
-                         multimat_name + " and multimesh " +
-                         multimesh_name + ". Skipping.");
+                              multimat_name + " and multimesh " +
+                              multimesh_name + ". Skipping.");
             continue;
         }
 
@@ -4152,7 +4151,7 @@ read_multimatspecs(DBtoc *toc,
             if (nullptr == multimatspec_ptr->block_ns)
             {
                 CONDUIT_SILO_INFO("Multimatspecies " << multimatspec_name <<
-                             " is missing material species names and namescheme specifiers. Skipping.");
+                                  " is missing material species names and namescheme specifiers. Skipping.");
                 continue;
             }
             else
@@ -4167,8 +4166,8 @@ read_multimatspecs(DBtoc *toc,
         if (multimatspec_ptr->nspec != nblocks)
         {
             CONDUIT_SILO_INFO("Domain count mismatch between multimatspec " +
-                         multimatspec_name + " and multimesh " +
-                         multimesh_name + ". Skipping.");
+                              multimatspec_name + " and multimesh " +
+                              multimesh_name + ". Skipping.");
             continue;
         }
 
