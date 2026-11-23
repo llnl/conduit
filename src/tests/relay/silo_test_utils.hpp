@@ -31,9 +31,18 @@ relay_test_silo_data_path(const std::string &test_fname)
 }
 
 //-----------------------------------------------------------------------------
+// Helper for tests that need to check whether Silo verbose paths emitted any
+// CONDUIT_INFO messages.
+//
+// Conduit exposes info messages through a process-global callback. The Silo
+// verbosity tests only need to count those messages, and they must restore the
+// previous callback afterward so other tests are not affected. This RAII helper
+// installs a counting callback for the lifetime of the object and restores the
+// previous callback in its destructor.
 class SiloInfoCapture
 {
 public:
+    // Save the prior global handler and install the counting handler.
     SiloInfoCapture()
     : m_count(0),
       m_prev_handler(conduit::utils::info_handler()),
@@ -43,21 +52,27 @@ public:
         conduit::utils::set_info_handler(capture_info);
     }
 
+    // The object owns a temporary process-global handler, so copying would make
+    // it unclear which object should restore the previous handler.
     SiloInfoCapture(const SiloInfoCapture &) = delete;
     SiloInfoCapture& operator=(const SiloInfoCapture &) = delete;
 
+    // Restore the global handler so later tests see the same Conduit info
+    // behavior that existed before this capture object was created.
     ~SiloInfoCapture()
     {
         conduit::utils::set_info_handler(m_prev_handler);
         active_capture() = m_prev_capture;
     }
 
+    // Reset the count between individual operations within the same test.
     void
     reset()
     {
         m_count = 0;
     }
 
+    // Number of info messages captured since construction or the last reset.
     int
     count() const
     {
@@ -65,6 +80,9 @@ public:
     }
 
 private:
+    // Conduit's info handler is a plain function pointer, not a functor, so the
+    // callback cannot directly capture "this". active_capture() gives the
+    // callback access to the current SiloInfoCapture instance.
     static void
     capture_info(const std::string &,
                  const std::string &,
@@ -76,6 +94,9 @@ private:
         }
     }
 
+    // Tracks the capture object currently receiving info messages. The saved
+    // previous value lets nested captures restore correctly, although tests
+    // should normally use only one active capture at a time.
     static SiloInfoCapture *&
     active_capture()
     {
@@ -83,8 +104,11 @@ private:
         return current;
     }
 
+    // Count of captured info messages.
     int m_count;
+    // Conduit info handler that was active before this object was constructed.
     conduit::utils::conduit_info_handler m_prev_handler;
+    // Previously active SiloInfoCapture, used to restore active_capture().
     SiloInfoCapture *m_prev_capture;
 };
 

@@ -603,24 +603,13 @@ public:
         }
 
         void
-        set(const Node &opts, bool include_compression = true)
+        set(const Node &opts)
         {
-            if(opts.has_child("verbose") ||
-               (include_compression && opts.has_child("compression")))
+            if(opts.number_of_children() > 0)
             {
                 SiloOptions::about(m_prior_opts);
                 m_opts_set = true;
-
-                Node opts_to_set;
-                if(opts.has_child("verbose"))
-                {
-                    opts_to_set["verbose"].set(opts["verbose"]);
-                }
-                if(include_compression && opts.has_child("compression"))
-                {
-                    opts_to_set["compression"].set(opts["compression"]);
-                }
-                SiloOptions::set(opts_to_set);
+                SiloOptions::set(opts);
             }
         }
 
@@ -5020,8 +5009,14 @@ read_mesh(const std::string &root_file_path,
     int par_size = relay::mpi::size(mpi_comm);
 #endif
 
+    Node silo_opts;
+    if(opts.has_child("verbose"))
+    {
+        silo_opts["verbose"].set(opts["verbose"]);
+    }
+
     SiloOptionsContext silo_options_context;
-    silo_options_context.set(opts, false);
+    silo_options_context.set(silo_opts);
 
     int error = 0;
     std::ostringstream error_oss;
@@ -8693,8 +8688,18 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     bool        opts_truncate             = false;
     int         silo_type                 = DB_HDF5;
 
+    Node silo_opts;
+    if(opts.has_child("verbose"))
+    {
+        silo_opts["verbose"].set(opts["verbose"]);
+    }
+    if(opts.has_child("compression"))
+    {
+        silo_opts["compression"].set(opts["compression"]);
+    }
+
     SiloOptionsContext silo_options_context;
-    silo_options_context.set(opts);
+    silo_options_context.set(silo_opts);
 
     // check for + validate file_style option
     if(opts.has_child("file_style") && opts["file_style"].dtype().is_string())
