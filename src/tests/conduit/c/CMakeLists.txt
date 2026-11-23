@@ -10,7 +10,8 @@ set(C_TESTS
     t_c_conduit_smoke
     t_c_conduit_node
     t_c_conduit_node_set
-    t_c_conduit_datatype)
+    t_c_conduit_datatype
+    t_c_conduit_schema)
 
 ################################
 # Add our tests
@@ -21,5 +22,4 @@ foreach(TEST ${C_TESTS})
                  DEPENDS_ON conduit
                  FOLDER tests/conduit/c)
 endforeach()
-
 
