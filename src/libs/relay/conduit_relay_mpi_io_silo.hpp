@@ -53,31 +53,6 @@ namespace io
 #include "conduit_relay_io_silo_api.hpp"
 
 //-----------------------------------------------------------------------------
-/// Pass a Node to set Silo mesh reader/writer options.
-///
-/// opts:
-///      verbose: "yes", "no"
-///          "no" suppresses informational messages from Silo mesh reads and
-///          writes.
-///          Default is "no".
-///
-///      compression: silo compression options string
-///          Passed to Silo's DBSetCompression method during mesh writes.
-///          Default is "NULL", which disables Silo DB compression.
-//-----------------------------------------------------------------------------
-void CONDUIT_RELAY_API silo_set_options(const conduit::Node &opts);
-
-//-----------------------------------------------------------------------------
-/// Reset Silo mesh reader/writer options to defaults.
-//-----------------------------------------------------------------------------
-void CONDUIT_RELAY_API silo_reset_options();
-
-//-----------------------------------------------------------------------------
-/// Get a Node that contains Silo mesh reader/writer options.
-//-----------------------------------------------------------------------------
-void CONDUIT_RELAY_API silo_options(conduit::Node &opts);
-
-//-----------------------------------------------------------------------------
 // -- begin <>::silo --
 //-----------------------------------------------------------------------------
 namespace silo
