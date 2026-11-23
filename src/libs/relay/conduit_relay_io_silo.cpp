@@ -591,15 +591,18 @@ class SiloOptionsContext
 {
 public:
         SiloOptionsContext()
-        : m_opts_set(false),
-          m_prior_opts()
+        : m_prior_opts()
         {
             // empty
         }
 
        ~SiloOptionsContext()
         {
-            restore();
+            if(!m_prior_opts.dtype().is_empty())
+            {
+                SiloOptions::set(m_prior_opts);
+                m_prior_opts.reset();
+            }
         }
 
         void
@@ -608,25 +611,15 @@ public:
             if(opts.number_of_children() > 0)
             {
                 SiloOptions::about(m_prior_opts);
-                m_opts_set = true;
                 SiloOptions::set(opts);
             }
-        }
-
-        void
-        restore()
-        {
-            if(m_opts_set)
+            else
             {
-                SiloOptions::set(m_prior_opts);
+                m_prior_opts.reset();
             }
-
-            m_opts_set = false;
-            m_prior_opts.reset();
         }
 
 private:
-    bool m_opts_set;
     Node m_prior_opts;
 };
 
