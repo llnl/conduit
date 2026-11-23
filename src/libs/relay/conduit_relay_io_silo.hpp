@@ -45,12 +45,6 @@ namespace io
 #include "conduit_relay_io_silo_api.hpp"
 
 //-----------------------------------------------------------------------------
-// -- begin <>::silo --
-//-----------------------------------------------------------------------------
-namespace silo
-{
-
-//-----------------------------------------------------------------------------
 /// Pass a Node to set Silo mesh reader/writer options.
 ///
 /// opts:
@@ -63,17 +57,23 @@ namespace silo
 ///          Passed to Silo's DBSetCompression method during mesh writes.
 ///          Default is "NULL", which disables Silo DB compression.
 //-----------------------------------------------------------------------------
-void CONDUIT_RELAY_API set_options(const conduit::Node &opts);
+void CONDUIT_RELAY_API silo_set_options(const conduit::Node &opts);
 
 //-----------------------------------------------------------------------------
 /// Reset Silo mesh reader/writer options to defaults.
 //-----------------------------------------------------------------------------
-void CONDUIT_RELAY_API reset_options();
+void CONDUIT_RELAY_API silo_reset_options();
 
 //-----------------------------------------------------------------------------
 /// Get a Node that contains Silo mesh reader/writer options.
 //-----------------------------------------------------------------------------
-void CONDUIT_RELAY_API options(conduit::Node &opts);
+void CONDUIT_RELAY_API silo_options(conduit::Node &opts);
+
+//-----------------------------------------------------------------------------
+// -- begin <>::silo --
+//-----------------------------------------------------------------------------
+namespace silo
+{
 
 //-----------------------------------------------------------------------------
 // Write a blueprint mesh to silo
@@ -132,12 +132,12 @@ void CONDUIT_RELAY_API write_mesh(const conduit::Node &mesh,
 ///
 ///      verbose: "yes", "no"
 ///            "no" suppresses informational messages from the Silo mesh writer.
-///            If present, this temporarily overrides silo::options()["verbose"]
+///            If present, this temporarily overrides the Silo verbose option
 ///            for this write and restores the previous value before returning.
 ///
 ///      compression: silo compression options string
 ///            If present, this temporarily overrides
-///            silo::options()["compression"] for this write and restores the
+///            the Silo compression option for this write and restores the
 ///            previous value before returning.
 ///
 /// Note:
@@ -217,12 +217,12 @@ void CONDUIT_RELAY_API save_mesh(const conduit::Node &mesh,
 ///
 ///      verbose: "yes", "no"
 ///            "no" suppresses informational messages from the Silo mesh writer.
-///            If present, this temporarily overrides silo::options()["verbose"]
+///            If present, this temporarily overrides the Silo verbose option
 ///            for this write and restores the previous value before returning.
 ///
 ///      compression: silo compression options string
 ///            If present, this temporarily overrides
-///            silo::options()["compression"] for this write and restores the
+///            the Silo compression option for this write and restores the
 ///            previous value before returning.
 ///
 /// Note:
@@ -269,7 +269,7 @@ void CONDUIT_RELAY_API load_mesh(const std::string &root_file_path,
 ///
 ///      verbose: "yes", "no"
 ///            "no" suppresses informational messages from the Silo mesh reader.
-///            If present, this temporarily overrides silo::options()["verbose"]
+///            If present, this temporarily overrides the Silo verbose option
 ///            for this read and restores the previous value before returning.
 ///
 //-----------------------------------------------------------------------------
@@ -301,7 +301,7 @@ void CONDUIT_RELAY_API read_mesh(const std::string &root_file_path,
 ///
 ///      verbose: "yes", "no"
 ///            "no" suppresses informational messages from the Silo mesh reader.
-///            If present, this temporarily overrides silo::options()["verbose"]
+///            If present, this temporarily overrides the Silo verbose option
 ///            for this read and restores the previous value before returning.
 ///
 //-----------------------------------------------------------------------------

@@ -507,7 +507,7 @@ namespace silo
 // Private class used to hold options that control Silo mesh reading and
 // writing.
 //
-// These values are read by options(), and are set by silo::set_options().
+// These values are read by silo_options(), and are set by silo_set_options().
 //-----------------------------------------------------------------------------
 class SiloOptions
 {
@@ -647,27 +647,6 @@ private:
     {                                                               \
         CONDUIT_INFO( msg );                                        \
     }                                                               \
-}
-
-//-----------------------------------------------------------------------------
-void
-set_options(const Node &opts)
-{
-    SiloOptions::set(opts);
-}
-
-//-----------------------------------------------------------------------------
-void
-options(Node &opts)
-{
-    SiloOptions::about(opts);
-}
-
-//-----------------------------------------------------------------------------
-void
-reset_options()
-{
-    SiloOptions::reset();
 }
 
 //-----------------------------------------------------------------------------
@@ -5026,7 +5005,7 @@ read_root_silo_index(const std::string &root_file_path,
 ///
 ///      verbose: "yes", "no"
 ///            "no" suppresses informational messages from the Silo mesh reader.
-///            If present, this temporarily overrides silo::options()["verbose"]
+///            If present, this temporarily overrides the Silo verbose option
 ///            for this read and restores the previous value before returning.
 //-----------------------------------------------------------------------------
 void CONDUIT_RELAY_API
@@ -5651,7 +5630,7 @@ void load_mesh(const std::string &root_file_path,
 ///
 ///      verbose: "yes", "no"
 ///            "no" suppresses informational messages from the Silo mesh reader.
-///            If present, this temporarily overrides silo::options()["verbose"]
+///            If present, this temporarily overrides the Silo verbose option
 ///            for this read and restores the previous value before returning.
 //-----------------------------------------------------------------------------
 void load_mesh(const std::string &root_file_path,
@@ -8667,12 +8646,12 @@ write_dom2filemap(DBfile *dbfile,
 ///            If present this string is passed to Silo's DBSetCompression
 ///            method before write, and prior compression are restored after
 ///            write. If present, this temporarily overrides
-///            silo::options()["compression"] for this write and restores the
+///            the Silo compression option for this write and restores the
 ///            previous value before returning.
 ///
 ///      verbose: "yes", "no"
 ///            "no" suppresses informational messages from the Silo mesh writer.
-///            If present, this temporarily overrides silo::options()["verbose"]
+///            If present, this temporarily overrides the Silo verbose option
 ///            for this write and restores the previous value before returning.
 ///
 ///      number_of_files:  {# of files}
@@ -10558,12 +10537,12 @@ void CONDUIT_RELAY_API save_mesh(const Node &mesh,
 ///
 ///      compression:  silo compression options string
 ///            If present, this temporarily overrides
-///            silo::options()["compression"] for this write and restores the
+///            the Silo compression option for this write and restores the
 ///            previous value before returning.
 ///
 ///      verbose: "yes", "no"
 ///            "no" suppresses informational messages from the Silo mesh writer.
-///            If present, this temporarily overrides silo::options()["verbose"]
+///            If present, this temporarily overrides the Silo verbose option
 ///            for this write and restores the previous value before returning.
 ///
 ///      number_of_files:  {# of files}
@@ -10607,6 +10586,27 @@ void CONDUIT_RELAY_API save_mesh(const Node &mesh,
 //-----------------------------------------------------------------------------
 // -- end conduit::relay::<mpi>::io::silo --
 //-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+void
+silo_set_options(const Node &opts)
+{
+    silo::SiloOptions::set(opts);
+}
+
+//-----------------------------------------------------------------------------
+void
+silo_options(Node &opts)
+{
+    silo::SiloOptions::about(opts);
+}
+
+//-----------------------------------------------------------------------------
+void
+silo_reset_options()
+{
+    silo::SiloOptions::reset();
+}
 
 #undef CONDUIT_SILO_INFO
 
