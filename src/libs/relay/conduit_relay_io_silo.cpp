@@ -69,6 +69,19 @@
 }                                                                   \
 
 //-----------------------------------------------------------------------------
+//
+/// The CONDUIT_SILO_INFO macro wraps CONDUIT_INFO behind checking the verbose
+/// option.
+//-----------------------------------------------------------------------------
+#define CONDUIT_SILO_INFO( msg )                                    \
+{                                                                   \
+    if(SiloOptions::verbose_enabled())                              \
+    {                                                               \
+        CONDUIT_INFO( msg );                                        \
+    }                                                               \
+}
+
+//-----------------------------------------------------------------------------
 // -- begin conduit:: --
 //-----------------------------------------------------------------------------
 namespace conduit
@@ -498,12 +511,6 @@ silo_close_file(DBfile *silo_handle)
 
 
 //-----------------------------------------------------------------------------
-// -- begin conduit::relay::<mpi>::io::silo --
-//-----------------------------------------------------------------------------
-namespace silo
-{
-
-//-----------------------------------------------------------------------------
 // Private class used to hold options that control Silo mesh reading and
 // writing.
 //
@@ -515,6 +522,7 @@ public:
     static std::string verbose;
     static std::string compression;
 
+    //------------------------------------------------------------------------
     static void
     set(const Node &opts)
     {
@@ -550,6 +558,7 @@ public:
         }
     }
 
+    //------------------------------------------------------------------------
     static void
     about(Node &opts)
     {
@@ -623,13 +632,11 @@ private:
     Node m_prior_opts;
 };
 
-#define CONDUIT_SILO_INFO( msg )                              \
-{                                                                   \
-    if(SiloOptions::verbose_enabled())                              \
-    {                                                               \
-        CONDUIT_INFO( msg );                                        \
-    }                                                               \
-}
+//-----------------------------------------------------------------------------
+// -- begin conduit::relay::<mpi>::io::silo --
+//-----------------------------------------------------------------------------
+namespace silo
+{
 
 //-----------------------------------------------------------------------------
 // -- begin conduit::relay::<mpi>::io::silo::detail --
@@ -10589,21 +10596,21 @@ void CONDUIT_RELAY_API save_mesh(const Node &mesh,
 void
 silo_set_options(const Node &opts)
 {
-    silo::SiloOptions::set(opts);
+    SiloOptions::set(opts);
 }
 
 //-----------------------------------------------------------------------------
 void
 silo_options(Node &opts)
 {
-    silo::SiloOptions::about(opts);
+    SiloOptions::about(opts);
 }
 
 //-----------------------------------------------------------------------------
 void
 silo_reset_options()
 {
-    silo::SiloOptions::reset();
+    SiloOptions::reset();
 }
 
 #undef CONDUIT_SILO_INFO
