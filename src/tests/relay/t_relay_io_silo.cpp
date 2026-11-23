@@ -211,30 +211,47 @@ TEST(conduit_relay_io_silo, round_trip_avoid_name_collisions)
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_silo, options_verbose)
 {
-    Node def_opts, opts, info;
+    Node default_opts, verbose_opts, current_opts;
 
     io::silo_reset_options();
-    io::silo_options(def_opts);
-    EXPECT_EQ(def_opts["verbose"].as_string(), "no");
-    EXPECT_EQ(def_opts["compression"].as_string(), "NULL");
+    io::silo_options(default_opts);
+    EXPECT_EQ(default_opts["verbose"].as_string(), "no");
 
-    opts["verbose"] = "yes";
-    opts["compression"] = "METHOD=GZIP LEVEL=9";
-    io::silo_set_options(opts);
-    io::silo_options(opts);
-    EXPECT_EQ(opts["verbose"].as_string(), "yes");
-    EXPECT_EQ(opts["compression"].as_string(), "METHOD=GZIP LEVEL=9");
-    EXPECT_TRUE(def_opts.diff(opts, info));
+    verbose_opts["verbose"] = "yes";
+    io::silo_set_options(verbose_opts);
+    io::silo_options(current_opts);
+    EXPECT_EQ(current_opts["verbose"].as_string(), "yes");
 
     io::silo_reset_options();
-    io::silo_options(opts);
-    EXPECT_FALSE(def_opts.diff(opts, info));
+    io::silo_options(current_opts);
+    EXPECT_EQ(current_opts["verbose"].as_string(), "no");
 
     Node invalid_opts;
     invalid_opts["verbose"] = "maybe";
     EXPECT_THROW(io::silo_set_options(invalid_opts), Error);
 
-    invalid_opts.reset();
+    io::silo_reset_options();
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_relay_io_silo, options_compression)
+{
+    Node default_opts, compression_opts, current_opts;
+
+    io::silo_reset_options();
+    io::silo_options(default_opts);
+    EXPECT_EQ(default_opts["compression"].as_string(), "NULL");
+
+    compression_opts["compression"] = "METHOD=GZIP LEVEL=9";
+    io::silo_set_options(compression_opts);
+    io::silo_options(current_opts);
+    EXPECT_EQ(current_opts["compression"].as_string(), "METHOD=GZIP LEVEL=9");
+
+    io::silo_reset_options();
+    io::silo_options(current_opts);
+    EXPECT_EQ(current_opts["compression"].as_string(), "NULL");
+
+    Node invalid_opts;
     invalid_opts["compression"] = 42;
     EXPECT_THROW(io::silo_set_options(invalid_opts), Error);
 
