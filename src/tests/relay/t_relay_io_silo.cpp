@@ -22,45 +22,6 @@ using namespace conduit;
 using namespace conduit::utils;
 using namespace conduit::relay;
 
-namespace
-{
-
-int g_silo_info_count = 0;
-
-void
-capture_silo_info(const std::string &,
-                  const std::string &,
-                  int)
-{
-    g_silo_info_count++;
-}
-
-void
-reset_silo_info_capture()
-{
-    g_silo_info_count = 0;
-}
-
-class SiloInfoHandlerGuard
-{
-public:
-    SiloInfoHandlerGuard()
-    : m_prev(conduit::utils::info_handler())
-    {
-        conduit::utils::set_info_handler(capture_silo_info);
-    }
-
-    ~SiloInfoHandlerGuard()
-    {
-        conduit::utils::set_info_handler(m_prev);
-    }
-
-private:
-    conduit::utils::conduit_info_handler m_prev;
-};
-
-}
-
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_silo, conduit_silo_cold_storage)
 {
@@ -283,7 +244,7 @@ TEST(conduit_relay_io_silo, options_verbose)
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_silo, write_option_verbose)
 {
-    SiloInfoHandlerGuard info_handler_guard;
+    SiloInfoCapture info_capture;
 
     io::silo::reset_options();
 
@@ -294,26 +255,26 @@ TEST(conduit_relay_io_silo, write_option_verbose)
     save_mesh["specsets"]["specset"].set(save_mesh["specsets"]["mesh"]);
     save_mesh["specsets"]["specset"]["matset"].set("matset");
 
-    reset_silo_info_capture();
+    info_capture.reset();
     remove_path_if_exists("silo_write_option_verbose_default_quiet.cycle_000100.root");
     io::silo::save_mesh(save_mesh, "silo_write_option_verbose_default_quiet");
-    EXPECT_EQ(g_silo_info_count, 0);
+    EXPECT_EQ(info_capture.count(), 0);
 
     Node opts;
     opts["verbose"] = "yes";
     io::silo::set_options(opts);
 
-    reset_silo_info_capture();
+    info_capture.reset();
     remove_path_if_exists("silo_write_option_verbose_global_yes.cycle_000100.root");
     io::silo::save_mesh(save_mesh, "silo_write_option_verbose_global_yes");
-    EXPECT_GT(g_silo_info_count, 0);
+    EXPECT_GT(info_capture.count(), 0);
 
     Node write_opts;
     write_opts["verbose"] = "no";
-    reset_silo_info_capture();
+    info_capture.reset();
     remove_path_if_exists("silo_write_option_verbose_call_no.cycle_000100.root");
     io::silo::save_mesh(save_mesh, "silo_write_option_verbose_call_no", write_opts);
-    EXPECT_EQ(g_silo_info_count, 0);
+    EXPECT_EQ(info_capture.count(), 0);
 
     Node curr_opts;
     io::silo::options(curr_opts);
@@ -321,10 +282,10 @@ TEST(conduit_relay_io_silo, write_option_verbose)
 
     io::silo::reset_options();
     write_opts["verbose"] = "yes";
-    reset_silo_info_capture();
+    info_capture.reset();
     remove_path_if_exists("silo_write_option_verbose_call_yes.cycle_000100.root");
     io::silo::save_mesh(save_mesh, "silo_write_option_verbose_call_yes", write_opts);
-    EXPECT_GT(g_silo_info_count, 0);
+    EXPECT_GT(info_capture.count(), 0);
 
     io::silo::options(curr_opts);
     EXPECT_EQ(curr_opts["verbose"].as_string(), "no");
@@ -347,7 +308,7 @@ TEST(conduit_relay_io_silo, write_option_verbose)
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_silo, read_option_verbose)
 {
-    SiloInfoHandlerGuard info_handler_guard;
+    SiloInfoCapture info_capture;
 
     io::silo::reset_options();
 
@@ -356,23 +317,23 @@ TEST(conduit_relay_io_silo, read_option_verbose)
     const std::string input_file = relay_test_silo_data_path(filepath);
     Node load_mesh;
 
-    reset_silo_info_capture();
+    info_capture.reset();
     io::silo::load_mesh(input_file, load_mesh);
-    EXPECT_EQ(g_silo_info_count, 0);
+    EXPECT_EQ(info_capture.count(), 0);
 
     Node opts;
     opts["verbose"] = "yes";
     io::silo::set_options(opts);
 
-    reset_silo_info_capture();
+    info_capture.reset();
     io::silo::load_mesh(input_file, load_mesh);
-    EXPECT_GT(g_silo_info_count, 0);
+    EXPECT_GT(info_capture.count(), 0);
 
     Node read_opts;
     read_opts["verbose"] = "no";
-    reset_silo_info_capture();
+    info_capture.reset();
     io::silo::load_mesh(input_file, read_opts, load_mesh);
-    EXPECT_EQ(g_silo_info_count, 0);
+    EXPECT_EQ(info_capture.count(), 0);
 
     Node curr_opts;
     io::silo::options(curr_opts);
@@ -380,9 +341,9 @@ TEST(conduit_relay_io_silo, read_option_verbose)
 
     io::silo::reset_options();
     read_opts["verbose"] = "yes";
-    reset_silo_info_capture();
+    info_capture.reset();
     io::silo::load_mesh(input_file, read_opts, load_mesh);
-    EXPECT_GT(g_silo_info_count, 0);
+    EXPECT_GT(info_capture.count(), 0);
 
     io::silo::options(curr_opts);
     EXPECT_EQ(curr_opts["verbose"].as_string(), "no");

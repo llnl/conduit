@@ -31,6 +31,64 @@ relay_test_silo_data_path(const std::string &test_fname)
 }
 
 //-----------------------------------------------------------------------------
+class SiloInfoCapture
+{
+public:
+    SiloInfoCapture()
+    : m_count(0),
+      m_prev_handler(conduit::utils::info_handler()),
+      m_prev_capture(active_capture())
+    {
+        active_capture() = this;
+        conduit::utils::set_info_handler(capture_info);
+    }
+
+    SiloInfoCapture(const SiloInfoCapture &) = delete;
+    SiloInfoCapture& operator=(const SiloInfoCapture &) = delete;
+
+    ~SiloInfoCapture()
+    {
+        conduit::utils::set_info_handler(m_prev_handler);
+        active_capture() = m_prev_capture;
+    }
+
+    void
+    reset()
+    {
+        m_count = 0;
+    }
+
+    int
+    count() const
+    {
+        return m_count;
+    }
+
+private:
+    static void
+    capture_info(const std::string &,
+                 const std::string &,
+                 int)
+    {
+        if (active_capture() != nullptr)
+        {
+            active_capture()->m_count++;
+        }
+    }
+
+    static SiloInfoCapture *&
+    active_capture()
+    {
+        static SiloInfoCapture *current = nullptr;
+        return current;
+    }
+
+    int m_count;
+    conduit::utils::conduit_info_handler m_prev_handler;
+    SiloInfoCapture *m_prev_capture;
+};
+
+//-----------------------------------------------------------------------------
 // The Blueprint to Silo to Blueprint round trip will
 // transform uniform to rectilinear so we will do the same
 // to allow diffs to succeed
