@@ -38,6 +38,7 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 
 #### Relay
 - Fixed the HDF5 link libraries exported with Conduit's CMake targets when HDF5 provides no CMake targets: system libraries in the compiler's implicit link directories (e.g. `m`, `dl` and `pthread` in a sysroot) are linked by name, not by absolute paths that may not exist where Conduit is used.
+- Fixed the Blueprint and Silo writers so that they use the MPI version of Blueprint index generation, benefiting from the Blueprint index generation fixes in Conduit 0.9.10 related to multi-buffer material dominant material sets split over multiple domains.
 
 ## [0.9.10] - Released 2026-11-02
 
