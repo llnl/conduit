@@ -3557,8 +3557,6 @@ TEST(conduit_relay_io_silo, read_option_verbose)
 
     io::silo_reset_options();
 
-
-
     const std::string filepath = utils::join_file_path("silo", "multi_curv3d.silo");
     const std::string input_file = relay_test_silo_data_path(filepath);
 
@@ -3999,6 +3997,7 @@ TEST(conduit_relay_io_silo, compression_opts)
     std::string ofbase = "tout_silo_write_compression_test_null_options";
     std::string ofile_no_compression = ofbase + ".cycle_000100.root";
     DBSetCompression(NULL);
+    EXPECT_EQ(ofile_no_compression, io::blueprint::generate_root_filename(mesh, ofbase, "silo"));
     io::silo::save_mesh(mesh, ofbase);
 
     // create a copy of the mesh with name changes for diffing later
@@ -4047,6 +4046,11 @@ TEST(conduit_relay_io_silo, compression_opts)
                   << " result file: " << ofile << std::endl;
 
         write_opts["compression"] = case_opts;
+        EXPECT_EQ(ofile,
+                  io::blueprint::generate_root_filename(mesh,
+                                                        ofbase,
+                                                        "silo",
+                                                        write_opts));
         io::silo::save_mesh(mesh, ofbase, write_opts);
 
         // again, expect clean slate
@@ -4065,8 +4069,10 @@ TEST(conduit_relay_io_silo, compression_opts)
     }
 
     // check relative file size for known compression cases
-    int64 tout_std_fs = utils::file_size( "tout_silo_write_compression_test_null_options.cycle_000100.root");
-    int64 tout_cmp_fs = utils::file_size("tout_silo_write_compression_test_gzip_l9.cycle_000100.root");
+    const int64 tout_std_fs = 
+        utils::file_size("tout_silo_write_compression_test_null_options.cycle_000100.root");
+    const int64 tout_cmp_fs = 
+        utils::file_size("tout_silo_write_compression_test_gzip_l9.cycle_000100.root");
 
     CONDUIT_INFO("no compression file size (bytes) = "
                  << tout_std_fs
@@ -4074,36 +4080,67 @@ TEST(conduit_relay_io_silo, compression_opts)
                  << tout_cmp_fs);
     EXPECT_TRUE(tout_cmp_fs < tout_std_fs);
 
-    write_opts.reset();
-    write_opts["compression"] = "METHOD=GZIP LEVEL=9";
-    io::silo_set_options(write_opts);
+    // The loop above covers per-call compression; these cases cover persistent
+    // Silo compression options.
+    int64 tout_global_cmp_fs = 0;
 
-    Node curr_opts;
-    io::silo_options(curr_opts);
-    EXPECT_EQ(curr_opts["compression"].as_string(), "METHOD=GZIP LEVEL=9");
+    // Persistent gzip should affect a save with no per-call compression opts.
+    {
+        Node global_opts;
+        global_opts["compression"] = "METHOD=GZIP LEVEL=9";
+        io::silo_set_options(global_opts);
 
-    ofbase = "tout_silo_write_compression_test_global_gzip_l9";
-    std::string ofile_global = ofbase + ".cycle_000100.root";
-    io::silo::save_mesh(mesh, ofbase);
-    EXPECT_TRUE(DBGetCompression() == NULL);
+        Node curr_opts;
+        io::silo_options(curr_opts);
+        EXPECT_EQ(curr_opts["compression"].as_string(), "METHOD=GZIP LEVEL=9");
 
-    int64 tout_global_cmp_fs = utils::file_size(ofile_global);
-    EXPECT_TRUE(tout_global_cmp_fs < tout_std_fs);
+        ofbase = "tout_silo_write_compression_test_global_gzip_l9";
+        const std::string ofile_global = ofbase + ".cycle_000100.root";
+        EXPECT_EQ(ofile_global,
+                  io::blueprint::generate_root_filename(mesh, ofbase, "silo"));
+        io::silo::save_mesh(mesh, ofbase);
 
-    write_opts.reset();
-    write_opts["compression"] = "NULL";
+        // save_mesh should restore Silo's own global compression setting.
+        EXPECT_TRUE(DBGetCompression() == NULL);
 
-    ofbase = "tout_silo_write_compression_test_global_override_null";
-    std::string ofile_global_override = ofbase + ".cycle_000100.root";
-    io::silo::save_mesh(mesh, ofbase, write_opts);
-    EXPECT_TRUE(DBGetCompression() == NULL);
+        // The output should look compressed.
+        tout_global_cmp_fs = utils::file_size(ofile_global);
+        EXPECT_TRUE(tout_global_cmp_fs < tout_std_fs);
+    }
 
-    io::silo_options(curr_opts);
-    EXPECT_EQ(curr_opts["compression"].as_string(), "METHOD=GZIP LEVEL=9");
+    // A per-call NULL override should temporarily disable persistent gzip.
+    {
+        io::silo_reset_options();
+        Node global_opts;
+        global_opts["compression"] = "METHOD=GZIP LEVEL=9";
+        io::silo_set_options(global_opts);
 
-    int64 tout_global_override_fs = utils::file_size(ofile_global_override);
-    EXPECT_TRUE(tout_global_cmp_fs < tout_global_override_fs);
+        Node override_opts;
+        override_opts["compression"] = "NULL";
 
+        ofbase = "tout_silo_write_compression_test_global_override_null";
+        const std::string ofile_global_override = ofbase + ".cycle_000100.root";
+        EXPECT_EQ(ofile_global_override,
+                  io::blueprint::generate_root_filename(mesh,
+                                                        ofbase,
+                                                        "silo",
+                                                        override_opts));
+        io::silo::save_mesh(mesh, ofbase, override_opts);
+
+        // save_mesh should restore Silo's own global compression setting.
+        EXPECT_TRUE(DBGetCompression() == NULL);
+
+        // The persistent Conduit option should survive the per-call override.
+        Node curr_opts;
+        io::silo_options(curr_opts);
+        EXPECT_EQ(curr_opts["compression"].as_string(), "METHOD=GZIP LEVEL=9");
+
+        // The override output should look uncompressed.
+        const int64 tout_global_override_fs = utils::file_size(ofile_global_override);
+        EXPECT_TRUE(tout_global_cmp_fs < tout_global_override_fs);
+    }
+
+    // Leave the static Silo options in their defaults for subsequent tests.
     io::silo_reset_options();
 }
 
