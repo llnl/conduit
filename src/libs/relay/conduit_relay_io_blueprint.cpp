@@ -1623,15 +1623,20 @@ void write_mesh(const Node &mesh,
     // generate the bp index
     Node bp_idx;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    // Collective call: all ranks must enter, including ranks with no domains.
+    // The MPI index generator guards the local serial index work internally.
     ::conduit::blueprint::mpi::mesh::generate_index(multi_dom,
                                                     opts_mesh_name,
                                                     bp_idx[opts_mesh_name],
                                                     mpi_comm);
 #else
-    ::conduit::blueprint::mesh::generate_index(multi_dom,
-                                               opts_mesh_name,
-                                               global_num_domains,
-                                               bp_idx[opts_mesh_name]);
+    if(local_num_domains > 0)
+    {
+        ::conduit::blueprint::mesh::generate_index(multi_dom,
+                                                   opts_mesh_name,
+                                                   global_num_domains,
+                                                   bp_idx[opts_mesh_name]);
+    }
 #endif
 
     // root_file_writer will now write out the root file
