@@ -1167,6 +1167,13 @@ TEST(blueprint_mpi_relay, global_matset_map_in_root_index)
     }
     MPI_Barrier(comm);
 
+    EXPECT_EQ(tout_root,
+              relay::mpi::io::blueprint::generate_root_filename(mesh_part,
+                                                                 tout_base,
+                                                                 "hdf5",
+                                                                 opts,
+                                                                 comm));
+
     relay::mpi::io::blueprint::save_mesh(mesh_part,
                                          tout_base,
                                          "hdf5",
