@@ -1102,6 +1102,11 @@ TEST(blueprint_mpi_relay, test_sparse_domains_case_3)
 
 
 //-----------------------------------------------------------------------------
+// This mirrors the setup from t_blueprint_mpi_mesh_verify.cpp's
+// TEST(blueprint_mpi_smoke, cross_domain_index_matmap_gen_2_domain):
+// split a multi-buffer matset across ranks so each rank only sees part of the
+// material set. Here, we save through Relay and inspect the root index to make
+// sure it uses the global MPI-generated material_map.
 TEST(blueprint_mpi_relay, global_matset_map_in_root_index)
 {
     Node io_protos;
