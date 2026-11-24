@@ -12,7 +12,6 @@ jobs:
       matrix:
         include:
           - name: shared
-            container: alpinedav/ascent-devel:ubuntu-22.04-cuda-12.8.1-x86_64
             env:
               cc: gcc
               cxx: g++
