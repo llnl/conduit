@@ -1102,6 +1102,99 @@ TEST(blueprint_mpi_relay, test_sparse_domains_case_3)
 
 
 //-----------------------------------------------------------------------------
+TEST(blueprint_mpi_relay, global_matset_map_in_root_index)
+{
+    Node io_protos;
+    relay::io::about(io_protos["io"]);
+    bool hdf5_enabled = io_protos["io/protocols/hdf5"].as_string() == "enabled";
+    if(!hdf5_enabled)
+    {
+        CONDUIT_INFO("HDF5 disabled, skipping global_matset_map_in_root_index test");
+        return;
+    }
+
+    MPI_Comm comm = MPI_COMM_WORLD;
+    int par_rank = mpi::rank(comm);
+
+    Node mesh;
+    blueprint::mesh::examples::venn("sparse_by_material",
+                                    4,
+                                    4,
+                                    0.15,
+                                    mesh);
+
+    mesh["fields"].remove_child("radius_a");
+    mesh["fields"].remove_child("radius_b");
+    mesh["fields"].remove_child("radius_c");
+    mesh["fields"].remove_child("overlap");
+    mesh["fields"].remove_child("circle_a");
+    mesh["fields"].remove_child("circle_b");
+    mesh["fields"].remove_child("circle_c");
+    mesh["fields"].remove_child("background");
+
+    Node mesh_part;
+    Node part_opts;
+    part_opts["target"] = 2;
+    blueprint::mesh::partition(mesh, part_opts, mesh_part);
+
+    if(par_rank == 0)
+    {
+        mesh_part.remove(1);
+        mesh_part[0]["matsets/matset/volume_fractions"].remove_child("circle_b");
+        mesh_part[0]["matsets/matset/volume_fractions"].remove_child("circle_c");
+        mesh_part[0]["matsets/matset/element_ids"].remove_child("circle_b");
+        mesh_part[0]["matsets/matset/element_ids"].remove_child("circle_c");
+    }
+    else
+    {
+        mesh_part.remove(0);
+        mesh_part[0]["matsets/matset/volume_fractions"].remove_child("circle_a");
+        mesh_part[0]["matsets/matset/element_ids"].remove_child("circle_a");
+    }
+
+    Node verify_info;
+    EXPECT_TRUE(blueprint::mesh::verify(mesh_part, verify_info));
+
+    Node opts;
+    opts["suffix"] = "none";
+    const std::string tout_base = "tout_relay_mpi_global_matset_map";
+    const std::string tout_root = tout_base + ".root";
+
+    if(par_rank == 0)
+    {
+        remove_path_if_exists(tout_root);
+        remove_path_if_exists(tout_base);
+    }
+    MPI_Barrier(comm);
+
+    relay::mpi::io::blueprint::save_mesh(mesh_part,
+                                         tout_base,
+                                         "hdf5",
+                                         opts,
+                                         comm);
+
+    if(par_rank == 0)
+    {
+        Node root;
+        relay::io::load(tout_root, "hdf5", root);
+
+        const Node &material_map =
+            root["blueprint_index/mesh/matsets/matset/material_map"];
+
+        EXPECT_TRUE(material_map.has_child("background"));
+        EXPECT_EQ(material_map["background"].to_int(), 0);
+        EXPECT_TRUE(material_map.has_child("circle_a"));
+        EXPECT_EQ(material_map["circle_a"].to_int(), 1);
+        EXPECT_TRUE(material_map.has_child("circle_b"));
+        EXPECT_EQ(material_map["circle_b"].to_int(), 2);
+        EXPECT_TRUE(material_map.has_child("circle_c"));
+        EXPECT_EQ(material_map["circle_c"].to_int(), 3);
+    }
+    MPI_Barrier(comm);
+}
+
+
+//-----------------------------------------------------------------------------
 TEST(blueprint_mpi_relay, spiral_multi_file_yaml_json_hdf5_silo)
 {
     Node io_protos;

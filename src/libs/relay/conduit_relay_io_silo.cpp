@@ -8980,38 +8980,17 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     }
 
     // generate the bp index - we need it before writing anything to silo
-    Node local_bp_idx, bp_idx;
-    if(local_num_domains > 0)
-    {
-        ::conduit::blueprint::mesh::generate_index(multi_dom,
-                                                   opts_out_mesh_name,
-                                                   global_num_domains,
-                                                   local_bp_idx);
-    }
-    // handle mpi case.
-    // this logic is from the mpi ver of mesh index gen
-    // it is duplicated here b/c we dont want a circular dep
-    // between conduit_blueprint_mpi and conduit_relay_io_mpi
+    Node bp_idx;
 #ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    // NOTE: due to save vs write cases, these updates should be
-    // single mesh only
-    Node gather_bp_idx;
-    relay::mpi::all_gather_using_schema(local_bp_idx,
-                                        gather_bp_idx,
-                                        mpi_comm);
-
-    // union all entries into final index that reps
-    // all domains
-    NodeConstIterator itr = gather_bp_idx.children();
-    while(itr.has_next())
-    {
-        const Node &curr = itr.next();
-        bp_idx[opts_out_mesh_name].update(curr);
-    }
+    ::conduit::blueprint::mpi::mesh::generate_index(multi_dom,
+                                                    opts_out_mesh_name,
+                                                    bp_idx[opts_out_mesh_name],
+                                                    mpi_comm);
 #else
-    // NOTE: due to save vs write cases, these updates should be
-    // single mesh only
-    bp_idx[opts_out_mesh_name] = local_bp_idx;
+    ::conduit::blueprint::mesh::generate_index(multi_dom,
+                                               opts_out_mesh_name,
+                                               global_num_domains,
+                                               bp_idx[opts_out_mesh_name]);
 #endif
 
     // I want the names of specsets that are associated with the first
