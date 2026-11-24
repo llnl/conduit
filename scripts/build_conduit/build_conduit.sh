@@ -40,7 +40,13 @@ build_shared_libs="${build_shared_libs:=ON}"
 # tpl controls
 build_zlib="${build_zlib:=true}"
 build_hdf5="${build_hdf5:=true}"
-build_parmetis="${build_parmetis:=true}"
+
+if [[ "${enable_mpi}" == "ON" ]]; then
+  build_parmetis="${build_parmetis:=true}"
+else
+  build_parmetis="false"
+fi
+
 build_cgns="${build_cgns:=true}"
 build_pyvenv="${build_pyvenv:=true}"
 # note: this is false b/c of things to work out on windows
@@ -479,7 +485,8 @@ if ${build_pyvenv}; then
         ${venv_python_exe} -m pip install cython setuptools
     fi
     if [[ "$enable_mpi" == "ON" ]]; then
-        ${venv_python_exe} -m pip install mpi4py
+        # use no-binary to make sure we build against this system's mpi
+        ${venv_python_exe} -m pip install --no-binary=mpi4py mpi4py
     fi
 fi
 else
