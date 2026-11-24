@@ -32,7 +32,7 @@ enable_mpi="${enable_mpi:=OFF}"
 enable_mpicc="${enable_mpicc:=OFF}"
 enable_find_mpi="${enable_find_mpi:=ON}"
 enable_tests="${enable_tests:=OFF}"
-enable_verbose="${enable_verbose:=ON}"
+enable_verbose="${enable_verbose:=OFF}"
 build_jobs="${build_jobs:=6}"
 build_config="${build_config:=Release}"
 build_shared_libs="${build_shared_libs:=ON}"
@@ -43,6 +43,7 @@ build_hdf5="${build_hdf5:=true}"
 build_parmetis="${build_parmetis:=true}"
 build_cgns="${build_cgns:=true}"
 build_pyvenv="${build_pyvenv:=true}"
+# note: this is false b/c of things to work out on windows
 build_caliper="${build_caliper:=false}"
 build_camp="${build_camp:=true}"
 build_raja="${build_raja:=true}"
@@ -664,7 +665,7 @@ cmake -S ${raja_src_dir} -B ${raja_build_dir} ${cmake_compiler_settings} \
   -DENABLE_TESTS=OFF \
   -DRAJA_ENABLE_TESTS=OFF \
   -DENABLE_EXAMPLES=OFF \
-  -DENABLE_EXERCISES=OFF ${raja_extra_cmake_args} \
+  -DRAJA_ENABLE_EXERCISES=OFF ${raja_extra_cmake_args} \
   -DCMAKE_INSTALL_PREFIX=${raja_install_dir} \
   -DRAJA_ENABLE_VECTORIZATION=${raja_enable_vectorization}
 

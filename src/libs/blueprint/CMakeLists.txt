@@ -229,7 +229,7 @@ set(conduit_blueprint_mpi_deps conduit
 if(PARMETIS_FOUND)
     list(APPEND conduit_blueprint_mpi_headers conduit_blueprint_mpi_mesh_parmetis.hpp)
     list(APPEND conduit_blueprint_mpi_sources conduit_blueprint_mpi_mesh_parmetis.cpp)
-    list(APPEND conduit_blueprint_mpi_deps parmetis)
+    list(APPEND conduit_blueprint_mpi_deps parmetis metis)
 endif()
 
 #
