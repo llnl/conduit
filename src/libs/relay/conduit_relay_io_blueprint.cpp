@@ -1621,38 +1621,21 @@ void write_mesh(const Node &mesh,
     }
 
     // generate the bp index
-    Node local_bp_idx, bp_idx;
+    Node bp_idx;
+#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
+    // Collective call: all ranks must enter, including ranks with no domains.
+    ::conduit::blueprint::mpi::mesh::generate_index(multi_dom,
+                                                    opts_mesh_name,
+                                                    bp_idx[opts_mesh_name],
+                                                    mpi_comm);
+#else
     if(local_num_domains > 0)
     {
         ::conduit::blueprint::mesh::generate_index(multi_dom,
                                                    opts_mesh_name,
                                                    global_num_domains,
-                                                   local_bp_idx);
+                                                   bp_idx[opts_mesh_name]);
     }
-    // handle mpi case.
-    // this logic is from the mpi ver of mesh index gen
-    // it is duplicated here b/c we dont want a circular dep
-    // between conduit_blueprint_mpi and conduit_relay_io_mpi
-#ifdef CONDUIT_RELAY_IO_MPI_ENABLED
-    // NOTE: do to save vs write cases, these updates should be
-    // single mesh only
-    Node gather_bp_idx;
-    relay::mpi::all_gather_using_schema(local_bp_idx,
-                                        gather_bp_idx,
-                                        mpi_comm);
-
-    // union all entries into final index that reps
-    // all domains
-    NodeConstIterator itr = gather_bp_idx.children();
-    while(itr.has_next())
-    {
-        const Node &curr = itr.next();
-        bp_idx[opts_mesh_name].update(curr);
-    }
-#else
-    // NOTE: do to save vs write cases, these updates should be
-    // single mesh only
-    bp_idx[opts_mesh_name] = local_bp_idx;
 #endif
 
     // root_file_writer will now write out the root file
