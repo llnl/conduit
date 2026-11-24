@@ -309,7 +309,6 @@ fi # build_hdf5
 ################
 # parmetis
 ################
-# as of 4.0.3 (latest re) cmake build system requires metis source
 #
 parmetis_version=4.0.3
 parmetis_src_dir=$(ospath ${source_dir}/parmetis-${parmetis_version})
