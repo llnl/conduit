@@ -272,11 +272,18 @@ hdf_parallel_settings=""
 # check if mpi is enabled
 if [[ "${enable_mpi}" == "ON" ]]; then
   echo "**** Enabling MPI support for HDF5"
-  hdf_parallel_settings=" -DHDF5_ENABLE_PARALLEL=ON"
+  hdf5_parallel_settings=" -DHDF5_ENABLE_PARALLEL=ON"
 else
   echo "**** Disabling MPI support for HDF5"
-  hdf_parallel_settings=" -DHDF5_ENABLE_PARALLEL=OFF"
+  hdf5_parallel_settings=" -DHDF5_ENABLE_PARALLEL=OFF"
 fi
+
+if [[ "${build_shared_libs}" == "ON" ]]; then
+  hdf5_libs_settings="-DBUILD_SHARED_LIBS=ON -DBUILD_STATIC_LIBS=OFF"
+else
+  hdf5_libs_settings="-DBUILD_SHARED_LIBS=OFF -DBUILD_STATIC_LIBS=ON"
+fi
+
 
 cmake -S ${hdf5_src_dir} -B ${hdf5_build_dir} ${cmake_compiler_settings} \
   -DCMAKE_VERBOSE_MAKEFILE:BOOL=${enable_verbose} \
@@ -286,7 +293,8 @@ cmake -S ${hdf5_src_dir} -B ${hdf5_build_dir} ${cmake_compiler_settings} \
   -DCMAKE_INSTALL_PREFIX=${hdf5_install_dir} \
   -DHDF5_BUILD_EXAMPLES:BOOL=OFF \
   -DBUILD_TESTING:BOOL=OFF \
-  ${hdf_parallel_settings}
+  ${hdf5_libs_settings} \
+  ${hdf5_parallel_settings}
 
 echo "**** Building HDF5 ${hdf5_version}"
 cmake --build ${hdf5_build_dir} --config ${build_config} -j${build_jobs}

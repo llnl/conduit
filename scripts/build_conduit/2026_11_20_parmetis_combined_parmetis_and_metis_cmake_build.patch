@@ -10,7 +10,7 @@ Subject: [PATCH] combined parmetis and metis cmake build patches
  3 files changed, 27 insertions(+), 10 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index ca945dd..0dd1c38 100644
+index ca945dd..b29ae91 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -1,6 +1,9 @@
@@ -59,7 +59,7 @@ index ca945dd..0dd1c38 100644
  include(${GKLIB_PATH}/GKlibSystem.cmake)
  
  # List of paths that the compiler will search for header files.
-@@ -34,6 +47,7 @@ include_directories(${METIS_PATH}/include)
+@@ -34,9 +47,13 @@ include_directories(${METIS_PATH}/include)
  
  # List of directories that cmake will look for CMakeLists.txt
  add_subdirectory(${METIS_PATH}/libmetis ${CMAKE_BINARY_DIR}/libmetis)
@@ -67,6 +67,15 @@ index ca945dd..0dd1c38 100644
  add_subdirectory(include)
  add_subdirectory(libparmetis)
  add_subdirectory(programs)
+
++set_target_properties(metis PROPERTIES INSTALL_RPATH "$ORIGIN")
++set_target_properties(parmetis PROPERTIES INSTALL_RPATH "$ORIGIN")
++
+ # This is for testing during development and is not being distributed
+ #add_subdirectory(test)
+--
+2.43.0
+
 diff --git a/libparmetis/CMakeLists.txt b/libparmetis/CMakeLists.txt
 index 9cfc8a7..4ce05b3 100644
 --- a/libparmetis/CMakeLists.txt
