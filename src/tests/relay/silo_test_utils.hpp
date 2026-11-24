@@ -37,10 +37,10 @@ relay_test_silo_data_path(const std::string &test_fname)
 // Conduit exposes info messages through a process-global callback, so this
 // helper installs a counting callback for one scoped test region and restores
 // the previous callback in its destructor.
-class SiloInfoCapture
+class SiloInfoMessageCounter
 {
 public:
-    SiloInfoCapture()
+    SiloInfoMessageCounter()
     : m_count(0),
       m_prev_handler(conduit::utils::info_handler())
     {
@@ -48,10 +48,10 @@ public:
         conduit::utils::set_info_handler(capture_info);
     }
 
-    SiloInfoCapture(const SiloInfoCapture &) = delete;
-    SiloInfoCapture& operator=(const SiloInfoCapture &) = delete;
+    SiloInfoMessageCounter(const SiloInfoMessageCounter &) = delete;
+    SiloInfoMessageCounter& operator=(const SiloInfoMessageCounter &) = delete;
 
-    ~SiloInfoCapture()
+    ~SiloInfoMessageCounter()
     {
         conduit::utils::set_info_handler(m_prev_handler);
         active_count() = nullptr;
@@ -64,7 +64,7 @@ public:
     }
 
     int
-    count() const
+    num_messages() const
     {
         return m_count;
     }

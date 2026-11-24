@@ -23,6 +23,61 @@ using namespace conduit::utils;
 using namespace conduit::relay;
 
 //-----------------------------------------------------------------------------
+TEST(conduit_relay_io_silo, options_verbose)
+{
+    Node default_opts;
+    io::silo_reset_options();
+    io::silo_options(default_opts);
+    EXPECT_EQ(default_opts["verbose"].as_string(), "no");
+
+    Node verbose_opts;
+    verbose_opts["verbose"] = "yes";
+    io::silo_set_options(verbose_opts);
+
+    Node current_opts;
+    io::silo_options(current_opts);
+    EXPECT_EQ(current_opts["verbose"].as_string(), "yes");
+
+    io::silo_reset_options();
+    io::silo_options(current_opts);
+    EXPECT_EQ(current_opts["verbose"].as_string(), "no");
+
+    Node invalid_opts;
+    invalid_opts["verbose"] = "maybe";
+    EXPECT_THROW(io::silo_set_options(invalid_opts), Error);
+
+    io::silo_reset_options();
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_relay_io_silo, options_compression)
+{
+    Node default_opts;
+
+    io::silo_reset_options();
+    io::silo_options(default_opts);
+    EXPECT_EQ(default_opts["compression"].as_string(), "NULL");
+
+    Node compression_opts;
+    compression_opts["compression"] = "METHOD=GZIP LEVEL=9";
+    io::silo_set_options(compression_opts);
+
+    Node current_opts;
+    io::silo_options(current_opts);
+    EXPECT_EQ(current_opts["compression"].as_string(), "METHOD=GZIP LEVEL=9");
+
+    io::silo_reset_options();
+    io::silo_options(current_opts);
+    EXPECT_EQ(current_opts["compression"].as_string(), "NULL");
+
+    Node invalid_opts;
+    invalid_opts["compression"] = 42;
+    EXPECT_THROW(io::silo_set_options(invalid_opts), Error);
+
+    io::silo_reset_options();
+}
+
+//-----------------------------------------------------------------------------
 TEST(conduit_relay_io_silo, conduit_silo_cold_storage)
 {
     uint32 a_val = 20;
@@ -206,175 +261,6 @@ TEST(conduit_relay_io_silo, round_trip_avoid_name_collisions)
     EXPECT_EQ(load_mesh.number_of_children(), 1);
     EXPECT_EQ(load_mesh[0].number_of_children(), save_mesh.number_of_children());
     EXPECT_FALSE(load_mesh[0].diff(save_mesh, info, CONDUIT_EPSILON, true));
-}
-
-//-----------------------------------------------------------------------------
-TEST(conduit_relay_io_silo, options_verbose)
-{
-    Node default_opts, verbose_opts, current_opts;
-
-    io::silo_reset_options();
-    io::silo_options(default_opts);
-    EXPECT_EQ(default_opts["verbose"].as_string(), "no");
-
-    verbose_opts["verbose"] = "yes";
-    io::silo_set_options(verbose_opts);
-    io::silo_options(current_opts);
-    EXPECT_EQ(current_opts["verbose"].as_string(), "yes");
-
-    io::silo_reset_options();
-    io::silo_options(current_opts);
-    EXPECT_EQ(current_opts["verbose"].as_string(), "no");
-
-    Node invalid_opts;
-    invalid_opts["verbose"] = "maybe";
-    EXPECT_THROW(io::silo_set_options(invalid_opts), Error);
-
-    io::silo_reset_options();
-}
-
-//-----------------------------------------------------------------------------
-TEST(conduit_relay_io_silo, options_compression)
-{
-    Node default_opts, compression_opts, current_opts;
-
-    io::silo_reset_options();
-    io::silo_options(default_opts);
-    EXPECT_EQ(default_opts["compression"].as_string(), "NULL");
-
-    compression_opts["compression"] = "METHOD=GZIP LEVEL=9";
-    io::silo_set_options(compression_opts);
-    io::silo_options(current_opts);
-    EXPECT_EQ(current_opts["compression"].as_string(), "METHOD=GZIP LEVEL=9");
-
-    io::silo_reset_options();
-    io::silo_options(current_opts);
-    EXPECT_EQ(current_opts["compression"].as_string(), "NULL");
-
-    Node invalid_opts;
-    invalid_opts["compression"] = 42;
-    EXPECT_THROW(io::silo_set_options(invalid_opts), Error);
-
-    io::silo_reset_options();
-}
-
-//-----------------------------------------------------------------------------
-TEST(conduit_relay_io_silo, write_option_verbose)
-{
-    SiloInfoCapture info_capture;
-
-    io::silo_reset_options();
-
-    Node save_mesh;
-    blueprint::mesh::examples::misc("specsets", 4, 4, 1, save_mesh);
-    save_mesh["fields"]["mesh"].set(save_mesh["fields"]["braid"]);
-    save_mesh["matsets"]["matset"].set(save_mesh["matsets"]["mesh"]);
-    save_mesh["specsets"]["specset"].set(save_mesh["specsets"]["mesh"]);
-    save_mesh["specsets"]["specset"]["matset"].set("matset");
-
-    info_capture.reset();
-    remove_path_if_exists("silo_write_option_verbose_default_quiet.cycle_000100.root");
-    io::silo::save_mesh(save_mesh, "silo_write_option_verbose_default_quiet");
-    EXPECT_EQ(info_capture.count(), 0);
-
-    Node opts;
-    opts["verbose"] = "yes";
-    io::silo_set_options(opts);
-
-    info_capture.reset();
-    remove_path_if_exists("silo_write_option_verbose_global_yes.cycle_000100.root");
-    io::silo::save_mesh(save_mesh, "silo_write_option_verbose_global_yes");
-    EXPECT_GT(info_capture.count(), 0);
-
-    Node write_opts;
-    write_opts["verbose"] = "no";
-    info_capture.reset();
-    remove_path_if_exists("silo_write_option_verbose_call_no.cycle_000100.root");
-    io::silo::save_mesh(save_mesh, "silo_write_option_verbose_call_no", write_opts);
-    EXPECT_EQ(info_capture.count(), 0);
-
-    Node curr_opts;
-    io::silo_options(curr_opts);
-    EXPECT_EQ(curr_opts["verbose"].as_string(), "yes");
-
-    io::silo_reset_options();
-    write_opts["verbose"] = "yes";
-    info_capture.reset();
-    remove_path_if_exists("silo_write_option_verbose_call_yes.cycle_000100.root");
-    io::silo::save_mesh(save_mesh, "silo_write_option_verbose_call_yes", write_opts);
-    EXPECT_GT(info_capture.count(), 0);
-
-    io::silo_options(curr_opts);
-    EXPECT_EQ(curr_opts["verbose"].as_string(), "no");
-
-    opts["verbose"] = "yes";
-    io::silo_set_options(opts);
-    write_opts["verbose"] = "no";
-    write_opts["file_style"] = "not_a_style";
-    EXPECT_THROW(io::silo::save_mesh(save_mesh,
-                                     "silo_write_option_verbose_restore_on_error",
-                                     write_opts),
-                 Error);
-
-    io::silo_options(curr_opts);
-    EXPECT_EQ(curr_opts["verbose"].as_string(), "yes");
-
-    io::silo_reset_options();
-}
-
-//-----------------------------------------------------------------------------
-TEST(conduit_relay_io_silo, read_option_verbose)
-{
-    SiloInfoCapture info_capture;
-
-    io::silo_reset_options();
-
-    const std::string filepath =
-        utils::join_file_path("silo", "multi_curv3d.silo");
-    const std::string input_file = relay_test_silo_data_path(filepath);
-    Node load_mesh;
-
-    info_capture.reset();
-    io::silo::load_mesh(input_file, load_mesh);
-    EXPECT_EQ(info_capture.count(), 0);
-
-    Node opts;
-    opts["verbose"] = "yes";
-    io::silo_set_options(opts);
-
-    info_capture.reset();
-    io::silo::load_mesh(input_file, load_mesh);
-    EXPECT_GT(info_capture.count(), 0);
-
-    Node read_opts;
-    read_opts["verbose"] = "no";
-    info_capture.reset();
-    io::silo::load_mesh(input_file, read_opts, load_mesh);
-    EXPECT_EQ(info_capture.count(), 0);
-
-    Node curr_opts;
-    io::silo_options(curr_opts);
-    EXPECT_EQ(curr_opts["verbose"].as_string(), "yes");
-
-    io::silo_reset_options();
-    read_opts["verbose"] = "yes";
-    info_capture.reset();
-    io::silo::load_mesh(input_file, read_opts, load_mesh);
-    EXPECT_GT(info_capture.count(), 0);
-
-    io::silo_options(curr_opts);
-    EXPECT_EQ(curr_opts["verbose"].as_string(), "no");
-
-    opts["verbose"] = "yes";
-    io::silo_set_options(opts);
-    read_opts["verbose"] = "no";
-    read_opts["matset_style"] = "not_a_style";
-    EXPECT_THROW(io::silo::load_mesh(input_file, read_opts, load_mesh), Error);
-
-    io::silo_options(curr_opts);
-    EXPECT_EQ(curr_opts["verbose"].as_string(), "yes");
-
-    io::silo_reset_options();
 }
 
 //-----------------------------------------------------------------------------
@@ -1751,8 +1637,18 @@ TEST(conduit_relay_io_silo, mixed_var_special_case_errors)
 ///
 ///      number_of_files:  {# of files}
 ///            when "multi_file" or "overlink":
-///                 <= 0, use # of files ==> # of domains
-///                  > 0, # of files ==> number_of_files
+///                 <= 0, use # of files == # of domains
+///                  > 0, # of files == number_of_files
+///
+///      verbose: "yes", "no"
+///            "no" suppresses informational messages from the Silo mesh writer.
+///            If present, this temporarily overrides the Silo verbose option
+///            for this write and restores the previous value before returning.
+///
+///      compression: silo compression options string
+///            If present, this temporarily overrides
+///            the Silo compression option for this write and restores the
+///            previous value before returning.
 
 //-----------------------------------------------------------------------------
 TEST(conduit_relay_io_silo, round_trip_save_option_file_style)
@@ -2980,6 +2876,105 @@ TEST(conduit_relay_io_silo, round_trip_save_option_nameschemes_m_domains_n_files
 }
 
 //-----------------------------------------------------------------------------
+TEST(conduit_relay_io_silo, save_option_verbose)
+{
+    SiloInfoMessageCounter silo_msg_counter;
+
+    const std::string basename = "silo_write_option_verbose";
+
+    io::silo_reset_options();
+
+    // create a mesh that will cause silo name collisions, which will
+    // cause info messages to be printed if verbose mode is on.
+    Node save_mesh;
+    blueprint::mesh::examples::misc("specsets", 4, 4, 1, save_mesh);
+    save_mesh["fields"]["mesh"].set(save_mesh["fields"]["braid"]);
+    save_mesh["matsets"]["matset"].set(save_mesh["matsets"]["mesh"]);
+    save_mesh["specsets"]["specset"].set(save_mesh["specsets"]["mesh"]);
+    save_mesh["specsets"]["specset"]["matset"].set("matset");
+
+    // Default Silo options should leave verbose info messages disabled.
+    {
+        const std::string casename = basename + "_default_quiet";
+        const std::string filename = casename + ".cycle_000100.root";
+        silo_msg_counter.reset();
+        EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, casename, "silo"));
+        remove_path_if_exists(filename);
+        io::silo::save_mesh(save_mesh, casename);
+        EXPECT_EQ(silo_msg_counter.num_messages(), 0);
+    }
+
+    // A global verbose option should enable info messages during save.
+    {
+        const std::string casename = basename + "_global_yes";
+        const std::string filename = casename + ".cycle_000100.root";
+        Node opts;
+        opts["verbose"] = "yes";
+        io::silo_set_options(opts);
+        silo_msg_counter.reset();
+        EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, casename, "silo"));
+        remove_path_if_exists(filename);
+        io::silo::save_mesh(save_mesh, casename);
+        EXPECT_GT(silo_msg_counter.num_messages(), 0);
+    }
+
+    // A per-call "no" should override global verbose and restore it after save.
+    {
+        const std::string casename = basename + "_call_no";
+        const std::string filename = casename + ".cycle_000100.root";
+        Node save_opts;
+        save_opts["verbose"] = "no";
+        silo_msg_counter.reset();
+        EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, casename, "silo"));
+        remove_path_if_exists(filename);
+        io::silo::save_mesh(save_mesh, casename, save_opts);
+        EXPECT_EQ(silo_msg_counter.num_messages(), 0);
+
+        Node current_opts;
+        io::silo_options(current_opts);
+        EXPECT_EQ(current_opts["verbose"].as_string(), "yes");
+    }
+
+    // A per-call "yes" should enable verbose save without changing defaults.
+    {
+        const std::string casename = basename + "_call_yes";
+        const std::string filename = casename + ".cycle_000100.root";
+        Node save_opts;
+        save_opts["verbose"] = "yes";
+        io::silo_reset_options();
+        silo_msg_counter.reset();
+        EXPECT_EQ(filename, io::blueprint::generate_root_filename(save_mesh, casename, "silo"));
+        remove_path_if_exists(filename);
+        io::silo::save_mesh(save_mesh, casename, save_opts);
+        EXPECT_GT(silo_msg_counter.num_messages(), 0);
+
+        Node current_opts;
+        io::silo_options(current_opts);
+        EXPECT_EQ(current_opts["verbose"].as_string(), "no");
+    }
+
+    // A save error should still restore the prior global verbose setting.
+    {
+        const std::string casename = basename + "_restore_on_error";
+        Node opts;
+        opts["verbose"] = "yes";
+        io::silo_set_options(opts);
+
+        Node save_opts;
+        save_opts["verbose"] = "no";
+        save_opts["file_style"] = "not_a_style";
+        EXPECT_THROW(io::silo::save_mesh(save_mesh, casename, save_opts),
+                     Error);
+
+        Node current_opts;
+        io::silo_options(current_opts);
+        EXPECT_EQ(current_opts["verbose"].as_string(), "yes");
+    }
+
+    io::silo_reset_options();
+}
+
+//-----------------------------------------------------------------------------
 TEST(conduit_relay_io_silo, round_trip_save_option_overlink1)
 {
     const std::vector<std::string> ovl_topo_names = {"", "topo"};
@@ -3398,6 +3393,11 @@ TEST(conduit_relay_io_silo, round_trip_save_option_overlink6)
 ///      matset_style: "default", "multi_buffer_full", "sparse_by_element",
 ///            "multi_buffer_by_material"
 ///            "default"   ==> "sparse_by_element"
+///
+///      verbose: "yes", "no"
+///            "no" suppresses informational messages from the Silo mesh reader.
+///            If present, this temporarily overrides the Silo verbose option
+///            for this read and restores the previous value before returning.
 
 //-----------------------------------------------------------------------------
 // test legacy mesh name option
@@ -3546,6 +3546,92 @@ TEST(conduit_relay_io_silo, round_trip_read_option_matset_style)
             EXPECT_FALSE(load_mesh[0].diff(baseline_mesh, info, CONDUIT_EPSILON, true));
         }
     }
+}
+
+//-----------------------------------------------------------------------------
+TEST(conduit_relay_io_silo, read_option_verbose)
+{
+    // Temporarily intercepts Conduit info messages so that we can count how
+    // many messages were emitted.
+    SiloInfoMessageCounter silo_msg_counter;
+
+    io::silo_reset_options();
+
+
+
+    const std::string filepath = utils::join_file_path("silo", "multi_curv3d.silo");
+    const std::string input_file = relay_test_silo_data_path(filepath);
+
+    // Default Silo options should leave verbose info messages disabled.
+    {
+        Node load_mesh;
+        silo_msg_counter.reset();
+        io::silo::load_mesh(input_file, load_mesh);
+        EXPECT_EQ(silo_msg_counter.num_messages(), 0);
+    }
+
+    // A global verbose option should enable info messages during read.
+    {
+        Node opts;
+        opts["verbose"] = "yes";
+        io::silo_set_options(opts);
+
+        Node load_mesh;
+        silo_msg_counter.reset();
+        io::silo::load_mesh(input_file, load_mesh);
+        EXPECT_GT(silo_msg_counter.num_messages(), 0);
+    }
+
+    // A per-call "no" should override global verbose and restore it after read.
+    {
+        Node read_opts;
+        read_opts["verbose"] = "no";
+
+        Node load_mesh;
+        silo_msg_counter.reset();
+        io::silo::load_mesh(input_file, read_opts, load_mesh);
+        EXPECT_EQ(silo_msg_counter.num_messages(), 0);
+
+        Node current_opts;
+        io::silo_options(current_opts);
+        EXPECT_EQ(current_opts["verbose"].as_string(), "yes");
+    }
+
+    // A per-call "yes" should enable verbose read without changing defaults.
+    {
+        Node read_opts;
+        read_opts["verbose"] = "yes";
+        io::silo_reset_options();
+
+        Node load_mesh;
+        silo_msg_counter.reset();
+        io::silo::load_mesh(input_file, read_opts, load_mesh);
+        EXPECT_GT(silo_msg_counter.num_messages(), 0);
+
+        Node current_opts;
+        io::silo_options(current_opts);
+        EXPECT_EQ(current_opts["verbose"].as_string(), "no");
+    }
+
+    // A read error should still restore the prior global verbose setting.
+    {
+        Node opts;
+        opts["verbose"] = "yes";
+        io::silo_set_options(opts);
+
+        Node read_opts;
+        read_opts["verbose"] = "no";
+        read_opts["matset_style"] = "not_a_style";
+
+        Node load_mesh;
+        EXPECT_THROW(io::silo::load_mesh(input_file, read_opts, load_mesh), Error);
+
+        Node current_opts;
+        io::silo_options(current_opts);
+        EXPECT_EQ(current_opts["verbose"].as_string(), "yes");
+    }
+
+    io::silo_reset_options();
 }
 
 //-----------------------------------------------------------------------------
