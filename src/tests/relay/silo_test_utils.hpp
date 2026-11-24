@@ -42,10 +42,11 @@ class SiloInfoMessageCounter
 public:
     SiloInfoMessageCounter()
     : m_count(0),
-      m_prev_handler(conduit::utils::info_handler())
+      m_prev_handler(conduit::utils::info_handler()),
+      m_prev_counter(active_counter())
     {
-        active_count() = &m_count;
-        conduit::utils::set_info_handler(capture_info);
+        active_counter() = this;
+        conduit::utils::set_info_handler(count_info_message);
     }
 
     SiloInfoMessageCounter(const SiloInfoMessageCounter &) = delete;
@@ -53,8 +54,8 @@ public:
 
     ~SiloInfoMessageCounter()
     {
+        active_counter() = m_prev_counter;
         conduit::utils::set_info_handler(m_prev_handler);
-        active_count() = nullptr;
     }
 
     void
@@ -70,28 +71,30 @@ public:
     }
 
 private:
-    // Conduit's info handler is a plain function pointer, not a functor, so the
-    // callback records through the currently active counter.
+    // Conduit's info handler API stores a plain function pointer. This static
+    // callback forwards each message to the counter active for the current test.
     static void
-    capture_info(const std::string &,
-                 const std::string &,
-                 int)
+    count_info_message(const std::string &,
+                       const std::string &,
+                       int)
     {
-        if (active_count() != nullptr)
+        if (active_counter() != nullptr)
         {
-            (*active_count())++;
+            active_counter()->m_count++;
         }
     }
 
-    static int *&
-    active_count()
+    // Store the counter currently connected to Conduit's static info callback.
+    static SiloInfoMessageCounter *&
+    active_counter()
     {
-        static int *current = nullptr;
+        static SiloInfoMessageCounter *current = nullptr;
         return current;
     }
 
     int m_count;
     conduit::utils::conduit_info_handler m_prev_handler;
+    SiloInfoMessageCounter *m_prev_counter;
 };
 
 //-----------------------------------------------------------------------------
