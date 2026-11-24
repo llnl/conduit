@@ -69,6 +69,19 @@
 }                                                                   \
 
 //-----------------------------------------------------------------------------
+//
+/// The CONDUIT_SILO_INFO macro wraps CONDUIT_INFO behind checking the verbose
+/// option.
+//-----------------------------------------------------------------------------
+#define CONDUIT_SILO_INFO( msg )                                    \
+{                                                                   \
+    if(SiloOptions::verbose_enabled())                              \
+    {                                                               \
+        CONDUIT_INFO( msg );                                        \
+    }                                                               \
+}
+
+//-----------------------------------------------------------------------------
 // -- begin conduit:: --
 //-----------------------------------------------------------------------------
 namespace conduit
@@ -143,16 +156,16 @@ private:
 
 
 //-----------------------------------------------------------------------------
-// Private class used to manage Silo DB compression options.
+// Private class used to manage Silo DB compression state.
 //
-// Manages setting and restoring Silo DB compression options in an exception
+// Manages setting and restoring Silo DB compression state in an exception
 // safe context.
 //
 //-----------------------------------------------------------------------------
-class SiloDBCompressionOptions
+class SiloDBCompressionContext
 {
 public:
-        SiloDBCompressionOptions()
+        SiloDBCompressionContext()
         : m_opts_set(false),
           m_prior_opts_not_null(false),
           m_prior_opts_str()
@@ -160,7 +173,7 @@ public:
             // empty
         }
 
-       ~SiloDBCompressionOptions()
+       ~SiloDBCompressionContext()
         {
             restore();
         }
@@ -496,6 +509,128 @@ silo_close_file(DBfile *silo_handle)
     }
 }
 
+
+//-----------------------------------------------------------------------------
+// Private class used to hold options that control Silo mesh reading and
+// writing.
+//
+// These values are read by silo_options(), and are set by silo_set_options().
+//-----------------------------------------------------------------------------
+class SiloOptions
+{
+public:
+    static std::string verbose;
+    static std::string compression;
+
+    //------------------------------------------------------------------------
+    static void
+    set(const Node &opts)
+    {
+        if(opts.has_child("verbose"))
+        {
+            if(!opts["verbose"].dtype().is_string())
+            {
+                CONDUIT_ERROR("silo options invalid verbose option: "
+                              "expected string \"yes\" or \"no\"");
+            }
+
+            const std::string opts_verbose = opts["verbose"].as_string();
+            if(opts_verbose != "yes" &&
+               opts_verbose != "no")
+            {
+                CONDUIT_ERROR("silo options invalid verbose option: \""
+                              << opts_verbose << "\"\n"
+                              " expected: \"yes\" or \"no\"");
+            }
+
+            verbose = opts_verbose;
+        }
+
+        if(opts.has_child("compression"))
+        {
+            if(!opts["compression"].dtype().is_string())
+            {
+                CONDUIT_ERROR("silo options invalid compression option: "
+                              "expected string");
+            }
+
+            compression = opts["compression"].as_string();
+        }
+    }
+
+    //------------------------------------------------------------------------
+    static void
+    about(Node &opts)
+    {
+        opts.reset();
+        opts["verbose"] = verbose;
+        opts["compression"] = compression;
+    }
+
+    static void
+    reset()
+    {
+        verbose = "no";
+        compression = "NULL";
+    }
+
+    static bool
+    verbose_enabled()
+    {
+        return verbose == "yes";
+    }
+
+    static const std::string &
+    compression_options()
+    {
+        return compression;
+    }
+};
+
+std::string SiloOptions::verbose = "no";
+std::string SiloOptions::compression = "NULL";
+
+//-----------------------------------------------------------------------------
+// Private class used to manage temporary Silo mesh reader/writer options.
+//
+// Manages setting and restoring Silo mesh reader/writer options in an
+// exception-safe context.
+//-----------------------------------------------------------------------------
+class SiloOptionsContext
+{
+public:
+        SiloOptionsContext()
+        : m_prior_opts()
+        {
+            // empty
+        }
+
+       ~SiloOptionsContext()
+        {
+            if(!m_prior_opts.dtype().is_empty())
+            {
+                SiloOptions::set(m_prior_opts);
+                m_prior_opts.reset();
+            }
+        }
+
+        void
+        set(const Node &opts)
+        {
+            if(opts.number_of_children() > 0)
+            {
+                SiloOptions::about(m_prior_opts);
+                SiloOptions::set(opts);
+            }
+            else
+            {
+                m_prior_opts.reset();
+            }
+        }
+
+private:
+    Node m_prior_opts;
+};
 
 //-----------------------------------------------------------------------------
 // -- begin conduit::relay::<mpi>::io::silo --
@@ -979,7 +1114,7 @@ get_coordset_axis_labels(const int sys)
     }
     else if (sys == DB_OTHER)
     {
-        CONDUIT_INFO("Encountered DB_OTHER; defaulting to a cartesian coordinate system.");
+        CONDUIT_SILO_INFO("Encountered DB_OTHER; defaulting to a cartesian coordinate system.");
         coordnames.push_back(conduit::blueprint::mesh::utils::CARTESIAN_AXES[0].c_str());
         coordnames.push_back(conduit::blueprint::mesh::utils::CARTESIAN_AXES[1].c_str());
         coordnames.push_back(conduit::blueprint::mesh::utils::CARTESIAN_AXES[2].c_str());
@@ -1699,7 +1834,7 @@ read_ucdmesh_domain(DBucdmesh *ucdmesh_ptr,
     {
         if (ucdmesh_ptr->phzones)
         {
-            CONDUIT_INFO("Both phzones and zones are defined in mesh " << mesh_name);
+            CONDUIT_SILO_INFO("Both phzones and zones are defined in mesh " << mesh_name);
             return false;
         }
         detail::add_shape_info(ucdmesh_ptr->zones,
@@ -1708,14 +1843,14 @@ read_ucdmesh_domain(DBucdmesh *ucdmesh_ptr,
     else if (ucdmesh_ptr->phzones)
     {
         // TODO implement support for phzones
-        CONDUIT_INFO("Silo ucdmesh phzones not yet supported");
+        CONDUIT_SILO_INFO("Silo ucdmesh phzones not yet supported");
         return false;
         intermediate_topo["elements"]["shape"] =
             detail::shapetype_to_string(DB_ZONETYPE_POLYHEDRON);
     }
     else
     {
-        CONDUIT_INFO("Neither phzones nor zones is defined in mesh " << mesh_name);
+        CONDUIT_SILO_INFO("Neither phzones nor zones is defined in mesh " << mesh_name);
         return false;
     }
 
@@ -1732,7 +1867,7 @@ read_ucdmesh_domain(DBucdmesh *ucdmesh_ptr,
 
     if (ucdmesh_ptr->datatype != DB_DOUBLE && ucdmesh_ptr->datatype != DB_FLOAT)
     {
-        CONDUIT_INFO("Unsupported mesh data type " << ucdmesh_ptr->datatype);
+        CONDUIT_SILO_INFO("Unsupported mesh data type " << ucdmesh_ptr->datatype);
         return false;
     }
 
@@ -1901,7 +2036,7 @@ read_quadmesh_domain(DBquadmesh *quadmesh_ptr,
 
     if (quadmesh_ptr->datatype != DB_DOUBLE && quadmesh_ptr->datatype != DB_FLOAT)
     {
-        CONDUIT_INFO("Unsupported mesh data type " << quadmesh_ptr->datatype);
+        CONDUIT_SILO_INFO("Unsupported mesh data type " << quadmesh_ptr->datatype);
         return false;
     }
 
@@ -1957,7 +2092,7 @@ read_pointmesh_domain(DBpointmesh *pointmesh_ptr,
 
     if (pointmesh_ptr->datatype != DB_DOUBLE && pointmesh_ptr->datatype != DB_FLOAT)
     {
-        CONDUIT_INFO("Unsupported mesh data type " << pointmesh_ptr->datatype);
+        CONDUIT_SILO_INFO("Unsupported mesh data type " << pointmesh_ptr->datatype);
         return false;
     }
 
@@ -2083,7 +2218,7 @@ read_mesh_domain(const int meshtype,
     }
     else
     {
-        CONDUIT_INFO("Unsupported mesh type " << meshtype);
+        CONDUIT_SILO_INFO("Unsupported mesh type " << meshtype);
         return false;
     }
 
@@ -2164,8 +2299,8 @@ read_variable_domain_mixvals(const T *var_ptr,
 
     if (! detail::check_var_type(var_ptr->datatype))
     {
-        CONDUIT_INFO("Unsupported datatype " << var_ptr->datatype << " for variable " <<
-                     var_name << ". Skipping.");
+        CONDUIT_SILO_INFO("Unsupported datatype " << var_ptr->datatype << " for variable " <<
+                          var_name << ". Skipping.");
         return;
     }
 
@@ -2249,7 +2384,7 @@ read_variable_domain_helper(const T *var_ptr,
     // If we cannot fetch this var we will skip
     if (! var_ptr)
     {
-        CONDUIT_INFO("Variable " << var_name << " was unable to be fetched. Skipping.");
+        CONDUIT_SILO_INFO("Variable " << var_name << " was unable to be fetched. Skipping.");
         return false;
     }
 
@@ -2274,16 +2409,16 @@ read_variable_domain_helper(const T *var_ptr,
         {
             vartype_str = "DB_POINTVAR";
         }
-        CONDUIT_INFO(vartype_str + " " + var_name + " is not "
-                     "associated with mesh " + bottom_level_mesh_name +
-                     ". Skipping.");
+        CONDUIT_SILO_INFO(vartype_str + " " + var_name + " is not "
+                          "associated with mesh " + bottom_level_mesh_name +
+                          ". Skipping.");
         return false;
     }
 
     if (! detail::check_var_type(var_ptr->datatype))
     {
-        CONDUIT_INFO("Unsupported datatype " << var_ptr->datatype << " for variable " <<
-                     var_name << ". Skipping.");
+        CONDUIT_SILO_INFO("Unsupported datatype " << var_ptr->datatype << " for variable " <<
+                          var_name << ". Skipping.");
         return false;
     }
 
@@ -2421,13 +2556,13 @@ read_variable_domain(const int vartype,
     if (! DBInqVarExists(var_domain_file_to_use, var_name.c_str()))
     {
         // This var is missing
-        CONDUIT_INFO("Variable " << var_name << " is missing. Skipping.");
+        CONDUIT_SILO_INFO("Variable " << var_name << " is missing. Skipping.");
         return false;
     }
     if (DBInqVarType(var_domain_file_to_use, var_name.c_str()) != vartype)
     {
         // This var is the wrong type
-        CONDUIT_INFO("Variable " << var_name << " is not the right type. Skipping.");
+        CONDUIT_SILO_INFO("Variable " << var_name << " is not the right type. Skipping.");
         return false;
     }
 
@@ -2700,9 +2835,9 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
     }
     if (matset_meshname != bottom_level_mesh_name)
     {
-        CONDUIT_INFO("DBmaterial " + matset_name + " is not "
-                     "associated with mesh " + bottom_level_mesh_name +
-                     ". Skipping.");
+        CONDUIT_SILO_INFO("DBmaterial " + matset_name + " is not "
+                          "associated with mesh " + bottom_level_mesh_name +
+                          ". Skipping.");
         return false;
     }
 
@@ -2712,17 +2847,17 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
         (topo_out.has_path("elements/dims/strides") ||
          topo_out.has_path("elements/dims/strides")))
     {
-        CONDUIT_INFO("DBmaterial " + matset_name + " is associated with mesh " +
-                     bottom_level_mesh_name + ", which is a Structured (noncollinear) "
-                     "quadmesh. It uses a subset of the coordinates to define the mesh. "
-                     "We map meshes like this to Structured Strided meshes in Blueprint, "
-                     "which expect associated matsets to only provide data for mesh zones "
-                     "that are actually being used by the topology. Silo materials provide "
-                     "data for all mesh zones, whether or not they are being used by the "
-                     "quadmesh. We have opted to not support this case, as to do so would "
-                     "require us to manually remove material set data that corresponds to "
-                     "unused zones. If there is a need for this feature, please contact a "
-                     "Conduit developer. In the meantime, we will skip reading this DBmaterial.");
+        CONDUIT_SILO_INFO("DBmaterial " + matset_name + " is associated with mesh " +
+                          bottom_level_mesh_name + ", which is a Structured (noncollinear) "
+                          "quadmesh. It uses a subset of the coordinates to define the mesh. "
+                          "We map meshes like this to Structured Strided meshes in Blueprint, "
+                          "which expect associated matsets to only provide data for mesh zones "
+                          "that are actually being used by the topology. Silo materials provide "
+                          "data for all mesh zones, whether or not they are being used by the "
+                          "quadmesh. We have opted to not support this case, as to do so would "
+                          "require us to manually remove material set data that corresponds to "
+                          "unused zones. If there is a need for this feature, please contact a "
+                          "Conduit developer. In the meantime, we will skip reading this DBmaterial.");
         return false;
     }
 
@@ -2734,7 +2869,7 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
     {
         if (matset_ptr->stride[0] != 1)
         {
-            CONDUIT_INFO(irregular_striding_warn_msg);
+            CONDUIT_SILO_INFO(irregular_striding_warn_msg);
             return false;
         }
     }
@@ -2743,7 +2878,7 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
         if (matset_ptr->stride[0] != 1 ||
             matset_ptr->stride[1] != matset_ptr->dims[0])
         {
-            CONDUIT_INFO(irregular_striding_warn_msg);
+            CONDUIT_SILO_INFO(irregular_striding_warn_msg);
             return false;
         }
     }
@@ -2753,18 +2888,17 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
             matset_ptr->stride[1] != matset_ptr->dims[0] ||
             matset_ptr->stride[2] != matset_ptr->dims[0] * matset_ptr->dims[1])
         {
-            CONDUIT_INFO(irregular_striding_warn_msg);
+            CONDUIT_SILO_INFO(irregular_striding_warn_msg);
             return false;
         }
     }
 
     if (matset_ptr->allowmat0 != 0)
     {
-        CONDUIT_INFO(
-            "Material " << matset_name << " for multimesh " << multimesh_name <<
-            " may contain zones with no materials defined on them." <<
-            " We currently do not support this case. Either contact a Conduit developer" <<
-            " or disable DBOPT_ALLOWMAT0 in calls to DBPutMaterial().");
+        CONDUIT_SILO_INFO("Material " << matset_name << " for multimesh " << multimesh_name <<
+                          " may contain zones with no materials defined on them." <<
+                          " We currently do not support this case. Either contact a Conduit developer" <<
+                          " or disable DBOPT_ALLOWMAT0 in calls to DBPutMaterial().");
         return false;
     }
 
@@ -2786,8 +2920,8 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
     {
         if (matset_ptr->nmat <= 0)
         {
-            CONDUIT_INFO("Number of materials is non-positive for material "
-                         << matset_name << " for multimesh " << multimesh_name);
+            CONDUIT_SILO_INFO("Number of materials is non-positive for material "
+                              << matset_name << " for multimesh " << multimesh_name);
             return false;
         }
         for (int i = 0; i < matset_ptr->nmat; i ++)
@@ -2825,8 +2959,8 @@ read_matset_domain(DBfile* matset_domain_file_to_use,
     {
         if (matset_ptr->datatype != DB_DOUBLE && matset_ptr->datatype != DB_FLOAT)
         {
-            CONDUIT_INFO("Volume fractions must be doubles or floats." <<
-                         " Unknown type for volume fractions for " << matset_name);
+            CONDUIT_SILO_INFO("Volume fractions must be doubles or floats." <<
+                              " Unknown type for volume fractions for " << matset_name);
             return false;
         }
     }
@@ -3089,9 +3223,9 @@ read_specset_domain(DBfile* specset_domain_file_to_use,
     // TODO remove this once we support specset converters
     if (opts_matset_style != "multi_buffer_full")
     {
-        CONDUIT_INFO("TODO if the matset flavor is not multi_buffer + "
-                     "element_dominant, we currently cannot read species "
-                     "from silo. Please contact a Conduit developer.");
+        CONDUIT_SILO_INFO("TODO if the matset flavor is not multi_buffer + "
+                          "element_dominant, we currently cannot read species "
+                          "from silo. Please contact a Conduit developer.");
         return false;
     }
 
@@ -3131,8 +3265,8 @@ read_specset_domain(DBfile* specset_domain_file_to_use,
         ! silo_material.has_path("dims/nz") ||
         ! silo_material.has_child("major_order"))
     {
-        CONDUIT_INFO("Attempting to read DBmatspecies " + specset_name +
-                     " but required DBmaterial information is missing. Skipping.");
+        CONDUIT_SILO_INFO("Attempting to read DBmatspecies " + specset_name +
+                          " but required DBmaterial information is missing. Skipping.");
         return false;
     }
 
@@ -3149,9 +3283,9 @@ read_specset_domain(DBfile* specset_domain_file_to_use,
                                      specset_path + "/" + assoc_matname);
     if (matset_path != silo_material["matset_path"].as_string())
     {
-        CONDUIT_INFO("DBmatspecies " + specset_name + " is associated "
-                     "with a matset called " + assoc_matname + " which "
-                     "has not been read from Silo. Skipping.");
+        CONDUIT_SILO_INFO("DBmatspecies " + specset_name + " is associated "
+                          "with a matset called " + assoc_matname + " which "
+                          "has not been read from Silo. Skipping.");
         return false;
     }
 
@@ -3163,7 +3297,7 @@ read_specset_domain(DBfile* specset_domain_file_to_use,
     {
         if (specset_ptr->stride[0] != 1)
         {
-            CONDUIT_INFO(irregular_striding_warn_msg);
+            CONDUIT_SILO_INFO(irregular_striding_warn_msg);
             return false;
         }
     }
@@ -3172,7 +3306,7 @@ read_specset_domain(DBfile* specset_domain_file_to_use,
         if (specset_ptr->stride[0] != 1 ||
             specset_ptr->stride[1] != specset_ptr->dims[0])
         {
-            CONDUIT_INFO(irregular_striding_warn_msg);
+            CONDUIT_SILO_INFO(irregular_striding_warn_msg);
             return false;
         }
     }
@@ -3182,7 +3316,7 @@ read_specset_domain(DBfile* specset_domain_file_to_use,
             specset_ptr->stride[1] != specset_ptr->dims[0] ||
             specset_ptr->stride[2] != specset_ptr->dims[0] * specset_ptr->dims[1])
         {
-            CONDUIT_INFO(irregular_striding_warn_msg);
+            CONDUIT_SILO_INFO(irregular_striding_warn_msg);
             return false;
         }
     }
@@ -3209,15 +3343,15 @@ read_specset_domain(DBfile* specset_domain_file_to_use,
 
     if (silo_matnos.number_of_elements() != specset_ptr->nmat)
     {
-        CONDUIT_INFO("Attempting to read DBmatspecies " + specset_name +
-                     " but there is a mismatch with nmat in the associated DBmaterial. Skipping.");
+        CONDUIT_SILO_INFO("Attempting to read DBmatspecies " + specset_name +
+                          " but there is a mismatch with nmat in the associated DBmaterial. Skipping.");
         return false;
     }
 
     if (specset_ptr->datatype != DB_DOUBLE && specset_ptr->datatype != DB_FLOAT)
     {
-        CONDUIT_INFO("Species mass fractions must be doubles or floats." <<
-                     " Unknown type for mass fractions for " << specset_name);
+        CONDUIT_SILO_INFO("Species mass fractions must be doubles or floats." <<
+                          " Unknown type for mass fractions for " << specset_name);
         return false;
     }
 
@@ -3229,15 +3363,15 @@ read_specset_domain(DBfile* specset_domain_file_to_use,
         ny != silo_material["dims/ny"].as_int() ||
         nz != silo_material["dims/nz"].as_int())
     {
-        CONDUIT_INFO("Species object dimensions must match the dimensions "
-                     "of the associated material object.");
+        CONDUIT_SILO_INFO("Species object dimensions must match the dimensions "
+                          "of the associated material object.");
         return false;
     }
 
     if (specset_ptr->major_order != silo_material["major_order"].as_int())
     {
-        CONDUIT_INFO("Species object major order must match the major order "
-                     "of the associated material object.");
+        CONDUIT_SILO_INFO("Species object major order must match the major order "
+                          "of the associated material object.");
         return false;
     }
 
@@ -3506,8 +3640,8 @@ open_or_reuse_file(const bool ovltop_case,
         {
             auto not_valid_overlink = [&]() -> DBfile*
             {
-                CONDUIT_INFO("Provided file is not valid Overlink; defaulting "
-                             "to absolute path rather than assumed path.")
+                CONDUIT_SILO_INFO("Provided file is not valid Overlink; defaulting "
+                                  "to absolute path rather than assumed path.")
                 // this is not valid overlink so we default to what is in the path
                 domain_filename = old_domain_filename;
 
@@ -3682,7 +3816,7 @@ read_multivars(DBtoc *toc,
         DBmultivar *mvar_ptr = multivar.getSiloObject();
         if (nullptr == mvar_ptr)
         {
-            CONDUIT_INFO("Error opening multivar " << multivar_name << ". Skipping.");
+            CONDUIT_SILO_INFO("Error opening multivar " << multivar_name << ". Skipping.");
             continue;
         }
 
@@ -3694,8 +3828,8 @@ read_multivars(DBtoc *toc,
             // or our mvar is invalid
             if (nullptr == mvar_ptr->block_ns)
             {
-                CONDUIT_INFO("Multivar " << multivar_name << 
-                             " is missing var names and namescheme specifiers. Skipping.");
+                CONDUIT_SILO_INFO("Multivar " << multivar_name <<
+                                  " is missing var names and namescheme specifiers. Skipping.");
                 continue;
             }
             else
@@ -3727,16 +3861,16 @@ read_multivars(DBtoc *toc,
 
         if (! multimesh_assoc)
         {
-            CONDUIT_INFO("Multivar " << multivar_name << " is not associated " <<
-                         "with multimesh " << multimesh_name << ". Skipping.");
+            CONDUIT_SILO_INFO("Multivar " << multivar_name << " is not associated " <<
+                              "with multimesh " << multimesh_name << ". Skipping.");
             continue;
         }
 
         if (mvar_ptr->nvars != nblocks)
         {
-            CONDUIT_INFO("Domain count mismatch between multivar " +
-                         multivar_name + " and multimesh " +
-                         multimesh_name + ". Skipping.");
+            CONDUIT_SILO_INFO("Domain count mismatch between multivar " +
+                              multivar_name + " and multimesh " +
+                              multimesh_name + ". Skipping.");
             continue;
         }
 
@@ -3818,7 +3952,7 @@ read_multimats(DBtoc *toc,
         DBmultimat *multimat_ptr = multimat_obj.getSiloObject();
         if (nullptr == multimat_ptr)
         {
-            CONDUIT_INFO("Error opening Multimat " << multimat_name << ". Skipping.");
+            CONDUIT_SILO_INFO("Error opening Multimat " << multimat_name << ". Skipping.");
             continue;
         }
 
@@ -3830,8 +3964,8 @@ read_multimats(DBtoc *toc,
             // or our mmat is invalid
             if (nullptr == multimat_ptr->block_ns)
             {
-                CONDUIT_INFO("Multimat " << multimat_name << 
-                             " is missing material names and namescheme specifiers. Skipping.");
+                CONDUIT_SILO_INFO("Multimat " << multimat_name <<
+                                  " is missing material names and namescheme specifiers. Skipping.");
                 continue;
             }
             else
@@ -3863,27 +3997,27 @@ read_multimats(DBtoc *toc,
 
         if (! multimesh_assoc)
         {
-            CONDUIT_INFO("MultiMaterial " << multimat_name << " is not associated " <<
-                         "with multimesh " << multimesh_name << ". Skipping.");
+            CONDUIT_SILO_INFO("MultiMaterial " << multimat_name << " is not associated " <<
+                              "with multimesh " << multimesh_name << ". Skipping.");
             continue;
         }
 
         if (multimat_ptr->allowmat0 != 0)
         {
-            CONDUIT_INFO("MultiMaterial " << multimat_name <<
-                         " for multimesh " << multimesh_name <<
-                         " may contain zones with no materials defined on them." <<
-                         " We currently do not support this case. Either contact a Conduit developer" <<
-                         " or disable DBOPT_ALLOWMAT0 in calls to DBPutMaterial()." <<
-                         " Skipping this MultiMaterial.");
+            CONDUIT_SILO_INFO("MultiMaterial " << multimat_name <<
+                              " for multimesh " << multimesh_name <<
+                              " may contain zones with no materials defined on them." <<
+                              " We currently do not support this case. Either contact a Conduit developer" <<
+                              " or disable DBOPT_ALLOWMAT0 in calls to DBPutMaterial()." <<
+                              " Skipping this MultiMaterial.");
             continue;
         }
 
         if (multimat_ptr->nmats != nblocks)
         {
-            CONDUIT_INFO("Domain count mismatch between multimat " +
-                         multimat_name + " and multimesh " +
-                         multimesh_name + ". Skipping.");
+            CONDUIT_SILO_INFO("Domain count mismatch between multimat " +
+                              multimat_name + " and multimesh " +
+                              multimesh_name + ". Skipping.");
             continue;
         }
 
@@ -3972,7 +4106,7 @@ read_multimatspecs(DBtoc *toc,
         DBmultimatspecies *multimatspec_ptr = multimatspec_obj.getSiloObject();
         if (nullptr == multimatspec_ptr)
         {
-            CONDUIT_INFO("Error opening Multimatspecies " << multimatspec_name << ". Skipping.");
+            CONDUIT_SILO_INFO("Error opening Multimatspecies " << multimatspec_name << ". Skipping.");
             continue;
         }
 
@@ -3984,8 +4118,8 @@ read_multimatspecs(DBtoc *toc,
             // or our mmatspec is invalid
             if (nullptr == multimatspec_ptr->block_ns)
             {
-                CONDUIT_INFO("Multimatspecies " << multimatspec_name << 
-                             " is missing material species names and namescheme specifiers. Skipping.");
+                CONDUIT_SILO_INFO("Multimatspecies " << multimatspec_name <<
+                                  " is missing material species names and namescheme specifiers. Skipping.");
                 continue;
             }
             else
@@ -3999,9 +4133,9 @@ read_multimatspecs(DBtoc *toc,
 
         if (multimatspec_ptr->nspec != nblocks)
         {
-            CONDUIT_INFO("Domain count mismatch between multimatspec " +
-                         multimatspec_name + " and multimesh " +
-                         multimesh_name + ". Skipping.");
+            CONDUIT_SILO_INFO("Domain count mismatch between multimatspec " +
+                              multimatspec_name + " and multimesh " +
+                              multimesh_name + ". Skipping.");
             continue;
         }
 
@@ -4857,6 +4991,11 @@ read_root_silo_index(const std::string &root_file_path,
 ///      matset_style: "default", "multi_buffer_full", "sparse_by_element",
 ///            "multi_buffer_by_material"
 ///            "default"   ==> "sparse_by_element"
+///
+///      verbose: "yes", "no"
+///            "no" suppresses informational messages from the Silo mesh reader.
+///            If present, this temporarily overrides the Silo verbose option
+///            for this read and restores the previous value before returning.
 //-----------------------------------------------------------------------------
 void CONDUIT_RELAY_API
 read_mesh(const std::string &root_file_path,
@@ -4869,6 +5008,15 @@ read_mesh(const std::string &root_file_path,
     par_rank = relay::mpi::rank(mpi_comm);
     int par_size = relay::mpi::size(mpi_comm);
 #endif
+
+    Node silo_opts;
+    if(opts.has_child("verbose"))
+    {
+        silo_opts["verbose"].set(opts["verbose"]);
+    }
+
+    SiloOptionsContext silo_options_context;
+    silo_options_context.set(silo_opts);
 
     int error = 0;
     std::ostringstream error_oss;
@@ -5474,6 +5622,11 @@ void load_mesh(const std::string &root_file_path,
 ///      matset_style: "default", "multi_buffer_full", "sparse_by_element",
 ///            "multi_buffer_by_material"
 ///            "default"   ==> "sparse_by_element"
+///
+///      verbose: "yes", "no"
+///            "no" suppresses informational messages from the Silo mesh reader.
+///            If present, this temporarily overrides the Silo verbose option
+///            for this read and restores the previous value before returning.
 //-----------------------------------------------------------------------------
 void load_mesh(const std::string &root_file_path,
                const Node &opts,
@@ -5602,9 +5755,9 @@ bool prepare_field_for_write(const bool &convert_to_double_array,
 
             if (! detail::check_alphanumeric(comp_name))
             {
-                CONDUIT_INFO("Field component name " << var_name << "/" << comp_name <<
-                             " contains non-alphanumeric characters. Skipping " <<
-                             "Silo write of field " << var_name << ".");
+                CONDUIT_SILO_INFO("Field component name " << var_name << "/" << comp_name <<
+                                  " contains non-alphanumeric characters. Skipping " <<
+                                  "Silo write of field " << var_name << ".");
                 return false;
             }
 
@@ -5642,17 +5795,17 @@ void silo_write_field(DBfile *dbfile,
 {
     if (! detail::check_alphanumeric(var_name))
     {
-        CONDUIT_INFO("Field name " << var_name << " contains " <<
-                     "non-alphanumeric characters. Skipping.");
+        CONDUIT_SILO_INFO("Field name " << var_name << " contains " <<
+                          "non-alphanumeric characters. Skipping.");
         return;
     }
 
     if (!n_mesh_info.has_path(topo_name))
     {
-        CONDUIT_INFO("Skipping this variable because the linked "
-                     "topology is invalid: "
-                      << "fields/" << var_name
-                      << "/topology: " << topo_name);
+        CONDUIT_SILO_INFO("Skipping this variable because the linked "
+                          "topology is invalid: "
+                           << "fields/" << var_name
+                           << "/topology: " << topo_name);
         return;
     }
 
@@ -5665,9 +5818,9 @@ void silo_write_field(DBfile *dbfile,
 
     if (!n_var.has_path("association"))
     {
-        CONDUIT_INFO("Skipping this variable because we are "
-                     "missing association: "
-                      << "fields/" << var_name << "/association");
+        CONDUIT_SILO_INFO("Skipping this variable because we are "
+                          "missing association: "
+                           << "fields/" << var_name << "/association");
         return;
     }
 
@@ -5714,10 +5867,10 @@ void silo_write_field(DBfile *dbfile,
     if (silo_vals_type == DB_NOTYPE)
     {
         // skip the field if we don't support its type
-        CONDUIT_INFO("skipping field "
-                     << var_name
-                     << ", since its type is not implemented, found "
-                     << vals_dtype.name());
+        CONDUIT_SILO_INFO("skipping field "
+                          << var_name
+                          << ", since its type is not implemented, found "
+                          << vals_dtype.name());
         return;
     }
 
@@ -5838,10 +5991,10 @@ void silo_write_field(DBfile *dbfile,
 
             if (used_names.find(var_name) != used_names.end())
             {
-                CONDUIT_INFO("The name " << var_name << " has already been saved to "
-                             "Silo as the name for a different object. Saving this field "
-                             "will overwrite that previous object, so we will skip field "
-                             << var_name << ".");
+                CONDUIT_SILO_INFO("The name " << var_name << " has already been saved to "
+                                  "Silo as the name for a different object. Saving this field "
+                                  "will overwrite that previous object, so we will skip field "
+                                  << var_name << ".");
                 return;
             }
 
@@ -5870,10 +6023,10 @@ void silo_write_field(DBfile *dbfile,
 
                     if (used_names.find(comp_var_name) != used_names.end())
                     {
-                        CONDUIT_INFO("The name " << comp_var_name << " has already been saved to "
-                                     "Silo as the name for a different object. Saving this field component "
-                                     "will overwrite that previous object, so we will skip field component "
-                                     << comp_var_name << ".");
+                        CONDUIT_SILO_INFO("The name " << comp_var_name << " has already been saved to "
+                                          "Silo as the name for a different object. Saving this field component "
+                                          "will overwrite that previous object, so we will skip field component "
+                                          << comp_var_name << ".");
                         return;
                     }
 
@@ -5893,10 +6046,10 @@ void silo_write_field(DBfile *dbfile,
             {
                 if (used_names.find(var_name) != used_names.end())
                 {
-                    CONDUIT_INFO("The name " << var_name << " has already been saved to "
-                                 "Silo as the name for a different object. Saving this field "
-                                 "will overwrite that previous object, so we will skip field "
-                                 << var_name << ".");
+                    CONDUIT_SILO_INFO("The name " << var_name << " has already been saved to "
+                                      "Silo as the name for a different object. Saving this field "
+                                      "will overwrite that previous object, so we will skip field "
+                                      << var_name << ".");
                     return;
                 }
 
@@ -5959,10 +6112,10 @@ void silo_write_field(DBfile *dbfile,
 
             if (used_names.find(var_name) != used_names.end())
             {
-                CONDUIT_INFO("The name " << var_name << " has already been saved to "
-                             "Silo as the name for a different object. Saving this field "
-                             "will overwrite that previous object, so we will skip field "
-                             << var_name << ".");
+                CONDUIT_SILO_INFO("The name " << var_name << " has already been saved to "
+                                  "Silo as the name for a different object. Saving this field "
+                                  "will overwrite that previous object, so we will skip field "
+                                  << var_name << ".");
                 return;
             }
 
@@ -5992,10 +6145,10 @@ void silo_write_field(DBfile *dbfile,
 
                     if (used_names.find(comp_var_name) != used_names.end())
                     {
-                        CONDUIT_INFO("The name " << comp_var_name << " has already been saved to "
-                                     "Silo as the name for a different object. Saving this field component "
-                                     "will overwrite that previous object, so we will skip field component "
-                                     << comp_var_name << ".");
+                        CONDUIT_SILO_INFO("The name " << comp_var_name << " has already been saved to "
+                                          "Silo as the name for a different object. Saving this field component "
+                                          "will overwrite that previous object, so we will skip field component "
+                                          << comp_var_name << ".");
                         return;
                     }
 
@@ -6016,10 +6169,10 @@ void silo_write_field(DBfile *dbfile,
             {
                 if (used_names.find(var_name) != used_names.end())
                 {
-                    CONDUIT_INFO("The name " << var_name << " has already been saved to "
-                                 "Silo as the name for a different object. Saving this field "
-                                 "will overwrite that previous object, so we will skip field "
-                                 << var_name << ".");
+                    CONDUIT_SILO_INFO("The name " << var_name << " has already been saved to "
+                                      "Silo as the name for a different object. Saving this field "
+                                      "will overwrite that previous object, so we will skip field "
+                                      << var_name << ".");
                     return;
                 }
 
@@ -6051,10 +6204,10 @@ void silo_write_field(DBfile *dbfile,
 
         if (used_names.find(var_name) != used_names.end())
         {
-            CONDUIT_INFO("The name " << var_name << " has already been saved to "
-                         "Silo as the name for a different object. Saving this field "
-                         "will overwrite that previous object, so we will skip field "
-                         << var_name << ".");
+            CONDUIT_SILO_INFO("The name " << var_name << " has already been saved to "
+                              "Silo as the name for a different object. Saving this field "
+                              "will overwrite that previous object, so we will skip field "
+                              << var_name << ".");
             return;
         }
 
@@ -6691,8 +6844,8 @@ bool silo_write_topo(DBfile *dbfile,
 {
     if (! detail::check_alphanumeric(topo_name))
     {
-        CONDUIT_INFO("Topology name " << topo_name << " contains " <<
-                     "non-alphanumeric characters. Skipping.");
+        CONDUIT_SILO_INFO("Topology name " << topo_name << " contains " <<
+                          "non-alphanumeric characters. Skipping.");
         return false;
     }
 
@@ -6985,8 +7138,8 @@ bool silo_write_matset(DBfile *dbfile,
 {
     if (! detail::check_alphanumeric(matset_name))
     {
-        CONDUIT_INFO("Matset name " << matset_name << " contains " <<
-                     "non-alphanumeric characters. Skipping.");
+        CONDUIT_SILO_INFO("Matset name " << matset_name << " contains " <<
+                          "non-alphanumeric characters. Skipping.");
         return false;
     }
 
@@ -6994,19 +7147,19 @@ bool silo_write_matset(DBfile *dbfile,
 
     if (used_names.find(silo_matset_name) != used_names.end())
     {
-        CONDUIT_INFO("The name " << silo_matset_name << " has already been saved to "
-                     "Silo as the name for a different object. Saving this matset "
-                     "will overwrite that previous object, so we will skip matset "
-                     << matset_name << ".");
+        CONDUIT_SILO_INFO("The name " << silo_matset_name << " has already been saved to "
+                          "Silo as the name for a different object. Saving this matset "
+                          "will overwrite that previous object, so we will skip matset "
+                          << matset_name << ".");
         return false;
     }
 
     if (!n_mesh_info.has_path(topo_name))
     {
-        CONDUIT_INFO("Skipping this matset because the linked "
-                     "topology is invalid: "
-                      << "matsets/" << matset_name
-                      << "/topology: " << topo_name);
+        CONDUIT_SILO_INFO("Skipping this matset because the linked "
+                          "topology is invalid: "
+                          << "matsets/" << matset_name
+                          << "/topology: " << topo_name);
         return false;
     }
     const std::string silo_meshname = write_overlink ? "MESH" : topo_name;
@@ -7127,8 +7280,8 @@ void silo_write_specset(DBfile *dbfile,
 {
     if (! detail::check_alphanumeric(specset_name))
     {
-        CONDUIT_INFO("Specset name " << specset_name << " contains " <<
-                     "non-alphanumeric characters. Skipping.");
+        CONDUIT_SILO_INFO("Specset name " << specset_name << " contains " <<
+                          "non-alphanumeric characters. Skipping.");
         return;
     }
 
@@ -7140,14 +7293,14 @@ void silo_write_specset(DBfile *dbfile,
             silo_specset_name = ovl_specset_names.at(specset_name).first;
             if ("ERROR" == silo_specset_name)
             {
-                CONDUIT_INFO(ovl_specset_names.at(specset_name).second);
+                CONDUIT_SILO_INFO(ovl_specset_names.at(specset_name).second);
                 return;
             }
         }
         else
         {
-            CONDUIT_INFO("Specset with name " << specset_name << " is missing from "
-                         "Blueprint index. Skipping.");
+            CONDUIT_SILO_INFO("Specset with name " << specset_name << " is missing from "
+                              "Blueprint index. Skipping.");
             return;
         }
     }
@@ -7158,10 +7311,10 @@ void silo_write_specset(DBfile *dbfile,
 
     if (used_names.find(silo_specset_name) != used_names.end())
     {
-        CONDUIT_INFO("The name " << silo_specset_name << " has already been saved to "
-                     "Silo as the name for a different object. Saving this specset "
-                     "will overwrite that previous object, so we will skip specset "
-                     << specset_name << ".");
+        CONDUIT_SILO_INFO("The name " << silo_specset_name << " has already been saved to "
+                          "Silo as the name for a different object. Saving this specset "
+                          "will overwrite that previous object, so we will skip specset "
+                          << specset_name << ".");
         return;
     }
 
@@ -7169,8 +7322,8 @@ void silo_write_specset(DBfile *dbfile,
     if (conduit::blueprint::mesh::matset::is_uni_buffer(n_matset) ||
         conduit::blueprint::mesh::matset::is_material_dominant(n_matset))
     {
-        CONDUIT_INFO("TODO Currently specsets can only be saved to silo if "
-                     "they are multi_buffer + element_dominant.");
+        CONDUIT_SILO_INFO("TODO Currently specsets can only be saved to silo if "
+                          "they are multi_buffer + element_dominant.");
         return;
     }
 
@@ -7355,9 +7508,9 @@ void silo_mesh_write(DBfile *dbfile,
 
             if (!n_matset.has_path("topology"))
             {
-                CONDUIT_INFO("Skipping this matset because we are "
-                             "missing a linked topology: "
-                              << "matsets/" << matset_name << "/topology");
+                CONDUIT_SILO_INFO("Skipping this matset because we are "
+                                  "missing a linked topology: "
+                                  << "matsets/" << matset_name << "/topology");
                 continue;
             }
 
@@ -7366,9 +7519,9 @@ void silo_mesh_write(DBfile *dbfile,
             // if we've already written a matset for this topo successfully
             if (topo_names.find(topo_name) != topo_names.end())
             {
-                CONDUIT_INFO("There are multiple matsets that belong to the same topology "
-                             "for topo " << topo_name << ". This is ambiguous in Silo. "
-                             "Skipping matset " << matset_name << ".");
+                CONDUIT_SILO_INFO("There are multiple matsets that belong to the same topology "
+                                  "for topo " << topo_name << ". This is ambiguous in Silo. "
+                                  "Skipping matset " << matset_name << ".");
                 continue;
             }
 
@@ -7401,18 +7554,18 @@ void silo_mesh_write(DBfile *dbfile,
             const std::string specset_name = specset_itr.name();
             if (! n_specset.has_child("matset"))
             {
-                CONDUIT_INFO("Skipping this specset because we are "
-                             "missing a linked matset: "
-                              << "specsets/" << specset_name << "/matset");
+                CONDUIT_SILO_INFO("Skipping this specset because we are "
+                                  "missing a linked matset: "
+                                  << "specsets/" << specset_name << "/matset");
                 continue;
             }
             const std::string matset_name = n_specset["matset"].as_string();
             if (! n_mesh_info.has_path("matsets/" + matset_name + "/topo_name"))
             {
-                CONDUIT_INFO("Skipping this specset because the linked "
-                             "matset is invalid or was not written: "
-                              << "specsets/" << specset_name
-                              << "/matset: " << matset_name);
+                CONDUIT_SILO_INFO("Skipping this specset because the linked "
+                                  "matset is invalid or was not written: "
+                                  << "specsets/" << specset_name
+                                  << "/matset: " << matset_name);
                 continue;
             }
             const Node &n_matset = mesh_domain["matsets"][matset_name];
@@ -7445,9 +7598,9 @@ void silo_mesh_write(DBfile *dbfile,
             const std::string var_name = field_itr.name();
             if (! n_var.has_path("topology"))
             {
-                CONDUIT_INFO("Skipping this variable because we are "
-                             "missing a linked topology: "
-                              << "fields/" << var_name << "/topology");
+                CONDUIT_SILO_INFO("Skipping this variable because we are "
+                                  "missing a linked topology: "
+                                  << "fields/" << var_name << "/topology");
                 continue;
             }
             const std::string topo_name = n_var["topology"].as_string();
@@ -7476,9 +7629,9 @@ void silo_mesh_write(DBfile *dbfile,
         {
             if (mesh_domain["adjsets"].number_of_children() > 1)
             {
-                CONDUIT_INFO("Only one adjset belonging to topology "
-                             << ovl_topo_name << " will be saved as "
-                             "per the Overlink spec.");
+                CONDUIT_SILO_INFO("Only one adjset belonging to topology "
+                                  << ovl_topo_name << " will be saved as "
+                                  "per the Overlink spec.");
             }
             auto adjset_itr = mesh_domain["adjsets"].children();
             while (adjset_itr.has_next())
@@ -8487,7 +8640,14 @@ write_dom2filemap(DBfile *dbfile,
 ///      compression:  silo compression options string
 ///            If present this string is passed to Silo's DBSetCompression
 ///            method before write, and prior compression are restored after
-///            write.
+///            write. If present, this temporarily overrides
+///            the Silo compression option for this write and restores the
+///            previous value before returning.
+///
+///      verbose: "yes", "no"
+///            "no" suppresses informational messages from the Silo mesh writer.
+///            If present, this temporarily overrides the Silo verbose option
+///            for this write and restores the previous value before returning.
 ///
 ///      number_of_files:  {# of files}
 ///            when "multi_file" or "overlink":
@@ -8527,6 +8687,19 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     int         opts_num_files            = -1;
     bool        opts_truncate             = false;
     int         silo_type                 = DB_HDF5;
+
+    Node silo_opts;
+    if(opts.has_child("verbose"))
+    {
+        silo_opts["verbose"].set(opts["verbose"]);
+    }
+    if(opts.has_child("compression"))
+    {
+        silo_opts["compression"].set(opts["compression"]);
+    }
+
+    SiloOptionsContext silo_options_context;
+    silo_options_context.set(silo_opts);
 
     // check for + validate file_style option
     if(opts.has_child("file_style") && opts["file_style"].dtype().is_string())
@@ -8670,14 +8843,10 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         }
     }
 
-    // check for silo compression options string
-    //  When we use compression options, this helper class restores prior options
-    //  either at the end of this call or when an exception occurs
-    SiloDBCompressionOptions silo_compression_opts;
-    if (opts.has_child("compression") && opts["compression"].dtype().is_string() )
-    {
-        silo_compression_opts.set(opts["compression"].as_string());
-    }
+    // Apply the current Conduit Silo compression option to Silo's global
+    // DBSetCompression state for this write.
+    SiloDBCompressionContext silo_compression_context;
+    silo_compression_context.set(SiloOptions::compression_options());
 
     // handle file type options
     if (opts_silo_type == "default")
@@ -8745,7 +8914,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     if (! conduit::relay::io::blueprint::clean_mesh(mesh, multi_dom))
 #endif
     {
-        CONDUIT_INFO("Silo save: no valid data exists. Skipping save");
+        CONDUIT_SILO_INFO("Silo save: no valid data exists. Skipping save");
         return;
     }
 
@@ -8835,7 +9004,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
             {
                 if (par_rank == 0)
                 {
-                    CONDUIT_INFO("Silo save: Overlink: topo name not provided or not found.");
+                    CONDUIT_SILO_INFO("Silo save: Overlink: topo name not provided or not found.");
                 }
 
                 if (dom_topos.number_of_children() > 0)
@@ -8843,7 +9012,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                     opts_ovl_topo_name = dom_topos.children().next().name();
                     if (par_rank == 0)
                     {
-                        CONDUIT_INFO("Silo save: Overlink: topo name defaulting to " + opts_ovl_topo_name);
+                        CONDUIT_SILO_INFO("Silo save: Overlink: topo name defaulting to " + opts_ovl_topo_name);
                     }
                 }
                 else
@@ -8948,8 +9117,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         if (silo_type != DB_UNKNOWN)
         {
             silo_type = DB_UNKNOWN;
-            CONDUIT_INFO("Overriding silo type to DB_UNKNOWN because the "
-                         "file already exists and truncation is disabled.");
+            CONDUIT_SILO_INFO("Overriding silo type to DB_UNKNOWN because the "
+                              "file already exists and truncation is disabled.");
         }
     }
     else // the file does not exist or we are truncating
@@ -8959,9 +9128,9 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
         {
             // silo type can be anything except unknown
             silo_type = DB_HDF5;
-            CONDUIT_INFO("Overriding chosen silo type (DB_UNKNOWN) to DB_HDF5 "
-                         "because either the file does not exist or "
-                         "truncation is enabled.");
+            CONDUIT_SILO_INFO("Overriding chosen silo type (DB_UNKNOWN) to DB_HDF5 "
+                              "because either the file does not exist or "
+                              "truncation is enabled.");
         }
     }
 
@@ -8974,8 +9143,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
     // if global domains > num_files, warn and use one file per domain
     if(global_num_domains < num_files)
     {
-        CONDUIT_INFO("Requested more files than actual domains, "
-                     "writing one file per domain");
+        CONDUIT_SILO_INFO("Requested more files than actual domains, "
+                          "writing one file per domain");
         num_files = global_num_domains;
     }
 
@@ -9479,7 +9648,7 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
                                         "Error opening Silo file for writing: " << output_file);
                                 }
 
-                                // CONDUIT_INFO("rank " << par_rank << " output_file"
+                                // CONDUIT_SILO_INFO("rank " << par_rank << " output_file"
                                 //              << output_file << " path " << path);
 
                                 silo_mesh_write(dbfile.getSiloObject(),
@@ -9696,8 +9865,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
             }
             else
             {
-                CONDUIT_INFO("Number of species per material within a set must agree across domains; "
-                             "Number of species sets must be the same on all domains.");
+                CONDUIT_SILO_INFO("Number of species per material within a set must agree across domains; "
+                                  "Number of species sets must be the same on all domains.");
             }
         }
 
@@ -9712,8 +9881,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
             }
             else
             {
-                CONDUIT_INFO("Number of species per material within a set must agree across domains; "
-                             "Number of species sets must be the same on all domains.");
+                CONDUIT_SILO_INFO("Number of species per material within a set must agree across domains; "
+                                  "Number of species sets must be the same on all domains.");
             }
         }
 #endif
@@ -9801,8 +9970,8 @@ void CONDUIT_RELAY_API write_mesh(const Node &mesh,
             }
             else
             {
-                CONDUIT_INFO("Number of species per material within a set must agree across domains; "
-                             "Number of species sets must be the same on all domains.");
+                CONDUIT_SILO_INFO("Number of species per material within a set must agree across domains; "
+                                  "Number of species sets must be the same on all domains.");
             }
         }
     }
@@ -10371,6 +10540,16 @@ void CONDUIT_RELAY_API save_mesh(const Node &mesh,
 ///            of types. "yes" will prefer this if possible, "no" will 
 ///            always write the entire array.
 ///
+///      compression:  silo compression options string
+///            If present, this temporarily overrides
+///            the Silo compression option for this write and restores the
+///            previous value before returning.
+///
+///      verbose: "yes", "no"
+///            "no" suppresses informational messages from the Silo mesh writer.
+///            If present, this temporarily overrides the Silo verbose option
+///            for this write and restores the previous value before returning.
+///
 ///      number_of_files:  {# of files}
 ///            when "multi_file" or "overlink":
 ///                 <= 0, use # of files == # of domains
@@ -10412,6 +10591,29 @@ void CONDUIT_RELAY_API save_mesh(const Node &mesh,
 //-----------------------------------------------------------------------------
 // -- end conduit::relay::<mpi>::io::silo --
 //-----------------------------------------------------------------------------
+
+//-----------------------------------------------------------------------------
+void
+silo_set_options(const Node &opts)
+{
+    SiloOptions::set(opts);
+}
+
+//-----------------------------------------------------------------------------
+void
+silo_options(Node &opts)
+{
+    SiloOptions::about(opts);
+}
+
+//-----------------------------------------------------------------------------
+void
+silo_reset_options()
+{
+    SiloOptions::reset();
+}
+
+#undef CONDUIT_SILO_INFO
 
 }
 //-----------------------------------------------------------------------------

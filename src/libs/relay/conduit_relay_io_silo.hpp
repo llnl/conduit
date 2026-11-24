@@ -105,6 +105,16 @@ void CONDUIT_RELAY_API write_mesh(const conduit::Node &mesh,
 ///                 <= 0, use # of files == # of domains
 ///                  > 0, # of files == number_of_files
 ///
+///      verbose: "yes", "no"
+///            "no" suppresses informational messages from the Silo mesh writer.
+///            If present, this temporarily overrides the Silo verbose option
+///            for this write and restores the previous value before returning.
+///
+///      compression: silo compression options string
+///            If present, this temporarily overrides
+///            the Silo compression option for this write and restores the
+///            previous value before returning.
+///
 /// Note:
 ///  In the non-overlink case...
 ///   1) We have made the choice to output ALL topologies as multimeshes.
@@ -180,6 +190,16 @@ void CONDUIT_RELAY_API save_mesh(const conduit::Node &mesh,
 ///                 <= 0, use # of files ==> # of domains
 ///                  > 0, # of files ==> number_of_files
 ///
+///      verbose: "yes", "no"
+///            "no" suppresses informational messages from the Silo mesh writer.
+///            If present, this temporarily overrides the Silo verbose option
+///            for this write and restores the previous value before returning.
+///
+///      compression: silo compression options string
+///            If present, this temporarily overrides
+///            the Silo compression option for this write and restores the
+///            previous value before returning.
+///
 /// Note:
 ///  In the non-overlink case...
 ///   1) We have made the choice to output ALL topologies as multimeshes.
@@ -222,6 +242,11 @@ void CONDUIT_RELAY_API load_mesh(const std::string &root_file_path,
 ///            "multi_buffer_by_material"
 ///            "default"   ==> "sparse_by_element"
 ///
+///      verbose: "yes", "no"
+///            "no" suppresses informational messages from the Silo mesh reader.
+///            If present, this temporarily overrides the Silo verbose option
+///            for this read and restores the previous value before returning.
+///
 //-----------------------------------------------------------------------------
 void CONDUIT_RELAY_API load_mesh(const std::string &root_file_path,
                                  const conduit::Node &opts,
@@ -248,6 +273,11 @@ void CONDUIT_RELAY_API read_mesh(const std::string &root_file_path,
 ///      matset_style: "default", "multi_buffer_full", "sparse_by_element",
 ///            "multi_buffer_by_material"
 ///            "default"   ==> "sparse_by_element"
+///
+///      verbose: "yes", "no"
+///            "no" suppresses informational messages from the Silo mesh reader.
+///            If present, this temporarily overrides the Silo verbose option
+///            for this read and restores the previous value before returning.
 ///
 //-----------------------------------------------------------------------------
 void CONDUIT_RELAY_API read_mesh(const std::string &root_file_path,

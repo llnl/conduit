@@ -53,6 +53,31 @@ CONDUIT_RELAY_API DBfile* hdf5_open_file_for_read_write(const std::string &path,
 void CONDUIT_RELAY_API silo_close_file(DBfile *silo_handle);
 
 //-----------------------------------------------------------------------------
+/// Pass a Node to set Silo mesh reader/writer options.
+///
+/// opts:
+///      verbose: "yes", "no"
+///          "no" suppresses informational messages from Silo mesh reads and
+///          writes.
+///          Default is "no".
+///
+///      compression: silo compression options string
+///          Passed to Silo's DBSetCompression method during mesh writes.
+///          Default is "NULL", which disables Silo DB compression.
+//-----------------------------------------------------------------------------
+void CONDUIT_RELAY_API silo_set_options(const Node &opts);
+
+//-----------------------------------------------------------------------------
+/// Reset Silo mesh reader/writer options to defaults.
+//-----------------------------------------------------------------------------
+void CONDUIT_RELAY_API silo_reset_options();
+
+//-----------------------------------------------------------------------------
+/// Get a Node that contains Silo mesh reader/writer options.
+//-----------------------------------------------------------------------------
+void CONDUIT_RELAY_API silo_options(Node &opts);
+
+//-----------------------------------------------------------------------------
 void CONDUIT_RELAY_API silo_write(const Node &node,
                                   const std::string &path);
 

@@ -31,6 +31,73 @@ relay_test_silo_data_path(const std::string &test_fname)
 }
 
 //-----------------------------------------------------------------------------
+// Helper for tests that need to check whether Silo verbose paths emitted any
+// CONDUIT_INFO messages.
+//
+// Conduit exposes info messages through a process-global callback, so this
+// helper installs a counting callback for one scoped test region and restores
+// the previous callback in its destructor.
+class SiloInfoMessageCounter
+{
+public:
+    SiloInfoMessageCounter()
+    : m_count(0),
+      m_prev_handler(conduit::utils::info_handler()),
+      m_prev_counter(active_counter())
+    {
+        active_counter() = this;
+        conduit::utils::set_info_handler(count_info_message);
+    }
+
+    SiloInfoMessageCounter(const SiloInfoMessageCounter &) = delete;
+    SiloInfoMessageCounter& operator=(const SiloInfoMessageCounter &) = delete;
+
+    ~SiloInfoMessageCounter()
+    {
+        active_counter() = m_prev_counter;
+        conduit::utils::set_info_handler(m_prev_handler);
+    }
+
+    void
+    reset()
+    {
+        m_count = 0;
+    }
+
+    int
+    num_messages() const
+    {
+        return m_count;
+    }
+
+private:
+    // Conduit's info handler API stores a plain function pointer. This static
+    // callback forwards each message to the counter active for the current test.
+    static void
+    count_info_message(const std::string &,
+                       const std::string &,
+                       int)
+    {
+        if (active_counter() != nullptr)
+        {
+            active_counter()->m_count++;
+        }
+    }
+
+    // Store the counter currently connected to Conduit's static info callback.
+    static SiloInfoMessageCounter *&
+    active_counter()
+    {
+        static SiloInfoMessageCounter *current = nullptr;
+        return current;
+    }
+
+    int m_count;
+    conduit::utils::conduit_info_handler m_prev_handler;
+    SiloInfoMessageCounter *m_prev_counter;
+};
+
+//-----------------------------------------------------------------------------
 // The Blueprint to Silo to Blueprint round trip will
 // transform uniform to rectilinear so we will do the same
 // to allow diffs to succeed
