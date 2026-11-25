@@ -129,7 +129,6 @@ jobs:
     - name: Check Install (using with cmake prefix path)
       run: |
         cd install/examples/conduit/using-with-cmake-prefix-path
-        echo "GITHUB WORKSPACE == ${GITHUB_WORKSPACE}""
         cmake -DCMAKE_PREFIX_PATH=${GITHUB_WORKSPACE}/install/  -S . -B build
         cmake --build build --verbose -j2
         ./build/conduit_example
