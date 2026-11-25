@@ -4,6 +4,7 @@ on:
   pull_request:
     branches: [ develop ]
 
+jobs:
   build_minimal:
     name: Ubuntu GCC minimal
     runs-on: ubuntu-24.04
