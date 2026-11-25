@@ -129,7 +129,8 @@ jobs:
     - name: Check Install (using with cmake prefix path)
       run: |
         cd install/examples/conduit/using-with-cmake-prefix-path
-        cmake -DCMAKE_PREFIX_PATH=${GITHUB_WORKSPACE}/conduit/install/  -S . -B build
+        echo "GITHUB WORKSPACE == ${GITHUB_WORKSPACE}""
+        cmake -DCMAKE_PREFIX_PATH=${GITHUB_WORKSPACE}/install/  -S . -B build
         cmake --build build --verbose -j2
         ./build/conduit_example
 
@@ -152,12 +153,12 @@ jobs:
 
     - name: Check Install (cpp fort and py example)
       run: |
-        export PYTHON_EXE=${GITHUB_WORKSPACE}/tpls/install/python-venv/bin/python3
+        export PYTHON_EXE=${GITHUB_WORKSPACE}/../tpls/install/python-venv/bin/python3
         # make sure we can import conduit from python before we try our compiled example
-        export PYTHONPATH=${GITHUB_WORKSPACE}/conduit/install/python-modules/
+        export PYTHONPATH=${GITHUB_WORKSPACE}/install/python-modules/
         $PYTHON_EXE -c "import conduit;print(conduit.about());"
         cd install/examples/conduit/cpp_fort_and_py
-        cmake -DCONDUIT_DIR=${GITHUB_WORKSPACE}/conduit/install  -DPYTHON_EXECUTABLE=${PYTHON_EXE} ../
+        cmake -DCONDUIT_DIR=${GITHUB_WORKSPACE}/install  -DPYTHON_EXECUTABLE=${PYTHON_EXE} ../
         cmake -S . -B build
         cmake --build build --verbose -j2
         # lets run!
