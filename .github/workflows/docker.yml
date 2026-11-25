@@ -1,0 +1,21 @@
+name: docker
+
+on:
+  pull_request:
+    branches: [ develop ]
+
+permissions:
+  contents: read
+
+jobs:
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+      with:
+        submodules: 'recursive'
+    - name: Docker Build
+      run: |
+        cd src/examples/docker/ubuntu/ && ./build.sh

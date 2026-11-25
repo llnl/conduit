@@ -5,6 +5,7 @@
 FROM ubuntu:24.04
 
 ARG TARGETARCH
+ARG CMAKE_VERSION=3.31.12
 
 #####################
 # base deps
@@ -32,8 +33,6 @@ RUN apt-get update && apt-get -y install \
              python3-dev \
              python-is-python3 \
              python3.12-venv \
-             clang \
-             llvm \
              perl \
              git \
              git-lfs \
@@ -53,8 +52,6 @@ RUN apt-get update && apt-get -y install \
              libreadline-dev \
              libsqlite3-dev \
              libbz2-dev \
-             nodejs \
-             npm \
              vim
 
 # manual mpich install
@@ -88,42 +85,47 @@ RUN apt install  -y ./libmpich-dev_4.2.0-5.1_${TARGETARCH}.deb
 
 RUN rm -rf /var/lib/apt/lists/*
 
+# manual cmake install
+RUN case "$TARGETARCH" in \
+          "amd64") CMAKE_ARCH="linux-x86_64" ;; \
+          "arm64") CMAKE_ARCH="aarch64" ;; \
+    esac; \
+    curl -L https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-${CMAKE_ARCH}.tar.gz -o cmake-${CMAKE_VERSION}-${CMAKE_ARCH}.tar.gz && \
+    tar -xzf cmake-${CMAKE_VERSION}-${CMAKE_ARCH}.tar.gz && \
+    cmake-${CMAKE_VERSION}-${CMAKE_ARCH}/bin/cmake --version && \
+    mv cmake-${CMAKE_VERSION}-${CMAKE_ARCH} cmake
+    
+ENV PATH="/cmake/bin:${PATH}"
+
+RUN cmake --version
+
 # untar the current source  (created as part of build.sh)
 COPY conduit.docker.src.tar /
 RUN tar -xf conduit.docker.src.tar
 
-# if you would like to clone conduit directly, you can use:
-#RUN git clone --depth 1 https://github.com/LLNL/conduit.git
+# bootstrap third party libs
+RUN chmod +x  conduit/scripts/build_conduit/build_conduit.sh
+RUN cd conduit && env prefix=tpls enable_mpi=ON       \
+                                  enable_fortran=ON   \
+                                  enable_tests=OFF    \
+                                  enable_verbose=OFF  \
+                                  build_caliper=true  \
+                                  build_conduit=false \
+                                  build_jobs=2        \
+            ./scripts/build_conduit/build_conduit.sh
 
-# at some sites ssl certs are intercepted, which cases issues fetching
-# tpl sources via https
-
-# to resolve this, either:
-# 1) pass the "-k" option to uberenv (recommended),
-# 2) install the proper certs into the image, or
-# 3) use  the following commands to disable ssl for git and
-#    curl (both are used by spack):
-#RUN git config --global http.sslVerify false
-#RUN echo insecure >> ~/.curlrc
-
-# bootstrap third party libs using spack and uberenv
-RUN cd conduit && python3 scripts/uberenv/uberenv.py \
-    -k \
-    --prefix=/uberenv_libs \
-    --spec "+mpi%gcc" \
-    --spack-env-file=scripts/uberenv_configs/spack_configs/envs/ubuntu-24.04/spack.yaml
 
 # configure a debug build with cmake
 RUN cd conduit && \
-    /uberenv_libs/spack/opt/spack/*/cmake-*/bin/cmake \
+     cmake \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/conduit/install \
-    -C /uberenv_libs/*-patch.cmake \
+    -C tpls/conduit-config.cmake \
     -B build -S src
 
 # build, test, and install conduit
 RUN cmake --build conduit/build --config Release
-RUN cmake -E env CTEST_OUTPUT_ON_FAILURE=1 cmake --build conduit/build
+RUN ctest --test-dir conduit/build --output-on-failure -V
 RUN cmake --install conduit/build --config Release
 
 # open port 9000, for use by conduit relay
