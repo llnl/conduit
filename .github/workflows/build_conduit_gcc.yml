@@ -8,10 +8,26 @@ jobs:
   build_basic:
     name: Ubuntu GCC
     runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - name: shared
+            env:
+              cc: gcc
+              cxx: g++
+              cmake_version: 3.31.8
+              build_shared_libs: ON
+          - name: static
+            env:
+              cc: gcc
+              cxx: g++
+              cmake_version: 3.31.8
+              build_shared_libs: OFF
     env:
-      CC: gcc
-      CXX: g++
-      FC: gfortran
+      COMPILER_CC: ${{ matrix.env.cc }}
+      COMPILER_CXX: ${{ matrix.env.cxx }}
+      CMAKE_VERSION:  ${{ matrix.env.cmake_version }}
+      BUILD_SHARED_LIBS: ${{ matrix.env.build_shared_libs }}
     steps:
     - name: Install System Deps
       run: |
@@ -43,45 +59,89 @@ jobs:
                                 libbz2-dev \
                                 openmpi-bin \
                                 openmpi-common \
-                                libopenmpi-dev \
-                                cmake
+                                libopenmpi-dev
+    - name: Install CMake
+      run: |
+        curl -L https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz -o cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz
+        tar -xzf cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz
+        cmake-${CMAKE_VERSION}-linux-x86_64/bin/cmake --version
+        echo "$(cd cmake-${CMAKE_VERSION}-linux-x86_64/bin/ && pwd)" >> $GITHUB_PATH
+
     - name: Checkout
       uses: actions/checkout@v4
       with:
         submodules: 'recursive'
+
     - name: Env Info
       run: |
         echo "**** Env Info"
         cmake --version
         gcc --version
         which mpicc
+
     - name: Build TPLs
       run: |
-        env enable_mpi=ON \
+        env prefix=tpls \
+            enable_mpi=ON \
             enable_fortran=ON \
             enable_tests=OFF \
             enable_verbose=OFF \
             build_caliper=true \
+            build_shared_libs=${BUILD_SHARED_LIBS} \
             build_conduit=false \
             build_jobs=2 \
             ./scripts/build_conduit/build_conduit.sh
+
     - name: Configure Conduit
       run: |
         echo "**** Configuring Conduit"
-        cmake -S src -B build -C conduit-config.cmake -DCMAKE_INSTALL_PREFIX=install
+        cmake -S src -B build -C tpls/conduit-config.cmake -DCMAKE_INSTALL_PREFIX=install
+
     - name: Build Conduit
       run: |
         echo "**** Building Conduit"
         cmake --build build -j2
+
     - name: Run Conduit Unit Tests
       run: |
         echo "**** Conduit Unit Tests"
         ctest --test-dir build --output-on-failure -V
+
     - name: Install Conduit
       run: |
         echo "**** Installing Conduit"
         cmake --install build
-    - name: Check Install
+
+    - name: Check Install (using with make)
+      run: |
+        cat install/share/conduit/conduit_config.mk
+        cd install/examples/conduit/using-with-make
+        make
+        ./conduit_example
+
+    - name: Check Install (using with cmake)
+      run: |
+        cd install/examples/conduit/using-with-cmake
+        cmake -S . -B build
+        cmake --build build --verbose -j2
+        ./build/conduit_example
+
+    - name: Check Install (using with cmake prefix path)
+      run: |
+        cd install/examples/conduit/using-with-cmake-prefix-path
+        cmake -DCMAKE_PREFIX_PATH=${GITHUB_WORKSPACE}/install/  -S . -B build
+        cmake --build build --verbose -j2
+        ./build/conduit_example
+
+    - name: Check Install ( using with cmake example vs reloc-ed install)
+      run: |
+        cp -r install bananas
+        cd bananas/examples/conduit/using-with-cmake
+        cmake -S . -B build_bananas
+        cmake --build build_bananas --verbose -j2
+        ./build_bananas/conduit_example
+ 
+    - name: Check Install (using with cmake mpi)
       run: |
         export CC=/usr/bin/mpicc
         export CXX=/usr/bin/mpicxx
@@ -89,90 +149,19 @@ jobs:
         cmake -S . -B build
         cmake --build build --verbose -j2
         mpiexec -n 2 ./build/conduit_mpi_example
-  build_basic_pyvenv:
-    name: Ubuntu GCC with Python VENV
-    runs-on: ubuntu-24.04
-    env:
-      CC: gcc
-      CXX: g++
-      FC: gfortran
-    steps:
-    - name: Install System Deps
+
+    - name: Check Install (cpp fort and py example)
       run: |
-           sudo apt-get update
-           sudo env DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata
-           sudo apt-get install -y binutils \
-                                gcc \
-                                g++ \
-                                gfortran \
-                                python3 \
-                                python3-dev \
-                                python3-venv \
-                                perl \
-                                git \
-                                git-lfs \
-                                curl \
-                                wget \
-                                tar \
-                                unzip \
-                                build-essential \
-                                libncurses-dev \
-                                libssl-dev \
-                                libblas-dev \
-                                liblapack-dev \
-                                zlib1g-dev \
-                                libgdbm-dev \
-                                libreadline-dev \
-                                libsqlite3-dev \
-                                libbz2-dev \
-                                openmpi-bin \
-                                openmpi-common \
-                                libopenmpi-dev \
-                                cmake
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        submodules: 'recursive'
-    - name: Env Info
-      run: |
-        echo "**** Env Info"
-        cmake --version
-        gcc --version
-        which mpicc
-    - name: Build TPLs
-      run: |
-        env enable_mpi=ON \
-            enable_fortran=ON \
-            enable_tests=OFF \
-            enable_verbose=OFF \
-            build_conduit=false \
-            enable_python=ON \
-            build_pyvenv=true \
-            build_jobs=2 \
-            ./scripts/build_conduit/build_conduit.sh
-    - name: Configure Conduit
-      run: |
-        echo "**** Configuring Conduit"
-        cmake -S src -B build -C conduit-config.cmake -DCMAKE_INSTALL_PREFIX=install
-    - name: Build Conduit
-      run: |
-        echo "**** Building Conduit"
-        cmake --build build -j2
-    - name: Run Conduit Unit Tests
-      run: |
-        echo "**** Conduit Unit Tests"
-        export CTEST_OUTPUT_ON_FAILURE=1
-        ctest --test-dir build
-    - name: Install Conduit
-      run: |
-        echo "**** Installing Conduit"
-        cmake --install build
-    - name: Check Install
-      run: |
-        echo "**** Checking Conduit using-with-cmake-mpi example"
-        export CC=/usr/bin/mpicc
-        export CXX=/usr/bin/mpicxx
-        cd install/examples/conduit/using-with-cmake-mpi
+        export PYTHON_EXE=${GITHUB_WORKSPACE}/../tpls/install/python-venv/bin/python3
+        # make sure we can import conduit from python before we try our compiled example
+        export PYTHONPATH=${GITHUB_WORKSPACE}/install/python-modules/
+        $PYTHON_EXE -c "import conduit;print(conduit.about());"
+        cd install/examples/conduit/cpp_fort_and_py
+        cmake -DCONDUIT_DIR=${GITHUB_WORKSPACE}/install  -DPYTHON_EXECUTABLE=${PYTHON_EXE} ../
         cmake -S . -B build
         cmake --build build --verbose -j2
-        mpiexec -n 2 ./build/conduit_mpi_example
+        # lets run!
+        cd build
+        ./conduit_cpp_and_py_ex
+        ./conduit_fort_and_py_ex
+

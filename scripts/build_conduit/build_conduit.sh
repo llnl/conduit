@@ -32,7 +32,7 @@ enable_mpi="${enable_mpi:=OFF}"
 enable_mpicc="${enable_mpicc:=OFF}"
 enable_find_mpi="${enable_find_mpi:=ON}"
 enable_tests="${enable_tests:=OFF}"
-enable_verbose="${enable_verbose:=ON}"
+enable_verbose="${enable_verbose:=OFF}"
 build_jobs="${build_jobs:=6}"
 build_config="${build_config:=Release}"
 build_shared_libs="${build_shared_libs:=ON}"
@@ -40,8 +40,16 @@ build_shared_libs="${build_shared_libs:=ON}"
 # tpl controls
 build_zlib="${build_zlib:=true}"
 build_hdf5="${build_hdf5:=true}"
+
+if [[ "${enable_mpi}" == "ON" ]]; then
+  build_parmetis="${build_parmetis:=true}"
+else
+  build_parmetis="false"
+fi
+
 build_cgns="${build_cgns:=true}"
 build_pyvenv="${build_pyvenv:=true}"
+# note: this is false b/c of things to work out on windows
 build_caliper="${build_caliper:=false}"
 build_camp="${build_camp:=true}"
 build_raja="${build_raja:=true}"
@@ -264,10 +272,10 @@ hdf_parallel_settings=""
 # check if mpi is enabled
 if [[ "${enable_mpi}" == "ON" ]]; then
   echo "**** Enabling MPI support for HDF5"
-  hdf_parallel_settings=" -DHDF5_ENABLE_PARALLEL=ON"
+  hdf5_parallel_settings=" -DHDF5_ENABLE_PARALLEL=ON"
 else
   echo "**** Disabling MPI support for HDF5"
-  hdf_parallel_settings=" -DHDF5_ENABLE_PARALLEL=OFF"
+  hdf5_parallel_settings=" -DHDF5_ENABLE_PARALLEL=OFF"
 fi
 
 cmake -S ${hdf5_src_dir} -B ${hdf5_build_dir} ${cmake_compiler_settings} \
@@ -278,7 +286,8 @@ cmake -S ${hdf5_src_dir} -B ${hdf5_build_dir} ${cmake_compiler_settings} \
   -DCMAKE_INSTALL_PREFIX=${hdf5_install_dir} \
   -DHDF5_BUILD_EXAMPLES:BOOL=OFF \
   -DBUILD_TESTING:BOOL=OFF \
-  ${hdf_parallel_settings}
+   ${hdf5_parallel_settings}
+
 
 echo "**** Building HDF5 ${hdf5_version}"
 cmake --build ${hdf5_build_dir} --config ${build_config} -j${build_jobs}
@@ -290,6 +299,58 @@ else
   echo "**** Skipping HDF5 build, install found at: ${hdf5_install_dir}"
 fi # build_hdf5
 
+################
+# parmetis
+################
+#
+parmetis_version=4.0.3
+parmetis_src_dir=$(ospath ${source_dir}/parmetis-${parmetis_version})
+parmetis_build_dir=$(ospath ${build_dir}/parmetis-${parmetis_version}/)
+parmetis_install_dir=$(ospath ${install_dir}/parmetis-${parmetis_version}/)
+parmetis_tarball=$(ospath ${source_dir}/parmetis-${parmetis_version}.tar.gz)
+
+# parmetis is only used when with mpi
+if [[ "$enable_mpi" == "ON" ]]; then
+# build only if install doesn't exist
+if [ ! -d ${parmetis_install_dir} ]; then
+if ${build_parmetis}; then
+
+
+if [ ! -f ${parmetis_tarball} ]; then
+  echo "**** Downloading ${parmetis_tarball}"
+  curl -L  https://karypis.github.io/glaros/files/sw/parmetis/parmetis-${parmetis_version}.tar.gz -o ${parmetis_tarball}
+fi
+
+if [ ! -d ${parmetis_src_dir} ]; then
+  echo "**** Extracting ${parmetis_tarball}"
+  tar ${tar_extra_args} -xzf ${parmetis_tarball} -C ${source_dir}
+
+  # apply patches
+  cd ${parmetis_src_dir}
+  patch -p1 < ${script_dir}/2026_11_20_parmetis_combined_parmetis_and_metis_cmake_build.patch
+  cd ${root_dir}
+fi
+
+echo "**** Configuring parmetis ${parmetis_version}"
+
+# yes these are source dirs, not install dirs ..
+cmake -S ${parmetis_src_dir} -B ${parmetis_build_dir} ${cmake_compiler_settings} \
+  -DCMAKE_VERBOSE_MAKEFILE:BOOL=${enable_verbose} \
+  -DSHARED=${build_shared_libs} \
+  -DCMAKE_BUILD_TYPE=${build_config} \
+  -DUSE_CMAKE_FIND_MPI=${enable_find_mpi} \
+  -DGKLIB_PATH=${parmetis_src_dir}/metis/GKlib/ \
+  -DMETIS_PATH=${parmetis_src_dir}//metis/ \
+  -DCMAKE_INSTALL_PREFIX=${parmetis_install_dir}
+
+echo "**** Building parmetis ${parmetis_version}"
+cmake --build ${parmetis_build_dir} --config ${build_config} -j${build_jobs}
+echo "**** Installing parmetis ${parmetis_version}"
+cmake --install ${parmetis_build_dir} --config ${build_config}
+
+fi # build_parmetis
+fi # if parmetis install exists, skip build
+fi # if enable_mpi
 
 ################
 # CGNS
@@ -424,7 +485,8 @@ if ${build_pyvenv}; then
         ${venv_python_exe} -m pip install cython setuptools
     fi
     if [[ "$enable_mpi" == "ON" ]]; then
-        ${venv_python_exe} -m pip install mpi4py
+        # use no-binary to make sure we build against this system's mpi
+        ${venv_python_exe} -m pip install --no-binary=mpi4py mpi4py
     fi
 fi
 else
@@ -610,7 +672,7 @@ cmake -S ${raja_src_dir} -B ${raja_build_dir} ${cmake_compiler_settings} \
   -DENABLE_TESTS=OFF \
   -DRAJA_ENABLE_TESTS=OFF \
   -DENABLE_EXAMPLES=OFF \
-  -DENABLE_EXERCISES=OFF ${raja_extra_cmake_args} \
+  -DRAJA_ENABLE_EXERCISES=OFF ${raja_extra_cmake_args} \
   -DCMAKE_INSTALL_PREFIX=${raja_install_dir} \
   -DRAJA_ENABLE_VECTORIZATION=${raja_enable_vectorization}
 
@@ -895,6 +957,12 @@ fi
 if ${build_cgns}; then
   echo 'set(CGNS_DIR ' ${cgns_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
 fi
+if ${build_parmetis}; then
+  # parmetis build provides both metis and parmetis
+  echo 'set(METIS_DIR '    ${parmetis_install_dir}    ' CACHE PATH "")' >> ${cmake_host_config}
+  echo 'set(PARMETIS_DIR ' ${parmetis_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
+fi
+
 if ${build_zfp}; then
   echo 'set(ZFP_DIR ' ${zfp_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}
   echo 'set(H5ZZFP_DIR ' ${h5zzfp_install_dir} ' CACHE PATH "")' >> ${cmake_host_config}

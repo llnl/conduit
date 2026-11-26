@@ -53,6 +53,9 @@ find_library(PARMETIS_LIB NAMES parmetis
              NO_SYSTEM_ENVIRONMENT_PATH
              NO_CMAKE_SYSTEM_PATH)
 
+set(METIS_LIBRARIES  ${METIS_LIB})
+set(METIS_INCLUDE_DIRS ${METIS_INCLUDE_DIR})
+
 set(PARMETIS_LIBRARIES  ${PARMETIS_LIB} ${METIS_LIB})
 set(PARMETIS_INCLUDE_DIRS ${PARMETIS_INCLUDE_DIR} ${METIS_INCLUDE_DIR})
 
@@ -66,10 +69,9 @@ find_package_handle_standard_args(Parmetis  DEFAULT_MSG
 mark_as_advanced(PARMETIS_INCLUDE_DIR 
                  PARMETIS_LIB)
 
-
 blt_register_library(NAME parmetis
-                     INCLUDES ${PARMETIS_INCLUDE_DIRS}
-                     LIBRARIES ${PARMETIS_LIBRARIES} )
+                     INCLUDES ${PARMETIS_INCLUDE_DIRS} ${METIS_INCLUDE_DIRS}
+                     LIBRARIES ${PARMETIS_LIBRARIES} ${METIS_LIBRARIES})
 
 set(CONDUIT_USE_PARMETIS TRUE)
 

@@ -1,0 +1,81 @@
+name: build_conduit_gcc_minimal
+
+on:
+  pull_request:
+    branches: [ develop ]
+
+jobs:
+  build_minimal:
+    name: Ubuntu GCC minimal
+    runs-on: ubuntu-24.04
+    env:
+      CC: gcc
+      CXX: g++
+      FC: gfortran
+    steps:
+
+    - name: Install System Deps
+      run: |
+           sudo apt-get update
+           sudo env DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata
+           sudo apt-get install -y binutils \
+                                gcc \
+                                g++ \
+                                gfortran \
+                                python3 \
+                                perl \
+                                git \
+                                git-lfs \
+                                curl \
+                                wget \
+                                tar \
+                                unzip \
+                                build-essential \
+                                libncurses-dev \
+                                libssl-dev \
+                                zlib1g-dev \
+                                libgdbm-dev \
+                                libreadline-dev \
+                                libsqlite3-dev \
+                                libbz2-dev \
+                                cmake
+
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+
+    - name: Env Info
+      run: |
+        echo "**** Env Info"
+        cmake --version
+        gcc --version
+
+    - name: Configure Conduit
+      run: |
+        echo "**** Configuring Conduit"
+        cmake -S src -B build -DCMAKE_INSTALL_PREFIX=install
+
+    - name: Build Conduit
+      run: |
+        echo "**** Building Conduit"
+        cmake --build build -j2
+
+    - name: Run Conduit Unit Tests
+      run: |
+        echo "**** Conduit Unit Tests"
+        export CTEST_OUTPUT_ON_FAILURE=1
+        ctest --test-dir build
+
+    - name: Install Conduit
+      run: |
+        echo "**** Installing Conduit"
+        cmake --install build
+
+    - name: Check Install (using-with-cmake)
+      run: |
+        echo "**** Checking Conduit using-with-cmake example"
+        cd install/examples/conduit/using-with-cmake
+        cmake -S . -B build
+        cmake --build build --verbose -j2
+        ./build/conduit_example
