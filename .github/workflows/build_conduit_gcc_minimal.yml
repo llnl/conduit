@@ -72,7 +72,7 @@ jobs:
         echo "**** Installing Conduit"
         cmake --install build
 
-    - name: Check Install
+    - name: Check Install (using-with-cmake)
       run: |
         echo "**** Checking Conduit using-with-cmake example"
         cd install/examples/conduit/using-with-cmake
