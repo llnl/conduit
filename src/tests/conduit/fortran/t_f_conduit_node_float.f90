@@ -86,7 +86,7 @@ contains
     !--------------------------------------------------------------------------
     subroutine t_node_set_external_float32_ptr
         type(C_PTR) cnode
-        real(4), dimension(5) :: data
+        real(4), dimension(5), target :: data
         real(4) res
         integer i
         real(4), pointer :: f_arr(:)
@@ -134,7 +134,7 @@ contains
     !--------------------------------------------------------------------------
     subroutine t_node_set_external_float32_ptr_detailed
         type(C_PTR) cnode
-        real(4), dimension(5) :: data
+        real(4), dimension(5), target :: data
         real(4) res
         integer i
         real(4), pointer :: f_arr(:)
@@ -361,7 +361,7 @@ contains
     !--------------------------------------------------------------------------
     subroutine t_node_set_and_fetch_path_external_float32_ptr
         type(C_PTR) cnode
-        real(4), dimension(5) :: data
+        real(4), dimension(5), target :: data
         real(4) res
         integer i
         real(4), pointer :: f_arr(:)
@@ -409,7 +409,7 @@ contains
     !--------------------------------------------------------------------------
     subroutine t_node_set_and_fetch_path_external_float32_ptr_detailed
         type(C_PTR) cnode
-        real(4), dimension(5) :: data
+        real(4), dimension(5), target :: data
         real(4) res
         integer i
         real(4), pointer :: f_arr(:)
@@ -525,7 +525,7 @@ contains
     !--------------------------------------------------------------------------
     subroutine t_node_set_external_float64_ptr
         type(C_PTR) cnode
-        real(8), dimension(5) :: data
+        real(8), dimension(5), target :: data
         real(8) res
         integer i
         real(8), pointer :: f_arr(:)
@@ -573,7 +573,7 @@ contains
     !--------------------------------------------------------------------------
     subroutine t_node_set_external_float64_ptr_detailed
         type(C_PTR) cnode
-        real(8), dimension(5) :: data
+        real(8), dimension(5), target :: data
         real(8) res
         integer i
         real(8), pointer :: f_arr(:)
@@ -801,7 +801,7 @@ contains
     !--------------------------------------------------------------------------
     subroutine t_node_set_and_fetch_path_external_float64_ptr
         type(C_PTR) cnode
-        real(8), dimension(5) :: data
+        real(8), dimension(5), target :: data
         real(8) res
         integer i
         real(8), pointer :: f_arr(:)
@@ -849,7 +849,7 @@ contains
     !--------------------------------------------------------------------------
     subroutine t_node_set_and_fetch_path_external_float64_ptr_detailed
         type(C_PTR) cnode
-        real(8), dimension(5) :: data
+        real(8), dimension(5), target :: data
         real(8) res
         integer i
         real(8), pointer :: f_arr(:)

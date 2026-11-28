@@ -33,6 +33,8 @@ and this project aspires to adhere to [Semantic Versioning](https://semver.org/s
 - Fixed backslash (Windows) paths in `PYTHON_EXECUTABLE` and `PYTHON_MODULE_INSTALL_PREFIX`, which broke installing the python modules with CMake 4 and loading the installed `ConduitConfig.cmake`, and installing the python modules from paths with spaces.
 
 #### Conduit
+- Fixed the `data` argument of the Fortran `set_external` APIs (`conduit_node_set_external_*_ptr`, `conduit_node_set_path_external_*_ptr`, their `_detailed` variants, and the `node` object's `set_external_*_ptr` and `set_path_external_*_ptr`), which the node keeps referring to: it now has the `target` attribute, and is `intent(in)` instead of `intent(out)` in the `node` object's methods. Without `target`, compilers may assume that the node cannot access `data` after the call, e.g. GCC 15 with `-O3` dropped writes to `data` that the node reads later. Arrays passed to these APIs should also be declared with `target`.
+- Fixed the `data` argument of the Fortran `node` object's `set_*_ptr` and `set_path_*_ptr` methods, which copy `data`: it is `intent(in)` instead of `intent(out)`.
 
 #### Blueprint
 

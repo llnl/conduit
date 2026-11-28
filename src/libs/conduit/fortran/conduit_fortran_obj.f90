@@ -700,7 +700,7 @@ contains
         use iso_c_binding
         implicit none
         class(node) :: obj
-        integer(4), intent (out), dimension (*) :: data
+        integer(4), intent (IN), dimension (*) :: data
         integer(C_SIZE_T) :: num_elements
         call conduit_node_set_int32_ptr(obj%cnode,data,num_elements)
     end subroutine conduit_node_obj_set_int32_ptr
@@ -710,7 +710,7 @@ contains
         use iso_c_binding
         implicit none
         class(node) :: obj
-        integer(4), intent (out), dimension (*) :: data
+        integer(4), intent (IN), dimension (*), target :: data
         integer(C_SIZE_T) :: num_elements
         call conduit_node_set_external_int32_ptr(obj%cnode, data, num_elements)
     end subroutine conduit_node_obj_set_external_int32_ptr
@@ -733,7 +733,7 @@ contains
         implicit none
         class(node) :: obj
         character(*) :: path
-        integer(4), intent (out), dimension (*) :: data
+        integer(4), intent (IN), dimension (*) :: data
         integer(C_SIZE_T) :: num_elements
         call conduit_node_set_path_int32_ptr(obj%cnode, path, data, num_elements)
     end subroutine conduit_node_obj_set_path_int32_ptr
@@ -744,7 +744,7 @@ contains
         implicit none
         class(node) :: obj
         character(*) :: path
-        integer(4), intent (out), dimension (*) :: data
+        integer(4), intent (IN), dimension (*), target :: data
         integer(C_SIZE_T) :: num_elements
         call conduit_node_set_path_external_int32_ptr(obj%cnode, path, data, num_elements)
     end subroutine conduit_node_obj_set_path_external_int32_ptr
@@ -813,7 +813,7 @@ contains
         use iso_c_binding
         implicit none
         class(node) :: obj
-        integer(8), intent (out), dimension (*) :: data
+        integer(8), intent (IN), dimension (*) :: data
         integer(C_SIZE_T) :: num_elements
         call conduit_node_set_int64_ptr(obj%cnode,data,num_elements)
     end subroutine conduit_node_obj_set_int64_ptr
@@ -823,7 +823,7 @@ contains
         use iso_c_binding
         implicit none
         class(node) :: obj
-        integer(8), intent (out), dimension (*) :: data
+        integer(8), intent (IN), dimension (*), target :: data
         integer(C_SIZE_T) :: num_elements
         call conduit_node_set_external_int64_ptr(obj%cnode, data, num_elements)
     end subroutine conduit_node_obj_set_external_int64_ptr
@@ -846,7 +846,7 @@ contains
         implicit none
         class(node) :: obj
         character(*) :: path
-        integer(8), intent (out), dimension (*) :: data
+        integer(8), intent (IN), dimension (*) :: data
         integer(C_SIZE_T) :: num_elements
         call conduit_node_set_path_int64_ptr(obj%cnode, path, data, num_elements)
     end subroutine conduit_node_obj_set_path_int64_ptr
@@ -857,7 +857,7 @@ contains
         implicit none
         class(node) :: obj
         character(*) :: path
-        integer(8), intent (out), dimension (*) :: data
+        integer(8), intent (IN), dimension (*), target :: data
         integer(C_SIZE_T) :: num_elements
         call conduit_node_set_path_external_int64_ptr(obj%cnode, path, data, num_elements)
     end subroutine conduit_node_obj_set_path_external_int64_ptr
@@ -925,7 +925,7 @@ contains
         use iso_c_binding
         implicit none
         class(node) :: obj
-        real(4), intent (out), dimension (*) :: data
+        real(4), intent (IN), dimension (*) :: data
         integer(C_SIZE_T) :: num_elements
         call conduit_node_set_float32_ptr(obj%cnode,data,num_elements)
     end subroutine conduit_node_obj_set_float32_ptr
@@ -935,7 +935,7 @@ contains
         use iso_c_binding
         implicit none
         class(node) :: obj
-        real(4), intent (out), dimension (*) :: data
+        real(4), intent (IN), dimension (*), target :: data
         integer(C_SIZE_T) :: num_elements
         call conduit_node_set_external_float32_ptr(obj%cnode, data, num_elements)
     end subroutine conduit_node_obj_set_external_float32_ptr
@@ -958,7 +958,7 @@ contains
         implicit none
         class(node) :: obj
         character(*) :: path
-        real(4), intent (out), dimension (*) :: data
+        real(4), intent (IN), dimension (*) :: data
         integer(C_SIZE_T) :: num_elements
         call conduit_node_set_path_float32_ptr(obj%cnode, path, data, num_elements)
     end subroutine conduit_node_obj_set_path_float32_ptr
@@ -969,7 +969,7 @@ contains
         implicit none
         class(node) :: obj
         character(*) :: path
-        real(4), intent (out), dimension (*) :: data
+        real(4), intent (IN), dimension (*), target :: data
         integer(C_SIZE_T) :: num_elements
         call conduit_node_set_path_external_float32_ptr(obj%cnode, path, data, num_elements)
     end subroutine conduit_node_obj_set_path_external_float32_ptr
@@ -1037,7 +1037,7 @@ contains
         use iso_c_binding
         implicit none
         class(node) :: obj
-        real(8), intent (out), dimension (*) :: data
+        real(8), intent (IN), dimension (*) :: data
         integer(C_SIZE_T) :: num_elements
         call conduit_node_set_float64_ptr(obj%cnode,data,num_elements)
     end subroutine conduit_node_obj_set_float64_ptr
@@ -1047,7 +1047,7 @@ contains
         use iso_c_binding
         implicit none
         class(node) :: obj
-        real(8), intent (out), dimension (*) :: data
+        real(8), intent (IN), dimension (*), target :: data
         integer(C_SIZE_T) :: num_elements
         call conduit_node_set_external_float64_ptr(obj%cnode, data, num_elements)
     end subroutine conduit_node_obj_set_external_float64_ptr
@@ -1070,7 +1070,7 @@ contains
         implicit none
         class(node) :: obj
         character(*) :: path
-        real(8), intent (out), dimension (*) :: data
+        real(8), intent (IN), dimension (*) :: data
         integer(C_SIZE_T) :: num_elements
         call conduit_node_set_path_float64_ptr(obj%cnode, path, data, num_elements)
     end subroutine conduit_node_obj_set_path_float64_ptr
@@ -1081,7 +1081,7 @@ contains
         implicit none
         class(node) :: obj
         character(*) :: path
-        real(8), intent (out), dimension (*) :: data
+        real(8), intent (IN), dimension (*), target :: data
         integer(C_SIZE_T) :: num_elements
         call conduit_node_set_path_external_float64_ptr(obj%cnode, path, data, num_elements)
     end subroutine conduit_node_obj_set_path_external_float64_ptr

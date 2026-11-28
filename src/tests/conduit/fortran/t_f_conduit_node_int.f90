@@ -86,7 +86,7 @@ contains
     !--------------------------------------------------------------------------
     subroutine t_node_set_external_int32_ptr
         type(C_PTR) cnode
-        integer(4), dimension(5) :: data
+        integer(4), dimension(5), target :: data
         integer res
         integer i
         integer(4), pointer :: f_arr(:)
@@ -135,7 +135,7 @@ contains
     !--------------------------------------------------------------------------
     subroutine t_node_set_external_int32_ptr_detailed
         type(C_PTR) cnode
-        integer(4), dimension(5) :: data
+        integer(4), dimension(5), target :: data
         integer res
         integer i
         integer(4), pointer :: f_arr(:)
@@ -363,7 +363,7 @@ contains
     !--------------------------------------------------------------------------
     subroutine t_node_set_and_fetch_path_external_int32_ptr
         type(C_PTR) cnode
-        integer(4), dimension(5) :: data
+        integer(4), dimension(5), target :: data
         integer res
         integer i
         integer(4), pointer :: f_arr(:)
@@ -411,7 +411,7 @@ contains
     !--------------------------------------------------------------------------
     subroutine t_node_set_and_fetch_path_external_int32_ptr_detailed
         type(C_PTR) cnode
-        integer(4), dimension(5) :: data
+        integer(4), dimension(5), target :: data
         integer res
         integer i
         integer(4), pointer :: f_arr(:)
@@ -526,7 +526,7 @@ contains
     !--------------------------------------------------------------------------
     subroutine t_node_set_external_int64_ptr
         type(C_PTR) cnode
-        integer(8), dimension(5) :: data
+        integer(8), dimension(5), target :: data
         integer(8) res
         integer i
         integer(8), pointer :: f_arr(:)
@@ -581,7 +581,7 @@ contains
     !--------------------------------------------------------------------------
     subroutine t_node_set_external_int64_ptr_detailed
         type(C_PTR) cnode
-        integer(8), dimension(5) :: data
+        integer(8), dimension(5), target :: data
         integer(8) res
         integer i
         integer(8), pointer :: f_arr(:)
@@ -821,7 +821,7 @@ contains
     !--------------------------------------------------------------------------
     subroutine t_node_set_and_fetch_path_external_int64_ptr
         type(C_PTR) cnode
-        integer(8), dimension(5) :: data
+        integer(8), dimension(5), target :: data
         integer(8) res
         integer i
         integer(8), pointer :: f_arr(:)
@@ -877,7 +877,7 @@ contains
     !--------------------------------------------------------------------------
     subroutine t_node_set_and_fetch_path_external_int64_ptr_detailed
         type(C_PTR) cnode
-        integer(8), dimension(5) :: data
+        integer(8), dimension(5), target :: data
         integer(8) res
         integer i
         integer(8), pointer :: f_arr(:)

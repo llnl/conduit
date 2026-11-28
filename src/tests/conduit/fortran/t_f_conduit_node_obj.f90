@@ -325,7 +325,7 @@ contains
     !--------------------------------------------------------------------------
     subroutine t_node_obj_set_external_int32_ptr
         type(node) obj
-        integer(4), dimension(5) :: data
+        integer(4), dimension(5), target :: data
         integer res
         integer i
         integer(4), pointer :: f_arr(:)
